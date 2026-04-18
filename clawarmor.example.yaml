@@ -1,0 +1,63 @@
+agent:
+  instruction: ""
+  systemPrompt: ""
+
+model:
+  name: gpt-5.4-mini
+  apiKey: ""
+  baseURL: ""
+  temperature: 0.2
+  maxTokens: 1200
+  stream: true
+
+memory:
+  enabled: true
+  limit: 0
+  tools:
+    search: true
+    load: false
+    add: false
+    update: false
+    delete: false
+    clear: false
+
+tools:
+  hostExec:
+    enabled: true
+    baseDir: "."
+    baseEnv: {}
+
+  webFetch:
+    enabled: false
+    timeoutMs: 30000
+    maxContentLength: 0
+    maxTotalContentLength: 0
+
+  file:
+    enabled: false
+    baseDir: "."
+
+  arxiv:
+    enabled: false
+    baseURL: ""
+    pageSize: 10
+    delayMs: 0
+    numRetries: 2
+
+  openAPI: []
+  # - enabled: true
+  #   name: petstore
+  #   specFile: ./openapi/petstore.yaml
+  #   specUrl: ""
+
+  mcp: []
+  # - enabled: true
+  #   name: playwright
+  #   transport: stdio
+  #   serverUrl: ""
+  #   command: npx
+  #   args: ["@playwright/mcp@latest"]
+  #   headers: {}
+  #   timeoutMs: 30000
+  #   reconnect: true
+  #   reconnectMaxAttempts: 3

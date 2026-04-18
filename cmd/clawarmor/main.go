@@ -6,8 +6,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/urfave/cli/v3"
+
+	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 )
 
 func main() {
@@ -41,7 +42,7 @@ var cmd = &cli.Command{
 			Value: false,
 		},
 	},
-	Commands: []*cli.Command{},
+	Commands: []*cli.Command{agentCmd},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		level := c.String("log-level")
 		if level != "debug" && level != "info" && level != "error" {

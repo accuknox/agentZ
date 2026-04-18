@@ -10,10 +10,11 @@ import (
 
 // Config stores the full local agent runtime configuration.
 type Config struct {
-	Agent  AgentConfig  `koanf:"agent"`
-	Model  ModelConfig  `koanf:"model"`
-	Memory MemoryConfig `koanf:"memory"`
-	Tools  ToolsConfig  `koanf:"tools"`
+	Agent   AgentConfig   `koanf:"agent"`
+	Model   ModelConfig   `koanf:"model"`
+	Memory  MemoryConfig  `koanf:"memory"`
+	Session SessionConfig `koanf:"session"`
+	Tools   ToolsConfig   `koanf:"tools"`
 }
 
 // AgentConfig defines agent identity and prompt settings.
@@ -47,6 +48,15 @@ type MemoryToolsConfig struct {
 	Update bool `koanf:"update"`
 	Delete bool `koanf:"delete"`
 	Clear  bool `koanf:"clear"`
+}
+
+// SessionConfig defines the external session service connection.
+type SessionConfig struct {
+	Enabled   bool   `koanf:"enabled"`
+	Target    string `koanf:"target"`
+	Insecure  bool   `koanf:"insecure"`
+	TimeoutMs int    `koanf:"timeoutMs"`
+	SessionID string `koanf:"sessionID"`
 }
 
 // ToolsConfig defines tool and toolset configuration.
@@ -137,20 +147,14 @@ func (c Config) Validate() error {
 	if c.Model.Name == "" {
 		return fmt.Errorf("model.name is required")
 	}
-
-	err := c.validateOpenAPI()
-	if err != nil {
-		return err
+	if c.Session.Enabled {
+		if c.Session.Target == "" {
+			return fmt.Errorf("session.target is required when session is enabled")
+		}
+		if c.Session.SessionID == "" {
+			return fmt.Errorf("session.sessionID is required when session is enabled")
+		}
 	}
-
-	err = c.validateMCP()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c Config) validateOpenAPI() error {
 	for i := range c.Tools.OpenAPI {
 		entry := c.Tools.OpenAPI[i]
 		if !entry.Enabled {
@@ -164,10 +168,6 @@ func (c Config) validateOpenAPI() error {
 		}
 		return fmt.Errorf("openApi[%d] requires specFile or specUrl", i)
 	}
-	return nil
-}
-
-func (c Config) validateMCP() error {
 	for i := range c.Tools.MCP {
 		entry := c.Tools.MCP[i]
 		if !entry.Enabled {

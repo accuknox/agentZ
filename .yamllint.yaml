@@ -1,0 +1,11 @@
+extends: default
+ignore:
+- .ref/
+rules:
+  indentation:
+    indent-sequences: false
+  line-length:
+    ignore: "*"
+  comments:
+    min-spaces-from-content: 1
+  document-start: disable

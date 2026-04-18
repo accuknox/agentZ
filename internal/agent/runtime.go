@@ -3,17 +3,20 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 	"github.com/accuknox/clawarmor/internal/agent/log"
+	sessionstore "github.com/accuknox/clawarmor/internal/session"
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/memory"
 	meminmemory "trpc.group/trpc-go/trpc-agent-go/memory/inmemory"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
+	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 	sessioninmemory "trpc.group/trpc-go/trpc-agent-go/session/inmemory"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/arxivsearch"
@@ -24,12 +27,6 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/tool/webfetch/httpfetch"
 )
 
-const (
-	appName   = "clawarmor-agent"
-	userID    = "default-user"
-	sessionID = "default-session"
-)
-
 // Options configures the local agent runtime and REPL identity.
 type Options struct {
 	ConfigPath string
@@ -37,10 +34,13 @@ type Options struct {
 
 // Runtime holds the runnable agent system for REPL use.
 type Runtime struct {
-	runner    runner.Runner
-	memorySvc memory.Service
-	toolSets  []tool.ToolSet
-	stream    bool
+	runner     runner.Runner
+	memorySvc  memory.Service
+	sessionSvc agentsession.Service
+	sessionCl  io.Closer
+	sessionID  string
+	toolSets   []tool.ToolSet
+	stream     bool
 }
 
 // NewRuntime constructs a local in-memory agent runtime from YAML config.
@@ -66,15 +66,12 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 	}
 	mdl := openai.New(cfg.Model.Name, modelOpts...)
 
-	memorySvc, err := buildMemoryService(cfg)
-	if err != nil {
-		return nil, err
-	}
+	memorySvc := buildMemoryService(cfg)
 
 	tools, toolSets, err := buildTools(ctx, cfg)
 	if err != nil {
 		if memorySvc != nil {
-			_ = memorySvc.Close()
+			memorySvc.Close()
 		}
 		return nil, err
 	}
@@ -104,19 +101,34 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 	}
 	agt := llmagent.New("clawarmor", agentOpts...)
 
+	sessionSvc, sessionCl, runSessionID, err := buildSessionService(ctx, cfg)
+	if err != nil {
+		memorySvc.Close()
+		for _, toolSet := range toolSets {
+			if toolSet == nil {
+				continue
+			}
+			toolSet.Close()
+		}
+		return nil, err
+	}
+
 	runnerOpts := []runner.Option{
-		runner.WithSessionService(sessioninmemory.NewSessionService()),
+		runner.WithSessionService(sessionSvc),
 	}
 	if memorySvc != nil {
 		runnerOpts = append(runnerOpts, runner.WithMemoryService(memorySvc))
 	}
-	rnr := runner.NewRunner(appName, agt, runnerOpts...)
+	rnr := runner.NewRunner(sessionstore.DefaultAppName, agt, runnerOpts...)
 
 	return &Runtime{
-		runner:    rnr,
-		memorySvc: memorySvc,
-		toolSets:  toolSets,
-		stream:    cfg.Model.Stream,
+		runner:     rnr,
+		memorySvc:  memorySvc,
+		sessionSvc: sessionSvc,
+		sessionCl:  sessionCl,
+		sessionID:  runSessionID,
+		toolSets:   toolSets,
+		stream:     cfg.Model.Stream,
 	}, nil
 }
 
@@ -147,12 +159,42 @@ func (r *Runtime) Close() error {
 			firstErr = err
 		}
 	}
+	if r.sessionCl != nil {
+		err := r.sessionCl.Close()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 	return firstErr
 }
 
-func buildMemoryService(cfg agentconfig.Config) (memory.Service, error) {
+func buildSessionService(ctx context.Context, cfg agentconfig.Config) (agentsession.Service, io.Closer, string, error) {
+	if !cfg.Session.Enabled {
+		return sessioninmemory.NewSessionService(), nil, sessionstore.DefaultSessionID, nil
+	}
+
+	svc, err := sessionstore.NewSessionServiceClient(sessionstore.ClientConfig{
+		Target:    cfg.Session.Target,
+		Insecure:  cfg.Session.Insecure,
+		Timeout:   time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
+		SessionID: cfg.Session.SessionID,
+	})
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	err = svc.EnsureSessionExists(ctx, cfg.Session.SessionID)
+	if err != nil {
+		svc.Close()
+		return nil, nil, "", fmt.Errorf("session %q not found: %w", cfg.Session.SessionID, err)
+	}
+
+	return svc, svc, cfg.Session.SessionID, nil
+}
+
+func buildMemoryService(cfg agentconfig.Config) memory.Service {
 	if !cfg.Memory.Enabled {
-		return nil, nil
+		return nil
 	}
 
 	opts := make([]meminmemory.ServiceOpt, 0, 16)
@@ -172,9 +214,10 @@ func buildMemoryService(cfg agentconfig.Config) (memory.Service, error) {
 	setMemoryTool(memory.DeleteToolName, cfg.Memory.Tools.Delete, cfg.Memory.Tools.Delete)
 	setMemoryTool(memory.ClearToolName, cfg.Memory.Tools.Clear, cfg.Memory.Tools.Clear)
 
-	return meminmemory.NewMemoryService(opts...), nil
+	return meminmemory.NewMemoryService(opts...)
 }
 
+//nolint:gocyclo
 func buildTools(ctx context.Context, cfg agentconfig.Config) ([]tool.Tool, []tool.ToolSet, error) {
 	tools := make([]tool.Tool, 0, 32)
 	toolSets := make([]tool.ToolSet, 0, 16)
@@ -195,11 +238,12 @@ func buildTools(ctx context.Context, cfg agentconfig.Config) ([]tool.Tool, []too
 	}
 
 	if cfg.Tools.WebFetch.Enabled {
-		fetchOpts := []httpfetch.Option{
-			httpfetch.WithHTTPClient(
-				buildHTTPClient(cfg.Tools.WebFetch.TimeoutMs),
-			),
+		client := &http.Client{Timeout: 30 * time.Second}
+		if cfg.Tools.WebFetch.TimeoutMs > 0 {
+			client.Timeout = time.Duration(cfg.Tools.WebFetch.TimeoutMs) *
+				time.Millisecond
 		}
+		fetchOpts := []httpfetch.Option{httpfetch.WithHTTPClient(client)}
 		if cfg.Tools.WebFetch.MaxContentLength > 0 {
 			fetchOpts = append(fetchOpts, httpfetch.WithMaxContentLength(cfg.Tools.WebFetch.MaxContentLength))
 		}
@@ -307,12 +351,4 @@ func buildTools(ctx context.Context, cfg agentconfig.Config) ([]tool.Tool, []too
 	}
 
 	return tools, toolSets, nil
-}
-
-func buildHTTPClient(timeoutMs int) *http.Client {
-	client := &http.Client{Timeout: 30 * time.Second}
-	if timeoutMs > 0 {
-		client.Timeout = time.Duration(timeoutMs) * time.Millisecond
-	}
-	return client
 }

@@ -11,7 +11,7 @@ var trpcLoggerOnce sync.Once
 
 func SetupTRPCAgentLogger() {
 	trpcLoggerOnce.Do(func() {
-		lg := newSlogAdapter()
+		lg := &slogAdapter{}
 		agentlog.Default = lg
 		agentlog.ContextDefault = lg
 		a2alog.Default = lg

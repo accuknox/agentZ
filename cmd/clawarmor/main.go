@@ -42,10 +42,10 @@ var cmd = &cli.Command{
 			Value: false,
 		},
 	},
-	Commands: []*cli.Command{agentCmd},
+	Commands: []*cli.Command{agentCmd, sessionCmd},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		level := c.String("log-level")
-		if level != "debug" && level != "info" && level != "error" {
+		if level != "debug" && level != "info" && level != "warn" && level != "error" {
 			return ctx, fmt.Errorf("invalid log level %q", level)
 		}
 		format := c.String("log-format")

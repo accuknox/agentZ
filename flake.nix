@@ -38,6 +38,9 @@
               kubernetes-controller-tools
               kustomize
               kind
+              yamlfmt
+              yamllint
+              yaml-language-server
             ];
           };
         });

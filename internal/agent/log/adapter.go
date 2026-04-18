@@ -8,16 +8,12 @@ import (
 
 type slogAdapter struct{}
 
-func newSlogAdapter() *slogAdapter {
-	return &slogAdapter{}
-}
-
 func (l *slogAdapter) Debug(args ...any) {
 	slog.Debug(fmt.Sprint(args...))
 }
 
 func (l *slogAdapter) Debugf(format string, args ...any) {
-	slog.Debug(format, args...)
+	slog.Debug(fmt.Sprintf(format, args...))
 }
 
 func (l *slogAdapter) Info(args ...any) {
@@ -25,7 +21,7 @@ func (l *slogAdapter) Info(args ...any) {
 }
 
 func (l *slogAdapter) Infof(format string, args ...any) {
-	slog.Info(format, args...)
+	slog.Info(fmt.Sprintf(format, args...))
 }
 
 func (l *slogAdapter) Warn(args ...any) {
@@ -33,7 +29,7 @@ func (l *slogAdapter) Warn(args ...any) {
 }
 
 func (l *slogAdapter) Warnf(format string, args ...any) {
-	slog.Warn(format, args...)
+	slog.Warn(fmt.Sprintf(format, args...))
 }
 
 func (l *slogAdapter) Error(args ...any) {
@@ -41,7 +37,7 @@ func (l *slogAdapter) Error(args ...any) {
 }
 
 func (l *slogAdapter) Errorf(format string, args ...any) {
-	slog.Error(format, args...)
+	slog.Error(fmt.Sprintf(format, args...))
 }
 
 func (l *slogAdapter) Fatal(args ...any) {
@@ -50,6 +46,6 @@ func (l *slogAdapter) Fatal(args ...any) {
 }
 
 func (l *slogAdapter) Fatalf(format string, args ...any) {
-	slog.Error(format, args...)
+	slog.Error(fmt.Sprintf(format, args...))
 	os.Exit(1)
 }

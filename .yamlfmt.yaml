@@ -1,0 +1,8 @@
+formatter:
+  type: basic
+  retain_line_breaks_single: true
+  trim_trailing_whitespace: true
+  scan_folded_as_literal: true
+  indentless_arrays: true
+exclude:
+- .ref/

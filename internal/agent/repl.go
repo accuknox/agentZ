@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	sessionstore "github.com/accuknox/clawarmor/internal/session"
 	"github.com/chzyer/readline"
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
@@ -22,9 +23,7 @@ func RunREPL(ctx context.Context, opts Options) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = rt.Close()
-	}()
+	defer rt.Close()
 
 	historyPath := filepath.Join(os.TempDir(), "clawarmor-agent.history")
 	rl, err := readline.NewEx(&readline.Config{
@@ -38,12 +37,12 @@ func RunREPL(ctx context.Context, opts Options) error {
 	}
 	defer rl.Close()
 
-	_, _ = fmt.Fprintln(rl.Stdout(), "Type /help for commands.")
+	fmt.Fprintln(rl.Stdout(), "Type /help for commands.")
 
 	for {
 		line, readErr := rl.Readline()
 		if errors.Is(readErr, io.EOF) {
-			_, _ = fmt.Fprintln(rl.Stdout())
+			fmt.Fprintln(rl.Stdout())
 			return nil
 		}
 		if errors.Is(readErr, readline.ErrInterrupt) {
@@ -70,21 +69,21 @@ func RunREPL(ctx context.Context, opts Options) error {
 
 		err = rt.streamPrompt(ctx, input, rl.Stdout())
 		if err != nil {
-			_, _ = fmt.Fprintf(rl.Stdout(), "error: %v\n", err)
+			fmt.Fprintf(rl.Stdout(), "error: %v\n", err)
 		}
 	}
 }
 
 func printHelp(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "/help           Show this help")
-	_, _ = fmt.Fprintln(w, "/exit, /quit    Exit REPL")
+	fmt.Fprintln(w, "/help           Show this help")
+	fmt.Fprintln(w, "/exit, /quit    Exit REPL")
 }
 
 func (r *Runtime) streamPrompt(ctx context.Context, prompt string, w io.Writer) error {
 	eventCh, err := r.runner.Run(
 		ctx,
-		userID,
-		sessionID,
+		sessionstore.DefaultUserID,
+		r.sessionID,
 		model.NewUserMessage(prompt),
 	)
 	if err != nil {
@@ -129,20 +128,20 @@ func writeEvents(w io.Writer, eventCh <-chan *event.Event, stream bool) error {
 			wroteOutput = true
 		}
 		if stream && choice.Delta.Content != "" {
-			_, _ = fmt.Fprint(w, choice.Delta.Content)
+			fmt.Fprint(w, choice.Delta.Content)
 			wroteOutput = true
 			wroteDelta = true
 		}
 		if choice.Message.Role != model.RoleTool &&
 			!wroteDelta &&
 			choice.Message.Content != "" {
-			_, _ = fmt.Fprint(w, choice.Message.Content)
+			fmt.Fprint(w, choice.Message.Content)
 			wroteOutput = true
 		}
 	}
 
 	if wroteOutput {
-		_, _ = fmt.Fprintln(w)
+		fmt.Fprintln(w)
 	}
 	return nil
 }
@@ -160,7 +159,7 @@ func printToolCall(w io.Writer, kind string, tc model.ToolCall) {
 	if name == "" {
 		name = "-"
 	}
-	_, _ = fmt.Fprintf(
+	fmt.Fprintf(
 		w,
 		"\n[%s] id=%s name=%s args=%s\n",
 		kind,
@@ -183,7 +182,7 @@ func printToolResult(w io.Writer, msg model.Message) {
 	if content == "" {
 		content = "(empty)"
 	}
-	_, _ = fmt.Fprintf(
+	fmt.Fprintf(
 		w,
 		"\n[tool_result] id=%s name=%s output=%s\n",
 		id,

@@ -21,6 +21,13 @@ memory:
     delete: false
     clear: false
 
+session:
+  enabled: false
+  target: localhost:8081
+  insecure: true
+  timeoutMs: 5000
+  sessionID: ""
+
 tools:
   hostExec:
     enabled: true

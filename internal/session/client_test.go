@@ -15,6 +15,7 @@ import (
 
 	sessionpb "github.com/accuknox/clawarmor/internal/session/proto"
 	"trpc.group/trpc-go/trpc-agent-go/event"
+	"trpc.group/trpc-go/trpc-agent-go/model"
 	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 )
 
@@ -28,6 +29,7 @@ type testSessionServer struct {
 	listSessionSummariesResp *sessionpb.ListSessionSummariesResponse
 
 	updateSessionReq *sessionpb.UpdateSessionStateRequest
+	appendEventReq   *sessionpb.AppendEventRequest
 }
 
 func (s *testSessionServer) GetSession(_ context.Context, req *sessionpb.GetSessionRequest) (*sessionpb.GetSessionResponse, error) {
@@ -41,6 +43,11 @@ func (s *testSessionServer) ListSessions(context.Context, *sessionpb.ListSession
 func (s *testSessionServer) UpdateSessionState(_ context.Context, req *sessionpb.UpdateSessionStateRequest) (*emptypb.Empty, error) {
 	s.updateSessionReq = req
 	return &emptypb.Empty{}, nil
+}
+
+func (s *testSessionServer) AppendEvent(_ context.Context, req *sessionpb.AppendEventRequest) (*sessionpb.AppendEventResponse, error) {
+	s.appendEventReq = req
+	return &sessionpb.AppendEventResponse{Event: req.GetEvent()}, nil
 }
 
 func (s *testSessionServer) ListSessionSummaries(context.Context, *sessionpb.ListSessionSummariesRequest) (*sessionpb.ListSessionSummariesResponse, error) {
@@ -177,6 +184,65 @@ func TestRemoteServiceUpdateSessionStateRejectsScopedKeys(t *testing.T) {
 	}
 	if got := err.Error(); got == "" || !strings.Contains(got, "scoped state keys are not supported") {
 		t.Fatalf("unexpected error %q", got)
+	}
+}
+
+func TestRemoteServiceAppendEventStoresTruncatedToolResult(t *testing.T) {
+	t.Parallel()
+
+	srv := &testSessionServer{}
+	client := newTestRemoteService(t, srv)
+	client.toolResultMaxTokens = 32
+	defer client.Close()
+
+	sess := agentsession.NewSession(
+		DefaultAppName,
+		DefaultUserID,
+		"11111111-1111-4111-8111-111111111111",
+	)
+	content := "HEAD-" + strings.Repeat("middle-", 400) + "-TAIL"
+	evt := &event.Event{
+		ID:        "evt-1",
+		Author:    "tool",
+		Timestamp: time.Unix(1700000000, 0).UTC(),
+		Response: &model.Response{
+			Choices: []model.Choice{{
+				Message: model.Message{
+					Role:     model.RoleTool,
+					ToolID:   "tool-1",
+					ToolName: "worker",
+					Content:  content,
+				},
+			}},
+		},
+	}
+
+	err := client.AppendEvent(context.Background(), sess, evt)
+	if err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+	if srv.appendEventReq == nil || srv.appendEventReq.GetEvent() == nil {
+		t.Fatal("expected append event request")
+	}
+
+	raw, err := jsonFromPayload(srv.appendEventReq.GetEvent().GetPayload())
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	stored, err := unmarshalEvent(raw)
+	if err != nil {
+		t.Fatalf("unmarshal event: %v", err)
+	}
+
+	got := stored.Response.Choices[0].Message.Content
+	if got == content {
+		t.Fatal("expected stored payload to be truncated")
+	}
+	if !strings.Contains(got, "[... ") {
+		t.Fatalf("expected truncation marker, got %q", got)
+	}
+	if evt.Response.Choices[0].Message.Content != content {
+		t.Fatal("expected original event content to remain unchanged")
 	}
 }
 

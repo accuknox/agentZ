@@ -28,6 +28,7 @@ type ClientConfig struct {
 	SessionID             string
 	Summarizer            sessionsummary.SessionSummarizer
 	SummaryTokenThreshold int
+	ToolResultMaxTokens   int
 }
 
 // Client implements session.Service over gRPC.
@@ -38,6 +39,7 @@ type Client struct {
 	sessionID             string
 	summarizer            sessionsummary.SessionSummarizer
 	summaryTokenThreshold int
+	toolResultMaxTokens   int
 }
 
 // NewSessionServiceClient dials the remote session service.
@@ -77,6 +79,7 @@ func NewSessionServiceClient(cfg ClientConfig) (*Client, error) {
 		sessionID:             sessionID,
 		summarizer:            cfg.Summarizer,
 		summaryTokenThreshold: cfg.SummaryTokenThreshold,
+		toolResultMaxTokens:   cfg.ToolResultMaxTokens,
 	}, nil
 }
 
@@ -305,7 +308,12 @@ func (s *Client) AppendEvent(ctx context.Context, sess *agentsession.Session, ev
 		evt.ID = uuid.NewString()
 	}
 
-	payload, err := payloadFromEvent(evt)
+	storedEvt, err := truncateEventToolResults(ctx, evt, s.toolResultMaxTokens)
+	if err != nil {
+		return err
+	}
+
+	payload, err := payloadFromEvent(storedEvt)
 	if err != nil {
 		return err
 	}

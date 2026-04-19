@@ -91,18 +91,14 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 		llmagent.WithAddSessionSummary(*cfg.Agent.AddSessionSummary),
 		llmagent.WithSyncSummaryIntraRun(true),
 		llmagent.WithEnableContextCompaction(*cfg.Agent.EnableContextCompaction),
-		llmagent.WithContextCompactionThresholdRatio(
-			cfg.Agent.ContextCompactionThresholdRatio,
-		),
+		llmagent.WithContextCompactionThresholdRatio(cfg.Agent.ContextCompactionThresholdRatio),
 		llmagent.WithContextCompactionToolResultMaxTokens(
 			ratioToTokenCount(
 				summaryFallbackWindow(cfg),
 				cfg.Agent.ContextCompactionToolResultMaxRatio,
 			),
 		),
-		llmagent.WithContextCompactionKeepRecentRequests(
-			cfg.Agent.ContextCompactionKeepRecentRequests,
-		),
+		llmagent.WithContextCompactionKeepRecentRequests(cfg.Agent.ContextCompactionKeepRecentRequests),
 		llmagent.WithContextCompactionOversizedToolResultMaxTokens(
 			ratioToTokenCount(
 				summaryFallbackWindow(cfg),
@@ -207,6 +203,10 @@ func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer
 		SessionID:             cfg.Session.SessionID,
 		Summarizer:            summarizer,
 		SummaryTokenThreshold: compactTokenThreshold(cfg),
+		ToolResultMaxTokens: ratioToTokenCount(
+			summaryFallbackWindow(cfg),
+			cfg.Agent.ContextCompactionOversizedToolResultMaxRatio,
+		),
 	})
 	if err != nil {
 		return nil, nil, "", err

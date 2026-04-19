@@ -21,9 +21,11 @@ type Querier interface {
 	ListEvents(ctx context.Context, sessionID uuid.UUID) ([]ListEventsRow, error)
 	ListEventsAfter(ctx context.Context, arg ListEventsAfterParams) ([]ListEventsAfterRow, error)
 	ListRecentEvents(ctx context.Context, arg ListRecentEventsParams) ([]ListRecentEventsRow, error)
+	ListSessionSummaries(ctx context.Context, sessionID uuid.UUID) ([]SessionSummary, error)
 	ListSessions(ctx context.Context) ([]Session, error)
 	ListStateEntries(ctx context.Context, sessionID uuid.UUID) ([]StateEntry, error)
 	TouchSession(ctx context.Context, sessionID uuid.UUID) (int64, error)
+	UpsertSessionSummary(ctx context.Context, arg UpsertSessionSummaryParams) error
 	UpsertStateEntry(ctx context.Context, arg UpsertStateEntryParams) error
 }
 

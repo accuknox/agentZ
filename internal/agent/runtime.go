@@ -13,11 +13,10 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/memory"
 	meminmemory "trpc.group/trpc-go/trpc-agent-go/memory/inmemory"
-	"trpc.group/trpc-go/trpc-agent-go/model"
-	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 	sessioninmemory "trpc.group/trpc-go/trpc-agent-go/session/inmemory"
+	agentsummary "trpc.group/trpc-go/trpc-agent-go/session/summary"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/arxivsearch"
 	filetool "trpc.group/trpc-go/trpc-agent-go/tool/file"
@@ -41,6 +40,7 @@ type Runtime struct {
 	sessionID  string
 	toolSets   []tool.ToolSet
 	stream     bool
+	blockedMsg string
 }
 
 // NewRuntime constructs a local in-memory agent runtime from YAML config.
@@ -57,14 +57,12 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 		return nil, err
 	}
 
-	modelOpts := make([]openai.Option, 0, 2)
-	if cfg.Model.APIKey != "" {
-		modelOpts = append(modelOpts, openai.WithAPIKey(cfg.Model.APIKey))
+	mdl := buildChatModel(cfg)
+	summaryModel := buildSummaryModel(cfg)
+	summarizer, err := buildSummarizer(summaryModel, cfg)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.Model.BaseURL != "" {
-		modelOpts = append(modelOpts, openai.WithBaseURL(cfg.Model.BaseURL))
-	}
-	mdl := openai.New(cfg.Model.Name, modelOpts...)
 
 	memorySvc := buildMemoryService(cfg)
 
@@ -79,19 +77,39 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 		tools = append(tools, memorySvc.Tools()...)
 	}
 
-	genConfig := model.GenerationConfig{Stream: cfg.Model.Stream}
-	if cfg.Model.Temperature > 0 {
-		genConfig.Temperature = new(cfg.Model.Temperature)
-	}
-	if cfg.Model.MaxTokens > 0 {
-		genConfig.MaxTokens = new(cfg.Model.MaxTokens)
-	}
+	genConfig := generationConfig(
+		cfg.Model.Temperature,
+		cfg.Model.MaxTokens,
+		cfg.Model.Stream,
+	)
 
 	agentOpts := []llmagent.Option{
 		llmagent.WithModel(mdl),
 		llmagent.WithInstruction(cfg.Agent.Instruction),
 		llmagent.WithGenerationConfig(genConfig),
 		llmagent.WithGlobalInstruction(cfg.Agent.SystemPrompt),
+		llmagent.WithAddSessionSummary(*cfg.Agent.AddSessionSummary),
+		llmagent.WithSyncSummaryIntraRun(true),
+		llmagent.WithEnableContextCompaction(*cfg.Agent.EnableContextCompaction),
+		llmagent.WithContextCompactionThresholdRatio(
+			cfg.Agent.ContextCompactionThresholdRatio,
+		),
+		llmagent.WithContextCompactionToolResultMaxTokens(
+			ratioToTokenCount(
+				summaryFallbackWindow(cfg),
+				cfg.Agent.ContextCompactionToolResultMaxRatio,
+			),
+		),
+		llmagent.WithContextCompactionKeepRecentRequests(
+			cfg.Agent.ContextCompactionKeepRecentRequests,
+		),
+		llmagent.WithContextCompactionOversizedToolResultMaxTokens(
+			ratioToTokenCount(
+				summaryFallbackWindow(cfg),
+				cfg.Agent.ContextCompactionOversizedToolResultMaxRatio,
+			),
+		),
+		llmagent.WithMaxHistoryRuns(cfg.Agent.MaxHistoryRuns),
 	}
 	if len(tools) > 0 {
 		agentOpts = append(agentOpts, llmagent.WithTools(tools))
@@ -101,7 +119,11 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 	}
 	agt := llmagent.New("clawarmor", agentOpts...)
 
-	sessionSvc, sessionCl, runSessionID, err := buildSessionService(ctx, cfg)
+	sessionSvc, sessionCl, runSessionID, err := buildSessionService(
+		ctx,
+		cfg,
+		summarizer,
+	)
 	if err != nil {
 		memorySvc.Close()
 		for _, toolSet := range toolSets {
@@ -129,6 +151,7 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 		sessionID:  runSessionID,
 		toolSets:   toolSets,
 		stream:     cfg.Model.Stream,
+		blockedMsg: registerModelContextWindows(cfg),
 	}, nil
 }
 
@@ -168,16 +191,22 @@ func (r *Runtime) Close() error {
 	return firstErr
 }
 
-func buildSessionService(ctx context.Context, cfg agentconfig.Config) (agentsession.Service, io.Closer, string, error) {
+func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer agentsummary.SessionSummarizer) (agentsession.Service, io.Closer, string, error) {
 	if !cfg.Session.Enabled {
-		return sessioninmemory.NewSessionService(), nil, sessionstore.DefaultSessionID, nil
+		opts := make([]sessioninmemory.ServiceOpt, 0, 2)
+		if summarizer != nil {
+			opts = append(opts, sessioninmemory.WithSummarizer(summarizer))
+		}
+		return sessioninmemory.NewSessionService(opts...), nil, sessionstore.DefaultSessionID, nil
 	}
 
 	svc, err := sessionstore.NewSessionServiceClient(sessionstore.ClientConfig{
-		Target:    cfg.Session.Target,
-		Insecure:  cfg.Session.Insecure,
-		Timeout:   time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
-		SessionID: cfg.Session.SessionID,
+		Target:                cfg.Session.Target,
+		Insecure:              cfg.Session.Insecure,
+		Timeout:               time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
+		SessionID:             cfg.Session.SessionID,
+		Summarizer:            summarizer,
+		SummaryTokenThreshold: compactTokenThreshold(cfg),
 	})
 	if err != nil {
 		return nil, nil, "", err
@@ -238,10 +267,9 @@ func buildTools(ctx context.Context, cfg agentconfig.Config) ([]tool.Tool, []too
 	}
 
 	if cfg.Tools.WebFetch.Enabled {
-		client := &http.Client{Timeout: 30 * time.Second}
-		if cfg.Tools.WebFetch.TimeoutMs > 0 {
-			client.Timeout = time.Duration(cfg.Tools.WebFetch.TimeoutMs) *
-				time.Millisecond
+		client := &http.Client{
+			Timeout: time.Duration(cfg.Tools.WebFetch.TimeoutMs) *
+				time.Millisecond,
 		}
 		fetchOpts := []httpfetch.Option{httpfetch.WithHTTPClient(client)}
 		if cfg.Tools.WebFetch.MaxContentLength > 0 {
@@ -336,11 +364,10 @@ func buildTools(ctx context.Context, cfg agentconfig.Config) ([]tool.Tool, []too
 			mcpOpts = append(mcpOpts, mcp.WithName(entry.Name))
 		}
 		if entry.Reconnect {
-			maxAttempts := entry.ReconnectMaxAttempt
-			if maxAttempts <= 0 {
-				maxAttempts = 3
-			}
-			mcpOpts = append(mcpOpts, mcp.WithSessionReconnect(maxAttempts))
+			mcpOpts = append(
+				mcpOpts,
+				mcp.WithSessionReconnect(entry.ReconnectMaxAttempt),
+			)
 		}
 		ts := mcp.NewMCPToolSet(mcpConfig, mcpOpts...)
 		err := ts.Init(ctx)

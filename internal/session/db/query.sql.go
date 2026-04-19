@@ -314,6 +314,38 @@ func (q *Queries) ListRecentEvents(ctx context.Context, arg ListRecentEventsPara
 	return items, nil
 }
 
+const listSessionSummaries = `-- name: ListSessionSummaries :many
+SELECT session_id, filter_key, summary, updated_at
+FROM session_summaries
+WHERE session_id = $1
+ORDER BY updated_at DESC, filter_key ASC
+`
+
+func (q *Queries) ListSessionSummaries(ctx context.Context, sessionID uuid.UUID) ([]SessionSummary, error) {
+	rows, err := q.db.Query(ctx, listSessionSummaries, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionSummary{}
+	for rows.Next() {
+		var i SessionSummary
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.FilterKey,
+			&i.Summary,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSessions = `-- name: ListSessions :many
 SELECT session_id, created_at, updated_at
 FROM sessions
@@ -384,6 +416,31 @@ func (q *Queries) TouchSession(ctx context.Context, sessionID uuid.UUID) (int64,
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertSessionSummary = `-- name: UpsertSessionSummary :exec
+INSERT INTO session_summaries(session_id, filter_key, summary, updated_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT(session_id, filter_key) DO UPDATE
+SET summary = EXCLUDED.summary,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertSessionSummaryParams struct {
+	SessionID uuid.UUID `json:"session_id"`
+	FilterKey string    `json:"filter_key"`
+	Summary   []byte    `json:"summary"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) UpsertSessionSummary(ctx context.Context, arg UpsertSessionSummaryParams) error {
+	_, err := q.db.Exec(ctx, upsertSessionSummary,
+		arg.SessionID,
+		arg.FilterKey,
+		arg.Summary,
+		arg.UpdatedAt,
+	)
+	return err
 }
 
 const upsertStateEntry = `-- name: UpsertStateEntry :exec

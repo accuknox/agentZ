@@ -15,23 +15,29 @@ import (
 
 	sessionpb "github.com/accuknox/clawarmor/internal/session/proto"
 	"trpc.group/trpc-go/trpc-agent-go/event"
+	"trpc.group/trpc-go/trpc-agent-go/model"
 	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
+	sessionsummary "trpc.group/trpc-go/trpc-agent-go/session/summary"
 )
 
 // ClientConfig configures the remote session service adapter.
 type ClientConfig struct {
-	Target    string
-	Insecure  bool
-	Timeout   time.Duration
-	SessionID string
+	Target                string
+	Insecure              bool
+	Timeout               time.Duration
+	SessionID             string
+	Summarizer            sessionsummary.SessionSummarizer
+	SummaryTokenThreshold int
 }
 
 // Client implements session.Service over gRPC.
 type Client struct {
-	conn      *grpc.ClientConn
-	client    sessionpb.SessionServiceClient
-	timeout   time.Duration
-	sessionID string
+	conn                  *grpc.ClientConn
+	client                sessionpb.SessionServiceClient
+	timeout               time.Duration
+	sessionID             string
+	summarizer            sessionsummary.SessionSummarizer
+	summaryTokenThreshold int
 }
 
 // NewSessionServiceClient dials the remote session service.
@@ -65,10 +71,12 @@ func NewSessionServiceClient(cfg ClientConfig) (*Client, error) {
 	}
 
 	return &Client{
-		conn:      conn,
-		client:    sessionpb.NewSessionServiceClient(conn),
-		timeout:   timeout,
-		sessionID: sessionID,
+		conn:                  conn,
+		client:                sessionpb.NewSessionServiceClient(conn),
+		timeout:               timeout,
+		sessionID:             sessionID,
+		summarizer:            cfg.Summarizer,
+		summaryTokenThreshold: cfg.SummaryTokenThreshold,
 	}, nil
 }
 
@@ -96,7 +104,7 @@ func (s *Client) CreateSession(ctx context.Context, key agentsession.Key, state 
 		return nil, err
 	}
 
-	return buildSession(resp.GetSession(), nil, nil)
+	return buildSession(resp.GetSession(), nil, nil, nil)
 }
 
 // GetSession loads one session, its state, and filtered events.
@@ -141,6 +149,7 @@ func (s *Client) GetSession(ctx context.Context, key agentsession.Key, opts ...a
 		resp.GetSession(),
 		resp.GetSessionStates(),
 		resp.GetEvents(),
+		resp.GetSummaries(),
 	)
 }
 
@@ -169,7 +178,7 @@ func (s *Client) ListSessions(ctx context.Context, userKey agentsession.UserKey,
 	items := make([]*agentsession.Session, 0, len(resp.GetSessions()))
 	for _, meta := range resp.GetSessions() {
 		if opt.ListSessionOnlyMeta {
-			sess, buildErr := buildSession(meta, nil, nil)
+			sess, buildErr := buildSession(meta, nil, nil, nil)
 			if buildErr != nil {
 				return nil, buildErr
 			}
@@ -334,19 +343,86 @@ func (s *Client) AppendEvent(ctx context.Context, sess *agentsession.Session, ev
 	return nil
 }
 
-// CreateSessionSummary is a no-op until summary persistence is added.
+// CreateSessionSummary generates and persists a summary for a session.
 func (s *Client) CreateSessionSummary(ctx context.Context, sess *agentsession.Session, filterKey string, force bool) error {
-	return nil
+	if s.summarizer == nil {
+		return nil
+	}
+
+	if sess == nil {
+		return agentsession.ErrNilSession
+	}
+
+	err := validateSessionKey(agentsession.Key{
+		AppName:   sess.AppName,
+		UserID:    sess.UserID,
+		SessionID: sess.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	sum, updated, err := s.generateSessionSummary(ctx, sess, filterKey, force)
+	if err != nil || !updated {
+		return err
+	}
+
+	return s.persistSessionSummary(ctx, sess.ID, filterKey, sum)
 }
 
-// EnqueueSummaryJob is a no-op until summary persistence is added.
+// EnqueueSummaryJob generates a summary synchronously for the remote service.
 func (s *Client) EnqueueSummaryJob(ctx context.Context, sess *agentsession.Session, filterKey string, force bool) error {
-	return nil
+	return s.CreateSessionSummary(ctx, sess, filterKey, force)
 }
 
-// GetSessionSummaryText reports no persisted summary for now.
+// GetSessionSummaryText returns a cached or persisted session summary.
 func (s *Client) GetSessionSummaryText(ctx context.Context, sess *agentsession.Session, opts ...agentsession.SummaryOption) (string, bool) {
-	return "", false
+	if sess == nil {
+		return "", false
+	}
+
+	options := &agentsession.SummaryOptions{
+		FilterKey: agentsession.SummaryFilterKeyAllContents,
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	if text, ok := summaryTextFromSession(sess, options.FilterKey); ok {
+		return text, true
+	}
+
+	callCtx, cancel := s.rpcContext(ctx)
+	defer cancel()
+
+	resp, err := s.client.ListSessionSummaries(callCtx, &sessionpb.ListSessionSummariesRequest{
+		SessionId: sess.ID,
+	})
+	if err != nil {
+		return "", false
+	}
+
+	sess.SummariesMu.Lock()
+
+	if sess.Summaries == nil {
+		sess.Summaries = make(map[string]*agentsession.Summary, len(resp.GetSummaries()))
+	}
+
+	for _, item := range resp.GetSummaries() {
+		if item == nil {
+			sess.SummariesMu.Unlock()
+			return "", false
+		}
+		sess.Summaries[item.GetFilterKey()] = &agentsession.Summary{
+			Summary:   item.GetSummary(),
+			Topics:    append([]string(nil), item.GetTopics()...),
+			UpdatedAt: item.GetUpdatedAt().AsTime(),
+		}
+	}
+
+	sess.SummariesMu.Unlock()
+
+	return summaryTextFromSession(sess, options.FilterKey)
 }
 
 // Close closes the underlying gRPC connection.
@@ -386,6 +462,200 @@ func (s *Client) rpcContext(ctx context.Context) (context.Context, context.Cance
 		return ctx, func() {}
 	}
 	return context.WithTimeout(ctx, s.timeout)
+}
+
+func (s *Client) generateSessionSummary(ctx context.Context, sess *agentsession.Session, filterKey string, force bool) (*agentsession.Summary, bool, error) {
+	prev := sessionSummarySnapshot(sess, filterKey)
+	delta, latest := summaryDeltaEvents(sess, prev.UpdatedAt, filterKey)
+	if !force && len(delta) == 0 {
+		return nil, false, nil
+	}
+
+	events := delta
+	if strings.TrimSpace(prev.Summary) != "" {
+		events = append([]event.Event{{
+			Author: "system",
+			Response: &model.Response{
+				Choices: []model.Choice{{
+					Message: model.NewSystemMessage(prev.Summary),
+				}},
+			},
+			Timestamp: time.Now().UTC(),
+		}}, delta...)
+	}
+
+	tmp := agentsession.NewSession(
+		sess.AppName,
+		sess.UserID,
+		sess.ID,
+		agentsession.WithSessionCreatedAt(sess.CreatedAt),
+		agentsession.WithSessionUpdatedAt(sess.UpdatedAt),
+		agentsession.WithSessionEvents(events),
+	)
+	if !force && !shouldSummarize(ctx, s.summarizer, tmp) &&
+		!rawEventsExceedTokenThreshold(ctx, delta, s.summaryTokenThreshold) {
+		return nil, false, nil
+	}
+
+	text, err := s.summarizer.Summarize(ctx, tmp)
+	if err != nil {
+		return nil, false, err
+	}
+	if strings.TrimSpace(text) == "" {
+		return nil, false, nil
+	}
+
+	updatedAt := latest.UTC()
+	if updatedAt.IsZero() {
+		updatedAt = prev.UpdatedAt.UTC()
+	}
+	if updatedAt.IsZero() {
+		updatedAt = time.Now().UTC()
+	}
+
+	sum := &agentsession.Summary{
+		Summary:   text,
+		UpdatedAt: updatedAt,
+	}
+
+	sess.SummariesMu.Lock()
+	if sess.Summaries == nil {
+		sess.Summaries = make(map[string]*agentsession.Summary)
+	}
+	sess.Summaries[filterKey] = sum
+	sess.SummariesMu.Unlock()
+
+	return sum, true, nil
+}
+
+func (s *Client) persistSessionSummary(ctx context.Context, sessionID string, filterKey string, sum *agentsession.Summary) error {
+	if sum == nil {
+		return nil
+	}
+
+	callCtx, cancel := s.rpcContext(ctx)
+	defer cancel()
+
+	_, err := s.client.UpsertSessionSummary(
+		callCtx,
+		&sessionpb.UpsertSessionSummaryRequest{
+			SessionId: sessionID,
+			Summary: &sessionpb.SessionSummary{
+				FilterKey: filterKey,
+				Summary:   sum.Summary,
+				Topics:    append([]string(nil), sum.Topics...),
+				UpdatedAt: timestamppb.New(sum.UpdatedAt.UTC()),
+			},
+		},
+	)
+	return err
+}
+
+func sessionSummarySnapshot(sess *agentsession.Session, filterKey string) agentsession.Summary {
+	if sess == nil {
+		return agentsession.Summary{}
+	}
+	sess.SummariesMu.RLock()
+	defer sess.SummariesMu.RUnlock()
+	if sess.Summaries == nil || sess.Summaries[filterKey] == nil {
+		return agentsession.Summary{}
+	}
+	return *sess.Summaries[filterKey]
+}
+
+func summaryDeltaEvents(sess *agentsession.Session, since time.Time, filterKey string) ([]event.Event, time.Time) {
+	if sess == nil {
+		return nil, time.Time{}
+	}
+
+	sess.EventMu.RLock()
+	defer sess.EventMu.RUnlock()
+
+	items := make([]event.Event, 0, len(sess.Events))
+	var latest time.Time
+	for _, item := range sess.Events {
+		if !since.IsZero() && !item.Timestamp.After(since) {
+			continue
+		}
+		if filterKey != "" && !item.Filter(filterKey) {
+			continue
+		}
+		items = append(items, item)
+		if item.Timestamp.After(latest) {
+			latest = item.Timestamp
+		}
+	}
+	return items, latest
+}
+
+func shouldSummarize(ctx context.Context, summarizer sessionsummary.SessionSummarizer, sess *agentsession.Session) bool {
+	if summarizer == nil {
+		return false
+	}
+	contextAware, ok := summarizer.(sessionsummary.ContextAwareSummarizer)
+	if ok {
+		return contextAware.ShouldSummarizeWithContext(ctx, sess)
+	}
+	return summarizer.ShouldSummarize(sess)
+}
+
+func rawEventsExceedTokenThreshold(ctx context.Context, events []event.Event, threshold int) bool {
+	if threshold <= 0 || len(events) == 0 {
+		return false
+	}
+
+	var b strings.Builder
+	for _, evt := range events {
+		if evt.Response == nil {
+			continue
+		}
+		for _, choice := range evt.Choices {
+			content := strings.TrimSpace(choice.Message.Content)
+			if content == "" {
+				continue
+			}
+			b.WriteString(content)
+			b.WriteByte('\n')
+		}
+	}
+
+	content := b.String()
+	if strings.TrimSpace(content) == "" {
+		return false
+	}
+
+	tokens, _ := model.NewSimpleTokenCounter().CountTokens(
+		ctx,
+		model.Message{Content: content},
+	)
+	return tokens >= threshold
+}
+
+func summaryTextFromSession(sess *agentsession.Session, filterKey string) (string, bool) {
+	if sess == nil {
+		return "", false
+	}
+
+	sess.SummariesMu.RLock()
+	defer sess.SummariesMu.RUnlock()
+
+	if sess.Summaries == nil {
+		return "", false
+	}
+
+	if item := sess.Summaries[filterKey]; item != nil &&
+		strings.TrimSpace(item.Summary) != "" {
+		return item.Summary, true
+	}
+
+	if filterKey != agentsession.SummaryFilterKeyAllContents {
+		item := sess.Summaries[agentsession.SummaryFilterKeyAllContents]
+		if item != nil && strings.TrimSpace(item.Summary) != "" {
+			return item.Summary, true
+		}
+	}
+
+	return "", false
 }
 
 func validateUserKey(key agentsession.UserKey) error {

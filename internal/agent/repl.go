@@ -13,6 +13,7 @@ import (
 	"github.com/chzyer/readline"
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
+	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 )
 
 const replPrompt = "> "
@@ -63,6 +64,13 @@ func RunREPL(ctx context.Context, opts Options) error {
 			printHelp(rl.Stdout())
 			continue
 		}
+		if input == "/compact" {
+			err = rt.compactCurrentSession(ctx, rl.Stdout())
+			if err != nil {
+				fmt.Fprintf(rl.Stdout(), "error: %v\n", err)
+			}
+			continue
+		}
 		if input == "/exit" || input == "/quit" {
 			return nil
 		}
@@ -76,10 +84,40 @@ func RunREPL(ctx context.Context, opts Options) error {
 
 func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "/help           Show this help")
+	fmt.Fprintln(w, "/compact        Attempt session compaction now")
 	fmt.Fprintln(w, "/exit, /quit    Exit REPL")
 }
 
+func (r *Runtime) compactCurrentSession(ctx context.Context, w io.Writer) error {
+	if r != nil && r.blockedMsg != "" {
+		return fmt.Errorf("%s", r.blockedMsg)
+	}
+	if r == nil || r.sessionSvc == nil {
+		return fmt.Errorf("session service is not available")
+	}
+
+	sess, err := r.sessionSvc.GetSession(ctx, agentsession.Key{
+		AppName:   sessionstore.DefaultAppName,
+		UserID:    sessionstore.DefaultUserID,
+		SessionID: r.sessionID,
+	})
+	if err != nil {
+		return fmt.Errorf("load session: %w", err)
+	}
+
+	err = r.sessionSvc.CreateSessionSummary(ctx, sess, sessionstore.DefaultAppName, false)
+	if err != nil {
+		return fmt.Errorf("compact session: %w", err)
+	}
+
+	fmt.Fprintln(w, "compaction checked")
+	return nil
+}
+
 func (r *Runtime) streamPrompt(ctx context.Context, prompt string, w io.Writer) error {
+	if r != nil && r.blockedMsg != "" {
+		return fmt.Errorf("%s", r.blockedMsg)
+	}
 	eventCh, err := r.runner.Run(
 		ctx,
 		sessionstore.DefaultUserID,

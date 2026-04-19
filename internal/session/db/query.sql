@@ -77,3 +77,16 @@ SELECT session_id, key, value, updated_at
 FROM state_entries
 WHERE session_id = $1
 ORDER BY key ASC;
+
+-- name: UpsertSessionSummary :exec
+INSERT INTO session_summaries(session_id, filter_key, summary, updated_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT(session_id, filter_key) DO UPDATE
+SET summary = EXCLUDED.summary,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: ListSessionSummaries :many
+SELECT session_id, filter_key, summary, updated_at
+FROM session_summaries
+WHERE session_id = $1
+ORDER BY updated_at DESC, filter_key ASC;

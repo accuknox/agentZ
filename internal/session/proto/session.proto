@@ -17,6 +17,8 @@ service SessionService {
   rpc UpdateSessionState(UpdateSessionStateRequest) returns (google.protobuf.Empty);
   rpc DeleteSessionState(DeleteSessionStateRequest) returns (google.protobuf.Empty);
   rpc ListSessionStates(ListSessionStatesRequest) returns (ListSessionStatesResponse);
+  rpc UpsertSessionSummary(UpsertSessionSummaryRequest) returns (google.protobuf.Empty);
+  rpc ListSessionSummaries(ListSessionSummariesRequest) returns (ListSessionSummariesResponse);
 }
 
 message SessionMeta {
@@ -35,6 +37,13 @@ message SessionEvent {
   string event_id = 2;
   google.protobuf.Timestamp event_ts = 3;
   google.protobuf.Struct payload = 4;
+}
+
+message SessionSummary {
+  string filter_key = 1;
+  string summary = 2;
+  repeated string topics = 3;
+  google.protobuf.Timestamp updated_at = 4;
 }
 
 message CreateSessionRequest {
@@ -57,6 +66,7 @@ message GetSessionResponse {
   SessionMeta session = 1;
   repeated StateEntry session_states = 2;
   repeated SessionEvent events = 3;
+  repeated SessionSummary summaries = 4;
 }
 
 message ListSessionsRequest {}
@@ -94,4 +104,17 @@ message ListSessionStatesRequest {
 
 message ListSessionStatesResponse {
   repeated StateEntry entries = 1;
+}
+
+message UpsertSessionSummaryRequest {
+  string session_id = 1;
+  SessionSummary summary = 2;
+}
+
+message ListSessionSummariesRequest {
+  string session_id = 1;
+}
+
+message ListSessionSummariesResponse {
+  repeated SessionSummary summaries = 1;
 }

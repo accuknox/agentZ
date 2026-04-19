@@ -153,6 +153,10 @@ func (s *Service) GetSession(ctx context.Context, req *sessionpb.GetSessionReque
 	if err != nil {
 		return nil, err
 	}
+	summaries, err := s.listSessionSummaries(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
 	events, err := s.listEvents(ctx, sessionID, req)
 	if err != nil {
 		return nil, err
@@ -162,6 +166,7 @@ func (s *Service) GetSession(ctx context.Context, req *sessionpb.GetSessionReque
 		Session:       sessionMetaFromRow(row),
 		SessionStates: sessionStates,
 		Events:        events,
+		Summaries:     summaries,
 	}, nil
 }
 
@@ -304,6 +309,31 @@ func (s *Service) ListSessionStates(ctx context.Context, req *sessionpb.ListSess
 	return &sessionpb.ListSessionStatesResponse{Entries: items}, nil
 }
 
+// UpsertSessionSummary persists one session summary.
+func (s *Service) UpsertSessionSummary(ctx context.Context, req *sessionpb.UpsertSessionSummaryRequest) (*emptypb.Empty, error) {
+	sessionID, err := parseSessionID(req.GetSessionId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.upsertSessionSummary(ctx, sessionID, req.GetSummary()); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ListSessionSummaries returns persisted summaries for one session.
+func (s *Service) ListSessionSummaries(ctx context.Context, req *sessionpb.ListSessionSummariesRequest) (*sessionpb.ListSessionSummariesResponse, error) {
+	sessionID, err := parseSessionID(req.GetSessionId())
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.listSessionSummaries(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return &sessionpb.ListSessionSummariesResponse{Summaries: items}, nil
+}
+
 func (s *Service) updateSessionStates(ctx context.Context, sessionID uuid.UUID, entries []*sessionpb.StateEntry) error {
 	_, err := s.queries.GetSession(ctx, sessionID)
 	if err != nil {
@@ -376,6 +406,56 @@ func (s *Service) listStateEntries(ctx context.Context, sessionID uuid.UUID) ([]
 			Key:   row.Key,
 			Value: slices.Clone(row.Value),
 		})
+	}
+	return items, nil
+}
+
+func (s *Service) upsertSessionSummary(ctx context.Context, sessionID uuid.UUID, item *sessionpb.SessionSummary) error {
+	_, err := s.queries.GetSession(ctx, sessionID)
+	if err != nil {
+		return mapStoreError("get session", err)
+	}
+	if item == nil {
+		return status.Error(codes.InvalidArgument, "summary is required")
+	}
+	if item.GetUpdatedAt() == nil {
+		return status.Error(codes.InvalidArgument, "summary.updated_at is required")
+	}
+
+	raw, err := json.Marshal(agentsession.Summary{
+		Summary:   item.GetSummary(),
+		Topics:    slices.Clone(item.GetTopics()),
+		UpdatedAt: item.GetUpdatedAt().AsTime().UTC(),
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "marshal summary: %v", err)
+	}
+
+	err = s.queries.UpsertSessionSummary(ctx, sessiondb.UpsertSessionSummaryParams{
+		SessionID: sessionID,
+		FilterKey: item.GetFilterKey(),
+		Summary:   raw,
+		UpdatedAt: item.GetUpdatedAt().AsTime().UTC(),
+	})
+	if err != nil {
+		return mapStoreError("upsert session summary", err)
+	}
+	return nil
+}
+
+func (s *Service) listSessionSummaries(ctx context.Context, sessionID uuid.UUID) ([]*sessionpb.SessionSummary, error) {
+	rows, err := s.queries.ListSessionSummaries(ctx, sessionID)
+	if err != nil {
+		return nil, mapStoreError("list session summaries", err)
+	}
+
+	items := make([]*sessionpb.SessionSummary, 0, len(rows))
+	for _, row := range rows {
+		item, err := sessionSummaryFromJSON(row.FilterKey, row.Summary)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "decode session summary: %v", err)
+		}
+		items = append(items, item)
 	}
 	return items, nil
 }
@@ -494,7 +574,7 @@ func sessionMetaFromRow(row sessiondb.Session) *sessionpb.SessionMeta {
 	}
 }
 
-func sessionEventFromJSON(seq int64, eventID string, eventTs time.Time, raw []byte) (*sessionpb.SessionEvent, error) {
+func sessionEventFromJSON(seq int64, eventID string, eventTS time.Time, raw []byte) (*sessionpb.SessionEvent, error) {
 	payload, err := payloadFromJSON(raw)
 	if err != nil {
 		return nil, err
@@ -502,8 +582,22 @@ func sessionEventFromJSON(seq int64, eventID string, eventTs time.Time, raw []by
 	return &sessionpb.SessionEvent{
 		Seq:     seq,
 		EventId: eventID,
-		EventTs: timestamppb.New(eventTs),
+		EventTs: timestamppb.New(eventTS),
 		Payload: payload,
+	}, nil
+}
+
+func sessionSummaryFromJSON(filterKey string, raw []byte) (*sessionpb.SessionSummary, error) {
+	var sum agentsession.Summary
+	err := json.Unmarshal(raw, &sum)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal summary: %w", err)
+	}
+	return &sessionpb.SessionSummary{
+		FilterKey: filterKey,
+		Summary:   sum.Summary,
+		Topics:    slices.Clone(sum.Topics),
+		UpdatedAt: timestamppb.New(sum.UpdatedAt),
 	}, nil
 }
 
@@ -577,7 +671,7 @@ func unmarshalEventPayload(item *sessionpb.SessionEvent) (*event.Event, error) {
 	return evt, nil
 }
 
-func buildSession(meta *sessionpb.SessionMeta, sessionStates []*sessionpb.StateEntry, eventsPB []*sessionpb.SessionEvent) (*agentsession.Session, error) {
+func buildSession(meta *sessionpb.SessionMeta, sessionStates []*sessionpb.StateEntry, eventsPB []*sessionpb.SessionEvent, summariesPB []*sessionpb.SessionSummary) (*agentsession.Session, error) {
 	if meta == nil {
 		return nil, status.Error(codes.Internal, "session metadata missing")
 	}
@@ -599,6 +693,18 @@ func buildSession(meta *sessionpb.SessionMeta, sessionStates []*sessionpb.StateE
 		state[item.GetKey()] = slices.Clone(item.GetValue())
 	}
 
+	summaries := make(map[string]*agentsession.Summary, len(summariesPB))
+	for _, item := range summariesPB {
+		if item == nil {
+			return nil, status.Error(codes.Internal, "session summary is missing")
+		}
+		summaries[item.GetFilterKey()] = &agentsession.Summary{
+			Summary:   item.GetSummary(),
+			Topics:    slices.Clone(item.GetTopics()),
+			UpdatedAt: item.GetUpdatedAt().AsTime(),
+		}
+	}
+
 	sess := agentsession.NewSession(
 		DefaultAppName,
 		DefaultUserID,
@@ -607,6 +713,7 @@ func buildSession(meta *sessionpb.SessionMeta, sessionStates []*sessionpb.StateE
 		agentsession.WithSessionUpdatedAt(meta.GetUpdatedAt().AsTime()),
 		agentsession.WithSessionState(state),
 		agentsession.WithSessionEvents(items),
+		agentsession.WithSessionSummaries(summaries),
 	)
 	return sess, nil
 }

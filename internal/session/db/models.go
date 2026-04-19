@@ -24,6 +24,13 @@ type SessionEvent struct {
 	EventPayload []byte    `json:"event_payload"`
 }
 
+type SessionSummary struct {
+	SessionID uuid.UUID `json:"session_id"`
+	FilterKey string    `json:"filter_key"`
+	Summary   []byte    `json:"summary"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type StateEntry struct {
 	SessionID uuid.UUID `json:"session_id"`
 	Key       string    `json:"key"`

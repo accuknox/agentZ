@@ -32,3 +32,14 @@ CREATE TABLE state_entries(
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY(session_id, key)
 );
+
+CREATE TABLE session_summaries(
+  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  filter_key TEXT NOT NULL,
+  summary JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY(session_id, filter_key)
+);
+
+CREATE INDEX session_summaries_session_updated_idx
+  ON session_summaries(session_id, updated_at DESC, filter_key ASC);

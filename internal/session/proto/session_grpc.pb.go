@@ -20,14 +20,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SessionService_CreateSession_FullMethodName      = "/accuknox.clawarmor.session.v1.SessionService/CreateSession"
-	SessionService_GetSession_FullMethodName         = "/accuknox.clawarmor.session.v1.SessionService/GetSession"
-	SessionService_ListSessions_FullMethodName       = "/accuknox.clawarmor.session.v1.SessionService/ListSessions"
-	SessionService_DeleteSession_FullMethodName      = "/accuknox.clawarmor.session.v1.SessionService/DeleteSession"
-	SessionService_AppendEvent_FullMethodName        = "/accuknox.clawarmor.session.v1.SessionService/AppendEvent"
-	SessionService_UpdateSessionState_FullMethodName = "/accuknox.clawarmor.session.v1.SessionService/UpdateSessionState"
-	SessionService_DeleteSessionState_FullMethodName = "/accuknox.clawarmor.session.v1.SessionService/DeleteSessionState"
-	SessionService_ListSessionStates_FullMethodName  = "/accuknox.clawarmor.session.v1.SessionService/ListSessionStates"
+	SessionService_CreateSession_FullMethodName        = "/accuknox.clawarmor.session.v1.SessionService/CreateSession"
+	SessionService_GetSession_FullMethodName           = "/accuknox.clawarmor.session.v1.SessionService/GetSession"
+	SessionService_ListSessions_FullMethodName         = "/accuknox.clawarmor.session.v1.SessionService/ListSessions"
+	SessionService_DeleteSession_FullMethodName        = "/accuknox.clawarmor.session.v1.SessionService/DeleteSession"
+	SessionService_AppendEvent_FullMethodName          = "/accuknox.clawarmor.session.v1.SessionService/AppendEvent"
+	SessionService_UpdateSessionState_FullMethodName   = "/accuknox.clawarmor.session.v1.SessionService/UpdateSessionState"
+	SessionService_DeleteSessionState_FullMethodName   = "/accuknox.clawarmor.session.v1.SessionService/DeleteSessionState"
+	SessionService_ListSessionStates_FullMethodName    = "/accuknox.clawarmor.session.v1.SessionService/ListSessionStates"
+	SessionService_UpsertSessionSummary_FullMethodName = "/accuknox.clawarmor.session.v1.SessionService/UpsertSessionSummary"
+	SessionService_ListSessionSummaries_FullMethodName = "/accuknox.clawarmor.session.v1.SessionService/ListSessionSummaries"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -42,6 +44,8 @@ type SessionServiceClient interface {
 	UpdateSessionState(ctx context.Context, in *UpdateSessionStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeleteSessionState(ctx context.Context, in *DeleteSessionStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListSessionStates(ctx context.Context, in *ListSessionStatesRequest, opts ...grpc.CallOption) (*ListSessionStatesResponse, error)
+	UpsertSessionSummary(ctx context.Context, in *UpsertSessionSummaryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListSessionSummaries(ctx context.Context, in *ListSessionSummariesRequest, opts ...grpc.CallOption) (*ListSessionSummariesResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -132,6 +136,26 @@ func (c *sessionServiceClient) ListSessionStates(ctx context.Context, in *ListSe
 	return out, nil
 }
 
+func (c *sessionServiceClient) UpsertSessionSummary(ctx context.Context, in *UpsertSessionSummaryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, SessionService_UpsertSessionSummary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) ListSessionSummaries(ctx context.Context, in *ListSessionSummariesRequest, opts ...grpc.CallOption) (*ListSessionSummariesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSessionSummariesResponse)
+	err := c.cc.Invoke(ctx, SessionService_ListSessionSummaries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -144,6 +168,8 @@ type SessionServiceServer interface {
 	UpdateSessionState(context.Context, *UpdateSessionStateRequest) (*emptypb.Empty, error)
 	DeleteSessionState(context.Context, *DeleteSessionStateRequest) (*emptypb.Empty, error)
 	ListSessionStates(context.Context, *ListSessionStatesRequest) (*ListSessionStatesResponse, error)
+	UpsertSessionSummary(context.Context, *UpsertSessionSummaryRequest) (*emptypb.Empty, error)
+	ListSessionSummaries(context.Context, *ListSessionSummariesRequest) (*ListSessionSummariesResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -177,6 +203,12 @@ func (UnimplementedSessionServiceServer) DeleteSessionState(context.Context, *De
 }
 func (UnimplementedSessionServiceServer) ListSessionStates(context.Context, *ListSessionStatesRequest) (*ListSessionStatesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSessionStates not implemented")
+}
+func (UnimplementedSessionServiceServer) UpsertSessionSummary(context.Context, *UpsertSessionSummaryRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpsertSessionSummary not implemented")
+}
+func (UnimplementedSessionServiceServer) ListSessionSummaries(context.Context, *ListSessionSummariesRequest) (*ListSessionSummariesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSessionSummaries not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -343,6 +375,42 @@ func _SessionService_ListSessionStates_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_UpsertSessionSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertSessionSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).UpsertSessionSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_UpsertSessionSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).UpsertSessionSummary(ctx, req.(*UpsertSessionSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_ListSessionSummaries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSessionSummariesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).ListSessionSummaries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_ListSessionSummaries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).ListSessionSummaries(ctx, req.(*ListSessionSummariesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -381,6 +449,14 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListSessionStates",
 			Handler:    _SessionService_ListSessionStates_Handler,
+		},
+		{
+			MethodName: "UpsertSessionSummary",
+			Handler:    _SessionService_UpsertSessionSummary_Handler,
+		},
+		{
+			MethodName: "ListSessionSummaries",
+			Handler:    _SessionService_ListSessionSummaries_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

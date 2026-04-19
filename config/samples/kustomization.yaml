@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- clawarmor_v1alpha1_agent.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

@@ -6,17 +6,27 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	sessionstore "github.com/accuknox/clawarmor/internal/session"
 	"github.com/chzyer/readline"
+	"github.com/google/uuid"
+	"trpc.group/trpc-go/trpc-agent-go/agent"
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 )
 
 const replPrompt = "> "
+
+var (
+	notifySignal = signal.Notify
+	stopSignal   = signal.Stop
+)
 
 // RunREPL runs an interactive local chat session.
 func RunREPL(ctx context.Context, opts Options) error {
@@ -118,16 +128,67 @@ func (r *Runtime) streamPrompt(ctx context.Context, prompt string, w io.Writer) 
 	if r != nil && r.blockedMsg != "" {
 		return fmt.Errorf("%s", r.blockedMsg)
 	}
+	mr, err := r.managedRunner()
+	if err != nil {
+		return err
+	}
+	requestID := uuid.NewString()
+	runCtx, runCancel := context.WithCancel(ctx)
+	defer runCancel()
+
+	sigCh := make(chan os.Signal, 1)
+	notifySignal(sigCh, syscall.SIGINT)
+	defer stopSignal(sigCh)
+
+	interruptedCh := make(chan struct{}, 1)
+	go func() {
+		select {
+		case <-runCtx.Done():
+			return
+		case <-sigCh:
+		}
+		if mr.Cancel(requestID) {
+			select {
+			case interruptedCh <- struct{}{}:
+			default:
+			}
+		}
+	}()
+
 	eventCh, err := r.runner.Run(
-		ctx,
+		runCtx,
 		sessionstore.DefaultUserID,
 		r.sessionID,
 		model.NewUserMessage(prompt),
+		agent.WithRequestID(requestID),
 	)
 	if err != nil {
 		return fmt.Errorf("run prompt failed: %w", err)
 	}
-	return writeEvents(w, eventCh, r.stream)
+	err = writeEvents(w, eventCh, r.stream)
+	interrupted := false
+	select {
+	case <-interruptedCh:
+		interrupted = true
+	default:
+	}
+	if !interrupted {
+		return err
+	}
+
+	appendCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	appendErr := r.appendInterruptEvent(appendCtx, requestID)
+	if appendErr != nil {
+		return fmt.Errorf("interrupt run: %w", appendErr)
+	}
+
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	fmt.Fprintln(w, interruptedRunMessage)
+	return nil
 }
 
 func writeEvents(w io.Writer, eventCh <-chan *event.Event, stream bool) error {

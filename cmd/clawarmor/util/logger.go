@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+// NewLogger builds the process logger from CLI logging flags.
 func NewLogger(level, format string, withSource bool) *slog.Logger {
 	var slogLvl slog.Level
 	switch level {

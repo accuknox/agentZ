@@ -10,11 +10,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sessionpb "github.com/accuknox/clawarmor/internal/session/proto"
 	"trpc.group/trpc-go/trpc-agent-go/event"
+	"trpc.group/trpc-go/trpc-agent-go/model"
 	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 )
 
@@ -23,137 +22,12 @@ const bufSize = 1024 * 1024
 type testSessionServer struct {
 	sessionpb.UnimplementedSessionServiceServer
 
-	getSessionResp           *sessionpb.GetSessionResponse
-	listSessionsResp         *sessionpb.ListSessionsResponse
-	listSessionSummariesResp *sessionpb.ListSessionSummariesResponse
-
-	updateSessionReq *sessionpb.UpdateSessionStateRequest
+	appendEventReq *sessionpb.AppendEventRequest
 }
 
-func (s *testSessionServer) GetSession(_ context.Context, req *sessionpb.GetSessionRequest) (*sessionpb.GetSessionResponse, error) {
-	return s.getSessionResp, nil
-}
-
-func (s *testSessionServer) ListSessions(context.Context, *sessionpb.ListSessionsRequest) (*sessionpb.ListSessionsResponse, error) {
-	return s.listSessionsResp, nil
-}
-
-func (s *testSessionServer) UpdateSessionState(_ context.Context, req *sessionpb.UpdateSessionStateRequest) (*emptypb.Empty, error) {
-	s.updateSessionReq = req
-	return &emptypb.Empty{}, nil
-}
-
-func (s *testSessionServer) ListSessionSummaries(context.Context, *sessionpb.ListSessionSummariesRequest) (*sessionpb.ListSessionSummariesResponse, error) {
-	return s.listSessionSummariesResp, nil
-}
-
-func TestRemoteServiceGetSessionLoadsStateAndEvents(t *testing.T) {
-	t.Parallel()
-
-	payload, err := payloadFromEvent(&event.Event{
-		ID:        "evt-1",
-		Author:    "user",
-		Timestamp: time.Unix(1700000000, 0).UTC(),
-	})
-	if err != nil {
-		t.Fatalf("build payload: %v", err)
-	}
-
-	const sessionID = "11111111-1111-4111-8111-111111111111"
-
-	srv := &testSessionServer{
-		getSessionResp: &sessionpb.GetSessionResponse{
-			Session: &sessionpb.SessionMeta{
-				SessionId: sessionID,
-				CreatedAt: timestamppb.New(time.Unix(1700000000, 0).UTC()),
-				UpdatedAt: timestamppb.New(time.Unix(1700000100, 0).UTC()),
-			},
-			SessionStates: []*sessionpb.StateEntry{
-				{Key: "cursor", Value: []byte("42")},
-			},
-			Events: []*sessionpb.SessionEvent{
-				{
-					Seq:     1,
-					EventId: "evt-1",
-					EventTs: timestamppb.New(time.Unix(1700000000, 0).UTC()),
-					Payload: payload,
-				},
-			},
-			Summaries: []*sessionpb.SessionSummary{
-				{
-					FilterKey: "github.com/accuknox/clawarmor",
-					Summary:   "summary text",
-					UpdatedAt: timestamppb.New(time.Unix(1700000200, 0).UTC()),
-				},
-			},
-		},
-	}
-
-	client := newTestRemoteService(t, srv)
-	defer client.Close()
-
-	sess, err := client.GetSession(context.Background(), agentsession.Key{
-		AppName:   DefaultAppName,
-		UserID:    DefaultUserID,
-		SessionID: sessionID,
-	})
-	if err != nil {
-		t.Fatalf("get session: %v", err)
-	}
-	if sess.ID != sessionID {
-		t.Fatalf("unexpected session id %q", sess.ID)
-	}
-	if sess.AppName != DefaultAppName {
-		t.Fatalf("unexpected app name %q", sess.AppName)
-	}
-	if sess.UserID != DefaultUserID {
-		t.Fatalf("unexpected user id %q", sess.UserID)
-	}
-	if got := string(sess.State["cursor"]); got != "42" {
-		t.Fatalf("unexpected session state %q", got)
-	}
-	if len(sess.Events) != 1 {
-		t.Fatalf("unexpected event count %d", len(sess.Events))
-	}
-	if sess.Events[0].ID != "evt-1" {
-		t.Fatalf("unexpected event id %q", sess.Events[0].ID)
-	}
-	sum := sess.Summaries["github.com/accuknox/clawarmor"]
-	if sum == nil || sum.Summary != "summary text" {
-		t.Fatalf("unexpected summary %#v", sum)
-	}
-}
-
-func TestRemoteServiceGetSessionSummaryTextLoadsRemoteSummaries(t *testing.T) {
-	t.Parallel()
-
-	const sessionID = "11111111-1111-4111-8111-111111111111"
-
-	client := newTestRemoteService(t, &testSessionServer{
-		listSessionSummariesResp: &sessionpb.ListSessionSummariesResponse{
-			Summaries: []*sessionpb.SessionSummary{
-				{
-					FilterKey: "",
-					Summary:   "remote summary",
-					UpdatedAt: timestamppb.New(time.Unix(1700000200, 0).UTC()),
-				},
-			},
-		},
-	})
-	defer client.Close()
-
-	sess := agentsession.NewSession(
-		DefaultAppName,
-		DefaultUserID,
-		sessionID,
-	)
-	text, ok := client.GetSessionSummaryText(context.Background(), sess)
-	if !ok {
-		t.Fatal("expected summary text")
-	}
-	if text != "remote summary" {
-		t.Fatalf("unexpected summary %q", text)
-	}
+func (s *testSessionServer) AppendEvent(_ context.Context, req *sessionpb.AppendEventRequest) (*sessionpb.AppendEventResponse, error) {
+	s.appendEventReq = req
+	return &sessionpb.AppendEventResponse{Event: req.GetEvent()}, nil
 }
 
 func TestRemoteServiceUpdateSessionStateRejectsScopedKeys(t *testing.T) {
@@ -177,6 +51,65 @@ func TestRemoteServiceUpdateSessionStateRejectsScopedKeys(t *testing.T) {
 	}
 	if got := err.Error(); got == "" || !strings.Contains(got, "scoped state keys are not supported") {
 		t.Fatalf("unexpected error %q", got)
+	}
+}
+
+func TestRemoteServiceAppendEventStoresTruncatedToolResult(t *testing.T) {
+	t.Parallel()
+
+	srv := &testSessionServer{}
+	client := newTestRemoteService(t, srv)
+	client.toolResultMaxTokens = 32
+	defer client.Close()
+
+	sess := agentsession.NewSession(
+		DefaultAppName,
+		DefaultUserID,
+		"11111111-1111-4111-8111-111111111111",
+	)
+	content := "HEAD-" + strings.Repeat("middle-", 400) + "-TAIL"
+	evt := &event.Event{
+		ID:        "evt-1",
+		Author:    "tool",
+		Timestamp: time.Unix(1700000000, 0).UTC(),
+		Response: &model.Response{
+			Choices: []model.Choice{{
+				Message: model.Message{
+					Role:     model.RoleTool,
+					ToolID:   "tool-1",
+					ToolName: "worker",
+					Content:  content,
+				},
+			}},
+		},
+	}
+
+	err := client.AppendEvent(context.Background(), sess, evt)
+	if err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+	if srv.appendEventReq == nil || srv.appendEventReq.GetEvent() == nil {
+		t.Fatal("expected append event request")
+	}
+
+	raw, err := jsonFromPayload(srv.appendEventReq.GetEvent().GetPayload())
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	stored, err := unmarshalEvent(raw)
+	if err != nil {
+		t.Fatalf("unmarshal event: %v", err)
+	}
+
+	got := stored.Choices[0].Message.Content
+	if got == content {
+		t.Fatal("expected stored payload to be truncated")
+	}
+	if !strings.Contains(got, "[... ") {
+		t.Fatalf("expected truncation marker, got %q", got)
+	}
+	if evt.Choices[0].Message.Content != content {
+		t.Fatal("expected original event content to remain unchanged")
 	}
 }
 

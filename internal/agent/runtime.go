@@ -26,25 +26,28 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/tool/webfetch/httpfetch"
 )
 
-// Options configures the local agent runtime and REPL identity.
-type Options struct {
+const interruptedRunMessage = "Run interrupted by user."
+
+// RuntimeOptions configures the local agent runtime.
+type RuntimeOptions struct {
 	ConfigPath string
 }
 
 // Runtime holds the runnable agent system for REPL use.
 type Runtime struct {
-	runner     runner.Runner
-	memorySvc  memory.Service
-	sessionSvc agentsession.Service
-	sessionCl  io.Closer
-	sessionID  string
-	toolSets   []tool.ToolSet
-	stream     bool
-	blockedMsg string
+	runner                  runner.Runner
+	memorySvc               memory.Service
+	sessionSvc              agentsession.Service
+	sessionCl               io.Closer
+	sessionID               string
+	toolSets                []tool.ToolSet
+	listenAddr              string
+	gracefulShutdownTimeout time.Duration
+	blockedMsg              string
 }
 
 // NewRuntime constructs a local in-memory agent runtime from YAML config.
-func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
+func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 	log.SetupTRPCAgentLogger()
 
 	configPath, err := agentconfig.ResolvePath(opts.ConfigPath)
@@ -91,18 +94,14 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 		llmagent.WithAddSessionSummary(*cfg.Agent.AddSessionSummary),
 		llmagent.WithSyncSummaryIntraRun(true),
 		llmagent.WithEnableContextCompaction(*cfg.Agent.EnableContextCompaction),
-		llmagent.WithContextCompactionThresholdRatio(
-			cfg.Agent.ContextCompactionThresholdRatio,
-		),
+		llmagent.WithContextCompactionThresholdRatio(cfg.Agent.ContextCompactionThresholdRatio),
 		llmagent.WithContextCompactionToolResultMaxTokens(
 			ratioToTokenCount(
 				summaryFallbackWindow(cfg),
 				cfg.Agent.ContextCompactionToolResultMaxRatio,
 			),
 		),
-		llmagent.WithContextCompactionKeepRecentRequests(
-			cfg.Agent.ContextCompactionKeepRecentRequests,
-		),
+		llmagent.WithContextCompactionKeepRecentRequests(cfg.Agent.ContextCompactionKeepRecentRequests),
 		llmagent.WithContextCompactionOversizedToolResultMaxTokens(
 			ratioToTokenCount(
 				summaryFallbackWindow(cfg),
@@ -144,14 +143,15 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 	rnr := runner.NewRunner(sessionstore.DefaultAppName, agt, runnerOpts...)
 
 	return &Runtime{
-		runner:     rnr,
-		memorySvc:  memorySvc,
-		sessionSvc: sessionSvc,
-		sessionCl:  sessionCl,
-		sessionID:  runSessionID,
-		toolSets:   toolSets,
-		stream:     cfg.Model.Stream,
-		blockedMsg: registerModelContextWindows(cfg),
+		runner:                  rnr,
+		memorySvc:               memorySvc,
+		sessionSvc:              sessionSvc,
+		sessionCl:               sessionCl,
+		sessionID:               runSessionID,
+		toolSets:                toolSets,
+		listenAddr:              cfg.Server.Address,
+		gracefulShutdownTimeout: cfg.Server.GracefulShutdownTimeout,
+		blockedMsg:              registerModelContextWindows(cfg),
 	}, nil
 }
 
@@ -201,12 +201,19 @@ func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer
 	}
 
 	svc, err := sessionstore.NewSessionServiceClient(sessionstore.ClientConfig{
-		Target:                cfg.Session.Target,
-		Insecure:              cfg.Session.Insecure,
-		Timeout:               time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
-		SessionID:             cfg.Session.SessionID,
-		Summarizer:            summarizer,
-		SummaryTokenThreshold: compactTokenThreshold(cfg),
+		Target:     cfg.Session.Target,
+		Insecure:   cfg.Session.Insecure,
+		Timeout:    time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
+		SessionID:  cfg.Session.SessionID,
+		Summarizer: summarizer,
+		SummaryTokenThreshold: ratioToTokenCount(
+			summaryFallbackWindow(cfg),
+			cfg.Agent.ContextCompactionThresholdRatio,
+		),
+		ToolResultMaxTokens: ratioToTokenCount(
+			summaryFallbackWindow(cfg),
+			cfg.Agent.ContextCompactionOversizedToolResultMaxRatio,
+		),
 	})
 	if err != nil {
 		return nil, nil, "", err

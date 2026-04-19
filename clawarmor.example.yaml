@@ -4,6 +4,17 @@
 # as both an example and a reference. Empty-string values usually mean
 # "disabled" or "use the provider default" unless noted otherwise.
 
+server:
+  # TCP address for the agent gRPC server.
+  # Use localhost for local-only access, or 0.0.0.0 to listen on every
+  # network interface.
+  address: localhost:8080
+
+  # Maximum graceful shutdown period for the agent gRPC server.
+  # Use Go duration syntax, for example: 15s, 2m.
+  # 0s means wait indefinitely for graceful shutdown.
+  gracefulShutdownTimeout: 15s
+
 agent:
   # High-level task guidance for the agent.
   # This is the main behavioral instruction appended to the agent prompt.

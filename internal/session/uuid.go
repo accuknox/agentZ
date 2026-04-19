@@ -1,7 +1,7 @@
 package sessionstore
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -12,12 +12,12 @@ import (
 func parseUUIDv4(raw string) (uuid.UUID, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return uuid.Nil, fmt.Errorf("session_id is required")
+		return uuid.Nil, errors.New("session_id is required")
 	}
 
 	id, err := uuid.Parse(raw)
 	if err != nil || id.Version() != 4 {
-		return uuid.Nil, fmt.Errorf("session_id must be a valid UUIDv4")
+		return uuid.Nil, errors.New("session_id must be a valid UUIDv4")
 	}
 	return id, nil
 }
@@ -33,7 +33,7 @@ func parseSessionID(raw string) (uuid.UUID, error) {
 func normalizeSessionID(raw string) (string, error) {
 	id, err := parseUUIDv4(raw)
 	if err != nil {
-		return "", fmt.Errorf("%w", err)
+		return "", err
 	}
 	return id.String(), nil
 }

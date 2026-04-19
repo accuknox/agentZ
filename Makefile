@@ -3,7 +3,7 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-PROTO_FILES := internal/session/proto/session.proto
+PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.proto
 
 # Image URL to use all building/pushing image targets
 IMG ?= murtazau/clawarmor:latest

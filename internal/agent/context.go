@@ -31,7 +31,7 @@ type generationDefaultsModel struct {
 }
 
 func registerModelContextWindows(cfg agentconfig.Config) string {
-	modelName := strings.TrimSpace(cfg.Model.Name)
+	modelName := cfg.Model.Name
 	if cfg.Model.ContextWindow > 0 {
 		model.RegisterModelContextWindow(modelName, cfg.Model.ContextWindow)
 	}
@@ -93,10 +93,6 @@ func buildSummaryModel(cfg agentconfig.Config) model.Model {
 }
 
 func openAIModel(backend modelBackend) model.Model {
-	return openai.New(backend.name, openAIOptions(backend)...)
-}
-
-func openAIOptions(backend modelBackend) []openai.Option {
 	opts := []openai.Option{}
 	if backend.apiKey != "" {
 		opts = append(opts, openai.WithAPIKey(backend.apiKey))
@@ -104,7 +100,8 @@ func openAIOptions(backend modelBackend) []openai.Option {
 	if backend.baseURL != "" {
 		opts = append(opts, openai.WithBaseURL(backend.baseURL))
 	}
-	return append(opts, openai.WithEnableTokenTailoring(true))
+	opts = append(opts, openai.WithEnableTokenTailoring(true))
+	return openai.New(backend.name, opts...)
 }
 
 func generationConfig(temp float64, maxTokens int, stream bool) model.GenerationConfig {
@@ -223,13 +220,6 @@ func summaryFallbackWindow(cfg agentconfig.Config) int {
 		return cfg.SummaryModel.ContextWindow
 	}
 	return 0
-}
-
-func compactTokenThreshold(cfg agentconfig.Config) int {
-	return ratioToTokenCount(
-		summaryFallbackWindow(cfg),
-		cfg.Agent.ContextCompactionThresholdRatio,
-	)
 }
 
 func ratioToTokenCount(window int, ratio float64) int {

@@ -9,22 +9,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	sessionstore "github.com/accuknox/clawarmor/internal/session"
+	agentpb "github.com/accuknox/clawarmor/internal/agent/proto"
 	"github.com/chzyer/readline"
-	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
-	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 )
 
 const replPrompt = "> "
 
-// RunREPL runs an interactive local chat session.
-func RunREPL(ctx context.Context, opts Options) error {
-	rt, err := NewRuntime(ctx, opts)
+// REPLOptions configures the remote agent REPL.
+type REPLOptions struct {
+	Target string
+}
+
+// RunREPL runs an interactive remote chat session.
+func RunREPL(ctx context.Context, opts REPLOptions) error {
+	cl, err := NewClient(ClientConfig{Target: opts.Target})
 	if err != nil {
 		return err
 	}
-	defer rt.Close()
+	defer cl.Close()
 
 	historyPath := filepath.Join(os.TempDir(), "clawarmor-agent.history")
 	rl, err := readline.NewEx(&readline.Config{
@@ -65,7 +68,7 @@ func RunREPL(ctx context.Context, opts Options) error {
 			continue
 		}
 		if input == "/compact" {
-			err = rt.compactCurrentSession(ctx, rl.Stdout())
+			err = cl.Compact(ctx, rl.Stdout())
 			if err != nil {
 				fmt.Fprintf(rl.Stdout(), "error: %v\n", err)
 			}
@@ -75,7 +78,7 @@ func RunREPL(ctx context.Context, opts Options) error {
 			return nil
 		}
 
-		err = rt.streamPrompt(ctx, input, rl.Stdout())
+		err = cl.StreamPrompt(ctx, input, rl.Stdout())
 		if err != nil {
 			fmt.Fprintf(rl.Stdout(), "error: %v\n", err)
 		}
@@ -88,100 +91,39 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "/exit, /quit    Exit REPL")
 }
 
-func (r *Runtime) compactCurrentSession(ctx context.Context, w io.Writer) error {
-	if r != nil && r.blockedMsg != "" {
-		return fmt.Errorf("%s", r.blockedMsg)
+func renderAgentEvent(w io.Writer, evt *agentpb.AgentEvent, sawDelta bool) bool {
+	if evt == nil {
+		return sawDelta
 	}
-	if r == nil || r.sessionSvc == nil {
-		return fmt.Errorf("session service is not available")
-	}
-
-	sess, err := r.sessionSvc.GetSession(ctx, agentsession.Key{
-		AppName:   sessionstore.DefaultAppName,
-		UserID:    sessionstore.DefaultUserID,
-		SessionID: r.sessionID,
-	})
-	if err != nil {
-		return fmt.Errorf("load session: %w", err)
-	}
-
-	err = r.sessionSvc.CreateSessionSummary(ctx, sess, sessionstore.DefaultAppName, false)
-	if err != nil {
-		return fmt.Errorf("compact session: %w", err)
-	}
-
-	fmt.Fprintln(w, "compaction checked")
-	return nil
-}
-
-func (r *Runtime) streamPrompt(ctx context.Context, prompt string, w io.Writer) error {
-	if r != nil && r.blockedMsg != "" {
-		return fmt.Errorf("%s", r.blockedMsg)
-	}
-	eventCh, err := r.runner.Run(
-		ctx,
-		sessionstore.DefaultUserID,
-		r.sessionID,
-		model.NewUserMessage(prompt),
-	)
-	if err != nil {
-		return fmt.Errorf("run prompt failed: %w", err)
-	}
-	return writeEvents(w, eventCh, r.stream)
-}
-
-func writeEvents(w io.Writer, eventCh <-chan *event.Event, stream bool) error {
-	wroteOutput := false
-	wroteDelta := false
-	seenToolCalls := map[string]struct{}{}
-
-	for evt := range eventCh {
-		if evt == nil {
-			continue
+	switch evt.GetType() {
+	case agentpb.EventType_EVENT_TYPE_TOOL_CALL:
+		printToolCall(w, "tool_call", model.ToolCall{
+			Function: model.FunctionDefinitionParam{
+				Name:      evt.GetToolName(),
+				Arguments: []byte(evt.GetToolPayload()),
+			},
+		})
+	case agentpb.EventType_EVENT_TYPE_TOOL_RESULT:
+		printToolResult(w, model.Message{
+			Role:     model.RoleTool,
+			ToolName: evt.GetToolName(),
+			Content:  evt.GetToolPayload(),
+		})
+	case agentpb.EventType_EVENT_TYPE_ASSISTANT_DELTA:
+		fmt.Fprint(w, evt.GetContent())
+		return true
+	case agentpb.EventType_EVENT_TYPE_ASSISTANT_MESSAGE:
+		if evt.GetContent() != "" && !sawDelta {
+			fmt.Fprint(w, evt.GetContent())
 		}
-		if evt.Error != nil {
-			return errors.New(strings.TrimSpace(evt.Error.Message))
-		}
-		if evt.Response == nil || len(evt.Choices) == 0 {
-			continue
-		}
-		choice := evt.Choices[0]
-		if stream {
-			for _, tc := range choice.Delta.ToolCalls {
-				printToolCall(w, "tool_call_delta", tc)
-				wroteOutput = true
-			}
-		}
-		for _, tc := range choice.Message.ToolCalls {
-			key := toolCallKey(tc)
-			if _, ok := seenToolCalls[key]; ok {
-				continue
-			}
-			seenToolCalls[key] = struct{}{}
-			printToolCall(w, "tool_call", tc)
-			wroteOutput = true
-		}
-		if choice.Message.Role == model.RoleTool {
-			printToolResult(w, choice.Message)
-			wroteOutput = true
-		}
-		if stream && choice.Delta.Content != "" {
-			fmt.Fprint(w, choice.Delta.Content)
-			wroteOutput = true
-			wroteDelta = true
-		}
-		if choice.Message.Role != model.RoleTool &&
-			!wroteDelta &&
-			choice.Message.Content != "" {
-			fmt.Fprint(w, choice.Message.Content)
-			wroteOutput = true
+	case agentpb.EventType_EVENT_TYPE_RUN_INTERRUPTED:
+		fmt.Fprintln(w, interruptedRunMessage)
+	case agentpb.EventType_EVENT_TYPE_RUN_ERROR:
+		if evt.GetError() != "" {
+			fmt.Fprintf(w, "error: %s\n", evt.GetError())
 		}
 	}
-
-	if wroteOutput {
-		fmt.Fprintln(w)
-	}
-	return nil
+	return sawDelta
 }
 
 func printToolCall(w io.Writer, kind string, tc model.ToolCall) {
@@ -197,14 +139,7 @@ func printToolCall(w io.Writer, kind string, tc model.ToolCall) {
 	if name == "" {
 		name = "-"
 	}
-	fmt.Fprintf(
-		w,
-		"\n[%s] id=%s name=%s args=%s\n",
-		kind,
-		id,
-		name,
-		args,
-	)
+	fmt.Fprintf(w, "\n[%s] id=%s name=%s args=%s\n", kind, id, name, args)
 }
 
 func printToolResult(w io.Writer, msg model.Message) {
@@ -220,22 +155,5 @@ func printToolResult(w io.Writer, msg model.Message) {
 	if content == "" {
 		content = "(empty)"
 	}
-	fmt.Fprintf(
-		w,
-		"\n[tool_result] id=%s name=%s output=%s\n",
-		id,
-		name,
-		content,
-	)
-}
-
-func toolCallKey(tc model.ToolCall) string {
-	return strings.Join(
-		[]string{
-			strings.TrimSpace(tc.ID),
-			strings.TrimSpace(tc.Function.Name),
-			strings.TrimSpace(string(tc.Function.Arguments)),
-		},
-		"|",
-	)
+	fmt.Fprintf(w, "\n[tool_result] id=%s name=%s output=%s\n", id, name, content)
 }

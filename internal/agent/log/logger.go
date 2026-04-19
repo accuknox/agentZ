@@ -9,6 +9,7 @@ import (
 
 var trpcLoggerOnce sync.Once
 
+// SetupTRPCAgentLogger routes trpc-agent-go logs through the default logger.
 func SetupTRPCAgentLogger() {
 	trpcLoggerOnce.Do(func() {
 		lg := &slogAdapter{}

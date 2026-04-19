@@ -35,8 +35,9 @@ import (
 
 // Config describes how to start the session gRPC server.
 type Config struct {
-	Addr        string
-	PostgresDSN string
+	Addr                    string
+	PostgresDSN             string
+	GracefulShutdownTimeout time.Duration
 }
 
 // Service implements the gRPC session store backed by PostgreSQL.
@@ -101,10 +102,14 @@ func Serve(ctx context.Context, cfg Config) error {
 			close(stopped)
 		}()
 
-		select {
-		case <-stopped:
-		case <-time.After(15 * time.Second):
-			srv.Stop()
+		if cfg.GracefulShutdownTimeout == 0 {
+			<-stopped
+		} else {
+			select {
+			case <-stopped:
+			case <-time.After(cfg.GracefulShutdownTimeout):
+				srv.Stop()
+			}
 		}
 
 		err = <-errCh

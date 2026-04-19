@@ -6,56 +6,49 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/accuknox/clawarmor/internal/agent"
-	sessionstore "github.com/accuknox/clawarmor/internal/session"
 )
 
 var agentCmd = &cli.Command{
-	Name:  "agent",
-	Usage: "Run ClawArmor agent",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "config",
-			Usage: "Path to ClawArmor agent config YAML",
-		},
-	},
-	Commands: []*cli.Command{agentREPLCmd},
-}
-
-var sessionCmd = &cli.Command{
-	Name:     "session",
-	Usage:    "Run session-service commands",
-	Commands: []*cli.Command{sessionServeCmd},
+	Name:     "agent",
+	Usage:    "Run ClawArmor agent",
+	Commands: []*cli.Command{agentREPLCmd, agentServeCmd},
 }
 
 var agentREPLCmd = &cli.Command{
 	Name:  "repl",
 	Usage: "Start interactive agent REPL",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "target",
+			Usage: "gRPC target for the agent service",
+			Value: agent.DefaultListenAddr,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return agent.RunREPL(ctx, agent.Options{
-			ConfigPath: c.String("config"),
+		return agent.RunREPL(ctx, agent.REPLOptions{
+			Target: c.String("target"),
 		})
 	},
 }
 
-var sessionServeCmd = &cli.Command{
+var agentServeCmd = &cli.Command{
 	Name:  "serve",
-	Usage: "Run the PostgreSQL-backed session gRPC server",
+	Usage: "Run the agent gRPC server",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "addr",
-			Usage: "Listen address",
-			Value: sessionstore.DefaultListenAddr,
-		},
-		&cli.StringFlag{
-			Name:     "postgres-dsn",
-			Usage:    "PostgreSQL DSN",
-			Required: true,
+			Name:  "config",
+			Usage: "Path to ClawArmor agent config YAML",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return sessionstore.Serve(ctx, sessionstore.Config{
-			Addr:        c.String("addr"),
-			PostgresDSN: c.String("postgres-dsn"),
+		return agent.Serve(ctx, agent.ServiceConfig{
+			ConfigPath: c.String("config"),
 		})
 	},
 }

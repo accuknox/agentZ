@@ -10,13 +10,9 @@ import (
 	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 	"github.com/accuknox/clawarmor/internal/agent/log"
 	sessionstore "github.com/accuknox/clawarmor/internal/session"
-	"github.com/google/uuid"
-	"trpc.group/trpc-go/trpc-agent-go/agent"
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
-	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/memory"
 	meminmemory "trpc.group/trpc-go/trpc-agent-go/memory/inmemory"
-	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 	sessioninmemory "trpc.group/trpc-go/trpc-agent-go/session/inmemory"
@@ -32,25 +28,26 @@ import (
 
 const interruptedRunMessage = "Run interrupted by user."
 
-// Options configures the local agent runtime and REPL identity.
-type Options struct {
+// RuntimeOptions configures the local agent runtime.
+type RuntimeOptions struct {
 	ConfigPath string
 }
 
 // Runtime holds the runnable agent system for REPL use.
 type Runtime struct {
-	runner     runner.Runner
-	memorySvc  memory.Service
-	sessionSvc agentsession.Service
-	sessionCl  io.Closer
-	sessionID  string
-	toolSets   []tool.ToolSet
-	stream     bool
-	blockedMsg string
+	runner                  runner.Runner
+	memorySvc               memory.Service
+	sessionSvc              agentsession.Service
+	sessionCl               io.Closer
+	sessionID               string
+	toolSets                []tool.ToolSet
+	listenAddr              string
+	gracefulShutdownTimeout time.Duration
+	blockedMsg              string
 }
 
 // NewRuntime constructs a local in-memory agent runtime from YAML config.
-func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
+func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 	log.SetupTRPCAgentLogger()
 
 	configPath, err := agentconfig.ResolvePath(opts.ConfigPath)
@@ -146,14 +143,15 @@ func NewRuntime(ctx context.Context, opts Options) (*Runtime, error) {
 	rnr := runner.NewRunner(sessionstore.DefaultAppName, agt, runnerOpts...)
 
 	return &Runtime{
-		runner:     rnr,
-		memorySvc:  memorySvc,
-		sessionSvc: sessionSvc,
-		sessionCl:  sessionCl,
-		sessionID:  runSessionID,
-		toolSets:   toolSets,
-		stream:     cfg.Model.Stream,
-		blockedMsg: registerModelContextWindows(cfg),
+		runner:                  rnr,
+		memorySvc:               memorySvc,
+		sessionSvc:              sessionSvc,
+		sessionCl:               sessionCl,
+		sessionID:               runSessionID,
+		toolSets:                toolSets,
+		listenAddr:              cfg.Server.Address,
+		gracefulShutdownTimeout: cfg.Server.GracefulShutdownTimeout,
+		blockedMsg:              registerModelContextWindows(cfg),
 	}, nil
 }
 
@@ -193,62 +191,6 @@ func (r *Runtime) Close() error {
 	return firstErr
 }
 
-func (r *Runtime) managedRunner() (runner.ManagedRunner, error) {
-	if r == nil || r.runner == nil {
-		return nil, fmt.Errorf("runner is not available")
-	}
-	mr, ok := r.runner.(runner.ManagedRunner)
-	if !ok {
-		return nil, fmt.Errorf("runner does not support interruption")
-	}
-	return mr, nil
-}
-
-func (r *Runtime) appendInterruptEvent(ctx context.Context, requestID string) error {
-	if r == nil || r.sessionSvc == nil {
-		return fmt.Errorf("session service is not available")
-	}
-
-	sess, err := r.sessionSvc.GetSession(ctx, agentsession.Key{
-		AppName:   sessionstore.DefaultAppName,
-		UserID:    sessionstore.DefaultUserID,
-		SessionID: r.sessionID,
-	})
-	if err != nil {
-		return fmt.Errorf("load session: %w", err)
-	}
-
-	evt := event.NewResponseEvent(
-		uuid.NewString(),
-		"system",
-		&model.Response{
-			Done: true,
-			Choices: []model.Choice{{
-				Index: 0,
-				Message: model.Message{
-					Role:    model.RoleSystem,
-					Content: interruptedRunMessage,
-				},
-			}},
-		},
-	)
-	evt.RequestID = requestID
-	agent.InjectIntoEvent(
-		agent.NewInvocation(
-			agent.WithInvocationRunOptions(agent.RunOptions{
-				RequestID: requestID,
-			}),
-		),
-		evt,
-	)
-
-	err = r.sessionSvc.AppendEvent(ctx, sess, evt)
-	if err != nil {
-		return fmt.Errorf("append interrupt event: %w", err)
-	}
-	return nil
-}
-
 func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer agentsummary.SessionSummarizer) (agentsession.Service, io.Closer, string, error) {
 	if !cfg.Session.Enabled {
 		opts := make([]sessioninmemory.ServiceOpt, 0, 2)
@@ -259,12 +201,15 @@ func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer
 	}
 
 	svc, err := sessionstore.NewSessionServiceClient(sessionstore.ClientConfig{
-		Target:                cfg.Session.Target,
-		Insecure:              cfg.Session.Insecure,
-		Timeout:               time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
-		SessionID:             cfg.Session.SessionID,
-		Summarizer:            summarizer,
-		SummaryTokenThreshold: compactTokenThreshold(cfg),
+		Target:     cfg.Session.Target,
+		Insecure:   cfg.Session.Insecure,
+		Timeout:    time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
+		SessionID:  cfg.Session.SessionID,
+		Summarizer: summarizer,
+		SummaryTokenThreshold: ratioToTokenCount(
+			summaryFallbackWindow(cfg),
+			cfg.Agent.ContextCompactionThresholdRatio,
+		),
 		ToolResultMaxTokens: ratioToTokenCount(
 			summaryFallbackWindow(cfg),
 			cfg.Agent.ContextCompactionOversizedToolResultMaxRatio,

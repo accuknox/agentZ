@@ -1,7 +1,7 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-PROTO_FILES := internal/session/proto/session.proto
+PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.proto
 
 .PHONY: all
 all: generate lint test build

@@ -10,7 +10,9 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sessionpb "github.com/accuknox/clawarmor/internal/session/proto"
@@ -44,7 +46,7 @@ type Client struct {
 
 // NewSessionServiceClient dials the remote session service.
 func NewSessionServiceClient(cfg ClientConfig) (*Client, error) {
-	target := strings.TrimSpace(cfg.Target)
+	target := cfg.Target
 	if target == "" {
 		target = DefaultTarget
 	}
@@ -63,7 +65,7 @@ func NewSessionServiceClient(cfg ClientConfig) (*Client, error) {
 		timeout = 5 * time.Second
 	}
 
-	sessionID := strings.TrimSpace(cfg.SessionID)
+	sessionID := cfg.SessionID
 	if sessionID != "" {
 		sessionID, err = normalizeSessionID(sessionID)
 		if err != nil {
@@ -339,6 +341,9 @@ func (s *Client) AppendEvent(ctx context.Context, sess *agentsession.Session, ev
 
 	resp, err := s.client.AppendEvent(callCtx, req)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || status.Code(err) == codes.Canceled {
+			return nil
+		}
 		return err
 	}
 	if stored := resp.GetEvent(); stored != nil {

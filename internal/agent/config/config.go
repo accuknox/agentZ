@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/knadh/koanf/parsers/yaml"
 	koanffile "github.com/knadh/koanf/providers/file"
@@ -22,12 +22,19 @@ const (
 
 // Config stores the full local agent runtime configuration.
 type Config struct {
+	Server       ServerConfig       `koanf:"server"`
 	Agent        AgentConfig        `koanf:"agent"`
 	Model        ModelConfig        `koanf:"model"`
 	SummaryModel SummaryModelConfig `koanf:"summaryModel"`
 	Memory       MemoryConfig       `koanf:"memory"`
 	Session      SessionConfig      `koanf:"session"`
 	Tools        ToolsConfig        `koanf:"tools"`
+}
+
+// ServerConfig defines the agent gRPC server settings.
+type ServerConfig struct {
+	Address                 string        `koanf:"address"`
+	GracefulShutdownTimeout time.Duration `koanf:"gracefulShutdownTimeout"`
 }
 
 // AgentConfig defines agent identity and prompt settings.
@@ -188,6 +195,9 @@ func Load(path string) (Config, error) {
 
 // applyDefaults normalizes implicit runtime defaults into the config value.
 func (c *Config) applyDefaults() {
+	if c.Server.Address == "" {
+		c.Server.Address = "localhost:8080"
+	}
 	if c.Agent.AddSessionSummary == nil {
 		c.Agent.AddSessionSummary = new(true)
 	}
@@ -222,7 +232,7 @@ func (c *Config) applyDefaults() {
 	if c.Session.Summary.Enabled == nil {
 		c.Session.Summary.Enabled = new(true)
 	}
-	if strings.TrimSpace(c.Session.Summary.Mode) == "" {
+	if c.Session.Summary.Mode == "" {
 		c.Session.Summary.Mode = defaultSessionSummaryMode
 	}
 	if c.Session.Summary.EventThreshold <= 0 && c.Session.Summary.TokenThreshold <= 0 && c.Session.Summary.IdleThreshold == "" {
@@ -248,6 +258,9 @@ func (c Config) Validate() error {
 	}
 	if c.SummaryModel.ContextWindow < 0 {
 		return fmt.Errorf("summaryModel.contextWindow must be >= 0")
+	}
+	if c.Server.GracefulShutdownTimeout < 0 {
+		return fmt.Errorf("server.gracefulShutdownTimeout must be >= 0")
 	}
 	if c.Agent.ContextCompactionToolResultMaxRatio < 0 || c.Agent.ContextCompactionToolResultMaxRatio > 1 {
 		return fmt.Errorf("agent.contextCompactionToolResultMaxRatio must be between 0 and 1")

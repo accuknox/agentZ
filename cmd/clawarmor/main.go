@@ -30,11 +30,17 @@ var cmd = &cli.Command{
 			Name:  "log-level",
 			Usage: "Set log level: debug, info, warn, error",
 			Value: "info",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
 		},
 		&cli.StringFlag{
 			Name:  "log-format",
 			Usage: "Set log format: text, json",
 			Value: "text",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
 		},
 		&cli.BoolFlag{
 			Name:  "log-with-source",

@@ -59,10 +59,11 @@ spec:
           type: RuntimeDefault
       containers:
       - command:
-        - /manager
+        - /clawarmor
         args:
-          - --leader-elect
-          - --health-probe-bind-address=:8081
+        - manager
+        - --leader-elect
+        - --health-probe-bind-address=:8081
         image: controller:latest
         name: manager
         env:

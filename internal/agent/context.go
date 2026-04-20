@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	agentsummary "trpc.group/trpc-go/trpc-agent-go/session/summary"
@@ -21,7 +21,6 @@ const (
 
 type modelBackend struct {
 	name    string
-	apiKey  string
 	baseURL string
 }
 
@@ -30,7 +29,7 @@ type generationDefaultsModel struct {
 	gen  model.GenerationConfig
 }
 
-func registerModelContextWindows(cfg agentconfig.Config) string {
+func registerModelContextWindows(cfg clawarmorv1alpha1.AgentSpec) string {
 	modelName := cfg.Model.Name
 	if cfg.Model.ContextWindow > 0 {
 		model.RegisterModelContextWindow(modelName, cfg.Model.ContextWindow)
@@ -69,19 +68,17 @@ func unknownContextWindowMessage(path string, modelName string) string {
 	)
 }
 
-func buildChatModel(cfg agentconfig.Config) model.Model {
+func buildChatModel(cfg clawarmorv1alpha1.AgentSpec) model.Model {
 	return openAIModel(modelBackend{
 		name:    cfg.Model.Name,
-		apiKey:  cfg.Model.APIKey,
 		baseURL: cfg.Model.BaseURL,
 	})
 }
 
-func buildSummaryModel(cfg agentconfig.Config) model.Model {
+func buildSummaryModel(cfg clawarmorv1alpha1.AgentSpec) model.Model {
 	return withGenerationDefaults(
 		openAIModel(modelBackend{
 			name:    cfg.SummaryModel.Name,
-			apiKey:  cfg.SummaryModel.APIKey,
 			baseURL: cfg.SummaryModel.BaseURL,
 		}),
 		generationConfig(
@@ -94,9 +91,6 @@ func buildSummaryModel(cfg agentconfig.Config) model.Model {
 
 func openAIModel(backend modelBackend) model.Model {
 	opts := []openai.Option{}
-	if backend.apiKey != "" {
-		opts = append(opts, openai.WithAPIKey(backend.apiKey))
-	}
 	if backend.baseURL != "" {
 		opts = append(opts, openai.WithBaseURL(backend.baseURL))
 	}
@@ -149,7 +143,7 @@ func applyGenerationDefaults(req *model.Request, gen model.GenerationConfig) {
 	}
 }
 
-func buildSummarizer(summaryModel model.Model, cfg agentconfig.Config) (agentsummary.SessionSummarizer, error) {
+func buildSummarizer(summaryModel model.Model, cfg clawarmorv1alpha1.AgentSpec) (agentsummary.SessionSummarizer, error) {
 	if !*cfg.Session.Summary.Enabled {
 		return nil, nil
 	}
@@ -192,7 +186,7 @@ func buildSummarizer(summaryModel model.Model, cfg agentconfig.Config) (agentsum
 	return agentsummary.NewSummarizer(summaryModel, opts...), nil
 }
 
-func manualSummaryChecks(cfg agentconfig.Config) ([]agentsummary.Checker, error) {
+func manualSummaryChecks(cfg clawarmorv1alpha1.AgentSpec) ([]agentsummary.Checker, error) {
 	checks := make([]agentsummary.Checker, 0, 3)
 	if cfg.Session.Summary.EventThreshold > 0 {
 		checks = append(checks, agentsummary.CheckEventThreshold(cfg.Session.Summary.EventThreshold))
@@ -212,7 +206,7 @@ func manualSummaryChecks(cfg agentconfig.Config) ([]agentsummary.Checker, error)
 	return checks, nil
 }
 
-func summaryFallbackWindow(cfg agentconfig.Config) int {
+func summaryFallbackWindow(cfg clawarmorv1alpha1.AgentSpec) int {
 	if cfg.Model.ContextWindow > 0 {
 		return cfg.Model.ContextWindow
 	}

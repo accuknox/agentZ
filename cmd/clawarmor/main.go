@@ -44,6 +44,7 @@ import (
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller"
+	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -58,6 +59,7 @@ var (
 	secureMetrics                                    bool
 	enableHTTP2                                      bool
 	tlsOpts                                          []func(*tls.Config)
+	agentDefaultImage                                string
 )
 
 var cmd = &cli.Command{
@@ -164,6 +166,15 @@ var managerCmd = &cli.Command{
 			Name:        "enable-http2",
 			Value:       false,
 			Destination: &enableHTTP2,
+		},
+		&cli.StringFlag{
+			Name:        "agent-default-image",
+			Usage:       "Default container image for Agent pods",
+			Value:       envOr("CLAWARMOR_AGENT_DEFAULT_IMAGE", ""),
+			Destination: &agentDefaultImage,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
@@ -297,10 +308,26 @@ var managerCmd = &cli.Command{
 		reconciler := &controller.AgentReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
+			Config: controller.AgentRuntimeConfig{
+				DefaultImage: agentDefaultImage,
+			},
 		}
 		if err := reconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "Agent")
 			os.Exit(1)
+		}
+		// nolint:goconst
+		if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+			err = webhookv1alpha1.SetupAgentWebhookWithManager(
+				mgr,
+				webhookv1alpha1.AgentWebhookConfig{
+					DefaultImage: agentDefaultImage,
+				},
+			)
+			if err != nil {
+				setupLog.Error(err, "Failed to create webhook", "webhook", "Agent")
+				os.Exit(1)
+			}
 		}
 		// +kubebuilder:scaffold:builder
 
@@ -363,4 +390,12 @@ func setupCacheNamespaces(namespaces string) cache.Options {
 	return cache.Options{
 		DefaultNamespaces: defaultNamespaces,
 	}
+}
+
+func envOr(key, fallback string) string {
+	val := os.Getenv(key)
+	if val != "" {
+		return val
+	}
+	return fallback
 }

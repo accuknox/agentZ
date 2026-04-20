@@ -72,9 +72,6 @@ model:
   # Primary chat/completion model used for the main agent turn execution.
   name: gpt-5.4-mini
 
-  # API key for the primary model provider.
-  apiKey: ""
-
   # Base URL for OpenAI-compatible providers.
   # Leave empty for the provider's default endpoint.
   baseURL: ""
@@ -106,14 +103,9 @@ summaryModel:
   # If empty, ClawArmor falls back to model.name.
   name: gpt-5.4-nano
 
-  # API key for the summarizer model.
-  # If empty, ClawArmor falls back to model.apiKey.
-  apiKey: ""
-
   # Base URL for the summarizer model.
-  # If empty and summaryModel.name or summaryModel.apiKey is set, the provider
-  # default is used. If the summary model is not overridden, model.baseURL is
-  # reused with the primary model settings.
+  # If empty and the summary model is not overridden, model.baseURL is reused
+  # with the primary model settings.
   baseURL: ""
 
   # Explicit summarizer model context window in tokens.
@@ -186,7 +178,7 @@ session:
 
   # Session UUID to attach the agent to when using the external session
   # service. Required when session.enabled is true.
-  sessionID: ""
+  id: ""
 
   summary:
     # Master switch for summary generation and summary persistence.

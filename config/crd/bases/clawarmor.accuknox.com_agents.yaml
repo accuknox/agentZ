@@ -11,13 +11,32 @@ spec:
     kind: Agent
     listKind: AgentList
     plural: agents
+    shortNames:
+    - agent
     singular: agent
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Whether the Agent is ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Agent session identifier
+      jsonPath: .spec.session.id
+      name: Session
+      type: string
+    - description: Service exposing the Agent API
+      jsonPath: .status.serviceName
+      name: Service
+      type: string
+    - description: Age of the Agent
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Agent is the Schema for the agents API
+        description: Agent is the Schema for the agents API.
         properties:
           apiVersion:
             description: |-
@@ -37,27 +56,426 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of Agent
+            description: spec defines the desired state of Agent.
             properties:
-              foo:
-                description: foo is an example field of Agent. Edit agent_types.go
-                  to remove/update
+              agent:
+                description: Agent defines identity and prompt settings for the runtime.
+                properties:
+                  addSessionSummary:
+                    description: AddSessionSummary injects the latest persisted summary
+                      into context.
+                    type: boolean
+                  contextCompactionKeepRecentRequests:
+                    description: ContextCompactionKeepRecentRequests preserves recent
+                      requests in full.
+                    minimum: 0
+                    type: integer
+                  contextCompactionOversizedToolResultMaxRatio:
+                    description: ContextCompactionOversizedToolResultMaxRatio truncates
+                      large results.
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                  contextCompactionThresholdRatio:
+                    description: ContextCompactionThresholdRatio triggers compaction
+                      by context ratio.
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                  contextCompactionToolResultMaxRatio:
+                    description: ContextCompactionToolResultMaxRatio compacts old
+                      tool results.
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                  enableContextCompaction:
+                    description: EnableContextCompaction enables summary-backed context
+                      compaction.
+                    type: boolean
+                  instruction:
+                    description: Instruction is high-level task guidance appended
+                      to the prompt.
+                    type: string
+                  maxHistoryRuns:
+                    description: MaxHistoryRuns caps raw history when summaries are
+                      not used.
+                    minimum: 0
+                    type: integer
+                  systemPrompt:
+                    description: SystemPrompt is global instruction applied to every
+                      turn.
+                    type: string
+                type: object
+              image:
+                description: Image is the container image used for the Agent runtime.
                 type: string
+              imagePullPolicy:
+                default: IfNotPresent
+                description: ImagePullPolicy defines when Kubernetes pulls the Agent
+                  image.
+                type: string
+              memory:
+                description: Memory configures in-process memory and memory tools.
+                properties:
+                  enabled:
+                    description: Enabled turns on in-process memory.
+                    type: boolean
+                  limit:
+                    description: Limit caps retained memory entries.
+                    minimum: 0
+                    type: integer
+                  tools:
+                    description: Tools controls memory tool exposure.
+                    properties:
+                      add:
+                        description: Add exposes memory creation.
+                        type: boolean
+                      clear:
+                        description: Clear exposes memory clearing.
+                        type: boolean
+                      delete:
+                        description: Delete exposes memory deletion.
+                        type: boolean
+                      load:
+                        description: Load exposes memory loading.
+                        type: boolean
+                      search:
+                        description: Search exposes memory search.
+                        type: boolean
+                      update:
+                        description: Update exposes memory updates.
+                        type: boolean
+                    type: object
+                type: object
+              model:
+                description: Model defines the primary chat model.
+                properties:
+                  baseURL:
+                    description: BaseURL is an optional OpenAI-compatible provider
+                      URL.
+                    type: string
+                  contextWindow:
+                    description: ContextWindow is an explicit model context window.
+                    minimum: 0
+                    type: integer
+                  maxTokens:
+                    description: MaxTokens caps model output tokens.
+                    minimum: 0
+                    type: integer
+                  name:
+                    description: Name is the primary model identifier.
+                    type: string
+                  stream:
+                    description: Stream enables streamed model responses.
+                    type: boolean
+                  temperature:
+                    description: Temperature configures model sampling.
+                    type: number
+                required:
+                - name
+                type: object
+              resources:
+                description: Resources defines compute resources allocated to the
+                  Agent pod.
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This field depends on the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
+              server:
+                description: Server defines the agent gRPC server settings.
+                properties:
+                  address:
+                    description: Address is the TCP listen address for the agent server.
+                    type: string
+                  gracefulShutdownTimeout:
+                    description: GracefulShutdownTimeout is the maximum graceful shutdown
+                      period.
+                    type: string
+                required:
+                - address
+                type: object
+              session:
+                description: Session configures persisted session behavior.
+                properties:
+                  enabled:
+                    description: Enabled uses the external gRPC session service when
+                      true.
+                    type: boolean
+                  id:
+                    description: ID is the immutable UUIDv4 session identifier.
+                    type: string
+                  insecure:
+                    description: Insecure uses insecure gRPC transport.
+                    type: boolean
+                  summary:
+                    description: Summary defines session summarization behavior.
+                    properties:
+                      approxRunesPerToken:
+                        description: ApproxRunesPerToken hints token estimation.
+                        minimum: 0
+                        type: number
+                      enabled:
+                        description: Enabled turns session summary generation on or
+                          off.
+                        type: boolean
+                      eventThreshold:
+                        description: EventThreshold summarizes after this many events
+                          in manual mode.
+                        minimum: 0
+                        type: integer
+                      idleThreshold:
+                        description: IdleThreshold summarizes after this idle duration
+                          in manual mode.
+                        type: string
+                      maxWords:
+                        description: MaxWords is best-effort guidance for summary
+                          length.
+                        minimum: 0
+                        type: integer
+                      mode:
+                        description: Mode selects auto or manual summary thresholds.
+                        enum:
+                        - auto
+                        - manual
+                        type: string
+                      tokenThreshold:
+                        description: TokenThreshold summarizes after this many tokens
+                          in manual mode.
+                        minimum: 0
+                        type: integer
+                    type: object
+                  target:
+                    description: Target is the external session service gRPC target.
+                    type: string
+                  timeoutMs:
+                    description: TimeoutMs is the external session RPC timeout in
+                      milliseconds.
+                    minimum: 0
+                    type: integer
+                required:
+                - id
+                type: object
+              summaryModel:
+                description: SummaryModel defines the model used for session summarization.
+                properties:
+                  baseURL:
+                    description: BaseURL is an optional OpenAI-compatible provider
+                      URL.
+                    type: string
+                  contextWindow:
+                    description: ContextWindow is an explicit summarizer model context
+                      window.
+                    minimum: 0
+                    type: integer
+                  maxTokens:
+                    description: MaxTokens caps summarization output tokens.
+                    minimum: 0
+                    type: integer
+                  name:
+                    description: Name is the summarization model identifier.
+                    type: string
+                  temperature:
+                    description: Temperature configures summarization sampling.
+                    type: number
+                type: object
+              tools:
+                description: Tools configures optional runtime tools.
+                properties:
+                  arxiv:
+                    description: Arxiv configures arXiv search tools.
+                    properties:
+                      baseURL:
+                        description: BaseURL is the arXiv API base URL.
+                        type: string
+                      delayMs:
+                        description: DelayMS delays arXiv retry/page requests.
+                        minimum: 0
+                        type: integer
+                      enabled:
+                        description: Enabled turns arXiv search on.
+                        type: boolean
+                      numRetries:
+                        description: NumRetries caps arXiv retries.
+                        minimum: 0
+                        type: integer
+                      pageSize:
+                        description: PageSize controls arXiv result page size.
+                        minimum: 0
+                        type: integer
+                    type: object
+                  file:
+                    description: File configures filesystem tools.
+                    properties:
+                      baseDir:
+                        description: BaseDir is the filesystem root exposed to file
+                          tools.
+                        type: string
+                      enabled:
+                        description: Enabled turns file tools on.
+                        type: boolean
+                    type: object
+                  hostExec:
+                    description: HostExec configures host command execution tools.
+                    properties:
+                      baseDir:
+                        description: BaseDir is the working-directory root for commands.
+                        type: string
+                      baseEnv:
+                        additionalProperties:
+                          type: string
+                        description: BaseEnv is extra environment for commands.
+                        type: object
+                      enabled:
+                        description: Enabled turns host execution tools on.
+                        type: boolean
+                    type: object
+                  mcp:
+                    description: MCP configures MCP toolsets.
+                    items:
+                      description: MCPConfig defines one MCP toolset connection.
+                      properties:
+                        args:
+                          description: Args are local MCP server command arguments.
+                          items:
+                            type: string
+                          type: array
+                        command:
+                          description: Command is the local MCP server command.
+                          type: string
+                        enabled:
+                          description: Enabled turns this MCP connection on.
+                          type: boolean
+                        headers:
+                          additionalProperties:
+                            type: string
+                          description: Headers are remote MCP request headers.
+                          type: object
+                        name:
+                          description: Name is the MCP toolset name.
+                          type: string
+                        reconnect:
+                          description: Reconnect enables MCP reconnect attempts.
+                          type: boolean
+                        reconnectMaxAttempts:
+                          description: ReconnectMaxAttempt caps MCP reconnect attempts.
+                          minimum: 0
+                          type: integer
+                        serverUrl:
+                          description: ServerURL is the remote MCP server URL.
+                          type: string
+                        timeoutMs:
+                          description: TimeoutMs is the MCP request timeout.
+                          minimum: 0
+                          type: integer
+                        transport:
+                          description: Transport selects the MCP transport.
+                          type: string
+                      type: object
+                    type: array
+                  openAPI:
+                    description: OpenAPI configures OpenAPI-backed toolsets.
+                    items:
+                      description: OpenAPIConfig defines one OpenAPI-backed toolset
+                        entry.
+                      properties:
+                        enabled:
+                          description: Enabled turns this OpenAPI toolset on.
+                          type: boolean
+                        name:
+                          description: Name is the toolset name.
+                          type: string
+                        specFile:
+                          description: SpecFile is a local OpenAPI specification path.
+                          type: string
+                        specUrl:
+                          description: SpecURL is a remote OpenAPI specification URL.
+                          type: string
+                      type: object
+                    type: array
+                  webFetch:
+                    description: WebFetch configures HTTP fetch tools.
+                    properties:
+                      enabled:
+                        description: Enabled turns web fetch tools on.
+                        type: boolean
+                      maxContentLength:
+                        description: MaxContentLength caps one fetched response.
+                        minimum: 0
+                        type: integer
+                      maxTotalContentLength:
+                        description: MaxTotalContentLength caps all fetched responses
+                          per tool call.
+                        minimum: 0
+                        type: integer
+                      timeoutMs:
+                        description: TimeoutMs is the per-request fetch timeout.
+                        minimum: 0
+                        type: integer
+                    type: object
+                type: object
+            required:
+            - model
+            - server
+            - session
             type: object
           status:
-            description: status defines the observed state of Agent
+            description: status defines the observed state of Agent.
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the Agent resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: Conditions represent the current state of the Agent resource.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -116,6 +534,23 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              configMapName:
+                description: ConfigMapName is the ConfigMap mounted into the Agent
+                  pod.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the latest reconciled generation.
+                format: int64
+                type: integer
+              observedSessionID:
+                description: ObservedSessionID is the session id applied by the controller.
+                type: string
+              serviceName:
+                description: ServiceName is the service exposing the Agent API.
+                type: string
+              url:
+                description: URL is the in-cluster URL of the Agent API service.
+                type: string
             type: object
         required:
         - spec

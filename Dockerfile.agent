@@ -19,13 +19,23 @@ COPY . .
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -a -o clawarmor cmd/main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -a -o clawarmor ./cmd/clawarmor
 
-# Use distroless as minimal base image to package the clawarmor binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
-WORKDIR /
-COPY --from=builder /workspace/clawarmor .
+# Package the agent with shell and troubleshooting tools used by runtime probes.
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    ca-certificates \
+    coreutils \
+    curl \
+    gawk \
+    jq \
+    python3 \
+    ripgrep \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /workspace/clawarmor /usr/local/bin/clawarmor
+RUN mkdir -p /home/clawarmor && chown 65532:65532 /home/clawarmor
 USER 65532:65532
+WORKDIR /home/clawarmor
 
-ENTRYPOINT ["/clawarmor"]
+ENTRYPOINT ["/usr/local/bin/clawarmor"]

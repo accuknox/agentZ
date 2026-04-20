@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 	"github.com/accuknox/clawarmor/internal/agent/log"
 	sessionstore "github.com/accuknox/clawarmor/internal/session"
@@ -150,7 +151,7 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 		sessionID:               runSessionID,
 		toolSets:                toolSets,
 		listenAddr:              cfg.Server.Address,
-		gracefulShutdownTimeout: cfg.Server.GracefulShutdownTimeout,
+		gracefulShutdownTimeout: cfg.Server.GracefulShutdownTimeout.Duration,
 		blockedMsg:              registerModelContextWindows(cfg),
 	}, nil
 }
@@ -191,7 +192,7 @@ func (r *Runtime) Close() error {
 	return firstErr
 }
 
-func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer agentsummary.SessionSummarizer) (agentsession.Service, io.Closer, string, error) {
+func buildSessionService(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec, summarizer agentsummary.SessionSummarizer) (agentsession.Service, io.Closer, string, error) {
 	if !cfg.Session.Enabled {
 		opts := make([]sessioninmemory.ServiceOpt, 0, 2)
 		if summarizer != nil {
@@ -204,7 +205,7 @@ func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer
 		Target:     cfg.Session.Target,
 		Insecure:   cfg.Session.Insecure,
 		Timeout:    time.Duration(cfg.Session.TimeoutMs) * time.Millisecond,
-		SessionID:  cfg.Session.SessionID,
+		SessionID:  cfg.Session.ID,
 		Summarizer: summarizer,
 		SummaryTokenThreshold: ratioToTokenCount(
 			summaryFallbackWindow(cfg),
@@ -219,16 +220,16 @@ func buildSessionService(ctx context.Context, cfg agentconfig.Config, summarizer
 		return nil, nil, "", err
 	}
 
-	err = svc.EnsureSessionExists(ctx, cfg.Session.SessionID)
+	err = svc.EnsureSessionExists(ctx, cfg.Session.ID)
 	if err != nil {
 		svc.Close()
-		return nil, nil, "", fmt.Errorf("session %q not found: %w", cfg.Session.SessionID, err)
+		return nil, nil, "", fmt.Errorf("session %q not found: %w", cfg.Session.ID, err)
 	}
 
-	return svc, svc, cfg.Session.SessionID, nil
+	return svc, svc, cfg.Session.ID, nil
 }
 
-func buildMemoryService(cfg agentconfig.Config) memory.Service {
+func buildMemoryService(cfg clawarmorv1alpha1.AgentSpec) memory.Service {
 	if !cfg.Memory.Enabled {
 		return nil
 	}
@@ -254,7 +255,7 @@ func buildMemoryService(cfg agentconfig.Config) memory.Service {
 }
 
 //nolint:gocyclo
-func buildTools(ctx context.Context, cfg agentconfig.Config) ([]tool.Tool, []tool.ToolSet, error) {
+func buildTools(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec) ([]tool.Tool, []tool.ToolSet, error) {
 	tools := make([]tool.Tool, 0, 32)
 	toolSets := make([]tool.ToolSet, 0, 16)
 

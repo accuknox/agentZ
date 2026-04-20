@@ -6,4 +6,95 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: agent-sample
 spec:
-  # TODO(user): Add fields here
+  image: murtazau/clawarmor-agent:latest
+  imagePullPolicy: Never
+
+  server:
+    address: 0.0.0.0:8080
+    gracefulShutdownTimeout: 15s
+
+  agent:
+    instruction: ""
+    systemPrompt: ""
+    addSessionSummary: true
+    enableContextCompaction: true
+    contextCompactionThresholdRatio: 0.7
+    contextCompactionToolResultMaxRatio: 0.008
+    contextCompactionKeepRecentRequests: 1
+    contextCompactionOversizedToolResultMaxRatio: 0.064
+    maxHistoryRuns: 50
+
+  model:
+    name: gpt-oss:20b
+    baseURL: "http://100.92.36.14:11434/v1/"
+    contextWindow: 100000
+    temperature: 0.2
+    maxTokens: 0
+    stream: true
+
+  memory:
+    enabled: true
+    limit: 0
+    tools:
+      search: true
+      load: true
+      add: true
+      update: true
+      delete: true
+      clear: false
+
+  session:
+    enabled: true
+    target: 172.18.0.1:8081
+    insecure: true
+    timeoutMs: 5000
+    id: 51047bae-702a-4115-bcde-95fff10593bb
+    summary:
+      enabled: true
+      mode: auto
+      eventThreshold: 20
+      tokenThreshold: 0
+      idleThreshold: 0s
+      maxWords: 200
+      approxRunesPerToken: 0
+
+  tools:
+    hostExec:
+      enabled: true
+      baseDir: /home/clawarmor
+      baseEnv: {}
+
+    webFetch:
+      enabled: true
+      timeoutMs: 30000
+      maxContentLength: 0
+      maxTotalContentLength: 0
+
+    file:
+      enabled: false
+      baseDir: /home/clawarmor
+
+    arxiv:
+      enabled: true
+      baseURL: ""
+      pageSize: 10
+      delayMs: 0
+      numRetries: 2
+
+    openAPI: []
+    # - enabled: true
+    #   name: petstore
+    #   specFile: ./openapi/petstore.yaml
+    #   specUrl: ""
+
+    mcp: []
+    # - enabled: true
+    #   name: playwright
+    #   transport: stdio
+    #   serverUrl: ""
+    #   command: npx
+    #   args: ["@playwright/mcp@latest"]
+    #   headers: {}
+    #   timeoutMs: 30000
+    #   reconnect: true
+    #   reconnectMaxAttempts: 3

@@ -11,6 +11,7 @@ import (
 	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 	"github.com/accuknox/clawarmor/internal/agent/log"
 	sessionstore "github.com/accuknox/clawarmor/internal/session"
+	"go.opentelemetry.io/otel/attribute"
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/memory"
 	meminmemory "trpc.group/trpc-go/trpc-agent-go/memory/inmemory"
@@ -18,6 +19,7 @@ import (
 	agentsession "trpc.group/trpc-go/trpc-agent-go/session"
 	sessioninmemory "trpc.group/trpc-go/trpc-agent-go/session/inmemory"
 	agentsummary "trpc.group/trpc-go/trpc-agent-go/session/summary"
+	atrace "trpc.group/trpc-go/trpc-agent-go/telemetry/trace"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/arxivsearch"
 	filetool "trpc.group/trpc-go/trpc-agent-go/tool/file"
@@ -40,6 +42,7 @@ type Runtime struct {
 	memorySvc               memory.Service
 	sessionSvc              agentsession.Service
 	sessionCl               io.Closer
+	traceClean              func() error
 	sessionID               string
 	toolSets                []tool.ToolSet
 	listenAddr              string
@@ -61,10 +64,18 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 		return nil, err
 	}
 
+	traceClean, err := startTraceTelemetry(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	mdl := buildChatModel(cfg)
 	summaryModel := buildSummaryModel(cfg)
 	summarizer, err := buildSummarizer(summaryModel, cfg)
 	if err != nil {
+		if traceClean != nil {
+			traceClean()
+		}
 		return nil, err
 	}
 
@@ -74,6 +85,9 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 	if err != nil {
 		if memorySvc != nil {
 			memorySvc.Close()
+		}
+		if traceClean != nil {
+			traceClean()
 		}
 		return nil, err
 	}
@@ -125,12 +139,17 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 		summarizer,
 	)
 	if err != nil {
-		memorySvc.Close()
+		if memorySvc != nil {
+			memorySvc.Close()
+		}
 		for _, toolSet := range toolSets {
 			if toolSet == nil {
 				continue
 			}
 			toolSet.Close()
+		}
+		if traceClean != nil {
+			traceClean()
 		}
 		return nil, err
 	}
@@ -148,6 +167,7 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 		memorySvc:               memorySvc,
 		sessionSvc:              sessionSvc,
 		sessionCl:               sessionCl,
+		traceClean:              traceClean,
 		sessionID:               runSessionID,
 		toolSets:                toolSets,
 		listenAddr:              cfg.Server.Address,
@@ -183,6 +203,12 @@ func (r *Runtime) Close() error {
 			firstErr = err
 		}
 	}
+	if r.traceClean != nil {
+		err := r.traceClean()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 	if r.sessionCl != nil {
 		err := r.sessionCl.Close()
 		if err != nil && firstErr == nil {
@@ -190,6 +216,30 @@ func (r *Runtime) Close() error {
 		}
 	}
 	return firstErr
+}
+
+func startTraceTelemetry(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec) (func() error, error) {
+	if !cfg.Telemetry.Enabled {
+		return nil, nil
+	}
+	sessionID := cfg.Session.ID
+	if sessionID == "" {
+		sessionID = sessionstore.DefaultSessionID
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("clawarmor.session_id", sessionID),
+		attribute.String("clawarmor.agent_name", "clawarmor"),
+	}
+	clean, err := atrace.Start(
+		ctx,
+		atrace.WithEndpoint(cfg.Telemetry.TraceEndpoint),
+		atrace.WithServiceName("clawarmor-agent"),
+		atrace.WithResourceAttributes(attrs...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("start trace telemetry: %w", err)
+	}
+	return clean, nil
 }
 
 func buildSessionService(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec, summarizer agentsummary.SessionSummarizer) (agentsession.Service, io.Closer, string, error) {

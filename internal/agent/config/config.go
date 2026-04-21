@@ -21,6 +21,7 @@ const (
 	defaultSessionSummaryEventThreshold                 = 20
 	defaultWebFetchTimeoutMS                            = 30000
 	defaultMCPReconnectMaxAttempt                       = 3
+	defaultTelemetryTraceEndpoint                       = "localhost:4317"
 )
 
 // Load reads YAML config from path and applies defaults.
@@ -88,6 +89,9 @@ func ApplyDefaults(c *clawarmorv1alpha1.AgentSpec) {
 	if c.Session.Summary.EventThreshold <= 0 && c.Session.Summary.TokenThreshold <= 0 && c.Session.Summary.IdleThreshold == "" {
 		c.Session.Summary.EventThreshold = defaultSessionSummaryEventThreshold
 	}
+	if c.Telemetry.Enabled && c.Telemetry.TraceEndpoint == "" {
+		c.Telemetry.TraceEndpoint = defaultTelemetryTraceEndpoint
+	}
 	if c.Tools.WebFetch.TimeoutMs <= 0 {
 		c.Tools.WebFetch.TimeoutMs = defaultWebFetchTimeoutMS
 	}
@@ -131,6 +135,9 @@ func Validate(c clawarmorv1alpha1.AgentSpec) error {
 		if c.Session.ID == "" {
 			return fmt.Errorf("session.id is required when session is enabled")
 		}
+	}
+	if c.Telemetry.Enabled && c.Telemetry.TraceEndpoint == "" {
+		return fmt.Errorf("telemetry.traceEndpoint is required when telemetry is enabled")
 	}
 	if mode := c.Session.Summary.Mode; mode != "" && mode != "auto" && mode != "manual" {
 		return fmt.Errorf("session.summary.mode must be auto or manual")

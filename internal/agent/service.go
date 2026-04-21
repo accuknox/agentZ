@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	grpcHealth "google.golang.org/grpc/health"
@@ -166,6 +167,12 @@ func (s *service) SendUserMessage(ctx context.Context, req *agentpb.SendUserMess
 		s.rt.sessionID,
 		model.NewUserMessage(prompt),
 		agent.WithRequestID(requestID),
+		agent.WithSpanAttributes(
+			attribute.String("clawarmor.session_id", s.rt.sessionID),
+			attribute.String("clawarmor.run_id", runID),
+			attribute.String("clawarmor.request_id", requestID),
+			attribute.String("clawarmor.agent_name", "clawarmor"),
+		),
 	)
 	if err != nil {
 		s.finishRun(run, agentpb.RunState_RUN_STATE_FAILED, err.Error())

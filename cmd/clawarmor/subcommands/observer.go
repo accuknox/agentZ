@@ -43,6 +43,14 @@ var observerServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:  "otlp-trace-grpc-addr",
+			Usage: "OTLP trace receiver gRPC listen address",
+			Value: observer.DefaultOTLPTraceGRPCAddr,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
 			Name:  "namespace",
 			Usage: "Kubernetes namespace to observe",
 			Value: observer.DefaultNamespace,
@@ -66,6 +74,7 @@ var observerServeCmd = &cli.Command{
 			PostgresDSN:        c.String("postgres-dsn"),
 			KubeArmorRelayAddr: c.String("kubearmor-relay-addr"),
 			HubbleRelayAddr:    c.String("hubble-relay-addr"),
+			OTLPTraceGRPCAddr:  c.String("otlp-trace-grpc-addr"),
 			Namespace:          c.String("namespace"),
 			BatchSize:          c.Int("batch-size"),
 			FlushInterval:      c.Duration("flush-interval"),

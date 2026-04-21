@@ -18,10 +18,19 @@ type stats struct {
 	failed   uint64
 }
 
+func (s *stats) addReceived(n uint64) {
+	atomic.AddUint64(&s.received, n)
+}
+
+func (s *stats) addFiltered(n uint64) {
+	atomic.AddUint64(&s.filtered, n)
+}
+
 type collector struct {
 	processes []processEvent
 	files     []fileEvent
 	networks  []networkEvent
+	traces    []traceSpanEvent
 }
 
 func (c *collector) add(ev event) {
@@ -34,10 +43,13 @@ func (c *collector) add(ev event) {
 	if ev.network != nil {
 		c.networks = append(c.networks, *ev.network)
 	}
+	if ev.trace != nil {
+		c.traces = append(c.traces, *ev.trace)
+	}
 }
 
 func (c *collector) count() int {
-	return len(c.processes) + len(c.files) + len(c.networks)
+	return len(c.processes) + len(c.files) + len(c.networks) + len(c.traces)
 }
 
 func (c *collector) flush() batch {
@@ -45,10 +57,12 @@ func (c *collector) flush() batch {
 		processes: c.processes,
 		files:     c.files,
 		networks:  c.networks,
+		traces:    c.traces,
 	}
 	c.processes = nil
 	c.files = nil
 	c.networks = nil
+	c.traces = nil
 	return b
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	observerdb "github.com/accuknox/clawarmor/internal/observer/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -133,8 +134,103 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		}
 	}
 
+	if len(b.traces) > 0 {
+		if err := insertTraceEvents(ctx, tx, b.traces); err != nil {
+			return err
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
 	return nil
+}
+
+func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) error {
+	q := observerdb.New(tx)
+	spans := make([]observerdb.InsertTraceSpanParams, 0, len(traces))
+	payloads := make([]observerdb.InsertTraceSpanPayloadParams, 0, len(traces))
+	for _, ev := range traces {
+		spans = append(spans, observerdb.InsertTraceSpanParams{
+			SessionID:          ev.sessionID,
+			TraceID:            ev.traceID,
+			SpanID:             ev.spanID,
+			ParentSpanID:       ev.parentSpanID,
+			StartTime:          ev.startTime,
+			EndTime:            ev.endTime,
+			DurationNs:         ev.durationNS,
+			Name:               ev.name,
+			OperationName:      ev.operationName,
+			Kind:               ev.kind,
+			StatusCode:         ev.statusCode,
+			ErrorType:          ev.errorType,
+			ErrorMessage:       ev.errorMessage,
+			ConversationID:     ev.conversationID,
+			RunID:              ev.runID,
+			RequestID:          ev.requestID,
+			Model:              ev.model,
+			ToolName:           ev.toolName,
+			InputTokens:        ev.inputTokens,
+			OutputTokens:       ev.outputTokens,
+			CachedInputTokens:  ev.cachedInputTokens,
+			TimeToFirstTokenMs: ev.timeToFirstTokenMS,
+			PodNamespace:       ev.podNamespace,
+			PodName:            ev.podName,
+		})
+		p := ev.payload
+		payloads = append(payloads, observerdb.InsertTraceSpanPayloadParams{
+			TraceID:        ev.traceID,
+			SpanID:         ev.spanID,
+			StartTime:      ev.startTime,
+			InputMessages:  p.inputMessages,
+			OutputMessages: p.outputMessages,
+			ToolArguments:  p.toolArguments,
+			ToolResult:     p.toolResult,
+			Metadata:       p.metadata,
+		})
+	}
+
+	var batchErr error
+	q.InsertTraceSpan(ctx, spans).Exec(func(_ int, err error) {
+		if err != nil && batchErr == nil {
+			batchErr = err
+		}
+	})
+	if batchErr != nil {
+		return fmt.Errorf("insert trace spans: %w", batchErr)
+	}
+
+	q.InsertTraceSpanPayload(ctx, payloads).Exec(func(_ int, err error) {
+		if err != nil && batchErr == nil {
+			batchErr = err
+		}
+	})
+	if batchErr != nil {
+		return fmt.Errorf("insert trace span payloads: %w", batchErr)
+	}
+
+	q.RefreshTraceSummary(ctx, uniqueTraceIDs(traces)).Exec(func(_ int, err error) {
+		if err != nil && batchErr == nil {
+			batchErr = err
+		}
+	})
+	if batchErr != nil {
+		return fmt.Errorf("upsert trace summaries: %w", batchErr)
+	}
+
+	return nil
+}
+
+func uniqueTraceIDs(traces []traceSpanEvent) [][]byte {
+	seen := map[string]struct{}{}
+	ids := make([][]byte, 0, len(traces))
+	for _, ev := range traces {
+		key := string(ev.traceID)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		ids = append(ids, ev.traceID)
+	}
+	return ids
 }

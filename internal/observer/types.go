@@ -21,6 +21,7 @@ type event struct {
 	process *processEvent
 	file    *fileEvent
 	network *networkEvent
+	trace   *traceSpanEvent
 }
 
 type processEvent struct {
@@ -60,12 +61,52 @@ type networkEvent struct {
 	source            string
 }
 
+type traceSpanEvent struct {
+	sessionID          uuid.UUID
+	traceID            []byte
+	spanID             []byte
+	parentSpanID       []byte
+	startTime          time.Time
+	endTime            time.Time
+	durationNS         int64
+	name               string
+	operationName      string
+	kind               string
+	statusCode         string
+	errorType          string
+	errorMessage       string
+	conversationID     string
+	runID              string
+	requestID          string
+	model              string
+	toolName           string
+	inputTokens        int64
+	outputTokens       int64
+	cachedInputTokens  int64
+	timeToFirstTokenMS float64
+	podNamespace       string
+	podName            string
+	payload            traceSpanPayload
+}
+
+type traceSpanPayload struct {
+	inputMessages  []byte
+	outputMessages []byte
+	toolArguments  []byte
+	toolResult     []byte
+	metadata       []byte
+}
+
 type batch struct {
 	processes []processEvent
 	files     []fileEvent
 	networks  []networkEvent
+	traces    []traceSpanEvent
 }
 
 func (b batch) empty() bool {
-	return len(b.processes) == 0 && len(b.files) == 0 && len(b.networks) == 0
+	return len(b.processes) == 0 &&
+		len(b.files) == 0 &&
+		len(b.networks) == 0 &&
+		len(b.traces) == 0
 }

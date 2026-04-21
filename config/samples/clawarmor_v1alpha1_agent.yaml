@@ -58,6 +58,10 @@ spec:
       maxWords: 200
       approxRunesPerToken: 0
 
+  telemetry:
+    enabled: true
+    traceEndpoint: 172.18.0.1:4317
+
   tools:
     hostExec:
       enabled: true

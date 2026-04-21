@@ -331,6 +331,17 @@ spec:
                     description: Temperature configures summarization sampling.
                     type: number
                 type: object
+              telemetry:
+                description: Telemetry configures agent observability export.
+                properties:
+                  enabled:
+                    description: Enabled turns on OpenTelemetry trace export.
+                    type: boolean
+                  traceEndpoint:
+                    description: TraceEndpoint is the OTLP/gRPC trace endpoint in
+                      host:port form.
+                    type: string
+                type: object
               tools:
                 description: Tools configures optional runtime tools.
                 properties:

@@ -216,6 +216,11 @@ session:
     # default heuristic underestimates token usage.
     approxRunesPerToken: 0
 
+telemetry:
+  # Export trpc-agent-go OpenTelemetry spans to the observer.
+  enabled: true
+  traceEndpoint: localhost:4317
+
 tools:
   hostExec:
     # Enable local shell command execution tools.

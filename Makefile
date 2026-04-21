@@ -27,6 +27,7 @@ generate:
 .PHONY: fmt
 fmt:
 	go fmt ./...
+	yamlfmt .
 
 # Run tests.
 .PHONY: test
@@ -40,6 +41,7 @@ lint:
 	"$(GOLANGCI_LINT)" run
 	buf lint
 	protoc --lint_out=sort_imports:. $(PROTO_FILES)
+	yamllint .
 
 # Build clawarmor binary.
 .PHONY: build

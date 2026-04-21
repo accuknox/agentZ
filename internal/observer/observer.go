@@ -23,6 +23,7 @@ var (
 	errPostgresDSNEmpty        = errors.New("postgres dsn must not be empty")
 	errKubeArmorRelayAddrEmpty = errors.New("kubearmor relay address must not be empty")
 	errHubbleRelayAddrEmpty    = errors.New("hubble relay address must not be empty")
+	errOTLPTraceGRPCAddrEmpty  = errors.New("otlp trace grpc address must not be empty")
 	errNamespaceEmpty          = errors.New("namespace must not be empty")
 	errBatchSizeInvalid        = errors.New("batch size must be greater than zero")
 	errFlushIntervalInvalid    = errors.New("flush interval must be greater than zero")
@@ -33,6 +34,7 @@ type Config struct {
 	PostgresDSN        string
 	KubeArmorRelayAddr string
 	HubbleRelayAddr    string
+	OTLPTraceGRPCAddr  string
 	Namespace          string
 	BatchSize          int
 	FlushInterval      time.Duration
@@ -48,6 +50,9 @@ func (c Config) Validate() error {
 	}
 	if c.HubbleRelayAddr == "" {
 		return errHubbleRelayAddrEmpty
+	}
+	if c.OTLPTraceGRPCAddr == "" {
+		return errOTLPTraceGRPCAddrEmpty
 	}
 	if c.Namespace == "" {
 		return errNamespaceEmpty
@@ -105,6 +110,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	})
 	wg.Go(func() {
 		runHubbleWatcher(ctx, cfg, res, evCh, stats)
+	})
+	wg.Go(func() {
+		if err := runOTLPTraceReceiver(ctx, cfg, evCh, stats); err != nil {
+			slog.ErrorContext(ctx, "otlp trace receiver failed", slog.Any("error", err))
+		}
 	})
 	wg.Go(func() {
 		logStats(ctx, stats)

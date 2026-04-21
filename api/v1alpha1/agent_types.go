@@ -92,6 +92,10 @@ type AgentSpec struct {
 	// +required
 	Session SessionConfig `json:"session"`
 
+	// Telemetry configures agent observability export.
+	// +optional
+	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
+
 	// Tools configures optional runtime tools.
 	// +optional
 	Tools ToolsConfig `json:"tools,omitempty"`
@@ -309,6 +313,17 @@ type SessionSummaryConfig struct {
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	ApproxRunesPerToken float64 `json:"approxRunesPerToken,omitempty"`
+}
+
+// TelemetryConfig defines agent telemetry export settings.
+type TelemetryConfig struct {
+	// Enabled turns on OpenTelemetry trace export.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// TraceEndpoint is the OTLP/gRPC trace endpoint in host:port form.
+	// +optional
+	TraceEndpoint string `json:"traceEndpoint,omitempty"`
 }
 
 // ToolsConfig defines tool and toolset configuration.

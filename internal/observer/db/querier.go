@@ -9,9 +9,12 @@ import (
 )
 
 type Querier interface {
+	InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanParams) *InsertTraceSpanBatchResults
+	InsertTraceSpanPayload(ctx context.Context, arg []InsertTraceSpanPayloadParams) *InsertTraceSpanPayloadBatchResults
 	ListFileEventsBetween(ctx context.Context, arg ListFileEventsBetweenParams) ([]ObserverFileEvent, error)
 	ListNetworkEventsBetween(ctx context.Context, arg ListNetworkEventsBetweenParams) ([]ObserverNetworkEvent, error)
 	ListProcessEventsBetween(ctx context.Context, arg ListProcessEventsBetweenParams) ([]ObserverProcessEvent, error)
+	RefreshTraceSummary(ctx context.Context, traceID [][]byte) *RefreshTraceSummaryBatchResults
 }
 
 var _ Querier = (*Queries)(nil)

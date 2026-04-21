@@ -288,9 +288,11 @@ func (r *AgentReconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash str
 	labels := resourceLabels(agt)
 	podLabels := make(map[string]string, len(labels))
 	maps.Copy(podLabels, labels)
-	podAnnotations := make(map[string]string, len(agt.Annotations)+1)
+
+	podAnnotations := make(map[string]string, len(agt.Annotations)+2)
 	maps.Copy(podAnnotations, agt.Annotations)
 	podAnnotations["clawarmor.accuknox.com/config-hash"] = hash
+	podAnnotations["kubearmor-visibility"] = "process,file"
 
 	replicas := int32(1)
 	grace := int64(0)

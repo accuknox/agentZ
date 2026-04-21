@@ -94,6 +94,7 @@ var cmd = &cli.Command{
 		subcommands.AgentCmd,
 		managerCmd,
 		subcommands.SessionCmd,
+		subcommands.ObserverCmd,
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		level := c.String("log-level")

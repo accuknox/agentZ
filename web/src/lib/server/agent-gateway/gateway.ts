@@ -5,1526 +5,1603 @@
 // source: gateway.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 import {
-  type CallOptions,
-  type ChannelCredentials,
-  Client,
-  type ClientOptions,
-  type ClientReadableStream,
-  type ClientUnaryCall,
-  type handleServerStreamingCall,
-  type handleUnaryCall,
-  makeGenericClientConstructor,
-  type Metadata,
-  type ServiceError,
-  type UntypedServiceImplementation,
-} from "@grpc/grpc-js";
+	type CallOptions,
+	type ChannelCredentials,
+	Client,
+	type ClientOptions,
+	type ClientReadableStream,
+	type ClientUnaryCall,
+	type handleServerStreamingCall,
+	type handleUnaryCall,
+	makeGenericClientConstructor,
+	type Metadata,
+	type ServiceError,
+	type UntypedServiceImplementation
+} from '@grpc/grpc-js';
 
-export const protobufPackage = "accuknox.clawarmor.agent.gateway.v1";
+export const protobufPackage = 'accuknox.clawarmor.agent.gateway.v1';
 
 export enum EventType {
-  EVENT_TYPE_UNSPECIFIED = 0,
-  EVENT_TYPE_RUN_STARTED = 1,
-  EVENT_TYPE_ASSISTANT_DELTA = 2,
-  EVENT_TYPE_ASSISTANT_MESSAGE = 3,
-  EVENT_TYPE_TOOL_CALL = 4,
-  EVENT_TYPE_TOOL_RESULT = 5,
-  EVENT_TYPE_RUN_COMPLETED = 6,
-  EVENT_TYPE_RUN_INTERRUPTED = 7,
-  EVENT_TYPE_RUN_ERROR = 8,
-  UNRECOGNIZED = -1,
+	EVENT_TYPE_UNSPECIFIED = 0,
+	EVENT_TYPE_RUN_STARTED = 1,
+	EVENT_TYPE_ASSISTANT_DELTA = 2,
+	EVENT_TYPE_ASSISTANT_MESSAGE = 3,
+	EVENT_TYPE_TOOL_CALL = 4,
+	EVENT_TYPE_TOOL_RESULT = 5,
+	EVENT_TYPE_RUN_COMPLETED = 6,
+	EVENT_TYPE_RUN_INTERRUPTED = 7,
+	EVENT_TYPE_RUN_ERROR = 8,
+	UNRECOGNIZED = -1
 }
 
 export function eventTypeFromJSON(object: any): EventType {
-  switch (object) {
-    case 0:
-    case "EVENT_TYPE_UNSPECIFIED":
-      return EventType.EVENT_TYPE_UNSPECIFIED;
-    case 1:
-    case "EVENT_TYPE_RUN_STARTED":
-      return EventType.EVENT_TYPE_RUN_STARTED;
-    case 2:
-    case "EVENT_TYPE_ASSISTANT_DELTA":
-      return EventType.EVENT_TYPE_ASSISTANT_DELTA;
-    case 3:
-    case "EVENT_TYPE_ASSISTANT_MESSAGE":
-      return EventType.EVENT_TYPE_ASSISTANT_MESSAGE;
-    case 4:
-    case "EVENT_TYPE_TOOL_CALL":
-      return EventType.EVENT_TYPE_TOOL_CALL;
-    case 5:
-    case "EVENT_TYPE_TOOL_RESULT":
-      return EventType.EVENT_TYPE_TOOL_RESULT;
-    case 6:
-    case "EVENT_TYPE_RUN_COMPLETED":
-      return EventType.EVENT_TYPE_RUN_COMPLETED;
-    case 7:
-    case "EVENT_TYPE_RUN_INTERRUPTED":
-      return EventType.EVENT_TYPE_RUN_INTERRUPTED;
-    case 8:
-    case "EVENT_TYPE_RUN_ERROR":
-      return EventType.EVENT_TYPE_RUN_ERROR;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return EventType.UNRECOGNIZED;
-  }
+	switch (object) {
+		case 0:
+		case 'EVENT_TYPE_UNSPECIFIED':
+			return EventType.EVENT_TYPE_UNSPECIFIED;
+		case 1:
+		case 'EVENT_TYPE_RUN_STARTED':
+			return EventType.EVENT_TYPE_RUN_STARTED;
+		case 2:
+		case 'EVENT_TYPE_ASSISTANT_DELTA':
+			return EventType.EVENT_TYPE_ASSISTANT_DELTA;
+		case 3:
+		case 'EVENT_TYPE_ASSISTANT_MESSAGE':
+			return EventType.EVENT_TYPE_ASSISTANT_MESSAGE;
+		case 4:
+		case 'EVENT_TYPE_TOOL_CALL':
+			return EventType.EVENT_TYPE_TOOL_CALL;
+		case 5:
+		case 'EVENT_TYPE_TOOL_RESULT':
+			return EventType.EVENT_TYPE_TOOL_RESULT;
+		case 6:
+		case 'EVENT_TYPE_RUN_COMPLETED':
+			return EventType.EVENT_TYPE_RUN_COMPLETED;
+		case 7:
+		case 'EVENT_TYPE_RUN_INTERRUPTED':
+			return EventType.EVENT_TYPE_RUN_INTERRUPTED;
+		case 8:
+		case 'EVENT_TYPE_RUN_ERROR':
+			return EventType.EVENT_TYPE_RUN_ERROR;
+		case -1:
+		case 'UNRECOGNIZED':
+		default:
+			return EventType.UNRECOGNIZED;
+	}
 }
 
 export function eventTypeToJSON(object: EventType): string {
-  switch (object) {
-    case EventType.EVENT_TYPE_UNSPECIFIED:
-      return "EVENT_TYPE_UNSPECIFIED";
-    case EventType.EVENT_TYPE_RUN_STARTED:
-      return "EVENT_TYPE_RUN_STARTED";
-    case EventType.EVENT_TYPE_ASSISTANT_DELTA:
-      return "EVENT_TYPE_ASSISTANT_DELTA";
-    case EventType.EVENT_TYPE_ASSISTANT_MESSAGE:
-      return "EVENT_TYPE_ASSISTANT_MESSAGE";
-    case EventType.EVENT_TYPE_TOOL_CALL:
-      return "EVENT_TYPE_TOOL_CALL";
-    case EventType.EVENT_TYPE_TOOL_RESULT:
-      return "EVENT_TYPE_TOOL_RESULT";
-    case EventType.EVENT_TYPE_RUN_COMPLETED:
-      return "EVENT_TYPE_RUN_COMPLETED";
-    case EventType.EVENT_TYPE_RUN_INTERRUPTED:
-      return "EVENT_TYPE_RUN_INTERRUPTED";
-    case EventType.EVENT_TYPE_RUN_ERROR:
-      return "EVENT_TYPE_RUN_ERROR";
-    case EventType.UNRECOGNIZED:
-    default:
-      return "UNRECOGNIZED";
-  }
+	switch (object) {
+		case EventType.EVENT_TYPE_UNSPECIFIED:
+			return 'EVENT_TYPE_UNSPECIFIED';
+		case EventType.EVENT_TYPE_RUN_STARTED:
+			return 'EVENT_TYPE_RUN_STARTED';
+		case EventType.EVENT_TYPE_ASSISTANT_DELTA:
+			return 'EVENT_TYPE_ASSISTANT_DELTA';
+		case EventType.EVENT_TYPE_ASSISTANT_MESSAGE:
+			return 'EVENT_TYPE_ASSISTANT_MESSAGE';
+		case EventType.EVENT_TYPE_TOOL_CALL:
+			return 'EVENT_TYPE_TOOL_CALL';
+		case EventType.EVENT_TYPE_TOOL_RESULT:
+			return 'EVENT_TYPE_TOOL_RESULT';
+		case EventType.EVENT_TYPE_RUN_COMPLETED:
+			return 'EVENT_TYPE_RUN_COMPLETED';
+		case EventType.EVENT_TYPE_RUN_INTERRUPTED:
+			return 'EVENT_TYPE_RUN_INTERRUPTED';
+		case EventType.EVENT_TYPE_RUN_ERROR:
+			return 'EVENT_TYPE_RUN_ERROR';
+		case EventType.UNRECOGNIZED:
+		default:
+			return 'UNRECOGNIZED';
+	}
 }
 
 export enum AgentPhase {
-  AGENT_PHASE_UNSPECIFIED = 0,
-  AGENT_PHASE_READY = 1,
-  AGENT_PHASE_PROGRESSING = 2,
-  AGENT_PHASE_DEGRADED = 3,
-  AGENT_PHASE_NOT_FOUND = 4,
-  UNRECOGNIZED = -1,
+	AGENT_PHASE_UNSPECIFIED = 0,
+	AGENT_PHASE_READY = 1,
+	AGENT_PHASE_PROGRESSING = 2,
+	AGENT_PHASE_DEGRADED = 3,
+	AGENT_PHASE_NOT_FOUND = 4,
+	UNRECOGNIZED = -1
 }
 
 export function agentPhaseFromJSON(object: any): AgentPhase {
-  switch (object) {
-    case 0:
-    case "AGENT_PHASE_UNSPECIFIED":
-      return AgentPhase.AGENT_PHASE_UNSPECIFIED;
-    case 1:
-    case "AGENT_PHASE_READY":
-      return AgentPhase.AGENT_PHASE_READY;
-    case 2:
-    case "AGENT_PHASE_PROGRESSING":
-      return AgentPhase.AGENT_PHASE_PROGRESSING;
-    case 3:
-    case "AGENT_PHASE_DEGRADED":
-      return AgentPhase.AGENT_PHASE_DEGRADED;
-    case 4:
-    case "AGENT_PHASE_NOT_FOUND":
-      return AgentPhase.AGENT_PHASE_NOT_FOUND;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return AgentPhase.UNRECOGNIZED;
-  }
+	switch (object) {
+		case 0:
+		case 'AGENT_PHASE_UNSPECIFIED':
+			return AgentPhase.AGENT_PHASE_UNSPECIFIED;
+		case 1:
+		case 'AGENT_PHASE_READY':
+			return AgentPhase.AGENT_PHASE_READY;
+		case 2:
+		case 'AGENT_PHASE_PROGRESSING':
+			return AgentPhase.AGENT_PHASE_PROGRESSING;
+		case 3:
+		case 'AGENT_PHASE_DEGRADED':
+			return AgentPhase.AGENT_PHASE_DEGRADED;
+		case 4:
+		case 'AGENT_PHASE_NOT_FOUND':
+			return AgentPhase.AGENT_PHASE_NOT_FOUND;
+		case -1:
+		case 'UNRECOGNIZED':
+		default:
+			return AgentPhase.UNRECOGNIZED;
+	}
 }
 
 export function agentPhaseToJSON(object: AgentPhase): string {
-  switch (object) {
-    case AgentPhase.AGENT_PHASE_UNSPECIFIED:
-      return "AGENT_PHASE_UNSPECIFIED";
-    case AgentPhase.AGENT_PHASE_READY:
-      return "AGENT_PHASE_READY";
-    case AgentPhase.AGENT_PHASE_PROGRESSING:
-      return "AGENT_PHASE_PROGRESSING";
-    case AgentPhase.AGENT_PHASE_DEGRADED:
-      return "AGENT_PHASE_DEGRADED";
-    case AgentPhase.AGENT_PHASE_NOT_FOUND:
-      return "AGENT_PHASE_NOT_FOUND";
-    case AgentPhase.UNRECOGNIZED:
-    default:
-      return "UNRECOGNIZED";
-  }
+	switch (object) {
+		case AgentPhase.AGENT_PHASE_UNSPECIFIED:
+			return 'AGENT_PHASE_UNSPECIFIED';
+		case AgentPhase.AGENT_PHASE_READY:
+			return 'AGENT_PHASE_READY';
+		case AgentPhase.AGENT_PHASE_PROGRESSING:
+			return 'AGENT_PHASE_PROGRESSING';
+		case AgentPhase.AGENT_PHASE_DEGRADED:
+			return 'AGENT_PHASE_DEGRADED';
+		case AgentPhase.AGENT_PHASE_NOT_FOUND:
+			return 'AGENT_PHASE_NOT_FOUND';
+		case AgentPhase.UNRECOGNIZED:
+		default:
+			return 'UNRECOGNIZED';
+	}
 }
 
 export interface SendMessageRequest {
-  sessionId: string;
-  prompt: string;
+	sessionId: string;
+	prompt: string;
 }
 
 export interface SendMessageResponse {
-  sessionId: string;
-  runId: string;
-  requestId: string;
+	sessionId: string;
+	runId: string;
+	requestId: string;
 }
 
 export interface SubscribeSessionRequest {
-  sessionId: string;
+	sessionId: string;
 }
 
 export interface SessionStreamEvent {
-  sequence: number;
-  sessionId: string;
-  runId: string;
-  requestId: string;
-  type: EventType;
-  content: string;
-  toolName: string;
-  toolPayload: string;
-  error: string;
+	sequence: number;
+	sessionId: string;
+	runId: string;
+	requestId: string;
+	type: EventType;
+	content: string;
+	toolName: string;
+	toolPayload: string;
+	error: string;
 }
 
 export interface InterruptSessionRequest {
-  sessionId: string;
+	sessionId: string;
 }
 
 export interface InterruptSessionResponse {
-  interrupted: boolean;
+	interrupted: boolean;
 }
 
 export interface CompactSessionRequest {
-  sessionId: string;
+	sessionId: string;
 }
 
 export interface CompactSessionResponse {
-  message: string;
+	message: string;
 }
 
 export interface ListAgentStatusRequest {
-  sessionIds: string[];
+	sessionIds: string[];
 }
 
 export interface ListAgentStatusResponse {
-  statuses: AgentStatus[];
+	statuses: AgentStatus[];
 }
 
 export interface WatchAgentStatusRequest {
-  sessionIds: string[];
+	sessionIds: string[];
 }
 
 export interface WatchAgentStatusResponse {
-  statuses: AgentStatus[];
+	statuses: AgentStatus[];
 }
 
 export interface AgentStatus {
-  sessionId: string;
-  agentName: string;
-  namespace: string;
-  phase: AgentPhase;
-  reason: string;
-  message: string;
+	sessionId: string;
+	agentName: string;
+	namespace: string;
+	phase: AgentPhase;
+	reason: string;
+	message: string;
 }
 
 function createBaseSendMessageRequest(): SendMessageRequest {
-  return { sessionId: "", prompt: "" };
+	return { sessionId: '', prompt: '' };
 }
 
 export const SendMessageRequest: MessageFns<SendMessageRequest> = {
-  encode(message: SendMessageRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
-    }
-    if (message.prompt !== "") {
-      writer.uint32(18).string(message.prompt);
-    }
-    return writer;
-  },
+	encode(message: SendMessageRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.sessionId !== '') {
+			writer.uint32(10).string(message.sessionId);
+		}
+		if (message.prompt !== '') {
+			writer.uint32(18).string(message.prompt);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SendMessageRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSendMessageRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): SendMessageRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseSendMessageRequest();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionId = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
+					message.sessionId = reader.string();
+					continue;
+				}
+				case 2: {
+					if (tag !== 18) {
+						break;
+					}
 
-          message.prompt = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.prompt = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): SendMessageRequest {
-    return {
-      sessionId: isSet(object.sessionId)
-        ? globalThis.String(object.sessionId)
-        : isSet(object.session_id)
-        ? globalThis.String(object.session_id)
-        : "",
-      prompt: isSet(object.prompt) ? globalThis.String(object.prompt) : "",
-    };
-  },
+	fromJSON(object: any): SendMessageRequest {
+		return {
+			sessionId: isSet(object.sessionId)
+				? globalThis.String(object.sessionId)
+				: isSet(object.session_id)
+					? globalThis.String(object.session_id)
+					: '',
+			prompt: isSet(object.prompt) ? globalThis.String(object.prompt) : ''
+		};
+	},
 
-  toJSON(message: SendMessageRequest): unknown {
-    const obj: any = {};
-    if (message.sessionId !== "") {
-      obj.sessionId = message.sessionId;
-    }
-    if (message.prompt !== "") {
-      obj.prompt = message.prompt;
-    }
-    return obj;
-  },
+	toJSON(message: SendMessageRequest): unknown {
+		const obj: any = {};
+		if (message.sessionId !== '') {
+			obj.sessionId = message.sessionId;
+		}
+		if (message.prompt !== '') {
+			obj.prompt = message.prompt;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<SendMessageRequest>, I>>(base?: I): SendMessageRequest {
-    return SendMessageRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<SendMessageRequest>, I>>(object: I): SendMessageRequest {
-    const message = createBaseSendMessageRequest();
-    message.sessionId = object.sessionId ?? "";
-    message.prompt = object.prompt ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<SendMessageRequest>, I>>(base?: I): SendMessageRequest {
+		return SendMessageRequest.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<SendMessageRequest>, I>>(object: I): SendMessageRequest {
+		const message = createBaseSendMessageRequest();
+		message.sessionId = object.sessionId ?? '';
+		message.prompt = object.prompt ?? '';
+		return message;
+	}
 };
 
 function createBaseSendMessageResponse(): SendMessageResponse {
-  return { sessionId: "", runId: "", requestId: "" };
+	return { sessionId: '', runId: '', requestId: '' };
 }
 
 export const SendMessageResponse: MessageFns<SendMessageResponse> = {
-  encode(message: SendMessageResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
-    }
-    if (message.runId !== "") {
-      writer.uint32(18).string(message.runId);
-    }
-    if (message.requestId !== "") {
-      writer.uint32(26).string(message.requestId);
-    }
-    return writer;
-  },
+	encode(message: SendMessageResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.sessionId !== '') {
+			writer.uint32(10).string(message.sessionId);
+		}
+		if (message.runId !== '') {
+			writer.uint32(18).string(message.runId);
+		}
+		if (message.requestId !== '') {
+			writer.uint32(26).string(message.requestId);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SendMessageResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSendMessageResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): SendMessageResponse {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseSendMessageResponse();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionId = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
+					message.sessionId = reader.string();
+					continue;
+				}
+				case 2: {
+					if (tag !== 18) {
+						break;
+					}
 
-          message.runId = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
+					message.runId = reader.string();
+					continue;
+				}
+				case 3: {
+					if (tag !== 26) {
+						break;
+					}
 
-          message.requestId = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.requestId = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): SendMessageResponse {
-    return {
-      sessionId: isSet(object.sessionId)
-        ? globalThis.String(object.sessionId)
-        : isSet(object.session_id)
-        ? globalThis.String(object.session_id)
-        : "",
-      runId: isSet(object.runId)
-        ? globalThis.String(object.runId)
-        : isSet(object.run_id)
-        ? globalThis.String(object.run_id)
-        : "",
-      requestId: isSet(object.requestId)
-        ? globalThis.String(object.requestId)
-        : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
-    };
-  },
+	fromJSON(object: any): SendMessageResponse {
+		return {
+			sessionId: isSet(object.sessionId)
+				? globalThis.String(object.sessionId)
+				: isSet(object.session_id)
+					? globalThis.String(object.session_id)
+					: '',
+			runId: isSet(object.runId)
+				? globalThis.String(object.runId)
+				: isSet(object.run_id)
+					? globalThis.String(object.run_id)
+					: '',
+			requestId: isSet(object.requestId)
+				? globalThis.String(object.requestId)
+				: isSet(object.request_id)
+					? globalThis.String(object.request_id)
+					: ''
+		};
+	},
 
-  toJSON(message: SendMessageResponse): unknown {
-    const obj: any = {};
-    if (message.sessionId !== "") {
-      obj.sessionId = message.sessionId;
-    }
-    if (message.runId !== "") {
-      obj.runId = message.runId;
-    }
-    if (message.requestId !== "") {
-      obj.requestId = message.requestId;
-    }
-    return obj;
-  },
+	toJSON(message: SendMessageResponse): unknown {
+		const obj: any = {};
+		if (message.sessionId !== '') {
+			obj.sessionId = message.sessionId;
+		}
+		if (message.runId !== '') {
+			obj.runId = message.runId;
+		}
+		if (message.requestId !== '') {
+			obj.requestId = message.requestId;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<SendMessageResponse>, I>>(base?: I): SendMessageResponse {
-    return SendMessageResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<SendMessageResponse>, I>>(object: I): SendMessageResponse {
-    const message = createBaseSendMessageResponse();
-    message.sessionId = object.sessionId ?? "";
-    message.runId = object.runId ?? "";
-    message.requestId = object.requestId ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<SendMessageResponse>, I>>(base?: I): SendMessageResponse {
+		return SendMessageResponse.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<SendMessageResponse>, I>>(
+		object: I
+	): SendMessageResponse {
+		const message = createBaseSendMessageResponse();
+		message.sessionId = object.sessionId ?? '';
+		message.runId = object.runId ?? '';
+		message.requestId = object.requestId ?? '';
+		return message;
+	}
 };
 
 function createBaseSubscribeSessionRequest(): SubscribeSessionRequest {
-  return { sessionId: "" };
+	return { sessionId: '' };
 }
 
 export const SubscribeSessionRequest: MessageFns<SubscribeSessionRequest> = {
-  encode(message: SubscribeSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
-    }
-    return writer;
-  },
+	encode(
+		message: SubscribeSessionRequest,
+		writer: BinaryWriter = new BinaryWriter()
+	): BinaryWriter {
+		if (message.sessionId !== '') {
+			writer.uint32(10).string(message.sessionId);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SubscribeSessionRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSubscribeSessionRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): SubscribeSessionRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseSubscribeSessionRequest();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionId = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.sessionId = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): SubscribeSessionRequest {
-    return {
-      sessionId: isSet(object.sessionId)
-        ? globalThis.String(object.sessionId)
-        : isSet(object.session_id)
-        ? globalThis.String(object.session_id)
-        : "",
-    };
-  },
+	fromJSON(object: any): SubscribeSessionRequest {
+		return {
+			sessionId: isSet(object.sessionId)
+				? globalThis.String(object.sessionId)
+				: isSet(object.session_id)
+					? globalThis.String(object.session_id)
+					: ''
+		};
+	},
 
-  toJSON(message: SubscribeSessionRequest): unknown {
-    const obj: any = {};
-    if (message.sessionId !== "") {
-      obj.sessionId = message.sessionId;
-    }
-    return obj;
-  },
+	toJSON(message: SubscribeSessionRequest): unknown {
+		const obj: any = {};
+		if (message.sessionId !== '') {
+			obj.sessionId = message.sessionId;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<SubscribeSessionRequest>, I>>(base?: I): SubscribeSessionRequest {
-    return SubscribeSessionRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<SubscribeSessionRequest>, I>>(object: I): SubscribeSessionRequest {
-    const message = createBaseSubscribeSessionRequest();
-    message.sessionId = object.sessionId ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<SubscribeSessionRequest>, I>>(
+		base?: I
+	): SubscribeSessionRequest {
+		return SubscribeSessionRequest.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<SubscribeSessionRequest>, I>>(
+		object: I
+	): SubscribeSessionRequest {
+		const message = createBaseSubscribeSessionRequest();
+		message.sessionId = object.sessionId ?? '';
+		return message;
+	}
 };
 
 function createBaseSessionStreamEvent(): SessionStreamEvent {
-  return {
-    sequence: 0,
-    sessionId: "",
-    runId: "",
-    requestId: "",
-    type: 0,
-    content: "",
-    toolName: "",
-    toolPayload: "",
-    error: "",
-  };
+	return {
+		sequence: 0,
+		sessionId: '',
+		runId: '',
+		requestId: '',
+		type: 0,
+		content: '',
+		toolName: '',
+		toolPayload: '',
+		error: ''
+	};
 }
 
 export const SessionStreamEvent: MessageFns<SessionStreamEvent> = {
-  encode(message: SessionStreamEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sequence !== 0) {
-      writer.uint32(8).int64(message.sequence);
-    }
-    if (message.sessionId !== "") {
-      writer.uint32(18).string(message.sessionId);
-    }
-    if (message.runId !== "") {
-      writer.uint32(26).string(message.runId);
-    }
-    if (message.requestId !== "") {
-      writer.uint32(34).string(message.requestId);
-    }
-    if (message.type !== 0) {
-      writer.uint32(40).int32(message.type);
-    }
-    if (message.content !== "") {
-      writer.uint32(50).string(message.content);
-    }
-    if (message.toolName !== "") {
-      writer.uint32(58).string(message.toolName);
-    }
-    if (message.toolPayload !== "") {
-      writer.uint32(66).string(message.toolPayload);
-    }
-    if (message.error !== "") {
-      writer.uint32(74).string(message.error);
-    }
-    return writer;
-  },
+	encode(message: SessionStreamEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.sequence !== 0) {
+			writer.uint32(8).int64(message.sequence);
+		}
+		if (message.sessionId !== '') {
+			writer.uint32(18).string(message.sessionId);
+		}
+		if (message.runId !== '') {
+			writer.uint32(26).string(message.runId);
+		}
+		if (message.requestId !== '') {
+			writer.uint32(34).string(message.requestId);
+		}
+		if (message.type !== 0) {
+			writer.uint32(40).int32(message.type);
+		}
+		if (message.content !== '') {
+			writer.uint32(50).string(message.content);
+		}
+		if (message.toolName !== '') {
+			writer.uint32(58).string(message.toolName);
+		}
+		if (message.toolPayload !== '') {
+			writer.uint32(66).string(message.toolPayload);
+		}
+		if (message.error !== '') {
+			writer.uint32(74).string(message.error);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SessionStreamEvent {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSessionStreamEvent();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): SessionStreamEvent {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseSessionStreamEvent();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break;
+					}
 
-          message.sequence = longToNumber(reader.int64());
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
+					message.sequence = longToNumber(reader.int64());
+					continue;
+				}
+				case 2: {
+					if (tag !== 18) {
+						break;
+					}
 
-          message.sessionId = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
+					message.sessionId = reader.string();
+					continue;
+				}
+				case 3: {
+					if (tag !== 26) {
+						break;
+					}
 
-          message.runId = reader.string();
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
+					message.runId = reader.string();
+					continue;
+				}
+				case 4: {
+					if (tag !== 34) {
+						break;
+					}
 
-          message.requestId = reader.string();
-          continue;
-        }
-        case 5: {
-          if (tag !== 40) {
-            break;
-          }
+					message.requestId = reader.string();
+					continue;
+				}
+				case 5: {
+					if (tag !== 40) {
+						break;
+					}
 
-          message.type = reader.int32() as any;
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
+					message.type = reader.int32() as any;
+					continue;
+				}
+				case 6: {
+					if (tag !== 50) {
+						break;
+					}
 
-          message.content = reader.string();
-          continue;
-        }
-        case 7: {
-          if (tag !== 58) {
-            break;
-          }
+					message.content = reader.string();
+					continue;
+				}
+				case 7: {
+					if (tag !== 58) {
+						break;
+					}
 
-          message.toolName = reader.string();
-          continue;
-        }
-        case 8: {
-          if (tag !== 66) {
-            break;
-          }
+					message.toolName = reader.string();
+					continue;
+				}
+				case 8: {
+					if (tag !== 66) {
+						break;
+					}
 
-          message.toolPayload = reader.string();
-          continue;
-        }
-        case 9: {
-          if (tag !== 74) {
-            break;
-          }
+					message.toolPayload = reader.string();
+					continue;
+				}
+				case 9: {
+					if (tag !== 74) {
+						break;
+					}
 
-          message.error = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.error = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): SessionStreamEvent {
-    return {
-      sequence: isSet(object.sequence) ? globalThis.Number(object.sequence) : 0,
-      sessionId: isSet(object.sessionId)
-        ? globalThis.String(object.sessionId)
-        : isSet(object.session_id)
-        ? globalThis.String(object.session_id)
-        : "",
-      runId: isSet(object.runId)
-        ? globalThis.String(object.runId)
-        : isSet(object.run_id)
-        ? globalThis.String(object.run_id)
-        : "",
-      requestId: isSet(object.requestId)
-        ? globalThis.String(object.requestId)
-        : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
-      type: isSet(object.type) ? eventTypeFromJSON(object.type) : 0,
-      content: isSet(object.content) ? globalThis.String(object.content) : "",
-      toolName: isSet(object.toolName)
-        ? globalThis.String(object.toolName)
-        : isSet(object.tool_name)
-        ? globalThis.String(object.tool_name)
-        : "",
-      toolPayload: isSet(object.toolPayload)
-        ? globalThis.String(object.toolPayload)
-        : isSet(object.tool_payload)
-        ? globalThis.String(object.tool_payload)
-        : "",
-      error: isSet(object.error) ? globalThis.String(object.error) : "",
-    };
-  },
+	fromJSON(object: any): SessionStreamEvent {
+		return {
+			sequence: isSet(object.sequence) ? globalThis.Number(object.sequence) : 0,
+			sessionId: isSet(object.sessionId)
+				? globalThis.String(object.sessionId)
+				: isSet(object.session_id)
+					? globalThis.String(object.session_id)
+					: '',
+			runId: isSet(object.runId)
+				? globalThis.String(object.runId)
+				: isSet(object.run_id)
+					? globalThis.String(object.run_id)
+					: '',
+			requestId: isSet(object.requestId)
+				? globalThis.String(object.requestId)
+				: isSet(object.request_id)
+					? globalThis.String(object.request_id)
+					: '',
+			type: isSet(object.type) ? eventTypeFromJSON(object.type) : 0,
+			content: isSet(object.content) ? globalThis.String(object.content) : '',
+			toolName: isSet(object.toolName)
+				? globalThis.String(object.toolName)
+				: isSet(object.tool_name)
+					? globalThis.String(object.tool_name)
+					: '',
+			toolPayload: isSet(object.toolPayload)
+				? globalThis.String(object.toolPayload)
+				: isSet(object.tool_payload)
+					? globalThis.String(object.tool_payload)
+					: '',
+			error: isSet(object.error) ? globalThis.String(object.error) : ''
+		};
+	},
 
-  toJSON(message: SessionStreamEvent): unknown {
-    const obj: any = {};
-    if (message.sequence !== 0) {
-      obj.sequence = Math.round(message.sequence);
-    }
-    if (message.sessionId !== "") {
-      obj.sessionId = message.sessionId;
-    }
-    if (message.runId !== "") {
-      obj.runId = message.runId;
-    }
-    if (message.requestId !== "") {
-      obj.requestId = message.requestId;
-    }
-    if (message.type !== 0) {
-      obj.type = eventTypeToJSON(message.type);
-    }
-    if (message.content !== "") {
-      obj.content = message.content;
-    }
-    if (message.toolName !== "") {
-      obj.toolName = message.toolName;
-    }
-    if (message.toolPayload !== "") {
-      obj.toolPayload = message.toolPayload;
-    }
-    if (message.error !== "") {
-      obj.error = message.error;
-    }
-    return obj;
-  },
+	toJSON(message: SessionStreamEvent): unknown {
+		const obj: any = {};
+		if (message.sequence !== 0) {
+			obj.sequence = Math.round(message.sequence);
+		}
+		if (message.sessionId !== '') {
+			obj.sessionId = message.sessionId;
+		}
+		if (message.runId !== '') {
+			obj.runId = message.runId;
+		}
+		if (message.requestId !== '') {
+			obj.requestId = message.requestId;
+		}
+		if (message.type !== 0) {
+			obj.type = eventTypeToJSON(message.type);
+		}
+		if (message.content !== '') {
+			obj.content = message.content;
+		}
+		if (message.toolName !== '') {
+			obj.toolName = message.toolName;
+		}
+		if (message.toolPayload !== '') {
+			obj.toolPayload = message.toolPayload;
+		}
+		if (message.error !== '') {
+			obj.error = message.error;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<SessionStreamEvent>, I>>(base?: I): SessionStreamEvent {
-    return SessionStreamEvent.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<SessionStreamEvent>, I>>(object: I): SessionStreamEvent {
-    const message = createBaseSessionStreamEvent();
-    message.sequence = object.sequence ?? 0;
-    message.sessionId = object.sessionId ?? "";
-    message.runId = object.runId ?? "";
-    message.requestId = object.requestId ?? "";
-    message.type = object.type ?? 0;
-    message.content = object.content ?? "";
-    message.toolName = object.toolName ?? "";
-    message.toolPayload = object.toolPayload ?? "";
-    message.error = object.error ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<SessionStreamEvent>, I>>(base?: I): SessionStreamEvent {
+		return SessionStreamEvent.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<SessionStreamEvent>, I>>(object: I): SessionStreamEvent {
+		const message = createBaseSessionStreamEvent();
+		message.sequence = object.sequence ?? 0;
+		message.sessionId = object.sessionId ?? '';
+		message.runId = object.runId ?? '';
+		message.requestId = object.requestId ?? '';
+		message.type = object.type ?? 0;
+		message.content = object.content ?? '';
+		message.toolName = object.toolName ?? '';
+		message.toolPayload = object.toolPayload ?? '';
+		message.error = object.error ?? '';
+		return message;
+	}
 };
 
 function createBaseInterruptSessionRequest(): InterruptSessionRequest {
-  return { sessionId: "" };
+	return { sessionId: '' };
 }
 
 export const InterruptSessionRequest: MessageFns<InterruptSessionRequest> = {
-  encode(message: InterruptSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
-    }
-    return writer;
-  },
+	encode(
+		message: InterruptSessionRequest,
+		writer: BinaryWriter = new BinaryWriter()
+	): BinaryWriter {
+		if (message.sessionId !== '') {
+			writer.uint32(10).string(message.sessionId);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): InterruptSessionRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseInterruptSessionRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): InterruptSessionRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseInterruptSessionRequest();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionId = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.sessionId = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): InterruptSessionRequest {
-    return {
-      sessionId: isSet(object.sessionId)
-        ? globalThis.String(object.sessionId)
-        : isSet(object.session_id)
-        ? globalThis.String(object.session_id)
-        : "",
-    };
-  },
+	fromJSON(object: any): InterruptSessionRequest {
+		return {
+			sessionId: isSet(object.sessionId)
+				? globalThis.String(object.sessionId)
+				: isSet(object.session_id)
+					? globalThis.String(object.session_id)
+					: ''
+		};
+	},
 
-  toJSON(message: InterruptSessionRequest): unknown {
-    const obj: any = {};
-    if (message.sessionId !== "") {
-      obj.sessionId = message.sessionId;
-    }
-    return obj;
-  },
+	toJSON(message: InterruptSessionRequest): unknown {
+		const obj: any = {};
+		if (message.sessionId !== '') {
+			obj.sessionId = message.sessionId;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<InterruptSessionRequest>, I>>(base?: I): InterruptSessionRequest {
-    return InterruptSessionRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<InterruptSessionRequest>, I>>(object: I): InterruptSessionRequest {
-    const message = createBaseInterruptSessionRequest();
-    message.sessionId = object.sessionId ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<InterruptSessionRequest>, I>>(
+		base?: I
+	): InterruptSessionRequest {
+		return InterruptSessionRequest.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<InterruptSessionRequest>, I>>(
+		object: I
+	): InterruptSessionRequest {
+		const message = createBaseInterruptSessionRequest();
+		message.sessionId = object.sessionId ?? '';
+		return message;
+	}
 };
 
 function createBaseInterruptSessionResponse(): InterruptSessionResponse {
-  return { interrupted: false };
+	return { interrupted: false };
 }
 
 export const InterruptSessionResponse: MessageFns<InterruptSessionResponse> = {
-  encode(message: InterruptSessionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.interrupted !== false) {
-      writer.uint32(8).bool(message.interrupted);
-    }
-    return writer;
-  },
+	encode(
+		message: InterruptSessionResponse,
+		writer: BinaryWriter = new BinaryWriter()
+	): BinaryWriter {
+		if (message.interrupted !== false) {
+			writer.uint32(8).bool(message.interrupted);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): InterruptSessionResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseInterruptSessionResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): InterruptSessionResponse {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseInterruptSessionResponse();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break;
+					}
 
-          message.interrupted = reader.bool();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.interrupted = reader.bool();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): InterruptSessionResponse {
-    return { interrupted: isSet(object.interrupted) ? globalThis.Boolean(object.interrupted) : false };
-  },
+	fromJSON(object: any): InterruptSessionResponse {
+		return {
+			interrupted: isSet(object.interrupted) ? globalThis.Boolean(object.interrupted) : false
+		};
+	},
 
-  toJSON(message: InterruptSessionResponse): unknown {
-    const obj: any = {};
-    if (message.interrupted !== false) {
-      obj.interrupted = message.interrupted;
-    }
-    return obj;
-  },
+	toJSON(message: InterruptSessionResponse): unknown {
+		const obj: any = {};
+		if (message.interrupted !== false) {
+			obj.interrupted = message.interrupted;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<InterruptSessionResponse>, I>>(base?: I): InterruptSessionResponse {
-    return InterruptSessionResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<InterruptSessionResponse>, I>>(object: I): InterruptSessionResponse {
-    const message = createBaseInterruptSessionResponse();
-    message.interrupted = object.interrupted ?? false;
-    return message;
-  },
+	create<I extends Exact<DeepPartial<InterruptSessionResponse>, I>>(
+		base?: I
+	): InterruptSessionResponse {
+		return InterruptSessionResponse.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<InterruptSessionResponse>, I>>(
+		object: I
+	): InterruptSessionResponse {
+		const message = createBaseInterruptSessionResponse();
+		message.interrupted = object.interrupted ?? false;
+		return message;
+	}
 };
 
 function createBaseCompactSessionRequest(): CompactSessionRequest {
-  return { sessionId: "" };
+	return { sessionId: '' };
 }
 
 export const CompactSessionRequest: MessageFns<CompactSessionRequest> = {
-  encode(message: CompactSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
-    }
-    return writer;
-  },
+	encode(message: CompactSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.sessionId !== '') {
+			writer.uint32(10).string(message.sessionId);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CompactSessionRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseCompactSessionRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): CompactSessionRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseCompactSessionRequest();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionId = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.sessionId = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): CompactSessionRequest {
-    return {
-      sessionId: isSet(object.sessionId)
-        ? globalThis.String(object.sessionId)
-        : isSet(object.session_id)
-        ? globalThis.String(object.session_id)
-        : "",
-    };
-  },
+	fromJSON(object: any): CompactSessionRequest {
+		return {
+			sessionId: isSet(object.sessionId)
+				? globalThis.String(object.sessionId)
+				: isSet(object.session_id)
+					? globalThis.String(object.session_id)
+					: ''
+		};
+	},
 
-  toJSON(message: CompactSessionRequest): unknown {
-    const obj: any = {};
-    if (message.sessionId !== "") {
-      obj.sessionId = message.sessionId;
-    }
-    return obj;
-  },
+	toJSON(message: CompactSessionRequest): unknown {
+		const obj: any = {};
+		if (message.sessionId !== '') {
+			obj.sessionId = message.sessionId;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<CompactSessionRequest>, I>>(base?: I): CompactSessionRequest {
-    return CompactSessionRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<CompactSessionRequest>, I>>(object: I): CompactSessionRequest {
-    const message = createBaseCompactSessionRequest();
-    message.sessionId = object.sessionId ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<CompactSessionRequest>, I>>(base?: I): CompactSessionRequest {
+		return CompactSessionRequest.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<CompactSessionRequest>, I>>(
+		object: I
+	): CompactSessionRequest {
+		const message = createBaseCompactSessionRequest();
+		message.sessionId = object.sessionId ?? '';
+		return message;
+	}
 };
 
 function createBaseCompactSessionResponse(): CompactSessionResponse {
-  return { message: "" };
+	return { message: '' };
 }
 
 export const CompactSessionResponse: MessageFns<CompactSessionResponse> = {
-  encode(message: CompactSessionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.message !== "") {
-      writer.uint32(10).string(message.message);
-    }
-    return writer;
-  },
+	encode(message: CompactSessionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.message !== '') {
+			writer.uint32(10).string(message.message);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CompactSessionResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseCompactSessionResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): CompactSessionResponse {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseCompactSessionResponse();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.message = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.message = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): CompactSessionResponse {
-    return { message: isSet(object.message) ? globalThis.String(object.message) : "" };
-  },
+	fromJSON(object: any): CompactSessionResponse {
+		return { message: isSet(object.message) ? globalThis.String(object.message) : '' };
+	},
 
-  toJSON(message: CompactSessionResponse): unknown {
-    const obj: any = {};
-    if (message.message !== "") {
-      obj.message = message.message;
-    }
-    return obj;
-  },
+	toJSON(message: CompactSessionResponse): unknown {
+		const obj: any = {};
+		if (message.message !== '') {
+			obj.message = message.message;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<CompactSessionResponse>, I>>(base?: I): CompactSessionResponse {
-    return CompactSessionResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<CompactSessionResponse>, I>>(object: I): CompactSessionResponse {
-    const message = createBaseCompactSessionResponse();
-    message.message = object.message ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<CompactSessionResponse>, I>>(
+		base?: I
+	): CompactSessionResponse {
+		return CompactSessionResponse.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<CompactSessionResponse>, I>>(
+		object: I
+	): CompactSessionResponse {
+		const message = createBaseCompactSessionResponse();
+		message.message = object.message ?? '';
+		return message;
+	}
 };
 
 function createBaseListAgentStatusRequest(): ListAgentStatusRequest {
-  return { sessionIds: [] };
+	return { sessionIds: [] };
 }
 
 export const ListAgentStatusRequest: MessageFns<ListAgentStatusRequest> = {
-  encode(message: ListAgentStatusRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.sessionIds) {
-      writer.uint32(10).string(v!);
-    }
-    return writer;
-  },
+	encode(message: ListAgentStatusRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.sessionIds) {
+			writer.uint32(10).string(v!);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ListAgentStatusRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseListAgentStatusRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): ListAgentStatusRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseListAgentStatusRequest();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionIds.push(reader.string());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.sessionIds.push(reader.string());
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): ListAgentStatusRequest {
-    return {
-      sessionIds: globalThis.Array.isArray(object?.sessionIds)
-        ? object.sessionIds.map((e: any) => globalThis.String(e))
-        : globalThis.Array.isArray(object?.session_ids)
-        ? object.session_ids.map((e: any) => globalThis.String(e))
-        : [],
-    };
-  },
+	fromJSON(object: any): ListAgentStatusRequest {
+		return {
+			sessionIds: globalThis.Array.isArray(object?.sessionIds)
+				? object.sessionIds.map((e: any) => globalThis.String(e))
+				: globalThis.Array.isArray(object?.session_ids)
+					? object.session_ids.map((e: any) => globalThis.String(e))
+					: []
+		};
+	},
 
-  toJSON(message: ListAgentStatusRequest): unknown {
-    const obj: any = {};
-    if (message.sessionIds?.length) {
-      obj.sessionIds = message.sessionIds;
-    }
-    return obj;
-  },
+	toJSON(message: ListAgentStatusRequest): unknown {
+		const obj: any = {};
+		if (message.sessionIds?.length) {
+			obj.sessionIds = message.sessionIds;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<ListAgentStatusRequest>, I>>(base?: I): ListAgentStatusRequest {
-    return ListAgentStatusRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<ListAgentStatusRequest>, I>>(object: I): ListAgentStatusRequest {
-    const message = createBaseListAgentStatusRequest();
-    message.sessionIds = object.sessionIds?.map((e) => e) || [];
-    return message;
-  },
+	create<I extends Exact<DeepPartial<ListAgentStatusRequest>, I>>(
+		base?: I
+	): ListAgentStatusRequest {
+		return ListAgentStatusRequest.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<ListAgentStatusRequest>, I>>(
+		object: I
+	): ListAgentStatusRequest {
+		const message = createBaseListAgentStatusRequest();
+		message.sessionIds = object.sessionIds?.map((e) => e) || [];
+		return message;
+	}
 };
 
 function createBaseListAgentStatusResponse(): ListAgentStatusResponse {
-  return { statuses: [] };
+	return { statuses: [] };
 }
 
 export const ListAgentStatusResponse: MessageFns<ListAgentStatusResponse> = {
-  encode(message: ListAgentStatusResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.statuses) {
-      AgentStatus.encode(v!, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
+	encode(
+		message: ListAgentStatusResponse,
+		writer: BinaryWriter = new BinaryWriter()
+	): BinaryWriter {
+		for (const v of message.statuses) {
+			AgentStatus.encode(v!, writer.uint32(10).fork()).join();
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ListAgentStatusResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseListAgentStatusResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): ListAgentStatusResponse {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseListAgentStatusResponse();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.statuses.push(AgentStatus.decode(reader, reader.uint32()));
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.statuses.push(AgentStatus.decode(reader, reader.uint32()));
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): ListAgentStatusResponse {
-    return {
-      statuses: globalThis.Array.isArray(object?.statuses)
-        ? object.statuses.map((e: any) => AgentStatus.fromJSON(e))
-        : [],
-    };
-  },
+	fromJSON(object: any): ListAgentStatusResponse {
+		return {
+			statuses: globalThis.Array.isArray(object?.statuses)
+				? object.statuses.map((e: any) => AgentStatus.fromJSON(e))
+				: []
+		};
+	},
 
-  toJSON(message: ListAgentStatusResponse): unknown {
-    const obj: any = {};
-    if (message.statuses?.length) {
-      obj.statuses = message.statuses.map((e) => AgentStatus.toJSON(e));
-    }
-    return obj;
-  },
+	toJSON(message: ListAgentStatusResponse): unknown {
+		const obj: any = {};
+		if (message.statuses?.length) {
+			obj.statuses = message.statuses.map((e) => AgentStatus.toJSON(e));
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<ListAgentStatusResponse>, I>>(base?: I): ListAgentStatusResponse {
-    return ListAgentStatusResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<ListAgentStatusResponse>, I>>(object: I): ListAgentStatusResponse {
-    const message = createBaseListAgentStatusResponse();
-    message.statuses = object.statuses?.map((e) => AgentStatus.fromPartial(e)) || [];
-    return message;
-  },
+	create<I extends Exact<DeepPartial<ListAgentStatusResponse>, I>>(
+		base?: I
+	): ListAgentStatusResponse {
+		return ListAgentStatusResponse.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<ListAgentStatusResponse>, I>>(
+		object: I
+	): ListAgentStatusResponse {
+		const message = createBaseListAgentStatusResponse();
+		message.statuses = object.statuses?.map((e) => AgentStatus.fromPartial(e)) || [];
+		return message;
+	}
 };
 
 function createBaseWatchAgentStatusRequest(): WatchAgentStatusRequest {
-  return { sessionIds: [] };
+	return { sessionIds: [] };
 }
 
 export const WatchAgentStatusRequest: MessageFns<WatchAgentStatusRequest> = {
-  encode(message: WatchAgentStatusRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.sessionIds) {
-      writer.uint32(10).string(v!);
-    }
-    return writer;
-  },
+	encode(
+		message: WatchAgentStatusRequest,
+		writer: BinaryWriter = new BinaryWriter()
+	): BinaryWriter {
+		for (const v of message.sessionIds) {
+			writer.uint32(10).string(v!);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): WatchAgentStatusRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseWatchAgentStatusRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): WatchAgentStatusRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseWatchAgentStatusRequest();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionIds.push(reader.string());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.sessionIds.push(reader.string());
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): WatchAgentStatusRequest {
-    return {
-      sessionIds: globalThis.Array.isArray(object?.sessionIds)
-        ? object.sessionIds.map((e: any) => globalThis.String(e))
-        : globalThis.Array.isArray(object?.session_ids)
-        ? object.session_ids.map((e: any) => globalThis.String(e))
-        : [],
-    };
-  },
+	fromJSON(object: any): WatchAgentStatusRequest {
+		return {
+			sessionIds: globalThis.Array.isArray(object?.sessionIds)
+				? object.sessionIds.map((e: any) => globalThis.String(e))
+				: globalThis.Array.isArray(object?.session_ids)
+					? object.session_ids.map((e: any) => globalThis.String(e))
+					: []
+		};
+	},
 
-  toJSON(message: WatchAgentStatusRequest): unknown {
-    const obj: any = {};
-    if (message.sessionIds?.length) {
-      obj.sessionIds = message.sessionIds;
-    }
-    return obj;
-  },
+	toJSON(message: WatchAgentStatusRequest): unknown {
+		const obj: any = {};
+		if (message.sessionIds?.length) {
+			obj.sessionIds = message.sessionIds;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<WatchAgentStatusRequest>, I>>(base?: I): WatchAgentStatusRequest {
-    return WatchAgentStatusRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<WatchAgentStatusRequest>, I>>(object: I): WatchAgentStatusRequest {
-    const message = createBaseWatchAgentStatusRequest();
-    message.sessionIds = object.sessionIds?.map((e) => e) || [];
-    return message;
-  },
+	create<I extends Exact<DeepPartial<WatchAgentStatusRequest>, I>>(
+		base?: I
+	): WatchAgentStatusRequest {
+		return WatchAgentStatusRequest.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<WatchAgentStatusRequest>, I>>(
+		object: I
+	): WatchAgentStatusRequest {
+		const message = createBaseWatchAgentStatusRequest();
+		message.sessionIds = object.sessionIds?.map((e) => e) || [];
+		return message;
+	}
 };
 
 function createBaseWatchAgentStatusResponse(): WatchAgentStatusResponse {
-  return { statuses: [] };
+	return { statuses: [] };
 }
 
 export const WatchAgentStatusResponse: MessageFns<WatchAgentStatusResponse> = {
-  encode(message: WatchAgentStatusResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.statuses) {
-      AgentStatus.encode(v!, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
+	encode(
+		message: WatchAgentStatusResponse,
+		writer: BinaryWriter = new BinaryWriter()
+	): BinaryWriter {
+		for (const v of message.statuses) {
+			AgentStatus.encode(v!, writer.uint32(10).fork()).join();
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): WatchAgentStatusResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseWatchAgentStatusResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): WatchAgentStatusResponse {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseWatchAgentStatusResponse();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.statuses.push(AgentStatus.decode(reader, reader.uint32()));
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.statuses.push(AgentStatus.decode(reader, reader.uint32()));
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): WatchAgentStatusResponse {
-    return {
-      statuses: globalThis.Array.isArray(object?.statuses)
-        ? object.statuses.map((e: any) => AgentStatus.fromJSON(e))
-        : [],
-    };
-  },
+	fromJSON(object: any): WatchAgentStatusResponse {
+		return {
+			statuses: globalThis.Array.isArray(object?.statuses)
+				? object.statuses.map((e: any) => AgentStatus.fromJSON(e))
+				: []
+		};
+	},
 
-  toJSON(message: WatchAgentStatusResponse): unknown {
-    const obj: any = {};
-    if (message.statuses?.length) {
-      obj.statuses = message.statuses.map((e) => AgentStatus.toJSON(e));
-    }
-    return obj;
-  },
+	toJSON(message: WatchAgentStatusResponse): unknown {
+		const obj: any = {};
+		if (message.statuses?.length) {
+			obj.statuses = message.statuses.map((e) => AgentStatus.toJSON(e));
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<WatchAgentStatusResponse>, I>>(base?: I): WatchAgentStatusResponse {
-    return WatchAgentStatusResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<WatchAgentStatusResponse>, I>>(object: I): WatchAgentStatusResponse {
-    const message = createBaseWatchAgentStatusResponse();
-    message.statuses = object.statuses?.map((e) => AgentStatus.fromPartial(e)) || [];
-    return message;
-  },
+	create<I extends Exact<DeepPartial<WatchAgentStatusResponse>, I>>(
+		base?: I
+	): WatchAgentStatusResponse {
+		return WatchAgentStatusResponse.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<WatchAgentStatusResponse>, I>>(
+		object: I
+	): WatchAgentStatusResponse {
+		const message = createBaseWatchAgentStatusResponse();
+		message.statuses = object.statuses?.map((e) => AgentStatus.fromPartial(e)) || [];
+		return message;
+	}
 };
 
 function createBaseAgentStatus(): AgentStatus {
-  return { sessionId: "", agentName: "", namespace: "", phase: 0, reason: "", message: "" };
+	return { sessionId: '', agentName: '', namespace: '', phase: 0, reason: '', message: '' };
 }
 
 export const AgentStatus: MessageFns<AgentStatus> = {
-  encode(message: AgentStatus, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
-    }
-    if (message.agentName !== "") {
-      writer.uint32(18).string(message.agentName);
-    }
-    if (message.namespace !== "") {
-      writer.uint32(26).string(message.namespace);
-    }
-    if (message.phase !== 0) {
-      writer.uint32(32).int32(message.phase);
-    }
-    if (message.reason !== "") {
-      writer.uint32(42).string(message.reason);
-    }
-    if (message.message !== "") {
-      writer.uint32(50).string(message.message);
-    }
-    return writer;
-  },
+	encode(message: AgentStatus, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.sessionId !== '') {
+			writer.uint32(10).string(message.sessionId);
+		}
+		if (message.agentName !== '') {
+			writer.uint32(18).string(message.agentName);
+		}
+		if (message.namespace !== '') {
+			writer.uint32(26).string(message.namespace);
+		}
+		if (message.phase !== 0) {
+			writer.uint32(32).int32(message.phase);
+		}
+		if (message.reason !== '') {
+			writer.uint32(42).string(message.reason);
+		}
+		if (message.message !== '') {
+			writer.uint32(50).string(message.message);
+		}
+		return writer;
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): AgentStatus {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseAgentStatus();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): AgentStatus {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+		const end = length === undefined ? reader.len : reader.pos + length;
+		const message = createBaseAgentStatus();
+		while (reader.pos < end) {
+			const tag = reader.uint32();
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break;
+					}
 
-          message.sessionId = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
+					message.sessionId = reader.string();
+					continue;
+				}
+				case 2: {
+					if (tag !== 18) {
+						break;
+					}
 
-          message.agentName = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
+					message.agentName = reader.string();
+					continue;
+				}
+				case 3: {
+					if (tag !== 26) {
+						break;
+					}
 
-          message.namespace = reader.string();
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
+					message.namespace = reader.string();
+					continue;
+				}
+				case 4: {
+					if (tag !== 32) {
+						break;
+					}
 
-          message.phase = reader.int32() as any;
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
+					message.phase = reader.int32() as any;
+					continue;
+				}
+				case 5: {
+					if (tag !== 42) {
+						break;
+					}
 
-          message.reason = reader.string();
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
+					message.reason = reader.string();
+					continue;
+				}
+				case 6: {
+					if (tag !== 50) {
+						break;
+					}
 
-          message.message = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.message = reader.string();
+					continue;
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break;
+			}
+			reader.skip(tag & 7);
+		}
+		return message;
+	},
 
-  fromJSON(object: any): AgentStatus {
-    return {
-      sessionId: isSet(object.sessionId)
-        ? globalThis.String(object.sessionId)
-        : isSet(object.session_id)
-        ? globalThis.String(object.session_id)
-        : "",
-      agentName: isSet(object.agentName)
-        ? globalThis.String(object.agentName)
-        : isSet(object.agent_name)
-        ? globalThis.String(object.agent_name)
-        : "",
-      namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : "",
-      phase: isSet(object.phase) ? agentPhaseFromJSON(object.phase) : 0,
-      reason: isSet(object.reason) ? globalThis.String(object.reason) : "",
-      message: isSet(object.message) ? globalThis.String(object.message) : "",
-    };
-  },
+	fromJSON(object: any): AgentStatus {
+		return {
+			sessionId: isSet(object.sessionId)
+				? globalThis.String(object.sessionId)
+				: isSet(object.session_id)
+					? globalThis.String(object.session_id)
+					: '',
+			agentName: isSet(object.agentName)
+				? globalThis.String(object.agentName)
+				: isSet(object.agent_name)
+					? globalThis.String(object.agent_name)
+					: '',
+			namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : '',
+			phase: isSet(object.phase) ? agentPhaseFromJSON(object.phase) : 0,
+			reason: isSet(object.reason) ? globalThis.String(object.reason) : '',
+			message: isSet(object.message) ? globalThis.String(object.message) : ''
+		};
+	},
 
-  toJSON(message: AgentStatus): unknown {
-    const obj: any = {};
-    if (message.sessionId !== "") {
-      obj.sessionId = message.sessionId;
-    }
-    if (message.agentName !== "") {
-      obj.agentName = message.agentName;
-    }
-    if (message.namespace !== "") {
-      obj.namespace = message.namespace;
-    }
-    if (message.phase !== 0) {
-      obj.phase = agentPhaseToJSON(message.phase);
-    }
-    if (message.reason !== "") {
-      obj.reason = message.reason;
-    }
-    if (message.message !== "") {
-      obj.message = message.message;
-    }
-    return obj;
-  },
+	toJSON(message: AgentStatus): unknown {
+		const obj: any = {};
+		if (message.sessionId !== '') {
+			obj.sessionId = message.sessionId;
+		}
+		if (message.agentName !== '') {
+			obj.agentName = message.agentName;
+		}
+		if (message.namespace !== '') {
+			obj.namespace = message.namespace;
+		}
+		if (message.phase !== 0) {
+			obj.phase = agentPhaseToJSON(message.phase);
+		}
+		if (message.reason !== '') {
+			obj.reason = message.reason;
+		}
+		if (message.message !== '') {
+			obj.message = message.message;
+		}
+		return obj;
+	},
 
-  create<I extends Exact<DeepPartial<AgentStatus>, I>>(base?: I): AgentStatus {
-    return AgentStatus.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<AgentStatus>, I>>(object: I): AgentStatus {
-    const message = createBaseAgentStatus();
-    message.sessionId = object.sessionId ?? "";
-    message.agentName = object.agentName ?? "";
-    message.namespace = object.namespace ?? "";
-    message.phase = object.phase ?? 0;
-    message.reason = object.reason ?? "";
-    message.message = object.message ?? "";
-    return message;
-  },
+	create<I extends Exact<DeepPartial<AgentStatus>, I>>(base?: I): AgentStatus {
+		return AgentStatus.fromPartial(base ?? ({} as any));
+	},
+	fromPartial<I extends Exact<DeepPartial<AgentStatus>, I>>(object: I): AgentStatus {
+		const message = createBaseAgentStatus();
+		message.sessionId = object.sessionId ?? '';
+		message.agentName = object.agentName ?? '';
+		message.namespace = object.namespace ?? '';
+		message.phase = object.phase ?? 0;
+		message.reason = object.reason ?? '';
+		message.message = object.message ?? '';
+		return message;
+	}
 };
 
 export type AgentGatewayServiceService = typeof AgentGatewayServiceService;
 export const AgentGatewayServiceService = {
-  sendMessage: {
-    path: "/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/SendMessage" as const,
-    requestStream: false as const,
-    responseStream: false as const,
-    requestSerialize: (value: SendMessageRequest): Buffer => Buffer.from(SendMessageRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): SendMessageRequest => SendMessageRequest.decode(value),
-    responseSerialize: (value: SendMessageResponse): Buffer => Buffer.from(SendMessageResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): SendMessageResponse => SendMessageResponse.decode(value),
-  },
-  subscribeSession: {
-    path: "/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/SubscribeSession" as const,
-    requestStream: false as const,
-    responseStream: true as const,
-    requestSerialize: (value: SubscribeSessionRequest): Buffer =>
-      Buffer.from(SubscribeSessionRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): SubscribeSessionRequest => SubscribeSessionRequest.decode(value),
-    responseSerialize: (value: SessionStreamEvent): Buffer => Buffer.from(SessionStreamEvent.encode(value).finish()),
-    responseDeserialize: (value: Buffer): SessionStreamEvent => SessionStreamEvent.decode(value),
-  },
-  interruptSession: {
-    path: "/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/InterruptSession" as const,
-    requestStream: false as const,
-    responseStream: false as const,
-    requestSerialize: (value: InterruptSessionRequest): Buffer =>
-      Buffer.from(InterruptSessionRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): InterruptSessionRequest => InterruptSessionRequest.decode(value),
-    responseSerialize: (value: InterruptSessionResponse): Buffer =>
-      Buffer.from(InterruptSessionResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): InterruptSessionResponse => InterruptSessionResponse.decode(value),
-  },
-  compactSession: {
-    path: "/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/CompactSession" as const,
-    requestStream: false as const,
-    responseStream: false as const,
-    requestSerialize: (value: CompactSessionRequest): Buffer =>
-      Buffer.from(CompactSessionRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): CompactSessionRequest => CompactSessionRequest.decode(value),
-    responseSerialize: (value: CompactSessionResponse): Buffer =>
-      Buffer.from(CompactSessionResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): CompactSessionResponse => CompactSessionResponse.decode(value),
-  },
-  listAgentStatus: {
-    path: "/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/ListAgentStatus" as const,
-    requestStream: false as const,
-    responseStream: false as const,
-    requestSerialize: (value: ListAgentStatusRequest): Buffer =>
-      Buffer.from(ListAgentStatusRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): ListAgentStatusRequest => ListAgentStatusRequest.decode(value),
-    responseSerialize: (value: ListAgentStatusResponse): Buffer =>
-      Buffer.from(ListAgentStatusResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): ListAgentStatusResponse => ListAgentStatusResponse.decode(value),
-  },
-  watchAgentStatus: {
-    path: "/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/WatchAgentStatus" as const,
-    requestStream: false as const,
-    responseStream: true as const,
-    requestSerialize: (value: WatchAgentStatusRequest): Buffer =>
-      Buffer.from(WatchAgentStatusRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): WatchAgentStatusRequest => WatchAgentStatusRequest.decode(value),
-    responseSerialize: (value: WatchAgentStatusResponse): Buffer =>
-      Buffer.from(WatchAgentStatusResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): WatchAgentStatusResponse => WatchAgentStatusResponse.decode(value),
-  },
+	sendMessage: {
+		path: '/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/SendMessage' as const,
+		requestStream: false as const,
+		responseStream: false as const,
+		requestSerialize: (value: SendMessageRequest): Buffer =>
+			Buffer.from(SendMessageRequest.encode(value).finish()),
+		requestDeserialize: (value: Buffer): SendMessageRequest => SendMessageRequest.decode(value),
+		responseSerialize: (value: SendMessageResponse): Buffer =>
+			Buffer.from(SendMessageResponse.encode(value).finish()),
+		responseDeserialize: (value: Buffer): SendMessageResponse => SendMessageResponse.decode(value)
+	},
+	subscribeSession: {
+		path: '/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/SubscribeSession' as const,
+		requestStream: false as const,
+		responseStream: true as const,
+		requestSerialize: (value: SubscribeSessionRequest): Buffer =>
+			Buffer.from(SubscribeSessionRequest.encode(value).finish()),
+		requestDeserialize: (value: Buffer): SubscribeSessionRequest =>
+			SubscribeSessionRequest.decode(value),
+		responseSerialize: (value: SessionStreamEvent): Buffer =>
+			Buffer.from(SessionStreamEvent.encode(value).finish()),
+		responseDeserialize: (value: Buffer): SessionStreamEvent => SessionStreamEvent.decode(value)
+	},
+	interruptSession: {
+		path: '/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/InterruptSession' as const,
+		requestStream: false as const,
+		responseStream: false as const,
+		requestSerialize: (value: InterruptSessionRequest): Buffer =>
+			Buffer.from(InterruptSessionRequest.encode(value).finish()),
+		requestDeserialize: (value: Buffer): InterruptSessionRequest =>
+			InterruptSessionRequest.decode(value),
+		responseSerialize: (value: InterruptSessionResponse): Buffer =>
+			Buffer.from(InterruptSessionResponse.encode(value).finish()),
+		responseDeserialize: (value: Buffer): InterruptSessionResponse =>
+			InterruptSessionResponse.decode(value)
+	},
+	compactSession: {
+		path: '/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/CompactSession' as const,
+		requestStream: false as const,
+		responseStream: false as const,
+		requestSerialize: (value: CompactSessionRequest): Buffer =>
+			Buffer.from(CompactSessionRequest.encode(value).finish()),
+		requestDeserialize: (value: Buffer): CompactSessionRequest =>
+			CompactSessionRequest.decode(value),
+		responseSerialize: (value: CompactSessionResponse): Buffer =>
+			Buffer.from(CompactSessionResponse.encode(value).finish()),
+		responseDeserialize: (value: Buffer): CompactSessionResponse =>
+			CompactSessionResponse.decode(value)
+	},
+	listAgentStatus: {
+		path: '/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/ListAgentStatus' as const,
+		requestStream: false as const,
+		responseStream: false as const,
+		requestSerialize: (value: ListAgentStatusRequest): Buffer =>
+			Buffer.from(ListAgentStatusRequest.encode(value).finish()),
+		requestDeserialize: (value: Buffer): ListAgentStatusRequest =>
+			ListAgentStatusRequest.decode(value),
+		responseSerialize: (value: ListAgentStatusResponse): Buffer =>
+			Buffer.from(ListAgentStatusResponse.encode(value).finish()),
+		responseDeserialize: (value: Buffer): ListAgentStatusResponse =>
+			ListAgentStatusResponse.decode(value)
+	},
+	watchAgentStatus: {
+		path: '/accuknox.clawarmor.agent.gateway.v1.AgentGatewayService/WatchAgentStatus' as const,
+		requestStream: false as const,
+		responseStream: true as const,
+		requestSerialize: (value: WatchAgentStatusRequest): Buffer =>
+			Buffer.from(WatchAgentStatusRequest.encode(value).finish()),
+		requestDeserialize: (value: Buffer): WatchAgentStatusRequest =>
+			WatchAgentStatusRequest.decode(value),
+		responseSerialize: (value: WatchAgentStatusResponse): Buffer =>
+			Buffer.from(WatchAgentStatusResponse.encode(value).finish()),
+		responseDeserialize: (value: Buffer): WatchAgentStatusResponse =>
+			WatchAgentStatusResponse.decode(value)
+	}
 } as const;
 
 export interface AgentGatewayServiceServer extends UntypedServiceImplementation {
-  sendMessage: handleUnaryCall<SendMessageRequest, SendMessageResponse>;
-  subscribeSession: handleServerStreamingCall<SubscribeSessionRequest, SessionStreamEvent>;
-  interruptSession: handleUnaryCall<InterruptSessionRequest, InterruptSessionResponse>;
-  compactSession: handleUnaryCall<CompactSessionRequest, CompactSessionResponse>;
-  listAgentStatus: handleUnaryCall<ListAgentStatusRequest, ListAgentStatusResponse>;
-  watchAgentStatus: handleServerStreamingCall<WatchAgentStatusRequest, WatchAgentStatusResponse>;
+	sendMessage: handleUnaryCall<SendMessageRequest, SendMessageResponse>;
+	subscribeSession: handleServerStreamingCall<SubscribeSessionRequest, SessionStreamEvent>;
+	interruptSession: handleUnaryCall<InterruptSessionRequest, InterruptSessionResponse>;
+	compactSession: handleUnaryCall<CompactSessionRequest, CompactSessionResponse>;
+	listAgentStatus: handleUnaryCall<ListAgentStatusRequest, ListAgentStatusResponse>;
+	watchAgentStatus: handleServerStreamingCall<WatchAgentStatusRequest, WatchAgentStatusResponse>;
 }
 
 export interface AgentGatewayServiceClient extends Client {
-  sendMessage(
-    request: SendMessageRequest,
-    callback: (error: ServiceError | null, response: SendMessageResponse) => void,
-  ): ClientUnaryCall;
-  sendMessage(
-    request: SendMessageRequest,
-    metadata: Metadata,
-    callback: (error: ServiceError | null, response: SendMessageResponse) => void,
-  ): ClientUnaryCall;
-  sendMessage(
-    request: SendMessageRequest,
-    metadata: Metadata,
-    options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: SendMessageResponse) => void,
-  ): ClientUnaryCall;
-  subscribeSession(
-    request: SubscribeSessionRequest,
-    options?: Partial<CallOptions>,
-  ): ClientReadableStream<SessionStreamEvent>;
-  subscribeSession(
-    request: SubscribeSessionRequest,
-    metadata?: Metadata,
-    options?: Partial<CallOptions>,
-  ): ClientReadableStream<SessionStreamEvent>;
-  interruptSession(
-    request: InterruptSessionRequest,
-    callback: (error: ServiceError | null, response: InterruptSessionResponse) => void,
-  ): ClientUnaryCall;
-  interruptSession(
-    request: InterruptSessionRequest,
-    metadata: Metadata,
-    callback: (error: ServiceError | null, response: InterruptSessionResponse) => void,
-  ): ClientUnaryCall;
-  interruptSession(
-    request: InterruptSessionRequest,
-    metadata: Metadata,
-    options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: InterruptSessionResponse) => void,
-  ): ClientUnaryCall;
-  compactSession(
-    request: CompactSessionRequest,
-    callback: (error: ServiceError | null, response: CompactSessionResponse) => void,
-  ): ClientUnaryCall;
-  compactSession(
-    request: CompactSessionRequest,
-    metadata: Metadata,
-    callback: (error: ServiceError | null, response: CompactSessionResponse) => void,
-  ): ClientUnaryCall;
-  compactSession(
-    request: CompactSessionRequest,
-    metadata: Metadata,
-    options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: CompactSessionResponse) => void,
-  ): ClientUnaryCall;
-  listAgentStatus(
-    request: ListAgentStatusRequest,
-    callback: (error: ServiceError | null, response: ListAgentStatusResponse) => void,
-  ): ClientUnaryCall;
-  listAgentStatus(
-    request: ListAgentStatusRequest,
-    metadata: Metadata,
-    callback: (error: ServiceError | null, response: ListAgentStatusResponse) => void,
-  ): ClientUnaryCall;
-  listAgentStatus(
-    request: ListAgentStatusRequest,
-    metadata: Metadata,
-    options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: ListAgentStatusResponse) => void,
-  ): ClientUnaryCall;
-  watchAgentStatus(
-    request: WatchAgentStatusRequest,
-    options?: Partial<CallOptions>,
-  ): ClientReadableStream<WatchAgentStatusResponse>;
-  watchAgentStatus(
-    request: WatchAgentStatusRequest,
-    metadata?: Metadata,
-    options?: Partial<CallOptions>,
-  ): ClientReadableStream<WatchAgentStatusResponse>;
+	sendMessage(
+		request: SendMessageRequest,
+		callback: (error: ServiceError | null, response: SendMessageResponse) => void
+	): ClientUnaryCall;
+	sendMessage(
+		request: SendMessageRequest,
+		metadata: Metadata,
+		callback: (error: ServiceError | null, response: SendMessageResponse) => void
+	): ClientUnaryCall;
+	sendMessage(
+		request: SendMessageRequest,
+		metadata: Metadata,
+		options: Partial<CallOptions>,
+		callback: (error: ServiceError | null, response: SendMessageResponse) => void
+	): ClientUnaryCall;
+	subscribeSession(
+		request: SubscribeSessionRequest,
+		options?: Partial<CallOptions>
+	): ClientReadableStream<SessionStreamEvent>;
+	subscribeSession(
+		request: SubscribeSessionRequest,
+		metadata?: Metadata,
+		options?: Partial<CallOptions>
+	): ClientReadableStream<SessionStreamEvent>;
+	interruptSession(
+		request: InterruptSessionRequest,
+		callback: (error: ServiceError | null, response: InterruptSessionResponse) => void
+	): ClientUnaryCall;
+	interruptSession(
+		request: InterruptSessionRequest,
+		metadata: Metadata,
+		callback: (error: ServiceError | null, response: InterruptSessionResponse) => void
+	): ClientUnaryCall;
+	interruptSession(
+		request: InterruptSessionRequest,
+		metadata: Metadata,
+		options: Partial<CallOptions>,
+		callback: (error: ServiceError | null, response: InterruptSessionResponse) => void
+	): ClientUnaryCall;
+	compactSession(
+		request: CompactSessionRequest,
+		callback: (error: ServiceError | null, response: CompactSessionResponse) => void
+	): ClientUnaryCall;
+	compactSession(
+		request: CompactSessionRequest,
+		metadata: Metadata,
+		callback: (error: ServiceError | null, response: CompactSessionResponse) => void
+	): ClientUnaryCall;
+	compactSession(
+		request: CompactSessionRequest,
+		metadata: Metadata,
+		options: Partial<CallOptions>,
+		callback: (error: ServiceError | null, response: CompactSessionResponse) => void
+	): ClientUnaryCall;
+	listAgentStatus(
+		request: ListAgentStatusRequest,
+		callback: (error: ServiceError | null, response: ListAgentStatusResponse) => void
+	): ClientUnaryCall;
+	listAgentStatus(
+		request: ListAgentStatusRequest,
+		metadata: Metadata,
+		callback: (error: ServiceError | null, response: ListAgentStatusResponse) => void
+	): ClientUnaryCall;
+	listAgentStatus(
+		request: ListAgentStatusRequest,
+		metadata: Metadata,
+		options: Partial<CallOptions>,
+		callback: (error: ServiceError | null, response: ListAgentStatusResponse) => void
+	): ClientUnaryCall;
+	watchAgentStatus(
+		request: WatchAgentStatusRequest,
+		options?: Partial<CallOptions>
+	): ClientReadableStream<WatchAgentStatusResponse>;
+	watchAgentStatus(
+		request: WatchAgentStatusRequest,
+		metadata?: Metadata,
+		options?: Partial<CallOptions>
+	): ClientReadableStream<WatchAgentStatusResponse>;
 }
 
 export const AgentGatewayServiceClient = makeGenericClientConstructor(
-  AgentGatewayServiceService,
-  "accuknox.clawarmor.agent.gateway.v1.AgentGatewayService",
+	AgentGatewayServiceService,
+	'accuknox.clawarmor.agent.gateway.v1.AgentGatewayService'
 ) as unknown as {
-  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): AgentGatewayServiceClient;
-  service: typeof AgentGatewayServiceService;
-  serviceName: string;
+	new (
+		address: string,
+		credentials: ChannelCredentials,
+		options?: Partial<ClientOptions>
+	): AgentGatewayServiceClient;
+	service: typeof AgentGatewayServiceService;
+	serviceName: string;
 };
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+	? T
+	: T extends globalThis.Array<infer U>
+		? globalThis.Array<DeepPartial<U>>
+		: T extends ReadonlyArray<infer U>
+			? ReadonlyArray<DeepPartial<U>>
+			: T extends {}
+				? { [K in keyof T]?: DeepPartial<T[K]> }
+				: Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+export type Exact<P, I extends P> = P extends Builtin
+	? P
+	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function longToNumber(int64: { toString(): string }): number {
-  const num = globalThis.Number(int64.toString());
-  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
-    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
-  }
-  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
-    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
-  }
-  return num;
+	const num = globalThis.Number(int64.toString());
+	if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+		throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+	}
+	if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+		throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+	}
+	return num;
 }
 
 function isSet(value: any): boolean {
-  return value !== null && value !== undefined;
+	return value !== null && value !== undefined;
 }
 
 export interface MessageFns<T> {
-  encode(message: T, writer?: BinaryWriter): BinaryWriter;
-  decode(input: BinaryReader | Uint8Array, length?: number): T;
-  fromJSON(object: any): T;
-  toJSON(message: T): unknown;
-  create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
-  fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
+	encode(message: T, writer?: BinaryWriter): BinaryWriter;
+	decode(input: BinaryReader | Uint8Array, length?: number): T;
+	fromJSON(object: any): T;
+	toJSON(message: T): unknown;
+	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
+	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
 }

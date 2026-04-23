@@ -3,6 +3,7 @@ module github.com/accuknox/clawarmor
 go 1.26.1
 
 require (
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/chzyer/readline v1.5.1
 	github.com/cilium/cilium v1.19.3
 	github.com/go-logr/logr v1.4.3
@@ -10,8 +11,9 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/kubearmor/KubeArmor/protobuf v0.0.0-20260417183239-3c0345205950
 	github.com/onsi/ginkgo/v2 v2.27.2
-	github.com/onsi/gomega v1.38.2
+	github.com/onsi/gomega v1.38.3
 	github.com/urfave/cli/v3 v3.8.0
+	github.com/valkey-io/valkey-go v1.0.74
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/proto/otlp v1.7.1
 	google.golang.org/grpc v1.80.0

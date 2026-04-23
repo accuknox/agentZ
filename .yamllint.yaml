@@ -1,6 +1,7 @@
 extends: default
 ignore:
 - .ref/
+- web/
 rules:
   indentation:
     indent-sequences: false

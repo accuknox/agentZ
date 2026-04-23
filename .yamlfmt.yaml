@@ -6,3 +6,4 @@ formatter:
   indentless_arrays: true
 exclude:
 - .ref/
+- web/

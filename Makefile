@@ -114,3 +114,16 @@ ENVTEST_K8S_VERSION ?= $(shell v='$(call gomodver,k8s.io/api)'; \
 define gomodver
 $(shell go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' $(1) 2>/dev/null)
 endef
+
+# generates clientset, informers and listers
+CODEGEN_PKG = _output/tmp/code-generator
+CODEGEN_PKG_VERSION ?= v0.35.3
+.PHONY: codegen
+codegen:
+	@rm -rf $(CODEGEN_PKG)
+	@echo "[~] Installing kube-codegen..."
+	@git clone https://github.com/kubernetes/code-generator --branch $(CODEGEN_PKG_VERSION) --single-branch $(CODEGEN_PKG)
+	@echo "[~] Generating clientset, informers & listers..."
+	@mkdir -p pkg/agent-controller/clientset pkg/agent-controller/listers pkg/agent-controller/informers
+	CODEGEN_PKG=$(CODEGEN_PKG) hack/update-codegen.sh
+	@rm -rf _output/

@@ -23,8 +23,11 @@ const (
 
 // Options configures the remote agent REPL.
 type Options struct {
-	Target    string
-	SessionID string
+	Target          string
+	SessionID       string
+	SessionTarget   string
+	SessionInsecure bool
+	HistoryLimit    int
 }
 
 // Run runs an interactive remote chat session.
@@ -51,7 +54,18 @@ func Run(ctx context.Context, opts Options) error {
 	defer rl.Close()
 
 	out := newREPLWriter(rl)
+
 	fmt.Fprintln(out, "Type /help for commands.")
+	err = printChatHistory(ctx, out, historyConfig{
+		Target:    opts.SessionTarget,
+		Insecure:  opts.SessionInsecure,
+		SessionID: opts.SessionID,
+		Limit:     opts.HistoryLimit,
+	})
+	if err != nil {
+		fmt.Fprintf(out, "history warning: %v\n", err)
+	}
+
 	cl.subscribeSession(ctx, out)
 	cl.watchStatus(ctx, out)
 

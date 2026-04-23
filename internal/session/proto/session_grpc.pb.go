@@ -22,6 +22,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SessionService_CreateSession_FullMethodName        = "/accuknox.clawarmor.session.v1.SessionService/CreateSession"
 	SessionService_GetSession_FullMethodName           = "/accuknox.clawarmor.session.v1.SessionService/GetSession"
+	SessionService_GetChatHistory_FullMethodName       = "/accuknox.clawarmor.session.v1.SessionService/GetChatHistory"
 	SessionService_ListSessions_FullMethodName         = "/accuknox.clawarmor.session.v1.SessionService/ListSessions"
 	SessionService_DeleteSession_FullMethodName        = "/accuknox.clawarmor.session.v1.SessionService/DeleteSession"
 	SessionService_AppendEvent_FullMethodName          = "/accuknox.clawarmor.session.v1.SessionService/AppendEvent"
@@ -38,6 +39,7 @@ const (
 type SessionServiceClient interface {
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
+	GetChatHistory(ctx context.Context, in *GetChatHistoryRequest, opts ...grpc.CallOption) (*GetChatHistoryResponse, error)
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	DeleteSession(ctx context.Context, in *DeleteSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	AppendEvent(ctx context.Context, in *AppendEventRequest, opts ...grpc.CallOption) (*AppendEventResponse, error)
@@ -70,6 +72,16 @@ func (c *sessionServiceClient) GetSession(ctx context.Context, in *GetSessionReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSessionResponse)
 	err := c.cc.Invoke(ctx, SessionService_GetSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) GetChatHistory(ctx context.Context, in *GetChatHistoryRequest, opts ...grpc.CallOption) (*GetChatHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetChatHistoryResponse)
+	err := c.cc.Invoke(ctx, SessionService_GetChatHistory_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -162,6 +174,7 @@ func (c *sessionServiceClient) ListSessionSummaries(ctx context.Context, in *Lis
 type SessionServiceServer interface {
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
+	GetChatHistory(context.Context, *GetChatHistoryRequest) (*GetChatHistoryResponse, error)
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	DeleteSession(context.Context, *DeleteSessionRequest) (*emptypb.Empty, error)
 	AppendEvent(context.Context, *AppendEventRequest) (*AppendEventResponse, error)
@@ -185,6 +198,9 @@ func (UnimplementedSessionServiceServer) CreateSession(context.Context, *CreateS
 }
 func (UnimplementedSessionServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
+}
+func (UnimplementedSessionServiceServer) GetChatHistory(context.Context, *GetChatHistoryRequest) (*GetChatHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChatHistory not implemented")
 }
 func (UnimplementedSessionServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
@@ -263,6 +279,24 @@ func _SessionService_GetSession_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SessionServiceServer).GetSession(ctx, req.(*GetSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_GetChatHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetChatHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).GetChatHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_GetChatHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).GetChatHistory(ctx, req.(*GetChatHistoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -425,6 +459,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSession",
 			Handler:    _SessionService_GetSession_Handler,
+		},
+		{
+			MethodName: "GetChatHistory",
+			Handler:    _SessionService_GetChatHistory_Handler,
 		},
 		{
 			MethodName: "ListSessions",

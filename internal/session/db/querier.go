@@ -13,10 +13,12 @@ import (
 type Querier interface {
 	CreateEvent(ctx context.Context, arg CreateEventParams) (CreateEventRow, error)
 	CreateEventNow(ctx context.Context, arg CreateEventNowParams) (CreateEventNowRow, error)
-	CreateSession(ctx context.Context, sessionID uuid.UUID) (Session, error)
+	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) (int64, error)
 	DeleteStateEntry(ctx context.Context, arg DeleteStateEntryParams) (int64, error)
 	GetSession(ctx context.Context, sessionID uuid.UUID) (Session, error)
+	ListChatHistory(ctx context.Context, arg ListChatHistoryParams) ([]ListChatHistoryRow, error)
+	ListChatHistoryBefore(ctx context.Context, arg ListChatHistoryBeforeParams) ([]ListChatHistoryBeforeRow, error)
 	ListEventPage(ctx context.Context, arg ListEventPageParams) ([]ListEventPageRow, error)
 	ListEvents(ctx context.Context, sessionID uuid.UUID) ([]ListEventsRow, error)
 	ListEventsAfter(ctx context.Context, arg ListEventsAfterParams) ([]ListEventsAfterRow, error)

@@ -1,15 +1,15 @@
 -- name: CreateSession :one
-INSERT INTO sessions(session_id)
-VALUES ($1)
-RETURNING session_id, created_at, updated_at;
+INSERT INTO sessions(session_id, agent_name)
+VALUES ($1, $2)
+RETURNING session_id, agent_name, created_at, updated_at;
 
 -- name: GetSession :one
-SELECT session_id, created_at, updated_at
+SELECT session_id, agent_name, created_at, updated_at
 FROM sessions
 WHERE session_id = $1;
 
 -- name: ListSessions :many
-SELECT session_id, created_at, updated_at
+SELECT session_id, agent_name, created_at, updated_at
 FROM sessions
 ORDER BY updated_at DESC, session_id DESC;
 
@@ -53,6 +53,21 @@ ORDER BY seq DESC
 LIMIT $2;
 
 -- name: ListEventPage :many
+SELECT seq, event_id, event_ts, event_payload
+FROM session_events
+WHERE session_id = $1
+  AND seq < $2
+ORDER BY seq DESC
+LIMIT $3;
+
+-- name: ListChatHistory :many
+SELECT seq, event_id, event_ts, event_payload
+FROM session_events
+WHERE session_id = $1
+ORDER BY seq DESC
+LIMIT $2;
+
+-- name: ListChatHistoryBefore :many
 SELECT seq, event_id, event_ts, event_payload
 FROM session_events
 WHERE session_id = $1

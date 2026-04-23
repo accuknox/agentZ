@@ -29,6 +29,7 @@ type SessionMeta struct {
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	AgentName     string                 `protobuf:"bytes,4,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -82,6 +83,13 @@ func (x *SessionMeta) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *SessionMeta) GetAgentName() string {
+	if x != nil {
+		return x.AgentName
+	}
+	return ""
 }
 
 type StateEntry struct {
@@ -275,6 +283,7 @@ func (x *SessionSummary) GetUpdatedAt() *timestamppb.Timestamp {
 type CreateSessionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	AgentName     string                 `protobuf:"bytes,2,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -312,6 +321,13 @@ func (*CreateSessionRequest) Descriptor() ([]byte, []int) {
 func (x *CreateSessionRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
+	}
+	return ""
+}
+
+func (x *CreateSessionRequest) GetAgentName() string {
+	if x != nil {
+		return x.AgentName
 	}
 	return ""
 }
@@ -504,6 +520,326 @@ func (x *GetSessionResponse) GetSummaries() []*SessionSummary {
 	return nil
 }
 
+type ChatToolCall struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Arguments     string                 `protobuf:"bytes,3,opt,name=arguments,proto3" json:"arguments,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatToolCall) Reset() {
+	*x = ChatToolCall{}
+	mi := &file_session_proto_session_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatToolCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatToolCall) ProtoMessage() {}
+
+func (x *ChatToolCall) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_session_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatToolCall.ProtoReflect.Descriptor instead.
+func (*ChatToolCall) Descriptor() ([]byte, []int) {
+	return file_session_proto_session_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ChatToolCall) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ChatToolCall) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ChatToolCall) GetArguments() string {
+	if x != nil {
+		return x.Arguments
+	}
+	return ""
+}
+
+type ChatHistoryItem struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Seq              int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"`
+	EventId          string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	EventTs          *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=event_ts,json=eventTs,proto3" json:"event_ts,omitempty"`
+	RequestId        string                 `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	InvocationId     string                 `protobuf:"bytes,5,opt,name=invocation_id,json=invocationId,proto3" json:"invocation_id,omitempty"`
+	Author           string                 `protobuf:"bytes,6,opt,name=author,proto3" json:"author,omitempty"`
+	Role             string                 `protobuf:"bytes,7,opt,name=role,proto3" json:"role,omitempty"`
+	Content          string                 `protobuf:"bytes,8,opt,name=content,proto3" json:"content,omitempty"`
+	ReasoningContent string                 `protobuf:"bytes,9,opt,name=reasoning_content,json=reasoningContent,proto3" json:"reasoning_content,omitempty"`
+	ToolCalls        []*ChatToolCall        `protobuf:"bytes,10,rep,name=tool_calls,json=toolCalls,proto3" json:"tool_calls,omitempty"`
+	ToolCallId       string                 `protobuf:"bytes,11,opt,name=tool_call_id,json=toolCallId,proto3" json:"tool_call_id,omitempty"`
+	ToolName         string                 `protobuf:"bytes,12,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	Error            string                 `protobuf:"bytes,13,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ChatHistoryItem) Reset() {
+	*x = ChatHistoryItem{}
+	mi := &file_session_proto_session_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatHistoryItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatHistoryItem) ProtoMessage() {}
+
+func (x *ChatHistoryItem) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_session_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatHistoryItem.ProtoReflect.Descriptor instead.
+func (*ChatHistoryItem) Descriptor() ([]byte, []int) {
+	return file_session_proto_session_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ChatHistoryItem) GetSeq() int64 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
+}
+
+func (x *ChatHistoryItem) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetEventTs() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EventTs
+	}
+	return nil
+}
+
+func (x *ChatHistoryItem) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetInvocationId() string {
+	if x != nil {
+		return x.InvocationId
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetAuthor() string {
+	if x != nil {
+		return x.Author
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetReasoningContent() string {
+	if x != nil {
+		return x.ReasoningContent
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetToolCalls() []*ChatToolCall {
+	if x != nil {
+		return x.ToolCalls
+	}
+	return nil
+}
+
+func (x *ChatHistoryItem) GetToolCallId() string {
+	if x != nil {
+		return x.ToolCallId
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *ChatHistoryItem) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type GetChatHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	BeforeSeq     int64                  `protobuf:"varint,3,opt,name=before_seq,json=beforeSeq,proto3" json:"before_seq,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetChatHistoryRequest) Reset() {
+	*x = GetChatHistoryRequest{}
+	mi := &file_session_proto_session_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetChatHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetChatHistoryRequest) ProtoMessage() {}
+
+func (x *GetChatHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_session_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetChatHistoryRequest.ProtoReflect.Descriptor instead.
+func (*GetChatHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_session_proto_session_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetChatHistoryRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *GetChatHistoryRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *GetChatHistoryRequest) GetBeforeSeq() int64 {
+	if x != nil {
+		return x.BeforeSeq
+	}
+	return 0
+}
+
+type GetChatHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*ChatHistoryItem     `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	NextBeforeSeq int64                  `protobuf:"varint,2,opt,name=next_before_seq,json=nextBeforeSeq,proto3" json:"next_before_seq,omitempty"`
+	HasMore       bool                   `protobuf:"varint,3,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetChatHistoryResponse) Reset() {
+	*x = GetChatHistoryResponse{}
+	mi := &file_session_proto_session_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetChatHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetChatHistoryResponse) ProtoMessage() {}
+
+func (x *GetChatHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_session_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetChatHistoryResponse.ProtoReflect.Descriptor instead.
+func (*GetChatHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_session_proto_session_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetChatHistoryResponse) GetItems() []*ChatHistoryItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *GetChatHistoryResponse) GetNextBeforeSeq() int64 {
+	if x != nil {
+		return x.NextBeforeSeq
+	}
+	return 0
+}
+
+func (x *GetChatHistoryResponse) GetHasMore() bool {
+	if x != nil {
+		return x.HasMore
+	}
+	return false
+}
+
 type ListSessionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -512,7 +848,7 @@ type ListSessionsRequest struct {
 
 func (x *ListSessionsRequest) Reset() {
 	*x = ListSessionsRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[8]
+	mi := &file_session_proto_session_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -524,7 +860,7 @@ func (x *ListSessionsRequest) String() string {
 func (*ListSessionsRequest) ProtoMessage() {}
 
 func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[8]
+	mi := &file_session_proto_session_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -537,7 +873,7 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{8}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{12}
 }
 
 type ListSessionsResponse struct {
@@ -549,7 +885,7 @@ type ListSessionsResponse struct {
 
 func (x *ListSessionsResponse) Reset() {
 	*x = ListSessionsResponse{}
-	mi := &file_session_proto_session_proto_msgTypes[9]
+	mi := &file_session_proto_session_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -561,7 +897,7 @@ func (x *ListSessionsResponse) String() string {
 func (*ListSessionsResponse) ProtoMessage() {}
 
 func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[9]
+	mi := &file_session_proto_session_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -574,7 +910,7 @@ func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{9}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListSessionsResponse) GetSessions() []*SessionMeta {
@@ -593,7 +929,7 @@ type DeleteSessionRequest struct {
 
 func (x *DeleteSessionRequest) Reset() {
 	*x = DeleteSessionRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[10]
+	mi := &file_session_proto_session_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -605,7 +941,7 @@ func (x *DeleteSessionRequest) String() string {
 func (*DeleteSessionRequest) ProtoMessage() {}
 
 func (x *DeleteSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[10]
+	mi := &file_session_proto_session_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -618,7 +954,7 @@ func (x *DeleteSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSessionRequest.ProtoReflect.Descriptor instead.
 func (*DeleteSessionRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{10}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DeleteSessionRequest) GetSessionId() string {
@@ -638,7 +974,7 @@ type AppendEventRequest struct {
 
 func (x *AppendEventRequest) Reset() {
 	*x = AppendEventRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[11]
+	mi := &file_session_proto_session_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -650,7 +986,7 @@ func (x *AppendEventRequest) String() string {
 func (*AppendEventRequest) ProtoMessage() {}
 
 func (x *AppendEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[11]
+	mi := &file_session_proto_session_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -663,7 +999,7 @@ func (x *AppendEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendEventRequest.ProtoReflect.Descriptor instead.
 func (*AppendEventRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{11}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AppendEventRequest) GetSessionId() string {
@@ -689,7 +1025,7 @@ type AppendEventResponse struct {
 
 func (x *AppendEventResponse) Reset() {
 	*x = AppendEventResponse{}
-	mi := &file_session_proto_session_proto_msgTypes[12]
+	mi := &file_session_proto_session_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -701,7 +1037,7 @@ func (x *AppendEventResponse) String() string {
 func (*AppendEventResponse) ProtoMessage() {}
 
 func (x *AppendEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[12]
+	mi := &file_session_proto_session_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -714,7 +1050,7 @@ func (x *AppendEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendEventResponse.ProtoReflect.Descriptor instead.
 func (*AppendEventResponse) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{12}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AppendEventResponse) GetEvent() *SessionEvent {
@@ -734,7 +1070,7 @@ type UpdateSessionStateRequest struct {
 
 func (x *UpdateSessionStateRequest) Reset() {
 	*x = UpdateSessionStateRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[13]
+	mi := &file_session_proto_session_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +1082,7 @@ func (x *UpdateSessionStateRequest) String() string {
 func (*UpdateSessionStateRequest) ProtoMessage() {}
 
 func (x *UpdateSessionStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[13]
+	mi := &file_session_proto_session_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +1095,7 @@ func (x *UpdateSessionStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionStateRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSessionStateRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{13}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *UpdateSessionStateRequest) GetSessionId() string {
@@ -786,7 +1122,7 @@ type DeleteSessionStateRequest struct {
 
 func (x *DeleteSessionStateRequest) Reset() {
 	*x = DeleteSessionStateRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[14]
+	mi := &file_session_proto_session_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -798,7 +1134,7 @@ func (x *DeleteSessionStateRequest) String() string {
 func (*DeleteSessionStateRequest) ProtoMessage() {}
 
 func (x *DeleteSessionStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[14]
+	mi := &file_session_proto_session_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -811,7 +1147,7 @@ func (x *DeleteSessionStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSessionStateRequest.ProtoReflect.Descriptor instead.
 func (*DeleteSessionStateRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{14}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeleteSessionStateRequest) GetSessionId() string {
@@ -837,7 +1173,7 @@ type ListSessionStatesRequest struct {
 
 func (x *ListSessionStatesRequest) Reset() {
 	*x = ListSessionStatesRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[15]
+	mi := &file_session_proto_session_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -849,7 +1185,7 @@ func (x *ListSessionStatesRequest) String() string {
 func (*ListSessionStatesRequest) ProtoMessage() {}
 
 func (x *ListSessionStatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[15]
+	mi := &file_session_proto_session_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -862,7 +1198,7 @@ func (x *ListSessionStatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionStatesRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionStatesRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{15}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListSessionStatesRequest) GetSessionId() string {
@@ -881,7 +1217,7 @@ type ListSessionStatesResponse struct {
 
 func (x *ListSessionStatesResponse) Reset() {
 	*x = ListSessionStatesResponse{}
-	mi := &file_session_proto_session_proto_msgTypes[16]
+	mi := &file_session_proto_session_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -893,7 +1229,7 @@ func (x *ListSessionStatesResponse) String() string {
 func (*ListSessionStatesResponse) ProtoMessage() {}
 
 func (x *ListSessionStatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[16]
+	mi := &file_session_proto_session_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -906,7 +1242,7 @@ func (x *ListSessionStatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionStatesResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionStatesResponse) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{16}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListSessionStatesResponse) GetEntries() []*StateEntry {
@@ -926,7 +1262,7 @@ type UpsertSessionSummaryRequest struct {
 
 func (x *UpsertSessionSummaryRequest) Reset() {
 	*x = UpsertSessionSummaryRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[17]
+	mi := &file_session_proto_session_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -938,7 +1274,7 @@ func (x *UpsertSessionSummaryRequest) String() string {
 func (*UpsertSessionSummaryRequest) ProtoMessage() {}
 
 func (x *UpsertSessionSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[17]
+	mi := &file_session_proto_session_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -951,7 +1287,7 @@ func (x *UpsertSessionSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertSessionSummaryRequest.ProtoReflect.Descriptor instead.
 func (*UpsertSessionSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{17}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *UpsertSessionSummaryRequest) GetSessionId() string {
@@ -977,7 +1313,7 @@ type ListSessionSummariesRequest struct {
 
 func (x *ListSessionSummariesRequest) Reset() {
 	*x = ListSessionSummariesRequest{}
-	mi := &file_session_proto_session_proto_msgTypes[18]
+	mi := &file_session_proto_session_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -989,7 +1325,7 @@ func (x *ListSessionSummariesRequest) String() string {
 func (*ListSessionSummariesRequest) ProtoMessage() {}
 
 func (x *ListSessionSummariesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[18]
+	mi := &file_session_proto_session_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1002,7 +1338,7 @@ func (x *ListSessionSummariesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionSummariesRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionSummariesRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{18}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListSessionSummariesRequest) GetSessionId() string {
@@ -1021,7 +1357,7 @@ type ListSessionSummariesResponse struct {
 
 func (x *ListSessionSummariesResponse) Reset() {
 	*x = ListSessionSummariesResponse{}
-	mi := &file_session_proto_session_proto_msgTypes[19]
+	mi := &file_session_proto_session_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1033,7 +1369,7 @@ func (x *ListSessionSummariesResponse) String() string {
 func (*ListSessionSummariesResponse) ProtoMessage() {}
 
 func (x *ListSessionSummariesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_session_proto_msgTypes[19]
+	mi := &file_session_proto_session_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1046,7 +1382,7 @@ func (x *ListSessionSummariesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionSummariesResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionSummariesResponse) Descriptor() ([]byte, []int) {
-	return file_session_proto_session_proto_rawDescGZIP(), []int{19}
+	return file_session_proto_session_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListSessionSummariesResponse) GetSummaries() []*SessionSummary {
@@ -1060,14 +1396,16 @@ var File_session_proto_session_proto protoreflect.FileDescriptor
 
 const file_session_proto_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1bsession/proto/session.proto\x12\x1daccuknox.clawarmor.session.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa2\x01\n" +
+	"\x1bsession/proto/session.proto\x12\x1daccuknox.clawarmor.session.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc1\x01\n" +
 	"\vSessionMeta\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
 	"\n" +
 	"created_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"4\n" +
+	"updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"agent_name\x18\x04 \x01(\tR\tagentName\"4\n" +
 	"\n" +
 	"StateEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1083,10 +1421,12 @@ const file_session_proto_session_proto_rawDesc = "" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12\x16\n" +
 	"\x06topics\x18\x03 \x03(\tR\x06topics\x129\n" +
 	"\n" +
-	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"5\n" +
+	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"T\n" +
 	"\x14CreateSessionRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"]\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
+	"\n" +
+	"agent_name\x18\x02 \x01(\tR\tagentName\"]\n" +
 	"\x15CreateSessionResponse\x12D\n" +
 	"\asession\x18\x01 \x01(\v2*.accuknox.clawarmor.session.v1.SessionMetaR\asession\"\xe7\x01\n" +
 	"\x11GetSessionRequest\x12\x1d\n" +
@@ -1101,7 +1441,39 @@ const file_session_proto_session_proto_rawDesc = "" +
 	"\asession\x18\x01 \x01(\v2*.accuknox.clawarmor.session.v1.SessionMetaR\asession\x12P\n" +
 	"\x0esession_states\x18\x02 \x03(\v2).accuknox.clawarmor.session.v1.StateEntryR\rsessionStates\x12C\n" +
 	"\x06events\x18\x03 \x03(\v2+.accuknox.clawarmor.session.v1.SessionEventR\x06events\x12K\n" +
-	"\tsummaries\x18\x04 \x03(\v2-.accuknox.clawarmor.session.v1.SessionSummaryR\tsummaries\"\x15\n" +
+	"\tsummaries\x18\x04 \x03(\v2-.accuknox.clawarmor.session.v1.SessionSummaryR\tsummaries\"P\n" +
+	"\fChatToolCall\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
+	"\targuments\x18\x03 \x01(\tR\targuments\"\xcd\x03\n" +
+	"\x0fChatHistoryItem\x12\x10\n" +
+	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12\x19\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x125\n" +
+	"\bevent_ts\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aeventTs\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x04 \x01(\tR\trequestId\x12#\n" +
+	"\rinvocation_id\x18\x05 \x01(\tR\finvocationId\x12\x16\n" +
+	"\x06author\x18\x06 \x01(\tR\x06author\x12\x12\n" +
+	"\x04role\x18\a \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\b \x01(\tR\acontent\x12+\n" +
+	"\x11reasoning_content\x18\t \x01(\tR\x10reasoningContent\x12J\n" +
+	"\n" +
+	"tool_calls\x18\n" +
+	" \x03(\v2+.accuknox.clawarmor.session.v1.ChatToolCallR\ttoolCalls\x12 \n" +
+	"\ftool_call_id\x18\v \x01(\tR\n" +
+	"toolCallId\x12\x1b\n" +
+	"\ttool_name\x18\f \x01(\tR\btoolName\x12\x14\n" +
+	"\x05error\x18\r \x01(\tR\x05error\"r\n" +
+	"\x15GetChatHistoryRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"before_seq\x18\x03 \x01(\x03R\tbeforeSeq\"\xa1\x01\n" +
+	"\x16GetChatHistoryResponse\x12D\n" +
+	"\x05items\x18\x01 \x03(\v2..accuknox.clawarmor.session.v1.ChatHistoryItemR\x05items\x12&\n" +
+	"\x0fnext_before_seq\x18\x02 \x01(\x03R\rnextBeforeSeq\x12\x19\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"\x15\n" +
 	"\x13ListSessionsRequest\"^\n" +
 	"\x14ListSessionsResponse\x12F\n" +
 	"\bsessions\x18\x01 \x03(\v2*.accuknox.clawarmor.session.v1.SessionMetaR\bsessions\"5\n" +
@@ -1135,11 +1507,13 @@ const file_session_proto_session_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"k\n" +
 	"\x1cListSessionSummariesResponse\x12K\n" +
-	"\tsummaries\x18\x01 \x03(\v2-.accuknox.clawarmor.session.v1.SessionSummaryR\tsummaries2\xa3\t\n" +
+	"\tsummaries\x18\x01 \x03(\v2-.accuknox.clawarmor.session.v1.SessionSummaryR\tsummaries2\xa2\n" +
+	"\n" +
 	"\x0eSessionService\x12z\n" +
 	"\rCreateSession\x123.accuknox.clawarmor.session.v1.CreateSessionRequest\x1a4.accuknox.clawarmor.session.v1.CreateSessionResponse\x12q\n" +
 	"\n" +
-	"GetSession\x120.accuknox.clawarmor.session.v1.GetSessionRequest\x1a1.accuknox.clawarmor.session.v1.GetSessionResponse\x12w\n" +
+	"GetSession\x120.accuknox.clawarmor.session.v1.GetSessionRequest\x1a1.accuknox.clawarmor.session.v1.GetSessionResponse\x12}\n" +
+	"\x0eGetChatHistory\x124.accuknox.clawarmor.session.v1.GetChatHistoryRequest\x1a5.accuknox.clawarmor.session.v1.GetChatHistoryResponse\x12w\n" +
 	"\fListSessions\x122.accuknox.clawarmor.session.v1.ListSessionsRequest\x1a3.accuknox.clawarmor.session.v1.ListSessionsResponse\x12\\\n" +
 	"\rDeleteSession\x123.accuknox.clawarmor.session.v1.DeleteSessionRequest\x1a\x16.google.protobuf.Empty\x12t\n" +
 	"\vAppendEvent\x121.accuknox.clawarmor.session.v1.AppendEventRequest\x1a2.accuknox.clawarmor.session.v1.AppendEventResponse\x12f\n" +
@@ -1161,7 +1535,7 @@ func file_session_proto_session_proto_rawDescGZIP() []byte {
 	return file_session_proto_session_proto_rawDescData
 }
 
-var file_session_proto_session_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_session_proto_session_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_session_proto_session_proto_goTypes = []any{
 	(*SessionMeta)(nil),                  // 0: accuknox.clawarmor.session.v1.SessionMeta
 	(*StateEntry)(nil),                   // 1: accuknox.clawarmor.session.v1.StateEntry
@@ -1171,66 +1545,75 @@ var file_session_proto_session_proto_goTypes = []any{
 	(*CreateSessionResponse)(nil),        // 5: accuknox.clawarmor.session.v1.CreateSessionResponse
 	(*GetSessionRequest)(nil),            // 6: accuknox.clawarmor.session.v1.GetSessionRequest
 	(*GetSessionResponse)(nil),           // 7: accuknox.clawarmor.session.v1.GetSessionResponse
-	(*ListSessionsRequest)(nil),          // 8: accuknox.clawarmor.session.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),         // 9: accuknox.clawarmor.session.v1.ListSessionsResponse
-	(*DeleteSessionRequest)(nil),         // 10: accuknox.clawarmor.session.v1.DeleteSessionRequest
-	(*AppendEventRequest)(nil),           // 11: accuknox.clawarmor.session.v1.AppendEventRequest
-	(*AppendEventResponse)(nil),          // 12: accuknox.clawarmor.session.v1.AppendEventResponse
-	(*UpdateSessionStateRequest)(nil),    // 13: accuknox.clawarmor.session.v1.UpdateSessionStateRequest
-	(*DeleteSessionStateRequest)(nil),    // 14: accuknox.clawarmor.session.v1.DeleteSessionStateRequest
-	(*ListSessionStatesRequest)(nil),     // 15: accuknox.clawarmor.session.v1.ListSessionStatesRequest
-	(*ListSessionStatesResponse)(nil),    // 16: accuknox.clawarmor.session.v1.ListSessionStatesResponse
-	(*UpsertSessionSummaryRequest)(nil),  // 17: accuknox.clawarmor.session.v1.UpsertSessionSummaryRequest
-	(*ListSessionSummariesRequest)(nil),  // 18: accuknox.clawarmor.session.v1.ListSessionSummariesRequest
-	(*ListSessionSummariesResponse)(nil), // 19: accuknox.clawarmor.session.v1.ListSessionSummariesResponse
-	(*timestamppb.Timestamp)(nil),        // 20: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),              // 21: google.protobuf.Struct
-	(*emptypb.Empty)(nil),                // 22: google.protobuf.Empty
+	(*ChatToolCall)(nil),                 // 8: accuknox.clawarmor.session.v1.ChatToolCall
+	(*ChatHistoryItem)(nil),              // 9: accuknox.clawarmor.session.v1.ChatHistoryItem
+	(*GetChatHistoryRequest)(nil),        // 10: accuknox.clawarmor.session.v1.GetChatHistoryRequest
+	(*GetChatHistoryResponse)(nil),       // 11: accuknox.clawarmor.session.v1.GetChatHistoryResponse
+	(*ListSessionsRequest)(nil),          // 12: accuknox.clawarmor.session.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),         // 13: accuknox.clawarmor.session.v1.ListSessionsResponse
+	(*DeleteSessionRequest)(nil),         // 14: accuknox.clawarmor.session.v1.DeleteSessionRequest
+	(*AppendEventRequest)(nil),           // 15: accuknox.clawarmor.session.v1.AppendEventRequest
+	(*AppendEventResponse)(nil),          // 16: accuknox.clawarmor.session.v1.AppendEventResponse
+	(*UpdateSessionStateRequest)(nil),    // 17: accuknox.clawarmor.session.v1.UpdateSessionStateRequest
+	(*DeleteSessionStateRequest)(nil),    // 18: accuknox.clawarmor.session.v1.DeleteSessionStateRequest
+	(*ListSessionStatesRequest)(nil),     // 19: accuknox.clawarmor.session.v1.ListSessionStatesRequest
+	(*ListSessionStatesResponse)(nil),    // 20: accuknox.clawarmor.session.v1.ListSessionStatesResponse
+	(*UpsertSessionSummaryRequest)(nil),  // 21: accuknox.clawarmor.session.v1.UpsertSessionSummaryRequest
+	(*ListSessionSummariesRequest)(nil),  // 22: accuknox.clawarmor.session.v1.ListSessionSummariesRequest
+	(*ListSessionSummariesResponse)(nil), // 23: accuknox.clawarmor.session.v1.ListSessionSummariesResponse
+	(*timestamppb.Timestamp)(nil),        // 24: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),              // 25: google.protobuf.Struct
+	(*emptypb.Empty)(nil),                // 26: google.protobuf.Empty
 }
 var file_session_proto_session_proto_depIdxs = []int32{
-	20, // 0: accuknox.clawarmor.session.v1.SessionMeta.created_at:type_name -> google.protobuf.Timestamp
-	20, // 1: accuknox.clawarmor.session.v1.SessionMeta.updated_at:type_name -> google.protobuf.Timestamp
-	20, // 2: accuknox.clawarmor.session.v1.SessionEvent.event_ts:type_name -> google.protobuf.Timestamp
-	21, // 3: accuknox.clawarmor.session.v1.SessionEvent.payload:type_name -> google.protobuf.Struct
-	20, // 4: accuknox.clawarmor.session.v1.SessionSummary.updated_at:type_name -> google.protobuf.Timestamp
+	24, // 0: accuknox.clawarmor.session.v1.SessionMeta.created_at:type_name -> google.protobuf.Timestamp
+	24, // 1: accuknox.clawarmor.session.v1.SessionMeta.updated_at:type_name -> google.protobuf.Timestamp
+	24, // 2: accuknox.clawarmor.session.v1.SessionEvent.event_ts:type_name -> google.protobuf.Timestamp
+	25, // 3: accuknox.clawarmor.session.v1.SessionEvent.payload:type_name -> google.protobuf.Struct
+	24, // 4: accuknox.clawarmor.session.v1.SessionSummary.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 5: accuknox.clawarmor.session.v1.CreateSessionResponse.session:type_name -> accuknox.clawarmor.session.v1.SessionMeta
-	20, // 6: accuknox.clawarmor.session.v1.GetSessionRequest.event_time:type_name -> google.protobuf.Timestamp
+	24, // 6: accuknox.clawarmor.session.v1.GetSessionRequest.event_time:type_name -> google.protobuf.Timestamp
 	0,  // 7: accuknox.clawarmor.session.v1.GetSessionResponse.session:type_name -> accuknox.clawarmor.session.v1.SessionMeta
 	1,  // 8: accuknox.clawarmor.session.v1.GetSessionResponse.session_states:type_name -> accuknox.clawarmor.session.v1.StateEntry
 	2,  // 9: accuknox.clawarmor.session.v1.GetSessionResponse.events:type_name -> accuknox.clawarmor.session.v1.SessionEvent
 	3,  // 10: accuknox.clawarmor.session.v1.GetSessionResponse.summaries:type_name -> accuknox.clawarmor.session.v1.SessionSummary
-	0,  // 11: accuknox.clawarmor.session.v1.ListSessionsResponse.sessions:type_name -> accuknox.clawarmor.session.v1.SessionMeta
-	2,  // 12: accuknox.clawarmor.session.v1.AppendEventRequest.event:type_name -> accuknox.clawarmor.session.v1.SessionEvent
-	2,  // 13: accuknox.clawarmor.session.v1.AppendEventResponse.event:type_name -> accuknox.clawarmor.session.v1.SessionEvent
-	1,  // 14: accuknox.clawarmor.session.v1.UpdateSessionStateRequest.entries:type_name -> accuknox.clawarmor.session.v1.StateEntry
-	1,  // 15: accuknox.clawarmor.session.v1.ListSessionStatesResponse.entries:type_name -> accuknox.clawarmor.session.v1.StateEntry
-	3,  // 16: accuknox.clawarmor.session.v1.UpsertSessionSummaryRequest.summary:type_name -> accuknox.clawarmor.session.v1.SessionSummary
-	3,  // 17: accuknox.clawarmor.session.v1.ListSessionSummariesResponse.summaries:type_name -> accuknox.clawarmor.session.v1.SessionSummary
-	4,  // 18: accuknox.clawarmor.session.v1.SessionService.CreateSession:input_type -> accuknox.clawarmor.session.v1.CreateSessionRequest
-	6,  // 19: accuknox.clawarmor.session.v1.SessionService.GetSession:input_type -> accuknox.clawarmor.session.v1.GetSessionRequest
-	8,  // 20: accuknox.clawarmor.session.v1.SessionService.ListSessions:input_type -> accuknox.clawarmor.session.v1.ListSessionsRequest
-	10, // 21: accuknox.clawarmor.session.v1.SessionService.DeleteSession:input_type -> accuknox.clawarmor.session.v1.DeleteSessionRequest
-	11, // 22: accuknox.clawarmor.session.v1.SessionService.AppendEvent:input_type -> accuknox.clawarmor.session.v1.AppendEventRequest
-	13, // 23: accuknox.clawarmor.session.v1.SessionService.UpdateSessionState:input_type -> accuknox.clawarmor.session.v1.UpdateSessionStateRequest
-	14, // 24: accuknox.clawarmor.session.v1.SessionService.DeleteSessionState:input_type -> accuknox.clawarmor.session.v1.DeleteSessionStateRequest
-	15, // 25: accuknox.clawarmor.session.v1.SessionService.ListSessionStates:input_type -> accuknox.clawarmor.session.v1.ListSessionStatesRequest
-	17, // 26: accuknox.clawarmor.session.v1.SessionService.UpsertSessionSummary:input_type -> accuknox.clawarmor.session.v1.UpsertSessionSummaryRequest
-	18, // 27: accuknox.clawarmor.session.v1.SessionService.ListSessionSummaries:input_type -> accuknox.clawarmor.session.v1.ListSessionSummariesRequest
-	5,  // 28: accuknox.clawarmor.session.v1.SessionService.CreateSession:output_type -> accuknox.clawarmor.session.v1.CreateSessionResponse
-	7,  // 29: accuknox.clawarmor.session.v1.SessionService.GetSession:output_type -> accuknox.clawarmor.session.v1.GetSessionResponse
-	9,  // 30: accuknox.clawarmor.session.v1.SessionService.ListSessions:output_type -> accuknox.clawarmor.session.v1.ListSessionsResponse
-	22, // 31: accuknox.clawarmor.session.v1.SessionService.DeleteSession:output_type -> google.protobuf.Empty
-	12, // 32: accuknox.clawarmor.session.v1.SessionService.AppendEvent:output_type -> accuknox.clawarmor.session.v1.AppendEventResponse
-	22, // 33: accuknox.clawarmor.session.v1.SessionService.UpdateSessionState:output_type -> google.protobuf.Empty
-	22, // 34: accuknox.clawarmor.session.v1.SessionService.DeleteSessionState:output_type -> google.protobuf.Empty
-	16, // 35: accuknox.clawarmor.session.v1.SessionService.ListSessionStates:output_type -> accuknox.clawarmor.session.v1.ListSessionStatesResponse
-	22, // 36: accuknox.clawarmor.session.v1.SessionService.UpsertSessionSummary:output_type -> google.protobuf.Empty
-	19, // 37: accuknox.clawarmor.session.v1.SessionService.ListSessionSummaries:output_type -> accuknox.clawarmor.session.v1.ListSessionSummariesResponse
-	28, // [28:38] is the sub-list for method output_type
-	18, // [18:28] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	24, // 11: accuknox.clawarmor.session.v1.ChatHistoryItem.event_ts:type_name -> google.protobuf.Timestamp
+	8,  // 12: accuknox.clawarmor.session.v1.ChatHistoryItem.tool_calls:type_name -> accuknox.clawarmor.session.v1.ChatToolCall
+	9,  // 13: accuknox.clawarmor.session.v1.GetChatHistoryResponse.items:type_name -> accuknox.clawarmor.session.v1.ChatHistoryItem
+	0,  // 14: accuknox.clawarmor.session.v1.ListSessionsResponse.sessions:type_name -> accuknox.clawarmor.session.v1.SessionMeta
+	2,  // 15: accuknox.clawarmor.session.v1.AppendEventRequest.event:type_name -> accuknox.clawarmor.session.v1.SessionEvent
+	2,  // 16: accuknox.clawarmor.session.v1.AppendEventResponse.event:type_name -> accuknox.clawarmor.session.v1.SessionEvent
+	1,  // 17: accuknox.clawarmor.session.v1.UpdateSessionStateRequest.entries:type_name -> accuknox.clawarmor.session.v1.StateEntry
+	1,  // 18: accuknox.clawarmor.session.v1.ListSessionStatesResponse.entries:type_name -> accuknox.clawarmor.session.v1.StateEntry
+	3,  // 19: accuknox.clawarmor.session.v1.UpsertSessionSummaryRequest.summary:type_name -> accuknox.clawarmor.session.v1.SessionSummary
+	3,  // 20: accuknox.clawarmor.session.v1.ListSessionSummariesResponse.summaries:type_name -> accuknox.clawarmor.session.v1.SessionSummary
+	4,  // 21: accuknox.clawarmor.session.v1.SessionService.CreateSession:input_type -> accuknox.clawarmor.session.v1.CreateSessionRequest
+	6,  // 22: accuknox.clawarmor.session.v1.SessionService.GetSession:input_type -> accuknox.clawarmor.session.v1.GetSessionRequest
+	10, // 23: accuknox.clawarmor.session.v1.SessionService.GetChatHistory:input_type -> accuknox.clawarmor.session.v1.GetChatHistoryRequest
+	12, // 24: accuknox.clawarmor.session.v1.SessionService.ListSessions:input_type -> accuknox.clawarmor.session.v1.ListSessionsRequest
+	14, // 25: accuknox.clawarmor.session.v1.SessionService.DeleteSession:input_type -> accuknox.clawarmor.session.v1.DeleteSessionRequest
+	15, // 26: accuknox.clawarmor.session.v1.SessionService.AppendEvent:input_type -> accuknox.clawarmor.session.v1.AppendEventRequest
+	17, // 27: accuknox.clawarmor.session.v1.SessionService.UpdateSessionState:input_type -> accuknox.clawarmor.session.v1.UpdateSessionStateRequest
+	18, // 28: accuknox.clawarmor.session.v1.SessionService.DeleteSessionState:input_type -> accuknox.clawarmor.session.v1.DeleteSessionStateRequest
+	19, // 29: accuknox.clawarmor.session.v1.SessionService.ListSessionStates:input_type -> accuknox.clawarmor.session.v1.ListSessionStatesRequest
+	21, // 30: accuknox.clawarmor.session.v1.SessionService.UpsertSessionSummary:input_type -> accuknox.clawarmor.session.v1.UpsertSessionSummaryRequest
+	22, // 31: accuknox.clawarmor.session.v1.SessionService.ListSessionSummaries:input_type -> accuknox.clawarmor.session.v1.ListSessionSummariesRequest
+	5,  // 32: accuknox.clawarmor.session.v1.SessionService.CreateSession:output_type -> accuknox.clawarmor.session.v1.CreateSessionResponse
+	7,  // 33: accuknox.clawarmor.session.v1.SessionService.GetSession:output_type -> accuknox.clawarmor.session.v1.GetSessionResponse
+	11, // 34: accuknox.clawarmor.session.v1.SessionService.GetChatHistory:output_type -> accuknox.clawarmor.session.v1.GetChatHistoryResponse
+	13, // 35: accuknox.clawarmor.session.v1.SessionService.ListSessions:output_type -> accuknox.clawarmor.session.v1.ListSessionsResponse
+	26, // 36: accuknox.clawarmor.session.v1.SessionService.DeleteSession:output_type -> google.protobuf.Empty
+	16, // 37: accuknox.clawarmor.session.v1.SessionService.AppendEvent:output_type -> accuknox.clawarmor.session.v1.AppendEventResponse
+	26, // 38: accuknox.clawarmor.session.v1.SessionService.UpdateSessionState:output_type -> google.protobuf.Empty
+	26, // 39: accuknox.clawarmor.session.v1.SessionService.DeleteSessionState:output_type -> google.protobuf.Empty
+	20, // 40: accuknox.clawarmor.session.v1.SessionService.ListSessionStates:output_type -> accuknox.clawarmor.session.v1.ListSessionStatesResponse
+	26, // 41: accuknox.clawarmor.session.v1.SessionService.UpsertSessionSummary:output_type -> google.protobuf.Empty
+	23, // 42: accuknox.clawarmor.session.v1.SessionService.ListSessionSummaries:output_type -> accuknox.clawarmor.session.v1.ListSessionSummariesResponse
+	32, // [32:43] is the sub-list for method output_type
+	21, // [21:32] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_session_proto_session_proto_init() }
@@ -1244,7 +1627,7 @@ func file_session_proto_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_session_proto_session_proto_rawDesc), len(file_session_proto_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

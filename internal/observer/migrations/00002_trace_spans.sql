@@ -83,7 +83,10 @@ CREATE TABLE observer_trace_span_payloads(
   tool_arguments JSONB NOT NULL DEFAULT 'null'::JSONB,
   tool_result JSONB NOT NULL DEFAULT 'null'::JSONB,
   metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY(trace_id, span_id, start_time)
+  PRIMARY KEY(trace_id, span_id, start_time),
+  FOREIGN KEY(trace_id, span_id, start_time)
+    REFERENCES observer_trace_spans(trace_id, span_id, start_time)
+    ON DELETE CASCADE
 ) PARTITION BY RANGE(start_time);
 
 CREATE TABLE observer_trace_span_payloads_default

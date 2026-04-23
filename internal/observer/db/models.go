@@ -155,6 +155,7 @@ type ObserverTraceSpansDefault struct {
 
 type Session struct {
 	SessionID uuid.UUID `json:"session_id"`
+	AgentName string    `json:"agent_name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

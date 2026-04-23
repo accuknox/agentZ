@@ -40,12 +40,30 @@ var sessionServeCmd = &cli.Command{
 			Usage: "Maximum graceful shutdown period. Use 0 for no timeout.",
 			Value: 15 * time.Second,
 		},
+		&cli.StringFlag{
+			Name:     "agent-template",
+			Usage:    "Path to the Agent YAML template created for each session",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:  "agent-namespace",
+			Usage: "Kubernetes namespace for session-created Agents",
+			Value: "default",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return sessionstore.Serve(ctx, sessionstore.Config{
 			Addr:                    c.String("addr"),
 			PostgresDSN:             c.String("postgres-dsn"),
 			GracefulShutdownTimeout: c.Duration("graceful-shutdown-timeout"),
+			AgentTemplatePath:       c.String("agent-template"),
+			AgentNamespace:          c.String("agent-namespace"),
 		})
 	},
 }

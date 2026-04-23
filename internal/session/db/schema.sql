@@ -4,6 +4,11 @@ CREATE TABLE sessions(
       session_id::TEXT ~
       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     ),
+  agent_name TEXT NOT NULL UNIQUE
+    CHECK (
+      length(agent_name) <= 32 AND
+      agent_name ~ '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+    ),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

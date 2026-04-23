@@ -9,6 +9,7 @@ import (
 	"github.com/accuknox/clawarmor/internal/agent"
 	"github.com/accuknox/clawarmor/internal/agent/gateway"
 	"github.com/accuknox/clawarmor/internal/agent/repl"
+	sessionstore "github.com/accuknox/clawarmor/internal/session"
 )
 
 var AgentCmd = &cli.Command{
@@ -37,11 +38,32 @@ var agentREPLCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.StringFlag{
+			Name:  "session-target",
+			Usage: "gRPC target for the session service",
+			Value: sessionstore.DefaultTarget,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.BoolFlag{
+			Name:  "session-insecure",
+			Usage: "Use insecure transport for the session service",
+			Value: true,
+		},
+		&cli.IntFlag{
+			Name:  "history-limit",
+			Usage: "Number of recent chat history items to show",
+			Value: 25,
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return repl.Run(ctx, repl.Options{
-			Target:    c.String("target"),
-			SessionID: c.String("session-id"),
+			Target:          c.String("target"),
+			SessionID:       c.String("session-id"),
+			SessionTarget:   c.String("session-target"),
+			SessionInsecure: c.Bool("session-insecure"),
+			HistoryLimit:    c.Int("history-limit"),
 		})
 	},
 }

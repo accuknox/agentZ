@@ -11,6 +11,7 @@ import "google/protobuf/timestamp.proto";
 service SessionService {
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc GetChatHistory(GetChatHistoryRequest) returns (GetChatHistoryResponse);
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc DeleteSession(DeleteSessionRequest) returns (google.protobuf.Empty);
   rpc AppendEvent(AppendEventRequest) returns (AppendEventResponse);
@@ -25,6 +26,7 @@ message SessionMeta {
   string session_id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
+  string agent_name = 4;
 }
 
 message StateEntry {
@@ -48,6 +50,7 @@ message SessionSummary {
 
 message CreateSessionRequest {
   string session_id = 1;
+  string agent_name = 2;
 }
 
 message CreateSessionResponse {
@@ -67,6 +70,40 @@ message GetSessionResponse {
   repeated StateEntry session_states = 2;
   repeated SessionEvent events = 3;
   repeated SessionSummary summaries = 4;
+}
+
+message ChatToolCall {
+  string id = 1;
+  string name = 2;
+  string arguments = 3;
+}
+
+message ChatHistoryItem {
+  int64 seq = 1;
+  string event_id = 2;
+  google.protobuf.Timestamp event_ts = 3;
+  string request_id = 4;
+  string invocation_id = 5;
+  string author = 6;
+  string role = 7;
+  string content = 8;
+  string reasoning_content = 9;
+  repeated ChatToolCall tool_calls = 10;
+  string tool_call_id = 11;
+  string tool_name = 12;
+  string error = 13;
+}
+
+message GetChatHistoryRequest {
+  string session_id = 1;
+  int32 page_size = 2;
+  int64 before_seq = 3;
+}
+
+message GetChatHistoryResponse {
+  repeated ChatHistoryItem items = 1;
+  int64 next_before_seq = 2;
+  bool has_more = 3;
 }
 
 message ListSessionsRequest {}

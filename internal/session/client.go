@@ -28,6 +28,7 @@ type ClientConfig struct {
 	Insecure              bool
 	Timeout               time.Duration
 	SessionID             string
+	AgentName             string
 	Summarizer            sessionsummary.SessionSummarizer
 	SummaryTokenThreshold int
 	ToolResultMaxTokens   int
@@ -39,6 +40,7 @@ type Client struct {
 	client                sessionpb.SessionServiceClient
 	timeout               time.Duration
 	sessionID             string
+	agentName             string
 	summarizer            sessionsummary.SessionSummarizer
 	summaryTokenThreshold int
 	toolResultMaxTokens   int
@@ -79,6 +81,7 @@ func NewSessionServiceClient(cfg ClientConfig) (*Client, error) {
 		client:                sessionpb.NewSessionServiceClient(conn),
 		timeout:               timeout,
 		sessionID:             sessionID,
+		agentName:             strings.TrimSpace(cfg.AgentName),
 		summarizer:            cfg.Summarizer,
 		summaryTokenThreshold: cfg.SummaryTokenThreshold,
 		toolResultMaxTokens:   cfg.ToolResultMaxTokens,
@@ -104,6 +107,7 @@ func (s *Client) CreateSession(ctx context.Context, key agentsession.Key, state 
 
 	resp, err := s.client.CreateSession(callCtx, &sessionpb.CreateSessionRequest{
 		SessionId: sessionID,
+		AgentName: s.agentName,
 	})
 	if err != nil {
 		return nil, err

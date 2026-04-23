@@ -3,7 +3,21 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.proto
+SESSION_PROTO_DIR := internal/session/proto
+SESSION_PROTO_FILE := $(SESSION_PROTO_DIR)/session.proto
+AGENT_PROTO_DIR := internal/agent/proto
+AGENT_PROTO_FILE := $(AGENT_PROTO_DIR)/agent.proto
+AGENT_GATEWAY_PROTO_DIR := internal/agent/gateway/proto
+AGENT_GATEWAY_PROTO_FILE := $(AGENT_GATEWAY_PROTO_DIR)/gateway.proto
+PROTO_FILES := $(SESSION_PROTO_FILE) $(AGENT_PROTO_FILE) $(AGENT_GATEWAY_PROTO_FILE)
+WEB_SESSION_PROTO_DIR := web/src/lib/server/session
+WEB_SESSION_PROTO_OUT := $(WEB_SESSION_PROTO_DIR)/session.ts $(WEB_SESSION_PROTO_DIR)/google
+WEB_AGENT_GATEWAY_PROTO_DIR := web/src/lib/server/agent-gateway
+WEB_AGENT_GATEWAY_PROTO_OUT := $(WEB_AGENT_GATEWAY_PROTO_DIR)/gateway.ts
+WEB_TS_PROTO_PLUGIN := ./web/node_modules/.bin/protoc-gen-ts_proto
+WEB_PACKAGE_JSON := web/package.json
+WEB_BUN_LOCK := web/bun.lock
+PROTOC_INCLUDE := $(dir $(shell command -v protoc))../include
 
 # Image URL to render into Kubernetes manifests.
 IMAGE ?= murtazau/clawarmor:latest
@@ -18,10 +32,31 @@ all: generate lint build
 generate:
 	sqlc generate
 	buf generate
+	$(MAKE) web-proto
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=true webhook \
 		paths="./api/...;./internal/controller/...;./internal/webhook/..." \
 		output:crd:artifacts:config=config/crd/bases
+
+.PHONY: web-proto
+web-proto: $(WEB_TS_PROTO_PLUGIN)
+	mkdir -p $(WEB_SESSION_PROTO_DIR)
+	rm -rf $(WEB_SESSION_PROTO_OUT)
+	protoc -I $(SESSION_PROTO_DIR) -I "$(PROTOC_INCLUDE)" \
+		--plugin=protoc-gen-ts_proto=$(WEB_TS_PROTO_PLUGIN) \
+		--ts_proto_out=$(WEB_SESSION_PROTO_DIR) \
+		--ts_proto_opt=outputServices=grpc-js,env=node,esModuleInterop=true,importSuffix=.js \
+		session.proto
+	mkdir -p $(WEB_AGENT_GATEWAY_PROTO_DIR)
+	rm -rf $(WEB_AGENT_GATEWAY_PROTO_OUT)
+	protoc -I $(AGENT_GATEWAY_PROTO_DIR) -I "$(PROTOC_INCLUDE)" \
+		--plugin=protoc-gen-ts_proto=$(WEB_TS_PROTO_PLUGIN) \
+		--ts_proto_out=$(WEB_AGENT_GATEWAY_PROTO_DIR) \
+		--ts_proto_opt=outputServices=grpc-js,env=node,esModuleInterop=true,importSuffix=.js \
+		gateway.proto
+
+$(WEB_TS_PROTO_PLUGIN): $(WEB_PACKAGE_JSON) $(WEB_BUN_LOCK)
+	cd web && bun install
 
 # Run go fmt against code.
 .PHONY: fmt

@@ -34,6 +34,7 @@
               protoc-gen-go-grpc
               bun
               nodejs
+              package-version-server
               kubebuilder
               kubernetes-controller-tools
               kustomize

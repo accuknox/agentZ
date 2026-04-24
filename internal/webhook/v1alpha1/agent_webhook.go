@@ -64,6 +64,9 @@ func (d *AgentCustomDefaulter) Default(_ context.Context, agt *clawarmorv1alpha1
 	if agt.Spec.ImagePullPolicy == "" {
 		agt.Spec.ImagePullPolicy = corev1.PullIfNotPresent
 	}
+	if agt.Spec.Model.ReasoningEffort == "" {
+		agt.Spec.Model.ReasoningEffort = "medium"
+	}
 	return nil
 }
 
@@ -74,8 +77,10 @@ func (d *AgentCustomDefaulter) Default(_ context.Context, agt *clawarmorv1alpha1
 // +kubebuilder:object:generate=false
 type AgentCustomValidator struct{}
 
-var _ admission.Defaulter[*clawarmorv1alpha1.Agent] = &AgentCustomDefaulter{}
-var _ admission.Validator[*clawarmorv1alpha1.Agent] = &AgentCustomValidator{}
+var (
+	_ admission.Defaulter[*clawarmorv1alpha1.Agent] = &AgentCustomDefaulter{}
+	_ admission.Validator[*clawarmorv1alpha1.Agent] = &AgentCustomValidator{}
+)
 
 // ValidateCreate validates Agent creation.
 func (v *AgentCustomValidator) ValidateCreate(_ context.Context, agt *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
@@ -164,6 +169,21 @@ func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field
 	modelPath := specPath.Child("model").Child("name")
 	if strings.TrimSpace(agt.Spec.Model.Name) == "" {
 		allErrs = append(allErrs, field.Required(modelPath, "field is required"))
+	}
+	reasoningEffort := strings.TrimSpace(agt.Spec.Model.ReasoningEffort)
+	if reasoningEffort != "" && reasoningEffort != "low" && reasoningEffort != "medium" && reasoningEffort != "high" {
+		allErrs = append(allErrs, field.NotSupported(
+			specPath.Child("model").Child("reasoningEffort"),
+			agt.Spec.Model.ReasoningEffort,
+			[]string{"low", "medium", "high"},
+		))
+	}
+	if agt.Spec.Model.ThinkingTokens < 0 {
+		allErrs = append(allErrs, field.Invalid(
+			specPath.Child("model").Child("thinkingTokens"),
+			agt.Spec.Model.ThinkingTokens,
+			"must be greater than or equal to zero",
+		))
 	}
 
 	if agt.Spec.Session.Enabled && strings.TrimSpace(agt.Spec.Session.Target) == "" {

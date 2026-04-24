@@ -480,24 +480,27 @@ func convertEvent(run *runState, evt *event.Event) []*agentpb.AgentEvent {
 			ToolPayload: choice.Message.Content,
 		})
 	}
-	if choice.Delta.Content != "" {
+	if choice.Delta.Content != "" || choice.Delta.ReasoningContent != "" {
 		items = append(items, &agentpb.AgentEvent{
-			SessionId: run.sessionID,
-			RunId:     run.runID,
-			RequestId: run.requestID,
-			Type:      agentpb.EventType_EVENT_TYPE_ASSISTANT_DELTA,
-			Content:   choice.Delta.Content,
+			SessionId:        run.sessionID,
+			RunId:            run.runID,
+			RequestId:        run.requestID,
+			Type:             agentpb.EventType_EVENT_TYPE_ASSISTANT_DELTA,
+			Content:          choice.Delta.Content,
+			ReasoningContent: choice.Delta.ReasoningContent,
 		})
 	}
 	if choice.Delta.Content == "" &&
+		choice.Delta.ReasoningContent == "" &&
 		choice.Message.Role != model.RoleTool &&
 		choice.Message.Content != "" {
 		items = append(items, &agentpb.AgentEvent{
-			SessionId: run.sessionID,
-			RunId:     run.runID,
-			RequestId: run.requestID,
-			Type:      agentpb.EventType_EVENT_TYPE_ASSISTANT_MESSAGE,
-			Content:   choice.Message.Content,
+			SessionId:        run.sessionID,
+			RunId:            run.runID,
+			RequestId:        run.requestID,
+			Type:             agentpb.EventType_EVENT_TYPE_ASSISTANT_MESSAGE,
+			Content:          choice.Message.Content,
+			ReasoningContent: choice.Message.ReasoningContent,
 		})
 	}
 	return items

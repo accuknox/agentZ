@@ -99,6 +99,9 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 		cfg.Model.Temperature,
 		cfg.Model.MaxTokens,
 		cfg.Model.Stream,
+		cfg.Model.ReasoningEffort,
+		cfg.Model.ThinkingEnabled,
+		cfg.Model.ThinkingTokens,
 	)
 
 	agentOpts := []llmagent.Option{

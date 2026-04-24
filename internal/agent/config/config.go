@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"slices"
 
 	"sigs.k8s.io/yaml"
 
@@ -23,6 +24,8 @@ const (
 	defaultMCPReconnectMaxAttempt                       = 3
 	defaultTelemetryTraceEndpoint                       = "localhost:4317"
 )
+
+var possibleReasoningEfforts = []string{"low", "medium", "high"}
 
 // Load reads YAML config from path and applies defaults.
 func Load(path string) (clawarmorv1alpha1.AgentSpec, error) {
@@ -113,8 +116,14 @@ func Validate(c clawarmorv1alpha1.AgentSpec) error {
 	if c.Model.Name == "" {
 		return fmt.Errorf("model.name is required")
 	}
+	if !slices.Contains(possibleReasoningEfforts, c.Model.ReasoningEffort) {
+		return fmt.Errorf("model.reasoningEffort must be one of low, medium, high")
+	}
 	if c.Model.ContextWindow < 0 {
 		return fmt.Errorf("model.contextWindow must be >= 0")
+	}
+	if c.Model.ThinkingTokens < 0 {
+		return fmt.Errorf("model.thinkingTokens must be >= 0")
 	}
 	if c.SummaryModel.ContextWindow < 0 {
 		return fmt.Errorf("summaryModel.contextWindow must be >= 0")

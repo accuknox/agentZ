@@ -186,6 +186,26 @@ type ModelConfig struct {
 	// Stream enables streamed model responses.
 	// +optional
 	Stream bool `json:"stream,omitempty"`
+
+	// ReasoningEffort requests native reasoning effort when the provider
+	// supports it.
+	// Supported values depend on the model provider and commonly include
+	// low, medium, and high.
+	// +kubebuilder:default=medium
+	// +kubebuilder:validation:Enum=low;medium;high
+	// +optional
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
+
+	// ThinkingEnabled requests native thinking mode for providers that expose
+	// it through OpenAI-compatible APIs.
+	// +optional
+	ThinkingEnabled *bool `json:"thinkingEnabled,omitempty"`
+
+	// ThinkingTokens requests the provider's thinking token budget when
+	// thinking mode is enabled.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	ThinkingTokens int `json:"thinkingTokens,omitempty"`
 }
 
 // SummaryModelConfig defines summarization model settings.

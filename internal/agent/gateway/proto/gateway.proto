@@ -38,6 +38,7 @@ message SessionStreamEvent {
   string tool_name = 7;
   string tool_payload = 8;
   string error = 9;
+  string reasoning_content = 10;
 }
 
 message InterruptSessionRequest {

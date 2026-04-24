@@ -28,6 +28,7 @@ spec:
     name: gpt-oss:20b
     baseURL: "http://100.92.36.14:11434/v1/"
     contextWindow: 100000
+    reasoningEffort: medium
     temperature: 0.2
     maxTokens: 0
     stream: true

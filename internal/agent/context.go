@@ -85,6 +85,9 @@ func buildSummaryModel(cfg clawarmorv1alpha1.AgentSpec) model.Model {
 			cfg.SummaryModel.Temperature,
 			cfg.SummaryModel.MaxTokens,
 			false,
+			"",
+			nil,
+			0,
 		),
 	)
 }
@@ -98,13 +101,22 @@ func openAIModel(backend modelBackend) model.Model {
 	return openai.New(backend.name, opts...)
 }
 
-func generationConfig(temp float64, maxTokens int, stream bool) model.GenerationConfig {
+func generationConfig(temp float64, maxTokens int, stream bool, reasoningEffort string, thinkingEnabled *bool, thinkingTokens int) model.GenerationConfig {
 	gen := model.GenerationConfig{Stream: stream}
 	if temp > 0 {
 		gen.Temperature = &temp
 	}
 	if maxTokens > 0 {
 		gen.MaxTokens = &maxTokens
+	}
+	if reasoningEffort != "" {
+		gen.ReasoningEffort = new(reasoningEffort)
+	}
+	if thinkingEnabled != nil {
+		gen.ThinkingEnabled = new(*thinkingEnabled)
+	}
+	if thinkingTokens > 0 {
+		gen.ThinkingTokens = new(thinkingTokens)
 	}
 	return gen
 }

@@ -300,18 +300,19 @@ func (x *SubscribeSessionRequest) GetSessionId() string {
 }
 
 type SessionStreamEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Sequence      int64                  `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	RunId         string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	RequestId     string                 `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Type          EventType              `protobuf:"varint,5,opt,name=type,proto3,enum=accuknox.clawarmor.agent.gateway.v1.EventType" json:"type,omitempty"`
-	Content       string                 `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`
-	ToolName      string                 `protobuf:"bytes,7,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
-	ToolPayload   string                 `protobuf:"bytes,8,opt,name=tool_payload,json=toolPayload,proto3" json:"tool_payload,omitempty"`
-	Error         string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Sequence         int64                  `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	SessionId        string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RunId            string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	RequestId        string                 `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Type             EventType              `protobuf:"varint,5,opt,name=type,proto3,enum=accuknox.clawarmor.agent.gateway.v1.EventType" json:"type,omitempty"`
+	Content          string                 `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`
+	ToolName         string                 `protobuf:"bytes,7,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	ToolPayload      string                 `protobuf:"bytes,8,opt,name=tool_payload,json=toolPayload,proto3" json:"tool_payload,omitempty"`
+	Error            string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	ReasoningContent string                 `protobuf:"bytes,10,opt,name=reasoning_content,json=reasoningContent,proto3" json:"reasoning_content,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *SessionStreamEvent) Reset() {
@@ -403,6 +404,13 @@ func (x *SessionStreamEvent) GetToolPayload() string {
 func (x *SessionStreamEvent) GetError() string {
 	if x != nil {
 		return x.Error
+	}
+	return ""
+}
+
+func (x *SessionStreamEvent) GetReasoningContent() string {
+	if x != nil {
+		return x.ReasoningContent
 	}
 	return ""
 }
@@ -860,7 +868,7 @@ const file_agent_gateway_proto_gateway_proto_rawDesc = "" +
 	"request_id\x18\x03 \x01(\tR\trequestId\"8\n" +
 	"\x17SubscribeSessionRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"\xb9\x02\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\xe6\x02\n" +
 	"\x12SessionStreamEvent\x12\x1a\n" +
 	"\bsequence\x18\x01 \x01(\x03R\bsequence\x12\x1d\n" +
 	"\n" +
@@ -872,7 +880,9 @@ const file_agent_gateway_proto_gateway_proto_rawDesc = "" +
 	"\acontent\x18\x06 \x01(\tR\acontent\x12\x1b\n" +
 	"\ttool_name\x18\a \x01(\tR\btoolName\x12!\n" +
 	"\ftool_payload\x18\b \x01(\tR\vtoolPayload\x12\x14\n" +
-	"\x05error\x18\t \x01(\tR\x05error\"8\n" +
+	"\x05error\x18\t \x01(\tR\x05error\x12+\n" +
+	"\x11reasoning_content\x18\n" +
+	" \x01(\tR\x10reasoningContent\"8\n" +
 	"\x17InterruptSessionRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"<\n" +

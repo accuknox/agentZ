@@ -590,14 +590,15 @@ func convertBackendEvent(evt *agentpb.AgentEvent) *gatewaypb.SessionStreamEvent 
 		return nil
 	}
 	return &gatewaypb.SessionStreamEvent{
-		SessionId:   evt.GetSessionId(),
-		RunId:       evt.GetRunId(),
-		RequestId:   evt.GetRequestId(),
-		Type:        gatewaypb.EventType(evt.GetType()),
-		Content:     evt.GetContent(),
-		ToolName:    evt.GetToolName(),
-		ToolPayload: evt.GetToolPayload(),
-		Error:       evt.GetError(),
+		SessionId:        evt.GetSessionId(),
+		RunId:            evt.GetRunId(),
+		RequestId:        evt.GetRequestId(),
+		Type:             gatewaypb.EventType(evt.GetType()),
+		Content:          evt.GetContent(),
+		ToolName:         evt.GetToolName(),
+		ToolPayload:      evt.GetToolPayload(),
+		Error:            evt.GetError(),
+		ReasoningContent: evt.GetReasoningContent(),
 	}
 }
 

@@ -581,17 +581,18 @@ func (x *RunStatus) GetError() string {
 }
 
 type AgentEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	RequestId     string                 `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Type          EventType              `protobuf:"varint,4,opt,name=type,proto3,enum=accuknox.clawarmor.agent.v1.EventType" json:"type,omitempty"`
-	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
-	ToolName      string                 `protobuf:"bytes,6,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
-	ToolPayload   string                 `protobuf:"bytes,7,opt,name=tool_payload,json=toolPayload,proto3" json:"tool_payload,omitempty"`
-	Error         string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	SessionId        string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RunId            string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	RequestId        string                 `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Type             EventType              `protobuf:"varint,4,opt,name=type,proto3,enum=accuknox.clawarmor.agent.v1.EventType" json:"type,omitempty"`
+	Content          string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	ToolName         string                 `protobuf:"bytes,6,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	ToolPayload      string                 `protobuf:"bytes,7,opt,name=tool_payload,json=toolPayload,proto3" json:"tool_payload,omitempty"`
+	Error            string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`
+	ReasoningContent string                 `protobuf:"bytes,9,opt,name=reasoning_content,json=reasoningContent,proto3" json:"reasoning_content,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AgentEvent) Reset() {
@@ -680,6 +681,13 @@ func (x *AgentEvent) GetError() string {
 	return ""
 }
 
+func (x *AgentEvent) GetReasoningContent() string {
+	if x != nil {
+		return x.ReasoningContent
+	}
+	return ""
+}
+
 var File_agent_proto_agent_proto protoreflect.FileDescriptor
 
 const file_agent_proto_agent_proto_rawDesc = "" +
@@ -711,7 +719,7 @@ const file_agent_proto_agent_proto_rawDesc = "" +
 	"\n" +
 	"request_id\x18\x03 \x01(\tR\trequestId\x12;\n" +
 	"\x05state\x18\x04 \x01(\x0e2%.accuknox.clawarmor.agent.v1.RunStateR\x05state\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\"\x8d\x02\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xba\x02\n" +
 	"\n" +
 	"AgentEvent\x12\x1d\n" +
 	"\n" +
@@ -723,7 +731,8 @@ const file_agent_proto_agent_proto_rawDesc = "" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1b\n" +
 	"\ttool_name\x18\x06 \x01(\tR\btoolName\x12!\n" +
 	"\ftool_payload\x18\a \x01(\tR\vtoolPayload\x12\x14\n" +
-	"\x05error\x18\b \x01(\tR\x05error*\x86\x01\n" +
+	"\x05error\x18\b \x01(\tR\x05error\x12+\n" +
+	"\x11reasoning_content\x18\t \x01(\tR\x10reasoningContent*\x86\x01\n" +
 	"\bRunState\x12\x19\n" +
 	"\x15RUN_STATE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11RUN_STATE_RUNNING\x10\x01\x12\x17\n" +

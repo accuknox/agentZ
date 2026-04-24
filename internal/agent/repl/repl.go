@@ -163,9 +163,9 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "/exit, /quit    Exit REPL")
 }
 
-func renderGatewayEvent(w io.Writer, evt *gatewaypb.SessionStreamEvent, sawDelta bool) bool {
+func renderGatewayEvent(w io.Writer, evt *gatewaypb.SessionStreamEvent, sawContentDelta bool) bool {
 	if evt == nil {
-		return sawDelta
+		return sawContentDelta
 	}
 	switch evt.GetType() {
 	case gatewaypb.EventType_EVENT_TYPE_RUN_STARTED:
@@ -187,10 +187,17 @@ func renderGatewayEvent(w io.Writer, evt *gatewaypb.SessionStreamEvent, sawDelta
 			Content:  evt.GetToolPayload(),
 		})
 	case gatewaypb.EventType_EVENT_TYPE_ASSISTANT_DELTA:
-		fmt.Fprint(w, evt.GetContent())
-		return true
+		if evt.GetReasoningContent() != "" {
+			fmt.Fprintf(w, "\x1b[2m%s\x1b[0m", evt.GetReasoningContent())
+			return sawContentDelta
+		}
+		if evt.GetContent() != "" {
+			fmt.Fprint(w, evt.GetContent())
+			return true
+		}
+		return sawContentDelta
 	case gatewaypb.EventType_EVENT_TYPE_ASSISTANT_MESSAGE:
-		if evt.GetContent() != "" && !sawDelta {
+		if evt.GetContent() != "" && !sawContentDelta {
 			fmt.Fprint(w, evt.GetContent())
 		}
 	case gatewaypb.EventType_EVENT_TYPE_RUN_INTERRUPTED:
@@ -205,7 +212,7 @@ func renderGatewayEvent(w io.Writer, evt *gatewaypb.SessionStreamEvent, sawDelta
 		fmt.Fprintln(w)
 		setREPLStreaming(w, false)
 	}
-	return sawDelta
+	return sawContentDelta
 }
 
 type streamPromptController interface {

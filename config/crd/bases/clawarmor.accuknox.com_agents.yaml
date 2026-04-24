@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -61,39 +62,48 @@ spec:
                 description: Agent defines identity and prompt settings for the runtime.
                 properties:
                   addSessionSummary:
-                    description: AddSessionSummary injects the latest persisted summary into context.
+                    description: AddSessionSummary injects the latest persisted summary
+                      into context.
                     type: boolean
                   contextCompactionKeepRecentRequests:
-                    description: ContextCompactionKeepRecentRequests preserves recent requests in full.
+                    description: ContextCompactionKeepRecentRequests preserves recent
+                      requests in full.
                     minimum: 0
                     type: integer
                   contextCompactionOversizedToolResultMaxRatio:
-                    description: ContextCompactionOversizedToolResultMaxRatio truncates large results.
+                    description: ContextCompactionOversizedToolResultMaxRatio truncates
+                      large results.
                     maximum: 1
                     minimum: 0
                     type: number
                   contextCompactionThresholdRatio:
-                    description: ContextCompactionThresholdRatio triggers compaction by context ratio.
+                    description: ContextCompactionThresholdRatio triggers compaction
+                      by context ratio.
                     maximum: 1
                     minimum: 0
                     type: number
                   contextCompactionToolResultMaxRatio:
-                    description: ContextCompactionToolResultMaxRatio compacts old tool results.
+                    description: ContextCompactionToolResultMaxRatio compacts old
+                      tool results.
                     maximum: 1
                     minimum: 0
                     type: number
                   enableContextCompaction:
-                    description: EnableContextCompaction enables summary-backed context compaction.
+                    description: EnableContextCompaction enables summary-backed context
+                      compaction.
                     type: boolean
                   instruction:
-                    description: Instruction is high-level task guidance appended to the prompt.
+                    description: Instruction is high-level task guidance appended
+                      to the prompt.
                     type: string
                   maxHistoryRuns:
-                    description: MaxHistoryRuns caps raw history when summaries are not used.
+                    description: MaxHistoryRuns caps raw history when summaries are
+                      not used.
                     minimum: 0
                     type: integer
                   systemPrompt:
-                    description: SystemPrompt is global instruction applied to every turn.
+                    description: SystemPrompt is global instruction applied to every
+                      turn.
                     type: string
                 type: object
               image:
@@ -101,7 +111,8 @@ spec:
                 type: string
               imagePullPolicy:
                 default: IfNotPresent
-                description: ImagePullPolicy defines when Kubernetes pulls the Agent image.
+                description: ImagePullPolicy defines when Kubernetes pulls the Agent
+                  image.
                 type: string
               memory:
                 description: Memory configures in-process memory and memory tools.
@@ -140,7 +151,8 @@ spec:
                 description: Model defines the primary chat model.
                 properties:
                   baseURL:
-                    description: BaseURL is an optional OpenAI-compatible provider URL.
+                    description: BaseURL is an optional OpenAI-compatible provider
+                      URL.
                     type: string
                   contextWindow:
                     description: ContextWindow is an explicit model context window.
@@ -153,17 +165,41 @@ spec:
                   name:
                     description: Name is the primary model identifier.
                     type: string
+                  reasoningEffort:
+                    default: medium
+                    description: |-
+                      ReasoningEffort requests native reasoning effort when the provider
+                      supports it.
+                      Supported values depend on the model provider and commonly include
+                      low, medium, and high.
+                    enum:
+                    - low
+                    - medium
+                    - high
+                    type: string
                   stream:
                     description: Stream enables streamed model responses.
                     type: boolean
                   temperature:
                     description: Temperature configures model sampling.
                     type: number
+                  thinkingEnabled:
+                    description: |-
+                      ThinkingEnabled requests native thinking mode for providers that expose
+                      it through OpenAI-compatible APIs.
+                    type: boolean
+                  thinkingTokens:
+                    description: |-
+                      ThinkingTokens requests the provider's thinking token budget when
+                      thinking mode is enabled.
+                    minimum: 0
+                    type: integer
                 required:
                 - name
                 type: object
               resources:
-                description: Resources defines compute resources allocated to the Agent pod.
+                description: Resources defines compute resources allocated to the
+                  Agent pod.
                 properties:
                   claims:
                     description: |-
@@ -228,7 +264,8 @@ spec:
                     description: Address is the TCP listen address for the agent server.
                     type: string
                   gracefulShutdownTimeout:
-                    description: GracefulShutdownTimeout is the maximum graceful shutdown period.
+                    description: GracefulShutdownTimeout is the maximum graceful shutdown
+                      period.
                     type: string
                 required:
                 - address
@@ -237,7 +274,8 @@ spec:
                 description: Session configures persisted session behavior.
                 properties:
                   enabled:
-                    description: Enabled uses the external gRPC session service when true.
+                    description: Enabled uses the external gRPC session service when
+                      true.
                     type: boolean
                   id:
                     description: ID is the immutable UUIDv4 session identifier.
@@ -253,17 +291,21 @@ spec:
                         minimum: 0
                         type: number
                       enabled:
-                        description: Enabled turns session summary generation on or off.
+                        description: Enabled turns session summary generation on or
+                          off.
                         type: boolean
                       eventThreshold:
-                        description: EventThreshold summarizes after this many events in manual mode.
+                        description: EventThreshold summarizes after this many events
+                          in manual mode.
                         minimum: 0
                         type: integer
                       idleThreshold:
-                        description: IdleThreshold summarizes after this idle duration in manual mode.
+                        description: IdleThreshold summarizes after this idle duration
+                          in manual mode.
                         type: string
                       maxWords:
-                        description: MaxWords is best-effort guidance for summary length.
+                        description: MaxWords is best-effort guidance for summary
+                          length.
                         minimum: 0
                         type: integer
                       mode:
@@ -273,7 +315,8 @@ spec:
                         - manual
                         type: string
                       tokenThreshold:
-                        description: TokenThreshold summarizes after this many tokens in manual mode.
+                        description: TokenThreshold summarizes after this many tokens
+                          in manual mode.
                         minimum: 0
                         type: integer
                     type: object
@@ -281,7 +324,8 @@ spec:
                     description: Target is the external session service gRPC target.
                     type: string
                   timeoutMs:
-                    description: TimeoutMs is the external session RPC timeout in milliseconds.
+                    description: TimeoutMs is the external session RPC timeout in
+                      milliseconds.
                     minimum: 0
                     type: integer
                 required:
@@ -291,10 +335,12 @@ spec:
                 description: SummaryModel defines the model used for session summarization.
                 properties:
                   baseURL:
-                    description: BaseURL is an optional OpenAI-compatible provider URL.
+                    description: BaseURL is an optional OpenAI-compatible provider
+                      URL.
                     type: string
                   contextWindow:
-                    description: ContextWindow is an explicit summarizer model context window.
+                    description: ContextWindow is an explicit summarizer model context
+                      window.
                     minimum: 0
                     type: integer
                   maxTokens:
@@ -315,7 +361,8 @@ spec:
                     description: Enabled turns on OpenTelemetry trace export.
                     type: boolean
                   traceEndpoint:
-                    description: TraceEndpoint is the OTLP/gRPC trace endpoint in host:port form.
+                    description: TraceEndpoint is the OTLP/gRPC trace endpoint in
+                      host:port form.
                     type: string
                 type: object
               tools:
@@ -347,7 +394,8 @@ spec:
                     description: File configures filesystem tools.
                     properties:
                       baseDir:
-                        description: BaseDir is the filesystem root exposed to file tools.
+                        description: BaseDir is the filesystem root exposed to file
+                          tools.
                         type: string
                       enabled:
                         description: Enabled turns file tools on.
@@ -414,7 +462,8 @@ spec:
                   openAPI:
                     description: OpenAPI configures OpenAPI-backed toolsets.
                     items:
-                      description: OpenAPIConfig defines one OpenAPI-backed toolset entry.
+                      description: OpenAPIConfig defines one OpenAPI-backed toolset
+                        entry.
                       properties:
                         enabled:
                           description: Enabled turns this OpenAPI toolset on.
@@ -441,7 +490,8 @@ spec:
                         minimum: 0
                         type: integer
                       maxTotalContentLength:
-                        description: MaxTotalContentLength caps all fetched responses per tool call.
+                        description: MaxTotalContentLength caps all fetched responses
+                          per tool call.
                         minimum: 0
                         type: integer
                       timeoutMs:
@@ -461,7 +511,8 @@ spec:
               conditions:
                 description: Conditions represent the current state of the Agent resource.
                 items:
-                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -518,7 +569,8 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               configMapName:
-                description: ConfigMapName is the ConfigMap mounted into the Agent pod.
+                description: ConfigMapName is the ConfigMap mounted into the Agent
+                  pod.
                 type: string
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.

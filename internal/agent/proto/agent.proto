@@ -71,6 +71,7 @@ message AgentEvent {
   string tool_name = 6;
   string tool_payload = 7;
   string error = 8;
+  string reasoning_content = 9;
 }
 
 enum EventType {

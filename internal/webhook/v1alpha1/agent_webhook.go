@@ -56,6 +56,15 @@ type AgentCustomDefaulter struct {
 	DefaultImage string
 }
 
+const (
+	defaultCompactionThresholdRatio           = 0.9
+	defaultCompactionHistoryToolResultRatio   = 0.008
+	defaultCompactionKeepRecentRequests       = 2
+	defaultCompactionOversizedToolResultRatio = 0.065
+	defaultMaxHistoryRuns                     = 50
+	defaultTemperature                        = 0.2
+)
+
 // Default applies defaults to an Agent resource.
 func (d *AgentCustomDefaulter) Default(_ context.Context, agt *clawarmorv1alpha1.Agent) error {
 	if agt.Spec.Image == "" {
@@ -63,6 +72,46 @@ func (d *AgentCustomDefaulter) Default(_ context.Context, agt *clawarmorv1alpha1
 	}
 	if agt.Spec.ImagePullPolicy == "" {
 		agt.Spec.ImagePullPolicy = corev1.PullIfNotPresent
+	}
+	if agt.Spec.Compaction.Mode == "" {
+		agt.Spec.Compaction.Mode = clawarmorv1alpha1.CompactionModeSummary
+	}
+	if agt.Spec.Compaction.ThresholdRatio == 0 {
+		agt.Spec.Compaction.ThresholdRatio = defaultCompactionThresholdRatio
+	}
+	if agt.Spec.Compaction.HistoryToolResultRatio == 0 {
+		agt.Spec.Compaction.HistoryToolResultRatio = defaultCompactionHistoryToolResultRatio
+	}
+	if agt.Spec.Compaction.KeepRecentRequests == 0 {
+		agt.Spec.Compaction.KeepRecentRequests = defaultCompactionKeepRecentRequests
+	}
+	if agt.Spec.Compaction.OversizedToolResultRatio == 0 {
+		agt.Spec.Compaction.OversizedToolResultRatio = defaultCompactionOversizedToolResultRatio
+	}
+	if agt.Spec.MaxHistoryRuns == 0 {
+		agt.Spec.MaxHistoryRuns = defaultMaxHistoryRuns
+	}
+	if agt.Spec.Model.Temperature == 0 {
+		agt.Spec.Model.Temperature = defaultTemperature
+	}
+	if agt.Spec.SummaryModel.Temperature == 0 {
+		agt.Spec.SummaryModel.Temperature = defaultTemperature
+	}
+	if agt.Spec.Tools.HostExec.Enabled == nil {
+		enabled := true
+		agt.Spec.Tools.HostExec.Enabled = &enabled
+	}
+	if agt.Spec.Tools.WebFetch.Enabled == nil {
+		enabled := true
+		agt.Spec.Tools.WebFetch.Enabled = &enabled
+	}
+	if agt.Spec.Tools.File.Enabled == nil {
+		enabled := false
+		agt.Spec.Tools.File.Enabled = &enabled
+	}
+	if agt.Spec.Tools.Arxiv.Enabled == nil {
+		enabled := false
+		agt.Spec.Tools.Arxiv.Enabled = &enabled
 	}
 	return nil
 }
@@ -167,6 +216,13 @@ func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field
 	if strings.TrimSpace(agt.Spec.Model.Name) == "" {
 		allErrs = append(allErrs, field.Required(modelPath, "field is required"))
 	}
+	if agt.Spec.Model.Temperature < 0 || agt.Spec.Model.Temperature > 1 {
+		allErrs = append(allErrs, field.Invalid(
+			specPath.Child("model").Child("temperature"),
+			agt.Spec.Model.Temperature,
+			"must be between 0 and 1",
+		))
+	}
 	if agt.Spec.Model.ThinkingTokens < 0 {
 		allErrs = append(allErrs, field.Invalid(
 			specPath.Child("model").Child("thinkingTokens"),
@@ -191,25 +247,69 @@ func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field
 		))
 	}
 
-	agentPath := field.NewPath("spec").Child("agent")
-	if !validRatio(agt.Spec.Agent.ContextCompactionThresholdRatio) {
+	compactionPath := field.NewPath("spec").Child("compaction")
+	switch agt.Spec.Compaction.Mode {
+	case clawarmorv1alpha1.CompactionModeSummary:
+		if strings.TrimSpace(agt.Spec.SummaryModel.Name) == "" {
+			allErrs = append(allErrs, field.Required(
+				specPath.Child("summaryModel").Child("name"),
+				"field is required when compaction.mode is summary",
+			))
+		}
+	case clawarmorv1alpha1.CompactionModeTruncate:
+	default:
+		allErrs = append(allErrs, field.NotSupported(
+			compactionPath.Child("mode"),
+			agt.Spec.Compaction.Mode,
+			[]string{
+				clawarmorv1alpha1.CompactionModeSummary,
+				clawarmorv1alpha1.CompactionModeTruncate,
+			},
+		))
+	}
+	if agt.Spec.SystemPrompt != "" && len([]rune(agt.Spec.SystemPrompt)) > 4096 {
+		allErrs = append(allErrs, field.TooLong(
+			specPath.Child("systemPrompt"),
+			agt.Spec.SystemPrompt,
+			4096,
+		))
+	}
+	if agt.Spec.Compaction.ThresholdRatio < 0.2 ||
+		agt.Spec.Compaction.ThresholdRatio > 0.95 {
 		allErrs = append(allErrs, field.Invalid(
-			agentPath.Child("contextCompactionThresholdRatio"),
-			agt.Spec.Agent.ContextCompactionThresholdRatio,
+			compactionPath.Child("thresholdRatio"),
+			agt.Spec.Compaction.ThresholdRatio,
+			"must be between 0.2 and 0.95",
+		))
+	}
+	if !validRatio(agt.Spec.Compaction.HistoryToolResultRatio) {
+		allErrs = append(allErrs, field.Invalid(
+			compactionPath.Child("historyToolResultRatio"),
+			agt.Spec.Compaction.HistoryToolResultRatio,
 			"must be between 0 and 1",
 		))
 	}
-	if !validRatio(agt.Spec.Agent.ContextCompactionToolResultMaxRatio) {
+	if agt.Spec.Compaction.OversizedToolResultRatio < 0.05 ||
+		agt.Spec.Compaction.OversizedToolResultRatio > 0.1 {
 		allErrs = append(allErrs, field.Invalid(
-			agentPath.Child("contextCompactionToolResultMaxRatio"),
-			agt.Spec.Agent.ContextCompactionToolResultMaxRatio,
-			"must be between 0 and 1",
+			compactionPath.Child("oversizedToolResultRatio"),
+			agt.Spec.Compaction.OversizedToolResultRatio,
+			"must be between 0.05 and 0.1",
 		))
 	}
-	if !validRatio(agt.Spec.Agent.ContextCompactionOversizedToolResultMaxRatio) {
+	historyRatio := agt.Spec.Compaction.HistoryToolResultRatio
+	oversizedRatio := agt.Spec.Compaction.OversizedToolResultRatio
+	if (historyRatio != 0 || oversizedRatio != 0) && historyRatio >= oversizedRatio {
 		allErrs = append(allErrs, field.Invalid(
-			agentPath.Child("contextCompactionOversizedToolResultMaxRatio"),
-			agt.Spec.Agent.ContextCompactionOversizedToolResultMaxRatio,
+			compactionPath.Child("historyToolResultRatio"),
+			historyRatio,
+			"must be less than oversizedToolResultRatio",
+		))
+	}
+	if agt.Spec.SummaryModel.Temperature < 0 || agt.Spec.SummaryModel.Temperature > 1 {
+		allErrs = append(allErrs, field.Invalid(
+			specPath.Child("summaryModel").Child("temperature"),
+			agt.Spec.SummaryModel.Temperature,
 			"must be between 0 and 1",
 		))
 	}

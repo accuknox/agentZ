@@ -103,29 +103,33 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 		cfg.Model.ThinkingTokens,
 	)
 
+	summaryMode := cfg.Compaction.Mode == clawarmorv1alpha1.CompactionModeSummary
+	truncateMode := cfg.Compaction.Mode == clawarmorv1alpha1.CompactionModeTruncate
 	agentOpts := []llmagent.Option{
 		llmagent.WithModel(mdl),
-		llmagent.WithInstruction(cfg.Agent.Instruction),
+		llmagent.WithInstruction(cfg.Instruction),
 		llmagent.WithGenerationConfig(genConfig),
-		llmagent.WithGlobalInstruction(cfg.Agent.SystemPrompt),
-		llmagent.WithAddSessionSummary(*cfg.Agent.AddSessionSummary),
+		llmagent.WithGlobalInstruction(cfg.SystemPrompt),
+		llmagent.WithAddSessionSummary(summaryMode),
 		llmagent.WithSyncSummaryIntraRun(true),
-		llmagent.WithEnableContextCompaction(*cfg.Agent.EnableContextCompaction),
-		llmagent.WithContextCompactionThresholdRatio(cfg.Agent.ContextCompactionThresholdRatio),
+		llmagent.WithEnableContextCompaction(summaryMode && *cfg.Compaction.Enabled),
+		llmagent.WithContextCompactionThresholdRatio(cfg.Compaction.ThresholdRatio),
 		llmagent.WithContextCompactionToolResultMaxTokens(
 			ratioToTokenCount(
 				summaryFallbackWindow(cfg),
-				cfg.Agent.ContextCompactionToolResultMaxRatio,
+				cfg.Compaction.HistoryToolResultRatio,
 			),
 		),
-		llmagent.WithContextCompactionKeepRecentRequests(cfg.Agent.ContextCompactionKeepRecentRequests),
+		llmagent.WithContextCompactionKeepRecentRequests(cfg.Compaction.KeepRecentRequests),
 		llmagent.WithContextCompactionOversizedToolResultMaxTokens(
 			ratioToTokenCount(
 				summaryFallbackWindow(cfg),
-				cfg.Agent.ContextCompactionOversizedToolResultMaxRatio,
+				cfg.Compaction.OversizedToolResultRatio,
 			),
 		),
-		llmagent.WithMaxHistoryRuns(cfg.Agent.MaxHistoryRuns),
+	}
+	if truncateMode {
+		agentOpts = append(agentOpts, llmagent.WithMaxHistoryRuns(cfg.MaxHistoryRuns))
 	}
 	if len(tools) > 0 {
 		agentOpts = append(agentOpts, llmagent.WithTools(tools))
@@ -261,11 +265,11 @@ func buildSessionService(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec, s
 		Summarizer: summarizer,
 		SummaryTokenThreshold: ratioToTokenCount(
 			summaryFallbackWindow(cfg),
-			cfg.Agent.ContextCompactionThresholdRatio,
+			cfg.Compaction.ThresholdRatio,
 		),
 		ToolResultMaxTokens: ratioToTokenCount(
 			summaryFallbackWindow(cfg),
-			cfg.Agent.ContextCompactionOversizedToolResultMaxRatio,
+			cfg.Compaction.OversizedToolResultRatio,
 		),
 	})
 	if err != nil {
@@ -311,7 +315,7 @@ func buildTools(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec) ([]tool.To
 	tools := make([]tool.Tool, 0, 32)
 	toolSets := make([]tool.ToolSet, 0, 16)
 
-	if cfg.Tools.HostExec.Enabled {
+	if cfg.Tools.HostExec.Enabled != nil && *cfg.Tools.HostExec.Enabled {
 		hostOpts := make([]hostexec.Option, 0, 3)
 		if cfg.Tools.HostExec.BaseDir != "" {
 			hostOpts = append(hostOpts, hostexec.WithBaseDir(cfg.Tools.HostExec.BaseDir))
@@ -326,7 +330,7 @@ func buildTools(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec) ([]tool.To
 		toolSets = append(toolSets, ts)
 	}
 
-	if cfg.Tools.WebFetch.Enabled {
+	if cfg.Tools.WebFetch.Enabled != nil && *cfg.Tools.WebFetch.Enabled {
 		client := &http.Client{
 			Timeout: time.Duration(cfg.Tools.WebFetch.TimeoutMs) *
 				time.Millisecond,
@@ -341,7 +345,7 @@ func buildTools(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec) ([]tool.To
 		tools = append(tools, httpfetch.NewTool(fetchOpts...))
 	}
 
-	if cfg.Tools.File.Enabled {
+	if cfg.Tools.File.Enabled != nil && *cfg.Tools.File.Enabled {
 		fileOpts := make([]filetool.Option, 0, 1)
 		if cfg.Tools.File.BaseDir != "" {
 			fileOpts = append(fileOpts, filetool.WithBaseDir(cfg.Tools.File.BaseDir))
@@ -353,7 +357,7 @@ func buildTools(ctx context.Context, cfg clawarmorv1alpha1.AgentSpec) ([]tool.To
 		toolSets = append(toolSets, ts)
 	}
 
-	if cfg.Tools.Arxiv.Enabled {
+	if cfg.Tools.Arxiv.Enabled != nil && *cfg.Tools.Arxiv.Enabled {
 		arxivOpts := make([]arxivsearch.Option, 0, 4)
 		if cfg.Tools.Arxiv.BaseURL != "" {
 			arxivOpts = append(arxivOpts, arxivsearch.WithBaseURL(cfg.Tools.Arxiv.BaseURL))

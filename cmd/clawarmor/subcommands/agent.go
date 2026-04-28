@@ -114,6 +114,37 @@ var agentGatewayCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.StringFlag{
+			Name:  "agent-image",
+			Usage: "Container image for gateway-created Agents",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:  "agent-server-address",
+			Usage: "gRPC listen address for gateway-created Agents",
+			Value: gateway.DefaultAgentServerAddress,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:     "agent-session-target",
+			Usage:    "Session service gRPC target for gateway-created Agents",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:     "agent-trace-endpoint",
+			Usage:    "OTLP/gRPC trace endpoint for gateway-created Agents",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
 		&cli.DurationFlag{
 			Name:  "graceful-shutdown-timeout",
 			Usage: "Maximum graceful shutdown period. Use 0 for no timeout.",
@@ -128,6 +159,10 @@ var agentGatewayCmd = &cli.Command{
 			PostgresDSN:             c.String("postgres-dsn"),
 			GracefulShutdownTimeout: c.Duration("graceful-shutdown-timeout"),
 			TargetOverride:          c.String("target-override"),
+			AgentImage:              c.String("agent-image"),
+			AgentServerAddress:      c.String("agent-server-address"),
+			AgentSessionTarget:      c.String("agent-session-target"),
+			AgentTraceEndpoint:      c.String("agent-trace-endpoint"),
 		})
 	},
 }

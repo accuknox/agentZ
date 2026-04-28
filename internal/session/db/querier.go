@@ -13,8 +13,6 @@ import (
 type Querier interface {
 	CreateEvent(ctx context.Context, arg CreateEventParams) (CreateEventRow, error)
 	CreateEventNow(ctx context.Context, arg CreateEventNowParams) (CreateEventNowRow, error)
-	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
-	DeleteSession(ctx context.Context, sessionID uuid.UUID) (int64, error)
 	GetSession(ctx context.Context, sessionID uuid.UUID) (Session, error)
 	ListEventPage(ctx context.Context, arg ListEventPageParams) ([]ListEventPageRow, error)
 	ListEvents(ctx context.Context, sessionID uuid.UUID) ([]ListEventsRow, error)

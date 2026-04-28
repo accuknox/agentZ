@@ -28,7 +28,6 @@ type ClientConfig struct {
 	Insecure              bool
 	Timeout               time.Duration
 	SessionID             string
-	AgentName             string
 	Summarizer            sessionsummary.SessionSummarizer
 	SummaryTokenThreshold int
 	ToolResultMaxTokens   int
@@ -40,7 +39,6 @@ type Client struct {
 	client                sessionpb.SessionServiceClient
 	timeout               time.Duration
 	sessionID             string
-	agentName             string
 	summarizer            sessionsummary.SessionSummarizer
 	summaryTokenThreshold int
 	toolResultMaxTokens   int
@@ -81,39 +79,21 @@ func NewSessionServiceClient(cfg ClientConfig) (*Client, error) {
 		client:                sessionpb.NewSessionServiceClient(conn),
 		timeout:               timeout,
 		sessionID:             sessionID,
-		agentName:             strings.TrimSpace(cfg.AgentName),
 		summarizer:            cfg.Summarizer,
 		summaryTokenThreshold: cfg.SummaryTokenThreshold,
 		toolResultMaxTokens:   cfg.ToolResultMaxTokens,
 	}, nil
 }
 
-// CreateSession creates a new persisted session for administrative use.
-func (s *Client) CreateSession(ctx context.Context, key agentsession.Key, state agentsession.StateMap, _ ...agentsession.Option) (*agentsession.Session, error) {
+// CreateSession is unsupported because the agent gateway owns Agent lifecycle.
+func (s *Client) CreateSession(_ context.Context, key agentsession.Key, state agentsession.StateMap, _ ...agentsession.Option) (*agentsession.Session, error) {
 	if err := validateSessionKey(key); err != nil {
 		return nil, err
 	}
 	if len(state) > 0 {
 		return nil, fmt.Errorf("initial session state is not supported")
 	}
-
-	sessionID, err := normalizeSessionID(key.SessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	callCtx, cancel := s.rpcContext(ctx)
-	defer cancel()
-
-	resp, err := s.client.CreateSession(callCtx, &sessionpb.CreateSessionRequest{
-		SessionId: sessionID,
-		AgentName: s.agentName,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return buildSession(resp.GetSession(), nil, nil, nil)
+	return nil, fmt.Errorf("create session through session service is unsupported; use agent gateway")
 }
 
 // GetSession loads one session, its state, and filtered events.
@@ -209,24 +189,12 @@ func (s *Client) ListSessions(ctx context.Context, userKey agentsession.UserKey,
 	return items, nil
 }
 
-// DeleteSession deletes one persisted session.
-func (s *Client) DeleteSession(ctx context.Context, key agentsession.Key, _ ...agentsession.Option) error {
+// DeleteSession is unsupported because the agent gateway owns Agent lifecycle.
+func (s *Client) DeleteSession(_ context.Context, key agentsession.Key, _ ...agentsession.Option) error {
 	if err := validateSessionKey(key); err != nil {
 		return err
 	}
-
-	sessionID, err := normalizeSessionID(key.SessionID)
-	if err != nil {
-		return err
-	}
-
-	callCtx, cancel := s.rpcContext(ctx)
-	defer cancel()
-
-	_, err = s.client.DeleteSession(callCtx, &sessionpb.DeleteSessionRequest{
-		SessionId: sessionID,
-	})
-	return err
+	return fmt.Errorf("delete session through session service is unsupported; use agent gateway")
 }
 
 // UpdateAppState rejects app-scoped state because the store is session-only.

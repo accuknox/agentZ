@@ -26,7 +26,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	sessiondb "github.com/accuknox/clawarmor/internal/session/db"
 	sessionpb "github.com/accuknox/clawarmor/internal/session/proto"
@@ -39,8 +38,6 @@ type Config struct {
 	Addr                    string
 	PostgresDSN             string
 	GracefulShutdownTimeout time.Duration
-	AgentTemplatePath       string
-	AgentNamespace          string
 }
 
 // Service implements the gRPC session store backed by PostgreSQL.
@@ -48,19 +45,11 @@ type Service struct {
 	sessionpb.UnimplementedSessionServiceServer
 
 	queries sessiondb.Querier
-	agents  agentManager
 }
 
 // NewService returns a Postgres-backed session service.
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{queries: sessiondb.New(pool)}
-}
-
-func newServiceWithAgents(pool *pgxpool.Pool, agents agentManager) *Service {
-	return &Service{
-		queries: sessiondb.New(pool),
-		agents:  agents,
-	}
 }
 
 // Serve starts the session gRPC server and blocks until shutdown.
@@ -86,14 +75,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("ping postgres: %w", err)
 	}
 
-	agents, err := newKubeAgentManager(kubeAgentManagerConfig{
-		Namespace:    cfg.AgentNamespace,
-		TemplatePath: cfg.AgentTemplatePath,
-	})
-	if err != nil {
-		return err
-	}
-
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", addr, err)
@@ -102,7 +83,7 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	healthSvc := grpcHealth.NewServer()
 	srv := grpc.NewServer()
-	sessionpb.RegisterSessionServiceServer(srv, newServiceWithAgents(pool, agents))
+	sessionpb.RegisterSessionServiceServer(srv, NewService(pool))
 	healthpb.RegisterHealthServer(srv, healthSvc)
 	healthSvc.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
@@ -142,41 +123,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 		return nil
 	}
-}
-
-// CreateSession creates a session row for administrative bootstrap.
-func (s *Service) CreateSession(ctx context.Context, req *sessionpb.CreateSessionRequest) (*sessionpb.CreateSessionResponse, error) {
-	sessionID, err := parseSessionID(req.GetSessionId())
-	if err != nil {
-		return nil, err
-	}
-	agentName, err := parseAgentName(req.GetAgentName())
-	if err != nil {
-		return nil, err
-	}
-
-	row, err := s.queries.CreateSession(ctx, sessiondb.CreateSessionParams{
-		SessionID: sessionID,
-		AgentName: agentName,
-	})
-	if err != nil {
-		return nil, mapStoreError("create session", err)
-	}
-	if s.agents != nil {
-		err = s.agents.CreateAgent(ctx, sessionID.String(), agentName)
-		if err != nil {
-			if _, deleteErr := s.queries.DeleteSession(ctx, sessionID); deleteErr != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					"create agent: %v; rollback session: %v",
-					err,
-					deleteErr,
-				)
-			}
-			return nil, mapAgentError("create agent", err)
-		}
-	}
-	return &sessionpb.CreateSessionResponse{Session: sessionMetaFromRow(row)}, nil
 }
 
 // GetSession returns one session with state and event history.
@@ -228,35 +174,6 @@ func (s *Service) ListSessions(ctx context.Context, _ *sessionpb.ListSessionsReq
 	}
 
 	return &sessionpb.ListSessionsResponse{Sessions: items}, nil
-}
-
-// DeleteSession removes one session and its events.
-func (s *Service) DeleteSession(ctx context.Context, req *sessionpb.DeleteSessionRequest) (*emptypb.Empty, error) {
-	sessionID, err := parseSessionID(req.GetSessionId())
-	if err != nil {
-		return nil, err
-	}
-
-	row, err := s.queries.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, mapStoreError("get session", err)
-	}
-
-	if s.agents != nil {
-		err = s.agents.DeleteAgent(ctx, row.AgentName)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, mapAgentError("delete agent", err)
-		}
-	}
-
-	rows, err := s.queries.DeleteSession(ctx, sessionID)
-	if err != nil {
-		return nil, mapStoreError("delete session", err)
-	}
-	if rows == 0 {
-		return nil, status.Error(codes.NotFound, "session not found")
-	}
-	return &emptypb.Empty{}, nil
 }
 
 // AppendEvent appends one serialized runner event to the session log.

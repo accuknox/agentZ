@@ -57,44 +57,52 @@ spec:
           spec:
             description: spec defines the desired state of Agent.
             properties:
-              agent:
-                description: Agent defines identity and prompt settings for the runtime.
+              compaction:
+                description: Compaction configures prompt rebuilding and tool-result trimming.
                 properties:
-                  addSessionSummary:
-                    description: AddSessionSummary injects the latest persisted summary into context.
+                  enabled:
+                    description: |-
+                      Enabled lets the runtime rebuild large prompts through summaries before
+                      the main model call.
                     type: boolean
-                  contextCompactionKeepRecentRequests:
-                    description: ContextCompactionKeepRecentRequests preserves recent requests in full.
+                  historyToolResultRatio:
+                    default: 0.008
+                    description: |-
+                      HistoryToolResultRatio replaces older tool results above this context
+                      window fraction with compact placeholders during request construction.
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                  keepRecentRequests:
+                    default: 2
+                    description: |-
+                      KeepRecentRequests preserves the latest completed requests in full when
+                      historical tool-result compaction is enabled.
                     minimum: 0
                     type: integer
-                  contextCompactionOversizedToolResultMaxRatio:
-                    description: ContextCompactionOversizedToolResultMaxRatio truncates large results.
-                    maximum: 1
-                    minimum: 0
-                    type: number
-                  contextCompactionThresholdRatio:
-                    description: ContextCompactionThresholdRatio triggers compaction by context ratio.
-                    maximum: 1
-                    minimum: 0
-                    type: number
-                  contextCompactionToolResultMaxRatio:
-                    description: ContextCompactionToolResultMaxRatio compacts old tool results.
-                    maximum: 1
-                    minimum: 0
-                    type: number
-                  enableContextCompaction:
-                    description: EnableContextCompaction enables summary-backed context compaction.
-                    type: boolean
-                  instruction:
-                    description: Instruction is high-level task guidance appended to the prompt.
+                  mode:
+                    default: summary
+                    description: Mode selects summary-backed compaction or raw-history truncation.
+                    enum:
+                    - summary
+                    - truncate
                     type: string
-                  maxHistoryRuns:
-                    description: MaxHistoryRuns caps raw history when summaries are not used.
-                    minimum: 0
-                    type: integer
-                  systemPrompt:
-                    description: SystemPrompt is global instruction applied to every turn.
-                    type: string
+                  oversizedToolResultRatio:
+                    default: 0.065
+                    description: |-
+                      OversizedToolResultRatio truncates any tool result above this context
+                      window fraction with head and tail preservation.
+                    maximum: 0.1
+                    minimum: 0.05
+                    type: number
+                  thresholdRatio:
+                    default: 0.9
+                    description: |-
+                      ThresholdRatio is the model context-window fraction that makes pre-turn
+                      summary-backed compaction eligible.
+                    maximum: 0.95
+                    minimum: 0.2
+                    type: number
                 type: object
               env:
                 description: Env defines environment variables injected into the Agent pod.
@@ -250,6 +258,14 @@ spec:
                 default: IfNotPresent
                 description: ImagePullPolicy defines when Kubernetes pulls the Agent image.
                 type: string
+              instruction:
+                description: Instruction is the main behavioral guidance appended to the prompt.
+                type: string
+              maxHistoryRuns:
+                default: 50
+                description: MaxHistoryRuns caps raw history in truncate compaction mode.
+                minimum: 0
+                type: integer
               memory:
                 description: Memory configures in-process memory and memory tools.
                 properties:
@@ -304,7 +320,10 @@ spec:
                     description: Stream enables streamed model responses.
                     type: boolean
                   temperature:
+                    default: 0.2
                     description: Temperature configures model sampling.
+                    maximum: 1
+                    minimum: 0
                     type: number
                   thinkingEnabled:
                     description: |-
@@ -463,9 +482,16 @@ spec:
                     description: Name is the summarization model identifier.
                     type: string
                   temperature:
+                    default: 0.2
                     description: Temperature configures summarization sampling.
+                    maximum: 1
+                    minimum: 0
                     type: number
                 type: object
+              systemPrompt:
+                description: SystemPrompt defines hard rules and role framing for every turn.
+                maxLength: 4096
+                type: string
               telemetry:
                 description: Telemetry configures agent observability export.
                 properties:
@@ -490,6 +516,7 @@ spec:
                         minimum: 0
                         type: integer
                       enabled:
+                        default: false
                         description: Enabled turns arXiv search on.
                         type: boolean
                       numRetries:
@@ -508,6 +535,7 @@ spec:
                         description: BaseDir is the filesystem root exposed to file tools.
                         type: string
                       enabled:
+                        default: false
                         description: Enabled turns file tools on.
                         type: boolean
                     type: object
@@ -523,6 +551,7 @@ spec:
                         description: BaseEnv is extra environment for commands.
                         type: object
                       enabled:
+                        default: true
                         description: Enabled turns host execution tools on.
                         type: boolean
                     type: object
@@ -592,6 +621,7 @@ spec:
                     description: WebFetch configures HTTP fetch tools.
                     properties:
                       enabled:
+                        default: true
                         description: Enabled turns web fetch tools on.
                         type: boolean
                       maxContentLength:

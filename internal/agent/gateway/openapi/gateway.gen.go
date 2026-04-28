@@ -46,6 +46,12 @@ const (
 	AudioContentPartTypeAudio AudioContentPartType = "audio"
 )
 
+// Defines values for CompactionMode.
+const (
+	Summary  CompactionMode = "summary"
+	Truncate CompactionMode = "truncate"
+)
+
 // Defines values for FileContentPartType.
 const (
 	FileContentPartTypeFile FileContentPartType = "file"
@@ -232,21 +238,88 @@ type CompactSessionResponse struct {
 	Message string `json:"message"`
 }
 
+// CompactionMode defines model for CompactionMode.
+type CompactionMode string
+
 // ContentPart defines model for ContentPart.
 type ContentPart struct {
 	union json.RawMessage
 }
 
+// CreateAgentCompaction defines model for CreateAgentCompaction.
+type CreateAgentCompaction struct {
+	HistoryToolResultRatio   *float64        `json:"historyToolResultRatio,omitempty"`
+	KeepRecentRequests       *int32          `json:"keepRecentRequests,omitempty"`
+	Mode                     *CompactionMode `json:"mode,omitempty"`
+	OversizedToolResultRatio *float64        `json:"oversizedToolResultRatio,omitempty"`
+	ThresholdRatio           *float64        `json:"thresholdRatio,omitempty"`
+}
+
+// CreateAgentDisabledByDefaultTool defines model for CreateAgentDisabledByDefaultTool.
+type CreateAgentDisabledByDefaultTool struct {
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// CreateAgentEnabledByDefaultTool defines model for CreateAgentEnabledByDefaultTool.
+type CreateAgentEnabledByDefaultTool struct {
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// CreateAgentModel defines model for CreateAgentModel.
+type CreateAgentModel struct {
+	Primary CreateAgentModelConfig  `json:"primary"`
+	Summary *CreateAgentModelConfig `json:"summary,omitempty"`
+}
+
+// CreateAgentModelConfig defines model for CreateAgentModelConfig.
+type CreateAgentModelConfig struct {
+	ContextWindow int32    `json:"contextWindow"`
+	Name          string   `json:"name"`
+	Temperature   *float64 `json:"temperature,omitempty"`
+}
+
+// CreateAgentRequest defines model for CreateAgentRequest.
+type CreateAgentRequest struct {
+	Compaction     *CreateAgentCompaction `json:"compaction,omitempty"`
+	Env            *map[string]string     `json:"env,omitempty"`
+	MaxHistoryRuns *int32                 `json:"maxHistoryRuns,omitempty"`
+	Model          CreateAgentModel       `json:"model"`
+	Name           AgentName              `json:"name"`
+	SystemPrompt   *string                `json:"systemPrompt,omitempty"`
+	Tools          *CreateAgentTools      `json:"tools,omitempty"`
+}
+
+// CreateAgentTools defines model for CreateAgentTools.
+type CreateAgentTools struct {
+	Arxiv    *CreateAgentDisabledByDefaultTool `json:"arxiv,omitempty"`
+	File     *CreateAgentDisabledByDefaultTool `json:"file,omitempty"`
+	HostExec *CreateAgentEnabledByDefaultTool  `json:"hostExec,omitempty"`
+	WebFetch *CreateAgentEnabledByDefaultTool  `json:"webFetch,omitempty"`
+}
+
+// DeleteAgentRequest defines model for DeleteAgentRequest.
+type DeleteAgentRequest struct {
+	// SessionId ClawArmor session UUID.
+	SessionId SessionIDInput `json:"session_id"`
+}
+
 // Error defines model for Error.
 type Error struct {
-	Code    string     `json:"code"`
-	Details *JSONValue `json:"details,omitempty"`
-	Message string     `json:"message"`
+	Code    string        `json:"code"`
+	Details *JSONValue    `json:"details,omitempty"`
+	Errors  *[]FieldError `json:"errors,omitempty"`
+	Message string        `json:"message"`
 }
 
 // EventActions defines model for EventActions.
 type EventActions struct {
 	SkipSummarization *bool `json:"skipSummarization,omitempty"`
+}
+
+// FieldError defines model for FieldError.
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
 }
 
 // File defines model for File.
@@ -377,7 +450,7 @@ type SendMessageRequest struct {
 	Prompt string `json:"prompt"`
 
 	// SessionId ClawArmor session UUID.
-	SessionId SessionID `json:"session_id"`
+	SessionId SessionIDInput `json:"session_id"`
 }
 
 // SendMessageResponse defines model for SendMessageResponse.
@@ -395,7 +468,7 @@ type SendMessageResponse struct {
 // SessionActionRequest defines model for SessionActionRequest.
 type SessionActionRequest struct {
 	// SessionId ClawArmor session UUID.
-	SessionId SessionID `json:"session_id"`
+	SessionId SessionIDInput `json:"session_id"`
 }
 
 // SessionAssistantDeltaEvent defines model for SessionAssistantDeltaEvent.
@@ -440,6 +513,9 @@ type SessionAssistantMessageEventType string
 
 // SessionID ClawArmor session UUID.
 type SessionID = openapi_types.UUID
+
+// SessionIDInput ClawArmor session UUID.
+type SessionIDInput = string
 
 // SessionRunCompletedEvent defines model for SessionRunCompletedEvent.
 type SessionRunCompletedEvent struct {
@@ -680,7 +756,7 @@ type WatchAgentsEvent struct {
 
 // WatchAgentsRequest defines model for WatchAgentsRequest.
 type WatchAgentsRequest struct {
-	SessionIds *[]SessionID `json:"session_ids,omitempty"`
+	SessionIds *[]SessionIDInput `json:"session_ids,omitempty"`
 }
 
 // LimitQuery defines model for LimitQuery.
@@ -739,6 +815,12 @@ type ListAgentsParams struct {
 
 // CompactSessionJSONRequestBody defines body for CompactSession for application/json ContentType.
 type CompactSessionJSONRequestBody = SessionActionRequest
+
+// CreateAgentJSONRequestBody defines body for CreateAgent for application/json ContentType.
+type CreateAgentJSONRequestBody = CreateAgentRequest
+
+// DeleteAgentJSONRequestBody defines body for DeleteAgent for application/json ContentType.
+type DeleteAgentJSONRequestBody = DeleteAgentRequest
 
 // InterruptSessionJSONRequestBody defines body for InterruptSession for application/json ContentType.
 type InterruptSessionJSONRequestBody = SessionActionRequest
@@ -1421,6 +1503,16 @@ type ClientInterface interface {
 
 	CompactSession(ctx context.Context, body CompactSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateAgentWithBody request with any body
+	CreateAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAgent(ctx context.Context, body CreateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentWithBody request with any body
+	DeleteAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteAgent(ctx context.Context, body DeleteAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// InterruptSessionWithBody request with any body
 	InterruptSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1471,6 +1563,54 @@ func (c *Client) CompactSessionWithBody(ctx context.Context, contentType string,
 
 func (c *Client) CompactSession(ctx context.Context, body CompactSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCompactSessionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgent(ctx context.Context, body CreateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgent(ctx context.Context, body DeleteAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1687,6 +1827,86 @@ func NewCompactSessionRequestWithBody(server string, contentType string, body io
 	}
 
 	operationPath := fmt.Sprintf("/api/compact-session")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCreateAgentRequest calls the generic CreateAgent builder with application/json body
+func NewCreateAgentRequest(server string, body CreateAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateAgentRequestWithBody generates requests for CreateAgent with any type of body
+func NewCreateAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/create-agent")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAgentRequest calls the generic DeleteAgent builder with application/json body
+func NewDeleteAgentRequest(server string, body DeleteAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteAgentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDeleteAgentRequestWithBody generates requests for DeleteAgent with any type of body
+func NewDeleteAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/delete-agent")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1998,6 +2218,16 @@ type ClientWithResponsesInterface interface {
 
 	CompactSessionWithResponse(ctx context.Context, body CompactSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*CompactSessionResp, error)
 
+	// CreateAgentWithBodyWithResponse request with any body
+	CreateAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentResp, error)
+
+	CreateAgentWithResponse(ctx context.Context, body CreateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentResp, error)
+
+	// DeleteAgentWithBodyWithResponse request with any body
+	DeleteAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentResp, error)
+
+	DeleteAgentWithResponse(ctx context.Context, body DeleteAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentResp, error)
+
 	// InterruptSessionWithBodyWithResponse request with any body
 	InterruptSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InterruptSessionResp, error)
 
@@ -2068,6 +2298,55 @@ func (r CompactSessionResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CompactSessionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAgentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Agent
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2223,6 +2502,40 @@ func (c *ClientWithResponses) CompactSessionWithResponse(ctx context.Context, bo
 		return nil, err
 	}
 	return ParseCompactSessionResp(rsp)
+}
+
+// CreateAgentWithBodyWithResponse request with arbitrary body returning *CreateAgentResp
+func (c *ClientWithResponses) CreateAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentResp, error) {
+	rsp, err := c.CreateAgentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAgentWithResponse(ctx context.Context, body CreateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentResp, error) {
+	rsp, err := c.CreateAgent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentResp(rsp)
+}
+
+// DeleteAgentWithBodyWithResponse request with arbitrary body returning *DeleteAgentResp
+func (c *ClientWithResponses) DeleteAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentResp, error) {
+	rsp, err := c.DeleteAgentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentResp(rsp)
+}
+
+func (c *ClientWithResponses) DeleteAgentWithResponse(ctx context.Context, body DeleteAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentResp, error) {
+	rsp, err := c.DeleteAgent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentResp(rsp)
 }
 
 // InterruptSessionWithBodyWithResponse request with arbitrary body returning *InterruptSessionResp
@@ -2404,6 +2717,93 @@ func ParseCompactSessionResp(rsp *http.Response) (*CompactSessionResp, error) {
 			return nil, err
 		}
 		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentResp parses an HTTP response from a CreateAgentWithResponse call
+func ParseCreateAgentResp(rsp *http.Response) (*CreateAgentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Agent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentResp parses an HTTP response from a DeleteAgentWithResponse call
+func ParseDeleteAgentResp(rsp *http.Response) (*DeleteAgentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -2653,6 +3053,12 @@ type ServerInterface interface {
 	// Compact the current session history.
 	// (POST /api/compact-session)
 	CompactSession(w http.ResponseWriter, r *http.Request)
+	// Create a session-backed Agent.
+	// (POST /api/create-agent)
+	CreateAgent(w http.ResponseWriter, r *http.Request)
+	// Delete a session-backed Agent.
+	// (POST /api/delete-agent)
+	DeleteAgent(w http.ResponseWriter, r *http.Request)
 	// Interrupt the active run for a session.
 	// (POST /api/interrupt-session)
 	InterruptSession(w http.ResponseWriter, r *http.Request)
@@ -2683,6 +3089,18 @@ func (_ Unimplemented) GetChatHistory(w http.ResponseWriter, r *http.Request, pa
 // Compact the current session history.
 // (POST /api/compact-session)
 func (_ Unimplemented) CompactSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a session-backed Agent.
+// (POST /api/create-agent)
+func (_ Unimplemented) CreateAgent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete a session-backed Agent.
+// (POST /api/delete-agent)
+func (_ Unimplemented) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2780,6 +3198,34 @@ func (siw *ServerInterfaceWrapper) CompactSession(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CompactSession(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAgent operation middleware
+func (siw *ServerInterfaceWrapper) CreateAgent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAgent(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAgent operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAgent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAgent(w, r)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -3008,6 +3454,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/compact-session", wrapper.CompactSession)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/create-agent", wrapper.CreateAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/delete-agent", wrapper.DeleteAgent)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/interrupt-session", wrapper.InterruptSession)
 	})
 	r.Group(func(r chi.Router) {
@@ -3029,68 +3481,79 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"ZAAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

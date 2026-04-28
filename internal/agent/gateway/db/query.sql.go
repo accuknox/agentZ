@@ -12,6 +12,60 @@ import (
 	"github.com/google/uuid"
 )
 
+const gatewayCreateSession = `-- name: GatewayCreateSession :one
+INSERT INTO sessions(session_id, agent_name)
+VALUES ($1, $2)
+RETURNING session_id, agent_name, created_at, updated_at
+`
+
+type GatewayCreateSessionParams struct {
+	SessionID uuid.UUID `json:"session_id"`
+	AgentName string    `json:"agent_name"`
+}
+
+func (q *Queries) GatewayCreateSession(ctx context.Context, arg GatewayCreateSessionParams) (Session, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateSession, arg.SessionID, arg.AgentName)
+	var i Session
+	err := row.Scan(
+		&i.SessionID,
+		&i.AgentName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const gatewayDeleteSession = `-- name: GatewayDeleteSession :execrows
+DELETE FROM sessions
+WHERE session_id = $1
+`
+
+func (q *Queries) GatewayDeleteSession(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteSession, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayGetSession = `-- name: GatewayGetSession :one
+SELECT session_id, agent_name, created_at, updated_at
+FROM sessions
+WHERE session_id = $1
+`
+
+func (q *Queries) GatewayGetSession(ctx context.Context, sessionID uuid.UUID) (Session, error) {
+	row := q.db.QueryRow(ctx, gatewayGetSession, sessionID)
+	var i Session
+	err := row.Scan(
+		&i.SessionID,
+		&i.AgentName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const gatewayListEventPage = `-- name: GatewayListEventPage :many
 SELECT seq, event_id, event_ts, event_payload
 FROM session_events

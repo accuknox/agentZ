@@ -1,8 +1,3 @@
--- name: CreateSession :one
-INSERT INTO sessions(session_id, agent_name)
-VALUES ($1, $2)
-RETURNING session_id, agent_name, created_at, updated_at;
-
 -- name: GetSession :one
 SELECT session_id, agent_name, created_at, updated_at
 FROM sessions
@@ -12,10 +7,6 @@ WHERE session_id = $1;
 SELECT session_id, agent_name, created_at, updated_at
 FROM sessions
 ORDER BY updated_at DESC, session_id DESC;
-
--- name: DeleteSession :execrows
-DELETE FROM sessions
-WHERE session_id = $1;
 
 -- name: TouchSession :execrows
 UPDATE sessions

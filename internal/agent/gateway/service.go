@@ -21,11 +21,18 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/agent/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
 	agentpb "github.com/accuknox/clawarmor/internal/agent/proto"
@@ -37,6 +44,20 @@ var (
 	errBadRequest    = errors.New("bad request")
 )
 
+const (
+	labelManagedBy = "app.kubernetes.io/managed-by"
+	labelSessionID = "clawarmor.accuknox.com/session-id"
+)
+
+const (
+	defaultCreateThresholdRatio           = 0.9
+	defaultCreateHistoryToolResultRatio   = 0.008
+	defaultCreateKeepRecentRequests       = 2
+	defaultCreateOversizedToolResultRatio = 0.065
+	defaultCreateMaxHistoryRuns           = 50
+	defaultCreateTemperature              = 0.2
+)
+
 // Config describes how to start the gateway.
 type Config struct {
 	Addr                    string
@@ -45,6 +66,10 @@ type Config struct {
 	PostgresDSN             string
 	GracefulShutdownTimeout time.Duration
 	TargetOverride          string
+	AgentImage              string
+	AgentServerAddress      string
+	AgentSessionTarget      string
+	AgentTraceEndpoint      string
 }
 
 // Service implements the agent gateway HTTP API.
@@ -53,6 +78,7 @@ type Service struct {
 	resolver *resolver
 	store    *valkeyStore
 	queries  gatewaydb.Querier
+	cfg      Config
 
 	mu             sync.Mutex
 	consumers      map[string]struct{}
@@ -70,6 +96,7 @@ type apiError struct {
 	code    string
 	message string
 	cause   error
+	fields  []gatewayapi.FieldError
 }
 
 type statusRecorder struct {
@@ -113,6 +140,15 @@ func Serve(ctx context.Context, cfg Config) error {
 	if strings.TrimSpace(cfg.PostgresDSN) == "" {
 		return fmt.Errorf("postgres dsn is required")
 	}
+	if strings.TrimSpace(cfg.AgentSessionTarget) == "" {
+		return fmt.Errorf("agent session target is required")
+	}
+	if strings.TrimSpace(cfg.AgentTraceEndpoint) == "" {
+		return fmt.Errorf("agent trace endpoint is required")
+	}
+	if strings.TrimSpace(cfg.AgentServerAddress) == "" {
+		cfg.AgentServerAddress = DefaultAgentServerAddress
+	}
 
 	resolver, err := newResolver(ctx, cfg.Namespace, cfg.TargetOverride)
 	if err != nil {
@@ -140,6 +176,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		resolver:       resolver,
 		store:          store,
 		queries:        gatewaydb.New(db),
+		cfg:            cfg,
 		consumers:      make(map[string]struct{}),
 		sessionWaiters: make(map[string]map[chan struct{}]struct{}),
 	}
@@ -224,7 +261,12 @@ func (s *Service) GetChatHistory(w http.ResponseWriter, r *http.Request, params 
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
 		return
 	}
 	beforeSeq, ok := decodeSequencePageToken(w, r, params.PageToken)
@@ -234,11 +276,21 @@ func (s *Service) GetChatHistory(w http.ResponseWriter, r *http.Request, params 
 
 	exists, err := s.queries.GatewaySessionExists(r.Context(), sessionUUID)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"request failed",
+			err,
+		))
 		return
 	}
 	if !exists {
-		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "session not found", errAgentNotFound))
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"session not found",
+			errAgentNotFound,
+		))
 		return
 	}
 
@@ -250,7 +302,12 @@ func (s *Service) GetChatHistory(w http.ResponseWriter, r *http.Request, params 
 			Limit:     int32(limit + 1),
 		})
 		if err != nil {
-			writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+			writeError(w, r, newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"request failed",
+				err,
+			))
 			return
 		}
 		rows = make([]gatewaydb.GatewayListRecentEventsRow, 0, len(pageRows))
@@ -263,7 +320,12 @@ func (s *Service) GetChatHistory(w http.ResponseWriter, r *http.Request, params 
 			Limit:     int32(limit + 1),
 		})
 		if err != nil {
-			writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+			writeError(w, r, newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"request failed",
+				err,
+			))
 			return
 		}
 	}
@@ -280,7 +342,12 @@ func (s *Service) GetChatHistory(w http.ResponseWriter, r *http.Request, params 
 			EventTs: row.EventTs,
 		}
 		if err := json.Unmarshal(row.EventPayload, &item.Payload); err != nil {
-			writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+			writeError(w, r, newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"request failed",
+				err,
+			))
 			return
 		}
 		items = append(items, item)
@@ -302,7 +369,12 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
 		return
 	}
 	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
@@ -323,7 +395,12 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 
 	items, next, err := s.listAgentItems(r.Context(), sessionIDs, limit, offset)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"request failed",
+			err,
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListAgentsResponse{
@@ -332,19 +409,250 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 	})
 }
 
+// CreateAgent handles POST /api/create-agent.
+//
+//nolint:gocyclo
+func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.CreateAgentRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	var fields []gatewayapi.FieldError
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "name",
+			Message: "required",
+		})
+	}
+	if len(name) > 32 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "name",
+			Message: "must be at most 32 characters",
+		})
+	}
+	if name != "" {
+		if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "name",
+				Message: "must be a valid DNS label",
+			})
+		}
+	}
+
+	mode := gatewayapi.Summary
+	if req.Compaction != nil && req.Compaction.Mode != nil {
+		mode = *req.Compaction.Mode
+	}
+	if mode != gatewayapi.Summary && mode != gatewayapi.Truncate {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.mode",
+			Message: "must be summary or truncate",
+		})
+	}
+	historyRatio := defaultCreateHistoryToolResultRatio
+	oversizedRatio := defaultCreateOversizedToolResultRatio
+	if req.Compaction != nil {
+		if req.Compaction.ThresholdRatio != nil && (*req.Compaction.ThresholdRatio < 0.2 || *req.Compaction.ThresholdRatio > 0.95) {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "compaction.thresholdRatio",
+				Message: "must be between 0.2 and 0.95",
+			})
+		}
+		if req.Compaction.HistoryToolResultRatio != nil {
+			historyRatio = *req.Compaction.HistoryToolResultRatio
+			if historyRatio < 0 || historyRatio > 1 {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   "compaction.historyToolResultRatio",
+					Message: "must be between 0 and 1",
+				})
+			}
+		}
+		if req.Compaction.OversizedToolResultRatio != nil {
+			oversizedRatio = *req.Compaction.OversizedToolResultRatio
+			if oversizedRatio < 0.05 || oversizedRatio > 0.1 {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   "compaction.oversizedToolResultRatio",
+					Message: "must be between 0.05 and 0.1",
+				})
+			}
+		}
+		if req.Compaction.KeepRecentRequests != nil && *req.Compaction.KeepRecentRequests < 0 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "compaction.keepRecentRequests",
+				Message: "must be greater than or equal to zero",
+			})
+		}
+	}
+	if historyRatio >= oversizedRatio {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.historyToolResultRatio",
+			Message: "must be less than compaction.oversizedToolResultRatio",
+		})
+	}
+	if mode == gatewayapi.Summary && req.Model.Summary == nil {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "model.summary",
+			Message: "required",
+		})
+	}
+	if req.SystemPrompt != nil && len([]rune(*req.SystemPrompt)) > 4096 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "systemPrompt",
+			Message: "must be at most 4096 characters",
+		})
+	}
+	if req.MaxHistoryRuns != nil && *req.MaxHistoryRuns < 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "maxHistoryRuns",
+			Message: "must be greater than or equal to zero",
+		})
+	}
+	if strings.TrimSpace(req.Model.Primary.Name) == "" {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "model.primary.name",
+			Message: "required",
+		})
+	}
+	if req.Model.Primary.ContextWindow <= 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "model.primary.contextWindow",
+			Message: "must be greater than zero",
+		})
+	}
+	if req.Model.Primary.Temperature != nil && (*req.Model.Primary.Temperature < 0 || *req.Model.Primary.Temperature > 1) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "model.primary.temperature",
+			Message: "must be between 0 and 1",
+		})
+	}
+	if req.Model.Summary != nil {
+		if strings.TrimSpace(req.Model.Summary.Name) == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "model.summary.name",
+				Message: "required",
+			})
+		}
+		if req.Model.Summary.ContextWindow <= 0 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "model.summary.contextWindow",
+				Message: "must be greater than zero",
+			})
+		}
+		if req.Model.Summary.Temperature != nil && (*req.Model.Summary.Temperature < 0 || *req.Model.Summary.Temperature > 1) {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "model.summary.temperature",
+				Message: "must be between 0 and 1",
+			})
+		}
+	}
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	sessionID := uuid.New()
+	row, err := s.queries.GatewayCreateSession(r.Context(), gatewaydb.GatewayCreateSessionParams{
+		SessionID: sessionID,
+		AgentName: name,
+	})
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("create session", err))
+		return
+	}
+
+	agt := s.agentFromCreateRequest(req, sessionID, name, mode)
+	_, err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Create(
+		r.Context(),
+		agt,
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		if _, deleteErr := s.queries.GatewayDeleteSession(r.Context(), sessionID); deleteErr != nil {
+			err = fmt.Errorf("create agent: %w; rollback session: %v", err, deleteErr)
+		}
+		writeError(w, r, mapKubeHTTPError("create agent", err))
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
+		Name:         row.AgentName,
+		SessionId:    row.SessionID,
+		CreatedAt:    row.CreatedAt,
+		ModifiedAt:   row.UpdatedAt,
+		LastActivity: row.UpdatedAt,
+		Status:       gatewayapi.PROGRESSING,
+	})
+}
+
+// DeleteAgent handles POST /api/delete-agent.
+func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.DeleteAgentRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+	_, sessionID, ok := validSessionID(w, r, req.SessionId)
+	if !ok {
+		return
+	}
+
+	row, err := s.queries.GatewayGetSession(r.Context(), sessionID)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("get session", err))
+		return
+	}
+	err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Delete(
+		r.Context(),
+		row.AgentName,
+		metav1.DeleteOptions{},
+	)
+	if err != nil && !apierrors.IsNotFound(err) {
+		writeError(w, r, mapKubeHTTPError("delete agent", err))
+		return
+	}
+	rows, err := s.queries.GatewayDeleteSession(r.Context(), sessionID)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("delete session", err))
+		return
+	}
+	if rows == 0 {
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"session not found",
+			errAgentNotFound,
+		))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // SendMessage handles POST /api/send-message.
 func (s *Service) SendMessage(w http.ResponseWriter, r *http.Request) {
 	var req gatewayapi.SendMessageRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	sessionID, _, ok := validSessionID(w, r, req.SessionId.String())
+	sessionID, _, ok := validSessionID(w, r, req.SessionId)
 	if !ok {
 		return
 	}
 	prompt := strings.TrimSpace(req.Prompt)
 	if prompt == "" {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "prompt is required", errBadRequest))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "prompt", Message: "required"},
+		))
 		return
 	}
 
@@ -356,7 +664,12 @@ func (s *Service) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	backend, err := newBackendClient(resolved.Target)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusServiceUnavailable, "unavailable", "agent backend is unavailable", err))
+		writeError(w, r, newAPIError(
+			http.StatusServiceUnavailable,
+			"unavailable",
+			"agent backend is unavailable",
+			err,
+		))
 		return
 	}
 	defer backend.Close()
@@ -377,18 +690,33 @@ func (s *Service) SendMessage(w http.ResponseWriter, r *http.Request) {
 		RequestID: resp.GetRequestId(),
 	}
 	if err := s.store.initRun(r.Context(), meta); err != nil {
-		writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"request failed",
+			err,
+		))
 		return
 	}
 	if err := s.startConsumer(resp.GetRunId(), resolved.Target); err != nil {
-		writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"request failed",
+			err,
+		))
 		return
 	}
 	s.notifySession(resp.GetSessionId())
 
 	sessionUUID, runUUID, requestUUID, err := parseStreamIDs(resp.GetSessionId(), resp.GetRunId(), resp.GetRequestId())
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err))
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"request failed",
+			err,
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.SendMessageResponse{
@@ -404,7 +732,7 @@ func (s *Service) SubscribeSession(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	sessionID, _, ok := validSessionID(w, r, req.SessionId.String())
+	sessionID, _, ok := validSessionID(w, r, req.SessionId)
 	if !ok {
 		return
 	}
@@ -422,7 +750,7 @@ func (s *Service) InterruptSession(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	sessionID, _, ok := validSessionID(w, r, req.SessionId.String())
+	sessionID, _, ok := validSessionID(w, r, req.SessionId)
 	if !ok {
 		return
 	}
@@ -437,13 +765,23 @@ func (s *Service) InterruptSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "active run not found", errRunNotFound))
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"active run not found",
+			errRunNotFound,
+		))
 		return
 	}
 
 	backend, err := newBackendClient(resolved.Target)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusServiceUnavailable, "unavailable", "agent backend is unavailable", err))
+		writeError(w, r, newAPIError(
+			http.StatusServiceUnavailable,
+			"unavailable",
+			"agent backend is unavailable",
+			err,
+		))
 		return
 	}
 	defer backend.Close()
@@ -467,7 +805,7 @@ func (s *Service) CompactSession(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	sessionID, _, ok := validSessionID(w, r, req.SessionId.String())
+	sessionID, _, ok := validSessionID(w, r, req.SessionId)
 	if !ok {
 		return
 	}
@@ -478,7 +816,12 @@ func (s *Service) CompactSession(w http.ResponseWriter, r *http.Request) {
 	}
 	backend, err := newBackendClient(resolved.Target)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusServiceUnavailable, "unavailable", "agent backend is unavailable", err))
+		writeError(w, r, newAPIError(
+			http.StatusServiceUnavailable,
+			"unavailable",
+			"agent backend is unavailable",
+			err,
+		))
 		return
 	}
 	defer backend.Close()
@@ -506,7 +849,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	if req.SessionIds != nil {
 		sessionIDs = make([]string, 0, len(*req.SessionIds))
 		for _, id := range *req.SessionIds {
-			sessionID, _, ok := validSessionID(w, r, id.String())
+			sessionID, _, ok := validSessionID(w, r, id, "session_ids")
 			if !ok {
 				return
 			}
@@ -516,7 +859,12 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "streaming is unavailable", nil))
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"streaming is unavailable",
+			nil,
+		))
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -576,7 +924,12 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 func (s *Service) streamSession(w http.ResponseWriter, r *http.Request, sessionID, target string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(w, r, newAPIError(http.StatusInternalServerError, "internal_error", "streaming is unavailable", nil))
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"streaming is unavailable",
+			nil,
+		))
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -1031,20 +1384,51 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty 
 		return true
 	}
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "request body is invalid", err))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request body is invalid",
+			err,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: "invalid JSON",
+			},
+		))
 		return false
 	}
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "request body must contain one JSON object", errBadRequest))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request body must contain one JSON object",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: "must contain one JSON object",
+			},
+		))
 		return false
 	}
 	return true
 }
 
-func validSessionID(w http.ResponseWriter, r *http.Request, sessionID string) (string, uuid.UUID, bool) {
+func validSessionID(w http.ResponseWriter, r *http.Request, sessionID string, fields ...string) (string, uuid.UUID, bool) {
 	id, err := uuid.Parse(sessionID)
 	if err != nil || id.Version() != 4 {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "session_id must be a valid UUIDv4", errBadRequest))
+		field := "session_id"
+		if len(fields) > 0 && fields[0] != "" {
+			field = fields[0]
+		}
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   field,
+				Message: "must be a valid UUIDv4",
+			},
+		))
 		return "", uuid.Nil, false
 	}
 	return id.String(), id, true
@@ -1057,12 +1441,22 @@ func decodeSequencePageToken(w http.ResponseWriter, r *http.Request, token *gate
 	raw := strings.TrimSpace(*token)
 	decoded, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "page_token is invalid", err))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"page_token is invalid",
+			err,
+		))
 		return 0, false
 	}
 	seq, err := strconv.ParseInt(string(decoded), 10, 64)
 	if err != nil || seq < 1 {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "page_token is invalid", errBadRequest))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"page_token is invalid",
+			errBadRequest,
+		))
 		return 0, false
 	}
 	return seq, true
@@ -1075,12 +1469,22 @@ func decodeOffsetPageToken(w http.ResponseWriter, r *http.Request, token *gatewa
 	raw := strings.TrimSpace(*token)
 	decoded, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "page_token is invalid", err))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"page_token is invalid",
+			err,
+		))
 		return 0, false
 	}
 	offset, err := strconv.Atoi(string(decoded))
 	if err != nil || offset < 0 {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "page_token is invalid", errBadRequest))
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"page_token is invalid",
+			errBadRequest,
+		))
 		return 0, false
 	}
 	return offset, true
@@ -1163,8 +1567,14 @@ func requestID(r *http.Request) string {
 	return uuid.UUID(b).String()
 }
 
-func newAPIError(status int, code string, message string, cause error) *apiError {
-	return &apiError{status: status, code: code, message: message, cause: cause}
+func newAPIError(status int, code string, message string, cause error, fields ...gatewayapi.FieldError) *apiError {
+	return &apiError{
+		status:  status,
+		code:    code,
+		message: message,
+		cause:   cause,
+		fields:  fields,
+	}
 }
 
 func mapResolverHTTPError(err error) *apiError {
@@ -1191,8 +1601,211 @@ func mapGRPCError(err error) *apiError {
 	}
 }
 
+func mapGatewayStoreError(action string, err error) *apiError {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return newAPIError(http.StatusNotFound, "not_found", "session not found", err)
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if strings.Contains(pgErr.ConstraintName, "agent_name") {
+			return newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"request conflicts with current state",
+				err,
+				gatewayapi.FieldError{Field: "name", Message: "already in-use"},
+			)
+		}
+		return newAPIError(http.StatusConflict, "conflict", action+" conflicts with existing data", err)
+	}
+	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+}
+
+func mapKubeHTTPError(action string, err error) *apiError {
+	if apierrors.IsAlreadyExists(err) {
+		if action == "create agent" {
+			return newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"request conflicts with current state",
+				err,
+				gatewayapi.FieldError{Field: "name", Message: "already in-use"},
+			)
+		}
+		return newAPIError(http.StatusConflict, "conflict", action+" already exists", err)
+	}
+	if apierrors.IsNotFound(err) {
+		return newAPIError(http.StatusNotFound, "not_found", action+" not found", err)
+	}
+	if apierrors.IsInvalid(err) || apierrors.IsBadRequest(err) {
+		statusErr, ok := err.(apierrors.APIStatus)
+		if !ok || statusErr.Status().Details == nil {
+			return newAPIError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)
+		}
+		fields := make([]gatewayapi.FieldError, 0, len(statusErr.Status().Details.Causes))
+		for _, cause := range statusErr.Status().Details.Causes {
+			if cause.Field == "" {
+				continue
+			}
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   cause.Field,
+				Message: cause.Message,
+			})
+		}
+		if len(fields) == 0 {
+			return newAPIError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)
+		}
+		return newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			err,
+			fields...,
+		)
+	}
+	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+}
+
+func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sessionID uuid.UUID, name string, mode gatewayapi.CompactionMode) *clawarmorv1alpha1.Agent {
+	thresholdRatio := defaultCreateThresholdRatio
+	historyRatio := defaultCreateHistoryToolResultRatio
+	keepRecentRequests := int32(defaultCreateKeepRecentRequests)
+	oversizedRatio := defaultCreateOversizedToolResultRatio
+	if req.Compaction != nil {
+		if req.Compaction.ThresholdRatio != nil {
+			thresholdRatio = *req.Compaction.ThresholdRatio
+		}
+		if req.Compaction.HistoryToolResultRatio != nil {
+			historyRatio = *req.Compaction.HistoryToolResultRatio
+		}
+		if req.Compaction.KeepRecentRequests != nil {
+			keepRecentRequests = *req.Compaction.KeepRecentRequests
+		}
+		if req.Compaction.OversizedToolResultRatio != nil {
+			oversizedRatio = *req.Compaction.OversizedToolResultRatio
+		}
+	}
+	maxHistoryRuns := int32(defaultCreateMaxHistoryRuns)
+	if req.MaxHistoryRuns != nil {
+		maxHistoryRuns = *req.MaxHistoryRuns
+	}
+	primaryTemp := defaultCreateTemperature
+	if req.Model.Primary.Temperature != nil {
+		primaryTemp = *req.Model.Primary.Temperature
+	}
+
+	specMode := clawarmorv1alpha1.CompactionModeSummary
+	if mode == gatewayapi.Truncate {
+		specMode = clawarmorv1alpha1.CompactionModeTruncate
+	}
+	env := []corev1.EnvVar{}
+	if req.Env != nil {
+		keys := make([]string, 0, len(*req.Env))
+		for key := range *req.Env {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			env = append(env, corev1.EnvVar{Name: key, Value: (*req.Env)[key]})
+		}
+	}
+	systemPrompt := ""
+	if req.SystemPrompt != nil {
+		systemPrompt = *req.SystemPrompt
+	}
+
+	compactionEnabled := true
+	agt := &clawarmorv1alpha1.Agent{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clawarmorv1alpha1.GroupVersion.String(),
+			Kind:       "Agent",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: s.cfg.Namespace,
+			Labels: map[string]string{
+				labelManagedBy: "clawarmor-agent-gateway",
+				labelSessionID: sessionID.String(),
+			},
+		},
+		Spec: clawarmorv1alpha1.AgentSpec{
+			Image: s.cfg.AgentImage,
+			Env:   env,
+			Server: clawarmorv1alpha1.ServerConfig{
+				Address: s.cfg.AgentServerAddress,
+			},
+			SystemPrompt: systemPrompt,
+			Compaction: clawarmorv1alpha1.ContextCompactionConfig{
+				Mode:                     specMode,
+				Enabled:                  &compactionEnabled,
+				ThresholdRatio:           thresholdRatio,
+				HistoryToolResultRatio:   historyRatio,
+				KeepRecentRequests:       int(keepRecentRequests),
+				OversizedToolResultRatio: oversizedRatio,
+			},
+			MaxHistoryRuns: int(maxHistoryRuns),
+			Model: clawarmorv1alpha1.ModelConfig{
+				Name:          req.Model.Primary.Name,
+				ContextWindow: int(req.Model.Primary.ContextWindow),
+				Temperature:   primaryTemp,
+				Stream:        true,
+			},
+			Session: clawarmorv1alpha1.SessionConfig{
+				ID:        sessionID.String(),
+				Enabled:   true,
+				Target:    s.cfg.AgentSessionTarget,
+				Insecure:  true,
+				TimeoutMs: 5000,
+			},
+			Telemetry: clawarmorv1alpha1.TelemetryConfig{
+				Enabled:       true,
+				TraceEndpoint: s.cfg.AgentTraceEndpoint,
+			},
+		},
+	}
+	if req.Model.Summary != nil {
+		summaryTemp := defaultCreateTemperature
+		if req.Model.Summary.Temperature != nil {
+			summaryTemp = *req.Model.Summary.Temperature
+		}
+		agt.Spec.SummaryModel = clawarmorv1alpha1.SummaryModelConfig{
+			Name:          req.Model.Summary.Name,
+			ContextWindow: int(req.Model.Summary.ContextWindow),
+			Temperature:   summaryTemp,
+		}
+	}
+	hostExecEnabled := true
+	webFetchEnabled := true
+	fileEnabled := false
+	arxivEnabled := false
+	if req.Tools != nil {
+		if req.Tools.HostExec != nil && req.Tools.HostExec.Enabled != nil {
+			hostExecEnabled = *req.Tools.HostExec.Enabled
+		}
+		if req.Tools.WebFetch != nil && req.Tools.WebFetch.Enabled != nil {
+			webFetchEnabled = *req.Tools.WebFetch.Enabled
+		}
+		if req.Tools.File != nil && req.Tools.File.Enabled != nil {
+			fileEnabled = *req.Tools.File.Enabled
+		}
+		if req.Tools.Arxiv != nil && req.Tools.Arxiv.Enabled != nil {
+			arxivEnabled = *req.Tools.Arxiv.Enabled
+		}
+	}
+	agt.Spec.Tools.HostExec.Enabled = &hostExecEnabled
+	agt.Spec.Tools.WebFetch.Enabled = &webFetchEnabled
+	agt.Spec.Tools.File.Enabled = &fileEnabled
+	agt.Spec.Tools.Arxiv.Enabled = &arxivEnabled
+	return agt
+}
+
 func (s *Service) handleRouteError(w http.ResponseWriter, r *http.Request, err error) {
-	writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "request is invalid", err))
+	writeError(w, r, newAPIError(
+		http.StatusBadRequest,
+		"invalid_request",
+		"request is invalid",
+		err,
+	))
 }
 
 func recordRequestError(w http.ResponseWriter, code string, cause error) {
@@ -1209,10 +1822,14 @@ func writeError(w http.ResponseWriter, _ *http.Request, e *apiError) {
 		e = newAPIError(http.StatusInternalServerError, "internal_error", "request failed", nil)
 	}
 	recordRequestError(w, e.code, e.cause)
-	writeJSON(w, e.status, gatewayapi.Error{
+	body := gatewayapi.Error{
 		Code:    e.code,
 		Message: e.message,
-	})
+	}
+	if len(e.fields) > 0 {
+		body.Errors = &e.fields
+	}
+	writeJSON(w, e.status, body)
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

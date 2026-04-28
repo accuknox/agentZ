@@ -13,15 +13,16 @@ const (
 	// DefaultHomeDir is the runtime home directory for the agent user.
 	DefaultHomeDir = "/home/clawarmor"
 
-	defaultContextCompactionThresholdRatio              = 0.85
-	defaultContextCompactionToolResultMaxRatio          = 0.008
-	defaultContextCompactionKeepRecentRequests          = 2
-	defaultContextCompactionOversizedToolResultMaxRatio = 0.064
-	defaultSessionSummaryMode                           = "auto"
-	defaultSessionSummaryEventThreshold                 = 20
-	defaultWebFetchTimeoutMS                            = 30000
-	defaultMCPReconnectMaxAttempt                       = 3
-	defaultTelemetryTraceEndpoint                       = "localhost:4317"
+	defaultCompactionMode                     = clawarmorv1alpha1.CompactionModeSummary
+	defaultCompactionThresholdRatio           = 0.9
+	defaultCompactionHistoryToolResultRatio   = 0.008
+	defaultCompactionKeepRecentRequests       = 2
+	defaultCompactionOversizedToolResultRatio = 0.065
+	defaultSessionSummaryMode                 = "auto"
+	defaultSessionSummaryEventThreshold       = 20
+	defaultWebFetchTimeoutMS                  = 30000
+	defaultMCPReconnectMaxAttempt             = 3
+	defaultTelemetryTraceEndpoint             = "localhost:4317"
 )
 
 // Load reads YAML config from path and applies defaults.
@@ -50,26 +51,23 @@ func ApplyDefaults(c *clawarmorv1alpha1.AgentSpec) {
 	if c.Server.Address == "" {
 		c.Server.Address = "localhost:8080"
 	}
-	if c.Agent.AddSessionSummary == nil {
-		c.Agent.AddSessionSummary = new(true)
+	if c.Compaction.Enabled == nil {
+		c.Compaction.Enabled = new(true)
 	}
-	if c.Agent.EnableContextCompaction == nil {
-		c.Agent.EnableContextCompaction = new(true)
+	if c.Compaction.Mode == "" {
+		c.Compaction.Mode = defaultCompactionMode
 	}
-	if c.Agent.ContextCompactionThresholdRatio <= 0 || c.Agent.ContextCompactionThresholdRatio > 1 {
-		c.Agent.ContextCompactionThresholdRatio = defaultContextCompactionThresholdRatio
+	if c.Compaction.ThresholdRatio == 0 {
+		c.Compaction.ThresholdRatio = defaultCompactionThresholdRatio
 	}
-	if c.Agent.ContextCompactionToolResultMaxRatio < 0 || c.Agent.ContextCompactionToolResultMaxRatio > 1 {
-		c.Agent.ContextCompactionToolResultMaxRatio = defaultContextCompactionToolResultMaxRatio
+	if c.Compaction.HistoryToolResultRatio == 0 {
+		c.Compaction.HistoryToolResultRatio = defaultCompactionHistoryToolResultRatio
 	}
-	if c.Agent.ContextCompactionKeepRecentRequests < 0 {
-		c.Agent.ContextCompactionKeepRecentRequests = defaultContextCompactionKeepRecentRequests
+	if c.Compaction.KeepRecentRequests == 0 {
+		c.Compaction.KeepRecentRequests = defaultCompactionKeepRecentRequests
 	}
-	if c.Agent.ContextCompactionOversizedToolResultMaxRatio < 0 || c.Agent.ContextCompactionOversizedToolResultMaxRatio > 1 {
-		c.Agent.ContextCompactionOversizedToolResultMaxRatio = defaultContextCompactionOversizedToolResultMaxRatio
-	}
-	if c.SummaryModel.Name == "" {
-		c.SummaryModel.Name = c.Model.Name
+	if c.Compaction.OversizedToolResultRatio == 0 {
+		c.Compaction.OversizedToolResultRatio = defaultCompactionOversizedToolResultRatio
 	}
 	if c.SummaryModel.BaseURL == "" {
 		c.SummaryModel.BaseURL = c.Model.BaseURL
@@ -92,6 +90,22 @@ func ApplyDefaults(c *clawarmorv1alpha1.AgentSpec) {
 	if c.Telemetry.Enabled && c.Telemetry.TraceEndpoint == "" {
 		c.Telemetry.TraceEndpoint = defaultTelemetryTraceEndpoint
 	}
+	if c.Tools.HostExec.Enabled == nil {
+		enabled := true
+		c.Tools.HostExec.Enabled = &enabled
+	}
+	if c.Tools.WebFetch.Enabled == nil {
+		enabled := true
+		c.Tools.WebFetch.Enabled = &enabled
+	}
+	if c.Tools.File.Enabled == nil {
+		enabled := false
+		c.Tools.File.Enabled = &enabled
+	}
+	if c.Tools.Arxiv.Enabled == nil {
+		enabled := false
+		c.Tools.Arxiv.Enabled = &enabled
+	}
 	if c.Tools.WebFetch.TimeoutMs <= 0 {
 		c.Tools.WebFetch.TimeoutMs = defaultWebFetchTimeoutMS
 	}
@@ -109,6 +123,8 @@ func ApplyDefaults(c *clawarmorv1alpha1.AgentSpec) {
 }
 
 // Validate checks whether the configuration is internally consistent.
+//
+//nolint:gocyclo
 func Validate(c clawarmorv1alpha1.AgentSpec) error {
 	if c.Model.Name == "" {
 		return fmt.Errorf("model.name is required")
@@ -125,11 +141,25 @@ func Validate(c clawarmorv1alpha1.AgentSpec) error {
 	if c.Server.GracefulShutdownTimeout.Duration < 0 {
 		return fmt.Errorf("server.gracefulShutdownTimeout must be >= 0")
 	}
-	if c.Agent.ContextCompactionToolResultMaxRatio < 0 || c.Agent.ContextCompactionToolResultMaxRatio > 1 {
-		return fmt.Errorf("agent.contextCompactionToolResultMaxRatio must be between 0 and 1")
+	if c.Compaction.Mode != clawarmorv1alpha1.CompactionModeSummary && c.Compaction.Mode != clawarmorv1alpha1.CompactionModeTruncate {
+		return fmt.Errorf("compaction.mode must be summary or truncate")
 	}
-	if c.Agent.ContextCompactionOversizedToolResultMaxRatio < 0 || c.Agent.ContextCompactionOversizedToolResultMaxRatio > 1 {
-		return fmt.Errorf("agent.contextCompactionOversizedToolResultMaxRatio must be between 0 and 1")
+	if c.Compaction.ThresholdRatio < 0.2 || c.Compaction.ThresholdRatio > 0.95 {
+		return fmt.Errorf("compaction.thresholdRatio must be between 0.2 and 0.95")
+	}
+	if c.Compaction.HistoryToolResultRatio < 0 || c.Compaction.HistoryToolResultRatio > 1 {
+		return fmt.Errorf("compaction.historyToolResultRatio must be between 0 and 1")
+	}
+	if c.Compaction.OversizedToolResultRatio < 0.05 || c.Compaction.OversizedToolResultRatio > 0.1 {
+		return fmt.Errorf("compaction.oversizedToolResultRatio must be between 0.05 and 0.1")
+	}
+	historyRatio := c.Compaction.HistoryToolResultRatio
+	oversizedRatio := c.Compaction.OversizedToolResultRatio
+	if (historyRatio != 0 || oversizedRatio != 0) && historyRatio >= oversizedRatio {
+		return fmt.Errorf("compaction.historyToolResultRatio must be less than compaction.oversizedToolResultRatio")
+	}
+	if c.Compaction.Mode == clawarmorv1alpha1.CompactionModeSummary && c.SummaryModel.Name == "" {
+		return fmt.Errorf("summaryModel.name is required when compaction.mode is summary")
 	}
 	if c.Session.Enabled {
 		if c.Session.Target == "" {

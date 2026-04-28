@@ -11,6 +11,9 @@ import (
 )
 
 type Querier interface {
+	GatewayCreateSession(ctx context.Context, arg GatewayCreateSessionParams) (Session, error)
+	GatewayDeleteSession(ctx context.Context, sessionID uuid.UUID) (int64, error)
+	GatewayGetSession(ctx context.Context, sessionID uuid.UUID) (Session, error)
 	GatewayListEventPage(ctx context.Context, arg GatewayListEventPageParams) ([]GatewayListEventPageRow, error)
 	GatewayListRecentEvents(ctx context.Context, arg GatewayListRecentEventsParams) ([]GatewayListRecentEventsRow, error)
 	GatewayListSessions(ctx context.Context, arg GatewayListSessionsParams) ([]Session, error)

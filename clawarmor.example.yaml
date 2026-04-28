@@ -15,58 +15,51 @@ server:
   # 0s means wait indefinitely for graceful shutdown.
   gracefulShutdownTimeout: 15s
 
-agent:
-  # High-level task guidance for the agent.
-  # This is the main behavioral instruction appended to the agent prompt.
-  # Leave empty to rely only on systemPrompt and the built-in defaults.
-  instruction: ""
+# High-level task guidance for the agent.
+# This is the main behavioral instruction appended to the agent prompt.
+# Leave empty to rely only on systemPrompt and the built-in defaults.
+instruction: ""
 
-  # Global system prompt applied to every turn.
-  # Use this for hard rules, role framing, and non-negotiable constraints.
-  systemPrompt: ""
+# Global system prompt applied to every turn.
+# Use this for hard rules, role framing, and non-negotiable constraints.
+systemPrompt: ""
 
-  # When true, inject the latest persisted session summary into the model
-  # context before the incremental raw history.
-  # This reduces prompt size for long conversations.
-  addSessionSummary: true
+# Context compaction settings used to rebuild or trim large prompts.
+compaction:
+  # Supported modes:
+  # - summary: inject persisted summaries and use summary-backed compaction
+  # - truncate: cap raw history with maxHistoryRuns
+  mode: summary
 
   # When true, enable SDK-native context compaction logic.
   # This lets the framework try summary-backed prompt rebuilding before the
   # main LLM call when the prompt is getting too large.
-  enableContextCompaction: true
+  enabled: true
 
   # Fraction of the model context window at which pre-turn compaction becomes
-  # eligible. Must be between 0 and 1.
-  # Example: 0.7 means "attempt summary-backed compaction once the prompt is
-  # estimated to exceed 70% of the model window".
-  contextCompactionThresholdRatio: 0.7
+  # eligible in summary mode. Must be between 0.2 and 0.95.
+  thresholdRatio: 0.9
 
   # Historical tool results larger than this fraction of the model context
   # window are replaced with a compact placeholder during request construction.
   # Must be between 0 and 1. Set to 0 to disable this specific pass.
   # Example: 0.008 means "compact historical tool results once they exceed
   # about 0.8% of the model context window".
-  contextCompactionToolResultMaxRatio: 0.008
+  historyToolResultRatio: 0.008
 
   # Number of most-recent completed requests to keep in full when historical
   # tool-result compaction is enabled.
   # 0 means no recent requests are specially protected.
-  contextCompactionKeepRecentRequests: 1
+  keepRecentRequests: 1
 
   # Any tool result larger than this fraction of the model context window is
   # truncated with head+tail preservation before being sent to the main model.
   # This applies even to current-request tool outputs and acts as a hard
   # safety net against giant tool payloads. Must be between 0 and 1.
-  # Set to 0 to disable oversized tool-result truncation.
-  # Example: 0.064 means "truncate tool results once they exceed about
-  # 6.4% of the model context window".
-  contextCompactionOversizedToolResultMaxRatio: 0.064
+  oversizedToolResultRatio: 0.065
 
-  # Raw-history fallback when addSessionSummary is false.
-  # 0 means unlimited raw history.
-  # When addSessionSummary is true, the summary path is preferred and this
-  # value matters much less.
-  maxHistoryRuns: 50
+# Raw-history cap used only when compaction.mode is truncate.
+maxHistoryRuns: 50
 
 model:
   # Primary chat/completion model used for the main agent turn execution.

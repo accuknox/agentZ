@@ -28,6 +28,7 @@ type resolvedAgent struct {
 type resolver struct {
 	namespace      string
 	targetOverride string
+	client         clientset.Interface
 	lister         listersv1alpha1.AgentLister
 	stopCh         chan struct{}
 	stopOnce       sync.Once
@@ -60,6 +61,7 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 	r := &resolver{
 		namespace:      namespace,
 		targetOverride: strings.TrimSpace(targetOverride),
+		client:         cs,
 		lister:         lister,
 		stopCh:         make(chan struct{}),
 	}

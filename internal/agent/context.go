@@ -158,6 +158,9 @@ func applyGenerationDefaults(req *model.Request, gen model.GenerationConfig) {
 }
 
 func buildSummarizer(summaryModel model.Model, cfg clawarmorv1alpha1.AgentSpec) (agentsummary.SessionSummarizer, error) {
+	if cfg.Compaction.Mode != clawarmorv1alpha1.CompactionModeSummary {
+		return nil, nil
+	}
 	if !*cfg.Session.Summary.Enabled {
 		return nil, nil
 	}
@@ -184,7 +187,7 @@ func buildSummarizer(summaryModel model.Model, cfg clawarmorv1alpha1.AgentSpec) 
 			agentsummary.WithContextThresholdFallbackWindow(summaryFallbackWindow(cfg)),
 			agentsummary.WithContextThresholdMinTokens(0),
 			agentsummary.WithContextThresholdRatio(
-				cfg.Agent.ContextCompactionThresholdRatio,
+				cfg.Compaction.ThresholdRatio,
 			),
 		))
 	case sessionSummaryModeManual:

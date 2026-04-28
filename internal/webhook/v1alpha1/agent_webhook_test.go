@@ -53,6 +53,9 @@ var _ = Describe("Agent Webhook", func() {
 				Model: clawarmorv1alpha1.ModelConfig{
 					Name: "gpt-5.4-mini",
 				},
+				SummaryModel: clawarmorv1alpha1.SummaryModelConfig{
+					Name: "gpt-5.4-nano",
+				},
 				Session: clawarmorv1alpha1.SessionConfig{
 					ID:      "550e8400-e29b-41d4-a716-446655440000",
 					Enabled: false,

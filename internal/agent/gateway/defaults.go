@@ -11,6 +11,8 @@ const (
 	DefaultNamespace = "default"
 	// DefaultValkeyAddr is the default Valkey address.
 	DefaultValkeyAddr = "localhost:6379"
+	// DefaultAgentServerAddress is the default Agent gRPC listen address.
+	DefaultAgentServerAddress = "0.0.0.0:8080"
 )
 
 const (

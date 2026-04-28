@@ -125,7 +125,7 @@ var _ = Describe("Agent Controller", func() {
 
 		agt := &clawarmorv1alpha1.Agent{}
 		Expect(k8sClient.Get(ctx, key, agt)).To(Succeed())
-		agt.Spec.Agent.Instruction = "Be concise."
+		agt.Spec.Instruction = "Be concise."
 		Expect(k8sClient.Update(ctx, agt)).To(Succeed())
 
 		_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})

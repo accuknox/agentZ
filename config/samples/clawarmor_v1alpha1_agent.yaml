@@ -19,16 +19,16 @@ spec:
     address: 0.0.0.0:8080
     gracefulShutdownTimeout: 15s
 
-  agent:
-    instruction: ""
-    systemPrompt: ""
-    addSessionSummary: true
-    enableContextCompaction: true
-    contextCompactionThresholdRatio: 0.7
-    contextCompactionToolResultMaxRatio: 0.008
-    contextCompactionKeepRecentRequests: 1
-    contextCompactionOversizedToolResultMaxRatio: 0.064
-    maxHistoryRuns: 50
+  instruction: ""
+  systemPrompt: ""
+  compaction:
+    mode: summary
+    enabled: true
+    thresholdRatio: 0.9
+    historyToolResultRatio: 0.008
+    keepRecentRequests: 2
+    oversizedToolResultRatio: 0.065
+  maxHistoryRuns: 50
 
   model:
     name: gpt-5.4-nano

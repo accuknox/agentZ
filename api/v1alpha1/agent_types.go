@@ -39,6 +39,13 @@ const (
 )
 
 const (
+	// CompactionModeSummary uses session summaries to rebuild long context.
+	CompactionModeSummary = "summary"
+	// CompactionModeTruncate caps raw history without summary injection.
+	CompactionModeTruncate = "truncate"
+)
+
+const (
 	// ReasonConfigInvalid indicates the Agent spec cannot produce a runtime.
 	ReasonConfigInvalid = "ConfigInvalid"
 	// ReasonDeploymentCreating indicates the deployment is being created.
@@ -76,9 +83,24 @@ type AgentSpec struct {
 	// +required
 	Server ServerConfig `json:"server"`
 
-	// Agent defines identity and prompt settings for the runtime.
+	// Instruction is the main behavioral guidance appended to the prompt.
 	// +optional
-	Agent AgentConfig `json:"agent,omitempty"`
+	Instruction string `json:"instruction,omitempty"`
+
+	// SystemPrompt defines hard rules and role framing for every turn.
+	// +kubebuilder:validation:MaxLength=4096
+	// +optional
+	SystemPrompt string `json:"systemPrompt,omitempty"`
+
+	// Compaction configures prompt rebuilding and tool-result trimming.
+	// +optional
+	Compaction ContextCompactionConfig `json:"compaction,omitempty"`
+
+	// MaxHistoryRuns caps raw history in truncate compaction mode.
+	// +kubebuilder:default=50
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	MaxHistoryRuns int `json:"maxHistoryRuns,omitempty"`
 
 	// Model defines the primary chat model.
 	// +required
@@ -116,51 +138,49 @@ type ServerConfig struct {
 	GracefulShutdownTimeout metav1.Duration `json:"gracefulShutdownTimeout"`
 }
 
-// AgentConfig defines agent identity and prompt settings.
-type AgentConfig struct {
-	// Instruction is high-level task guidance appended to the prompt.
+// ContextCompactionConfig defines prompt compaction and truncation settings.
+type ContextCompactionConfig struct {
+	// Mode selects summary-backed compaction or raw-history truncation.
+	// +kubebuilder:default=summary
+	// +kubebuilder:validation:Enum=summary;truncate
 	// +optional
-	Instruction string `json:"instruction,omitempty"`
+	Mode string `json:"mode,omitempty"`
 
-	// SystemPrompt is global instruction applied to every turn.
+	// Enabled lets the runtime rebuild large prompts through summaries before
+	// the main model call.
 	// +optional
-	SystemPrompt string `json:"systemPrompt,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 
-	// AddSessionSummary injects the latest persisted summary into context.
+	// ThresholdRatio is the model context-window fraction that makes pre-turn
+	// summary-backed compaction eligible.
+	// +kubebuilder:default=0.9
+	// +kubebuilder:validation:Minimum=0.2
+	// +kubebuilder:validation:Maximum=0.95
 	// +optional
-	AddSessionSummary *bool `json:"addSessionSummary,omitempty"`
+	ThresholdRatio float64 `json:"thresholdRatio,omitempty"`
 
-	// EnableContextCompaction enables summary-backed context compaction.
-	// +optional
-	EnableContextCompaction *bool `json:"enableContextCompaction,omitempty"`
-
-	// ContextCompactionThresholdRatio triggers compaction by context ratio.
+	// HistoryToolResultRatio replaces older tool results above this context
+	// window fraction with compact placeholders during request construction.
+	// +kubebuilder:default=0.008
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=1
 	// +optional
-	ContextCompactionThresholdRatio float64 `json:"contextCompactionThresholdRatio,omitempty"`
+	HistoryToolResultRatio float64 `json:"historyToolResultRatio,omitempty"`
 
-	// ContextCompactionToolResultMaxRatio compacts old tool results.
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Maximum=1
-	// +optional
-	ContextCompactionToolResultMaxRatio float64 `json:"contextCompactionToolResultMaxRatio,omitempty"`
-
-	// ContextCompactionKeepRecentRequests preserves recent requests in full.
+	// KeepRecentRequests preserves the latest completed requests in full when
+	// historical tool-result compaction is enabled.
+	// +kubebuilder:default=2
 	// +kubebuilder:validation:Minimum=0
 	// +optional
-	ContextCompactionKeepRecentRequests int `json:"contextCompactionKeepRecentRequests,omitempty"`
+	KeepRecentRequests int `json:"keepRecentRequests,omitempty"`
 
-	// ContextCompactionOversizedToolResultMaxRatio truncates large results.
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Maximum=1
+	// OversizedToolResultRatio truncates any tool result above this context
+	// window fraction with head and tail preservation.
+	// +kubebuilder:default=0.065
+	// +kubebuilder:validation:Minimum=0.05
+	// +kubebuilder:validation:Maximum=0.1
 	// +optional
-	ContextCompactionOversizedToolResultMaxRatio float64 `json:"contextCompactionOversizedToolResultMaxRatio,omitempty"`
-
-	// MaxHistoryRuns caps raw history when summaries are not used.
-	// +kubebuilder:validation:Minimum=0
-	// +optional
-	MaxHistoryRuns int `json:"maxHistoryRuns,omitempty"`
+	OversizedToolResultRatio float64 `json:"oversizedToolResultRatio,omitempty"`
 }
 
 // ModelConfig defines LLM backend and generation settings.
@@ -179,6 +199,9 @@ type ModelConfig struct {
 	ContextWindow int `json:"contextWindow,omitempty"`
 
 	// Temperature configures model sampling.
+	// +kubebuilder:default=0.2
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=1
 	// +optional
 	Temperature float64 `json:"temperature,omitempty"`
 
@@ -219,6 +242,9 @@ type SummaryModelConfig struct {
 	ContextWindow int `json:"contextWindow,omitempty"`
 
 	// Temperature configures summarization sampling.
+	// +kubebuilder:default=0.2
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=1
 	// +optional
 	Temperature float64 `json:"temperature,omitempty"`
 
@@ -371,8 +397,9 @@ type ToolsConfig struct {
 // HostExecConfig defines host command execution limits.
 type HostExecConfig struct {
 	// Enabled turns host execution tools on.
+	// +kubebuilder:default=true
 	// +optional
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 
 	// BaseDir is the working-directory root for commands.
 	// +optional
@@ -386,8 +413,9 @@ type HostExecConfig struct {
 // WebFetchConfig defines fetch policy and response size limits.
 type WebFetchConfig struct {
 	// Enabled turns web fetch tools on.
+	// +kubebuilder:default=true
 	// +optional
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 
 	// TimeoutMs is the per-request fetch timeout.
 	// +kubebuilder:validation:Minimum=0
@@ -408,8 +436,9 @@ type WebFetchConfig struct {
 // FileConfig defines file tool access boundaries.
 type FileConfig struct {
 	// Enabled turns file tools on.
+	// +kubebuilder:default=false
 	// +optional
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 
 	// BaseDir is the filesystem root exposed to file tools.
 	// +optional
@@ -419,8 +448,9 @@ type FileConfig struct {
 // ArxivConfig defines arXiv client behavior.
 type ArxivConfig struct {
 	// Enabled turns arXiv search on.
+	// +kubebuilder:default=false
 	// +optional
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 
 	// BaseURL is the arXiv API base URL.
 	// +optional

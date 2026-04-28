@@ -80,42 +80,6 @@ func (q *Queries) CreateEventNow(ctx context.Context, arg CreateEventNowParams) 
 	return i, err
 }
 
-const createSession = `-- name: CreateSession :one
-INSERT INTO sessions(session_id, agent_name)
-VALUES ($1, $2)
-RETURNING session_id, agent_name, created_at, updated_at
-`
-
-type CreateSessionParams struct {
-	SessionID uuid.UUID `json:"session_id"`
-	AgentName string    `json:"agent_name"`
-}
-
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
-	row := q.db.QueryRow(ctx, createSession, arg.SessionID, arg.AgentName)
-	var i Session
-	err := row.Scan(
-		&i.SessionID,
-		&i.AgentName,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const deleteSession = `-- name: DeleteSession :execrows
-DELETE FROM sessions
-WHERE session_id = $1
-`
-
-func (q *Queries) DeleteSession(ctx context.Context, sessionID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteSession, sessionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const getSession = `-- name: GetSession :one
 SELECT session_id, agent_name, created_at, updated_at
 FROM sessions

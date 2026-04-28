@@ -98,7 +98,7 @@ func (c *gatewayClient) printChatHistory(ctx context.Context, w io.Writer, limit
 func (c *gatewayClient) subscribeSession(ctx context.Context, w io.Writer) {
 	go func() {
 		retryStream(ctx, w, "session", func() error {
-			body := gatewayapi.SessionActionRequest{SessionId: c.session}
+			body := gatewayapi.SessionActionRequest{SessionId: c.session.String()}
 			resp, err := c.api.SubscribeSession(ctx, body, acceptSSE)
 			if err != nil {
 				return fmt.Errorf("open stream: %w", err)
@@ -119,7 +119,7 @@ func (c *gatewayClient) watchStatus(ctx context.Context, w io.Writer) {
 	c.status = newStatusPrinter(w)
 	go func() {
 		retryStream(ctx, w, "status", func() error {
-			ids := []gatewayapi.SessionID{c.session}
+			ids := []gatewayapi.SessionIDInput{c.session.String()}
 			body := gatewayapi.WatchAgentsRequest{
 				SessionIds: &ids,
 			}
@@ -167,7 +167,7 @@ func (c *gatewayClient) compact(ctx context.Context, w io.Writer) error {
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := c.api.CompactSession(callCtx,
-		gatewayapi.SessionActionRequest{SessionId: c.session},
+		gatewayapi.SessionActionRequest{SessionId: c.session.String()},
 	)
 	if err != nil {
 		return fmt.Errorf("gateway request: %w", err)
@@ -185,7 +185,7 @@ func (c *gatewayClient) streamPrompt(ctx context.Context, prompt string) error {
 	defer cancel()
 	resp, err := c.api.SendMessage(callCtx,
 		gatewayapi.SendMessageRequest{
-			SessionId: c.session,
+			SessionId: c.session.String(),
 			Prompt:    prompt,
 		},
 	)
@@ -200,7 +200,7 @@ func (c *gatewayClient) interrupt(ctx context.Context) error {
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := c.api.InterruptSession(callCtx,
-		gatewayapi.SessionActionRequest{SessionId: c.session},
+		gatewayapi.SessionActionRequest{SessionId: c.session.String()},
 	)
 	if err != nil {
 		return fmt.Errorf("gateway request: %w", err)

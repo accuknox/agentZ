@@ -57,6 +57,56 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/create-agent:
+    post:
+      operationId: createAgent
+      summary: Create a session-backed Agent.
+      description: >
+        Creates a session row and Agent custom resource. The request returns
+        after the Agent resource is created and does not wait for the Agent to
+        become ready.
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '201':
+          description: Agent resource created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/delete-agent:
+    post:
+      operationId: deleteAgent
+      summary: Delete a session-backed Agent.
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAgentRequest'
+      responses:
+        '204':
+          description: Agent and session were deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/send-message:
     post:
       operationId: sendMessage
@@ -286,6 +336,13 @@ components:
       format: uuid
       description: ClawArmor session UUID.
 
+    SessionIDInput:
+      type: string
+      format: uuid
+      x-go-type: string
+      minLength: 1
+      description: ClawArmor session UUID.
+
     RunID:
       type: string
       format: uuid
@@ -312,9 +369,25 @@ components:
         message:
           type: string
           minLength: 1
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
         details:
           $ref: '#/components/schemas/JSONValue'
       required: [code, message]
+
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+          minLength: 1
+        message:
+          type: string
+          minLength: 1
+      required: [field, message]
 
     ChatHistoryResponse:
       type: object
@@ -392,12 +465,141 @@ components:
       - WORKING
       - WAITING_FOR_HUMAN_INTERACTION
 
+    CreateAgentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/AgentName'
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        systemPrompt:
+          type: string
+          maxLength: 4096
+        compaction:
+          $ref: '#/components/schemas/CreateAgentCompaction'
+        maxHistoryRuns:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 50
+        model:
+          $ref: '#/components/schemas/CreateAgentModel'
+        tools:
+          $ref: '#/components/schemas/CreateAgentTools'
+      required: [name, model]
+
+    DeleteAgentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionIDInput'
+      required: [session_id]
+
+    CreateAgentCompaction:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          $ref: '#/components/schemas/CompactionMode'
+        thresholdRatio:
+          type: number
+          format: double
+          minimum: 0.2
+          maximum: 0.95
+          default: 0.9
+        historyToolResultRatio:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          default: 0.008
+        keepRecentRequests:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 2
+        oversizedToolResultRatio:
+          type: number
+          format: double
+          minimum: 0.05
+          maximum: 0.1
+          default: 0.065
+
+    CompactionMode:
+      type: string
+      enum:
+      - summary
+      - truncate
+      default: summary
+
+    CreateAgentModel:
+      type: object
+      additionalProperties: false
+      properties:
+        primary:
+          $ref: '#/components/schemas/CreateAgentModelConfig'
+        summary:
+          $ref: '#/components/schemas/CreateAgentModelConfig'
+      required: [primary]
+
+    CreateAgentModelConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        contextWindow:
+          type: integer
+          format: int32
+          minimum: 1
+        temperature:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          default: 0.2
+      required: [name, contextWindow]
+
+    CreateAgentTools:
+      type: object
+      additionalProperties: false
+      properties:
+        hostExec:
+          $ref: '#/components/schemas/CreateAgentEnabledByDefaultTool'
+        webFetch:
+          $ref: '#/components/schemas/CreateAgentEnabledByDefaultTool'
+        file:
+          $ref: '#/components/schemas/CreateAgentDisabledByDefaultTool'
+        arxiv:
+          $ref: '#/components/schemas/CreateAgentDisabledByDefaultTool'
+
+    CreateAgentEnabledByDefaultTool:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+          default: true
+
+    CreateAgentDisabledByDefaultTool:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+          default: false
+
     SendMessageRequest:
       type: object
       additionalProperties: false
       properties:
         session_id:
-          $ref: '#/components/schemas/SessionID'
+          $ref: '#/components/schemas/SessionIDInput'
         prompt:
           type: string
           minLength: 1
@@ -423,7 +625,7 @@ components:
       additionalProperties: false
       properties:
         session_id:
-          $ref: '#/components/schemas/SessionID'
+          $ref: '#/components/schemas/SessionIDInput'
       required: [session_id]
 
     InterruptSessionResponse:
@@ -449,7 +651,7 @@ components:
         session_ids:
           type: array
           items:
-            $ref: '#/components/schemas/SessionID'
+            $ref: '#/components/schemas/SessionIDInput'
           uniqueItems: true
 
     WatchAgentsEvent:

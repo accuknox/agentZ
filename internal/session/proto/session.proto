@@ -9,10 +9,8 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 service SessionService {
-  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
-  rpc DeleteSession(DeleteSessionRequest) returns (google.protobuf.Empty);
   rpc AppendEvent(AppendEventRequest) returns (AppendEventResponse);
   rpc UpdateSessionState(UpdateSessionStateRequest) returns (google.protobuf.Empty);
   rpc UpsertSessionSummary(UpsertSessionSummaryRequest) returns (google.protobuf.Empty);
@@ -45,15 +43,6 @@ message SessionSummary {
   google.protobuf.Timestamp updated_at = 4;
 }
 
-message CreateSessionRequest {
-  string session_id = 1;
-  string agent_name = 2;
-}
-
-message CreateSessionResponse {
-  SessionMeta session = 1;
-}
-
 message GetSessionRequest {
   string session_id = 1;
   int32 event_num = 2;
@@ -73,10 +62,6 @@ message ListSessionsRequest {}
 
 message ListSessionsResponse {
   repeated SessionMeta sessions = 1;
-}
-
-message DeleteSessionRequest {
-  string session_id = 1;
 }
 
 message AppendEventRequest {

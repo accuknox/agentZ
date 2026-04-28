@@ -8,6 +8,12 @@ metadata:
 spec:
   image: murtazau/clawarmor-agent:latest
   imagePullPolicy: Never
+  env:
+  - name: OPENAI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: openai-api-key
+        key: OPENAI_API_KEY
 
   server:
     address: 0.0.0.0:8080
@@ -25,10 +31,9 @@ spec:
     maxHistoryRuns: 50
 
   model:
-    name: gpt-oss:20b
-    baseURL: "http://100.92.36.14:11434/v1/"
-    contextWindow: 100000
-    reasoningEffort: medium
+    name: gpt-5.4-nano
+    # baseURL: "http://100.92.36.14:11434/v1/"
+    contextWindow: 200000
     temperature: 0.2
     maxTokens: 0
     stream: true

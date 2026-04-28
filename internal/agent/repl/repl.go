@@ -13,21 +13,20 @@ import (
 	"github.com/chzyer/readline"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 
-	gatewaypb "github.com/accuknox/clawarmor/internal/agent/gateway/proto"
+	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
 )
 
 const (
 	replPrompt            = "> "
+	defaultHistoryLimit   = 25
 	interruptedRunMessage = "Run interrupted by user."
 )
 
 // Options configures the remote agent REPL.
 type Options struct {
-	Target          string
-	SessionID       string
-	SessionTarget   string
-	SessionInsecure bool
-	HistoryLimit    int
+	Target       string
+	SessionID    string
+	HistoryLimit int
 }
 
 // Run runs an interactive remote chat session.
@@ -39,7 +38,6 @@ func Run(ctx context.Context, opts Options) error {
 	if err != nil {
 		return err
 	}
-	defer cl.close()
 
 	historyPath := filepath.Join(os.TempDir(), "clawarmor-agent.history")
 	rl, err := readline.NewEx(&readline.Config{
@@ -56,16 +54,10 @@ func Run(ctx context.Context, opts Options) error {
 	out := newREPLWriter(rl)
 
 	fmt.Fprintln(out, "Type /help for commands.")
-	err = printChatHistory(ctx, out, historyConfig{
-		Target:    opts.SessionTarget,
-		Insecure:  opts.SessionInsecure,
-		SessionID: opts.SessionID,
-		Limit:     opts.HistoryLimit,
-	})
+	err = cl.printChatHistory(ctx, out, opts.HistoryLimit)
 	if err != nil {
 		fmt.Fprintf(out, "history warning: %v\n", err)
 	}
-
 	cl.subscribeSession(ctx, out)
 	cl.watchStatus(ctx, out)
 
@@ -163,56 +155,159 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "/exit, /quit    Exit REPL")
 }
 
-func renderGatewayEvent(w io.Writer, evt *gatewaypb.SessionStreamEvent, sawContentDelta bool) bool {
+func (c *gatewayClient) renderSessionEvent(w io.Writer, evt *gatewayapi.SessionStreamEvent) {
+	if c == nil {
+		return
+	}
+	c.sawMu.Lock()
+	sawContentDelta := c.sawContentDelta
+	c.sawMu.Unlock()
+	next := renderGatewayEvent(w, evt, sawContentDelta)
+	c.sawMu.Lock()
+	c.sawContentDelta = next
+	if isGatewayTerminal(evt) {
+		c.sawContentDelta = false
+	}
+	c.sawMu.Unlock()
+}
+
+func renderGatewayEvent(w io.Writer, evt *gatewayapi.SessionStreamEvent, sawContentDelta bool) bool {
 	if evt == nil {
 		return sawContentDelta
 	}
-	switch evt.GetType() {
-	case gatewaypb.EventType_EVENT_TYPE_RUN_STARTED:
+	item, err := evt.ValueByDiscriminator()
+	if err != nil || item == nil {
+		return sawContentDelta
+	}
+	switch e := item.(type) {
+	case gatewayapi.SessionRunStartedEvent:
 		setREPLStreaming(w, true)
-		if evt.GetContent() != "" {
-			fmt.Fprintf(w, "\n[user] %s\n", evt.GetContent())
+		if e.Content != "" {
+			fmt.Fprintf(w, "\n[user] %s\n", e.Content)
 		}
-	case gatewaypb.EventType_EVENT_TYPE_TOOL_CALL:
+	case gatewayapi.SessionToolCallEvent:
 		printToolCall(w, "tool_call", model.ToolCall{
 			Function: model.FunctionDefinitionParam{
-				Name:      evt.GetToolName(),
-				Arguments: []byte(evt.GetToolPayload()),
+				Name:      e.ToolName,
+				Arguments: []byte(e.ToolPayload),
 			},
 		})
-	case gatewaypb.EventType_EVENT_TYPE_TOOL_RESULT:
+	case gatewayapi.SessionToolResultEvent:
 		printToolResult(w, model.Message{
 			Role:     model.RoleTool,
-			ToolName: evt.GetToolName(),
-			Content:  evt.GetToolPayload(),
+			ToolName: e.ToolName,
+			Content:  e.ToolPayload,
 		})
-	case gatewaypb.EventType_EVENT_TYPE_ASSISTANT_DELTA:
-		if evt.GetReasoningContent() != "" {
-			fmt.Fprintf(w, "\x1b[2m%s\x1b[0m", evt.GetReasoningContent())
+	case gatewayapi.SessionAssistantDeltaEvent:
+		if e.ReasoningContent != nil && *e.ReasoningContent != "" {
+			fmt.Fprintf(w, "\x1b[2m%s\x1b[0m", *e.ReasoningContent)
 			return sawContentDelta
 		}
-		if evt.GetContent() != "" {
-			fmt.Fprint(w, evt.GetContent())
+		if e.Content != nil && *e.Content != "" {
+			fmt.Fprint(w, *e.Content)
 			return true
 		}
 		return sawContentDelta
-	case gatewaypb.EventType_EVENT_TYPE_ASSISTANT_MESSAGE:
-		if evt.GetContent() != "" && !sawContentDelta {
-			fmt.Fprint(w, evt.GetContent())
+	case gatewayapi.SessionAssistantMessageEvent:
+		if e.Content != "" && !sawContentDelta {
+			fmt.Fprint(w, e.Content)
 		}
-	case gatewaypb.EventType_EVENT_TYPE_RUN_INTERRUPTED:
+	case gatewayapi.SessionRunInterruptedEvent:
 		fmt.Fprintln(w, interruptedRunMessage)
 		setREPLStreaming(w, false)
-	case gatewaypb.EventType_EVENT_TYPE_RUN_ERROR:
-		if evt.GetError() != "" {
-			fmt.Fprintf(w, "error: %s\n", evt.GetError())
+	case gatewayapi.SessionRunErrorEvent:
+		if e.Error != "" {
+			fmt.Fprintf(w, "error: %s\n", e.Error)
 		}
 		setREPLStreaming(w, false)
-	case gatewaypb.EventType_EVENT_TYPE_RUN_COMPLETED:
+	case gatewayapi.SessionRunCompletedEvent:
 		fmt.Fprintln(w)
 		setREPLStreaming(w, false)
 	}
 	return sawContentDelta
+}
+
+func renderHistoryEvent(w io.Writer, item gatewayapi.StoredSessionEvent) {
+	payload := item.Payload
+	if payload.Error != nil && strings.TrimSpace(payload.Error.Message) != "" {
+		fmt.Fprintf(w, "[error] %s\n", payload.Error.Message)
+		return
+	}
+	if payload.Choices == nil {
+		return
+	}
+	for _, choice := range *payload.Choices {
+		msg := choice.Message
+		if msg == nil {
+			msg = choice.Delta
+		}
+		if msg == nil {
+			continue
+		}
+		if msg.ToolCalls != nil {
+			for _, tc := range *msg.ToolCalls {
+				call := model.ToolCall{}
+				if tc.Id != nil {
+					call.ID = *tc.Id
+				}
+				if tc.Function != nil {
+					call.Function.Name = tc.Function.Name
+					if tc.Function.Arguments != nil {
+						call.Function.Arguments = []byte(*tc.Function.Arguments)
+					}
+				}
+				printToolCall(w, "tool_call", call)
+			}
+		}
+		if msg.Role == gatewayapi.Tool {
+			out := model.Message{Role: model.RoleTool}
+			if msg.ToolId != nil {
+				out.ToolID = *msg.ToolId
+			}
+			if msg.ToolName != nil {
+				out.ToolName = *msg.ToolName
+			}
+			if msg.Content != nil {
+				out.Content = *msg.Content
+			}
+			printToolResult(w, out)
+			continue
+		}
+
+		content := ""
+		if msg.Content != nil {
+			content = strings.TrimSpace(*msg.Content)
+		}
+		if content == "" && msg.ReasoningContent != nil {
+			content = strings.TrimSpace(*msg.ReasoningContent)
+		}
+		if content == "" {
+			continue
+		}
+		role := strings.TrimSpace(string(msg.Role))
+		if role == "" {
+			role = "message"
+		}
+		fmt.Fprintf(w, "[%s] %s\n", role, content)
+	}
+}
+
+func isGatewayTerminal(evt *gatewayapi.SessionStreamEvent) bool {
+	if evt == nil {
+		return false
+	}
+	t, err := evt.Discriminator()
+	if err != nil {
+		return false
+	}
+	switch gatewayapi.SessionStreamEventType(t) {
+	case gatewayapi.SessionStreamEventTypeEVENTTYPERUNCOMPLETED,
+		gatewayapi.SessionStreamEventTypeEVENTTYPERUNINTERRUPTED,
+		gatewayapi.SessionStreamEventTypeEVENTTYPERUNERROR:
+		return true
+	default:
+		return false
+	}
 }
 
 type streamPromptController interface {
@@ -228,51 +323,42 @@ func setREPLStreaming(w io.Writer, streaming bool) {
 
 type statusPrinter struct {
 	mu     sync.Mutex
-	last   map[string]*gatewaypb.AgentStatus
+	last   map[gatewayapi.SessionID]gatewayapi.Agent
 	output io.Writer
 }
 
 func newStatusPrinter(w io.Writer) *statusPrinter {
 	return &statusPrinter{
-		last:   make(map[string]*gatewaypb.AgentStatus),
+		last:   make(map[gatewayapi.SessionID]gatewayapi.Agent),
 		output: w,
 	}
 }
 
-func (p *statusPrinter) print(items []*gatewaypb.AgentStatus) {
+func (p *statusPrinter) print(items []gatewayapi.Agent) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		prev := p.last[item.GetSessionId()]
+		prev := p.last[item.SessionId]
 		if sameGatewayStatus(prev, item) {
 			continue
 		}
-		p.last[item.GetSessionId()] = item
+		p.last[item.SessionId] = item
 		fmt.Fprintf(
 			p.output,
-			"\n[status] session=%s agent=%s phase=%s reason=%s message=%s\n",
-			item.GetSessionId(),
-			item.GetAgentName(),
-			strings.TrimPrefix(item.GetPhase().String(), "AGENT_PHASE_"),
-			item.GetReason(),
-			item.GetMessage(),
+			"\n[status] session=%s agent=%s phase=%s\n",
+			item.SessionId,
+			item.Name,
+			item.Status,
 		)
 	}
 }
 
-func sameGatewayStatus(a, b *gatewaypb.AgentStatus) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return a.GetSessionId() == b.GetSessionId() &&
-		a.GetAgentName() == b.GetAgentName() &&
-		a.GetNamespace() == b.GetNamespace() &&
-		a.GetPhase() == b.GetPhase() &&
-		a.GetReason() == b.GetReason() &&
-		a.GetMessage() == b.GetMessage()
+func sameGatewayStatus(a, b gatewayapi.Agent) bool {
+	return a.SessionId == b.SessionId &&
+		a.Name == b.Name &&
+		a.Status == b.Status &&
+		a.LastActivity.Equal(b.LastActivity) &&
+		a.ModifiedAt.Equal(b.ModifiedAt)
 }
 
 func printToolCall(w io.Writer, kind string, tc model.ToolCall) {

@@ -3,7 +3,7 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.proto internal/agent/gateway/proto/gateway.proto
+PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.proto
 
 # Image URL to render into Kubernetes manifests.
 IMAGE ?= murtazau/clawarmor:latest
@@ -17,6 +17,7 @@ all: generate lint build
 .PHONY: generate
 generate:
 	sqlc generate
+	oapi-codegen -config oapi-codegen.gateway.yaml api/openapi.yaml
 	buf generate
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=true webhook \

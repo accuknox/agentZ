@@ -10,7 +10,7 @@ import (
 
 	"github.com/valkey-io/valkey-go"
 
-	gatewaypb "github.com/accuknox/clawarmor/internal/agent/gateway/proto"
+	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
 )
 
 type runMeta struct {
@@ -31,8 +31,8 @@ const (
 )
 
 type storedEvent struct {
-	Sequence int64                         `json:"sequence"`
-	Event    *gatewaypb.SessionStreamEvent `json:"event"`
+	Sequence int64                          `json:"sequence"`
+	Event    *gatewayapi.SessionStreamEvent `json:"event"`
 }
 
 type valkeyStore struct {
@@ -84,16 +84,19 @@ func (s *valkeyStore) initRun(ctx context.Context, meta runMeta) error {
 	return nil
 }
 
-func (s *valkeyStore) appendEvent(ctx context.Context, runID string, evt *gatewaypb.SessionStreamEvent) error {
+func (s *valkeyStore) appendEvent(ctx context.Context, runID string, evt *gatewayapi.SessionStreamEvent) error {
 	nextSeq, err := s.client.Do(ctx, s.client.B().Incr().Key(seqKey(runID)).Build()).AsInt64()
 	if err != nil {
 		return fmt.Errorf("next sequence: %w", err)
 	}
-	evt.Sequence = nextSeq
+	seqEvt, err := eventWithSequence(evt, nextSeq)
+	if err != nil {
+		return fmt.Errorf("set event sequence: %w", err)
+	}
 
 	payload, err := json.Marshal(storedEvent{
 		Sequence: nextSeq,
-		Event:    evt,
+		Event:    seqEvt,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
@@ -110,8 +113,9 @@ func (s *valkeyStore) appendEvent(ctx context.Context, runID string, evt *gatewa
 		return fmt.Errorf("append event: %w", err)
 	}
 
-	if isTerminalState(eventState(evt)) {
-		if err := s.updateRunState(ctx, runID, eventState(evt), evt.GetError()); err != nil {
+	state := eventState(seqEvt)
+	if isTerminalState(state) {
+		if err := s.updateRunState(ctx, runID, state, eventError(seqEvt)); err != nil {
 			return err
 		}
 		if err := s.applyTTL(ctx, runID); err != nil {
@@ -155,13 +159,13 @@ func (s *valkeyStore) getRun(ctx context.Context, runID string) (runMeta, error)
 	}, nil
 }
 
-func (s *valkeyStore) replay(ctx context.Context, runID string, afterSeq int64) ([]*gatewaypb.SessionStreamEvent, error) {
+func (s *valkeyStore) replay(ctx context.Context, runID string, afterSeq int64) ([]*gatewayapi.SessionStreamEvent, error) {
 	items, err := s.client.Do(ctx, s.client.B().Xrange().Key(streamKey(runID)).Start("-").End("+").Build()).AsXRange()
 	if err != nil {
 		return nil, fmt.Errorf("replay stream: %w", err)
 	}
 
-	evts := make([]*gatewaypb.SessionStreamEvent, 0, len(items))
+	evts := make([]*gatewayapi.SessionStreamEvent, 0, len(items))
 	for _, item := range items {
 		payload := item.FieldValues["payload"]
 		if payload == "" {
@@ -247,16 +251,79 @@ func streamKey(runID string) string {
 	return "agw:run:" + runID + ":events"
 }
 
-func eventState(evt *gatewaypb.SessionStreamEvent) runState {
-	switch evt.GetType() {
-	case gatewaypb.EventType_EVENT_TYPE_RUN_COMPLETED:
+func eventState(evt *gatewayapi.SessionStreamEvent) runState {
+	if evt == nil {
+		return runStateRunning
+	}
+	t, err := evt.Discriminator()
+	if err != nil {
+		return runStateRunning
+	}
+	switch gatewayapi.SessionStreamEventType(t) {
+	case gatewayapi.SessionStreamEventTypeEVENTTYPERUNCOMPLETED:
 		return runStateCompleted
-	case gatewaypb.EventType_EVENT_TYPE_RUN_INTERRUPTED:
+	case gatewayapi.SessionStreamEventTypeEVENTTYPERUNINTERRUPTED:
 		return runStateInterrupted
-	case gatewaypb.EventType_EVENT_TYPE_RUN_ERROR:
+	case gatewayapi.SessionStreamEventTypeEVENTTYPERUNERROR:
 		return runStateFailed
 	default:
 		return runStateRunning
+	}
+}
+
+func eventError(evt *gatewayapi.SessionStreamEvent) string {
+	if evt == nil {
+		return ""
+	}
+	out, err := evt.AsSessionRunErrorEvent()
+	if err != nil {
+		return ""
+	}
+	return out.Error
+}
+
+func eventWithSequence(evt *gatewayapi.SessionStreamEvent, seq int64) (*gatewayapi.SessionStreamEvent, error) {
+	if evt == nil {
+		return nil, fmt.Errorf("event is nil")
+	}
+	switch v, err := evt.ValueByDiscriminator(); {
+	case err != nil:
+		return nil, err
+	case v == nil:
+		return nil, fmt.Errorf("event discriminator is empty")
+	default:
+		var out gatewayapi.SessionStreamEvent
+		switch e := v.(type) {
+		case gatewayapi.SessionStreamUnspecifiedEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionStreamUnspecifiedEvent(e)
+		case gatewayapi.SessionRunStartedEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionRunStartedEvent(e)
+		case gatewayapi.SessionAssistantDeltaEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionAssistantDeltaEvent(e)
+		case gatewayapi.SessionAssistantMessageEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionAssistantMessageEvent(e)
+		case gatewayapi.SessionToolCallEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionToolCallEvent(e)
+		case gatewayapi.SessionToolResultEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionToolResultEvent(e)
+		case gatewayapi.SessionRunCompletedEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionRunCompletedEvent(e)
+		case gatewayapi.SessionRunInterruptedEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionRunInterruptedEvent(e)
+		case gatewayapi.SessionRunErrorEvent:
+			e.Sequence = seq
+			return &out, out.FromSessionRunErrorEvent(e)
+		default:
+			return nil, fmt.Errorf("unsupported event type %T", v)
+		}
 	}
 }
 

@@ -1,0 +1,1013 @@
+openapi: 3.0.3
+info:
+  title: ClawArmor HTTP API
+  version: 0.1.0
+  description: HTTP API for ClawArmor agent sessions and status streams.
+servers:
+- url: /
+  description: Current origin
+tags:
+- name: sessions
+  description: Session history and interaction APIs.
+- name: agents
+  description: Agent listing and status streaming APIs.
+
+paths:
+  /api/chat-history:
+    get:
+      operationId: getChatHistory
+      summary: Get paginated session event history.
+      tags: [sessions]
+      parameters:
+      - $ref: '#/components/parameters/SessionIDQuery'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated chat history for the session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatHistoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/list-agents:
+    get:
+      operationId: listAgents
+      summary: List paginated agent summaries.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/SessionIDFilterQuery'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated agent summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAgentsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/send-message:
+    post:
+      operationId: sendMessage
+      summary: Send a user prompt to a session agent.
+      tags: [sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: Message accepted and run started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendMessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/subscribe-session:
+    post:
+      operationId: subscribeSession
+      summary: Subscribe to live events for a session.
+      description: >
+        Returns an SSE stream. Each event data payload is a JSON object matching
+        SessionStreamEvent.
+      tags: [sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscribeSessionRequest'
+      responses:
+        '200':
+          description: Stream of session run events.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SessionStreamEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/interrupt-session:
+    post:
+      operationId: interruptSession
+      summary: Interrupt the active run for a session.
+      tags: [sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionActionRequest'
+      responses:
+        '200':
+          description: Interrupt result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterruptSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/compact-session:
+    post:
+      operationId: compactSession
+      summary: Compact the current session history.
+      tags: [sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionActionRequest'
+      responses:
+        '200':
+          description: Compaction result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompactSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/FailedPrecondition'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/watch-agents:
+    post:
+      operationId: watchAgents
+      summary: Watch agent status changes.
+      description: >
+        Returns an SSE stream. Each event data payload is a JSON object matching
+        WatchAgentsEvent. If session_ids is omitted or empty, all known agents
+        are watched.
+      tags: [agents]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchAgentsRequest'
+      responses:
+        '200':
+          description: Stream of agent status changes.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchAgentsEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    SessionIDQuery:
+      name: session_id
+      in: query
+      required: true
+      description: Session UUID.
+      schema:
+        $ref: '#/components/schemas/SessionID'
+
+    SessionIDFilterQuery:
+      name: session_id
+      in: query
+      required: false
+      description: Optional session UUID filters. Repeat the query parameter for multiple sessions.
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          $ref: '#/components/schemas/SessionID'
+
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of items to return.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 200
+        default: 50
+
+    PageTokenQuery:
+      name: page_token
+      in: query
+      required: false
+      description: Opaque pagination token from a previous response.
+      schema:
+        type: string
+        minLength: 1
+
+  responses:
+    BadRequest:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Request conflicts with current session state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    FailedPrecondition:
+      description: The session is not in the required state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unavailable:
+      description: A required backend is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    SessionID:
+      type: string
+      format: uuid
+      description: ClawArmor session UUID.
+
+    RunID:
+      type: string
+      format: uuid
+      description: Agent run UUID.
+
+    RequestID:
+      type: string
+      format: uuid
+      description: Agent request UUID.
+
+    AgentName:
+      type: string
+      minLength: 1
+      maxLength: 32
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          minLength: 1
+        message:
+          type: string
+          minLength: 1
+        details:
+          $ref: '#/components/schemas/JSONValue'
+      required: [code, message]
+
+    ChatHistoryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoredSessionEvent'
+        next_page_token:
+          type: string
+      required: [session_id, events, next_page_token]
+
+    StoredSessionEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        seq:
+          type: integer
+          format: int64
+          minimum: 1
+        event_id:
+          type: string
+          minLength: 1
+        event_ts:
+          type: string
+          format: date-time
+        payload:
+          $ref: '#/components/schemas/TrpcAgentEventPayload'
+      required: [seq, event_id, event_ts, payload]
+
+    ListAgentsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Agent'
+        next_page_token:
+          type: string
+      required: [agents, next_page_token]
+
+    Agent:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/AgentName'
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        last_activity:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+      required: [name, session_id, last_activity, created_at, modified_at, status]
+
+    AgentStatus:
+      type: string
+      enum:
+      - UNSPECIFIED
+      - PROGRESSING
+      - DEGRADED
+      - NOT_FOUND
+      - IDLE
+      - WORKING
+      - WAITING_FOR_HUMAN_INTERACTION
+
+    SendMessageRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        prompt:
+          type: string
+          minLength: 1
+      required: [session_id, prompt]
+
+    SendMessageResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        run_id:
+          $ref: '#/components/schemas/RunID'
+        request_id:
+          $ref: '#/components/schemas/RequestID'
+      required: [session_id, run_id, request_id]
+
+    SubscribeSessionRequest:
+      $ref: '#/components/schemas/SessionActionRequest'
+
+    SessionActionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+      required: [session_id]
+
+    InterruptSessionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        interrupted:
+          type: boolean
+      required: [interrupted]
+
+    CompactSessionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    WatchAgentsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        session_ids:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionID'
+          uniqueItems: true
+
+    WatchAgentsEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Agent'
+      required: [agents]
+
+    SessionStreamEvent:
+      oneOf:
+      - $ref: '#/components/schemas/SessionStreamUnspecifiedEvent'
+      - $ref: '#/components/schemas/SessionRunStartedEvent'
+      - $ref: '#/components/schemas/SessionAssistantDeltaEvent'
+      - $ref: '#/components/schemas/SessionAssistantMessageEvent'
+      - $ref: '#/components/schemas/SessionToolCallEvent'
+      - $ref: '#/components/schemas/SessionToolResultEvent'
+      - $ref: '#/components/schemas/SessionRunCompletedEvent'
+      - $ref: '#/components/schemas/SessionRunInterruptedEvent'
+      - $ref: '#/components/schemas/SessionRunErrorEvent'
+      discriminator:
+        propertyName: type
+        mapping:
+          EVENT_TYPE_UNSPECIFIED: '#/components/schemas/SessionStreamUnspecifiedEvent'
+          EVENT_TYPE_RUN_STARTED: '#/components/schemas/SessionRunStartedEvent'
+          EVENT_TYPE_ASSISTANT_DELTA: '#/components/schemas/SessionAssistantDeltaEvent'
+          EVENT_TYPE_ASSISTANT_MESSAGE: '#/components/schemas/SessionAssistantMessageEvent'
+          EVENT_TYPE_TOOL_CALL: '#/components/schemas/SessionToolCallEvent'
+          EVENT_TYPE_TOOL_RESULT: '#/components/schemas/SessionToolResultEvent'
+          EVENT_TYPE_RUN_COMPLETED: '#/components/schemas/SessionRunCompletedEvent'
+          EVENT_TYPE_RUN_INTERRUPTED: '#/components/schemas/SessionRunInterruptedEvent'
+          EVENT_TYPE_RUN_ERROR: '#/components/schemas/SessionRunErrorEvent'
+
+    SessionStreamBase:
+      type: object
+      additionalProperties: false
+      properties:
+        sequence:
+          type: integer
+          format: int64
+          minimum: 0
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        run_id:
+          $ref: '#/components/schemas/RunID'
+        request_id:
+          $ref: '#/components/schemas/RequestID'
+        type:
+          $ref: '#/components/schemas/SessionStreamEventType'
+      required: [sequence, session_id, run_id, request_id, type]
+
+    SessionStreamEventType:
+      type: string
+      enum:
+      - EVENT_TYPE_UNSPECIFIED
+      - EVENT_TYPE_RUN_STARTED
+      - EVENT_TYPE_ASSISTANT_DELTA
+      - EVENT_TYPE_ASSISTANT_MESSAGE
+      - EVENT_TYPE_TOOL_CALL
+      - EVENT_TYPE_TOOL_RESULT
+      - EVENT_TYPE_RUN_COMPLETED
+      - EVENT_TYPE_RUN_INTERRUPTED
+      - EVENT_TYPE_RUN_ERROR
+
+    SessionStreamUnspecifiedEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_UNSPECIFIED]
+        required: [type]
+
+    SessionRunStartedEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_RUN_STARTED]
+          content:
+            type: string
+            description: The prompt that started the run.
+        required: [type, content]
+
+    SessionAssistantDeltaEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_ASSISTANT_DELTA]
+          content:
+            type: string
+          reasoning_content:
+            type: string
+        required: [type]
+
+    SessionAssistantMessageEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_ASSISTANT_MESSAGE]
+          content:
+            type: string
+          reasoning_content:
+            type: string
+        required: [type, content]
+
+    SessionToolCallEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_TOOL_CALL]
+          tool_name:
+            type: string
+          tool_payload:
+            type: string
+            description: JSON-encoded tool arguments.
+        required: [type, tool_name, tool_payload]
+
+    SessionToolResultEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_TOOL_RESULT]
+          tool_name:
+            type: string
+          tool_payload:
+            type: string
+        required: [type, tool_name, tool_payload]
+
+    SessionRunCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_RUN_COMPLETED]
+        required: [type]
+
+    SessionRunInterruptedEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_RUN_INTERRUPTED]
+          content:
+            type: string
+        required: [type]
+
+    SessionRunErrorEvent:
+      allOf:
+      - $ref: '#/components/schemas/SessionStreamBase'
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [EVENT_TYPE_RUN_ERROR]
+          error:
+            type: string
+            minLength: 1
+        required: [type, error]
+
+    TrpcAgentEventPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        requestID:
+          type: string
+        invocationId:
+          type: string
+        parentInvocationId:
+          type: string
+        author:
+          type: string
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        branch:
+          type: string
+        tag:
+          type: string
+        requiresCompletion:
+          type: boolean
+        longRunningToolIDs:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: false
+        stateDelta:
+          type: object
+          additionalProperties:
+            type: string
+            format: byte
+        extensions:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/JSONValue'
+        actions:
+          $ref: '#/components/schemas/EventActions'
+        filterKey:
+          type: string
+        version:
+          type: integer
+          format: int32
+          minimum: 0
+        object:
+          $ref: '#/components/schemas/ModelObjectType'
+        created:
+          type: integer
+          format: int64
+          minimum: 0
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Choice'
+        usage:
+          $ref: '#/components/schemas/Usage'
+        system_fingerprint:
+          type: string
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ModelResponseError'
+        done:
+          type: boolean
+        is_partial:
+          type: boolean
+      required: [invocationId, author, id, timestamp]
+
+    EventActions:
+      type: object
+      additionalProperties: false
+      properties:
+        skipSummarization:
+          type: boolean
+
+    ModelObjectType:
+      type: string
+      enum:
+      - error
+      - tool.response
+      - preprocessing.basic
+      - preprocessing.content
+      - preprocessing.identity
+      - preprocessing.instruction
+      - preprocessing.planning
+      - postprocessing.planning
+      - postprocessing.code_execution
+      - agent.transfer
+      - runner.completion
+      - state.update
+      - chat.completion.chunk
+      - chat.completion
+
+    Choice:
+      type: object
+      additionalProperties: false
+      properties:
+        index:
+          type: integer
+          format: int32
+          minimum: 0
+        message:
+          $ref: '#/components/schemas/ModelMessage'
+        delta:
+          $ref: '#/components/schemas/ModelMessage'
+        finish_reason:
+          type: string
+          nullable: true
+      required: [index]
+
+    ModelMessage:
+      type: object
+      additionalProperties: false
+      properties:
+        role:
+          $ref: '#/components/schemas/MessageRole'
+        content:
+          type: string
+        content_parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentPart'
+        tool_id:
+          type: string
+        tool_name:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolCall'
+        reasoning_content:
+          type: string
+      required: [role]
+
+    MessageRole:
+      type: string
+      enum: [system, user, assistant, tool]
+
+    ContentPart:
+      oneOf:
+      - $ref: '#/components/schemas/TextContentPart'
+      - $ref: '#/components/schemas/ImageContentPart'
+      - $ref: '#/components/schemas/AudioContentPart'
+      - $ref: '#/components/schemas/FileContentPart'
+      discriminator:
+        propertyName: type
+        mapping:
+          text: '#/components/schemas/TextContentPart'
+          image: '#/components/schemas/ImageContentPart'
+          audio: '#/components/schemas/AudioContentPart'
+          file: '#/components/schemas/FileContentPart'
+
+    TextContentPart:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [text]
+        text:
+          type: string
+      required: [type, text]
+
+    ImageContentPart:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [image]
+        image:
+          $ref: '#/components/schemas/Image'
+      required: [type, image]
+
+    AudioContentPart:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [audio]
+        audio:
+          $ref: '#/components/schemas/Audio'
+      required: [type, audio]
+
+    FileContentPart:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [file]
+        file:
+          $ref: '#/components/schemas/File'
+      required: [type, file]
+
+    Image:
+      type: object
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+        data:
+          type: string
+          format: byte
+        detail:
+          $ref: '#/components/schemas/ImageDetail'
+        format:
+          type: string
+          enum: [png, jpg, jpeg, webp, gif]
+
+    ImageDetail:
+      type: string
+      enum: [low, high, auto]
+
+    Audio:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: string
+          format: byte
+        format:
+          type: string
+          enum: [wav, mp3]
+      required: [data, format]
+
+    File:
+      type: object
+      additionalProperties: false
+      properties:
+        filename:
+          type: string
+        data:
+          type: string
+          format: byte
+        file_id:
+          type: string
+        format:
+          type: string
+          description: MIME type for file data.
+
+    ToolCall:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [function]
+        function:
+          $ref: '#/components/schemas/FunctionDefinitionParam'
+        id:
+          type: string
+        index:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+        extra_fields:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/JSONValue'
+      required: [type]
+
+    FunctionDefinitionParam:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,64}$'
+        strict:
+          type: boolean
+        description:
+          type: string
+        arguments:
+          type: string
+          description: JSON-encoded function arguments.
+      required: [name]
+
+    Usage:
+      type: object
+      additionalProperties: false
+      properties:
+        prompt_tokens:
+          type: integer
+          format: int32
+          minimum: 0
+        completion_tokens:
+          type: integer
+          format: int32
+          minimum: 0
+        total_tokens:
+          type: integer
+          format: int32
+          minimum: 0
+        prompt_tokens_details:
+          $ref: '#/components/schemas/PromptTokensDetails'
+        timing_info:
+          $ref: '#/components/schemas/TimingInfo'
+      required:
+      - prompt_tokens
+      - completion_tokens
+      - total_tokens
+      - prompt_tokens_details
+
+    PromptTokensDetails:
+      type: object
+      additionalProperties: false
+      properties:
+        cached_tokens:
+          type: integer
+          format: int32
+          minimum: 0
+        cache_creation_tokens:
+          type: integer
+          format: int32
+          minimum: 0
+        cache_read_tokens:
+          type: integer
+          format: int32
+          minimum: 0
+      required: [cached_tokens]
+
+    TimingInfo:
+      type: object
+      additionalProperties: false
+      properties:
+        time_to_first_token:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Go time.Duration encoded as nanoseconds.
+        reasoning_duration:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Go time.Duration encoded as nanoseconds.
+
+    ModelResponseError:
+      type: object
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+        type:
+          type: string
+          enum: [stream_error, api_error, flow_error, run_error]
+        param:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+      required: [message, type]
+
+    JSONValue:
+      oneOf:
+      - type: boolean
+      - type: number
+      - type: string
+      - type: array
+        items:
+          $ref: '#/components/schemas/JSONValue'
+      - type: object
+        additionalProperties:
+          $ref: '#/components/schemas/JSONValue'

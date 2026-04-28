@@ -110,23 +110,6 @@ func (r *resolver) resolveSession(_ context.Context, sessionID string) (*resolve
 	return nil, errAgentNotFound
 }
 
-func (r *resolver) statusForSession(ctx context.Context, sessionID string) (*agentStatusView, error) {
-	resolved, err := r.resolveSession(ctx, sessionID)
-	if err != nil {
-		if err == errAgentNotFound {
-			return &agentStatusView{
-				SessionID: sessionID,
-				Namespace: r.namespace,
-				Phase:     agentPhaseNotFound,
-				Reason:    "AgentNotFound",
-				Message:   "No Agent matches the session id",
-			}, nil
-		}
-		return nil, err
-	}
-	return statusFromAgent(resolved.Agent), nil
-}
-
 func (r *resolver) agentTarget(agt *clawarmorv1alpha1.Agent) string {
 	if r.targetOverride != "" {
 		return r.targetOverride

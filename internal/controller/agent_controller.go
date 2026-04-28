@@ -132,8 +132,15 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
-	sum := sha256.Sum256(cfgYAML)
-	err = r.reconcileDeployment(ctx, agt, fmt.Sprintf("%x", sum))
+	hash, err := configHash(cfgYAML, agt.Spec.Env)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("hash config: %w", err)
+	}
+	err = r.reconcileDeployment(ctx, agt, hash)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -351,6 +358,7 @@ func (r *AgentReconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash str
 								"--config",
 								configMountPath,
 							},
+							Env:       agt.Spec.Env,
 							Resources: agt.Spec.Resources,
 							Ports: []corev1.ContainerPort{
 								{
@@ -402,12 +410,22 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 
 func renderConfig(agt *clawarmorv1alpha1.Agent) ([]byte, error) {
 	cfg := *agt.Spec.DeepCopy()
+	cfg.Env = nil
 	cfg.Server.GracefulShutdownTimeout = metav1.Duration{}
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("marshal yaml: %w", err)
 	}
 	return data, nil
+}
+
+func configHash(cfgYAML []byte, env []corev1.EnvVar) (string, error) {
+	envYAML, err := yaml.Marshal(env)
+	if err != nil {
+		return "", fmt.Errorf("marshal env yaml: %w", err)
+	}
+	sum := sha256.Sum256(append(cfgYAML, envYAML...))
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func serverPort(addr string) (int32, error) {

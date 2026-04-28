@@ -21,7 +21,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -113,6 +114,13 @@ func (in *AgentList) DeepCopyObject() runtime.Object {
 func (in *AgentSpec) DeepCopyInto(out *AgentSpec) {
 	*out = *in
 	in.Resources.DeepCopyInto(&out.Resources)
+	if in.Env != nil {
+		in, out := &in.Env, &out.Env
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	out.Server = in.Server
 	in.Agent.DeepCopyInto(&out.Agent)
 	in.Model.DeepCopyInto(&out.Model)
@@ -138,7 +146,7 @@ func (in *AgentStatus) DeepCopyInto(out *AgentStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]v1.Condition, len(*in))
+		*out = make([]metav1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

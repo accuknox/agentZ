@@ -60,32 +60,12 @@ WHERE session_id = $1
 ORDER BY seq DESC
 LIMIT $3;
 
--- name: ListChatHistory :many
-SELECT seq, event_id, event_ts, event_payload
-FROM session_events
-WHERE session_id = $1
-ORDER BY seq DESC
-LIMIT $2;
-
--- name: ListChatHistoryBefore :many
-SELECT seq, event_id, event_ts, event_payload
-FROM session_events
-WHERE session_id = $1
-  AND seq < $2
-ORDER BY seq DESC
-LIMIT $3;
-
 -- name: UpsertStateEntry :exec
 INSERT INTO state_entries(session_id, key, value, updated_at)
 VALUES ($1, $2, $3, now())
 ON CONFLICT(session_id, key) DO UPDATE
 SET value = EXCLUDED.value,
     updated_at = EXCLUDED.updated_at;
-
--- name: DeleteStateEntry :execrows
-DELETE FROM state_entries
-WHERE session_id = $1
-  AND key = $2;
 
 -- name: ListStateEntries :many
 SELECT session_id, key, value, updated_at

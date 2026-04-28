@@ -6,13 +6,5 @@ plugins:
 - local: protoc-gen-go-grpc
   out: internal
   opt: paths=source_relative
-- local: web/node_modules/ts-proto/protoc-gen-ts_proto
-  out: web/src/lib/server
-  strategy: all
-  opt:
-  - esModuleInterop=true
-  - importSuffix=.js
-  - env=node
-  - outputServices=grpc-js
 inputs:
 - directory: internal

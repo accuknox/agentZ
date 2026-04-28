@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ const (
 	sessionstoreSummaryName   = "clawarmor"
 	sessionSummaryModeAuto    = "auto"
 	sessionSummaryModeManual  = "manual"
+	openAIAPIKeyEnv           = "OPENAI_API_KEY"
 )
 
 type modelBackend struct {
@@ -85,7 +87,6 @@ func buildSummaryModel(cfg clawarmorv1alpha1.AgentSpec) model.Model {
 			cfg.SummaryModel.Temperature,
 			cfg.SummaryModel.MaxTokens,
 			false,
-			"",
 			nil,
 			0,
 		),
@@ -97,20 +98,21 @@ func openAIModel(backend modelBackend) model.Model {
 	if backend.baseURL != "" {
 		opts = append(opts, openai.WithBaseURL(backend.baseURL))
 	}
+	apiKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
+	if apiKey != "" {
+		opts = append(opts, openai.WithAPIKey(apiKey))
+	}
 	opts = append(opts, openai.WithEnableTokenTailoring(true))
 	return openai.New(backend.name, opts...)
 }
 
-func generationConfig(temp float64, maxTokens int, stream bool, reasoningEffort string, thinkingEnabled *bool, thinkingTokens int) model.GenerationConfig {
+func generationConfig(temp float64, maxTokens int, stream bool, thinkingEnabled *bool, thinkingTokens int) model.GenerationConfig {
 	gen := model.GenerationConfig{Stream: stream}
 	if temp > 0 {
 		gen.Temperature = &temp
 	}
 	if maxTokens > 0 {
 		gen.MaxTokens = &maxTokens
-	}
-	if reasoningEffort != "" {
-		gen.ReasoningEffort = new(reasoningEffort)
 	}
 	if thinkingEnabled != nil {
 		gen.ThinkingEnabled = new(*thinkingEnabled)

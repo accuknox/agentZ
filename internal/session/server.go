@@ -215,56 +215,6 @@ func (s *Service) GetSession(ctx context.Context, req *sessionpb.GetSessionReque
 	}, nil
 }
 
-// GetChatHistory returns normalized chat history with newest items first.
-func (s *Service) GetChatHistory(ctx context.Context, req *sessionpb.GetChatHistoryRequest) (*sessionpb.GetChatHistoryResponse, error) {
-	sessionID, err := parseSessionID(req.GetSessionId())
-	if err != nil {
-		return nil, err
-	}
-	_, err = s.queries.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, mapStoreError("get session", err)
-	}
-
-	limit, err := chatHistoryLimit(req.GetPageSize())
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.listChatHistoryRows(ctx, sessionID, req.GetBeforeSeq(), limit+1)
-	if err != nil {
-		return nil, err
-	}
-
-	hasMore := len(rows) > int(limit)
-	if hasMore {
-		rows = rows[:int(limit)]
-	}
-
-	items := make([]*sessionpb.ChatHistoryItem, 0, len(rows))
-	for _, row := range rows {
-		rowItems, err := chatHistoryItemsFromJSON(
-			row.Seq,
-			row.EventID,
-			row.EventTs,
-			row.EventPayload,
-		)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "decode chat history: %v", err)
-		}
-		items = append(items, rowItems...)
-	}
-
-	var nextBeforeSeq int64
-	if len(rows) > 0 {
-		nextBeforeSeq = rows[len(rows)-1].Seq
-	}
-	return &sessionpb.GetChatHistoryResponse{
-		Items:         items,
-		NextBeforeSeq: nextBeforeSeq,
-		HasMore:       hasMore,
-	}, nil
-}
-
 // ListSessions returns known session metadata.
 func (s *Service) ListSessions(ctx context.Context, _ *sessionpb.ListSessionsRequest) (*sessionpb.ListSessionsResponse, error) {
 	rows, err := s.queries.ListSessions(ctx)
@@ -390,32 +340,6 @@ func (s *Service) UpdateSessionState(ctx context.Context, req *sessionpb.UpdateS
 	return &emptypb.Empty{}, nil
 }
 
-// DeleteSessionState removes one session-scoped state key.
-func (s *Service) DeleteSessionState(ctx context.Context, req *sessionpb.DeleteSessionStateRequest) (*emptypb.Empty, error) {
-	sessionID, err := parseSessionID(req.GetSessionId())
-	if err != nil {
-		return nil, err
-	}
-	if err := s.deleteSessionState(ctx, sessionID, req.GetKey()); err != nil {
-		return nil, err
-	}
-	return &emptypb.Empty{}, nil
-}
-
-// ListSessionStates returns all session-scoped state entries.
-func (s *Service) ListSessionStates(ctx context.Context, req *sessionpb.ListSessionStatesRequest) (*sessionpb.ListSessionStatesResponse, error) {
-	sessionID, err := parseSessionID(req.GetSessionId())
-	if err != nil {
-		return nil, err
-	}
-
-	items, err := s.listStateEntries(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	return &sessionpb.ListSessionStatesResponse{Entries: items}, nil
-}
-
 // UpsertSessionSummary persists one session summary.
 func (s *Service) UpsertSessionSummary(ctx context.Context, req *sessionpb.UpsertSessionSummaryRequest) (*emptypb.Empty, error) {
 	sessionID, err := parseSessionID(req.GetSessionId())
@@ -474,29 +398,6 @@ func (s *Service) updateSessionStates(ctx context.Context, sessionID uuid.UUID, 
 	}
 	if rows == 0 {
 		return status.Error(codes.NotFound, "session not found")
-	}
-	return nil
-}
-
-func (s *Service) deleteSessionState(ctx context.Context, sessionID uuid.UUID, key string) error {
-	if key == "" {
-		return status.Error(codes.InvalidArgument, "key is required")
-	}
-
-	rows, err := s.queries.DeleteStateEntry(ctx, sessiondb.DeleteStateEntryParams{
-		SessionID: sessionID,
-		Key:       key,
-	})
-	if err != nil {
-		return mapStoreError("delete state", err)
-	}
-
-	_, touchErr := s.queries.TouchSession(ctx, sessionID)
-	if touchErr != nil {
-		return mapStoreError("touch session", touchErr)
-	}
-	if rows == 0 {
-		return status.Error(codes.NotFound, "state key not found")
 	}
 	return nil
 }

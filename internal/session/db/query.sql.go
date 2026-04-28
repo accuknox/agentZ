@@ -116,25 +116,6 @@ func (q *Queries) DeleteSession(ctx context.Context, sessionID uuid.UUID) (int64
 	return result.RowsAffected(), nil
 }
 
-const deleteStateEntry = `-- name: DeleteStateEntry :execrows
-DELETE FROM state_entries
-WHERE session_id = $1
-  AND key = $2
-`
-
-type DeleteStateEntryParams struct {
-	SessionID uuid.UUID `json:"session_id"`
-	Key       string    `json:"key"`
-}
-
-func (q *Queries) DeleteStateEntry(ctx context.Context, arg DeleteStateEntryParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteStateEntry, arg.SessionID, arg.Key)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const getSession = `-- name: GetSession :one
 SELECT session_id, agent_name, created_at, updated_at
 FROM sessions
@@ -151,98 +132,6 @@ func (q *Queries) GetSession(ctx context.Context, sessionID uuid.UUID) (Session,
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const listChatHistory = `-- name: ListChatHistory :many
-SELECT seq, event_id, event_ts, event_payload
-FROM session_events
-WHERE session_id = $1
-ORDER BY seq DESC
-LIMIT $2
-`
-
-type ListChatHistoryParams struct {
-	SessionID uuid.UUID `json:"session_id"`
-	Limit     int32     `json:"limit"`
-}
-
-type ListChatHistoryRow struct {
-	Seq          int64     `json:"seq"`
-	EventID      string    `json:"event_id"`
-	EventTs      time.Time `json:"event_ts"`
-	EventPayload []byte    `json:"event_payload"`
-}
-
-func (q *Queries) ListChatHistory(ctx context.Context, arg ListChatHistoryParams) ([]ListChatHistoryRow, error) {
-	rows, err := q.db.Query(ctx, listChatHistory, arg.SessionID, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListChatHistoryRow{}
-	for rows.Next() {
-		var i ListChatHistoryRow
-		if err := rows.Scan(
-			&i.Seq,
-			&i.EventID,
-			&i.EventTs,
-			&i.EventPayload,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listChatHistoryBefore = `-- name: ListChatHistoryBefore :many
-SELECT seq, event_id, event_ts, event_payload
-FROM session_events
-WHERE session_id = $1
-  AND seq < $2
-ORDER BY seq DESC
-LIMIT $3
-`
-
-type ListChatHistoryBeforeParams struct {
-	SessionID uuid.UUID `json:"session_id"`
-	Seq       int64     `json:"seq"`
-	Limit     int32     `json:"limit"`
-}
-
-type ListChatHistoryBeforeRow struct {
-	Seq          int64     `json:"seq"`
-	EventID      string    `json:"event_id"`
-	EventTs      time.Time `json:"event_ts"`
-	EventPayload []byte    `json:"event_payload"`
-}
-
-func (q *Queries) ListChatHistoryBefore(ctx context.Context, arg ListChatHistoryBeforeParams) ([]ListChatHistoryBeforeRow, error) {
-	rows, err := q.db.Query(ctx, listChatHistoryBefore, arg.SessionID, arg.Seq, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListChatHistoryBeforeRow{}
-	for rows.Next() {
-		var i ListChatHistoryBeforeRow
-		if err := rows.Scan(
-			&i.Seq,
-			&i.EventID,
-			&i.EventTs,
-			&i.EventPayload,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listEventPage = `-- name: ListEventPage :many

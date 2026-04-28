@@ -9,7 +9,6 @@ import (
 	"github.com/accuknox/clawarmor/internal/agent"
 	"github.com/accuknox/clawarmor/internal/agent/gateway"
 	"github.com/accuknox/clawarmor/internal/agent/repl"
-	sessionstore "github.com/accuknox/clawarmor/internal/session"
 )
 
 var AgentCmd = &cli.Command{
@@ -24,8 +23,8 @@ var agentREPLCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "target",
-			Usage: "gRPC target for the agent gateway service",
-			Value: gateway.DefaultListenAddr,
+			Usage: "HTTP base URL for the agent gateway service",
+			Value: gateway.DefaultBaseURL,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -38,32 +37,17 @@ var agentREPLCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
-		&cli.StringFlag{
-			Name:  "session-target",
-			Usage: "gRPC target for the session service",
-			Value: sessionstore.DefaultTarget,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.BoolFlag{
-			Name:  "session-insecure",
-			Usage: "Use insecure transport for the session service",
-			Value: true,
-		},
 		&cli.IntFlag{
 			Name:  "history-limit",
-			Usage: "Number of recent chat history items to show",
+			Usage: "Number of recent chat history events to print on startup",
 			Value: 25,
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return repl.Run(ctx, repl.Options{
-			Target:          c.String("target"),
-			SessionID:       c.String("session-id"),
-			SessionTarget:   c.String("session-target"),
-			SessionInsecure: c.Bool("session-insecure"),
-			HistoryLimit:    c.Int("history-limit"),
+			Target:       c.String("target"),
+			SessionID:    c.String("session-id"),
+			HistoryLimit: c.Int("history-limit"),
 		})
 	},
 }
@@ -89,7 +73,7 @@ var agentServeCmd = &cli.Command{
 
 var agentGatewayCmd = &cli.Command{
 	Name:  "gateway",
-	Usage: "Run the agent gateway gRPC server",
+	Usage: "Run the agent gateway HTTP server",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "addr",
@@ -116,6 +100,14 @@ var agentGatewayCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:     "postgres-dsn",
+			Usage:    "PostgreSQL DSN for session history and agent listing",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
 			Name:  "target-override",
 			Usage: "Override resolved backend target for local port-forward testing",
 			Config: cli.StringConfig{
@@ -133,6 +125,7 @@ var agentGatewayCmd = &cli.Command{
 			Addr:                    c.String("addr"),
 			Namespace:               c.String("namespace"),
 			ValkeyAddr:              c.String("valkey-addr"),
+			PostgresDSN:             c.String("postgres-dsn"),
 			GracefulShutdownTimeout: c.Duration("graceful-shutdown-timeout"),
 			TargetOverride:          c.String("target-override"),
 		})

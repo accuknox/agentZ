@@ -22,13 +22,10 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SessionService_CreateSession_FullMethodName        = "/accuknox.clawarmor.session.v1.SessionService/CreateSession"
 	SessionService_GetSession_FullMethodName           = "/accuknox.clawarmor.session.v1.SessionService/GetSession"
-	SessionService_GetChatHistory_FullMethodName       = "/accuknox.clawarmor.session.v1.SessionService/GetChatHistory"
 	SessionService_ListSessions_FullMethodName         = "/accuknox.clawarmor.session.v1.SessionService/ListSessions"
 	SessionService_DeleteSession_FullMethodName        = "/accuknox.clawarmor.session.v1.SessionService/DeleteSession"
 	SessionService_AppendEvent_FullMethodName          = "/accuknox.clawarmor.session.v1.SessionService/AppendEvent"
 	SessionService_UpdateSessionState_FullMethodName   = "/accuknox.clawarmor.session.v1.SessionService/UpdateSessionState"
-	SessionService_DeleteSessionState_FullMethodName   = "/accuknox.clawarmor.session.v1.SessionService/DeleteSessionState"
-	SessionService_ListSessionStates_FullMethodName    = "/accuknox.clawarmor.session.v1.SessionService/ListSessionStates"
 	SessionService_UpsertSessionSummary_FullMethodName = "/accuknox.clawarmor.session.v1.SessionService/UpsertSessionSummary"
 	SessionService_ListSessionSummaries_FullMethodName = "/accuknox.clawarmor.session.v1.SessionService/ListSessionSummaries"
 )
@@ -39,13 +36,10 @@ const (
 type SessionServiceClient interface {
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
-	GetChatHistory(ctx context.Context, in *GetChatHistoryRequest, opts ...grpc.CallOption) (*GetChatHistoryResponse, error)
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	DeleteSession(ctx context.Context, in *DeleteSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	AppendEvent(ctx context.Context, in *AppendEventRequest, opts ...grpc.CallOption) (*AppendEventResponse, error)
 	UpdateSessionState(ctx context.Context, in *UpdateSessionStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeleteSessionState(ctx context.Context, in *DeleteSessionStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ListSessionStates(ctx context.Context, in *ListSessionStatesRequest, opts ...grpc.CallOption) (*ListSessionStatesResponse, error)
 	UpsertSessionSummary(ctx context.Context, in *UpsertSessionSummaryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListSessionSummaries(ctx context.Context, in *ListSessionSummariesRequest, opts ...grpc.CallOption) (*ListSessionSummariesResponse, error)
 }
@@ -72,16 +66,6 @@ func (c *sessionServiceClient) GetSession(ctx context.Context, in *GetSessionReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSessionResponse)
 	err := c.cc.Invoke(ctx, SessionService_GetSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sessionServiceClient) GetChatHistory(ctx context.Context, in *GetChatHistoryRequest, opts ...grpc.CallOption) (*GetChatHistoryResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetChatHistoryResponse)
-	err := c.cc.Invoke(ctx, SessionService_GetChatHistory_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,26 +112,6 @@ func (c *sessionServiceClient) UpdateSessionState(ctx context.Context, in *Updat
 	return out, nil
 }
 
-func (c *sessionServiceClient) DeleteSessionState(ctx context.Context, in *DeleteSessionStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, SessionService_DeleteSessionState_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sessionServiceClient) ListSessionStates(ctx context.Context, in *ListSessionStatesRequest, opts ...grpc.CallOption) (*ListSessionStatesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListSessionStatesResponse)
-	err := c.cc.Invoke(ctx, SessionService_ListSessionStates_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *sessionServiceClient) UpsertSessionSummary(ctx context.Context, in *UpsertSessionSummaryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -174,13 +138,10 @@ func (c *sessionServiceClient) ListSessionSummaries(ctx context.Context, in *Lis
 type SessionServiceServer interface {
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
-	GetChatHistory(context.Context, *GetChatHistoryRequest) (*GetChatHistoryResponse, error)
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	DeleteSession(context.Context, *DeleteSessionRequest) (*emptypb.Empty, error)
 	AppendEvent(context.Context, *AppendEventRequest) (*AppendEventResponse, error)
 	UpdateSessionState(context.Context, *UpdateSessionStateRequest) (*emptypb.Empty, error)
-	DeleteSessionState(context.Context, *DeleteSessionStateRequest) (*emptypb.Empty, error)
-	ListSessionStates(context.Context, *ListSessionStatesRequest) (*ListSessionStatesResponse, error)
 	UpsertSessionSummary(context.Context, *UpsertSessionSummaryRequest) (*emptypb.Empty, error)
 	ListSessionSummaries(context.Context, *ListSessionSummariesRequest) (*ListSessionSummariesResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
@@ -199,9 +160,6 @@ func (UnimplementedSessionServiceServer) CreateSession(context.Context, *CreateS
 func (UnimplementedSessionServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
 }
-func (UnimplementedSessionServiceServer) GetChatHistory(context.Context, *GetChatHistoryRequest) (*GetChatHistoryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetChatHistory not implemented")
-}
 func (UnimplementedSessionServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
 }
@@ -213,12 +171,6 @@ func (UnimplementedSessionServiceServer) AppendEvent(context.Context, *AppendEve
 }
 func (UnimplementedSessionServiceServer) UpdateSessionState(context.Context, *UpdateSessionStateRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateSessionState not implemented")
-}
-func (UnimplementedSessionServiceServer) DeleteSessionState(context.Context, *DeleteSessionStateRequest) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteSessionState not implemented")
-}
-func (UnimplementedSessionServiceServer) ListSessionStates(context.Context, *ListSessionStatesRequest) (*ListSessionStatesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListSessionStates not implemented")
 }
 func (UnimplementedSessionServiceServer) UpsertSessionSummary(context.Context, *UpsertSessionSummaryRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertSessionSummary not implemented")
@@ -279,24 +231,6 @@ func _SessionService_GetSession_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SessionServiceServer).GetSession(ctx, req.(*GetSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SessionService_GetChatHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetChatHistoryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SessionServiceServer).GetChatHistory(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SessionService_GetChatHistory_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SessionServiceServer).GetChatHistory(ctx, req.(*GetChatHistoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -373,42 +307,6 @@ func _SessionService_UpdateSessionState_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SessionService_DeleteSessionState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteSessionStateRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SessionServiceServer).DeleteSessionState(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SessionService_DeleteSessionState_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SessionServiceServer).DeleteSessionState(ctx, req.(*DeleteSessionStateRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SessionService_ListSessionStates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListSessionStatesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SessionServiceServer).ListSessionStates(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SessionService_ListSessionStates_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SessionServiceServer).ListSessionStates(ctx, req.(*ListSessionStatesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _SessionService_UpsertSessionSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertSessionSummaryRequest)
 	if err := dec(in); err != nil {
@@ -461,10 +359,6 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SessionService_GetSession_Handler,
 		},
 		{
-			MethodName: "GetChatHistory",
-			Handler:    _SessionService_GetChatHistory_Handler,
-		},
-		{
 			MethodName: "ListSessions",
 			Handler:    _SessionService_ListSessions_Handler,
 		},
@@ -479,14 +373,6 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateSessionState",
 			Handler:    _SessionService_UpdateSessionState_Handler,
-		},
-		{
-			MethodName: "DeleteSessionState",
-			Handler:    _SessionService_DeleteSessionState_Handler,
-		},
-		{
-			MethodName: "ListSessionStates",
-			Handler:    _SessionService_ListSessionStates_Handler,
 		},
 		{
 			MethodName: "UpsertSessionSummary",

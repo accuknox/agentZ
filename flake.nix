@@ -27,6 +27,7 @@
               sqlc
               postgresql_18
               openapi-generator-cli
+              oapi-codegen
               protobuf
               buf
               protoc-gen-lint

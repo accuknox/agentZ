@@ -54,6 +54,7 @@ var chatHistoryCmd = &cli.Command{
 			params.Limit = &limit
 		}
 		if c.String("page-token") != "" {
+			//nolint:unconvert
 			pageToken := gatewayapi.PageTokenQuery(c.String("page-token"))
 			params.PageToken = &pageToken
 		}

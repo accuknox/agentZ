@@ -85,7 +85,7 @@ model:
   # 0 means omit the limit and let the provider/model choose.
   maxTokens: 0
 
-  # Stream model responses to the REPL/output when true.
+  # Stream model responses when true.
   # Set false for fully buffered responses.
   stream: true
 

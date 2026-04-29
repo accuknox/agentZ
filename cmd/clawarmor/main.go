@@ -42,6 +42,7 @@ import (
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
+	agentcmd "github.com/accuknox/clawarmor/cmd/clawarmor/subcommands/agent"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
@@ -62,11 +63,22 @@ var (
 	agentDefaultImage                                string
 )
 
+type silentExitCoder interface {
+	ExitCode() int
+	Silent() bool
+}
+
 var cmd = &cli.Command{
 	Name:                  "clawarmor",
 	Usage:                 "The AI that actually does things - SECURELY.",
 	EnableShellCompletion: true,
 	Authors:               []any{"Murtaza U <murtaza@accuknox.com>"},
+	ExitErrHandler: func(_ context.Context, _ *cli.Command, err error) {
+		if e, ok := err.(silentExitCoder); ok && e.Silent() {
+			os.Exit(e.ExitCode())
+		}
+		cli.HandleExitCoder(err)
+	},
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "log-level",
@@ -91,7 +103,7 @@ var cmd = &cli.Command{
 		},
 	},
 	Commands: []*cli.Command{
-		subcommands.AgentCmd,
+		agentcmd.AgentCmd,
 		managerCmd,
 		subcommands.SessionCmd,
 		subcommands.ObserverCmd,

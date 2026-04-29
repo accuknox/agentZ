@@ -3,8 +3,6 @@ module github.com/accuknox/clawarmor
 go 1.26.1
 
 require (
-	github.com/avast/retry-go/v4 v4.7.0
-	github.com/chzyer/readline v1.5.1
 	github.com/cilium/cilium v1.19.3
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/go-chi/chi/v5 v5.2.5

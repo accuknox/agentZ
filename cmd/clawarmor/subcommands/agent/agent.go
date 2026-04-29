@@ -1,4 +1,4 @@
-package subcommands
+package agentcmd
 
 import (
 	"context"
@@ -6,49 +6,19 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands/agent/api"
 	"github.com/accuknox/clawarmor/internal/agent"
 	"github.com/accuknox/clawarmor/internal/agent/gateway"
-	"github.com/accuknox/clawarmor/internal/agent/repl"
 )
 
+// AgentCmd groups commands for running and managing ClawArmor agents.
 var AgentCmd = &cli.Command{
-	Name:     "agent",
-	Usage:    "ClawArmor agent",
-	Commands: []*cli.Command{agentREPLCmd, agentServeCmd, agentGatewayCmd},
-}
-
-var agentREPLCmd = &cli.Command{
-	Name:  "repl",
-	Usage: "Start interactive agent REPL",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "target",
-			Usage: "HTTP base URL for the agent gateway service",
-			Value: gateway.DefaultBaseURL,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.StringFlag{
-			Name:     "session-id",
-			Usage:    "Session id routed through the gateway",
-			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.IntFlag{
-			Name:  "history-limit",
-			Usage: "Number of recent chat history events to print on startup",
-			Value: 25,
-		},
-	},
-	Action: func(ctx context.Context, c *cli.Command) error {
-		return repl.Run(ctx, repl.Options{
-			Target:       c.String("target"),
-			SessionID:    c.String("session-id"),
-			HistoryLimit: c.Int("history-limit"),
-		})
+	Name:  "agent",
+	Usage: "ClawArmor agent",
+	Commands: []*cli.Command{
+		agentServeCmd,
+		agentGatewayCmd,
+		api.Cmd,
 	},
 }
 

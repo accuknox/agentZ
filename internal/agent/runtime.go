@@ -36,7 +36,7 @@ type RuntimeOptions struct {
 	ConfigPath string
 }
 
-// Runtime holds the runnable agent system for REPL use.
+// Runtime holds the runnable agent system.
 type Runtime struct {
 	runner                  runner.Runner
 	memorySvc               memory.Service

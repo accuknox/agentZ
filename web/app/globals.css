@@ -131,3 +131,19 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  .navigation-progress [data-slot="progress-indicator"] {
+    animation: navigation-progress 3.5s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+    background-color: #f8485e;
+  }
+}
+
+@keyframes navigation-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(-30%);
+  }
+}

@@ -10,7 +10,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { GalleryVerticalEndIcon, AudioLinesIcon, TerminalIcon } from "lucide-react"
-import { listAgentsAction } from "@/data/agents"
+import { listAgentsAction } from "@/data/agent.actions"
 
 // TODO: Replace this sample data when tenant/user APIs are available.
 const data = {

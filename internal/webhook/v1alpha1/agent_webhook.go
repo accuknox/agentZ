@@ -274,8 +274,7 @@ func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field
 			4096,
 		))
 	}
-	if agt.Spec.Compaction.ThresholdRatio < 0.2 ||
-		agt.Spec.Compaction.ThresholdRatio > 0.95 {
+	if agt.Spec.Compaction.ThresholdRatio < 0.2 || agt.Spec.Compaction.ThresholdRatio > 0.95 {
 		allErrs = append(allErrs, field.Invalid(
 			compactionPath.Child("thresholdRatio"),
 			agt.Spec.Compaction.ThresholdRatio,

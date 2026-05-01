@@ -10,8 +10,9 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  SidebarMenuAction,
 } from "@/components/ui/sidebar"
-import { BotIcon, ChevronRightIcon } from "lucide-react"
+import { BotIcon, ChevronRightIcon, Plus } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import {
   watchAgents,
@@ -26,13 +27,16 @@ import {
   useQuery,
 } from "@tanstack/react-query"
 import { use } from "react"
-import type { ListAgentActionResponse } from "@/data/agents"
+import type { ListAgentActionResponse } from "@/data/types"
+import { usePathname } from "next/navigation"
+import Link from "next/link"
 
 export function NavAgentsSkeleton() {
+  const path = usePathname()
   return (
     <SidebarGroup>
       <SidebarMenu>
-        <Collapsible asChild defaultOpen={true} className="group/collapsible">
+        <Collapsible asChild defaultOpen={path === "/"} className="group/collapsible">
           <SidebarMenuItem>
             <CollapsibleTrigger asChild>
               <SidebarMenuButton tooltip="Agents">
@@ -101,10 +105,16 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   const error = list.error ?? toGatewayError(query.error)
   const queryAgents = query.data ?? initialAgents
 
+  const path = usePathname()
+
   return (
     <SidebarGroup>
       <SidebarMenu>
-        <Collapsible asChild defaultOpen={true} className="group/collapsible">
+        <Collapsible
+          asChild
+          defaultOpen={path === "/" || path.startsWith("/agent")}
+          className="group/collapsible"
+        >
           <SidebarMenuItem>
             <CollapsibleTrigger asChild>
               <SidebarMenuButton tooltip="Agents">
@@ -113,12 +123,18 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
                 <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
               </SidebarMenuButton>
             </CollapsibleTrigger>
+            <SidebarMenuAction>
+              <Link href="/agent/new">
+                <Plus size={16} />
+                <span className="sr-only">New Agent</span>
+              </Link>
+            </SidebarMenuAction>
             <CollapsibleContent>
               <SidebarMenuSub>
-                {error && <p className="text-destructive text-sm">{error.message}</p>}
-                {queryAgents.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No agents</p>
-                )}
+                {(error && <p className="text-destructive text-sm">{error.message}</p>) ||
+                  (queryAgents.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No agents</p>
+                  ))}
                 {queryAgents.map((agent) => (
                   <SidebarMenuSubItem key={agent.session_id}>
                     <SidebarMenuSubButton asChild>

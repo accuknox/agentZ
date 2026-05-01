@@ -1,8 +1,9 @@
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { listAgentsAction } from "@/data/agent.actions"
+import { deleteAgentFormAction, listAgentsAction } from "@/data/agent.actions"
 import { Button } from "@/components/ui/button"
 import { AgentTable } from "@/app/agent-table"
+import type { DeleteAgentFormState } from "@/data/types"
 
 export default function Home() {
   return (
@@ -18,12 +19,20 @@ export default function Home() {
           </Link>
         </Button>
       </div>
-      <Agents />
+      <Agents deleteAgentAction={deleteAgentFormAction} />
     </main>
   )
 }
 
-async function Agents() {
+async function Agents({
+  deleteAgentAction,
+}: {
+  deleteAgentAction: (
+    sessionID: string,
+    state: DeleteAgentFormState,
+    formData: FormData
+  ) => Promise<DeleteAgentFormState>
+}) {
   const result = await listAgentsAction(true)
 
   if (result.error) {
@@ -34,5 +43,5 @@ async function Agents() {
     )
   }
 
-  return <AgentTable agents={result.agents} />
+  return <AgentTable agents={result.agents} deleteAgentAction={deleteAgentAction} />
 }

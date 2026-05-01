@@ -36,3 +36,7 @@ export type ListAgentWithConfigActionResponse = ListAgentActionResponse<ListAgen
 export type CreateAgentFormState = {
   error?: Error
 }
+
+export type DeleteAgentFormState = {
+  error?: Error
+}

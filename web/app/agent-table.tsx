@@ -12,7 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import type { ListAgent } from "@/lib/gateway/client"
-import { agentColumns } from "@/app/agent-columns"
+import { createAgentColumns } from "@/app/agent-columns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import type { DeleteAgentFormState } from "@/data/types"
 
 const columnClassName: Record<string, string> = {
   name: "w-[22%]",
@@ -34,15 +35,26 @@ const columnClassName: Record<string, string> = {
   actions: "w-[4%]",
 }
 
-export function AgentTable({ agents }: { agents: ListAgent[] }) {
+export function AgentTable({
+  agents,
+  deleteAgentAction,
+}: {
+  agents: ListAgent[]
+  deleteAgentAction: (
+    sessionID: string,
+    state: DeleteAgentFormState,
+    formData: FormData
+  ) => Promise<DeleteAgentFormState>
+}) {
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const columns = React.useMemo(() => createAgentColumns(deleteAgentAction), [deleteAgentAction])
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
     data: agents,
-    columns: agentColumns,
+    columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -101,7 +113,7 @@ export function AgentTable({ agents }: { agents: ListAgent[] }) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={agentColumns.length} className="h-24 text-center">
+                <TableCell colSpan={columns.length} className="h-24 text-center">
                   No agents
                 </TableCell>
               </TableRow>

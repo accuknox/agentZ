@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation"
 import {
   createAgent,
+  deleteAgent,
   listAgents,
   updateAgent,
   type Agent,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/gateway/client"
 import type {
   CreateAgentFormState,
+  DeleteAgentFormState,
   ListAgentActionResponse,
   ListAgentWithConfigActionResponse,
 } from "@/data/types"
@@ -81,4 +83,18 @@ export async function updateAgentFormAction(
 
   revalidatePath("/")
   redirect("/")
+}
+
+export async function deleteAgentFormAction(
+  sessionID: string,
+  _: DeleteAgentFormState,
+  _formData: FormData
+): Promise<DeleteAgentFormState> {
+  const result = await deleteAgent({ body: { session_id: sessionID } })
+  if (result.error) {
+    return { error: result.error }
+  }
+
+  revalidatePath("/")
+  return {}
 }

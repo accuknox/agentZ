@@ -30,6 +30,9 @@ import type {
   SubscribeSessionErrors,
   SubscribeSessionResponse,
   SubscribeSessionResponses,
+  UpdateAgentData,
+  UpdateAgentErrors,
+  UpdateAgentResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
@@ -44,6 +47,8 @@ import {
   zListAgentsQuery,
   zSendMessageBody,
   zSubscribeSessionBody,
+  zUpdateAgentBody,
+  zUpdateAgentPath,
   zWatchAgentsBody,
 } from "./zod.gen"
 
@@ -145,6 +150,32 @@ export const deleteAgent = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     url: "/api/delete-agent",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Update a session-backed Agent.
+ *
+ * Updates mutable Agent configuration for an existing session. The session ID in the path identifies the Agent; Agent name is immutable and is not accepted in the request body.
+ *
+ */
+export const updateAgent = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateAgentData, ThrowOnError>
+) =>
+  (options.client ?? client).post<UpdateAgentResponses, UpdateAgentErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateAgentBody,
+          path: zUpdateAgentPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/update-agent/{sessionID}",
     ...options,
     headers: {
       "Content-Type": "application/json",

@@ -14,6 +14,13 @@ export type Model = z.infer<typeof modelSchema>
 export type Tools = z.infer<typeof toolsSchema>
 export type CreateAgentFormValues = z.infer<typeof createAgentFormSchema>
 
+export type AgentWizardValues = {
+  identity: Identity
+  compaction: Compaction
+  model: Model
+  tools: Tools
+}
+
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
       agents: TAgent[]

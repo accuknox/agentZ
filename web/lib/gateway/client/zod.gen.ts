@@ -71,6 +71,18 @@ export const zCreateAgentCompaction = z.object({
   oversizedToolResultRatio: z.number().gte(0.05).lte(0.1).optional().default(0.065),
 })
 
+export const zUpdateAgentCompaction = z.object({
+  mode: zCompactionMode.optional(),
+  thresholdRatio: z.number().gte(0.2).lte(0.95).optional(),
+  historyToolResultRatio: z.number().gte(0).lte(1).optional(),
+  keepRecentRequests: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
+    .optional(),
+  oversizedToolResultRatio: z.number().gte(0.05).lte(0.1).optional(),
+})
+
 export const zCreateAgentModelConfig = z.object({
   name: z.string().min(1),
   contextWindow: z
@@ -83,6 +95,45 @@ export const zCreateAgentModelConfig = z.object({
 export const zCreateAgentModel = z.object({
   primary: zCreateAgentModelConfig,
   summary: zCreateAgentModelConfig.optional(),
+})
+
+export const zUpdateAgentModelConfig = z.object({
+  name: z.string().min(1).optional(),
+  contextWindow: z
+    .int()
+    .gte(1)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
+    .optional(),
+  temperature: z.number().gte(0).lte(1).optional(),
+})
+
+export const zUpdateAgentModel = z.object({
+  primary: zUpdateAgentModelConfig.optional(),
+  summary: zUpdateAgentModelConfig.optional(),
+})
+
+export const zUpdateAgentTool = z.object({
+  enabled: z.boolean().optional(),
+})
+
+export const zUpdateAgentTools = z.object({
+  hostExec: zUpdateAgentTool.optional(),
+  webFetch: zUpdateAgentTool.optional(),
+  file: zUpdateAgentTool.optional(),
+  arxiv: zUpdateAgentTool.optional(),
+})
+
+export const zUpdateAgentRequest = z.object({
+  env: z.record(z.string(), z.string()).optional(),
+  systemPrompt: z.string().max(4096).optional(),
+  compaction: zUpdateAgentCompaction.optional(),
+  maxHistoryRuns: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
+    .optional(),
+  model: zUpdateAgentModel.optional(),
+  tools: zUpdateAgentTools.optional(),
 })
 
 export const zCreateAgentEnabledByDefaultTool = z.object({
@@ -552,6 +603,11 @@ export const zChatHistoryResponse = z.object({
 export const zSessionIdQuery = zSessionId
 
 /**
+ * Session UUID.
+ */
+export const zSessionIdPath = zSessionId
+
+/**
  * Optional session UUID filters. Repeat the query parameter for multiple sessions.
  */
 export const zSessionIdFilterQuery = z.array(zSessionId)
@@ -601,6 +657,17 @@ export const zDeleteAgentBody = zDeleteAgentRequest
  * Agent and session were deleted.
  */
 export const zDeleteAgentResponse = z.void()
+
+export const zUpdateAgentBody = zUpdateAgentRequest
+
+export const zUpdateAgentPath = z.object({
+  sessionID: zSessionId,
+})
+
+/**
+ * Agent resource updated.
+ */
+export const zUpdateAgentResponse = zAgent
 
 export const zSendMessageBody = zSendMessageRequest
 

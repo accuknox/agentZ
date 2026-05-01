@@ -105,7 +105,26 @@ export type DeleteAgentRequest = {
   session_id: SessionIdInput
 }
 
+export type UpdateAgentRequest = {
+  env?: {
+    [key: string]: string
+  }
+  systemPrompt?: string
+  compaction?: UpdateAgentCompaction
+  maxHistoryRuns?: number
+  model?: UpdateAgentModel
+  tools?: UpdateAgentTools
+}
+
 export type CreateAgentCompaction = {
+  mode?: CompactionMode
+  thresholdRatio?: number
+  historyToolResultRatio?: number
+  keepRecentRequests?: number
+  oversizedToolResultRatio?: number
+}
+
+export type UpdateAgentCompaction = {
   mode?: CompactionMode
   thresholdRatio?: number
   historyToolResultRatio?: number
@@ -120,9 +139,20 @@ export type CreateAgentModel = {
   summary?: CreateAgentModelConfig
 }
 
+export type UpdateAgentModel = {
+  primary?: UpdateAgentModelConfig
+  summary?: UpdateAgentModelConfig
+}
+
 export type CreateAgentModelConfig = {
   name: string
   contextWindow: number
+  temperature?: number
+}
+
+export type UpdateAgentModelConfig = {
+  name?: string
+  contextWindow?: number
   temperature?: number
 }
 
@@ -131,6 +161,17 @@ export type CreateAgentTools = {
   webFetch?: CreateAgentEnabledByDefaultTool
   file?: CreateAgentDisabledByDefaultTool
   arxiv?: CreateAgentDisabledByDefaultTool
+}
+
+export type UpdateAgentTools = {
+  hostExec?: UpdateAgentTool
+  webFetch?: UpdateAgentTool
+  file?: UpdateAgentTool
+  arxiv?: UpdateAgentTool
+}
+
+export type UpdateAgentTool = {
+  enabled?: boolean
 }
 
 export type CreateAgentEnabledByDefaultTool = {
@@ -474,6 +515,11 @@ export type JsonValue =
 export type SessionIdQuery = SessionId
 
 /**
+ * Session UUID.
+ */
+export type SessionIdPath = SessionId
+
+/**
  * Optional session UUID filters. Repeat the query parameter for multiple sessions.
  */
 export type SessionIdFilterQuery = Array<SessionId>
@@ -641,6 +687,48 @@ export type DeleteAgentResponses = {
 }
 
 export type DeleteAgentResponse = DeleteAgentResponses[keyof DeleteAgentResponses]
+
+export type UpdateAgentData = {
+  body: UpdateAgentRequest
+  path: {
+    /**
+     * Session UUID.
+     */
+    sessionID: SessionId
+  }
+  query?: never
+  url: "/api/update-agent/{sessionID}"
+}
+
+export type UpdateAgentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current session state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateAgentError = UpdateAgentErrors[keyof UpdateAgentErrors]
+
+export type UpdateAgentResponses = {
+  /**
+   * Agent resource updated.
+   */
+  200: Agent
+}
+
+export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses]
 
 export type SendMessageData = {
   body: SendMessageRequest

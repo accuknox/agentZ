@@ -1,22 +1,33 @@
 "use server"
 
 import { redirect } from "next/navigation"
-import { createAgent, listAgents, type Agent, type ListAgent } from "@/lib/gateway/client"
-import { createAgentFormSchema } from "@/data/schema"
+import {
+  createAgent,
+  listAgents,
+  updateAgent,
+  type Agent,
+  type ListAgentsData,
+  type ListAgent,
+} from "@/lib/gateway/client"
 import type {
   CreateAgentFormState,
   ListAgentActionResponse,
   ListAgentWithConfigActionResponse,
 } from "@/data/types"
-import { agentFormValues, createAgentRequest } from "@/data/utils"
+import { createAgentRequest, updateAgentRequest, parseAgentForm } from "@/data/utils"
+import { revalidatePath } from "next/cache"
 
 export async function listAgentsAction(): Promise<ListAgentActionResponse>
-export async function listAgentsAction(includeConfig: false): Promise<ListAgentActionResponse>
 export async function listAgentsAction(
-  includeConfig: true
+  includeConfig: false,
+  query?: ListAgentsData["query"]
+): Promise<ListAgentActionResponse>
+export async function listAgentsAction(
+  includeConfig: true,
+  query?: ListAgentsData["query"]
 ): Promise<ListAgentWithConfigActionResponse>
-export async function listAgentsAction(includeConfig = false) {
-  const result = await listAgents()
+export async function listAgentsAction(includeConfig = false, query?: ListAgentsData["query"]) {
+  const result = await listAgents({ query })
   if (result.error) {
     return { agents: undefined, error: result.error }
   }
@@ -36,20 +47,9 @@ export async function createAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = createAgentFormSchema.safeParse(agentFormValues(formData))
-  if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "Agent configuration is invalid",
-        errors: parsed.error.issues.map((issue) => {
-          return {
-            field: issue.path.join("."),
-            message: issue.message,
-          }
-        }),
-      },
-    }
+  const parsed = parseAgentForm(formData)
+  if (parsed.state) {
+    return parsed.state
   }
 
   const result = await createAgent({ body: createAgentRequest(parsed.data) })
@@ -57,5 +57,28 @@ export async function createAgentFormAction(
     return { error: result.error }
   }
 
+  revalidatePath("/")
+  redirect("/")
+}
+
+export async function updateAgentFormAction(
+  sessionID: string,
+  _: CreateAgentFormState,
+  formData: FormData
+): Promise<CreateAgentFormState> {
+  const parsed = parseAgentForm(formData)
+  if (parsed.state) {
+    return parsed.state
+  }
+
+  const result = await updateAgent({
+    body: updateAgentRequest(parsed.data),
+    path: { sessionID },
+  })
+  if (result.error) {
+    return { error: result.error }
+  }
+
+  revalidatePath("/")
   redirect("/")
 }

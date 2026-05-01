@@ -33,7 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { createAgentFormAction } from "@/data/agent.actions"
+import { Spinner } from "@/components/ui/spinner"
+import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
 import {
   baseModelSchema,
   compactionSchema,
@@ -44,49 +45,46 @@ import {
   summaryModels,
   toolsSchema,
 } from "@/data/schema"
-import type { Compaction, Identity, Model, Tools } from "@/data/types"
+import type { AgentWizardValues, Compaction, Identity, Model, Tools } from "@/data/types"
+import { defaultAgentWizardValues } from "@/data/utils"
 
 const blinkIntervalMs = 2500
 
 const textareaClassName =
-  "min-h-36 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30"
+  "min-h-36 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30"
 
 const rangeClassName = "w-full accent-primary"
-
-const defaultIdentity: Identity = {
-  name: "",
-  systemPrompt: "",
-}
-
-const defaultCompaction: Compaction = {
-  mode: "summary",
-  thresholdRatio: 0.9,
-  historyToolResultRatio: 0.008,
-  keepRecentRequests: 2,
-  oversizedToolResultRatio: 0.065,
-  maxHistoryRuns: 50,
-}
-
-const defaultModel: Model = {
-  primaryName: primaryModels[0],
-  primaryContextWindow: Number.NaN,
-  primaryTemperature: 0.2,
-  summaryName: summaryModels[0],
-  summaryContextWindow: Number.NaN,
-  summaryTemperature: 0.2,
-}
-
-const defaultTools: Tools = {
-  hostExec: true,
-  webFetch: true,
-  file: false,
-  arxiv: false,
-}
 
 type DataStepId = "identity" | "compaction" | "model" | "tools"
 type StoredStepId = Exclude<DataStepId, "tools">
 
-type WizardData = {
+type WizardData = Partial<Omit<AgentWizardValues, "tools">>
+
+type WizardMode = "create" | "update"
+
+type StepperWithFormProps = {
+  initialValues?: AgentWizardValues
+  mode?: WizardMode
+  sessionID?: string
+}
+
+type WizardCopy = {
+  submitLabel: string
+  pendingLabel: string
+}
+
+const wizardCopy: Record<WizardMode, WizardCopy> = {
+  create: {
+    submitLabel: "Create agent",
+    pendingLabel: "Creating...",
+  },
+  update: {
+    submitLabel: "Update agent",
+    pendingLabel: "Updating...",
+  },
+}
+
+type StepperMetadata = {
   identity?: Identity
   compaction?: Compaction
   model?: Model
@@ -158,14 +156,16 @@ const canVisitStep = (index: number, currentIndex: number, data: WizardData) => 
 
 function IdentityForm({
   defaultValues,
+  lockName,
   onNext,
 }: {
   defaultValues?: Identity
+  lockName?: boolean
   onNext: (data: Identity) => void
 }) {
   const form = useForm<Identity>({
     resolver: zodResolver(identitySchema),
-    defaultValues: defaultValues ?? defaultIdentity,
+    defaultValues: defaultValues ?? defaultAgentWizardValues.identity,
   })
   const systemPrompt = useWatch({
     control: form.control,
@@ -190,6 +190,7 @@ function IdentityForm({
                 value={field.value}
                 onBlur={field.onBlur}
                 onChange={field.onChange}
+                disabled={lockName}
                 aria-invalid={fieldState.invalid}
                 placeholder="coding-agent"
               />
@@ -242,7 +243,7 @@ function CompactionForm({
 }) {
   const form = useForm<Compaction>({
     resolver: zodResolver(compactionSchema),
-    defaultValues: defaultValues ?? defaultCompaction,
+    defaultValues: defaultValues ?? defaultAgentWizardValues.compaction,
   })
   const mode = useWatch({ control: form.control, name: "mode" })
 
@@ -338,7 +339,7 @@ function ModelForm({
 }) {
   const form = useForm<Model>({
     resolver: zodResolver(compactionMode === "truncate" ? baseModelSchema : modelSchema),
-    defaultValues: defaultValues ?? defaultModel,
+    defaultValues: defaultValues ?? defaultAgentWizardValues.model,
   })
   const summaryDisabled = compactionMode === "truncate"
 
@@ -451,16 +452,27 @@ function ModelForm({
 
 function ToolsForm({
   data,
+  defaultValues,
+  mode,
   onPrev,
+  sessionID,
 }: {
   data: Pick<Required<WizardData>, "identity" | "compaction" | "model">
+  defaultValues?: Tools
+  mode: WizardMode
   onPrev: () => void
+  sessionID?: string
 }) {
-  const [state, action, isPending] = useActionState(createAgentFormAction, {})
+  const formAction =
+    mode === "update" && sessionID
+      ? updateAgentFormAction.bind(null, sessionID)
+      : createAgentFormAction
+  const [state, action, isPending] = useActionState(formAction, {})
   const form = useForm<Tools>({
     resolver: zodResolver(toolsSchema),
-    defaultValues: defaultTools,
+    defaultValues: defaultValues ?? defaultAgentWizardValues.tools,
   })
+  const copy = wizardCopy[mode]
 
   return (
     <form id="agent-form-tools" action={action} className="space-y-5">
@@ -510,7 +522,8 @@ function ToolsForm({
           Previous
         </Button>
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Creating..." : "Create agent"}
+          {isPending ? <Spinner aria-hidden="true" /> : null}
+          {isPending ? copy.pendingLabel : copy.submitLabel}
         </Button>
       </StepActions>
     </form>
@@ -709,14 +722,27 @@ function HiddenAgentFields({
   )
 }
 
-export function StepperWithForm() {
+export function StepperWithForm({
+  initialValues = defaultAgentWizardValues,
+  mode = "create",
+  sessionID,
+}: StepperWithFormProps) {
   const [direction, setDirection] = useState(1)
 
   return (
-    <Stepper.Root className="flex min-h-0 w-full flex-1" orientation="vertical">
+    <Stepper.Root
+      className="flex min-h-0 w-full flex-1"
+      initialMetadata={{
+        identity: initialValues.identity,
+        compaction: initialValues.compaction,
+        model: initialValues.model,
+      }}
+      orientation="vertical"
+    >
       {({ stepper }) => {
-        const stored = <TStep extends StoredStepId>(id: TStep) => stepper.metadata.get(id)
-        const formData: WizardData = {
+        const stored = <TStep extends StoredStepId>(id: TStep) =>
+          stepper.metadata.get(id) as StepperMetadata[TStep] | undefined
+        const formData: StepperMetadata = {
           identity: stored("identity") as Identity | undefined,
           compaction: stored("compaction") as Compaction | undefined,
           model: stored("model") as Model | undefined,
@@ -763,6 +789,7 @@ export function StepperWithForm() {
               identity: () => (
                 <IdentityForm
                   defaultValues={formData.identity}
+                  lockName={mode === "update"}
                   onNext={(data) => {
                     setStepData("identity", data)
                     goNext()
@@ -781,7 +808,9 @@ export function StepperWithForm() {
               ),
               model: () => (
                 <ModelForm
-                  compactionMode={formData.compaction?.mode ?? defaultCompaction.mode}
+                  compactionMode={
+                    formData.compaction?.mode ?? defaultAgentWizardValues.compaction.mode
+                  }
                   defaultValues={formData.model}
                   onNext={(data) => {
                     setStepData("model", data)
@@ -792,7 +821,13 @@ export function StepperWithForm() {
               ),
               tools: () =>
                 createReadyData ? (
-                  <ToolsForm data={createReadyData} onPrev={goPrev} />
+                  <ToolsForm
+                    data={createReadyData}
+                    defaultValues={initialValues.tools}
+                    mode={mode}
+                    onPrev={goPrev}
+                    sessionID={sessionID}
+                  />
                 ) : (
                   <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">

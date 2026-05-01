@@ -9,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
@@ -44,7 +43,7 @@ export const agentColumns: ColumnDef<ListAgent>[] = [
   {
     accessorFn: (agent) => agent.configuration.model.primary.contextWindow,
     id: "contextWindow",
-    header: "Context",
+    header: "Context Window",
     cell: ({ row }) => {
       const contextWindow = row.getValue<number>("contextWindow")
 
@@ -87,6 +86,9 @@ export const agentColumns: ColumnDef<ListAgent>[] = [
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
                 <Link href={`/agent/${agent.session_id}`}>Chat</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/agent/update/${agent.session_id}`}>Edit</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

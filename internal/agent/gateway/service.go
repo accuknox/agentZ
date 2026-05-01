@@ -32,6 +32,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/util/retry"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/agent/gateway/db"
@@ -597,6 +598,83 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		ModifiedAt:   row.UpdatedAt,
 		LastActivity: row.UpdatedAt,
 		Status:       gatewayapi.PROGRESSING,
+	})
+}
+
+// UpdateAgent handles POST /api/update-agent/{sessionID}.
+func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, sessionID gatewayapi.SessionIDPath) {
+	var req gatewayapi.UpdateAgentRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+	_, sessionUUID, ok := validSessionID(w, r, sessionID.String(), "sessionID")
+	if !ok {
+		return
+	}
+	if !updateAgentRequestHasChanges(req) {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: "must include at least one mutable field",
+			},
+		))
+		return
+	}
+	if fields := validateUpdateAgentRequest(req); len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	row, err := s.queries.GatewayGetSession(r.Context(), sessionUUID)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("get session", err))
+		return
+	}
+
+	var updated *clawarmorv1alpha1.Agent
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		agt, getErr := s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Get(
+			r.Context(),
+			row.AgentName,
+			metav1.GetOptions{},
+		)
+		if getErr != nil {
+			return getErr
+		}
+		applyUpdateAgentRequest(agt, req)
+		updated, getErr = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Update(
+			r.Context(),
+			agt,
+			metav1.UpdateOptions{},
+		)
+		return getErr
+	})
+	if err != nil {
+		writeError(w, r, mapKubeHTTPError("update agent", err))
+		return
+	}
+
+	status := gatewayapi.PROGRESSING
+	if view := statusFromAgent(updated); view != nil {
+		status = statusFromView(view)
+	}
+	writeJSON(w, http.StatusOK, gatewayapi.Agent{
+		Name:         row.AgentName,
+		SessionId:    row.SessionID,
+		CreatedAt:    row.CreatedAt,
+		ModifiedAt:   row.UpdatedAt,
+		LastActivity: row.UpdatedAt,
+		Status:       status,
 	})
 }
 
@@ -1837,14 +1915,7 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sess
 	}
 	env := []corev1.EnvVar{}
 	if req.Env != nil {
-		keys := make([]string, 0, len(*req.Env))
-		for key := range *req.Env {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
-		for _, key := range keys {
-			env = append(env, corev1.EnvVar{Name: key, Value: (*req.Env)[key]})
-		}
+		env = envVarsFromMap(*req.Env)
 	}
 	systemPrompt := ""
 	if req.SystemPrompt != nil {
@@ -1934,6 +2005,227 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sess
 	agt.Spec.Tools.File.Enabled = &fileEnabled
 	agt.Spec.Tools.Arxiv.Enabled = &arxivEnabled
 	return agt
+}
+
+func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
+	if req.Env != nil || req.SystemPrompt != nil || req.MaxHistoryRuns != nil {
+		return true
+	}
+	if req.Compaction != nil {
+		cfg := req.Compaction
+		if cfg.Mode != nil || cfg.ThresholdRatio != nil || cfg.HistoryToolResultRatio != nil {
+			return true
+		}
+		if cfg.KeepRecentRequests != nil || cfg.OversizedToolResultRatio != nil {
+			return true
+		}
+	}
+	if req.Model != nil {
+		primary := req.Model.Primary
+		summary := req.Model.Summary
+		if primary != nil && (primary.Name != nil || primary.ContextWindow != nil || primary.Temperature != nil) {
+			return true
+		}
+		if summary != nil && (summary.Name != nil || summary.ContextWindow != nil || summary.Temperature != nil) {
+			return true
+		}
+	}
+	if req.Tools == nil {
+		return false
+	}
+	return updateToolHasChange(req.Tools.HostExec) ||
+		updateToolHasChange(req.Tools.WebFetch) ||
+		updateToolHasChange(req.Tools.File) ||
+		updateToolHasChange(req.Tools.Arxiv)
+}
+
+func updateToolHasChange(tool *gatewayapi.UpdateAgentTool) bool {
+	return tool != nil && tool.Enabled != nil
+}
+
+func validateUpdateAgentRequest(req gatewayapi.UpdateAgentRequest) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, 12)
+	if req.SystemPrompt != nil && len([]rune(*req.SystemPrompt)) > 4096 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "systemPrompt",
+			Message: "must be at most 4096 characters",
+		})
+	}
+	if req.MaxHistoryRuns != nil && *req.MaxHistoryRuns < 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "maxHistoryRuns",
+			Message: "must be greater than or equal to zero",
+		})
+	}
+	if req.Compaction != nil {
+		fields = validateUpdateAgentCompaction(fields, req.Compaction)
+	}
+	if req.Model != nil {
+		fields = validateUpdateAgentModelConfig(fields, "model.primary", req.Model.Primary)
+		fields = validateUpdateAgentModelConfig(fields, "model.summary", req.Model.Summary)
+	}
+	return fields
+}
+
+func validateUpdateAgentCompaction(fields []gatewayapi.FieldError, req *gatewayapi.UpdateAgentCompaction) []gatewayapi.FieldError {
+	if req.Mode != nil && *req.Mode != gatewayapi.Summary && *req.Mode != gatewayapi.Truncate {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.mode",
+			Message: "must be summary or truncate",
+		})
+	}
+	if req.ThresholdRatio != nil && (*req.ThresholdRatio < 0.2 || *req.ThresholdRatio > 0.95) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.thresholdRatio",
+			Message: "must be between 0.2 and 0.95",
+		})
+	}
+	if req.HistoryToolResultRatio != nil && (*req.HistoryToolResultRatio < 0 || *req.HistoryToolResultRatio > 1) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.historyToolResultRatio",
+			Message: "must be between 0 and 1",
+		})
+	}
+	if req.OversizedToolResultRatio != nil && (*req.OversizedToolResultRatio < 0.05 || *req.OversizedToolResultRatio > 0.1) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.oversizedToolResultRatio",
+			Message: "must be between 0.05 and 0.1",
+		})
+	}
+	if req.KeepRecentRequests != nil && *req.KeepRecentRequests < 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.keepRecentRequests",
+			Message: "must be greater than or equal to zero",
+		})
+	}
+	if req.HistoryToolResultRatio == nil || req.OversizedToolResultRatio == nil {
+		return fields
+	}
+	if *req.HistoryToolResultRatio >= *req.OversizedToolResultRatio {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "compaction.historyToolResultRatio",
+			Message: "must be less than compaction.oversizedToolResultRatio",
+		})
+	}
+	return fields
+}
+
+func validateUpdateAgentModelConfig(fields []gatewayapi.FieldError, field string, req *gatewayapi.UpdateAgentModelConfig) []gatewayapi.FieldError {
+	if req == nil {
+		return fields
+	}
+	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   field + ".name",
+			Message: "required",
+		})
+	}
+	if req.ContextWindow != nil && *req.ContextWindow <= 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   field + ".contextWindow",
+			Message: "must be greater than zero",
+		})
+	}
+	if req.Temperature != nil && (*req.Temperature < 0 || *req.Temperature > 1) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   field + ".temperature",
+			Message: "must be between 0 and 1",
+		})
+	}
+	return fields
+}
+
+func applyUpdateAgentRequest(agt *clawarmorv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
+	if req.Env != nil {
+		agt.Spec.Env = envVarsFromMap(*req.Env)
+	}
+	if req.SystemPrompt != nil {
+		agt.Spec.SystemPrompt = *req.SystemPrompt
+	}
+	if req.MaxHistoryRuns != nil {
+		agt.Spec.MaxHistoryRuns = int(*req.MaxHistoryRuns)
+	}
+	if req.Compaction != nil {
+		applyUpdateAgentCompaction(&agt.Spec.Compaction, req.Compaction)
+	}
+	if req.Model != nil {
+		applyUpdateAgentModel(&agt.Spec.Model, &agt.Spec.SummaryModel, req.Model)
+	}
+	if req.Tools != nil {
+		applyUpdateAgentTools(&agt.Spec.Tools, req.Tools)
+	}
+}
+
+func envVarsFromMap(items map[string]string) []corev1.EnvVar {
+	keys := make([]string, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	env := make([]corev1.EnvVar, 0, len(keys))
+	for _, key := range keys {
+		env = append(env, corev1.EnvVar{Name: key, Value: items[key]})
+	}
+	return env
+}
+
+func applyUpdateAgentCompaction(cfg *clawarmorv1alpha1.ContextCompactionConfig, req *gatewayapi.UpdateAgentCompaction) {
+	if req.Mode != nil {
+		cfg.Mode = string(*req.Mode)
+	}
+	if req.ThresholdRatio != nil {
+		cfg.ThresholdRatio = *req.ThresholdRatio
+	}
+	if req.HistoryToolResultRatio != nil {
+		cfg.HistoryToolResultRatio = *req.HistoryToolResultRatio
+	}
+	if req.KeepRecentRequests != nil {
+		cfg.KeepRecentRequests = int(*req.KeepRecentRequests)
+	}
+	if req.OversizedToolResultRatio != nil {
+		cfg.OversizedToolResultRatio = *req.OversizedToolResultRatio
+	}
+}
+
+func applyUpdateAgentModel(model *clawarmorv1alpha1.ModelConfig, summary *clawarmorv1alpha1.SummaryModelConfig, req *gatewayapi.UpdateAgentModel) {
+	if req.Primary != nil {
+		if req.Primary.Name != nil {
+			model.Name = *req.Primary.Name
+		}
+		if req.Primary.ContextWindow != nil {
+			model.ContextWindow = int(*req.Primary.ContextWindow)
+		}
+		if req.Primary.Temperature != nil {
+			model.Temperature = *req.Primary.Temperature
+		}
+	}
+	if req.Summary != nil {
+		if req.Summary.Name != nil {
+			summary.Name = *req.Summary.Name
+		}
+		if req.Summary.ContextWindow != nil {
+			summary.ContextWindow = int(*req.Summary.ContextWindow)
+		}
+		if req.Summary.Temperature != nil {
+			summary.Temperature = *req.Summary.Temperature
+		}
+	}
+}
+
+func applyUpdateAgentTools(cfg *clawarmorv1alpha1.ToolsConfig, req *gatewayapi.UpdateAgentTools) {
+	if req.HostExec != nil && req.HostExec.Enabled != nil {
+		cfg.HostExec.Enabled = req.HostExec.Enabled
+	}
+	if req.WebFetch != nil && req.WebFetch.Enabled != nil {
+		cfg.WebFetch.Enabled = req.WebFetch.Enabled
+	}
+	if req.File != nil && req.File.Enabled != nil {
+		cfg.File.Enabled = req.File.Enabled
+	}
+	if req.Arxiv != nil && req.Arxiv.Enabled != nil {
+		cfg.Arxiv.Enabled = req.Arxiv.Enabled
+	}
 }
 
 func (s *Service) handleRouteError(w http.ResponseWriter, r *http.Request, err error) {

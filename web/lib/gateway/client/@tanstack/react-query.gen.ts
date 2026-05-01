@@ -12,6 +12,7 @@ import {
   listAgents,
   type Options,
   sendMessage,
+  updateAgent,
 } from "../sdk.gen"
 import type {
   CompactSessionData,
@@ -35,6 +36,9 @@ import type {
   SendMessageData,
   SendMessageError,
   SendMessageResponse2,
+  UpdateAgentData,
+  UpdateAgentError,
+  UpdateAgentResponse,
 } from "../types.gen"
 
 export type QueryKey<TOptions extends Options> = [
@@ -165,6 +169,32 @@ export const deleteAgentMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await deleteAgent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Update a session-backed Agent.
+ *
+ * Updates mutable Agent configuration for an existing session. The session ID in the path identifies the Agent; Agent name is immutable and is not accepted in the request body.
+ *
+ */
+export const updateAgentMutation = (
+  options?: Partial<Options<UpdateAgentData>>
+): UseMutationOptions<UpdateAgentResponse, UpdateAgentError, Options<UpdateAgentData>> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateAgentResponse,
+    UpdateAgentError,
+    Options<UpdateAgentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateAgent({
         ...options,
         ...fnOptions,
         throwOnError: true,

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -220,6 +221,13 @@ func Serve(ctx context.Context, cfg Config) error {
 func (s *Service) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestLog)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 	return gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
 		BaseRouter:       r,
 		ErrorHandlerFunc: s.handleRouteError,
@@ -873,7 +881,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	prev := make(map[uuid.UUID]gatewayapi.Agent)
-	send := func(items []gatewayapi.Agent) bool {
+	send := func(event string, items []gatewayapi.Agent) bool {
 		if len(items) == 0 {
 			return true
 		}
@@ -882,6 +890,11 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 			recordRequestError(w, "internal_error", err)
 			return false
 		}
+		if event != "" {
+			if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+				return false
+			}
+		}
 		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
 			return false
 		}
@@ -889,17 +902,19 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 
-	ticker := time.NewTicker(statusPollInterval)
-	defer ticker.Stop()
-	for {
+	events, cancel := s.resolver.watchAgents()
+	defer cancel()
+
+	writeChanges := func() bool {
 		items, _, err := s.listAgentItems(r.Context(), sessionIDs, 200, 0)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return
+				return false
 			}
 			recordRequestError(w, "internal_error", err)
-			return
+			return false
 		}
+
 		changed := make([]gatewayapi.Agent, 0, len(items))
 		for _, item := range items {
 			if !sameAgent(prev[item.SessionId], item) {
@@ -907,16 +922,39 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				changed = append(changed, item)
 			}
 		}
-		if !send(changed) {
-			return
-		}
+		return send("", changed)
+	}
 
+	if !writeChanges() {
+		return
+	}
+
+	ticker := time.NewTicker(statusPollInterval)
+	defer ticker.Stop()
+	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case <-s.ctx.Done():
 			return
+		case evt, ok := <-events:
+			if !ok {
+				return
+			}
+			if evt.Type == agentWatchEventDeleted {
+				item, ok := deletedAgentEventItem(evt.Agent, prev, sessionIDs)
+				if ok && !send("DELETE", []gatewayapi.Agent{item}) {
+					return
+				}
+				continue
+			}
+			if !writeChanges() {
+				return
+			}
 		case <-ticker.C:
+			if !writeChanges() {
+				return
+			}
 		}
 	}
 }
@@ -1232,7 +1270,7 @@ func (s *Service) listAgentItems(ctx context.Context, sessionIDs []string, limit
 			next = encodeOffsetToken(offset + limit)
 			continue
 		}
-		status := gatewayapi.NOTFOUND
+		status := gatewayapi.UNSPECIFIED
 		resolved, resolveErr := s.resolver.resolveSession(ctx, row.SessionID.String())
 		if resolveErr == nil {
 			view := statusFromAgent(resolved.Agent)
@@ -1361,7 +1399,7 @@ func statusFromView(view *agentStatusView) gatewayapi.AgentStatus {
 	case agentPhaseDegraded:
 		return gatewayapi.DEGRADED
 	case agentPhaseNotFound:
-		return gatewayapi.NOTFOUND
+		return gatewayapi.UNSPECIFIED
 	default:
 		return gatewayapi.UNSPECIFIED
 	}
@@ -1374,6 +1412,29 @@ func sameAgent(a, b gatewayapi.Agent) bool {
 		a.CreatedAt.Equal(b.CreatedAt) &&
 		a.ModifiedAt.Equal(b.ModifiedAt) &&
 		a.Status == b.Status
+}
+
+func deletedAgentEventItem(agt *clawarmorv1alpha1.Agent, prev map[uuid.UUID]gatewayapi.Agent, sessionIDs []string) (gatewayapi.Agent, bool) {
+	if agt == nil {
+		return gatewayapi.Agent{}, false
+	}
+
+	sessionID, err := uuid.Parse(strings.TrimSpace(agt.Spec.Session.ID))
+	if err != nil {
+		return gatewayapi.Agent{}, false
+	}
+	if len(sessionIDs) > 0 && !slices.Contains(sessionIDs, sessionID.String()) {
+		return gatewayapi.Agent{}, false
+	}
+
+	item, ok := prev[sessionID]
+	delete(prev, sessionID)
+	if !ok {
+		return gatewayapi.Agent{}, false
+	}
+
+	item.Status = gatewayapi.DELETED
+	return item, true
 }
 
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {

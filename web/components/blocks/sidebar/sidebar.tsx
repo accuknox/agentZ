@@ -1,8 +1,5 @@
-"use client"
-
-import * as React from "react"
-
-import { NavAgents } from "./agents"
+import { Suspense } from "react"
+import { NavAgents, NavAgentsSkeleton } from "./agents"
 import { NavUser } from "./user"
 import { TeamSwitcher } from "./team-switcher"
 import {
@@ -13,8 +10,9 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { GalleryVerticalEndIcon, AudioLinesIcon, TerminalIcon } from "lucide-react"
+import { listAgentsAction } from "@/data/agents"
 
-// this is sample data.
+// TODO: Replace this sample data when tenant/user APIs are available.
 const data = {
   user: {
     name: "shadcn",
@@ -40,14 +38,16 @@ const data = {
   ],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
       <SidebarContent>
-        <NavAgents />
+        <Suspense fallback={<NavAgentsSkeleton />}>
+          <NavAgents agents={listAgentsAction()} />
+        </Suspense>
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

@@ -52,11 +52,6 @@ export const zAgent = z.object({
   status: zAgentStatus,
 })
 
-export const zListAgentsResponse = z.object({
-  agents: z.array(zAgent),
-  next_page_token: z.string(),
-})
-
 export const zDeleteAgentRequest = z.object({
   session_id: zSessionIdInput,
 })
@@ -103,6 +98,31 @@ export const zCreateAgentTools = z.object({
   webFetch: zCreateAgentEnabledByDefaultTool.optional(),
   file: zCreateAgentDisabledByDefaultTool.optional(),
   arxiv: zCreateAgentDisabledByDefaultTool.optional(),
+})
+
+export const zAgentConfiguration = z.object({
+  env: z.record(z.string(), z.string()).optional(),
+  systemPrompt: z.string().max(4096).optional(),
+  compaction: zCreateAgentCompaction.optional(),
+  maxHistoryRuns: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
+    .optional()
+    .default(50),
+  model: zCreateAgentModel,
+  tools: zCreateAgentTools.optional(),
+})
+
+export const zListAgent = zAgent.and(
+  z.object({
+    configuration: zAgentConfiguration,
+  })
+)
+
+export const zListAgentsResponse = z.object({
+  agents: z.array(zListAgent),
+  next_page_token: z.string(),
 })
 
 export const zCreateAgentRequest = z.object({

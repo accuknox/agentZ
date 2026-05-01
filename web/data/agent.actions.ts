@@ -1,20 +1,35 @@
 "use server"
 
 import { redirect } from "next/navigation"
-import { createAgent, listAgents } from "@/lib/gateway/client"
+import { createAgent, listAgents, type Agent, type ListAgent } from "@/lib/gateway/client"
 import { createAgentFormSchema } from "@/data/schema"
-import type { CreateAgentFormState, ListAgentActionResponse } from "@/data/types"
+import type {
+  CreateAgentFormState,
+  ListAgentActionResponse,
+  ListAgentWithConfigActionResponse,
+} from "@/data/types"
 import { agentFormValues, createAgentRequest } from "@/data/utils"
 
-export async function listAgentsAction(): Promise<ListAgentActionResponse> {
+export async function listAgentsAction(): Promise<ListAgentActionResponse>
+export async function listAgentsAction(includeConfig: false): Promise<ListAgentActionResponse>
+export async function listAgentsAction(
+  includeConfig: true
+): Promise<ListAgentWithConfigActionResponse>
+export async function listAgentsAction(includeConfig = false) {
   const result = await listAgents()
   if (result.error) {
     return { agents: undefined, error: result.error }
   }
-  return {
-    agents: result.data.agents.filter((agent) => agent.status !== "DELETED"),
-    error: undefined,
+
+  const agents = result.data.agents.filter((agent) => agent.status !== "DELETED")
+  if (includeConfig) {
+    return { agents, error: undefined } satisfies ListAgentActionResponse<ListAgent>
   }
+
+  return {
+    agents: agents.map(({ configuration: _, ...agent }) => agent),
+    error: undefined,
+  } satisfies ListAgentActionResponse<Agent>
 }
 
 export async function createAgentFormAction(

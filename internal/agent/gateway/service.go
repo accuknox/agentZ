@@ -917,9 +917,10 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 		changed := make([]gatewayapi.Agent, 0, len(items))
 		for _, item := range items {
-			if !sameAgent(prev[item.SessionId], item) {
-				prev[item.SessionId] = item
-				changed = append(changed, item)
+			agt := agentFromListAgent(item)
+			if !sameAgent(prev[agt.SessionId], agt) {
+				prev[agt.SessionId] = agt
+				changed = append(changed, agt)
 			}
 		}
 		return send("", changed)
@@ -1236,7 +1237,7 @@ func (s *Service) notifySession(sessionID string) {
 	}
 }
 
-func (s *Service) listAgentItems(ctx context.Context, sessionIDs []string, limit int, offset int) ([]gatewayapi.Agent, string, error) {
+func (s *Service) listAgentItems(ctx context.Context, sessionIDs []string, limit int, offset int) ([]gatewayapi.ListAgent, string, error) {
 	var rows []gatewaydb.Session
 	var err error
 	if len(sessionIDs) > 0 {
@@ -1263,7 +1264,7 @@ func (s *Service) listAgentItems(ctx context.Context, sessionIDs []string, limit
 		return nil, "", err
 	}
 
-	items := make([]gatewayapi.Agent, 0, limit)
+	items := make([]gatewayapi.ListAgent, 0, limit)
 	var next string
 	for _, row := range rows {
 		if len(items) == limit {
@@ -1271,10 +1272,12 @@ func (s *Service) listAgentItems(ctx context.Context, sessionIDs []string, limit
 			continue
 		}
 		status := gatewayapi.UNSPECIFIED
+		cfg := gatewayapi.AgentConfiguration{}
 		resolved, resolveErr := s.resolver.resolveSession(ctx, row.SessionID.String())
 		if resolveErr == nil {
 			view := statusFromAgent(resolved.Agent)
 			status = statusFromView(view)
+			cfg = configurationFromAgent(resolved.Agent)
 			if status == gatewayapi.IDLE {
 				if active, ok, _ := s.activeRun(ctx, row.SessionID.String(), resolved.Target); ok && active.runID != "" {
 					status = gatewayapi.WORKING
@@ -1283,16 +1286,89 @@ func (s *Service) listAgentItems(ctx context.Context, sessionIDs []string, limit
 		} else if !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
 		}
-		items = append(items, gatewayapi.Agent{
-			Name:         row.AgentName,
-			SessionId:    row.SessionID,
-			LastActivity: row.UpdatedAt,
-			CreatedAt:    row.CreatedAt,
-			ModifiedAt:   row.UpdatedAt,
-			Status:       status,
+		items = append(items, gatewayapi.ListAgent{
+			Name:          row.AgentName,
+			SessionId:     row.SessionID,
+			LastActivity:  row.UpdatedAt,
+			CreatedAt:     row.CreatedAt,
+			ModifiedAt:    row.UpdatedAt,
+			Status:        status,
+			Configuration: cfg,
 		})
 	}
 	return items, next, nil
+}
+
+func agentFromListAgent(item gatewayapi.ListAgent) gatewayapi.Agent {
+	return gatewayapi.Agent{
+		Name:         item.Name,
+		SessionId:    item.SessionId,
+		LastActivity: item.LastActivity,
+		CreatedAt:    item.CreatedAt,
+		ModifiedAt:   item.ModifiedAt,
+		Status:       item.Status,
+	}
+}
+
+func configurationFromAgent(agt *clawarmorv1alpha1.Agent) gatewayapi.AgentConfiguration {
+	cfg := gatewayapi.AgentConfiguration{
+		Model: gatewayapi.CreateAgentModel{
+			Primary: gatewayapi.CreateAgentModelConfig{
+				Name:          agt.Spec.Model.Name,
+				ContextWindow: int32(agt.Spec.Model.ContextWindow),
+			},
+		},
+	}
+
+	env := make(map[string]string, len(agt.Spec.Env))
+	for _, item := range agt.Spec.Env {
+		env[item.Name] = item.Value
+	}
+	if len(env) > 0 {
+		cfg.Env = &env
+	}
+	if agt.Spec.SystemPrompt != "" {
+		cfg.SystemPrompt = &agt.Spec.SystemPrompt
+	}
+	maxHistoryRuns := int32(agt.Spec.MaxHistoryRuns)
+	cfg.MaxHistoryRuns = &maxHistoryRuns
+
+	mode := gatewayapi.CompactionMode(agt.Spec.Compaction.Mode)
+	keepRecentRequests := int32(agt.Spec.Compaction.KeepRecentRequests)
+	cfg.Compaction = &gatewayapi.CreateAgentCompaction{
+		Mode:                     &mode,
+		ThresholdRatio:           &agt.Spec.Compaction.ThresholdRatio,
+		HistoryToolResultRatio:   &agt.Spec.Compaction.HistoryToolResultRatio,
+		KeepRecentRequests:       &keepRecentRequests,
+		OversizedToolResultRatio: &agt.Spec.Compaction.OversizedToolResultRatio,
+	}
+
+	primaryTemp := agt.Spec.Model.Temperature
+	cfg.Model.Primary.Temperature = &primaryTemp
+	if agt.Spec.SummaryModel.Name != "" {
+		summaryTemp := agt.Spec.SummaryModel.Temperature
+		cfg.Model.Summary = &gatewayapi.CreateAgentModelConfig{
+			Name:          agt.Spec.SummaryModel.Name,
+			ContextWindow: int32(agt.Spec.SummaryModel.ContextWindow),
+			Temperature:   &summaryTemp,
+		}
+	}
+
+	cfg.Tools = &gatewayapi.CreateAgentTools{
+		HostExec: &gatewayapi.CreateAgentEnabledByDefaultTool{
+			Enabled: agt.Spec.Tools.HostExec.Enabled,
+		},
+		WebFetch: &gatewayapi.CreateAgentEnabledByDefaultTool{
+			Enabled: agt.Spec.Tools.WebFetch.Enabled,
+		},
+		File: &gatewayapi.CreateAgentDisabledByDefaultTool{
+			Enabled: agt.Spec.Tools.File.Enabled,
+		},
+		Arxiv: &gatewayapi.CreateAgentDisabledByDefaultTool{
+			Enabled: agt.Spec.Tools.Arxiv.Enabled,
+		},
+	}
+	return cfg
 }
 
 func convertBackendEvent(evt *agentpb.AgentEvent) (*gatewayapi.SessionStreamEvent, error) {

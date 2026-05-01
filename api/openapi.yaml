@@ -428,10 +428,20 @@ components:
         agents:
           type: array
           items:
-            $ref: '#/components/schemas/Agent'
+            $ref: '#/components/schemas/ListAgent'
         next_page_token:
           type: string
       required: [agents, next_page_token]
+
+    ListAgent:
+      allOf:
+      - $ref: '#/components/schemas/Agent'
+      - type: object
+        additionalProperties: false
+        properties:
+          configuration:
+            $ref: '#/components/schemas/AgentConfiguration'
+        required: [configuration]
 
     Agent:
       type: object
@@ -453,6 +463,30 @@ components:
         status:
           $ref: '#/components/schemas/AgentStatus'
       required: [name, session_id, last_activity, created_at, modified_at, status]
+
+    AgentConfiguration:
+      type: object
+      additionalProperties: false
+      properties:
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        systemPrompt:
+          type: string
+          maxLength: 4096
+        compaction:
+          $ref: '#/components/schemas/CreateAgentCompaction'
+        maxHistoryRuns:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 50
+        model:
+          $ref: '#/components/schemas/CreateAgentModel'
+        tools:
+          $ref: '#/components/schemas/CreateAgentTools'
+      required: [model]
 
     AgentStatus:
       type: string

@@ -52,8 +52,12 @@ export type StoredSessionEvent = {
 }
 
 export type ListAgentsResponse = {
-  agents: Array<Agent>
+  agents: Array<ListAgent>
   next_page_token: string
+}
+
+export type ListAgent = Agent & {
+  configuration: AgentConfiguration
 }
 
 export type Agent = {
@@ -63,6 +67,17 @@ export type Agent = {
   created_at: string
   modified_at: string
   status: AgentStatus
+}
+
+export type AgentConfiguration = {
+  env?: {
+    [key: string]: string
+  }
+  systemPrompt?: string
+  compaction?: CreateAgentCompaction
+  maxHistoryRuns?: number
+  model: CreateAgentModel
+  tools?: CreateAgentTools
 }
 
 export type AgentStatus =

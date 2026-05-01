@@ -14,6 +14,7 @@ export {
 } from "./sdk.gen"
 export type {
   Agent,
+  AgentConfiguration,
   AgentName,
   AgentStatus,
   Audio,
@@ -69,6 +70,7 @@ export type {
   InterruptSessionResponses,
   JsonValue,
   LimitQuery,
+  ListAgent,
   ListAgentsData,
   ListAgentsError,
   ListAgentsErrors,

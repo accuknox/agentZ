@@ -107,6 +107,39 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/update-agent/{sessionID}:
+    post:
+      operationId: updateAgent
+      summary: Update a session-backed Agent.
+      description: >
+        Updates mutable Agent configuration for an existing session. The
+        session ID in the path identifies the Agent; Agent name is immutable
+        and is not accepted in the request body.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/SessionIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRequest'
+      responses:
+        '200':
+          description: Agent resource updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/send-message:
     post:
       operationId: sendMessage
@@ -254,6 +287,14 @@ components:
     SessionIDQuery:
       name: session_id
       in: query
+      required: true
+      description: Session UUID.
+      schema:
+        $ref: '#/components/schemas/SessionID'
+
+    SessionIDPath:
+      name: sessionID
+      in: path
       required: true
       description: Session UUID.
       schema:
@@ -428,10 +469,20 @@ components:
         agents:
           type: array
           items:
-            $ref: '#/components/schemas/Agent'
+            $ref: '#/components/schemas/ListAgent'
         next_page_token:
           type: string
       required: [agents, next_page_token]
+
+    ListAgent:
+      allOf:
+      - $ref: '#/components/schemas/Agent'
+      - type: object
+        additionalProperties: false
+        properties:
+          configuration:
+            $ref: '#/components/schemas/AgentConfiguration'
+        required: [configuration]
 
     Agent:
       type: object
@@ -454,13 +505,37 @@ components:
           $ref: '#/components/schemas/AgentStatus'
       required: [name, session_id, last_activity, created_at, modified_at, status]
 
+    AgentConfiguration:
+      type: object
+      additionalProperties: false
+      properties:
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        systemPrompt:
+          type: string
+          maxLength: 4096
+        compaction:
+          $ref: '#/components/schemas/CreateAgentCompaction'
+        maxHistoryRuns:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 50
+        model:
+          $ref: '#/components/schemas/CreateAgentModel'
+        tools:
+          $ref: '#/components/schemas/CreateAgentTools'
+      required: [model]
+
     AgentStatus:
       type: string
       enum:
       - UNSPECIFIED
       - PROGRESSING
       - DEGRADED
-      - NOT_FOUND
+      - DELETED
       - IDLE
       - WORKING
       - WAITING_FOR_HUMAN_INTERACTION
@@ -499,6 +574,28 @@ components:
           $ref: '#/components/schemas/SessionIDInput'
       required: [session_id]
 
+    UpdateAgentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        systemPrompt:
+          type: string
+          maxLength: 4096
+        compaction:
+          $ref: '#/components/schemas/UpdateAgentCompaction'
+        maxHistoryRuns:
+          type: integer
+          format: int32
+          minimum: 0
+        model:
+          $ref: '#/components/schemas/UpdateAgentModel'
+        tools:
+          $ref: '#/components/schemas/UpdateAgentTools'
+
     CreateAgentCompaction:
       type: object
       additionalProperties: false
@@ -529,6 +626,32 @@ components:
           maximum: 0.1
           default: 0.065
 
+    UpdateAgentCompaction:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          $ref: '#/components/schemas/CompactionMode'
+        thresholdRatio:
+          type: number
+          format: double
+          minimum: 0.2
+          maximum: 0.95
+        historyToolResultRatio:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        keepRecentRequests:
+          type: integer
+          format: int32
+          minimum: 0
+        oversizedToolResultRatio:
+          type: number
+          format: double
+          minimum: 0.05
+          maximum: 0.1
+
     CompactionMode:
       type: string
       enum:
@@ -545,6 +668,15 @@ components:
         summary:
           $ref: '#/components/schemas/CreateAgentModelConfig'
       required: [primary]
+
+    UpdateAgentModel:
+      type: object
+      additionalProperties: false
+      properties:
+        primary:
+          $ref: '#/components/schemas/UpdateAgentModelConfig'
+        summary:
+          $ref: '#/components/schemas/UpdateAgentModelConfig'
 
     CreateAgentModelConfig:
       type: object
@@ -565,6 +697,23 @@ components:
           default: 0.2
       required: [name, contextWindow]
 
+    UpdateAgentModelConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        contextWindow:
+          type: integer
+          format: int32
+          minimum: 1
+        temperature:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+
     CreateAgentTools:
       type: object
       additionalProperties: false
@@ -577,6 +726,26 @@ components:
           $ref: '#/components/schemas/CreateAgentDisabledByDefaultTool'
         arxiv:
           $ref: '#/components/schemas/CreateAgentDisabledByDefaultTool'
+
+    UpdateAgentTools:
+      type: object
+      additionalProperties: false
+      properties:
+        hostExec:
+          $ref: '#/components/schemas/UpdateAgentTool'
+        webFetch:
+          $ref: '#/components/schemas/UpdateAgentTool'
+        file:
+          $ref: '#/components/schemas/UpdateAgentTool'
+        arxiv:
+          $ref: '#/components/schemas/UpdateAgentTool'
+
+    UpdateAgentTool:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
 
     CreateAgentEnabledByDefaultTool:
       type: object

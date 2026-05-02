@@ -27,8 +27,8 @@ import (
 // Defines values for AgentStatus.
 const (
 	DEGRADED                   AgentStatus = "DEGRADED"
+	DELETED                    AgentStatus = "DELETED"
 	IDLE                       AgentStatus = "IDLE"
-	NOTFOUND                   AgentStatus = "NOT_FOUND"
 	PROGRESSING                AgentStatus = "PROGRESSING"
 	UNSPECIFIED                AgentStatus = "UNSPECIFIED"
 	WAITINGFORHUMANINTERACTION AgentStatus = "WAITING_FOR_HUMAN_INTERACTION"
@@ -190,6 +190,16 @@ type Agent struct {
 	// SessionId ClawArmor session UUID.
 	SessionId SessionID   `json:"session_id"`
 	Status    AgentStatus `json:"status"`
+}
+
+// AgentConfiguration defines model for AgentConfiguration.
+type AgentConfiguration struct {
+	Compaction     *CreateAgentCompaction `json:"compaction,omitempty"`
+	Env            *map[string]string     `json:"env,omitempty"`
+	MaxHistoryRuns *int32                 `json:"maxHistoryRuns,omitempty"`
+	Model          CreateAgentModel       `json:"model"`
+	SystemPrompt   *string                `json:"systemPrompt,omitempty"`
+	Tools          *CreateAgentTools      `json:"tools,omitempty"`
 }
 
 // AgentName defines model for AgentName.
@@ -398,10 +408,23 @@ type JSONValue3 = []JSONValue
 // JSONValue4 defines model for .
 type JSONValue4 map[string]JSONValue
 
+// ListAgent defines model for ListAgent.
+type ListAgent struct {
+	Configuration AgentConfiguration `json:"configuration"`
+	CreatedAt     time.Time          `json:"created_at"`
+	LastActivity  time.Time          `json:"last_activity"`
+	ModifiedAt    time.Time          `json:"modified_at"`
+	Name          AgentName          `json:"name"`
+
+	// SessionId ClawArmor session UUID.
+	SessionId SessionID   `json:"session_id"`
+	Status    AgentStatus `json:"status"`
+}
+
 // ListAgentsResponse defines model for ListAgentsResponse.
 type ListAgentsResponse struct {
-	Agents        []Agent `json:"agents"`
-	NextPageToken string  `json:"next_page_token"`
+	Agents        []ListAgent `json:"agents"`
+	NextPageToken string      `json:"next_page_token"`
 }
 
 // MessageRole defines model for MessageRole.
@@ -740,6 +763,51 @@ type TrpcAgentEventPayload struct {
 	Version            *int32                             `json:"version,omitempty"`
 }
 
+// UpdateAgentCompaction defines model for UpdateAgentCompaction.
+type UpdateAgentCompaction struct {
+	HistoryToolResultRatio   *float64        `json:"historyToolResultRatio,omitempty"`
+	KeepRecentRequests       *int32          `json:"keepRecentRequests,omitempty"`
+	Mode                     *CompactionMode `json:"mode,omitempty"`
+	OversizedToolResultRatio *float64        `json:"oversizedToolResultRatio,omitempty"`
+	ThresholdRatio           *float64        `json:"thresholdRatio,omitempty"`
+}
+
+// UpdateAgentModel defines model for UpdateAgentModel.
+type UpdateAgentModel struct {
+	Primary *UpdateAgentModelConfig `json:"primary,omitempty"`
+	Summary *UpdateAgentModelConfig `json:"summary,omitempty"`
+}
+
+// UpdateAgentModelConfig defines model for UpdateAgentModelConfig.
+type UpdateAgentModelConfig struct {
+	ContextWindow *int32   `json:"contextWindow,omitempty"`
+	Name          *string  `json:"name,omitempty"`
+	Temperature   *float64 `json:"temperature,omitempty"`
+}
+
+// UpdateAgentRequest defines model for UpdateAgentRequest.
+type UpdateAgentRequest struct {
+	Compaction     *UpdateAgentCompaction `json:"compaction,omitempty"`
+	Env            *map[string]string     `json:"env,omitempty"`
+	MaxHistoryRuns *int32                 `json:"maxHistoryRuns,omitempty"`
+	Model          *UpdateAgentModel      `json:"model,omitempty"`
+	SystemPrompt   *string                `json:"systemPrompt,omitempty"`
+	Tools          *UpdateAgentTools      `json:"tools,omitempty"`
+}
+
+// UpdateAgentTool defines model for UpdateAgentTool.
+type UpdateAgentTool struct {
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// UpdateAgentTools defines model for UpdateAgentTools.
+type UpdateAgentTools struct {
+	Arxiv    *UpdateAgentTool `json:"arxiv,omitempty"`
+	File     *UpdateAgentTool `json:"file,omitempty"`
+	HostExec *UpdateAgentTool `json:"hostExec,omitempty"`
+	WebFetch *UpdateAgentTool `json:"webFetch,omitempty"`
+}
+
 // Usage defines model for Usage.
 type Usage struct {
 	CompletionTokens    int32               `json:"completion_tokens"`
@@ -767,6 +835,9 @@ type PageTokenQuery = string
 
 // SessionIDFilterQuery defines model for SessionIDFilterQuery.
 type SessionIDFilterQuery = []SessionID
+
+// SessionIDPath ClawArmor session UUID.
+type SessionIDPath = SessionID
 
 // SessionIDQuery ClawArmor session UUID.
 type SessionIDQuery = SessionID
@@ -830,6 +901,9 @@ type SendMessageJSONRequestBody = SendMessageRequest
 
 // SubscribeSessionJSONRequestBody defines body for SubscribeSession for application/json ContentType.
 type SubscribeSessionJSONRequestBody = SubscribeSessionRequest
+
+// UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
+type UpdateAgentJSONRequestBody = UpdateAgentRequest
 
 // WatchAgentsJSONRequestBody defines body for WatchAgents for application/json ContentType.
 type WatchAgentsJSONRequestBody = WatchAgentsRequest
@@ -1531,6 +1605,11 @@ type ClientInterface interface {
 
 	SubscribeSession(ctx context.Context, body SubscribeSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UpdateAgentWithBody request with any body
+	UpdateAgentWithBody(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAgent(ctx context.Context, sessionID SessionIDPath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WatchAgentsWithBody request with any body
 	WatchAgentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1695,6 +1774,30 @@ func (c *Client) SubscribeSessionWithBody(ctx context.Context, contentType strin
 
 func (c *Client) SubscribeSession(ctx context.Context, body SubscribeSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSubscribeSessionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentWithBody(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentRequestWithBody(c.Server, sessionID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgent(ctx context.Context, sessionID SessionIDPath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentRequest(c.Server, sessionID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2127,6 +2230,53 @@ func NewSubscribeSessionRequestWithBody(server string, contentType string, body 
 	return req, nil
 }
 
+// NewUpdateAgentRequest calls the generic UpdateAgent builder with application/json body
+func NewUpdateAgentRequest(server string, sessionID SessionIDPath, body UpdateAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAgentRequestWithBody(server, sessionID, "application/json", bodyReader)
+}
+
+// NewUpdateAgentRequestWithBody generates requests for UpdateAgent with any type of body
+func NewUpdateAgentRequestWithBody(server string, sessionID SessionIDPath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/update-agent/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWatchAgentsRequest calls the generic WatchAgents builder with application/json body
 func NewWatchAgentsRequest(server string, body WatchAgentsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2245,6 +2395,11 @@ type ClientWithResponsesInterface interface {
 	SubscribeSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscribeSessionResp, error)
 
 	SubscribeSessionWithResponse(ctx context.Context, body SubscribeSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscribeSessionResp, error)
+
+	// UpdateAgentWithBodyWithResponse request with any body
+	UpdateAgentWithBodyWithResponse(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
+
+	UpdateAgentWithResponse(ctx context.Context, sessionID SessionIDPath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
 
 	// WatchAgentsWithBodyWithResponse request with any body
 	WatchAgentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error)
@@ -2455,6 +2610,32 @@ func (r SubscribeSessionResp) StatusCode() int {
 	return 0
 }
 
+type UpdateAgentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Agent
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAgentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAgentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WatchAgentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2596,6 +2777,23 @@ func (c *ClientWithResponses) SubscribeSessionWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseSubscribeSessionResp(rsp)
+}
+
+// UpdateAgentWithBodyWithResponse request with arbitrary body returning *UpdateAgentResp
+func (c *ClientWithResponses) UpdateAgentWithBodyWithResponse(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error) {
+	rsp, err := c.UpdateAgentWithBody(ctx, sessionID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAgentWithResponse(ctx context.Context, sessionID SessionIDPath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error) {
+	rsp, err := c.UpdateAgent(ctx, sessionID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentResp(rsp)
 }
 
 // WatchAgentsWithBodyWithResponse request with arbitrary body returning *WatchAgentsResp
@@ -3012,6 +3210,60 @@ func ParseSubscribeSessionResp(rsp *http.Response) (*SubscribeSessionResp, error
 	return response, nil
 }
 
+// ParseUpdateAgentResp parses an HTTP response from a UpdateAgentWithResponse call
+func ParseUpdateAgentResp(rsp *http.Response) (*UpdateAgentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAgentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Agent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseWatchAgentsResp parses an HTTP response from a WatchAgentsWithResponse call
 func ParseWatchAgentsResp(rsp *http.Response) (*WatchAgentsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -3071,6 +3323,9 @@ type ServerInterface interface {
 	// Subscribe to live events for a session.
 	// (POST /api/subscribe-session)
 	SubscribeSession(w http.ResponseWriter, r *http.Request)
+	// Update a session-backed Agent.
+	// (POST /api/update-agent/{sessionID})
+	UpdateAgent(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath)
 	// Watch agent status changes.
 	// (POST /api/watch-agents)
 	WatchAgents(w http.ResponseWriter, r *http.Request)
@@ -3125,6 +3380,12 @@ func (_ Unimplemented) SendMessage(w http.ResponseWriter, r *http.Request) {
 // Subscribe to live events for a session.
 // (POST /api/subscribe-session)
 func (_ Unimplemented) SubscribeSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a session-backed Agent.
+// (POST /api/update-agent/{sessionID})
+func (_ Unimplemented) UpdateAgent(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3320,6 +3581,31 @@ func (siw *ServerInterfaceWrapper) SubscribeSession(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// UpdateAgent operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAgent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID SessionIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAgent(w, r, sessionID)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // WatchAgents operation middleware
 func (siw *ServerInterfaceWrapper) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
@@ -3472,6 +3758,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/subscribe-session", wrapper.SubscribeSession)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/update-agent/{sessionID}", wrapper.UpdateAgent)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/watch-agents", wrapper.WatchAgents)
 	})
 
@@ -3481,79 +3770,84 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"ZAAA",
+	"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",
+	"AAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

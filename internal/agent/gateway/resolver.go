@@ -25,6 +25,18 @@ type resolvedAgent struct {
 	Agent  *clawarmorv1alpha1.Agent
 }
 
+type agentWatchEventType string
+
+const (
+	agentWatchEventChanged agentWatchEventType = "changed"
+	agentWatchEventDeleted agentWatchEventType = "deleted"
+)
+
+type agentWatchEvent struct {
+	Type  agentWatchEventType
+	Agent *clawarmorv1alpha1.Agent
+}
+
 type resolver struct {
 	namespace      string
 	targetOverride string
@@ -32,6 +44,8 @@ type resolver struct {
 	lister         listersv1alpha1.AgentLister
 	stopCh         chan struct{}
 	stopOnce       sync.Once
+	watchMu        sync.Mutex
+	watchers       map[chan agentWatchEvent]struct{}
 }
 
 func newResolver(ctx context.Context, namespace, targetOverride string) (*resolver, error) {
@@ -64,6 +78,22 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 		client:         cs,
 		lister:         lister,
 		stopCh:         make(chan struct{}),
+		watchers:       make(map[chan agentWatchEvent]struct{}),
+	}
+	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			r.broadcastAgentEvent(agentWatchEventChanged, agentFromInformerObject(obj))
+		},
+		UpdateFunc: func(_, newObj any) {
+			r.broadcastAgentEvent(agentWatchEventChanged, agentFromInformerObject(newObj))
+		},
+		DeleteFunc: func(obj any) {
+			r.broadcastAgentEvent(agentWatchEventDeleted, agentFromInformerObject(obj))
+		},
+	})
+	if err != nil {
+		r.Close()
+		return nil, fmt.Errorf("register agent informer handler: %w", err)
 	}
 	go func() {
 		<-ctx.Done()
@@ -87,6 +117,42 @@ func (r *resolver) Close() {
 	r.stopOnce.Do(func() {
 		close(r.stopCh)
 	})
+}
+
+func (r *resolver) watchAgents() (<-chan agentWatchEvent, func()) {
+	ch := make(chan agentWatchEvent, 16)
+	r.watchMu.Lock()
+	r.watchers[ch] = struct{}{}
+	r.watchMu.Unlock()
+
+	cancel := func() {
+		r.watchMu.Lock()
+		if _, ok := r.watchers[ch]; ok {
+			delete(r.watchers, ch)
+			close(ch)
+		}
+		r.watchMu.Unlock()
+	}
+	return ch, cancel
+}
+
+func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *clawarmorv1alpha1.Agent) {
+	if agt == nil {
+		return
+	}
+	evt := agentWatchEvent{
+		Type:  typ,
+		Agent: agt.DeepCopy(),
+	}
+
+	r.watchMu.Lock()
+	defer r.watchMu.Unlock()
+	for ch := range r.watchers {
+		select {
+		case ch <- evt:
+		default:
+		}
+	}
 }
 
 func (r *resolver) resolveSession(_ context.Context, sessionID string) (*resolvedAgent, error) {
@@ -129,6 +195,20 @@ func (r *resolver) agentTarget(agt *clawarmorv1alpha1.Agent) string {
 		return agt.Spec.Server.Address
 	}
 	return fmt.Sprintf("%s.%s.svc.cluster.local:%d", svcName, agt.Namespace, port)
+}
+
+func agentFromInformerObject(obj any) *clawarmorv1alpha1.Agent {
+	switch item := obj.(type) {
+	case *clawarmorv1alpha1.Agent:
+		return item
+	case cache.DeletedFinalStateUnknown:
+		if agt, ok := item.Obj.(*clawarmorv1alpha1.Agent); ok {
+			return agt
+		}
+	default:
+		return nil
+	}
+	return nil
 }
 
 type agentPhase int

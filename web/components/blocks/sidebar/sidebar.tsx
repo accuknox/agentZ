@@ -15,25 +15,13 @@ import { listAgentsAction } from "@/data/agent.actions"
 // TODO: Replace this sample data when tenant/user APIs are available.
 const data = {
   user: {
-    name: "shadcn",
+    name: "Murtaza U",
     email: "murtaza@accuknox.com",
-    avatar: "/avatars/shadcn.jpg",
   },
   teams: [
     {
-      name: "Acme Inc",
+      name: "Acuknox Inc",
       logo: <GalleryVerticalEndIcon />,
-      plan: "Enterprise",
-    },
-    {
-      name: "Acme Corp.",
-      logo: <AudioLinesIcon />,
-      plan: "Startup",
-    },
-    {
-      name: "Evil Corp.",
-      logo: <TerminalIcon />,
-      plan: "Free",
     },
   ],
 }

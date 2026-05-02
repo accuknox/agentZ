@@ -31,6 +31,12 @@ var Cmd = &cli.Command{
 		interruptCmd,
 		compactCmd,
 		subscribeCmd,
+		listTracesCmd,
+		listSpansCmd,
+		getSpanDetailCmd,
+		listProcessObservabilityCmd,
+		listFileObservabilityCmd,
+		listNetworkObservabilityCmd,
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		baseURL := strings.TrimRight(strings.TrimSpace(c.String("base-url")), "/")

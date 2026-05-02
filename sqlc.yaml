@@ -48,7 +48,9 @@ sql:
           type: Time
 - engine: postgresql
   queries: internal/agent/gateway/db/query.sql
-  schema: internal/session/db/schema.sql
+  schema:
+  - internal/session/db/schema.sql
+  - internal/observer/db/schema.sql
   gen:
     go:
       package: gatewaydb

@@ -66,6 +66,285 @@ func (q *Queries) GatewayGetSession(ctx context.Context, sessionID uuid.UUID) (S
 	return i, err
 }
 
+const gatewayGetSpanDetail = `-- name: GatewayGetSpanDetail :one
+WITH span_row AS (
+  SELECT
+    id,
+    session_id,
+    trace_id,
+    span_id,
+    parent_span_id,
+    start_time,
+    end_time,
+    duration_ns,
+    name,
+    operation_name,
+    kind,
+    status_code,
+    error_type,
+    error_message,
+    conversation_id,
+    run_id,
+    request_id,
+    model,
+    tool_name,
+    input_tokens,
+    output_tokens,
+    cached_input_tokens,
+    time_to_first_token_ms,
+    pod_namespace,
+    pod_name,
+    ingested_at
+  FROM observer_trace_spans sp
+  WHERE sp.session_id = $1
+    AND sp.trace_id = $2
+    AND sp.span_id = $3
+  ORDER BY sp.start_time ASC, sp.id ASC
+  LIMIT 1
+)
+SELECT
+  s.id,
+  s.session_id,
+  s.trace_id,
+  s.span_id,
+  s.parent_span_id,
+  s.start_time,
+  s.end_time,
+  s.duration_ns,
+  s.name,
+  s.operation_name,
+  s.kind,
+  s.status_code,
+  s.error_type,
+  s.error_message,
+  s.conversation_id,
+  s.run_id,
+  s.request_id,
+  s.model,
+  s.tool_name,
+  s.input_tokens,
+  s.output_tokens,
+  s.cached_input_tokens,
+  s.time_to_first_token_ms,
+  s.pod_namespace,
+  s.pod_name,
+  s.ingested_at,
+  COALESCE(p.input_messages, 'null'::jsonb) AS input_messages,
+  COALESCE(p.output_messages, 'null'::jsonb) AS output_messages,
+  COALESCE(p.tool_arguments, 'null'::jsonb) AS tool_arguments,
+  COALESCE(p.tool_result, 'null'::jsonb) AS tool_result,
+  COALESCE(p.metadata, '{}'::jsonb) AS metadata,
+  convert_to(COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', e.id,
+      'session_id', e.session_id,
+      'event_time', e.event_time,
+      'ingested_at', e.ingested_at,
+      'pod_namespace', e.pod_namespace,
+      'pod_name', e.pod_name,
+      'process', e.process,
+      'parent_process', e.parent_process,
+      'command_invocation', e.command_invocation,
+      'action', e.action,
+      'source', e.source
+    ) ORDER BY e.event_time ASC, e.id ASC)
+    FROM (
+      SELECT
+        id,
+        session_id,
+        event_time,
+        ingested_at,
+        pod_namespace,
+        pod_name,
+        process,
+        parent_process,
+        command_invocation,
+        action,
+        source
+      FROM observer_process_events e
+      WHERE s.pod_namespace != ''
+        AND s.pod_name != ''
+        AND e.session_id = s.session_id
+        AND e.event_time >= s.start_time - INTERVAL '5 seconds'
+        AND e.event_time <= s.end_time + INTERVAL '5 seconds'
+        AND e.pod_namespace = s.pod_namespace
+        AND e.pod_name = s.pod_name
+      ORDER BY e.event_time ASC, e.id ASC
+      LIMIT 50
+    ) e
+  ), '[]'::jsonb)::text, 'UTF8') AS process_events,
+  convert_to(COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', e.id,
+      'session_id', e.session_id,
+      'event_time', e.event_time,
+      'ingested_at', e.ingested_at,
+      'pod_namespace', e.pod_namespace,
+      'pod_name', e.pod_name,
+      'file_path_accessed', e.file_path_accessed,
+      'process', e.process,
+      'command_invocation', e.command_invocation,
+      'action', e.action,
+      'source', e.source
+    ) ORDER BY e.event_time ASC, e.id ASC)
+    FROM (
+      SELECT
+        id,
+        session_id,
+        event_time,
+        ingested_at,
+        pod_namespace,
+        pod_name,
+        file_path_accessed,
+        process,
+        command_invocation,
+        action,
+        source
+      FROM observer_file_events e
+      WHERE s.pod_namespace != ''
+        AND s.pod_name != ''
+        AND e.session_id = s.session_id
+        AND e.event_time >= s.start_time - INTERVAL '5 seconds'
+        AND e.event_time <= s.end_time + INTERVAL '5 seconds'
+        AND e.pod_namespace = s.pod_namespace
+        AND e.pod_name = s.pod_name
+      ORDER BY e.event_time ASC, e.id ASC
+      LIMIT 50
+    ) e
+  ), '[]'::jsonb)::text, 'UTF8') AS file_events,
+  convert_to(COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', e.id,
+      'session_id', e.session_id,
+      'event_time', e.event_time,
+      'ingested_at', e.ingested_at,
+      'pod_namespace', e.pod_namespace,
+      'pod_name', e.pod_name,
+      'destination_domain', e.destination_domain,
+      'destination_ip', e.destination_ip,
+      'destination_port', e.destination_port,
+      'protocol', e.protocol,
+      'action', e.action,
+      'source', e.source
+    ) ORDER BY e.event_time ASC, e.id ASC)
+    FROM (
+      SELECT
+        id,
+        session_id,
+        event_time,
+        ingested_at,
+        pod_namespace,
+        pod_name,
+        destination_domain,
+        destination_ip,
+        destination_port,
+        protocol,
+        action,
+        source
+      FROM observer_network_events e
+      WHERE s.pod_namespace != ''
+        AND s.pod_name != ''
+        AND e.session_id = s.session_id
+        AND e.event_time >= s.start_time - INTERVAL '5 seconds'
+        AND e.event_time <= s.end_time + INTERVAL '5 seconds'
+        AND e.pod_namespace = s.pod_namespace
+        AND e.pod_name = s.pod_name
+      ORDER BY e.event_time ASC, e.id ASC
+      LIMIT 50
+    ) e
+  ), '[]'::jsonb)::text, 'UTF8') AS network_events
+FROM span_row s
+LEFT JOIN observer_trace_span_payloads p
+  ON p.trace_id = s.trace_id
+  AND p.span_id = s.span_id
+  AND p.start_time = s.start_time
+`
+
+type GatewayGetSpanDetailParams struct {
+	SessionID uuid.UUID `json:"session_id"`
+	TraceID   []byte    `json:"trace_id"`
+	SpanID    []byte    `json:"span_id"`
+}
+
+type GatewayGetSpanDetailRow struct {
+	ID                 int64     `json:"id"`
+	SessionID          uuid.UUID `json:"session_id"`
+	TraceID            []byte    `json:"trace_id"`
+	SpanID             []byte    `json:"span_id"`
+	ParentSpanID       []byte    `json:"parent_span_id"`
+	StartTime          time.Time `json:"start_time"`
+	EndTime            time.Time `json:"end_time"`
+	DurationNs         int64     `json:"duration_ns"`
+	Name               string    `json:"name"`
+	OperationName      string    `json:"operation_name"`
+	Kind               string    `json:"kind"`
+	StatusCode         string    `json:"status_code"`
+	ErrorType          string    `json:"error_type"`
+	ErrorMessage       string    `json:"error_message"`
+	ConversationID     string    `json:"conversation_id"`
+	RunID              string    `json:"run_id"`
+	RequestID          string    `json:"request_id"`
+	Model              string    `json:"model"`
+	ToolName           string    `json:"tool_name"`
+	InputTokens        int64     `json:"input_tokens"`
+	OutputTokens       int64     `json:"output_tokens"`
+	CachedInputTokens  int64     `json:"cached_input_tokens"`
+	TimeToFirstTokenMs float64   `json:"time_to_first_token_ms"`
+	PodNamespace       string    `json:"pod_namespace"`
+	PodName            string    `json:"pod_name"`
+	IngestedAt         time.Time `json:"ingested_at"`
+	InputMessages      []byte    `json:"input_messages"`
+	OutputMessages     []byte    `json:"output_messages"`
+	ToolArguments      []byte    `json:"tool_arguments"`
+	ToolResult         []byte    `json:"tool_result"`
+	Metadata           []byte    `json:"metadata"`
+	ProcessEvents      []byte    `json:"process_events"`
+	FileEvents         []byte    `json:"file_events"`
+	NetworkEvents      []byte    `json:"network_events"`
+}
+
+func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetSpanDetail, arg.SessionID, arg.TraceID, arg.SpanID)
+	var i GatewayGetSpanDetailRow
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.TraceID,
+		&i.SpanID,
+		&i.ParentSpanID,
+		&i.StartTime,
+		&i.EndTime,
+		&i.DurationNs,
+		&i.Name,
+		&i.OperationName,
+		&i.Kind,
+		&i.StatusCode,
+		&i.ErrorType,
+		&i.ErrorMessage,
+		&i.ConversationID,
+		&i.RunID,
+		&i.RequestID,
+		&i.Model,
+		&i.ToolName,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CachedInputTokens,
+		&i.TimeToFirstTokenMs,
+		&i.PodNamespace,
+		&i.PodName,
+		&i.IngestedAt,
+		&i.InputMessages,
+		&i.OutputMessages,
+		&i.ToolArguments,
+		&i.ToolResult,
+		&i.Metadata,
+		&i.ProcessEvents,
+		&i.FileEvents,
+		&i.NetworkEvents,
+	)
+	return i, err
+}
+
 const gatewayListEventPage = `-- name: GatewayListEventPage :many
 SELECT seq, event_id, event_ts, event_payload
 FROM session_events
@@ -102,6 +381,263 @@ func (q *Queries) GatewayListEventPage(ctx context.Context, arg GatewayListEvent
 			&i.EventID,
 			&i.EventTs,
 			&i.EventPayload,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListFileEvents = `-- name: GatewayListFileEvents :many
+SELECT
+  id,
+  session_id,
+  event_time,
+  ingested_at,
+  pod_namespace,
+  pod_name,
+  file_path_accessed,
+  process,
+  command_invocation,
+  action,
+  source
+FROM observer_file_events
+WHERE session_id = $1
+  AND event_time >= $2
+  AND event_time <= $3
+  AND (
+    $4::text = ''
+    OR action = $4
+  )
+  AND (
+    NOT $5::bool
+    OR event_time < $6
+    OR (
+      event_time = $6
+      AND id < $7
+    )
+  )
+ORDER BY event_time DESC, id DESC
+LIMIT $8
+`
+
+type GatewayListFileEventsParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	EventTimeAfter  time.Time `json:"event_time_after"`
+	EventTimeBefore time.Time `json:"event_time_before"`
+	Action          string    `json:"action"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorEventTime time.Time `json:"cursor_event_time"`
+	CursorID        int64     `json:"cursor_id"`
+	PageSize        int32     `json:"page_size"`
+}
+
+func (q *Queries) GatewayListFileEvents(ctx context.Context, arg GatewayListFileEventsParams) ([]ObserverFileEvent, error) {
+	rows, err := q.db.Query(ctx, gatewayListFileEvents,
+		arg.SessionID,
+		arg.EventTimeAfter,
+		arg.EventTimeBefore,
+		arg.Action,
+		arg.CursorSet,
+		arg.CursorEventTime,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ObserverFileEvent{}
+	for rows.Next() {
+		var i ObserverFileEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.EventTime,
+			&i.IngestedAt,
+			&i.PodNamespace,
+			&i.PodName,
+			&i.FilePathAccessed,
+			&i.Process,
+			&i.CommandInvocation,
+			&i.Action,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListNetworkEvents = `-- name: GatewayListNetworkEvents :many
+SELECT
+  id,
+  session_id,
+  event_time,
+  ingested_at,
+  pod_namespace,
+  pod_name,
+  destination_domain,
+  destination_ip,
+  destination_port,
+  protocol,
+  action,
+  source
+FROM observer_network_events
+WHERE session_id = $1
+  AND event_time >= $2
+  AND event_time <= $3
+  AND (
+    $4::text = ''
+    OR action = $4
+  )
+  AND (
+    NOT $5::bool
+    OR event_time < $6
+    OR (
+      event_time = $6
+      AND id < $7
+    )
+  )
+ORDER BY event_time DESC, id DESC
+LIMIT $8
+`
+
+type GatewayListNetworkEventsParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	EventTimeAfter  time.Time `json:"event_time_after"`
+	EventTimeBefore time.Time `json:"event_time_before"`
+	Action          string    `json:"action"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorEventTime time.Time `json:"cursor_event_time"`
+	CursorID        int64     `json:"cursor_id"`
+	PageSize        int32     `json:"page_size"`
+}
+
+func (q *Queries) GatewayListNetworkEvents(ctx context.Context, arg GatewayListNetworkEventsParams) ([]ObserverNetworkEvent, error) {
+	rows, err := q.db.Query(ctx, gatewayListNetworkEvents,
+		arg.SessionID,
+		arg.EventTimeAfter,
+		arg.EventTimeBefore,
+		arg.Action,
+		arg.CursorSet,
+		arg.CursorEventTime,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ObserverNetworkEvent{}
+	for rows.Next() {
+		var i ObserverNetworkEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.EventTime,
+			&i.IngestedAt,
+			&i.PodNamespace,
+			&i.PodName,
+			&i.DestinationDomain,
+			&i.DestinationIp,
+			&i.DestinationPort,
+			&i.Protocol,
+			&i.Action,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListProcessEvents = `-- name: GatewayListProcessEvents :many
+SELECT
+  id,
+  session_id,
+  event_time,
+  ingested_at,
+  pod_namespace,
+  pod_name,
+  process,
+  parent_process,
+  command_invocation,
+  action,
+  source
+FROM observer_process_events
+WHERE session_id = $1
+  AND event_time >= $2
+  AND event_time <= $3
+  AND (
+    $4::text = ''
+    OR action = $4
+  )
+  AND (
+    NOT $5::bool
+    OR event_time < $6
+    OR (
+      event_time = $6
+      AND id < $7
+    )
+  )
+ORDER BY event_time DESC, id DESC
+LIMIT $8
+`
+
+type GatewayListProcessEventsParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	EventTimeAfter  time.Time `json:"event_time_after"`
+	EventTimeBefore time.Time `json:"event_time_before"`
+	Action          string    `json:"action"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorEventTime time.Time `json:"cursor_event_time"`
+	CursorID        int64     `json:"cursor_id"`
+	PageSize        int32     `json:"page_size"`
+}
+
+func (q *Queries) GatewayListProcessEvents(ctx context.Context, arg GatewayListProcessEventsParams) ([]ObserverProcessEvent, error) {
+	rows, err := q.db.Query(ctx, gatewayListProcessEvents,
+		arg.SessionID,
+		arg.EventTimeAfter,
+		arg.EventTimeBefore,
+		arg.Action,
+		arg.CursorSet,
+		arg.CursorEventTime,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ObserverProcessEvent{}
+	for rows.Next() {
+		var i ObserverProcessEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.EventTime,
+			&i.IngestedAt,
+			&i.PodNamespace,
+			&i.PodName,
+			&i.Process,
+			&i.ParentProcess,
+			&i.CommandInvocation,
+			&i.Action,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -222,6 +758,203 @@ func (q *Queries) GatewayListSessionsByID(ctx context.Context, arg GatewayListSe
 			&i.SessionID,
 			&i.AgentName,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListSpans = `-- name: GatewayListSpans :many
+SELECT
+  id,
+  session_id,
+  trace_id,
+  span_id,
+  parent_span_id,
+  start_time,
+  end_time,
+  duration_ns,
+  name,
+  operation_name,
+  kind,
+  status_code,
+  error_type,
+  error_message,
+  conversation_id,
+  run_id,
+  request_id,
+  model,
+  tool_name,
+  input_tokens,
+  output_tokens,
+  cached_input_tokens,
+  time_to_first_token_ms,
+  pod_namespace,
+  pod_name,
+  ingested_at
+FROM observer_trace_spans
+WHERE session_id = $1
+  AND trace_id = $2
+  AND (
+    NOT $3::bool
+    OR start_time > $4
+    OR (
+      start_time = $4
+      AND id > $5
+    )
+  )
+ORDER BY start_time ASC, id ASC
+LIMIT $6
+`
+
+type GatewayListSpansParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	TraceID         []byte    `json:"trace_id"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorStartTime time.Time `json:"cursor_start_time"`
+	CursorID        int64     `json:"cursor_id"`
+	PageSize        int32     `json:"page_size"`
+}
+
+func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansParams) ([]ObserverTraceSpan, error) {
+	rows, err := q.db.Query(ctx, gatewayListSpans,
+		arg.SessionID,
+		arg.TraceID,
+		arg.CursorSet,
+		arg.CursorStartTime,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ObserverTraceSpan{}
+	for rows.Next() {
+		var i ObserverTraceSpan
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.TraceID,
+			&i.SpanID,
+			&i.ParentSpanID,
+			&i.StartTime,
+			&i.EndTime,
+			&i.DurationNs,
+			&i.Name,
+			&i.OperationName,
+			&i.Kind,
+			&i.StatusCode,
+			&i.ErrorType,
+			&i.ErrorMessage,
+			&i.ConversationID,
+			&i.RunID,
+			&i.RequestID,
+			&i.Model,
+			&i.ToolName,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CachedInputTokens,
+			&i.TimeToFirstTokenMs,
+			&i.PodNamespace,
+			&i.PodName,
+			&i.IngestedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListTraces = `-- name: GatewayListTraces :many
+SELECT
+  trace_id,
+  session_id,
+  root_span_id,
+  started_at,
+  ended_at,
+  duration_ns,
+  span_count,
+  error_count,
+  tool_count,
+  model_count,
+  run_id,
+  request_id,
+  conversation_id,
+  input_tokens,
+  output_tokens,
+  status_code,
+  updated_at
+FROM observer_traces
+WHERE session_id = $1
+  AND started_at >= $2
+  AND started_at <= $3
+  AND (
+    NOT $4::bool
+    OR started_at < $5
+    OR (
+      started_at = $5
+      AND trace_id < $6
+    )
+  )
+ORDER BY started_at DESC, trace_id DESC
+LIMIT $7
+`
+
+type GatewayListTracesParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	StartedAfter    time.Time `json:"started_after"`
+	StartedBefore   time.Time `json:"started_before"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorStartedAt time.Time `json:"cursor_started_at"`
+	CursorTraceID   []byte    `json:"cursor_trace_id"`
+	PageSize        int32     `json:"page_size"`
+}
+
+func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]ObserverTrace, error) {
+	rows, err := q.db.Query(ctx, gatewayListTraces,
+		arg.SessionID,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.CursorSet,
+		arg.CursorStartedAt,
+		arg.CursorTraceID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ObserverTrace{}
+	for rows.Next() {
+		var i ObserverTrace
+		if err := rows.Scan(
+			&i.TraceID,
+			&i.SessionID,
+			&i.RootSpanID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.DurationNs,
+			&i.SpanCount,
+			&i.ErrorCount,
+			&i.ToolCount,
+			&i.ModelCount,
+			&i.RunID,
+			&i.RequestID,
+			&i.ConversationID,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.StatusCode,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err

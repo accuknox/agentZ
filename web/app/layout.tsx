@@ -1,18 +1,19 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { Roboto } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
+import { PageBreadcrumb } from "@/components/blocks/breadcrumbs/page-breadcrumb"
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { listAgentsAction } from "@/data/agent.actions"
 import Providers from "./providers"
 
 const roboto = Roboto({ subsets: ["latin"], variable: "--font-roboto" })
@@ -40,17 +41,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   orientation="vertical"
                   className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                 />
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem className="hidden md:block">
-                      <BreadcrumbLink href="#">Build Your Application</BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator className="hidden md:block" />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
+                <Suspense fallback={<BreadcrumbFallback />}>
+                  <PageBreadcrumb agents={listAgentsAction()} />
+                </Suspense>
               </div>
             </header>
             {children}
@@ -58,5 +51,17 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         </Providers>
       </body>
     </html>
+  )
+}
+
+function BreadcrumbFallback() {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbPage>Home</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
   )
 }

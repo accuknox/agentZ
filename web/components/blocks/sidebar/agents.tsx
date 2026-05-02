@@ -138,10 +138,10 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
                 {queryAgents.map((agent) => (
                   <SidebarMenuSubItem key={agent.session_id}>
                     <SidebarMenuSubButton asChild>
-                      <a href={`/agent/${agent.session_id}`}>
+                      <Link href={`/agents/${agent.session_id}`}>
                         <AgentBadge status={agent.status} />
                         <span className="truncate ml-1.5">{agent.name}</span>
-                      </a>
+                      </Link>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 ))}

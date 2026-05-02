@@ -1,5 +1,5 @@
 import type * as z from "zod"
-import type { Agent, Error, ListAgent } from "@/lib/gateway/client"
+import type { Agent, ChatHistoryResponse, Error, ListAgent } from "@/lib/gateway/client"
 import type {
   compactionSchema,
   createAgentFormSchema,
@@ -32,6 +32,16 @@ export type ListAgentActionResponse<TAgent = Agent> =
     }
 
 export type ListAgentWithConfigActionResponse = ListAgentActionResponse<ListAgent>
+
+export type ChatHistoryActionResponse =
+  | {
+      data: ChatHistoryResponse
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
 
 export type CreateAgentFormState = {
   error?: Error

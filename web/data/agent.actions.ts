@@ -4,13 +4,16 @@ import { redirect } from "next/navigation"
 import {
   createAgent,
   deleteAgent,
+  getChatHistory,
   listAgents,
   updateAgent,
   type Agent,
+  type GetChatHistoryData,
   type ListAgentsData,
   type ListAgent,
 } from "@/lib/gateway/client"
 import type {
+  ChatHistoryActionResponse,
   CreateAgentFormState,
   DeleteAgentFormState,
   ListAgentActionResponse,
@@ -43,6 +46,17 @@ export async function listAgentsAction(includeConfig = false, query?: ListAgents
     agents: agents.map(({ configuration: _, ...agent }) => agent),
     error: undefined,
   } satisfies ListAgentActionResponse<Agent>
+}
+
+export async function getChatHistoryAction(
+  query: GetChatHistoryData["query"]
+): Promise<ChatHistoryActionResponse> {
+  const result = await getChatHistory({ query })
+  if (result.error) {
+    return { data: undefined, error: result.error }
+  }
+
+  return { data: result.data, error: undefined }
 }
 
 export async function createAgentFormAction(

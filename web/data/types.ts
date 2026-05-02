@@ -43,6 +43,69 @@ export type ChatHistoryActionResponse =
       error: Error
     }
 
+export type TraceListItem = {
+  traceId: string
+  sessionId: string
+  startedAt: string
+  endedAt: string
+  startedDate: string
+  startedTime: string
+  endedTime: string
+  duration: string
+  durationMs: number
+  cumulativeDurationMs: number
+  cumulativeDurationPercent: number
+  waterfallDelayMs: number
+  spanCount: number
+  errorCount: number
+  toolCount: number
+  modelCount: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  tokenRatio: number
+}
+
+export type ListTracesActionData = {
+  traces: TraceListItem[]
+  nextPageToken: string
+  hasNextPage: boolean
+  limit: number
+}
+
+export type TraceChartPoint = {
+  label: string
+  count: number
+  startedAfter: string
+  startedBefore: string
+}
+
+export type TraceChartActionData = {
+  points: TraceChartPoint[]
+  total: number
+  granularity: string
+}
+
+export type ListTracesActionResponse =
+  | {
+      data: ListTracesActionData
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
+
+export type TraceChartActionResponse =
+  | {
+      data: TraceChartActionData
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
+
 export type CreateAgentFormState = {
   error?: Error
 }

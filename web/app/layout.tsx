@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { Roboto } from "next/font/google"
+import { Oxanium, Roboto } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
@@ -16,6 +16,8 @@ import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { listAgentsAction } from "@/data/agent.actions"
 import Providers from "./providers"
 
+const oxanium = Oxanium({ subsets: ["latin"], variable: "--font-heading" })
+
 const roboto = Roboto({ subsets: ["latin"], variable: "--font-roboto" })
 
 export const metadata: Metadata = {
@@ -27,7 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", "font-sans", roboto.variable)}
+      className={cn("h-full", "antialiased", "font-sans", roboto.variable, oxanium.variable)}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarIcon } from "lucide-react"
+import { BotIcon, CalendarIcon } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { ListAgent } from "@/lib/gateway/client"
@@ -69,6 +69,7 @@ export function TracesFilters({
             <SelectGroup>
               {agents.map((agent) => (
                 <SelectItem key={agent.session_id} value={agent.session_id}>
+                  <BotIcon className="inline-block" />
                   {agent.name}
                 </SelectItem>
               ))}
@@ -104,7 +105,7 @@ function DateRangeControl({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="h-9 justify-start font-normal">
+        <Button variant="outline" className="justify-start font-normal">
           <CalendarIcon data-icon="inline-start" />
           <span className="truncate">{rangeLabel(from, to)}</span>
         </Button>
@@ -113,6 +114,7 @@ function DateRangeControl({
         <Calendar
           mode="range"
           numberOfMonths={2}
+          resetOnSelect
           selected={draftRange}
           onSelect={(range) => {
             setDraftRange(range)

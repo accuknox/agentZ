@@ -34,29 +34,31 @@ import Link from "next/link"
 export function NavAgentsSkeleton() {
   const path = usePathname()
   return (
-    <SidebarGroup>
-      <SidebarMenu>
-        <Collapsible asChild defaultOpen={path === "/"} className="group/collapsible">
-          <SidebarMenuItem>
-            <CollapsibleTrigger asChild>
-              <SidebarMenuButton tooltip="Agents">
-                <BotIcon />
-                <span>Agents</span>
-                <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-              </SidebarMenuButton>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                <SidebarMenuSubItem>
-                  <SidebarMenuSkeleton />
-                  <SidebarMenuSkeleton />
-                </SidebarMenuSubItem>
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </SidebarMenuItem>
-        </Collapsible>
-      </SidebarMenu>
-    </SidebarGroup>
+    <SidebarMenu>
+      <Collapsible
+        asChild
+        defaultOpen={path === "/" || path.startsWith("/agents")}
+        className="group/collapsible"
+      >
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton tooltip="Agents">
+              <BotIcon />
+              <span>Agents</span>
+              <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              <SidebarMenuSubItem>
+                <SidebarMenuSkeleton />
+                <SidebarMenuSkeleton />
+              </SidebarMenuSubItem>
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    </SidebarMenu>
   )
 }
 
@@ -108,49 +110,47 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   const path = usePathname()
 
   return (
-    <SidebarGroup>
-      <SidebarMenu>
-        <Collapsible
-          asChild
-          defaultOpen={path === "/" || path.startsWith("/agent")}
-          className="group/collapsible"
-        >
-          <SidebarMenuItem>
-            <CollapsibleTrigger asChild>
-              <SidebarMenuButton tooltip="Agents">
-                <BotIcon />
-                <span>Agents</span>
-                <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-              </SidebarMenuButton>
-            </CollapsibleTrigger>
-            <SidebarMenuAction>
-              <Link href="/agent/new">
-                <Plus size={16} />
-                <span className="sr-only">New Agent</span>
-              </Link>
-            </SidebarMenuAction>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                {(error && <p className="text-destructive text-sm">{error.message}</p>) ||
-                  (queryAgents.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No agents</p>
-                  ))}
-                {queryAgents.map((agent) => (
-                  <SidebarMenuSubItem key={agent.session_id}>
-                    <SidebarMenuSubButton asChild>
-                      <Link href={`/agents/${agent.session_id}`}>
-                        <AgentBadge status={agent.status} />
-                        <span className="truncate ml-1.5">{agent.name}</span>
-                      </Link>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
+    <SidebarMenu>
+      <Collapsible
+        asChild
+        defaultOpen={path === "/" || path.startsWith("/agent")}
+        className="group/collapsible"
+      >
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton tooltip="Agents">
+              <BotIcon />
+              <span>Agents</span>
+              <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <SidebarMenuAction>
+            <Link href="/agent/new">
+              <Plus size={16} />
+              <span className="sr-only">New Agent</span>
+            </Link>
+          </SidebarMenuAction>
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              {(error && <p className="text-destructive text-sm">{error.message}</p>) ||
+                (queryAgents.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No agents</p>
                 ))}
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </SidebarMenuItem>
-        </Collapsible>
-      </SidebarMenu>
-    </SidebarGroup>
+              {queryAgents.map((agent) => (
+                <SidebarMenuSubItem key={agent.session_id}>
+                  <SidebarMenuSubButton asChild>
+                    <Link href={`/agents/${agent.session_id}`}>
+                      <AgentBadge status={agent.status} />
+                      <span className="truncate ml-1.5">{agent.name}</span>
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    </SidebarMenu>
   )
 }
 

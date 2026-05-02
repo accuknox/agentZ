@@ -6,11 +6,13 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { GalleryVerticalEndIcon, AudioLinesIcon, TerminalIcon } from "lucide-react"
 import { listAgentsAction } from "@/data/agent.actions"
+import { NavLens } from "./lens"
 
 // TODO: Replace this sample data when tenant/user APIs are available.
 const data = {
@@ -33,9 +35,12 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
       <SidebarContent>
-        <Suspense fallback={<NavAgentsSkeleton />}>
-          <NavAgents agents={listAgentsAction()} />
-        </Suspense>
+        <SidebarGroup>
+          <Suspense fallback={<NavAgentsSkeleton />}>
+            <NavAgents agents={listAgentsAction()} />
+          </Suspense>
+          <NavLens />
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

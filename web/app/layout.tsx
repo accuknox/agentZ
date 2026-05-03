@@ -23,9 +23,12 @@ const roboto = Roboto({ subsets: ["latin"], variable: "--font-roboto" })
 export const metadata: Metadata = {
   title: "Clawarmor",
   description: "The AI that actually does things - SECURELY.",
+  icons: ["/favicon.png"],
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const agents = listAgentsAction()
+
   return (
     <html
       lang="en"
@@ -34,7 +37,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          <AppSidebar />
+          <AppSidebar agents={agents} />
           <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
               <div className="flex items-center gap-2 px-4">
@@ -44,7 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                 />
                 <Suspense fallback={<BreadcrumbFallback />}>
-                  <PageBreadcrumb agents={listAgentsAction()} />
+                  <PageBreadcrumb agents={agents} />
                 </Suspense>
               </div>
             </header>

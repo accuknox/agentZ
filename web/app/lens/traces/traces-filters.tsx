@@ -54,7 +54,7 @@ export function TracesFilters({
   return (
     <div
       data-pending={pending}
-      className="flex flex-col gap-3 p-3 data-[pending=true]:opacity-70 sm:flex-row sm:items-center sm:justify-between"
+      className="flex min-h-14 flex-col gap-3 border-b bg-background px-6 py-2 data-[pending=true]:opacity-70 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select
@@ -62,7 +62,7 @@ export function TracesFilters({
           onValueChange={(sessionID) => update({ session_id: sessionID })}
           disabled={agents.length === 0}
         >
-          <SelectTrigger className="h-9 w-full min-w-52 sm:w-64">
+          <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-64">
             <SelectValue placeholder="Agent" />
           </SelectTrigger>
           <SelectContent>
@@ -105,7 +105,7 @@ function DateRangeControl({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="justify-start font-normal">
+        <Button variant="outline" className="h-8 justify-start rounded-md font-normal">
           <CalendarIcon data-icon="inline-start" />
           <span className="truncate">{rangeLabel(from, to)}</span>
         </Button>

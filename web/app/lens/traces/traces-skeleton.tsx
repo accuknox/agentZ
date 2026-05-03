@@ -14,33 +14,31 @@ const headers = ["Trace", "Duration", "Execution", "Tokens"]
 export function TracesSkeleton() {
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-hidden rounded-md">
-        <Table className="table-fixed">
-          <TableHeader className="[&_tr]:border-0">
-            <TableRow className="bg-muted/40 hover:bg-muted/40">
+      <div className="border-b">
+        <Table>
+          <TableHeader>
+            <TableRow>
               {headers.map((header) => (
-                <TableHead key={header} className="h-11 px-4">
-                  {header}
-                </TableHead>
+                <TableHead key={header}>{header}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
-          <TableBody className="[&_tr]:border-0">
+          <TableBody>
             {rows.map((row) => (
               <TableRow key={row}>
-                <TableCell className="h-16 px-4">
+                <TableCell className="h-16">
                   <div className="flex flex-col gap-2">
                     <Skeleton className="h-4 w-28" />
                     <Skeleton className="h-3 w-40" />
                   </div>
                 </TableCell>
-                <TableCell className="h-16 px-4">
+                <TableCell className="h-16">
                   <div className="flex flex-col gap-2">
                     <Skeleton className="h-4 w-16" />
                     <Skeleton className="h-3 w-24" />
                   </div>
                 </TableCell>
-                <TableCell className="h-16 px-4">
+                <TableCell className="h-16">
                   <div className="flex gap-1.5">
                     <Skeleton className="h-5 w-16 rounded-4xl" />
                     <Skeleton className="h-5 w-16 rounded-4xl" />
@@ -48,7 +46,7 @@ export function TracesSkeleton() {
                     <Skeleton className="h-5 w-18 rounded-4xl" />
                   </div>
                 </TableCell>
-                <TableCell className="h-16 px-4">
+                <TableCell className="h-16">
                   <div className="flex flex-col gap-2">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-1.5 w-40 rounded-full" />

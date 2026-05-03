@@ -73,6 +73,37 @@ export type ListTracesActionData = {
   limit: number
 }
 
+export type RuntimeTelemetryEventItem = {
+  id: number
+  kind: "process" | "file" | "network"
+  eventTime: string
+  time: string
+  action: string
+  primary: string
+  secondary: string
+  source: string
+  namespace: string
+  pod: string
+}
+
+export type RuntimeTelemetryActionData = {
+  events: RuntimeTelemetryEventItem[]
+  processCount: number
+  fileCount: number
+  networkCount: number
+  blockedCount: number
+}
+
+export type RuntimeTelemetryActionResponse =
+  | {
+      data: RuntimeTelemetryActionData
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
+
 export type TraceChartPoint = {
   label: string
   count: number
@@ -99,6 +130,70 @@ export type ListTracesActionResponse =
 export type TraceChartActionResponse =
   | {
       data: TraceChartActionData
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
+
+export type SpanListItem = {
+  id: number
+  sessionId: string
+  traceId: string
+  spanId: string
+  parentSpanId: string
+  startLabel: string
+  endLabel: string
+  duration: string
+  durationMs: number
+  displayName: string
+  operationLabel: string
+  hasError: boolean
+  error: string
+  timeToFirstToken: string
+  spanType: "agent" | "model" | "tool" | "span"
+  depth: number
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  totalTokens: number
+  offsetPercent: number
+  durationPercent: number
+}
+
+export type ListSpansActionData = {
+  spans: SpanListItem[]
+  nextPageToken: string
+  hasNextPage: boolean
+}
+
+export type ListSpansActionResponse =
+  | {
+      data: ListSpansActionData
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
+
+export type SpanDetailPayloadSection = {
+  key: string
+  label: string
+  preview: string
+  json: string
+  empty: boolean
+}
+
+export type SpanDetailActionData = {
+  span: SpanListItem
+  payload: SpanDetailPayloadSection[]
+}
+
+export type SpanDetailActionResponse =
+  | {
+      data: SpanDetailActionData
       error: undefined
     }
   | {

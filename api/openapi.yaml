@@ -1275,19 +1275,7 @@ components:
           $ref: '#/components/schemas/Span'
         payload:
           $ref: '#/components/schemas/SpanPayload'
-        process:
-          type: array
-          items:
-            $ref: '#/components/schemas/ProcessObservabilityEvent'
-        file:
-          type: array
-          items:
-            $ref: '#/components/schemas/FileObservabilityEvent'
-        network:
-          type: array
-          items:
-            $ref: '#/components/schemas/NetworkObservabilityEvent'
-      required: [span, payload, process, file, network]
+      required: [span, payload]
 
     ListProcessObservabilityResponse:
       type: object

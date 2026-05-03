@@ -260,10 +260,6 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, params g
 		return
 	}
 
-	process, file, network, ok := spanObservability(w, r, row)
-	if !ok {
-		return
-	}
 	payload, ok := spanPayload(w, r, row)
 	if !ok {
 		return
@@ -272,9 +268,6 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, params g
 	writeJSON(w, http.StatusOK, gatewayapi.SpanDetailResponse{
 		Span:    spanFromDetail(row),
 		Payload: payload,
-		Process: process,
-		File:    file,
-		Network: network,
 	})
 }
 
@@ -534,22 +527,6 @@ func spanPayload(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGe
 		ToolResult:     toolResult,
 		Metadata:       metadata,
 	}, true
-}
-
-func spanObservability(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGetSpanDetailRow) ([]gatewayapi.ProcessObservabilityEvent, []gatewayapi.FileObservabilityEvent, []gatewayapi.NetworkObservabilityEvent, bool) {
-	var process []gatewayapi.ProcessObservabilityEvent
-	if !jsonBytes(w, r, row.ProcessEvents, &process) {
-		return nil, nil, nil, false
-	}
-	var file []gatewayapi.FileObservabilityEvent
-	if !jsonBytes(w, r, row.FileEvents, &file) {
-		return nil, nil, nil, false
-	}
-	var network []gatewayapi.NetworkObservabilityEvent
-	if !jsonBytes(w, r, row.NetworkEvents, &network) {
-		return nil, nil, nil, false
-	}
-	return process, file, network, true
 }
 
 func jsonValue(w http.ResponseWriter, r *http.Request, raw []byte) (gatewayapi.JSONValue, bool) {

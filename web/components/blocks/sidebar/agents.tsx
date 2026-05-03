@@ -2,7 +2,6 @@
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
-  SidebarGroup,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -32,14 +31,9 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 
 export function NavAgentsSkeleton() {
-  const path = usePathname()
   return (
     <SidebarMenu>
-      <Collapsible
-        asChild
-        defaultOpen={path === "/" || path.startsWith("/agents")}
-        className="group/collapsible"
-      >
+      <Collapsible asChild defaultOpen className="group/collapsible">
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>
             <SidebarMenuButton tooltip="Agents">
@@ -132,16 +126,16 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
           </SidebarMenuAction>
           <CollapsibleContent>
             <SidebarMenuSub>
-              {(error && <p className="text-destructive text-sm">{error.message}</p>) ||
-                (queryAgents.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No agents</p>
-                ))}
+              {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
+              {!error && queryAgents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No agents</p>
+              ) : null}
               {queryAgents.map((agent) => (
                 <SidebarMenuSubItem key={agent.session_id}>
                   <SidebarMenuSubButton asChild>
                     <Link href={`/agents/${agent.session_id}`}>
                       <AgentBadge status={agent.status} />
-                      <span className="truncate ml-1.5">{agent.name}</span>
+                      <span className="ml-1.5 truncate">{agent.name}</span>
                     </Link>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>

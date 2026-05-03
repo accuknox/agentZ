@@ -19,11 +19,11 @@ export function TracesChart({ data }: { data: TraceChartActionData }) {
   }))
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-2 py-3 px-6">
       <div className="flex items-center justify-end">
         <span className="text-xs text-muted-foreground">{data.total} traces</span>
       </div>
-      <ChartContainer config={chartConfig} className="aspect-auto h-56 w-full">
+      <ChartContainer config={chartConfig} className="aspect-auto h-40 w-full">
         <BarChart
           accessibilityLayer
           data={points}
@@ -74,18 +74,23 @@ function TraceChartTooltip({ active, payload }: TooltipContentProps) {
   )
 }
 
-function tracePoint(payload: unknown) {
-  if (!payload || typeof payload !== "object" || !("count" in payload) || !("label" in payload)) {
+function tracePoint(payload: unknown): { count: number; label: string } | undefined {
+  if (!isTracePoint(payload)) {
     return undefined
   }
 
-  const point = payload as { count: unknown; label: unknown }
-  if (typeof point.count !== "number" || typeof point.label !== "string") {
-    return undefined
+  return payload
+}
+
+function isTracePoint(payload: unknown): payload is { count: number; label: string } {
+  if (!payload || typeof payload !== "object") {
+    return false
   }
 
-  return {
-    count: point.count,
-    label: point.label,
-  }
+  return (
+    "count" in payload &&
+    typeof payload.count === "number" &&
+    "label" in payload &&
+    typeof payload.label === "string"
+  )
 }

@@ -699,9 +699,6 @@ export const zSpanPayload = z.object({
 export const zSpanDetailResponse = z.object({
   span: zSpan,
   payload: zSpanPayload,
-  process: z.array(zProcessObservabilityEvent),
-  file: z.array(zFileObservabilityEvent),
-  network: z.array(zNetworkObservabilityEvent),
 })
 
 export const zToolCall = z.object({

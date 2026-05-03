@@ -294,9 +294,6 @@ export type SpanPayload = {
 export type SpanDetailResponse = {
   span: Span
   payload: SpanPayload
-  process: Array<ProcessObservabilityEvent>
-  file: Array<FileObservabilityEvent>
-  network: Array<NetworkObservabilityEvent>
 }
 
 export type ListProcessObservabilityResponse = {

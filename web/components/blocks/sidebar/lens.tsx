@@ -2,7 +2,6 @@
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
-  SidebarGroup,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -10,7 +9,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
-import { BotIcon, ChevronRightIcon, Search } from "lucide-react"
+import { ChevronRightIcon, Search } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -34,6 +33,13 @@ export function NavLens() {
                 <SidebarMenuSubButton asChild>
                   <Link href="/lens/traces">
                     <span>Traces</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+              <SidebarMenuSubItem>
+                <SidebarMenuSubButton asChild>
+                  <Link href="/lens/runtime-telemetry">
+                    <span>Runtime Telemetry</span>
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>

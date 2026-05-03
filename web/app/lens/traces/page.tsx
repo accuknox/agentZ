@@ -5,11 +5,14 @@ import type { ListAgentActionResponse, ListAgentWithConfigActionResponse } from 
 import { TracesChart } from "@/app/lens/traces/traces-chart"
 import { TracesChartSkeleton } from "@/app/lens/traces/traces-chart-skeleton"
 import { TracesFilters } from "@/app/lens/traces/traces-filters"
+import {
+  firstSearchParam,
+  parseLimitParam,
+  type TraceDateRange,
+  traceDateRange,
+} from "@/app/lens/traces/search-params"
 import { TracesSkeleton } from "@/app/lens/traces/traces-skeleton"
 import { TracesTable } from "@/app/lens/traces/traces-table"
-import { dayjs } from "@/lib/dayjs"
-
-const defaultLimit = 25
 
 type TracesSearchParams = {
   session_id?: string | string[]
@@ -26,15 +29,15 @@ export default async function TracesPage({
 }) {
   const params = await searchParams
   const agents = listAgentsAction(true)
-  const from = first(params.from)
-  const to = first(params.to)
+  const from = firstSearchParam(params.from)
+  const to = firstSearchParam(params.to)
   const range = traceDateRange(from, to)
-  const pageToken = first(params.page_token)
-  const limit = limitParam(first(params.limit))
-  const sessionID = first(params.session_id)
+  const pageToken = firstSearchParam(params.page_token)
+  const limit = parseLimitParam(firstSearchParam(params.limit))
+  const sessionID = firstSearchParam(params.session_id)
 
   return (
-    <main className="flex flex-1 flex-col gap-5 p-4 pt-0 md:p-6 md:pt-0">
+    <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<TracesFiltersSkeleton />}>
         <Filters agents={agents} sessionID={sessionID} from={range.from} to={range.to} />
@@ -63,9 +66,9 @@ export default async function TracesPage({
 
 function PageHeader() {
   return (
-    <div className="flex items-end justify-between gap-4">
+    <div className="flex items-center justify-between px-6">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-normal">Traces</h1>
+        <h1 className="text-base font-medium tracking-normal">Traces</h1>
       </div>
     </div>
   )
@@ -163,7 +166,7 @@ async function Traces({
 }
 
 function TracesFiltersSkeleton() {
-  return <div className="h-15 rounded-lg bg-muted/30" />
+  return <div className="h-15 border-b bg-muted/20" />
 }
 
 function ErrorPanel({ message }: { message: string }) {
@@ -176,56 +179,4 @@ function selectedSessionID(result: ListAgentActionResponse, sessionID?: string) 
   }
 
   return sessionID ?? result.agents[0]?.session_id
-}
-
-function first(value?: string | string[]) {
-  if (Array.isArray(value)) {
-    return value[0]
-  }
-
-  return value
-}
-
-function limitParam(value?: string) {
-  const limit = Number(value)
-  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
-    return defaultLimit
-  }
-
-  return limit
-}
-
-type TraceDateRange = {
-  from: string
-  to: string
-  startedAfter: string
-  startedBefore: string
-}
-
-function traceDateRange(from?: string, to?: string): TraceDateRange {
-  const parsedFrom = dateParam(from)
-  const parsedTo = dateParam(to)
-  if (parsedFrom && parsedTo) {
-    return {
-      from: parsedFrom.format("YYYY-MM-DD"),
-      to: parsedTo.format("YYYY-MM-DD"),
-      startedAfter: parsedFrom.startOf("day").toISOString(),
-      startedBefore: parsedTo.endOf("day").toISOString(),
-    }
-  }
-
-  const now = dayjs()
-  const yesterday = now.subtract(24, "hour")
-
-  return {
-    from: yesterday.format("YYYY-MM-DD"),
-    to: now.format("YYYY-MM-DD"),
-    startedAfter: yesterday.toISOString(),
-    startedBefore: now.toISOString(),
-  }
-}
-
-function dateParam(value?: string) {
-  const date = dayjs(value, "YYYY-MM-DD", true)
-  return date.isValid() ? date : undefined
 }

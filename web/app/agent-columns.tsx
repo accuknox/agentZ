@@ -109,7 +109,7 @@ function AgentActions({
   const [open, setOpen] = React.useState(false)
 
   return (
-    <div className="text-right">
+    <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8">

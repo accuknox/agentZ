@@ -48,6 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import {
   formatCompactNumber,
@@ -74,7 +75,7 @@ const columns: ColumnDef<TraceListItem>[] = [
       return (
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="font-mono text-xs font-medium text-foreground">
-            {shortTraceID(trace.traceId)}
+            {shortLensID(trace.traceId)}
           </span>
           <span className="text-xs text-muted-foreground">
             {trace.startedDate} · {trace.startedTime}
@@ -132,14 +133,14 @@ const columns: ColumnDef<TraceListItem>[] = [
       return (
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span>{formatNumber(trace.inputTokens)} in</span>
-            <span>{formatNumber(trace.outputTokens)} out</span>
+            <span>{formatCompactNumber(trace.inputTokens)} in</span>
+            <span>{formatCompactNumber(trace.outputTokens)} out</span>
           </div>
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
             <span className="h-full bg-emerald-500" style={{ width: `${inputWidth}%` }} />
             <span className="h-full bg-blue-500" style={{ width: `${outputWidth}%` }} />
           </div>
-          <span className="sr-only">{formatNumber(trace.totalTokens)} tokens</span>
+          <span className="sr-only">{formatCompactNumber(trace.totalTokens)} tokens</span>
         </div>
       )
     },
@@ -322,7 +323,20 @@ function TraceInspector({
         </SheetTitle>
       </SheetHeader>
       <div className="flex flex-col bg-background lg:min-h-0 lg:flex-1 lg:grid lg:grid-rows-[auto_1fr]">
-        <TraceInspectorTabs value={tab} onValueChange={onTabChange} />
+        <Tabs
+          value={tab}
+          onValueChange={(v) => onTabChange(v as TraceInspectorTab)}
+          className="bg-muted/50 py-2"
+        >
+          <TabsList variant="line" className="gap-2">
+            <TabsTrigger value="spans" className="gap-2">
+              <Route /> Spans
+            </TabsTrigger>
+            <TabsTrigger value="telemetry" className="gap-2">
+              <Server /> Runtime Telemetry
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <div className="lg:min-h-0 lg:overflow-hidden">
           {tab === "spans" ? (
             <SpansInspectorContent
@@ -346,58 +360,6 @@ function TraceInspector({
   )
 }
 
-function TraceInspectorTabs({
-  value,
-  onValueChange,
-}: {
-  value: TraceInspectorTab
-  onValueChange: (value: TraceInspectorTab) => void
-}) {
-  return (
-    <div className="flex items-center gap-4  bg-muted/50 py-2 px-2 [&_svg]:size-4">
-      <TraceInspectorTabButton
-        icon={Route}
-        active={value === "spans"}
-        label="Spans"
-        onClick={() => onValueChange("spans")}
-      />
-      <TraceInspectorTabButton
-        icon={Server}
-        active={value === "telemetry"}
-        label="Runtime Telemetry"
-        onClick={() => onValueChange("telemetry")}
-      />
-    </div>
-  )
-}
-
-function TraceInspectorTabButton({
-  icon: Icon,
-  active,
-  label,
-  onClick,
-}: {
-  icon: LucideIcon
-  active: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "relative flex h-9 items-center gap-2 px-2 text-sm font-medium text-muted-foreground",
-        active && "text-primary"
-      )}
-      onClick={onClick}
-    >
-      <Icon />
-      {label}
-      {active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" /> : null}
-    </button>
-  )
-}
-
 function SpansInspectorContent({
   trace,
   data,
@@ -410,12 +372,15 @@ function SpansInspectorContent({
   pending: boolean
 }) {
   const [selectedSpanID, setSelectedSpanID] = React.useState<string | undefined>()
-  const [detail, setDetail] = React.useState<SpanDetailActionData | undefined>()
-  const [detailError, setDetailError] = React.useState<Error | undefined>()
+  const [detailState, setDetailState] = React.useState<{
+    data?: SpanDetailActionData
+    error?: Error
+  }>({})
   const [detailPending, startDetailTransition] = React.useTransition()
   const selectedSpan = selectedSpanID
     ? data?.spans.find((span) => span.spanId === selectedSpanID)
     : data?.spans[0]
+  const { data: detail, error: detailError } = detailState
 
   React.useEffect(() => {
     if (!selectedSpan) {
@@ -428,8 +393,7 @@ function SpansInspectorContent({
         trace_id: selectedSpan.traceId,
         span_id: selectedSpan.spanId,
       })
-      setDetail(result.data)
-      setDetailError(result.error)
+      setDetailState({ data: result.data, error: result.error })
     })
   }, [selectedSpan])
 
@@ -465,8 +429,7 @@ function SpansInspectorContent({
                   selected={selectedSpan?.spanId === span.spanId}
                   onClick={() => {
                     setSelectedSpanID(span.spanId)
-                    setDetail(undefined)
-                    setDetailError(undefined)
+                    setDetailState({})
                   }}
                 />
               ))
@@ -524,8 +487,8 @@ function SpanTreeRow({
           <Clock />
           {span.duration}
         </span>
-        {span.totalTokens > 0 ? <span>{formatNumber(span.totalTokens)} tokens</span> : null}
-        <span className="font-mono">{shortTraceID(span.spanId)}</span>
+        {span.totalTokens > 0 ? <span>{formatCompactNumber(span.totalTokens)} tokens</span> : null}
+        <span className="font-mono">{shortLensID(span.spanId)}</span>
       </div>
       <div className="ml-6 mt-1.5 h-0.5 rounded-full bg-border">
         <div
@@ -565,7 +528,7 @@ function SpanDetailViewer({
   error?: Error
   pending: boolean
 }) {
-  const title = span?.displayName ?? (trace ? shortTraceID(trace.traceId) : "Trace")
+  const title = span?.displayName ?? (trace ? shortLensID(trace.traceId) : "Trace")
 
   return (
     <div className="flex flex-col lg:h-full">
@@ -586,7 +549,7 @@ function SpanDetailViewer({
             {span?.duration ?? trace?.duration}
           </span>
           {span?.timeToFirstToken ? <span>TTFT {span.timeToFirstToken}</span> : null}
-          {span ? <span>{formatNumber(span.totalTokens)} tokens</span> : null}
+          {span ? <span>{formatCompactNumber(span.totalTokens)} tokens</span> : null}
         </div>
         {span && span.spanType !== "agent" ? <InspectorTokenMeter span={span} /> : null}
         {error ? (
@@ -708,7 +671,9 @@ function InspectorTokenMeter({ span }: { span: SpanListItem }) {
   return (
     <section className="mb-5 rounded-md bg-muted/10 p-4">
       <div className="mb-3 flex items-center justify-between gap-3 text-xs">
-        <span className="font-medium text-foreground">{formatNumber(span.totalTokens)} total</span>
+        <span className="font-medium text-foreground">
+          {formatCompactNumber(span.totalTokens)} total
+        </span>
       </div>
       <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
         <span className="bg-emerald-500" style={{ width: `${inputWidth}%` }} />
@@ -737,7 +702,7 @@ function TokenLegend({
     <span className="flex min-w-0 items-center gap-1.5">
       <span className={cn("size-2 shrink-0 rounded-full", colorClass)} />
       <span className="truncate">
-        {label} {formatNumber(value)}
+        {label} {formatCompactNumber(value)}
       </span>
     </span>
   )
@@ -775,33 +740,34 @@ function RuntimeTelemetryContent({
   const networkEvents = data.events.filter((event) => event.kind === "network")
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-4 overflow-x-auto py-2 px-2">
-        <TraceInspectorTabButton
-          icon={Cpu}
-          active={tab === "process"}
-          label={`Process (${data.processCount})`}
-          onClick={() => setTab("process")}
-        />
-        <TraceInspectorTabButton
-          icon={HardDrive}
-          active={tab === "file"}
-          label={`File (${data.fileCount})`}
-          onClick={() => setTab("file")}
-        />
-        <TraceInspectorTabButton
-          icon={Network}
-          active={tab === "network"}
-          label={`Network (${data.networkCount})`}
-          onClick={() => setTab("network")}
-        />
-      </div>
+    <Tabs
+      value={tab}
+      onValueChange={(v) => setTab(v as TelemetryTab)}
+      className="flex h-full min-h-0 flex-col mt-4"
+    >
+      <TabsList variant="line" className="overflow-x-auto px-2">
+        <TabsTrigger value="process" className="gap-2">
+          <Cpu /> Process ({data.processCount})
+        </TabsTrigger>
+        <TabsTrigger value="file" className="gap-2">
+          <HardDrive /> File ({data.fileCount})
+        </TabsTrigger>
+        <TabsTrigger value="network" className="gap-2">
+          <Network /> Network ({data.networkCount})
+        </TabsTrigger>
+      </TabsList>
       <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
-        {tab === "process" ? <ProcessTelemetryTable key="process" events={processEvents} /> : null}
-        {tab === "file" ? <FileTelemetryTable key="file" events={fileEvents} /> : null}
-        {tab === "network" ? <NetworkTelemetryTable key="network" events={networkEvents} /> : null}
+        <TabsContent value="process">
+          <ProcessTelemetryTable events={processEvents} />
+        </TabsContent>
+        <TabsContent value="file">
+          <FileTelemetryTable events={fileEvents} />
+        </TabsContent>
+        <TabsContent value="network">
+          <NetworkTelemetryTable events={networkEvents} />
+        </TabsContent>
       </div>
-    </div>
+    </Tabs>
   )
 }
 
@@ -844,7 +810,7 @@ function ProcessTelemetryTable({ events }: { events: RuntimeTelemetryEventItem[]
       columns={[
         { header: "Process", headerClassName: "min-w-36", cellClassName: telemetryMonoClass },
         {
-          header: "Command / Parent",
+          header: "Command",
           headerClassName: "min-w-80",
           cellClassName: telemetryWideMonoClass,
         },
@@ -872,7 +838,7 @@ function FileTelemetryTable({ events }: { events: RuntimeTelemetryEventItem[] })
           cellClassName: telemetryWideMonoClass,
         },
         {
-          header: "Command / Process",
+          header: "Process",
           headerClassName: "min-w-72",
           cellClassName: telemetryWideMonoClass,
         },
@@ -881,7 +847,6 @@ function FileTelemetryTable({ events }: { events: RuntimeTelemetryEventItem[] })
       ]}
       rows={events.map((event) => [
         event.primary,
-        event.secondary,
         event.secondary,
         <TelemetryActionBadge key={`${event.id}-action`} action={event.action} />,
         <TelemetryTimestamp key={`${event.id}-time`} value={event.time} />,
@@ -1046,13 +1011,16 @@ const telemetryMonoClass = "max-w-[16rem] whitespace-normal break-all font-mono 
 const telemetryWideMonoClass = "max-w-[28rem] whitespace-normal break-all font-mono text-xs"
 
 function networkDestinationDomain(event: RuntimeTelemetryEventItem) {
-  return event.primary.includes(".") ? event.primary : ""
+  const domain = /^(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/
+  if (domain.test(event.primary)) return event.primary
+  return ""
 }
 
 function networkDestinationIP(event: RuntimeTelemetryEventItem) {
-  const match = event.secondary.match(/(?:^|\s)(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/)
-
-  return match?.[1] ?? (event.primary.includes(".") ? "" : event.primary)
+  if (!networkDestinationDomain(event)) {
+    return event.primary
+  }
+  return ""
 }
 
 function networkDestinationPort(event: RuntimeTelemetryEventItem) {
@@ -1141,13 +1109,9 @@ function MetricBadge({
   return (
     <Badge variant={variant}>
       <Icon data-icon="inline-start" />
-      {formatNumber(value)} {metricLabel(value, singular)}
+      {formatCompactNumber(value)} {value === 1 ? singular : `${singular}s`}
     </Badge>
   )
-}
-
-function metricLabel(value: number, singular: string) {
-  return value === 1 ? singular : `${singular}s`
 }
 
 function WaterfallProgress({ trace }: { trace: TraceListItem }) {
@@ -1163,12 +1127,4 @@ function WaterfallProgress({ trace }: { trace: TraceListItem }) {
       }
     />
   )
-}
-
-function shortTraceID(value: string) {
-  return shortLensID(value)
-}
-
-function formatNumber(value: number) {
-  return formatCompactNumber(value)
 }

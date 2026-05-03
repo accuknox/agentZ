@@ -25,7 +25,7 @@ export function AppSidebar({
         <TeamSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="gap-y-1">
           <Suspense fallback={<NavAgentsSkeleton />}>
             <NavAgents agents={agents} />
           </Suspense>

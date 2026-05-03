@@ -143,6 +143,7 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
+      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated process observability events.
@@ -169,6 +170,7 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
+      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated file observability events.
@@ -195,6 +197,7 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
+      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated network observability events.
@@ -544,6 +547,15 @@ components:
       description: Optional observability action filter.
       schema:
         $ref: '#/components/schemas/ObservabilityAction'
+
+    AggregatedQuery:
+      name: aggregated
+      in: query
+      required: false
+      description: When true, returns aggregated events with occurrence counts over the time range.
+      schema:
+        type: boolean
+        default: false
 
   responses:
     BadRequest:
@@ -1284,7 +1296,9 @@ components:
         events:
           type: array
           items:
-            $ref: '#/components/schemas/ProcessObservabilityEvent'
+            oneOf:
+            - $ref: '#/components/schemas/ProcessObservabilityEvent'
+            - $ref: '#/components/schemas/ProcessObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -1332,6 +1346,39 @@ components:
       - action
       - source
 
+    ProcessObservabilityEventAggregated:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        last_seen:
+          type: string
+          format: date-time
+        process:
+          type: string
+        parent_process:
+          type: string
+        command_invocation:
+          type: string
+        action:
+          $ref: '#/components/schemas/ObservabilityAction'
+        source:
+          type: string
+        occurrences:
+          type: integer
+          format: int64
+          minimum: 1
+      required:
+      - session_id
+      - last_seen
+      - process
+      - parent_process
+      - command_invocation
+      - action
+      - source
+      - occurrences
+
     ListFileObservabilityResponse:
       type: object
       additionalProperties: false
@@ -1339,7 +1386,9 @@ components:
         events:
           type: array
           items:
-            $ref: '#/components/schemas/FileObservabilityEvent'
+            oneOf:
+            - $ref: '#/components/schemas/FileObservabilityEvent'
+            - $ref: '#/components/schemas/FileObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -1387,6 +1436,39 @@ components:
       - action
       - source
 
+    FileObservabilityEventAggregated:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        last_seen:
+          type: string
+          format: date-time
+        file_path_accessed:
+          type: string
+        process:
+          type: string
+        command_invocation:
+          type: string
+        action:
+          $ref: '#/components/schemas/ObservabilityAction'
+        source:
+          type: string
+        occurrences:
+          type: integer
+          format: int64
+          minimum: 1
+      required:
+      - session_id
+      - last_seen
+      - file_path_accessed
+      - process
+      - command_invocation
+      - action
+      - source
+      - occurrences
+
     ListNetworkObservabilityResponse:
       type: object
       additionalProperties: false
@@ -1394,7 +1476,9 @@ components:
         events:
           type: array
           items:
-            $ref: '#/components/schemas/NetworkObservabilityEvent'
+            oneOf:
+            - $ref: '#/components/schemas/NetworkObservabilityEvent'
+            - $ref: '#/components/schemas/NetworkObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -1446,6 +1530,44 @@ components:
       - protocol
       - action
       - source
+
+    NetworkObservabilityEventAggregated:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          $ref: '#/components/schemas/SessionID'
+        last_seen:
+          type: string
+          format: date-time
+        destination_domain:
+          type: string
+        destination_ip:
+          type: string
+        destination_port:
+          type: integer
+          format: int64
+          minimum: 0
+        protocol:
+          type: string
+        action:
+          $ref: '#/components/schemas/ObservabilityAction'
+        source:
+          type: string
+        occurrences:
+          type: integer
+          format: int64
+          minimum: 1
+      required:
+      - session_id
+      - last_seen
+      - destination_domain
+      - destination_ip
+      - destination_port
+      - protocol
+      - action
+      - source
+      - occurrences
 
     WatchAgentsRequest:
       type: object

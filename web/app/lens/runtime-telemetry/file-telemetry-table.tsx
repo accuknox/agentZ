@@ -1,11 +1,12 @@
 "use client"
 
-import type { FileTelemetryRow } from "@/data/types"
+import type { FileTelemetryActionData, FileTelemetryRow } from "@/data/types"
 import {
   TelemetryTable,
   ActionBadge,
   type TelemetryTableColumn,
 } from "@/app/lens/runtime-telemetry/telemetry-table"
+import { useTelemetryPagination } from "@/app/lens/runtime-telemetry/use-telemetry-pagination"
 
 const columns: TelemetryTableColumn<FileTelemetryRow>[] = [
   {
@@ -45,6 +46,20 @@ const columns: TelemetryTableColumn<FileTelemetryRow>[] = [
   },
 ]
 
-export function FileTelemetryTable({ data }: { data: FileTelemetryRow[] }) {
-  return <TelemetryTable data={data} columns={columns} emptyText="No file events found" />
+export function FileTelemetryTable({ data }: { data: FileTelemetryActionData }) {
+  const { pending, canGoPrevious, goNext, goPrevious } = useTelemetryPagination()
+
+  return (
+    <TelemetryTable
+      data={data.rows}
+      columns={columns}
+      emptyText="No file events found"
+      hasNextPage={data.hasNextPage}
+      nextPageToken={data.nextPageToken}
+      canGoPrevious={canGoPrevious}
+      onNextPage={goNext}
+      onPreviousPage={goPrevious}
+      pending={pending}
+    />
+  )
 }

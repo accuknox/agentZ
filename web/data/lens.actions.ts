@@ -7,13 +7,16 @@ import {
   listProcessObservability,
   listSpans,
   listTraces,
+  type ProcessObservabilityEventAggregated,
+  type FileObservabilityEventAggregated,
+  type NetworkObservabilityEventAggregated,
+  type ProcessObservabilityEvent,
   type FileObservabilityEvent,
+  type NetworkObservabilityEvent,
   type GetSpanDetailData,
   type JsonValue,
   type ListSpansData,
   type ListTracesData,
-  type NetworkObservabilityEvent,
-  type ProcessObservabilityEvent,
   type Span,
   type SpanPayload,
   type Trace,
@@ -21,13 +24,18 @@ import {
 import type {
   FileTelemetryActionData,
   FileTelemetryActionResponse,
+  FileTelemetryRow,
   ListSpansActionResponse,
   ListTracesActionResponse,
   NetworkTelemetryActionData,
   NetworkTelemetryActionResponse,
+  NetworkTelemetryRow,
   ProcessTelemetryActionData,
   ProcessTelemetryActionResponse,
+  ProcessTelemetryRow,
   RuntimeTelemetryActionResponse,
+  RuntimeTelemetryTab,
+  RuntimeTelemetryTabActionResponse,
   RuntimeTelemetryEventItem,
   SpanDetailActionResponse,
   SpanDetailPayloadSection,
@@ -42,6 +50,10 @@ import { dayjs } from "@/lib/dayjs"
 const maxChartPoints = 25
 const chartSourceLimit = 100
 type DayjsDate = ReturnType<typeof dayjs>
+type AggregatedTelemetryEvent = {
+  last_seen: string
+  occurrences: number
+}
 
 export async function listTracesAction(
   query: ListTracesData["query"]
@@ -146,6 +158,7 @@ export async function getRuntimeTelemetryAction({
   const query = {
     session_id,
     limit: 25,
+    aggregated: false,
     event_time_after: isoDateTimeParam(started_after),
     event_time_before: isoDateTimeParam(started_before),
   }
@@ -167,9 +180,9 @@ export async function getRuntimeTelemetryAction({
   }
 
   const events: RuntimeTelemetryEventItem[] = [
-    ...processes.data.events.map(processTelemetryEventItem),
-    ...files.data.events.map(fileTelemetryEventItem),
-    ...networks.data.events.map(networkTelemetryEventItem),
+    ...(processes.data.events as ProcessObservabilityEvent[]).map(processTelemetryEventItem),
+    ...(files.data.events as FileObservabilityEvent[]).map(fileTelemetryEventItem),
+    ...(networks.data.events as NetworkObservabilityEvent[]).map(networkTelemetryEventItem),
   ].toSorted((left, right) => left.eventTime.localeCompare(right.eventTime))
 
   return {
@@ -184,20 +197,194 @@ export async function getRuntimeTelemetryAction({
   }
 }
 
+export async function getRuntimeTelemetryTabAction({
+  session_id,
+  started_after,
+  started_before,
+  tab,
+  page_token,
+}: {
+  session_id: string
+  started_after: string
+  started_before: string
+  tab: RuntimeTelemetryTab
+  page_token?: string
+}): Promise<RuntimeTelemetryTabActionResponse> {
+  const query = {
+    session_id,
+    limit: 25,
+    page_token: page_token ?? undefined,
+    aggregated: false,
+    event_time_after: isoDateTimeParam(started_after),
+    event_time_before: isoDateTimeParam(started_before),
+  }
+
+  if (tab === "process") {
+    const result = await listProcessObservability({ query })
+    if (result.error) {
+      return { data: undefined, error: result.error }
+    }
+
+    const events = (result.data.events as ProcessObservabilityEvent[]).map(
+      processTelemetryEventItem
+    )
+    return {
+      data: {
+        events,
+        nextPageToken: result.data.next_page_token,
+        hasNextPage: result.data.next_page_token.length > 0,
+      },
+      error: undefined,
+    }
+  }
+
+  if (tab === "file") {
+    const result = await listFileObservability({ query })
+    if (result.error) {
+      return { data: undefined, error: result.error }
+    }
+
+    const events = (result.data.events as FileObservabilityEvent[]).map(fileTelemetryEventItem)
+    return {
+      data: {
+        events,
+        nextPageToken: result.data.next_page_token,
+        hasNextPage: result.data.next_page_token.length > 0,
+      },
+      error: undefined,
+    }
+  }
+
+  const result = await listNetworkObservability({ query })
+  if (result.error) {
+    return { data: undefined, error: result.error }
+  }
+
+  const events = (result.data.events as NetworkObservabilityEvent[]).map(networkTelemetryEventItem)
+  return {
+    data: {
+      events,
+      nextPageToken: result.data.next_page_token,
+      hasNextPage: result.data.next_page_token.length > 0,
+    },
+    error: undefined,
+  }
+}
+
 const maxTelemetryChartPoints = 5
+const defaultPageSize = 50
+
+function rowTelemetryEvent(event: ProcessObservabilityEventAggregated): ProcessTelemetryRow {
+  return {
+    process: event.process,
+    command: event.command_invocation || event.parent_process,
+    action: event.action,
+    occurrences: Number(event.occurrences),
+    lastSeen: formatEventTime(event.last_seen),
+  }
+}
+
+function fileTelemetryEvent(event: FileObservabilityEventAggregated): FileTelemetryRow {
+  return {
+    filePath: event.file_path_accessed,
+    process: event.command_invocation || event.process,
+    action: event.action,
+    occurrences: Number(event.occurrences),
+    lastSeen: formatEventTime(event.last_seen),
+  }
+}
+
+function networkTelemetryEvent(event: NetworkObservabilityEventAggregated): NetworkTelemetryRow {
+  return {
+    destinationDomain: event.destination_domain || "",
+    destinationIP: event.destination_ip,
+    destinationPort: event.destination_port,
+    protocol: event.protocol,
+    action: event.action,
+    occurrences: Number(event.occurrences),
+    lastSeen: formatEventTime(event.last_seen),
+  }
+}
+
+function computeTelemetryChartFromAggregated(
+  events: AggregatedTelemetryEvent[]
+): TraceChartActionData {
+  if (events.length === 0) {
+    return { points: [], total: 0, granularity: "no data" }
+  }
+
+  const eventTimes = events.map((e) => dayjs(e.last_seen))
+  const minTime = eventTimes.reduce((min, t) => (t.isBefore(min) ? t : min), eventTimes[0])
+  const maxTime = eventTimes.reduce((max, t) => (t.isAfter(max) ? t : max), eventTimes[0])
+
+  const from = minTime
+  const to = maxTime
+  const totalMs = to.valueOf() - from.valueOf()
+  const bucketCount = maxTelemetryChartPoints
+
+  if (totalMs === 0) {
+    return {
+      points: [
+        {
+          label: from.format("MMM D, h:mm A"),
+          count: events.length,
+          startedAfter: from.toISOString(),
+          startedBefore: to.toISOString(),
+        },
+      ],
+      total: events.length,
+      granularity: "single point",
+    }
+  }
+
+  const bucketMs = totalMs / bucketCount
+  const buckets = Array(bucketCount).fill(0)
+
+  for (const event of events) {
+    const eventMs = dayjs(event.last_seen).valueOf()
+    let bucketIndex = Math.floor((eventMs - from.valueOf()) / bucketMs)
+    if (bucketIndex < 0) bucketIndex = 0
+    if (bucketIndex >= bucketCount) bucketIndex = bucketCount - 1
+    buckets[bucketIndex] += Number(event.occurrences)
+  }
+
+  const points = buckets
+    .map((count, index) => {
+      const bucketStart = from.add(index * bucketMs)
+      const bucketEnd = bucketStart.add(bucketMs)
+
+      return {
+        label: chartPointLabel(bucketStart, bucketEnd),
+        count,
+        startedAfter: bucketStart.toISOString(),
+        startedBefore: bucketEnd.toISOString(),
+      }
+    })
+    .filter((p) => p.count > 0)
+
+  return {
+    points,
+    total: events.reduce((sum, e) => sum + Number(e.occurrences), 0),
+    granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
+  }
+}
 
 export async function getProcessTelemetryAction({
   session_id,
   event_time_after,
   event_time_before,
+  page_token,
 }: {
   session_id: string
   event_time_after?: string
   event_time_before?: string
+  page_token?: string
 }): Promise<ProcessTelemetryActionResponse> {
   const query = {
     session_id,
-    limit: 200,
+    limit: defaultPageSize,
+    page_token: page_token ?? undefined,
+    aggregated: true,
     event_time_after: event_time_after ? isoDateTimeParam(event_time_after) : undefined,
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
@@ -207,24 +394,38 @@ export async function getProcessTelemetryAction({
     return { data: undefined, error: result.error }
   }
 
-  const rows = normalizeProcessEvents(result.data.events)
-  const chart = computeTelemetryChart(result.data.events)
+  const events = result.data.events as ProcessObservabilityEventAggregated[]
+  const rows = events.map(rowTelemetryEvent)
+  const chart = computeTelemetryChartFromAggregated(events)
+  const nextPageToken = result.data.next_page_token
 
-  return { data: { rows, chart }, error: undefined }
+  return {
+    data: {
+      rows,
+      chart,
+      nextPageToken,
+      hasNextPage: nextPageToken.length > 0,
+    },
+    error: undefined,
+  }
 }
 
 export async function getFileTelemetryAction({
   session_id,
   event_time_after,
   event_time_before,
+  page_token,
 }: {
   session_id: string
   event_time_after?: string
   event_time_before?: string
+  page_token?: string
 }): Promise<FileTelemetryActionResponse> {
   const query = {
     session_id,
-    limit: 200,
+    limit: defaultPageSize,
+    page_token: page_token ?? undefined,
+    aggregated: true,
     event_time_after: event_time_after ? isoDateTimeParam(event_time_after) : undefined,
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
@@ -234,24 +435,38 @@ export async function getFileTelemetryAction({
     return { data: undefined, error: result.error }
   }
 
-  const rows = normalizeFileEvents(result.data.events)
-  const chart = computeTelemetryChart(result.data.events)
+  const events = result.data.events as FileObservabilityEventAggregated[]
+  const rows = events.map(fileTelemetryEvent)
+  const chart = computeTelemetryChartFromAggregated(events)
+  const nextPageToken = result.data.next_page_token
 
-  return { data: { rows, chart }, error: undefined }
+  return {
+    data: {
+      rows,
+      chart,
+      nextPageToken,
+      hasNextPage: nextPageToken.length > 0,
+    },
+    error: undefined,
+  }
 }
 
 export async function getNetworkTelemetryAction({
   session_id,
   event_time_after,
   event_time_before,
+  page_token,
 }: {
   session_id: string
   event_time_after?: string
   event_time_before?: string
+  page_token?: string
 }): Promise<NetworkTelemetryActionResponse> {
   const query = {
     session_id,
-    limit: 200,
+    limit: defaultPageSize,
+    page_token: page_token ?? undefined,
+    aggregated: true,
     event_time_after: event_time_after ? isoDateTimeParam(event_time_after) : undefined,
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
@@ -261,10 +476,20 @@ export async function getNetworkTelemetryAction({
     return { data: undefined, error: result.error }
   }
 
-  const rows = normalizeNetworkEvents(result.data.events)
-  const chart = computeTelemetryChart(result.data.events)
+  const events = result.data.events as NetworkObservabilityEventAggregated[]
+  const rows = events.map(networkTelemetryEvent)
+  const chart = computeTelemetryChartFromAggregated(events)
+  const nextPageToken = result.data.next_page_token
 
-  return { data: { rows, chart }, error: undefined }
+  return {
+    data: {
+      rows,
+      chart,
+      nextPageToken,
+      hasNextPage: nextPageToken.length > 0,
+    },
+    error: undefined,
+  }
 }
 
 function normalizeProcessEvents(events: ProcessObservabilityEvent[]) {

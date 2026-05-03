@@ -25,6 +25,12 @@ interface TelemetryTableProps<T> {
   columns: TelemetryTableColumn<T>[]
   emptyText: string
   pageSize?: number
+  hasNextPage?: boolean
+  nextPageToken?: string
+  canGoPrevious?: boolean
+  onNextPage?: (nextPageToken: string) => void
+  onPreviousPage?: () => void
+  pending?: boolean
 }
 
 const defaultPageSize = 15
@@ -34,14 +40,21 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
   columns,
   emptyText,
   pageSize = defaultPageSize,
+  hasNextPage,
+  nextPageToken,
+  canGoPrevious,
+  onNextPage,
+  onPreviousPage,
+  pending,
 }: TelemetryTableProps<T>) {
+  const isServerPaginated = hasNextPage !== undefined
   const [page, setPage] = React.useState(0)
   const totalPages = Math.ceil(data.length / pageSize)
   const start = page * pageSize
   const end = start + pageSize
-  const pageRows = data.slice(start, end)
-  const canGoPrevious = page > 0
-  const canGoNext = page + 1 < totalPages
+  const pageRows = isServerPaginated ? data : data.slice(start, end)
+  const canGoPreviousClient = page > 0
+  const canGoNextClient = page + 1 < totalPages
   const hasRows = data.length > 0
 
   return (
@@ -83,29 +96,62 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
       </div>
       <div className="flex w-full flex-col gap-2 border-t bg-muted/10 px-6 py-3 pt-3 md:flex-row md:items-center md:justify-between">
         <span className="text-xs text-muted-foreground">
-          {hasRows ? `${start + 1}-${Math.min(end, data.length)} of ${data.length}` : "0-0 of 0"}
+          {isServerPaginated
+            ? hasRows
+              ? `${data.length} rows`
+              : "0 rows"
+            : hasRows
+              ? `${start + 1}-${Math.min(end, data.length)} of ${data.length}`
+              : "0-0 of 0"}
         </span>
         <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={!canGoPrevious}
-            onClick={() => setPage((p) => Math.max(p - 1, 0))}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={!canGoNext}
-            onClick={() => setPage((p) => (canGoNext ? p + 1 : p))}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
+          {isServerPaginated ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!canGoPrevious || pending}
+                onClick={onPreviousPage}
+              >
+                <ArrowLeft data-icon="inline-start" />
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!hasNextPage || pending}
+                onClick={() => nextPageToken && onNextPage?.(nextPageToken)}
+              >
+                Next
+                <ArrowRight data-icon="inline-end" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!canGoPreviousClient}
+                onClick={() => setPage((p) => Math.max(p - 1, 0))}
+              >
+                <ArrowLeft data-icon="inline-start" />
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!canGoNextClient}
+                onClick={() => setPage((p) => (canGoNextClient ? p + 1 : p))}
+              >
+                Next
+                <ArrowRight data-icon="inline-end" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </section>

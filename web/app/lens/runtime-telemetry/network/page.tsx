@@ -20,6 +20,7 @@ type Props = {
     session_id?: string | string[]
     from?: string | string[]
     to?: string | string[]
+    telemetry_page_token?: string | string[]
   }>
 }
 
@@ -28,6 +29,7 @@ export default async function NetworkPage({ searchParams }: Props) {
   const sessionIdFromUrl = firstSearchParam(search.session_id)
   const from = firstSearchParam(search.from)
   const to = firstSearchParam(search.to)
+  const pageToken = firstSearchParam(search.telemetry_page_token)
   const range = telemetryDateRange(from, to)
 
   const agentsResult = await listAgentsAction(true)
@@ -51,7 +53,7 @@ export default async function NetworkPage({ searchParams }: Props) {
             {!sessionID ? (
               <EmptyState message="No agents available" />
             ) : (
-              <NetworkContent sessionID={sessionID} range={range} />
+              <NetworkContent sessionID={sessionID} range={range} pageToken={pageToken} />
             )}
           </TabsContent>
         </div>
@@ -97,9 +99,11 @@ function FiltersSkeleton() {
 async function NetworkContent({
   sessionID,
   range,
+  pageToken,
 }: {
   sessionID: string
   range: TelemetryDateRange
+  pageToken?: string
 }) {
   return (
     <>
@@ -110,7 +114,7 @@ async function NetworkContent({
         <Chart sessionID={sessionID} range={range} />
       </Suspense>
       <Suspense
-        key={`table-${sessionID}-${range.eventTimeAfter}-${range.eventTimeBefore}`}
+        key={`table-${sessionID}-${range.eventTimeAfter}-${range.eventTimeBefore}-${pageToken ?? ""}`}
         fallback={
           <TelemetryTableSkeleton
             headers={[
@@ -125,7 +129,7 @@ async function NetworkContent({
           />
         }
       >
-        <Table sessionID={sessionID} range={range} />
+        <Table sessionID={sessionID} range={range} pageToken={pageToken} />
       </Suspense>
     </>
   )
@@ -145,18 +149,27 @@ async function Chart({ sessionID, range }: { sessionID: string; range: Telemetry
   return <TelemetryChart data={result.data.chart} />
 }
 
-async function Table({ sessionID, range }: { sessionID: string; range: TelemetryDateRange }) {
+async function Table({
+  sessionID,
+  range,
+  pageToken,
+}: {
+  sessionID: string
+  range: TelemetryDateRange
+  pageToken?: string
+}) {
   const result = await getNetworkTelemetryAction({
     session_id: sessionID,
     event_time_after: range.eventTimeAfter,
     event_time_before: range.eventTimeBefore,
+    page_token: pageToken,
   })
 
   if (result.error) {
     return <ErrorPanel message={result.error.message} />
   }
 
-  return <NetworkTelemetryTable data={result.data.rows} />
+  return <NetworkTelemetryTable data={result.data} />
 }
 
 function getSelectedSessionID(result: ListAgentActionResponse, sessionIdFromUrl?: string) {

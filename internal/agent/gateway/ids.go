@@ -169,9 +169,22 @@ func maxTime() time.Time {
 }
 
 func observabilityListParams(w http.ResponseWriter, r *http.Request, after *gatewayapi.EventTimeAfterQuery, before *gatewayapi.EventTimeBeforeQuery, action *gatewayapi.ActionQuery, token *gatewayapi.PageTokenQuery) (time.Time, time.Time, string, eventPageCursor, bool, bool) {
-	eventAfter, eventBefore, ok := observabilityTimeBounds(w, r, after, before)
+	eventAfter, eventBefore, actionValue, ok := observabilityFilters(w, r, after, before, action)
 	if !ok {
 		return time.Time{}, time.Time{}, "", eventPageCursor{}, false, false
+	}
+
+	cursor, cursorSet, ok := decodeEventPageToken(w, r, token)
+	if !ok {
+		return time.Time{}, time.Time{}, "", eventPageCursor{}, false, false
+	}
+	return eventAfter, eventBefore, actionValue, cursor, cursorSet, true
+}
+
+func observabilityFilters(w http.ResponseWriter, r *http.Request, after *gatewayapi.EventTimeAfterQuery, before *gatewayapi.EventTimeBeforeQuery, action *gatewayapi.ActionQuery) (time.Time, time.Time, string, bool) {
+	eventAfter, eventBefore, ok := observabilityTimeBounds(w, r, after, before)
+	if !ok {
+		return time.Time{}, time.Time{}, "", false
 	}
 
 	actionValue := ""
@@ -184,15 +197,11 @@ func observabilityListParams(w http.ResponseWriter, r *http.Request, after *gate
 				"action must be Allowed or Blocked",
 				errBadRequest,
 			))
-			return time.Time{}, time.Time{}, "", eventPageCursor{}, false, false
+			return time.Time{}, time.Time{}, "", false
 		}
 	}
 
-	cursor, cursorSet, ok := decodeEventPageToken(w, r, token)
-	if !ok {
-		return time.Time{}, time.Time{}, "", eventPageCursor{}, false, false
-	}
-	return eventAfter, eventBefore, actionValue, cursor, cursorSet, true
+	return eventAfter, eventBefore, actionValue, true
 }
 
 func decodeSequencePageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (int64, bool) {
@@ -267,6 +276,22 @@ func decodeEventPageToken(w http.ResponseWriter, r *http.Request, token *gateway
 	if cursor.EventTime.IsZero() || cursor.ID < 1 {
 		writeInvalidPageToken(w, r, errBadRequest)
 		return eventPageCursor{}, false, false
+	}
+	return cursor, true, true
+}
+
+type aggregatedEventPageCursor struct {
+	LastSeen time.Time `json:"last_seen"`
+}
+
+func decodeAggregatedEventPageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (aggregatedEventPageCursor, bool, bool) {
+	cursor, set, ok := decodeCursorPageToken[aggregatedEventPageCursor](w, r, token)
+	if !ok || !set {
+		return cursor, set, ok
+	}
+	if cursor.LastSeen.IsZero() {
+		writeInvalidPageToken(w, r, errBadRequest)
+		return aggregatedEventPageCursor{}, false, false
 	}
 	return cursor, true, true
 }

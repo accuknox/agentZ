@@ -24,10 +24,14 @@ export type AgentWizardValues = {
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
       agents: TAgent[]
+      nextPageToken: string
+      hasNextPage: boolean
       error: undefined
     }
   | {
       agents: undefined
+      nextPageToken?: undefined
+      hasNextPage?: undefined
       error: Error
     }
 
@@ -94,9 +98,27 @@ export type RuntimeTelemetryActionData = {
   blockedCount: number
 }
 
+export type RuntimeTelemetryTab = "process" | "file" | "network"
+
+export type RuntimeTelemetryTabActionData = {
+  events: RuntimeTelemetryEventItem[]
+  nextPageToken: string
+  hasNextPage: boolean
+}
+
 export type RuntimeTelemetryActionResponse =
   | {
       data: RuntimeTelemetryActionData
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
+
+export type RuntimeTelemetryTabActionResponse =
+  | {
+      data: RuntimeTelemetryTabActionData
       error: undefined
     }
   | {
@@ -133,16 +155,22 @@ export type NetworkTelemetryRow = {
 export type ProcessTelemetryActionData = {
   rows: ProcessTelemetryRow[]
   chart: TraceChartActionData
+  nextPageToken: string
+  hasNextPage: boolean
 }
 
 export type FileTelemetryActionData = {
   rows: FileTelemetryRow[]
   chart: TraceChartActionData
+  nextPageToken: string
+  hasNextPage: boolean
 }
 
 export type NetworkTelemetryActionData = {
   rows: NetworkTelemetryRow[]
   chart: TraceChartActionData
+  nextPageToken: string
+  hasNextPage: boolean
 }
 
 export type ProcessTelemetryActionResponse =

@@ -341,8 +341,21 @@ export const zProcessObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zProcessObservabilityEventAggregated = z.object({
+  session_id: zSessionId,
+  last_seen: z.iso.datetime(),
+  process: z.string(),
+  parent_process: z.string(),
+  command_invocation: z.string(),
+  action: zObservabilityAction,
+  source: z.string(),
+  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+})
+
 export const zListProcessObservabilityResponse = z.object({
-  events: z.array(zProcessObservabilityEvent),
+  events: z.array(z.union([zProcessObservabilityEvent, zProcessObservabilityEventAggregated])),
   next_page_token: z.string(),
 })
 
@@ -362,8 +375,21 @@ export const zFileObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zFileObservabilityEventAggregated = z.object({
+  session_id: zSessionId,
+  last_seen: z.iso.datetime(),
+  file_path_accessed: z.string(),
+  process: z.string(),
+  command_invocation: z.string(),
+  action: zObservabilityAction,
+  source: z.string(),
+  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+})
+
 export const zListFileObservabilityResponse = z.object({
-  events: z.array(zFileObservabilityEvent),
+  events: z.array(z.union([zFileObservabilityEvent, zFileObservabilityEventAggregated])),
   next_page_token: z.string(),
 })
 
@@ -386,8 +412,24 @@ export const zNetworkObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zNetworkObservabilityEventAggregated = z.object({
+  session_id: zSessionId,
+  last_seen: z.iso.datetime(),
+  destination_domain: z.string(),
+  destination_ip: z.string(),
+  destination_port: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  protocol: z.string(),
+  action: zObservabilityAction,
+  source: z.string(),
+  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+})
+
 export const zListNetworkObservabilityResponse = z.object({
-  events: z.array(zNetworkObservabilityEvent),
+  events: z.array(z.union([zNetworkObservabilityEvent, zNetworkObservabilityEventAggregated])),
   next_page_token: z.string(),
 })
 
@@ -845,6 +887,11 @@ export const zEventTimeBeforeQuery = z.iso.datetime()
  */
 export const zActionQuery = zObservabilityAction
 
+/**
+ * When true, returns aggregated events with occurrence counts over the time range.
+ */
+export const zAggregatedQuery = z.boolean().default(false)
+
 export const zGetChatHistoryQuery = z.object({
   session_id: zSessionId,
   limit: z.int().gte(1).lte(200).optional().default(50),
@@ -910,6 +957,7 @@ export const zListProcessObservabilityQuery = z.object({
   event_time_after: z.iso.datetime().optional(),
   event_time_before: z.iso.datetime().optional(),
   action: zObservabilityAction.optional(),
+  aggregated: z.boolean().optional().default(false),
 })
 
 /**
@@ -924,6 +972,7 @@ export const zListFileObservabilityQuery = z.object({
   event_time_after: z.iso.datetime().optional(),
   event_time_before: z.iso.datetime().optional(),
   action: zObservabilityAction.optional(),
+  aggregated: z.boolean().optional().default(false),
 })
 
 /**
@@ -938,6 +987,7 @@ export const zListNetworkObservabilityQuery = z.object({
   event_time_after: z.iso.datetime().optional(),
   event_time_before: z.iso.datetime().optional(),
   action: zObservabilityAction.optional(),
+  aggregated: z.boolean().optional().default(false),
 })
 
 /**

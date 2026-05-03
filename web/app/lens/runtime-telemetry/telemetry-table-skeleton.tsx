@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 interface TelemetryTableSkeletonProps {
   headers: string[]
   rowCount?: number
+  showFooter?: boolean
 }
 
 const headerClasses: Record<string, string> = {
@@ -40,7 +41,11 @@ const headerWidths: Record<string, string> = {
   Protocol: "w-16",
 }
 
-export function TelemetryTableSkeleton({ headers, rowCount = 8 }: TelemetryTableSkeletonProps) {
+export function TelemetryTableSkeleton({
+  headers,
+  rowCount = 8,
+  showFooter = true,
+}: TelemetryTableSkeletonProps) {
   const rows = Array.from({ length: rowCount }, (_, index) => index)
 
   return (
@@ -76,13 +81,15 @@ export function TelemetryTableSkeleton({ headers, rowCount = 8 }: TelemetryTable
           </TableBody>
         </Table>
       </div>
-      <div className="flex w-full flex-col gap-2 border-t bg-muted/10 px-6 py-3 md:flex-row md:items-center md:justify-between">
-        <Skeleton className="h-4 w-24" />
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-20" />
-          <Skeleton className="h-8 w-16" />
+      {showFooter ? (
+        <div className="flex w-full flex-col gap-2 border-t bg-muted/10 px-6 py-3 md:flex-row md:items-center md:justify-between">
+          <Skeleton className="h-4 w-24" />
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-16" />
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

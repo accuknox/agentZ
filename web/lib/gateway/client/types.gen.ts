@@ -297,7 +297,7 @@ export type SpanDetailResponse = {
 }
 
 export type ListProcessObservabilityResponse = {
-  events: Array<ProcessObservabilityEvent>
+  events: Array<ProcessObservabilityEvent | ProcessObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -315,8 +315,19 @@ export type ProcessObservabilityEvent = {
   source: string
 }
 
+export type ProcessObservabilityEventAggregated = {
+  session_id: SessionId
+  last_seen: string
+  process: string
+  parent_process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
+}
+
 export type ListFileObservabilityResponse = {
-  events: Array<FileObservabilityEvent>
+  events: Array<FileObservabilityEvent | FileObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -334,8 +345,19 @@ export type FileObservabilityEvent = {
   source: string
 }
 
+export type FileObservabilityEventAggregated = {
+  session_id: SessionId
+  last_seen: string
+  file_path_accessed: string
+  process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
+}
+
 export type ListNetworkObservabilityResponse = {
-  events: Array<NetworkObservabilityEvent>
+  events: Array<NetworkObservabilityEvent | NetworkObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -352,6 +374,18 @@ export type NetworkObservabilityEvent = {
   protocol: string
   action: ObservabilityAction
   source: string
+}
+
+export type NetworkObservabilityEventAggregated = {
+  session_id: SessionId
+  last_seen: string
+  destination_domain: string
+  destination_ip: string
+  destination_port: number
+  protocol: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
 }
 
 export type WatchAgentsRequest = {
@@ -716,6 +750,11 @@ export type EventTimeBeforeQuery = string
  */
 export type ActionQuery = ObservabilityAction
 
+/**
+ * When true, returns aggregated events with occurrence counts over the time range.
+ */
+export type AggregatedQuery = boolean
+
 export type GetChatHistoryData = {
   body?: never
   path?: never
@@ -982,6 +1021,10 @@ export type ListProcessObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
   }
   url: "/api/list-process-observability"
 }
@@ -1042,6 +1085,10 @@ export type ListFileObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
   }
   url: "/api/list-file-observability"
 }
@@ -1102,6 +1149,10 @@ export type ListNetworkObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
   }
   url: "/api/list-network-observability"
 }

@@ -261,6 +261,58 @@ WHERE session_id = sqlc.arg(session_id)
 ORDER BY event_time DESC, id DESC
 LIMIT sqlc.arg(page_size);
 
+-- name: GatewayListProcessEventsAggregated :many
+SELECT
+  session_id,
+  MAX(event_time)::timestamptz AS last_seen,
+  process,
+  parent_process,
+  command_invocation,
+  action,
+  source,
+  COUNT(*) AS occurrences
+FROM observer_process_events
+WHERE session_id = sqlc.arg(session_id)
+  AND event_time >= sqlc.arg(event_time_after)
+  AND event_time <= sqlc.arg(event_time_before)
+  AND (
+    sqlc.arg(action)::text = ''
+    OR action = sqlc.arg(action)
+  )
+GROUP BY session_id, process, parent_process, command_invocation, action, source
+HAVING (
+  NOT sqlc.arg(cursor_set)::bool
+  OR MAX(event_time) < sqlc.arg(cursor_event_time)
+)
+ORDER BY MAX(event_time) DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListFileEventsAggregated :many
+SELECT
+  session_id,
+  MAX(event_time)::timestamptz AS last_seen,
+  file_path_accessed,
+  process,
+  command_invocation,
+  action,
+  source,
+  COUNT(*) AS occurrences
+FROM observer_file_events
+WHERE session_id = sqlc.arg(session_id)
+  AND event_time >= sqlc.arg(event_time_after)
+  AND event_time <= sqlc.arg(event_time_before)
+  AND (
+    sqlc.arg(action)::text = ''
+    OR action = sqlc.arg(action)
+  )
+GROUP BY session_id, file_path_accessed, process, command_invocation, action, source
+HAVING (
+  NOT sqlc.arg(cursor_set)::bool
+  OR MAX(event_time) < sqlc.arg(cursor_event_time)
+)
+ORDER BY MAX(event_time) DESC
+LIMIT sqlc.arg(page_size);
+
 -- name: GatewayListNetworkEvents :many
 SELECT
   id,
@@ -292,4 +344,32 @@ WHERE session_id = sqlc.arg(session_id)
     )
   )
 ORDER BY event_time DESC, id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListNetworkEventsAggregated :many
+SELECT
+  session_id,
+  MAX(event_time)::timestamptz AS last_seen,
+  destination_domain,
+  destination_ip,
+  destination_port,
+  protocol,
+  action,
+  source,
+  COUNT(*) AS occurrences
+FROM observer_network_events
+WHERE session_id = sqlc.arg(session_id)
+  AND event_time >= sqlc.arg(event_time_after)
+  AND event_time <= sqlc.arg(event_time_before)
+  AND (
+    sqlc.arg(action)::text = ''
+    OR action = sqlc.arg(action)
+  )
+GROUP BY session_id, destination_domain, destination_ip, destination_port,
+         protocol, action, source
+HAVING (
+  NOT sqlc.arg(cursor_set)::bool
+  OR MAX(event_time) < sqlc.arg(cursor_event_time)
+)
+ORDER BY MAX(event_time) DESC
 LIMIT sqlc.arg(page_size);

@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   type SortingState,
   useReactTable,
@@ -21,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { DeleteAgentFormState } from "@/data/types"
+import { useTokenPagination } from "@/app/lens/traces/client-utils"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
@@ -33,9 +33,13 @@ const columnClassName: Record<string, string> = {
 
 export function AgentTable({
   agents,
+  hasNextPage,
+  nextPageToken,
   deleteAgentAction,
 }: {
   agents: ListAgent[]
+  hasNextPage: boolean
+  nextPageToken: string
   deleteAgentAction: (
     sessionID: string,
     state: DeleteAgentFormState,
@@ -45,13 +49,13 @@ export function AgentTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const columns = React.useMemo(() => createAgentColumns(deleteAgentAction), [deleteAgentAction])
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
     data: agents,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
     state: {
@@ -107,16 +111,16 @@ export function AgentTable({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
+          onClick={goPrevious}
+          disabled={!canGoPrevious || pending}
         >
           Previous
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
+          onClick={() => goNext(nextPageToken)}
+          disabled={!hasNextPage || pending}
         >
           Next
         </Button>

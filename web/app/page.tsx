@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button"
 import { AgentTable } from "@/app/agent-table"
 import type { DeleteAgentFormState } from "@/data/types"
 
-export default function Home() {
+export default function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ page_token?: string | string[] }>
+}) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -19,21 +23,25 @@ export default function Home() {
           </Link>
         </Button>
       </div>
-      <Agents deleteAgentAction={deleteAgentFormAction} />
+      <Agents searchParams={searchParams} deleteAgentAction={deleteAgentFormAction} />
     </main>
   )
 }
 
 async function Agents({
+  searchParams,
   deleteAgentAction,
 }: {
+  searchParams?: Promise<{ page_token?: string | string[] }>
   deleteAgentAction: (
     sessionID: string,
     state: DeleteAgentFormState,
     formData: FormData
   ) => Promise<DeleteAgentFormState>
 }) {
-  const result = await listAgentsAction(true)
+  const params = searchParams ? await searchParams : undefined
+  const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
+  const result = await listAgentsAction(true, { limit: 50, page_token: pageToken })
 
   if (result.error) {
     return (
@@ -43,5 +51,12 @@ async function Agents({
     )
   }
 
-  return <AgentTable agents={result.agents} deleteAgentAction={deleteAgentAction} />
+  return (
+    <AgentTable
+      agents={result.agents}
+      hasNextPage={result.hasNextPage}
+      nextPageToken={result.nextPageToken}
+      deleteAgentAction={deleteAgentAction}
+    />
+  )
 }

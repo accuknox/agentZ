@@ -295,6 +295,55 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+
+	aggregated := params.Aggregated != nil && *params.Aggregated
+
+	if aggregated {
+		after, before, action, ok := observabilityFilters(w, r, params.EventTimeAfter, params.EventTimeBefore, params.Action)
+		if !ok {
+			return
+		}
+		if params.EventTimeAfter == nil || params.EventTimeBefore == nil {
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"event_time_after and event_time_before are required when aggregated=true",
+				errBadRequest,
+			))
+			return
+		}
+
+		cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
+		if !ok {
+			return
+		}
+
+		rows, err := s.queries.GatewayListProcessEventsAggregated(r.Context(), gatewaydb.GatewayListProcessEventsAggregatedParams{
+			SessionID:       sessionUUID,
+			EventTimeAfter:  after,
+			EventTimeBefore: before,
+			Action:          action,
+			CursorSet:       cursorSet,
+			CursorEventTime: cursor.LastSeen,
+			PageSize:        int32(limit + 1),
+		})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+
+		items, next := aggregatedEventPage(rows, limit, processAggregatedEvent, processAggregatedCursor)
+		events := make([]gatewayapi.ListProcessObservabilityResponse_Events_Item, len(items))
+		for i, item := range items {
+			events[i].FromProcessObservabilityEventAggregated(item)
+		}
+		writeJSON(w, http.StatusOK, gatewayapi.ListProcessObservabilityResponse{
+			Events:        events,
+			NextPageToken: next,
+		})
+		return
+	}
+
 	after, before, action, cursor, cursorSet, ok := observabilityListParams(
 		w,
 		r,
@@ -323,8 +372,12 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 	}
 
 	items, next := eventPage(rows, limit, processEvent, processCursor)
+	events := make([]gatewayapi.ListProcessObservabilityResponse_Events_Item, len(items))
+	for i, item := range items {
+		events[i].FromProcessObservabilityEvent(item)
+	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListProcessObservabilityResponse{
-		Events:        items,
+		Events:        events,
 		NextPageToken: next,
 	})
 }
@@ -338,6 +391,55 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 	if !ok {
 		return
 	}
+
+	aggregated := params.Aggregated != nil && *params.Aggregated
+
+	if aggregated {
+		after, before, action, ok := observabilityFilters(w, r, params.EventTimeAfter, params.EventTimeBefore, params.Action)
+		if !ok {
+			return
+		}
+		if params.EventTimeAfter == nil || params.EventTimeBefore == nil {
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"event_time_after and event_time_before are required when aggregated=true",
+				errBadRequest,
+			))
+			return
+		}
+
+		cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
+		if !ok {
+			return
+		}
+
+		rows, err := s.queries.GatewayListFileEventsAggregated(r.Context(), gatewaydb.GatewayListFileEventsAggregatedParams{
+			SessionID:       sessionUUID,
+			EventTimeAfter:  after,
+			EventTimeBefore: before,
+			Action:          action,
+			CursorSet:       cursorSet,
+			CursorEventTime: cursor.LastSeen,
+			PageSize:        int32(limit + 1),
+		})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+
+		items, next := aggregatedEventPage(rows, limit, fileAggregatedEvent, fileAggregatedCursor)
+		events := make([]gatewayapi.ListFileObservabilityResponse_Events_Item, len(items))
+		for i, item := range items {
+			events[i].FromFileObservabilityEventAggregated(item)
+		}
+		writeJSON(w, http.StatusOK, gatewayapi.ListFileObservabilityResponse{
+			Events:        events,
+			NextPageToken: next,
+		})
+		return
+	}
+
 	after, before, action, cursor, cursorSet, ok := observabilityListParams(
 		w,
 		r,
@@ -366,8 +468,12 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 	}
 
 	items, next := eventPage(rows, limit, fileEvent, fileCursor)
+	events := make([]gatewayapi.ListFileObservabilityResponse_Events_Item, len(items))
+	for i, item := range items {
+		events[i].FromFileObservabilityEvent(item)
+	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListFileObservabilityResponse{
-		Events:        items,
+		Events:        events,
 		NextPageToken: next,
 	})
 }
@@ -381,6 +487,55 @@ func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+
+	aggregated := params.Aggregated != nil && *params.Aggregated
+
+	if aggregated {
+		after, before, action, ok := observabilityFilters(w, r, params.EventTimeAfter, params.EventTimeBefore, params.Action)
+		if !ok {
+			return
+		}
+		if params.EventTimeAfter == nil || params.EventTimeBefore == nil {
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"event_time_after and event_time_before are required when aggregated=true",
+				errBadRequest,
+			))
+			return
+		}
+
+		cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
+		if !ok {
+			return
+		}
+
+		rows, err := s.queries.GatewayListNetworkEventsAggregated(r.Context(), gatewaydb.GatewayListNetworkEventsAggregatedParams{
+			SessionID:       sessionUUID,
+			EventTimeAfter:  after,
+			EventTimeBefore: before,
+			Action:          action,
+			CursorSet:       cursorSet,
+			CursorEventTime: cursor.LastSeen,
+			PageSize:        int32(limit + 1),
+		})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+
+		items, next := aggregatedEventPage(rows, limit, networkAggregatedEvent, networkAggregatedCursor)
+		events := make([]gatewayapi.ListNetworkObservabilityResponse_Events_Item, len(items))
+		for i, item := range items {
+			events[i].FromNetworkObservabilityEventAggregated(item)
+		}
+		writeJSON(w, http.StatusOK, gatewayapi.ListNetworkObservabilityResponse{
+			Events:        events,
+			NextPageToken: next,
+		})
+		return
+	}
+
 	after, before, action, cursor, cursorSet, ok := observabilityListParams(
 		w,
 		r,
@@ -409,8 +564,12 @@ func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Reques
 	}
 
 	items, next := eventPage(rows, limit, networkEvent, networkCursor)
+	events := make([]gatewayapi.ListNetworkObservabilityResponse_Events_Item, len(items))
+	for i, item := range items {
+		events[i].FromNetworkObservabilityEvent(item)
+	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListNetworkObservabilityResponse{
-		Events:        items,
+		Events:        events,
 		NextPageToken: next,
 	})
 }
@@ -622,5 +781,71 @@ func networkEvent(row gatewaydb.ObserverNetworkEvent) gatewayapi.NetworkObservab
 		Protocol:          row.Protocol,
 		Action:            gatewayapi.ObservabilityAction(row.Action),
 		Source:            row.Source,
+	}
+}
+
+func aggregatedEventPage[T any, E any](rows []T, limit int, convert func(T) E, cursor func(T) aggregatedEventPageCursor) ([]E, string) {
+	items := make([]E, 0, limit)
+	var next string
+	last := limit - 1
+	for i, row := range rows {
+		if i == limit {
+			next = encodeCursorPageToken(cursor(rows[last]))
+			break
+		}
+		items = append(items, convert(row))
+	}
+	return items, next
+}
+
+func processAggregatedCursor(row gatewaydb.GatewayListProcessEventsAggregatedRow) aggregatedEventPageCursor {
+	return aggregatedEventPageCursor{LastSeen: row.LastSeen}
+}
+
+func fileAggregatedCursor(row gatewaydb.GatewayListFileEventsAggregatedRow) aggregatedEventPageCursor {
+	return aggregatedEventPageCursor{LastSeen: row.LastSeen}
+}
+
+func networkAggregatedCursor(row gatewaydb.GatewayListNetworkEventsAggregatedRow) aggregatedEventPageCursor {
+	return aggregatedEventPageCursor{LastSeen: row.LastSeen}
+}
+
+func processAggregatedEvent(row gatewaydb.GatewayListProcessEventsAggregatedRow) gatewayapi.ProcessObservabilityEventAggregated {
+	return gatewayapi.ProcessObservabilityEventAggregated{
+		SessionId:         row.SessionID,
+		LastSeen:          row.LastSeen,
+		Process:           row.Process,
+		ParentProcess:     row.ParentProcess,
+		CommandInvocation: row.CommandInvocation,
+		Action:            gatewayapi.ObservabilityAction(row.Action),
+		Source:            row.Source,
+		Occurrences:       row.Occurrences,
+	}
+}
+
+func fileAggregatedEvent(row gatewaydb.GatewayListFileEventsAggregatedRow) gatewayapi.FileObservabilityEventAggregated {
+	return gatewayapi.FileObservabilityEventAggregated{
+		SessionId:         row.SessionID,
+		LastSeen:          row.LastSeen,
+		FilePathAccessed:  row.FilePathAccessed,
+		Process:           row.Process,
+		CommandInvocation: row.CommandInvocation,
+		Action:            gatewayapi.ObservabilityAction(row.Action),
+		Source:            row.Source,
+		Occurrences:       row.Occurrences,
+	}
+}
+
+func networkAggregatedEvent(row gatewaydb.GatewayListNetworkEventsAggregatedRow) gatewayapi.NetworkObservabilityEventAggregated {
+	return gatewayapi.NetworkObservabilityEventAggregated{
+		SessionId:         row.SessionID,
+		LastSeen:          row.LastSeen,
+		DestinationDomain: row.DestinationDomain,
+		DestinationIp:     row.DestinationIp,
+		DestinationPort:   row.DestinationPort,
+		Protocol:          row.Protocol,
+		Action:            gatewayapi.ObservabilityAction(row.Action),
+		Source:            row.Source,
+		Occurrences:       row.Occurrences,
 	}
 }

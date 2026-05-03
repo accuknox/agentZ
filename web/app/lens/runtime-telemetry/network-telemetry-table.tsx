@@ -1,11 +1,12 @@
 "use client"
 
-import type { NetworkTelemetryRow } from "@/data/types"
+import type { NetworkTelemetryActionData, NetworkTelemetryRow } from "@/data/types"
 import {
   TelemetryTable,
   ActionBadge,
   type TelemetryTableColumn,
 } from "@/app/lens/runtime-telemetry/telemetry-table"
+import { useTelemetryPagination } from "@/app/lens/runtime-telemetry/use-telemetry-pagination"
 
 const columns: TelemetryTableColumn<NetworkTelemetryRow>[] = [
   {
@@ -49,6 +50,20 @@ const columns: TelemetryTableColumn<NetworkTelemetryRow>[] = [
   },
 ]
 
-export function NetworkTelemetryTable({ data }: { data: NetworkTelemetryRow[] }) {
-  return <TelemetryTable data={data} columns={columns} emptyText="No network events found" />
+export function NetworkTelemetryTable({ data }: { data: NetworkTelemetryActionData }) {
+  const { pending, canGoPrevious, goNext, goPrevious } = useTelemetryPagination()
+
+  return (
+    <TelemetryTable
+      data={data.rows}
+      columns={columns}
+      emptyText="No network events found"
+      hasNextPage={data.hasNextPage}
+      nextPageToken={data.nextPageToken}
+      canGoPrevious={canGoPrevious}
+      onNextPage={goNext}
+      onPreviousPage={goPrevious}
+      pending={pending}
+    />
+  )
 }

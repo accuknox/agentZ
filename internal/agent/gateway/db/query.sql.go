@@ -352,6 +352,91 @@ func (q *Queries) GatewayListFileEvents(ctx context.Context, arg GatewayListFile
 	return items, nil
 }
 
+const gatewayListFileEventsAggregated = `-- name: GatewayListFileEventsAggregated :many
+SELECT
+  session_id,
+  MAX(event_time)::timestamptz AS last_seen,
+  file_path_accessed,
+  process,
+  command_invocation,
+  action,
+  source,
+  COUNT(*) AS occurrences
+FROM observer_file_events
+WHERE session_id = $1
+  AND event_time >= $2
+  AND event_time <= $3
+  AND (
+    $4::text = ''
+    OR action = $4
+  )
+GROUP BY session_id, file_path_accessed, process, command_invocation, action, source
+HAVING (
+  NOT $5::bool
+  OR MAX(event_time) < $6
+)
+ORDER BY MAX(event_time) DESC
+LIMIT $7
+`
+
+type GatewayListFileEventsAggregatedParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	EventTimeAfter  time.Time `json:"event_time_after"`
+	EventTimeBefore time.Time `json:"event_time_before"`
+	Action          string    `json:"action"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorEventTime time.Time `json:"cursor_event_time"`
+	PageSize        int32     `json:"page_size"`
+}
+
+type GatewayListFileEventsAggregatedRow struct {
+	SessionID         uuid.UUID `json:"session_id"`
+	LastSeen          time.Time `json:"last_seen"`
+	FilePathAccessed  string    `json:"file_path_accessed"`
+	Process           string    `json:"process"`
+	CommandInvocation string    `json:"command_invocation"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+	Occurrences       int64     `json:"occurrences"`
+}
+
+func (q *Queries) GatewayListFileEventsAggregated(ctx context.Context, arg GatewayListFileEventsAggregatedParams) ([]GatewayListFileEventsAggregatedRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListFileEventsAggregated,
+		arg.SessionID,
+		arg.EventTimeAfter,
+		arg.EventTimeBefore,
+		arg.Action,
+		arg.CursorSet,
+		arg.CursorEventTime,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListFileEventsAggregatedRow{}
+	for rows.Next() {
+		var i GatewayListFileEventsAggregatedRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.LastSeen,
+			&i.FilePathAccessed,
+			&i.Process,
+			&i.CommandInvocation,
+			&i.Action,
+			&i.Source,
+			&i.Occurrences,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListNetworkEvents = `-- name: GatewayListNetworkEvents :many
 SELECT
   id,
@@ -439,6 +524,95 @@ func (q *Queries) GatewayListNetworkEvents(ctx context.Context, arg GatewayListN
 	return items, nil
 }
 
+const gatewayListNetworkEventsAggregated = `-- name: GatewayListNetworkEventsAggregated :many
+SELECT
+  session_id,
+  MAX(event_time)::timestamptz AS last_seen,
+  destination_domain,
+  destination_ip,
+  destination_port,
+  protocol,
+  action,
+  source,
+  COUNT(*) AS occurrences
+FROM observer_network_events
+WHERE session_id = $1
+  AND event_time >= $2
+  AND event_time <= $3
+  AND (
+    $4::text = ''
+    OR action = $4
+  )
+GROUP BY session_id, destination_domain, destination_ip, destination_port,
+         protocol, action, source
+HAVING (
+  NOT $5::bool
+  OR MAX(event_time) < $6
+)
+ORDER BY MAX(event_time) DESC
+LIMIT $7
+`
+
+type GatewayListNetworkEventsAggregatedParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	EventTimeAfter  time.Time `json:"event_time_after"`
+	EventTimeBefore time.Time `json:"event_time_before"`
+	Action          string    `json:"action"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorEventTime time.Time `json:"cursor_event_time"`
+	PageSize        int32     `json:"page_size"`
+}
+
+type GatewayListNetworkEventsAggregatedRow struct {
+	SessionID         uuid.UUID `json:"session_id"`
+	LastSeen          time.Time `json:"last_seen"`
+	DestinationDomain string    `json:"destination_domain"`
+	DestinationIp     string    `json:"destination_ip"`
+	DestinationPort   int64     `json:"destination_port"`
+	Protocol          string    `json:"protocol"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+	Occurrences       int64     `json:"occurrences"`
+}
+
+func (q *Queries) GatewayListNetworkEventsAggregated(ctx context.Context, arg GatewayListNetworkEventsAggregatedParams) ([]GatewayListNetworkEventsAggregatedRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListNetworkEventsAggregated,
+		arg.SessionID,
+		arg.EventTimeAfter,
+		arg.EventTimeBefore,
+		arg.Action,
+		arg.CursorSet,
+		arg.CursorEventTime,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListNetworkEventsAggregatedRow{}
+	for rows.Next() {
+		var i GatewayListNetworkEventsAggregatedRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.LastSeen,
+			&i.DestinationDomain,
+			&i.DestinationIp,
+			&i.DestinationPort,
+			&i.Protocol,
+			&i.Action,
+			&i.Source,
+			&i.Occurrences,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListProcessEvents = `-- name: GatewayListProcessEvents :many
 SELECT
   id,
@@ -513,6 +687,91 @@ func (q *Queries) GatewayListProcessEvents(ctx context.Context, arg GatewayListP
 			&i.CommandInvocation,
 			&i.Action,
 			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListProcessEventsAggregated = `-- name: GatewayListProcessEventsAggregated :many
+SELECT
+  session_id,
+  MAX(event_time)::timestamptz AS last_seen,
+  process,
+  parent_process,
+  command_invocation,
+  action,
+  source,
+  COUNT(*) AS occurrences
+FROM observer_process_events
+WHERE session_id = $1
+  AND event_time >= $2
+  AND event_time <= $3
+  AND (
+    $4::text = ''
+    OR action = $4
+  )
+GROUP BY session_id, process, parent_process, command_invocation, action, source
+HAVING (
+  NOT $5::bool
+  OR MAX(event_time) < $6
+)
+ORDER BY MAX(event_time) DESC
+LIMIT $7
+`
+
+type GatewayListProcessEventsAggregatedParams struct {
+	SessionID       uuid.UUID `json:"session_id"`
+	EventTimeAfter  time.Time `json:"event_time_after"`
+	EventTimeBefore time.Time `json:"event_time_before"`
+	Action          string    `json:"action"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorEventTime time.Time `json:"cursor_event_time"`
+	PageSize        int32     `json:"page_size"`
+}
+
+type GatewayListProcessEventsAggregatedRow struct {
+	SessionID         uuid.UUID `json:"session_id"`
+	LastSeen          time.Time `json:"last_seen"`
+	Process           string    `json:"process"`
+	ParentProcess     string    `json:"parent_process"`
+	CommandInvocation string    `json:"command_invocation"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+	Occurrences       int64     `json:"occurrences"`
+}
+
+func (q *Queries) GatewayListProcessEventsAggregated(ctx context.Context, arg GatewayListProcessEventsAggregatedParams) ([]GatewayListProcessEventsAggregatedRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListProcessEventsAggregated,
+		arg.SessionID,
+		arg.EventTimeAfter,
+		arg.EventTimeBefore,
+		arg.Action,
+		arg.CursorSet,
+		arg.CursorEventTime,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListProcessEventsAggregatedRow{}
+	for rows.Next() {
+		var i GatewayListProcessEventsAggregatedRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.LastSeen,
+			&i.Process,
+			&i.ParentProcess,
+			&i.CommandInvocation,
+			&i.Action,
+			&i.Source,
+			&i.Occurrences,
 		); err != nil {
 			return nil, err
 		}

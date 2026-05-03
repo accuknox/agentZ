@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import {
   getRuntimeTelemetryAction,
+  getRuntimeTelemetryTabAction,
   getSpanDetailAction,
   listSpansAction,
 } from "@/data/lens.actions"
@@ -29,6 +30,8 @@ import type {
   ListTracesActionData,
   RuntimeTelemetryActionData,
   RuntimeTelemetryEventItem,
+  RuntimeTelemetryTab,
+  RuntimeTelemetryTabActionData,
   SpanDetailActionData,
   SpanListItem,
   TraceListItem,
@@ -40,6 +43,12 @@ import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/p
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TelemetryTableSkeleton } from "@/app/lens/runtime-telemetry/telemetry-table-skeleton"
+import {
+  TelemetryTable as SharedTelemetryTable,
+  ActionBadge as SharedActionBadge,
+  type TelemetryTableColumn,
+} from "@/app/lens/runtime-telemetry/telemetry-table"
 import {
   Table,
   TableBody,
@@ -153,10 +162,20 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
   const [selectedTrace, setSelectedTrace] = React.useState<TraceListItem | undefined>()
   const [spans, setSpans] = React.useState<ListSpansActionData | undefined>()
   const [telemetry, setTelemetry] = React.useState<RuntimeTelemetryActionData | undefined>()
+  const [telemetryTab, setTelemetryTab] = React.useState<RuntimeTelemetryTab>("process")
+  const [telemetryPages, setTelemetryPages] = React.useState<
+    Partial<Record<RuntimeTelemetryTab, RuntimeTelemetryTabActionData>>
+  >({})
   const [spansError, setSpansError] = React.useState<Error | undefined>()
   const [telemetryError, setTelemetryError] = React.useState<Error | undefined>()
   const [tab, setTab] = React.useState<TraceInspectorTab>("spans")
   const [pending, startTransition] = React.useTransition()
+  const [spansPending, startSpansTransition] = React.useTransition()
+  const [telemetryPending, startTelemetryTransition] = React.useTransition()
+  const [spanPageToken, setSpanPageToken] = React.useState<string | undefined>()
+  const [spanTokenStack, setSpanTokenStack] = React.useState<string[]>([])
+  const [telemetryPageToken, setTelemetryPageToken] = React.useState<string | undefined>()
+  const [telemetryTokenStack, setTelemetryTokenStack] = React.useState<string[]>([])
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -169,9 +188,15 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
     setSelectedTrace(trace)
     setSpans(undefined)
     setTelemetry(undefined)
+    setTelemetryPages({})
     setSpansError(undefined)
     setTelemetryError(undefined)
     setTab("spans")
+    setTelemetryTab("process")
+    setSpanPageToken(undefined)
+    setSpanTokenStack([])
+    setTelemetryPageToken(undefined)
+    setTelemetryTokenStack([])
     startTransition(() => {
       void (async () => {
         const [spanResult, telemetryResult] = await Promise.all([
@@ -194,10 +219,76 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
     })
   }
 
+  function loadTelemetryTab(
+    nextTab: RuntimeTelemetryTab,
+    nextPageToken?: string,
+    mode: "reset" | "next" | "previous" = "reset"
+  ) {
+    if (!selectedTrace) {
+      return
+    }
+
+    startTelemetryTransition(() => {
+      void (async () => {
+        const result = await getRuntimeTelemetryTabAction({
+          session_id: selectedTrace.sessionId,
+          started_after: selectedTrace.startedAt,
+          started_before: selectedTrace.endedAt,
+          tab: nextTab,
+          page_token: nextPageToken,
+        })
+        setTelemetryPages((current) =>
+          result.data ? { ...current, [nextTab]: result.data } : current
+        )
+        setTelemetryError(result.error)
+        setTelemetryTab(nextTab)
+        if (mode === "reset") {
+          setTelemetryTokenStack([])
+        }
+        if (mode === "next") {
+          setTelemetryTokenStack((stack) =>
+            telemetryPageToken ? [...stack, telemetryPageToken] : stack
+          )
+        }
+        if (mode === "previous") {
+          setTelemetryTokenStack((stack) => stack.slice(0, -1))
+        }
+        setTelemetryPageToken(nextPageToken)
+      })()
+    })
+  }
+
+  function loadSpansPage(nextPageToken?: string, mode: "next" | "previous" = "next") {
+    if (!selectedTrace) {
+      return
+    }
+
+    startSpansTransition(() => {
+      void (async () => {
+        const result = await listSpansAction({
+          session_id: selectedTrace.sessionId,
+          trace_id: selectedTrace.traceId,
+          limit: 100,
+          page_token: nextPageToken,
+        })
+        setSpans(result.data)
+        setSpansError(result.error)
+        setSelectedTrace((current) => current)
+        if (mode === "next") {
+          setSpanTokenStack((stack) => (spanPageToken ? [...stack, spanPageToken] : stack))
+        } else {
+          setSpanTokenStack((stack) => stack.slice(0, -1))
+        }
+        setSpanPageToken(nextPageToken)
+      })()
+    })
+  }
+
   function closeTrace() {
     setSelectedTrace(undefined)
     setSpans(undefined)
     setTelemetry(undefined)
+    setTelemetryPages({})
     setSpansError(undefined)
     setTelemetryError(undefined)
   }
@@ -286,6 +377,24 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
         spansError={spansError}
         telemetryError={telemetryError}
         pending={pending}
+        spansPending={spansPending}
+        telemetryPending={telemetryPending}
+        telemetryTab={telemetryTab}
+        telemetryPage={telemetryPages[telemetryTab]}
+        onTelemetryTabChange={(nextTab) => loadTelemetryTab(nextTab)}
+        canGoPreviousTelemetry={telemetryTokenStack.length > 0 || telemetryPageToken !== undefined}
+        onNextTelemetry={() => {
+          const nextPage = telemetryPages[telemetryTab]?.nextPageToken
+          if (nextPage) {
+            loadTelemetryTab(telemetryTab, nextPage, "next")
+          }
+        }}
+        onPreviousTelemetry={() =>
+          loadTelemetryTab(telemetryTab, telemetryTokenStack.at(-1), "previous")
+        }
+        canGoPreviousSpans={spanTokenStack.length > 0 || spanPageToken !== undefined}
+        onNextSpans={() => spans?.nextPageToken && loadSpansPage(spans.nextPageToken, "next")}
+        onPreviousSpans={() => loadSpansPage(spanTokenStack.at(-1), "previous")}
         tab={tab}
         onTabChange={setTab}
       />
@@ -303,6 +412,17 @@ function TraceInspector({
   spansError,
   telemetryError,
   pending,
+  spansPending,
+  telemetryPending,
+  telemetryTab,
+  telemetryPage,
+  onTelemetryTabChange,
+  canGoPreviousTelemetry,
+  onNextTelemetry,
+  onPreviousTelemetry,
+  canGoPreviousSpans,
+  onNextSpans,
+  onPreviousSpans,
   tab,
   onTabChange,
 }: {
@@ -312,6 +432,17 @@ function TraceInspector({
   spansError?: Error
   telemetryError?: Error
   pending: boolean
+  spansPending: boolean
+  telemetryPending: boolean
+  telemetryTab: RuntimeTelemetryTab
+  telemetryPage?: RuntimeTelemetryTabActionData
+  onTelemetryTabChange: (tab: RuntimeTelemetryTab) => void
+  canGoPreviousTelemetry: boolean
+  onNextTelemetry: () => void
+  onPreviousTelemetry: () => void
+  canGoPreviousSpans: boolean
+  onNextSpans: () => void
+  onPreviousSpans: () => void
   tab: TraceInspectorTab
   onTabChange: (tab: TraceInspectorTab) => void
 }) {
@@ -345,13 +476,24 @@ function TraceInspector({
               data={spans}
               error={spansError}
               pending={pending}
+              pagePending={spansPending}
+              canGoPrevious={canGoPreviousSpans}
+              onNextPage={onNextSpans}
+              onPreviousPage={onPreviousSpans}
             />
           ) : (
             <RuntimeTelemetryContent
               key={trace?.traceId}
               data={telemetry}
+              telemetryTab={telemetryTab}
+              telemetryPage={telemetryPage}
               error={telemetryError}
               pending={pending}
+              pagePending={telemetryPending}
+              onTabChange={onTelemetryTabChange}
+              canGoPrevious={canGoPreviousTelemetry}
+              onNextPage={onNextTelemetry}
+              onPreviousPage={onPreviousTelemetry}
             />
           )}
         </div>
@@ -365,11 +507,19 @@ function SpansInspectorContent({
   data,
   error,
   pending,
+  pagePending,
+  canGoPrevious,
+  onNextPage,
+  onPreviousPage,
 }: {
   trace?: TraceListItem
   data?: ListSpansActionData
   error?: Error
   pending: boolean
+  pagePending: boolean
+  canGoPrevious: boolean
+  onNextPage: () => void
+  onPreviousPage: () => void
 }) {
   const [selectedSpanID, setSelectedSpanID] = React.useState<string | undefined>()
   const [detailState, setDetailState] = React.useState<{
@@ -419,6 +569,28 @@ function SpansInspectorContent({
         <aside className="min-h-0 border-b bg-background lg:border-r lg:border-b-0">
           <div className="flex h-10 items-center justify-between bg-muted/10 px-4 lg:px-5">
             <div className="text-sm font-medium">Spans ({data.spans.length})</div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!canGoPrevious || pagePending}
+                onClick={onPreviousPage}
+              >
+                <ArrowLeft data-icon="inline-start" />
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!data.hasNextPage || pagePending}
+                onClick={onNextPage}
+              >
+                Next
+                <ArrowRight data-icon="inline-end" />
+              </Button>
+            </div>
           </div>
           <div className="max-h-72 overflow-auto py-2 lg:h-[calc(100vh-134px)] lg:max-h-none">
             {data.spans.length > 0 ? (
@@ -710,17 +882,37 @@ function TokenLegend({
 
 function RuntimeTelemetryContent({
   data,
+  telemetryTab,
+  telemetryPage,
   error,
   pending,
+  pagePending,
+  onTabChange,
+  canGoPrevious,
+  onNextPage,
+  onPreviousPage,
 }: {
   data?: RuntimeTelemetryActionData
+  telemetryTab: RuntimeTelemetryTab
+  telemetryPage?: RuntimeTelemetryTabActionData
   error?: Error
   pending: boolean
+  pagePending: boolean
+  onTabChange: (tab: RuntimeTelemetryTab) => void
+  canGoPrevious: boolean
+  onNextPage: () => void
+  onPreviousPage: () => void
 }) {
-  const [tab, setTab] = React.useState<TelemetryTab>("process")
+  React.useEffect(() => {
+    if (!data || telemetryPage || pagePending) {
+      return
+    }
 
-  if (pending && !data) {
-    return <InspectorSkeleton />
+    onTabChange(telemetryTab)
+  }, [data, onTabChange, pagePending, telemetryPage, telemetryTab])
+
+  if ((pending && !data) || (pagePending && !telemetryPage)) {
+    return <RuntimeTelemetrySkeleton telemetryTab={telemetryTab} data={data} />
   }
 
   if (error) {
@@ -735,39 +927,111 @@ function RuntimeTelemetryContent({
     return null
   }
 
-  const processEvents = data.events.filter((event) => event.kind === "process")
-  const fileEvents = data.events.filter((event) => event.kind === "file")
-  const networkEvents = data.events.filter((event) => event.kind === "network")
+  const processCount = data?.processCount ?? 0
+  const fileCount = data?.fileCount ?? 0
+  const networkCount = data?.networkCount ?? 0
+  const events = telemetryPage?.events ?? []
 
   return (
     <Tabs
-      value={tab}
-      onValueChange={(v) => setTab(v as TelemetryTab)}
+      value={telemetryTab}
+      onValueChange={(v) => onTabChange(v as RuntimeTelemetryTab)}
       className="flex h-full min-h-0 flex-col mt-4"
     >
-      <TabsList variant="line" className="overflow-x-auto px-2">
+      <TabsList variant="line" className="overflow-auto overflow-y-hidden px-2">
         <TabsTrigger value="process" className="gap-2 px-4">
-          <Cpu /> Process ({data.processCount})
+          <Cpu /> Process ({processCount})
         </TabsTrigger>
         <TabsTrigger value="file" className="gap-2 px-4">
-          <HardDrive /> File ({data.fileCount})
+          <HardDrive /> File ({fileCount})
         </TabsTrigger>
         <TabsTrigger value="network" className="gap-2 px-4">
-          <Network /> Network ({data.networkCount})
+          <Network /> Network ({networkCount})
         </TabsTrigger>
       </TabsList>
-      <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
+      <div className="min-h-0 flex-1 overflow-auto px-1 pt-4 pb-8">
         <TabsContent value="process">
-          <ProcessTelemetryTable events={processEvents} />
+          <ProcessTelemetryTable
+            events={telemetryTab === "process" ? events : []}
+            hasNextPage={telemetryTab === "process" ? telemetryPage?.hasNextPage : undefined}
+            nextPageToken={telemetryTab === "process" ? telemetryPage?.nextPageToken : undefined}
+            canGoPrevious={canGoPrevious}
+            onNextPage={onNextPage}
+            onPreviousPage={onPreviousPage}
+            pending={pagePending}
+          />
         </TabsContent>
         <TabsContent value="file">
-          <FileTelemetryTable events={fileEvents} />
+          <FileTelemetryTable
+            events={telemetryTab === "file" ? events : []}
+            hasNextPage={telemetryTab === "file" ? telemetryPage?.hasNextPage : undefined}
+            nextPageToken={telemetryTab === "file" ? telemetryPage?.nextPageToken : undefined}
+            canGoPrevious={canGoPrevious}
+            onNextPage={onNextPage}
+            onPreviousPage={onPreviousPage}
+            pending={pagePending}
+          />
         </TabsContent>
         <TabsContent value="network">
-          <NetworkTelemetryTable events={networkEvents} />
+          <NetworkTelemetryTable
+            events={telemetryTab === "network" ? events : []}
+            hasNextPage={telemetryTab === "network" ? telemetryPage?.hasNextPage : undefined}
+            nextPageToken={telemetryTab === "network" ? telemetryPage?.nextPageToken : undefined}
+            canGoPrevious={canGoPrevious}
+            onNextPage={onNextPage}
+            onPreviousPage={onPreviousPage}
+            pending={pagePending}
+          />
         </TabsContent>
       </div>
     </Tabs>
+  )
+}
+
+function RuntimeTelemetrySkeleton({
+  telemetryTab,
+  data,
+}: {
+  telemetryTab: RuntimeTelemetryTab
+  data?: RuntimeTelemetryActionData
+}) {
+  const processCount = data?.processCount ?? 0
+  const fileCount = data?.fileCount ?? 0
+  const networkCount = data?.networkCount ?? 0
+
+  const headers =
+    telemetryTab === "process"
+      ? ["Process", "Command", "Action", "Seen At"]
+      : telemetryTab === "file"
+        ? ["File Path Accessed", "Process", "Action", "Seen At"]
+        : [
+            "Destination Domain",
+            "Destination IP",
+            "Destination Port",
+            "Protocol",
+            "Action",
+            "Seen At",
+          ]
+
+  return (
+    <div className="flex h-full min-h-0 flex-col mt-4">
+      <Tabs value={telemetryTab} className="flex h-full min-h-0 flex-col">
+        <TabsList variant="line" className="overflow-x-auto px-2">
+          <TabsTrigger value="process" className="gap-2 px-4" disabled>
+            <Cpu /> Process ({processCount})
+          </TabsTrigger>
+          <TabsTrigger value="file" className="gap-2 px-4" disabled>
+            <HardDrive /> File ({fileCount})
+          </TabsTrigger>
+          <TabsTrigger value="network" className="gap-2 px-4" disabled>
+            <Network /> Network ({networkCount})
+          </TabsTrigger>
+        </TabsList>
+        <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
+          <TelemetryTableSkeleton headers={headers} rowCount={6} />
+        </div>
+      </Tabs>
+    </div>
   )
 }
 
@@ -803,203 +1067,191 @@ function spanTimelineClass(span: SpanListItem) {
   return "bg-emerald-500"
 }
 
-function ProcessTelemetryTable({ events }: { events: RuntimeTelemetryEventItem[] }) {
-  return (
-    <TelemetryTable
-      emptyText="No process events were recorded in this trace window."
-      columns={[
-        { header: "Process", headerClassName: "min-w-36", cellClassName: telemetryMonoClass },
-        {
-          header: "Command",
-          headerClassName: "min-w-80",
-          cellClassName: telemetryWideMonoClass,
-        },
-        { header: "Action" },
-        { header: "Last Seen", headerClassName: "min-w-40" },
-      ]}
-      rows={events.map((event) => [
-        event.primary,
-        event.secondary,
-        <TelemetryActionBadge key={`${event.id}-action`} action={event.action} />,
-        <TelemetryTimestamp key={`${event.id}-time`} value={event.time} />,
-      ])}
-    />
-  )
-}
+const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
+  {
+    key: "process",
+    header: "Process",
+    className: "min-w-36",
+    render: (event) => <span className={telemetryMonoClass}>{event.primary}</span>,
+  },
+  {
+    key: "command",
+    header: "Command",
+    className: "min-w-80",
+    render: (event) => <span className={telemetryWideMonoClass}>{event.secondary}</span>,
+  },
+  {
+    key: "action",
+    header: "Action",
+    render: (event) => <SharedActionBadge action={event.action} />,
+  },
+  {
+    key: "time",
+    header: "Seen At",
+    className: "min-w-40",
+    render: (event) => <TelemetryTimestamp value={event.time} />,
+  },
+]
 
-function FileTelemetryTable({ events }: { events: RuntimeTelemetryEventItem[] }) {
-  return (
-    <TelemetryTable
-      emptyText="No file events were recorded in this trace window."
-      columns={[
-        {
-          header: "File Path Accessed",
-          headerClassName: "min-w-80",
-          cellClassName: telemetryWideMonoClass,
-        },
-        {
-          header: "Process",
-          headerClassName: "min-w-72",
-          cellClassName: telemetryWideMonoClass,
-        },
-        { header: "Action" },
-        { header: "Last Seen", headerClassName: "min-w-40" },
-      ]}
-      rows={events.map((event) => [
-        event.primary,
-        event.secondary,
-        <TelemetryActionBadge key={`${event.id}-action`} action={event.action} />,
-        <TelemetryTimestamp key={`${event.id}-time`} value={event.time} />,
-      ])}
-    />
-  )
-}
-
-function NetworkTelemetryTable({ events }: { events: RuntimeTelemetryEventItem[] }) {
-  return (
-    <TelemetryTable
-      emptyText="No network events were recorded in this trace window."
-      columns={[
-        {
-          header: "Destination Domain",
-          headerClassName: "min-w-52",
-          cellClassName: telemetryMonoClass,
-        },
-        {
-          header: "Destination IP",
-          headerClassName: "min-w-40",
-          cellClassName: telemetryMonoClass,
-        },
-        {
-          header: "Destination Port",
-          headerClassName: "min-w-32",
-          cellClassName: "font-mono",
-        },
-        { header: "Protocol", headerClassName: "min-w-32", cellClassName: telemetryMonoClass },
-        { header: "Action" },
-        { header: "Last Seen", headerClassName: "min-w-40" },
-      ]}
-      rows={events.map((event) => [
-        networkDestinationDomain(event),
-        networkDestinationIP(event),
-        networkDestinationPort(event),
-        networkProtocol(event),
-        <TelemetryActionBadge key={`${event.id}-action`} action={event.action} />,
-        <TelemetryTimestamp key={`${event.id}-time`} value={event.time} />,
-      ])}
-    />
-  )
-}
-
-function TelemetryTable({
-  emptyText,
-  columns,
-  rows,
+function ProcessTelemetryTable({
+  events,
+  hasNextPage,
+  nextPageToken,
+  canGoPrevious,
+  onNextPage,
+  onPreviousPage,
+  pending,
 }: {
-  emptyText: string
-  columns: {
-    header: string
-    headerClassName?: string
-    cellClassName?: string
-  }[]
-  rows: React.ReactNode[][]
+  events: RuntimeTelemetryEventItem[]
+  hasNextPage?: boolean
+  nextPageToken?: string
+  canGoPrevious: boolean
+  onNextPage: () => void
+  onPreviousPage: () => void
+  pending: boolean
 }) {
-  const [page, setPage] = React.useState(0)
-  const pageCount = Math.ceil(rows.length / telemetryPageSize)
-  const start = page * telemetryPageSize
-  const end = start + telemetryPageSize
-  const pageRows = rows.slice(start, end)
-  const canGoPrevious = page > 0
-  const canGoNext = page + 1 < pageCount
-  const hasRows = rows.length > 0
-
   return (
-    <section className="flex w-full flex-col">
-      <div className="min-h-0 w-full flex-1 overflow-auto border-b">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {columns.map((column) => (
-                <TableHead key={column.header} className={cn("h-8 px-2", column.headerClassName)}>
-                  {column.header}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {hasRows ? (
-              pageRows.map((row, index) => (
-                <TableRow key={index}>
-                  {row.map((cell, cellIndex) => (
-                    <TableCell
-                      key={cellIndex}
-                      className={cn("h-10 px-2 py-1", columns[cellIndex]?.cellClassName)}
-                    >
-                      {cell}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-36 w-full text-center text-muted-foreground"
-                >
-                  {emptyText}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="flex w-full flex-col gap-2 pt-2 md:flex-row md:items-center md:justify-between">
-        <span className="text-xs text-muted-foreground">
-          {hasRows ? `${start + 1}-${Math.min(end, rows.length)} of ${rows.length}` : "0-0 of 0"}
-        </span>
-        <Pagination className="mx-0 w-full justify-end md:w-auto">
-          <PaginationContent>
-            <PaginationItem>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!canGoPrevious}
-                onClick={() => setPage((current) => Math.max(current - 1, 0))}
-              >
-                <ArrowLeft data-icon="inline-start" />
-                Previous
-              </Button>
-            </PaginationItem>
-            <PaginationItem>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!canGoNext}
-                onClick={() => setPage((current) => (canGoNext ? current + 1 : current))}
-              >
-                Next
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-    </section>
+    <SharedTelemetryTable
+      data={events}
+      columns={processTelemetryColumns}
+      emptyText="No process events were recorded in this trace window."
+      hasNextPage={hasNextPage}
+      nextPageToken={nextPageToken}
+      canGoPrevious={canGoPrevious}
+      onNextPage={nextPageToken ? () => onNextPage() : undefined}
+      onPreviousPage={onPreviousPage}
+      pending={pending}
+    />
   )
 }
 
-function TelemetryActionBadge({ action }: { action: string }) {
+const fileTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
+  {
+    key: "file",
+    header: "File Path Accessed",
+    className: "min-w-80",
+    render: (event) => <span className={telemetryWideMonoClass}>{event.primary}</span>,
+  },
+  {
+    key: "process",
+    header: "Process",
+    className: "min-w-72",
+    render: (event) => <span className={telemetryWideMonoClass}>{event.secondary}</span>,
+  },
+  {
+    key: "action",
+    header: "Action",
+    render: (event) => <SharedActionBadge action={event.action} />,
+  },
+  {
+    key: "time",
+    header: "Seen At",
+    className: "min-w-40",
+    render: (event) => <TelemetryTimestamp value={event.time} />,
+  },
+]
+
+function FileTelemetryTable({
+  events,
+  hasNextPage,
+  nextPageToken,
+  canGoPrevious,
+  onNextPage,
+  onPreviousPage,
+  pending,
+}: {
+  events: RuntimeTelemetryEventItem[]
+  hasNextPage?: boolean
+  nextPageToken?: string
+  canGoPrevious: boolean
+  onNextPage: () => void
+  onPreviousPage: () => void
+  pending: boolean
+}) {
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit rounded-full px-2 py-1 text-xs font-medium",
-        action === "Blocked" && "bg-destructive/12 text-destructive",
-        action === "Allowed" && "bg-primary/12 text-primary",
-        action !== "Allowed" && action !== "Blocked" && "bg-muted text-muted-foreground"
-      )}
-    >
-      {action}
-    </span>
+    <SharedTelemetryTable
+      data={events}
+      columns={fileTelemetryColumns}
+      emptyText="No file events were recorded in this trace window."
+      hasNextPage={hasNextPage}
+      nextPageToken={nextPageToken}
+      canGoPrevious={canGoPrevious}
+      onNextPage={nextPageToken ? () => onNextPage() : undefined}
+      onPreviousPage={onPreviousPage}
+      pending={pending}
+    />
+  )
+}
+
+const networkTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
+  {
+    key: "domain",
+    header: "Destination Domain",
+    className: "min-w-52",
+    render: (event) => (
+      <span className={telemetryMonoClass}>{networkDestinationDomain(event)}</span>
+    ),
+  },
+  {
+    key: "ip",
+    header: "Destination IP",
+    className: "min-w-40",
+    render: (event) => <span className={telemetryMonoClass}>{networkDestinationIP(event)}</span>,
+  },
+  {
+    key: "port",
+    header: "Destination Port",
+    className: "min-w-32",
+    render: (event) => <span className="font-mono text-xs">{networkDestinationPort(event)}</span>,
+  },
+  {
+    key: "protocol",
+    header: "Protocol",
+    className: "min-w-32",
+    render: (event) => <span className={telemetryMonoClass}>{networkProtocol(event)}</span>,
+  },
+  {
+    key: "action",
+    header: "Action",
+    render: (event) => <SharedActionBadge action={event.action} />,
+  },
+  {
+    key: "time",
+    header: "Seen At",
+    className: "min-w-40",
+    render: (event) => <TelemetryTimestamp value={event.time} />,
+  },
+]
+
+function NetworkTelemetryTable({
+  events,
+  hasNextPage,
+  nextPageToken,
+  canGoPrevious,
+  onNextPage,
+  onPreviousPage,
+  pending,
+}: {
+  events: RuntimeTelemetryEventItem[]
+  hasNextPage?: boolean
+  nextPageToken?: string
+  canGoPrevious: boolean
+  onNextPage: () => void
+  onPreviousPage: () => void
+  pending: boolean
+}) {
+  return (
+    <SharedTelemetryTable
+      data={events}
+      columns={networkTelemetryColumns}
+      emptyText="No network events were recorded in this trace window."
+      hasNextPage={hasNextPage}
+      nextPageToken={nextPageToken}
+      canGoPrevious={canGoPrevious}
+      onNextPage={nextPageToken ? () => onNextPage() : undefined}
+      onPreviousPage={onPreviousPage}
+      pending={pending}
+    />
   )
 }
 

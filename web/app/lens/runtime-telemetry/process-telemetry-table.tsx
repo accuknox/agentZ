@@ -1,11 +1,12 @@
 "use client"
 
-import type { ProcessTelemetryRow } from "@/data/types"
+import type { ProcessTelemetryActionData, ProcessTelemetryRow } from "@/data/types"
 import {
   TelemetryTable,
   ActionBadge,
   type TelemetryTableColumn,
 } from "@/app/lens/runtime-telemetry/telemetry-table"
+import { useTelemetryPagination } from "@/app/lens/runtime-telemetry/use-telemetry-pagination"
 
 const columns: TelemetryTableColumn<ProcessTelemetryRow>[] = [
   {
@@ -41,6 +42,20 @@ const columns: TelemetryTableColumn<ProcessTelemetryRow>[] = [
   },
 ]
 
-export function ProcessTelemetryTable({ data }: { data: ProcessTelemetryRow[] }) {
-  return <TelemetryTable data={data} columns={columns} emptyText="No process events found" />
+export function ProcessTelemetryTable({ data }: { data: ProcessTelemetryActionData }) {
+  const { pending, canGoPrevious, goNext, goPrevious } = useTelemetryPagination()
+
+  return (
+    <TelemetryTable
+      data={data.rows}
+      columns={columns}
+      emptyText="No process events found"
+      hasNextPage={data.hasNextPage}
+      nextPageToken={data.nextPageToken}
+      canGoPrevious={canGoPrevious}
+      onNextPage={goNext}
+      onPreviousPage={goPrevious}
+      pending={pending}
+    />
+  )
 }

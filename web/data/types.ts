@@ -104,6 +104,59 @@ export type RuntimeTelemetryActionResponse =
       error: Error
     }
 
+export type ProcessTelemetryRow = {
+  process: string
+  command: string
+  action: string
+  occurrences: number
+  lastSeen: string
+}
+
+export type FileTelemetryRow = {
+  filePath: string
+  process: string
+  action: string
+  occurrences: number
+  lastSeen: string
+}
+
+export type NetworkTelemetryRow = {
+  destinationDomain: string
+  destinationIP: string
+  destinationPort: number
+  protocol: string
+  action: string
+  occurrences: number
+  lastSeen: string
+}
+
+export type ProcessTelemetryActionData = {
+  rows: ProcessTelemetryRow[]
+  chart: TraceChartActionData
+}
+
+export type FileTelemetryActionData = {
+  rows: FileTelemetryRow[]
+  chart: TraceChartActionData
+}
+
+export type NetworkTelemetryActionData = {
+  rows: NetworkTelemetryRow[]
+  chart: TraceChartActionData
+}
+
+export type ProcessTelemetryActionResponse =
+  | { data: ProcessTelemetryActionData; error: undefined }
+  | { data: undefined; error: Error }
+
+export type FileTelemetryActionResponse =
+  | { data: FileTelemetryActionData; error: undefined }
+  | { data: undefined; error: Error }
+
+export type NetworkTelemetryActionResponse =
+  | { data: NetworkTelemetryActionData; error: undefined }
+  | { data: undefined; error: Error }
+
 export type TraceChartPoint = {
   label: string
   count: number

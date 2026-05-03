@@ -1,0 +1,128 @@
+"use client"
+
+import * as React from "react"
+import { ArrowLeft, ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { cn } from "@/lib/utils"
+
+export type TelemetryTableColumn<T> = {
+  header: string
+  className?: string
+  render: (row: T) => React.ReactNode
+  key: string
+}
+
+interface TelemetryTableProps<T> {
+  data: T[]
+  columns: TelemetryTableColumn<T>[]
+  emptyText: string
+  pageSize?: number
+}
+
+const defaultPageSize = 15
+
+export function TelemetryTable<T extends { [key: string]: unknown }>({
+  data,
+  columns,
+  emptyText,
+  pageSize = defaultPageSize,
+}: TelemetryTableProps<T>) {
+  const [page, setPage] = React.useState(0)
+  const totalPages = Math.ceil(data.length / pageSize)
+  const start = page * pageSize
+  const end = start + pageSize
+  const pageRows = data.slice(start, end)
+  const canGoPrevious = page > 0
+  const canGoNext = page + 1 < totalPages
+  const hasRows = data.length > 0
+
+  return (
+    <section className="flex w-full flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-auto border-b">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((col) => (
+                <TableHead key={col.key} className={col.className}>
+                  {col.header}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {hasRows ? (
+              pageRows.map((row, idx) => (
+                <TableRow key={idx}>
+                  {columns.map((col) => (
+                    <TableCell key={col.key} className={col.className}>
+                      {col.render(row)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-36 w-full text-center text-muted-foreground"
+                >
+                  {emptyText}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex w-full flex-col gap-2 border-t bg-muted/10 px-6 py-3 pt-3 md:flex-row md:items-center md:justify-between">
+        <span className="text-xs text-muted-foreground">
+          {hasRows ? `${start + 1}-${Math.min(end, data.length)} of ${data.length}` : "0-0 of 0"}
+        </span>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!canGoPrevious}
+            onClick={() => setPage((p) => Math.max(p - 1, 0))}
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!canGoNext}
+            onClick={() => setPage((p) => (canGoNext ? p + 1 : p))}
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function ActionBadge({ action }: { action: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex w-fit rounded-full px-2 py-1 text-xs font-medium",
+        action === "Blocked" && "bg-destructive/12 text-destructive",
+        action === "Allowed" && "bg-primary/12 text-primary",
+        action !== "Allowed" && action !== "Blocked" && "bg-muted text-muted-foreground"
+      )}
+    >
+      {action}
+    </span>
+  )
+}

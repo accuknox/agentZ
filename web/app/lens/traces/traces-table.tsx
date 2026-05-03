@@ -746,13 +746,13 @@ function RuntimeTelemetryContent({
       className="flex h-full min-h-0 flex-col mt-4"
     >
       <TabsList variant="line" className="overflow-x-auto px-2">
-        <TabsTrigger value="process" className="gap-2">
+        <TabsTrigger value="process" className="gap-2 px-4">
           <Cpu /> Process ({data.processCount})
         </TabsTrigger>
-        <TabsTrigger value="file" className="gap-2">
+        <TabsTrigger value="file" className="gap-2 px-4">
           <HardDrive /> File ({data.fileCount})
         </TabsTrigger>
-        <TabsTrigger value="network" className="gap-2">
+        <TabsTrigger value="network" className="gap-2 px-4">
           <Network /> Network ({data.networkCount})
         </TabsTrigger>
       </TabsList>

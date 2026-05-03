@@ -382,11 +382,18 @@ export const CodeBlockContent = ({
   useEffect(() => {
     let cancelled = false
 
-    highlightCode(code, language, (result) => {
+    const cachedResult = highlightCode(code, language, (result) => {
       if (!cancelled) {
         setAsyncTokens({ code, language, tokens: result })
       }
     })
+    if (cachedResult && !cancelled) {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setAsyncTokens({ code, language, tokens: cachedResult })
+        }
+      })
+    }
 
     return () => {
       cancelled = true

@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { Roboto } from "next/font/google"
+import { Oxanium, Roboto } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
@@ -16,23 +16,28 @@ import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { listAgentsAction } from "@/data/agent.actions"
 import Providers from "./providers"
 
+const oxanium = Oxanium({ subsets: ["latin"], variable: "--font-heading" })
+
 const roboto = Roboto({ subsets: ["latin"], variable: "--font-roboto" })
 
 export const metadata: Metadata = {
   title: "Clawarmor",
   description: "The AI that actually does things - SECURELY.",
+  icons: ["/favicon.png"],
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const agents = listAgentsAction()
+
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", "font-sans", roboto.variable)}
+      className={cn("h-full", "antialiased", "font-sans", roboto.variable, oxanium.variable)}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          <AppSidebar />
+          <AppSidebar agents={agents} />
           <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
               <div className="flex items-center gap-2 px-4">
@@ -42,7 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                 />
                 <Suspense fallback={<BreadcrumbFallback />}>
-                  <PageBreadcrumb agents={listAgentsAction()} />
+                  <PageBreadcrumb agents={agents} />
                 </Suspense>
               </div>
             </header>

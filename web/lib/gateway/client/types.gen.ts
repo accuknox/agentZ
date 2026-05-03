@@ -24,6 +24,23 @@ export type RunId = string
  */
 export type RequestId = string
 
+/**
+ * Lowercase hexadecimal OTLP trace ID.
+ */
+export type TraceId = string
+
+/**
+ * Lowercase hexadecimal OTLP span ID.
+ */
+export type SpanId = string
+
+/**
+ * Lowercase hexadecimal OTLP span ID, or empty for root spans.
+ */
+export type OptionalSpanId = string
+
+export type ObservabilityAction = "Allowed" | "Blocked"
+
 export type AgentName = string
 
 export type Error = {
@@ -205,6 +222,170 @@ export type InterruptSessionResponse = {
 
 export type CompactSessionResponse = {
   message: string
+}
+
+export type ListTracesResponse = {
+  traces: Array<Trace>
+  next_page_token: string
+}
+
+export type Trace = {
+  trace_id: TraceId
+  session_id: SessionId
+  root_span_id: OptionalSpanId
+  started_at: string
+  ended_at: string
+  duration_ns: number
+  span_count: number
+  error_count: number
+  tool_count: number
+  model_count: number
+  run_id: string
+  request_id: string
+  conversation_id: string
+  input_tokens: number
+  output_tokens: number
+  status_code: string
+  updated_at: string
+}
+
+export type ListSpansResponse = {
+  spans: Array<Span>
+  next_page_token: string
+}
+
+export type Span = {
+  id: number
+  session_id: SessionId
+  trace_id: TraceId
+  span_id: SpanId
+  parent_span_id: OptionalSpanId
+  start_time: string
+  end_time: string
+  duration_ns: number
+  name: string
+  operation_name: string
+  kind: string
+  status_code: string
+  error_type: string
+  error_message: string
+  conversation_id: string
+  run_id: string
+  request_id: string
+  model: string
+  tool_name: string
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  time_to_first_token_ms: number
+  pod_namespace: string
+  pod_name: string
+  ingested_at: string
+}
+
+export type SpanPayload = {
+  input_messages: JsonValue
+  output_messages: JsonValue
+  tool_arguments: JsonValue
+  tool_result: JsonValue
+  metadata: JsonValue
+}
+
+export type SpanDetailResponse = {
+  span: Span
+  payload: SpanPayload
+}
+
+export type ListProcessObservabilityResponse = {
+  events: Array<ProcessObservabilityEvent | ProcessObservabilityEventAggregated>
+  next_page_token: string
+}
+
+export type ProcessObservabilityEvent = {
+  id: number
+  session_id: SessionId
+  event_time: string
+  ingested_at: string
+  pod_namespace: string
+  pod_name: string
+  process: string
+  parent_process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+}
+
+export type ProcessObservabilityEventAggregated = {
+  session_id: SessionId
+  last_seen: string
+  process: string
+  parent_process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
+}
+
+export type ListFileObservabilityResponse = {
+  events: Array<FileObservabilityEvent | FileObservabilityEventAggregated>
+  next_page_token: string
+}
+
+export type FileObservabilityEvent = {
+  id: number
+  session_id: SessionId
+  event_time: string
+  ingested_at: string
+  pod_namespace: string
+  pod_name: string
+  file_path_accessed: string
+  process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+}
+
+export type FileObservabilityEventAggregated = {
+  session_id: SessionId
+  last_seen: string
+  file_path_accessed: string
+  process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
+}
+
+export type ListNetworkObservabilityResponse = {
+  events: Array<NetworkObservabilityEvent | NetworkObservabilityEventAggregated>
+  next_page_token: string
+}
+
+export type NetworkObservabilityEvent = {
+  id: number
+  session_id: SessionId
+  event_time: string
+  ingested_at: string
+  pod_namespace: string
+  pod_name: string
+  destination_domain: string
+  destination_ip: string
+  destination_port: number
+  protocol: string
+  action: ObservabilityAction
+  source: string
+}
+
+export type NetworkObservabilityEventAggregated = {
+  session_id: SessionId
+  last_seen: string
+  destination_domain: string
+  destination_ip: string
+  destination_port: number
+  protocol: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
 }
 
 export type WatchAgentsRequest = {
@@ -534,6 +715,46 @@ export type LimitQuery = number
  */
 export type PageTokenQuery = string
 
+/**
+ * Lowercase hexadecimal OTLP trace ID.
+ */
+export type TraceIdQuery = TraceId
+
+/**
+ * Lowercase hexadecimal OTLP span ID.
+ */
+export type SpanIdQuery = SpanId
+
+/**
+ * Inclusive lower bound for trace start time.
+ */
+export type StartedAfterQuery = string
+
+/**
+ * Inclusive upper bound for trace start time.
+ */
+export type StartedBeforeQuery = string
+
+/**
+ * Inclusive lower bound for event time.
+ */
+export type EventTimeAfterQuery = string
+
+/**
+ * Inclusive upper bound for event time.
+ */
+export type EventTimeBeforeQuery = string
+
+/**
+ * Optional observability action filter.
+ */
+export type ActionQuery = ObservabilityAction
+
+/**
+ * When true, returns aggregated events with occurrence counts over the time range.
+ */
+export type AggregatedQuery = boolean
+
 export type GetChatHistoryData = {
   body?: never
   path?: never
@@ -621,6 +842,348 @@ export type ListAgentsResponses = {
 }
 
 export type ListAgentsResponse2 = ListAgentsResponses[keyof ListAgentsResponses]
+
+export type ListTracesData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Session UUID.
+     */
+    session_id: SessionId
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
+  }
+  url: "/api/list-traces"
+}
+
+export type ListTracesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListTracesError = ListTracesErrors[keyof ListTracesErrors]
+
+export type ListTracesResponses = {
+  /**
+   * Paginated trace summaries.
+   */
+  200: ListTracesResponse
+}
+
+export type ListTracesResponse2 = ListTracesResponses[keyof ListTracesResponses]
+
+export type ListSpansData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Session UUID.
+     */
+    session_id: SessionId
+    /**
+     * Lowercase hexadecimal OTLP trace ID.
+     */
+    trace_id: TraceId
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/list-spans"
+}
+
+export type ListSpansErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListSpansError = ListSpansErrors[keyof ListSpansErrors]
+
+export type ListSpansResponses = {
+  /**
+   * Paginated spans for a trace.
+   */
+  200: ListSpansResponse
+}
+
+export type ListSpansResponse2 = ListSpansResponses[keyof ListSpansResponses]
+
+export type GetSpanDetailData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Session UUID.
+     */
+    session_id: SessionId
+    /**
+     * Lowercase hexadecimal OTLP trace ID.
+     */
+    trace_id: TraceId
+    /**
+     * Lowercase hexadecimal OTLP span ID.
+     */
+    span_id: SpanId
+  }
+  url: "/api/get-span-detail"
+}
+
+export type GetSpanDetailErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetSpanDetailError = GetSpanDetailErrors[keyof GetSpanDetailErrors]
+
+export type GetSpanDetailResponses = {
+  /**
+   * Span detail with payload and correlated events.
+   */
+  200: SpanDetailResponse
+}
+
+export type GetSpanDetailResponse = GetSpanDetailResponses[keyof GetSpanDetailResponses]
+
+export type ListProcessObservabilityData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Session UUID.
+     */
+    session_id: SessionId
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
+  }
+  url: "/api/list-process-observability"
+}
+
+export type ListProcessObservabilityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListProcessObservabilityError =
+  ListProcessObservabilityErrors[keyof ListProcessObservabilityErrors]
+
+export type ListProcessObservabilityResponses = {
+  /**
+   * Paginated process observability events.
+   */
+  200: ListProcessObservabilityResponse
+}
+
+export type ListProcessObservabilityResponse2 =
+  ListProcessObservabilityResponses[keyof ListProcessObservabilityResponses]
+
+export type ListFileObservabilityData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Session UUID.
+     */
+    session_id: SessionId
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
+  }
+  url: "/api/list-file-observability"
+}
+
+export type ListFileObservabilityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListFileObservabilityError =
+  ListFileObservabilityErrors[keyof ListFileObservabilityErrors]
+
+export type ListFileObservabilityResponses = {
+  /**
+   * Paginated file observability events.
+   */
+  200: ListFileObservabilityResponse
+}
+
+export type ListFileObservabilityResponse2 =
+  ListFileObservabilityResponses[keyof ListFileObservabilityResponses]
+
+export type ListNetworkObservabilityData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Session UUID.
+     */
+    session_id: SessionId
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
+  }
+  url: "/api/list-network-observability"
+}
+
+export type ListNetworkObservabilityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListNetworkObservabilityError =
+  ListNetworkObservabilityErrors[keyof ListNetworkObservabilityErrors]
+
+export type ListNetworkObservabilityResponses = {
+  /**
+   * Paginated network observability events.
+   */
+  200: ListNetworkObservabilityResponse
+}
+
+export type ListNetworkObservabilityResponse2 =
+  ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
 
 export type CreateAgentData = {
   body: CreateAgentRequest

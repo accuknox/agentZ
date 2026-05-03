@@ -8,8 +8,14 @@ import {
   createAgent,
   deleteAgent,
   getChatHistory,
+  getSpanDetail,
   interruptSession,
   listAgents,
+  listFileObservability,
+  listNetworkObservability,
+  listProcessObservability,
+  listSpans,
+  listTraces,
   type Options,
   sendMessage,
   updateAgent,
@@ -27,12 +33,30 @@ import type {
   GetChatHistoryData,
   GetChatHistoryError,
   GetChatHistoryResponse,
+  GetSpanDetailData,
+  GetSpanDetailError,
+  GetSpanDetailResponse,
   InterruptSessionData,
   InterruptSessionError,
   InterruptSessionResponse2,
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
+  ListFileObservabilityData,
+  ListFileObservabilityError,
+  ListFileObservabilityResponse2,
+  ListNetworkObservabilityData,
+  ListNetworkObservabilityError,
+  ListNetworkObservabilityResponse2,
+  ListProcessObservabilityData,
+  ListProcessObservabilityError,
+  ListProcessObservabilityResponse2,
+  ListSpansData,
+  ListSpansError,
+  ListSpansResponse2,
+  ListTracesData,
+  ListTracesError,
+  ListTracesResponse2,
   SendMessageData,
   SendMessageError,
   SendMessageResponse2,
@@ -128,6 +152,156 @@ export const listAgentsOptions = (options?: Options<ListAgentsData>) =>
       return data
     },
     queryKey: listAgentsQueryKey(options),
+  })
+
+export const listTracesQueryKey = (options: Options<ListTracesData>) =>
+  createQueryKey("listTraces", options)
+
+/**
+ * List paginated trace summaries.
+ */
+export const listTracesOptions = (options: Options<ListTracesData>) =>
+  queryOptions<
+    ListTracesResponse2,
+    ListTracesError,
+    ListTracesResponse2,
+    ReturnType<typeof listTracesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listTraces({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listTracesQueryKey(options),
+  })
+
+export const listSpansQueryKey = (options: Options<ListSpansData>) =>
+  createQueryKey("listSpans", options)
+
+/**
+ * List paginated spans for a trace.
+ */
+export const listSpansOptions = (options: Options<ListSpansData>) =>
+  queryOptions<
+    ListSpansResponse2,
+    ListSpansError,
+    ListSpansResponse2,
+    ReturnType<typeof listSpansQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listSpans({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listSpansQueryKey(options),
+  })
+
+export const getSpanDetailQueryKey = (options: Options<GetSpanDetailData>) =>
+  createQueryKey("getSpanDetail", options)
+
+/**
+ * Get span details and correlated OS observability.
+ */
+export const getSpanDetailOptions = (options: Options<GetSpanDetailData>) =>
+  queryOptions<
+    GetSpanDetailResponse,
+    GetSpanDetailError,
+    GetSpanDetailResponse,
+    ReturnType<typeof getSpanDetailQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getSpanDetail({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getSpanDetailQueryKey(options),
+  })
+
+export const listProcessObservabilityQueryKey = (options: Options<ListProcessObservabilityData>) =>
+  createQueryKey("listProcessObservability", options)
+
+/**
+ * List paginated process observability events.
+ */
+export const listProcessObservabilityOptions = (options: Options<ListProcessObservabilityData>) =>
+  queryOptions<
+    ListProcessObservabilityResponse2,
+    ListProcessObservabilityError,
+    ListProcessObservabilityResponse2,
+    ReturnType<typeof listProcessObservabilityQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listProcessObservability({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listProcessObservabilityQueryKey(options),
+  })
+
+export const listFileObservabilityQueryKey = (options: Options<ListFileObservabilityData>) =>
+  createQueryKey("listFileObservability", options)
+
+/**
+ * List paginated file observability events.
+ */
+export const listFileObservabilityOptions = (options: Options<ListFileObservabilityData>) =>
+  queryOptions<
+    ListFileObservabilityResponse2,
+    ListFileObservabilityError,
+    ListFileObservabilityResponse2,
+    ReturnType<typeof listFileObservabilityQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listFileObservability({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listFileObservabilityQueryKey(options),
+  })
+
+export const listNetworkObservabilityQueryKey = (options: Options<ListNetworkObservabilityData>) =>
+  createQueryKey("listNetworkObservability", options)
+
+/**
+ * List paginated network observability events.
+ */
+export const listNetworkObservabilityOptions = (options: Options<ListNetworkObservabilityData>) =>
+  queryOptions<
+    ListNetworkObservabilityResponse2,
+    ListNetworkObservabilityError,
+    ListNetworkObservabilityResponse2,
+    ReturnType<typeof listNetworkObservabilityQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listNetworkObservability({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listNetworkObservabilityQueryKey(options),
   })
 
 /**

@@ -69,6 +69,22 @@ function crumbsForSegments(
     ]
   }
 
+  if (segments[0] === "runtime-telemetry") {
+    if (segments[1]) {
+      return [
+        { href: "/", label: "Home" },
+        { href: "/lens", label: "Lens" },
+        { href: "/lens/runtime-telemetry", label: "Runtime Telemetry" },
+        { label: titleize(segments[1]) },
+      ]
+    }
+    return [
+      { href: "/", label: "Home" },
+      { href: "/lens", label: "Lens" },
+      { label: "Runtime Telemetry" },
+    ]
+  }
+
   if (segments[0] === "agent" && segments[1] === "new") {
     return [{ href: "/", label: "Home" }, { href: "/", label: "Agents" }, { label: "New" }]
   }

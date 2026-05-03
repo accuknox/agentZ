@@ -34,16 +34,31 @@ export async function listAgentsAction(
 export async function listAgentsAction(includeConfig = false, query?: ListAgentsData["query"]) {
   const result = await listAgents({ query })
   if (result.error) {
-    return { agents: undefined, error: result.error }
+    return {
+      agents: undefined,
+      nextPageToken: undefined,
+      hasNextPage: undefined,
+      error: result.error,
+    }
   }
 
   const agents = result.data.agents.filter((agent) => agent.status !== "DELETED")
+  const nextPageToken = result.data.next_page_token
+  const hasNextPage = nextPageToken.length > 0
+
   if (includeConfig) {
-    return { agents, error: undefined } satisfies ListAgentActionResponse<ListAgent>
+    return {
+      agents,
+      nextPageToken,
+      hasNextPage,
+      error: undefined,
+    } satisfies ListAgentActionResponse<ListAgent>
   }
 
   return {
     agents: agents.map(({ configuration: _, ...agent }) => agent),
+    nextPageToken,
+    hasNextPage,
     error: undefined,
   } satisfies ListAgentActionResponse<Agent>
 }

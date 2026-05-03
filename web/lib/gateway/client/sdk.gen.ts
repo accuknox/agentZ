@@ -17,12 +17,30 @@ import type {
   GetChatHistoryData,
   GetChatHistoryErrors,
   GetChatHistoryResponses,
+  GetSpanDetailData,
+  GetSpanDetailErrors,
+  GetSpanDetailResponses,
   InterruptSessionData,
   InterruptSessionErrors,
   InterruptSessionResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
+  ListFileObservabilityData,
+  ListFileObservabilityErrors,
+  ListFileObservabilityResponses,
+  ListNetworkObservabilityData,
+  ListNetworkObservabilityErrors,
+  ListNetworkObservabilityResponses,
+  ListProcessObservabilityData,
+  ListProcessObservabilityErrors,
+  ListProcessObservabilityResponses,
+  ListSpansData,
+  ListSpansErrors,
+  ListSpansResponses,
+  ListTracesData,
+  ListTracesErrors,
+  ListTracesResponses,
   SendMessageData,
   SendMessageErrors,
   SendMessageResponses,
@@ -43,8 +61,14 @@ import {
   zCreateAgentBody,
   zDeleteAgentBody,
   zGetChatHistoryQuery,
+  zGetSpanDetailQuery,
   zInterruptSessionBody,
   zListAgentsQuery,
+  zListFileObservabilityQuery,
+  zListNetworkObservabilityQuery,
+  zListProcessObservabilityQuery,
+  zListSpansQuery,
+  zListTracesQuery,
   zSendMessageBody,
   zSubscribeSessionBody,
   zUpdateAgentBody,
@@ -105,6 +129,132 @@ export const listAgents = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     url: "/api/list-agents",
+    ...options,
+  })
+
+/**
+ * List paginated trace summaries.
+ */
+export const listTraces = <ThrowOnError extends boolean = false>(
+  options: Options<ListTracesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListTracesResponses, ListTracesErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListTracesQuery,
+        })
+        .parseAsync(data),
+    url: "/api/list-traces",
+    ...options,
+  })
+
+/**
+ * List paginated spans for a trace.
+ */
+export const listSpans = <ThrowOnError extends boolean = false>(
+  options: Options<ListSpansData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListSpansResponses, ListSpansErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListSpansQuery,
+        })
+        .parseAsync(data),
+    url: "/api/list-spans",
+    ...options,
+  })
+
+/**
+ * Get span details and correlated OS observability.
+ */
+export const getSpanDetail = <ThrowOnError extends boolean = false>(
+  options: Options<GetSpanDetailData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetSpanDetailResponses, GetSpanDetailErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zGetSpanDetailQuery,
+        })
+        .parseAsync(data),
+    url: "/api/get-span-detail",
+    ...options,
+  })
+
+/**
+ * List paginated process observability events.
+ */
+export const listProcessObservability = <ThrowOnError extends boolean = false>(
+  options: Options<ListProcessObservabilityData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListProcessObservabilityResponses,
+    ListProcessObservabilityErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListProcessObservabilityQuery,
+        })
+        .parseAsync(data),
+    url: "/api/list-process-observability",
+    ...options,
+  })
+
+/**
+ * List paginated file observability events.
+ */
+export const listFileObservability = <ThrowOnError extends boolean = false>(
+  options: Options<ListFileObservabilityData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListFileObservabilityResponses,
+    ListFileObservabilityErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListFileObservabilityQuery,
+        })
+        .parseAsync(data),
+    url: "/api/list-file-observability",
+    ...options,
+  })
+
+/**
+ * List paginated network observability events.
+ */
+export const listNetworkObservability = <ThrowOnError extends boolean = false>(
+  options: Options<ListNetworkObservabilityData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListNetworkObservabilityResponses,
+    ListNetworkObservabilityErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListNetworkObservabilityQuery,
+        })
+        .parseAsync(data),
+    url: "/api/list-network-observability",
     ...options,
   })
 

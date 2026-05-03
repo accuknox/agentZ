@@ -6,51 +6,36 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { GalleryVerticalEndIcon, AudioLinesIcon, TerminalIcon } from "lucide-react"
-import { listAgentsAction } from "@/data/agent.actions"
+import type { ListAgentActionResponse } from "@/data/types"
+import { NavLens } from "./lens"
 
-// TODO: Replace this sample data when tenant/user APIs are available.
-const data = {
-  user: {
-    name: "shadcn",
-    email: "murtaza@accuknox.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-  teams: [
-    {
-      name: "Acme Inc",
-      logo: <GalleryVerticalEndIcon />,
-      plan: "Enterprise",
-    },
-    {
-      name: "Acme Corp.",
-      logo: <AudioLinesIcon />,
-      plan: "Startup",
-    },
-    {
-      name: "Evil Corp.",
-      logo: <TerminalIcon />,
-      plan: "Free",
-    },
-  ],
-}
-
-export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  agents,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & {
+  agents: Promise<ListAgentActionResponse>
+}) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <TeamSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <Suspense fallback={<NavAgentsSkeleton />}>
-          <NavAgents agents={listAgentsAction()} />
-        </Suspense>
+        <SidebarGroup className="gap-y-1">
+          <Suspense fallback={<NavAgentsSkeleton />}>
+            <NavAgents agents={agents} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <NavLens />
+          </Suspense>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={{ email: "murtaza@accuknox.com", name: "Murtaza U" }} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

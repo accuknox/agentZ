@@ -107,6 +107,9 @@ CREATE TABLE observer_traces(
 CREATE INDEX observer_traces_session_started_idx
   ON observer_traces(session_id, started_at DESC);
 
+CREATE INDEX observer_traces_session_started_trace_idx
+  ON observer_traces(session_id, started_at DESC, trace_id DESC);
+
 CREATE INDEX observer_traces_started_brin_idx
   ON observer_traces USING BRIN(started_at);
 
@@ -149,6 +152,9 @@ CREATE INDEX observer_trace_spans_session_time_idx
 
 CREATE INDEX observer_trace_spans_trace_time_idx
   ON observer_trace_spans(trace_id, start_time ASC);
+
+CREATE INDEX observer_trace_spans_session_trace_span_idx
+  ON observer_trace_spans(session_id, trace_id, span_id, start_time ASC, id ASC);
 
 CREATE INDEX observer_trace_spans_trace_parent_idx
   ON observer_trace_spans(trace_id, parent_span_id);

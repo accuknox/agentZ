@@ -3,7 +3,7 @@ import { StepperWithForm } from "@/app/agent/new/wizard"
 import { listAgentsAction } from "@/data/agent.actions"
 import { agentWizardValues } from "@/data/utils"
 
-export default async function UpdateAgent({ params }: { params: Promise<{ id: string }> }) {
+export default async function UpdateAgent({ params }: PageProps<"/agent/update/[id]">) {
   const { id } = await params
   const result = await listAgentsAction(true, { limit: 1, session_id: [id] })
 

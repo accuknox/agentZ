@@ -1,0 +1,96 @@
+"use client"
+
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, type TooltipContentProps } from "recharts"
+import type { TraceChartActionData } from "@/data/types"
+import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
+
+const chartConfig = {
+  traces: {
+    label: "Traces",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig
+
+export function TracesChart({ data }: { data: TraceChartActionData }) {
+  const points = data.points.map((point, index) => ({
+    ...point,
+    bucket: String(index),
+    traces: point.count,
+  }))
+
+  return (
+    <section className="flex flex-col gap-2 py-3 px-6">
+      <div className="flex items-center justify-end">
+        <span className="text-xs text-muted-foreground">{data.total} traces</span>
+      </div>
+      <ChartContainer config={chartConfig} className="aspect-auto h-40 w-full">
+        <BarChart
+          accessibilityLayer
+          data={points}
+          margin={{
+            left: 0,
+            right: 8,
+            top: 8,
+          }}
+        >
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="bucket"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={28}
+            tickFormatter={(value) => points[Number(value)]?.label ?? ""}
+          />
+          <YAxis allowDecimals={false} hide />
+          <ChartTooltip content={(props) => <TraceChartTooltip {...props} />} />
+          <Bar dataKey="traces" fill="var(--color-traces)" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ChartContainer>
+    </section>
+  )
+}
+
+function TraceChartTooltip({ active, payload }: TooltipContentProps) {
+  if (!active || !payload?.length) {
+    return null
+  }
+
+  const point = tracePoint(payload[0]?.payload)
+  if (!point) {
+    return null
+  }
+
+  return (
+    <div className="grid min-w-32 gap-2 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+      <div className="font-medium">{point.label}</div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground">Traces</span>
+        <span className="font-mono font-medium text-foreground tabular-nums">
+          {point.count.toLocaleString()}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function tracePoint(payload: unknown): { count: number; label: string } | undefined {
+  if (!isTracePoint(payload)) {
+    return undefined
+  }
+
+  return payload
+}
+
+function isTracePoint(payload: unknown): payload is { count: number; label: string } {
+  if (!payload || typeof payload !== "object") {
+    return false
+  }
+
+  return (
+    "count" in payload &&
+    typeof payload.count === "number" &&
+    "label" in payload &&
+    typeof payload.label === "string"
+  )
+}

@@ -2,11 +2,8 @@
 
 import * as React from "react"
 import {
-  type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   type SortingState,
   useReactTable,
@@ -14,7 +11,6 @@ import {
 import type { ListAgent } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -23,23 +19,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
 import type { DeleteAgentFormState } from "@/data/types"
+import { useTokenPagination } from "@/app/lens/traces/client-utils"
 
 const columnClassName: Record<string, string> = {
-  name: "w-[22%]",
-  primaryModel: "w-[22%]",
-  contextWindow: "w-[12%]",
-  summaryModel: "w-[18%]",
-  created_at: "w-[22%]",
-  actions: "w-[4%]",
+  name: "min-w-40",
+  primaryModel: "min-w-40",
+  contextWindow: "w-32",
+  summaryModel: "min-w-40",
+  created_at: "w-44",
+  actions: "w-14",
 }
 
 export function AgentTable({
   agents,
+  hasNextPage,
+  nextPageToken,
   deleteAgentAction,
 }: {
   agents: ListAgent[]
+  hasNextPage: boolean
+  nextPageToken: string
   deleteAgentAction: (
     sessionID: string,
     state: DeleteAgentFormState,
@@ -49,45 +49,31 @@ export function AgentTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const columns = React.useMemo(() => createAgentColumns(deleteAgentAction), [deleteAgentAction])
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
     data: agents,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
     onSortingChange: setSorting,
     state: {
-      columnFilters,
       sorting,
     },
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center">
-        <Input
-          placeholder="Filter agents..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) => {
-            table.getColumn("name")?.setFilterValue(event.target.value)
-          }}
-          className="max-w-sm"
-        />
-      </div>
-      <div className="overflow-hidden rounded-md border">
-        <Table className="table-fixed">
+    <div className="min-w-0 space-y-4">
+      <div className="min-w-0 w-full overflow-hidden border-b">
+        <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className={cn("px-4", columnClassName[header.column.id])}
+                    className={`h-8 px-4 ${columnClassName[header.column.id]}`}
                   >
                     {header.isPlaceholder
                       ? null
@@ -104,7 +90,7 @@ export function AgentTable({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={cn("px-4", columnClassName[cell.column.id])}
+                      className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id]}`}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
@@ -125,16 +111,16 @@ export function AgentTable({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
+          onClick={goPrevious}
+          disabled={!canGoPrevious || pending}
         >
           Previous
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
+          onClick={() => goNext(nextPageToken)}
+          disabled={!hasNextPage || pending}
         >
           Next
         </Button>

@@ -3,10 +3,9 @@
 import { InputGroup, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
-import type { ChatStatus, FileUIPart } from "ai"
+import type { ChatStatus } from "ai"
 import { CornerDownLeftIcon, SquareIcon, XIcon } from "lucide-react"
 import type {
-  ChangeEvent,
   ComponentProps,
   FormEvent,
   FormEventHandler,
@@ -18,7 +17,6 @@ import { useCallback, useState } from "react"
 
 export interface PromptInputMessage {
   text: string
-  files: FileUIPart[]
 }
 
 export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
@@ -33,7 +31,7 @@ export const PromptInput = ({ className, onSubmit, children, ...props }: PromptI
       const form = event.currentTarget
       const formData = new FormData(form)
       const text = (formData.get("message") as string | null) ?? ""
-      const result = onSubmit({ files: [], text }, event)
+      const result = onSubmit({ text }, event)
 
       if (result instanceof Promise) {
         await result
@@ -46,7 +44,16 @@ export const PromptInput = ({ className, onSubmit, children, ...props }: PromptI
 
   return (
     <form className={cn("w-full", className)} onSubmit={handleSubmit} {...props}>
-      <InputGroup className="overflow-hidden">{children}</InputGroup>
+      <InputGroup
+        className={cn(
+          "min-h-16 overflow-hidden rounded-none border-x-0 border-t border-b-0",
+          "border-border bg-background shadow-none",
+          "has-[[data-slot=input-group-control]:focus-visible]:border-chat-user",
+          "has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+        )}
+      >
+        {children}
+      </InputGroup>
     </form>
   )
 }
@@ -89,18 +96,15 @@ export const PromptInputTextarea = ({
     [isComposing, onKeyDown]
   )
 
-  const handleChange = useCallback(
-    (event: ChangeEvent<HTMLTextAreaElement>) => {
-      onChange?.(event)
-    },
-    [onChange]
-  )
-
   return (
     <InputGroupTextarea
-      className={cn("field-sizing-content max-h-48 min-h-16", className)}
+      className={cn(
+        "field-sizing-content max-h-48 min-h-16 px-5 py-4 pr-16 font-mono text-[0.95rem]",
+        "leading-7 placeholder:text-muted-foreground/65",
+        className
+      )}
       name="message"
-      onChange={handleChange}
+      onChange={onChange}
       onCompositionEnd={() => setIsComposing(false)}
       onCompositionStart={() => setIsComposing(true)}
       onKeyDown={handleKeyDown}
@@ -152,7 +156,7 @@ export const PromptInputSubmit = ({
   return (
     <InputGroupButton
       aria-label={isGenerating ? "Stop" : "Submit"}
-      className={cn(className)}
+      className={cn("rounded-none text-muted-foreground hover:text-foreground", className)}
       onClick={handleClick}
       size={size}
       type={isGenerating && onStop ? "button" : "submit"}

@@ -12,11 +12,12 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input"
+import { Shimmer } from "@/components/ai-elements/shimmer"
 import { Spinner } from "@/components/ui/spinner"
 import type { ChatHistoryActionResponse } from "@/data/types"
 import { sendMessageMutation } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { useMutation } from "@tanstack/react-query"
-import { Bot } from "lucide-react"
+import type { ReactNode } from "react"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useStickToBottomContext } from "use-stick-to-bottom"
 
@@ -142,7 +143,10 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
         })
 
         setActiveRequests((requests) => {
-          return [...requests, { requestID: result.request_id, sessionID: id }]
+          return [
+            ...requests.filter((request) => !completedRequestIDs.has(request.requestID)),
+            { requestID: result.request_id, sessionID: id },
+          ]
         })
         setPendingMessages((messages) => {
           return messages.map((message) => {
@@ -165,13 +169,13 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
         throw error
       }
     },
-    [id, isWorking, mutateAsync]
+    [completedRequestIDs, id, isWorking, mutateAsync]
   )
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col">
+    <div className="flex min-h-0 w-full flex-1 flex-col bg-background">
       <Conversation className="w-full">
-        <ConversationContent className="mx-auto w-full max-w-4xl px-4 pt-0 pb-4">
+        <ConversationContent className="w-full gap-3 px-3 pt-0 pb-8 md:px-4">
           <SubmittedMessageScroller messageID={pendingMessages.at(-1)?.id} />
           <HistoryPaginationTrigger
             canLoadMore={Boolean(hasNextPage)}
@@ -181,13 +185,13 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
           />
           {visibleMessages.length === 0 ? (
             <ConversationEmptyState
-              description="Type a message below to begin"
-              icon={<Bot className="size-12" />}
+              className="min-h-[40svh]"
+              description="Type below to begin"
               title="Start a conversation"
             />
           ) : (
             visibleMessages.map((message) => (
-              <Message from={message.role} key={message.id}>
+              <Message from={message.role} key={message.id} tone={getMessageTone(message)}>
                 <MessageContent>
                   {message.parts.map((part) => (
                     <MessagePart key={part.id} part={part} />
@@ -200,38 +204,65 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
         </ConversationContent>
       </Conversation>
       {historyError || initialHistory.error ? (
-        <p
-          className="mx-auto mt-2 w-[calc(100%-2rem)] max-w-4xl rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-          role="alert"
-        >
-          {historyError?.message ?? initialHistory.error?.message}
-        </p>
+        <TranscriptAlert>{historyError?.message ?? initialHistory.error?.message}</TranscriptAlert>
       ) : null}
-      <PromptInput
-        className="relative mx-auto my-4 w-[calc(100%-2rem)] max-w-4xl"
-        onSubmit={handleSubmit}
-      >
+      <ComposerActivity active={isWorking} />
+      <PromptInput className="relative w-full" onSubmit={handleSubmit}>
         <PromptInputTextarea
           autoFocus
-          className="pr-14"
           disabled={isWorking}
-          placeholder={isWorking ? "Agent is thinking..." : "Say something..."}
+          placeholder={isWorking ? "Working..." : "Message"}
           ref={promptRef}
         />
         <PromptInputSubmit
-          className="absolute right-1 bottom-1"
+          className="absolute right-3 bottom-3"
           disabled={isWorking}
+          variant="ghost"
           status={submitStatus}
         />
       </PromptInput>
-      {error ? (
-        <p
-          className="mx-auto mt-2 w-[calc(100%-2rem)] max-w-4xl rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-          role="alert"
-        >
-          {error.message}
-        </p>
-      ) : null}
+      {error ? <TranscriptAlert>{error.message}</TranscriptAlert> : null}
+    </div>
+  )
+}
+
+function getMessageTone(message: ChatMessage) {
+  if (message.role === "user") {
+    return "user"
+  }
+  if (message.status === "streaming") {
+    return "active"
+  }
+  if (message.status === "error") {
+    return "error"
+  }
+  if (message.status === "interrupted") {
+    return "interrupted"
+  }
+  return "neutral"
+}
+
+function TranscriptAlert({ children }: { children: ReactNode }) {
+  return (
+    <p
+      className="border-l-2 border-chat-error px-2.5 py-3 font-mono text-sm text-destructive"
+      role="alert"
+    >
+      {children}
+    </p>
+  )
+}
+
+function ComposerActivity({ active }: { active: boolean }) {
+  if (!active) {
+    return null
+  }
+
+  return (
+    <div className="flex h-6 items-center px-3 font-mono text-sm md:px-4">
+      <Shimmer active={active} className="text-chat-user" duration={1.05} spread={5}>
+        ........
+      </Shimmer>
     </div>
   )
 }

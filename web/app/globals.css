@@ -23,6 +23,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-chat-active: var(--chat-active);
+  --color-chat-error: var(--chat-error);
+  --color-chat-interrupted: var(--chat-interrupted);
+  --color-chat-neutral: var(--chat-neutral);
+  --color-chat-user: var(--chat-user);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -81,6 +86,11 @@
   --sidebar-ring: oklch(0.714 0.014 41.2);
   --background: oklch(1 0 0);
   --foreground: oklch(0.147 0.004 49.3);
+  --chat-active: oklch(0.62 0.17 149);
+  --chat-error: var(--destructive);
+  --chat-interrupted: oklch(0.72 0.16 79);
+  --chat-neutral: oklch(0.82 0.008 49.3);
+  --chat-user: oklch(0.61 0.19 252);
 }
 
 .dark {
@@ -115,6 +125,11 @@
   --sidebar-accent-foreground: oklch(0.986 0.002 67.8);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.547 0.021 43.1);
+  --chat-active: oklch(0.72 0.19 149);
+  --chat-error: var(--destructive);
+  --chat-interrupted: oklch(0.78 0.15 79);
+  --chat-neutral: oklch(1 0 0 / 22%);
+  --chat-user: oklch(0.7 0.18 252);
 }
 
 @layer base {

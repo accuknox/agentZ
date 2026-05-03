@@ -146,8 +146,8 @@ const columns: ColumnDef<TraceListItem>[] = [
             <span>{formatCompactNumber(trace.outputTokens)} out</span>
           </div>
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-            <span className="h-full bg-emerald-500" style={{ width: `${inputWidth}%` }} />
-            <span className="h-full bg-blue-500" style={{ width: `${outputWidth}%` }} />
+            <span className="h-full bg-chart-1" style={{ width: `${inputWidth}%` }} />
+            <span className="h-full bg-chart-4" style={{ width: `${outputWidth}%` }} />
           </div>
           <span className="sr-only">{formatCompactNumber(trace.totalTokens)} tokens</span>
         </div>
@@ -639,8 +639,8 @@ function SpanTreeRow({
     <button
       type="button"
       className={cn(
-        "relative flex w-full flex-col border-l-4 border-transparent py-1.5 pr-4 text-left hover:bg-emerald-500/7 lg:pr-5",
-        selected && "border-emerald-500 bg-emerald-500/8"
+        "relative flex w-full flex-col border-l-4 border-transparent py-1.5 pr-4 text-left hover:bg-chart-2/7 lg:pr-5",
+        selected && "border-chart-2 bg-chart-2/8"
       )}
       style={{ paddingLeft: indent }}
       onClick={onClick}
@@ -848,14 +848,14 @@ function InspectorTokenMeter({ span }: { span: SpanListItem }) {
         </span>
       </div>
       <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-        <span className="bg-emerald-500" style={{ width: `${inputWidth}%` }} />
-        <span className="bg-yellow-500" style={{ width: `${cachedWidth}%` }} />
-        <span className="bg-indigo-500" style={{ width: `${outputWidth}%` }} />
+        <span className="bg-chart-1" style={{ width: `${inputWidth}%` }} />
+        <span className="bg-chart-3" style={{ width: `${cachedWidth}%` }} />
+        <span className="bg-chart-4" style={{ width: `${outputWidth}%` }} />
       </div>
       <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3 sm:gap-3">
-        <TokenLegend colorClass="bg-emerald-500" label="Input" value={span.inputTokens} />
-        <TokenLegend colorClass="bg-yellow-500" label="Cached" value={span.cachedInputTokens} />
-        <TokenLegend colorClass="bg-indigo-500" label="Output" value={span.outputTokens} />
+        <TokenLegend colorClass="bg-chart-1" label="Input" value={span.inputTokens} />
+        <TokenLegend colorClass="bg-chart-3" label="Cached" value={span.cachedInputTokens} />
+        <TokenLegend colorClass="bg-chart-4" label="Output" value={span.outputTokens} />
       </div>
     </section>
   )
@@ -1037,34 +1037,34 @@ function RuntimeTelemetrySkeleton({
 
 function spanColorClass(span: SpanListItem) {
   if (span.spanType === "model") {
-    return "text-blue-500"
+    return "text-chart-1"
   }
 
   if (span.spanType === "tool") {
-    return "text-fuchsia-500"
+    return "text-chart-4"
   }
 
   if (span.spanType === "agent") {
     return "text-primary"
   }
 
-  return "text-emerald-500"
+  return "text-chart-2"
 }
 
 function spanTimelineClass(span: SpanListItem) {
   if (span.spanType === "model") {
-    return "bg-blue-500"
+    return "bg-chart-1"
   }
 
   if (span.spanType === "tool") {
-    return "bg-fuchsia-500"
+    return "bg-chart-4"
   }
 
   if (span.spanType === "agent") {
     return "bg-primary"
   }
 
-  return "bg-emerald-500"
+  return "bg-chart-2"
 }
 
 const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [

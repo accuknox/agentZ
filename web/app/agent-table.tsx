@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table"
 import type { DeleteAgentFormState } from "@/data/types"
 import { useTokenPagination } from "@/app/lens/traces/client-utils"
+import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
@@ -107,22 +108,19 @@ export function AgentTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={goPrevious}
-          disabled={!canGoPrevious || pending}
-        >
+      <div className="flex items-center justify-end gap-2 px-2">
+        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={() => goNext(nextPageToken)}
           disabled={!hasNextPage || pending}
         >
           Next
+          <ArrowRight data-icon="inline-end" />
         </Button>
       </div>
     </div>

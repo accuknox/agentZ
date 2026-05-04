@@ -15,6 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
+	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
+	baoapi "github.com/openbao/openbao/api/v2"
 
 	gatewaydb "github.com/accuknox/clawarmor/internal/agent/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
@@ -52,6 +54,11 @@ type Config struct {
 	AgentServerAddress      string
 	AgentSessionTarget      string
 	AgentTraceEndpoint      string
+	OpenBaoAddr             string
+	SecretMountPath         string
+	OpenBaoK8sAuthRole      string
+	OpenBaoK8sAuthMountPath string
+	OpenBaoK8sAuthTokenPath string
 }
 
 // Service implements the agent gateway HTTP API.
@@ -61,6 +68,8 @@ type Service struct {
 	store    *valkeyStore
 	queries  gatewaydb.Querier
 	cfg      Config
+	bao      *baoapi.Client
+	baoKV    *baoapi.KVv2
 
 	mu             sync.Mutex
 	consumers      map[string]struct{}
@@ -112,6 +121,15 @@ func Serve(ctx context.Context, cfg Config) error {
 	if strings.TrimSpace(cfg.AgentServerAddress) == "" {
 		cfg.AgentServerAddress = DefaultAgentServerAddress
 	}
+	if strings.TrimSpace(cfg.OpenBaoAddr) == "" {
+		return fmt.Errorf("openbao addr is required")
+	}
+	if strings.TrimSpace(cfg.SecretMountPath) == "" {
+		return fmt.Errorf("secret mount path is required")
+	}
+	if strings.TrimSpace(cfg.OpenBaoK8sAuthRole) == "" {
+		return fmt.Errorf("openbao k8s auth role is required")
+	}
 
 	resolver, err := newResolver(ctx, cfg.Namespace, cfg.TargetOverride)
 	if err != nil {
@@ -135,12 +153,31 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("ping postgres: %w", err)
 	}
 
+	baoClient, err := baoapi.NewClient(&baoapi.Config{Address: cfg.OpenBaoAddr})
+	if err != nil {
+		return fmt.Errorf("create openbao client: %w", err)
+	}
+
+	auth, err := k8sauth.NewKubernetesAuth(
+		cfg.OpenBaoK8sAuthRole,
+		k8sauth.WithMountPath(cfg.OpenBaoK8sAuthMountPath),
+		k8sauth.WithServiceAccountTokenPath(cfg.OpenBaoK8sAuthTokenPath),
+	)
+	if err != nil {
+		return fmt.Errorf("create kubernetes auth: %w", err)
+	}
+	if _, err := baoClient.Auth().Login(ctx, auth); err != nil {
+		return fmt.Errorf("openbao kubernetes auth login: %w", err)
+	}
+
 	svc := &Service{
 		ctx:            ctx,
 		resolver:       resolver,
 		store:          store,
 		queries:        gatewaydb.New(db),
 		cfg:            cfg,
+		bao:            baoClient,
+		baoKV:          baoClient.KVv2(cfg.SecretMountPath),
 		consumers:      make(map[string]struct{}),
 		sessionWaiters: make(map[string]map[chan struct{}]struct{}),
 	}

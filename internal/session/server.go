@@ -58,9 +58,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	defer stop()
 
 	addr := cfg.Addr
-	if addr == "" {
-		addr = DefaultListenAddr
-	}
 	if cfg.PostgresDSN == "" {
 		return fmt.Errorf("postgres dsn is required")
 	}

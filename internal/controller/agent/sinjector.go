@@ -265,20 +265,20 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*ap
 	maps.Copy(podLabels, labels)
 	replicas := int32(1)
 	grace := int64(5)
-	certKey := configDefault(r.Config.SinjectorCASecretCertKey, defaultSinjectorCASecretCertKey)
-	keyKey := configDefault(r.Config.SinjectorCASecretKeyKey, defaultSinjectorCASecretKeyKey)
-	certPath := configDefault(r.Config.SinjectorCACertPath, defaultSinjectorCACertPath)
-	keyPath := configDefault(r.Config.SinjectorCAKeyPath, defaultSinjectorCAKeyPath)
+	certKey := r.Config.SinjectorCASecretCertKey
+	keyKey := r.Config.SinjectorCASecretKeyKey
+	certPath := r.Config.SinjectorCACertPath
+	keyPath := r.Config.SinjectorCAKeyPath
 
 	args := []string{
 		"sinjector",
 		"serve",
-		"--addr", configDefault(r.Config.SinjectorListenAddress, defaultSinjectorListenAddress),
+		"--addr", r.Config.SinjectorListenAddress,
 		"--openbao-addr", r.Config.OpenBaoAddr,
-		"--secret-mount-path", r.Config.SecretMountPath,
+		"--openbao-secret-mount-path", r.Config.OpenBaoSecretMountPath,
 		"--openbao-k8s-auth-role", sinjectorName(agt),
-		"--openbao-k8s-auth-mount-path", configDefault(r.Config.OpenBaoK8sAuthMountPath, "kubernetes"),
-		"--openbao-k8s-auth-token-path", configDefault(r.Config.OpenBaoK8sAuthTokenPath, "/var/run/secrets/kubernetes.io/serviceaccount/token"),
+		"--openbao-k8s-auth-mount-path", r.Config.OpenBaoK8sAuthMountPath,
+		"--openbao-k8s-auth-token-path", r.Config.OpenBaoK8sAuthTokenPath,
 		"--session-id", agt.Spec.Session.ID,
 		"--ca-cert-path", certPath,
 		"--ca-key-path", keyPath,

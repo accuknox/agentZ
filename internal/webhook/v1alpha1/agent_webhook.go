@@ -76,6 +76,10 @@ func (d *AgentCustomDefaulter) Default(_ context.Context, agt *clawarmorv1alpha1
 	if agt.Spec.Compaction.Mode == "" {
 		agt.Spec.Compaction.Mode = clawarmorv1alpha1.CompactionModeSummary
 	}
+	if agt.Spec.Compaction.Enabled == nil {
+		enabled := true
+		agt.Spec.Compaction.Enabled = &enabled
+	}
 	if agt.Spec.Compaction.ThresholdRatio == 0 {
 		agt.Spec.Compaction.ThresholdRatio = defaultCompactionThresholdRatio
 	}
@@ -281,24 +285,23 @@ func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field
 			"must be between 0.2 and 0.95",
 		))
 	}
-	if !validRatio(agt.Spec.Compaction.HistoryToolResultRatio) {
+	historyRatio := agt.Spec.Compaction.HistoryToolResultRatio
+	if historyRatio < 0 || historyRatio > 1 {
 		allErrs = append(allErrs, field.Invalid(
 			compactionPath.Child("historyToolResultRatio"),
-			agt.Spec.Compaction.HistoryToolResultRatio,
+			historyRatio,
 			"must be between 0 and 1",
 		))
 	}
-	if agt.Spec.Compaction.OversizedToolResultRatio < 0.05 ||
-		agt.Spec.Compaction.OversizedToolResultRatio > 0.1 {
+	oversizedRatio := agt.Spec.Compaction.OversizedToolResultRatio
+	if oversizedRatio < 0.05 || oversizedRatio > 0.1 {
 		allErrs = append(allErrs, field.Invalid(
 			compactionPath.Child("oversizedToolResultRatio"),
-			agt.Spec.Compaction.OversizedToolResultRatio,
+			oversizedRatio,
 			"must be between 0.05 and 0.1",
 		))
 	}
-	historyRatio := agt.Spec.Compaction.HistoryToolResultRatio
-	oversizedRatio := agt.Spec.Compaction.OversizedToolResultRatio
-	if (historyRatio != 0 || oversizedRatio != 0) && historyRatio >= oversizedRatio {
+	if historyRatio >= oversizedRatio {
 		allErrs = append(allErrs, field.Invalid(
 			compactionPath.Child("historyToolResultRatio"),
 			historyRatio,
@@ -313,8 +316,4 @@ func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field
 		))
 	}
 	return allErrs
-}
-
-func validRatio(v float64) bool {
-	return v >= 0 && v <= 1
 }

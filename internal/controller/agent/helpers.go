@@ -35,21 +35,13 @@ import (
 )
 
 const (
-	configKey                         = "config.yaml"
-	configMountPath                   = agentconfig.DefaultHomeDir + "/config.yaml"
-	configVolume                      = "config"
-	sinjectorNameSuffix               = "-sinjector"
-	defaultSinjectorPort              = int32(8080)
-	defaultSinjectorListenAddress     = "0.0.0.0:8080"
-	defaultSinjectorCASecretCertKey   = "tls.crt"
-	defaultSinjectorCASecretKeyKey    = "tls.key"
-	defaultSinjectorCASecretBundleKey = "ca.crt"
-	defaultSinjectorCACertPath        = "/etc/clawarmor/sinjector-ca/tls.crt"
-	defaultSinjectorCAKeyPath         = "/etc/clawarmor/sinjector-ca/tls.key"
-	defaultAgentCABundlePath          = "/etc/clawarmor/sinjector-ca/ca.crt"
-	sinjectorCAVolume                 = "sinjector-ca"
-	sinjectorCAMountPath              = "/etc/clawarmor/sinjector-ca"
-	sinjectorFinalizer                = "clawarmor.accuknox.com/sinjector"
+	configKey            = "config.yaml"
+	configMountPath      = agentconfig.DefaultHomeDir + "/config.yaml"
+	configVolume         = "config"
+	sinjectorNameSuffix  = "-sinjector"
+	sinjectorCAVolume    = "sinjector-ca"
+	sinjectorCAMountPath = "/etc/clawarmor/sinjector-ca"
+	sinjectorFinalizer   = "clawarmor.accuknox.com/sinjector"
 )
 
 var (
@@ -65,7 +57,7 @@ type RuntimeConfig struct {
 	ProxyAddress                   string
 	OpenBaoAddr                    string
 	ManagerOpenBaoAddr             string
-	SecretMountPath                string
+	OpenBaoSecretMountPath         string
 	SinjectorCASecretName          string
 	SinjectorCASecretCertKey       string
 	SinjectorCASecretKeyKey        string
@@ -109,18 +101,7 @@ func sinjectorName(agt *clawarmorv1alpha1.Agent) string {
 }
 
 func sinjectorPort(cfg RuntimeConfig) (int32, error) {
-	addr := cfg.SinjectorListenAddress
-	if addr == "" {
-		addr = defaultSinjectorListenAddress
-	}
-	return serverPort(addr)
-}
-
-func configDefault(value string, fallback string) string {
-	if strings.TrimSpace(value) != "" {
-		return value
-	}
-	return fallback
+	return serverPort(cfg.SinjectorListenAddress)
 }
 
 func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {

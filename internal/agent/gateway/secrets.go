@@ -284,7 +284,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, sessionID 
 		after = strings.TrimSpace(*params.PageToken)
 	}
 
-	listPath := fmt.Sprintf("%s/metadata/%s", s.cfg.SecretMountPath, sessionUUID.String())
+	listPath := fmt.Sprintf("%s/metadata/%s", s.cfg.OpenBaoSecretMountPath, sessionUUID.String())
 	secret, err := s.bao.Logical().ListPageWithContext(r.Context(), listPath, after, limit+1)
 	if err != nil {
 		writeError(w, r, mapOpenBaoError(err))

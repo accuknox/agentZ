@@ -31,7 +31,7 @@ var errBadSecret = errors.New("secret has invalid value")
 type Config struct {
 	Addr                    string
 	OpenBaoAddr             string
-	SecretMountPath         string
+	OpenBaoSecretMountPath  string
 	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
 	OpenBaoK8sAuthTokenPath string
@@ -51,7 +51,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	normalize(&cfg)
 	if err := validate(cfg); err != nil {
 		return err
 	}
@@ -81,7 +80,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		ca:        &ca,
 		certCache: newCertStore(1024),
 		resolver: resolver{
-			kv:        baoClient.KVv2(cfg.SecretMountPath),
+			kv:        baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 			sessionID: cfg.SessionID,
 		},
 	}
@@ -120,24 +119,12 @@ func Serve(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-func normalize(cfg *Config) {
-	if cfg.Addr == "" {
-		cfg.Addr = DefaultListenAddr
-	}
-	if cfg.OpenBaoK8sAuthMountPath == "" {
-		cfg.OpenBaoK8sAuthMountPath = "kubernetes"
-	}
-	if cfg.OpenBaoK8sAuthTokenPath == "" {
-		cfg.OpenBaoK8sAuthTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	}
-}
-
 func validate(cfg Config) error {
 	if strings.TrimSpace(cfg.OpenBaoAddr) == "" {
 		return fmt.Errorf("openbao addr is required")
 	}
-	if strings.TrimSpace(cfg.SecretMountPath) == "" {
-		return fmt.Errorf("secret mount path is required")
+	if strings.TrimSpace(cfg.OpenBaoSecretMountPath) == "" {
+		return fmt.Errorf("openbao secret mount path is required")
 	}
 	if strings.TrimSpace(cfg.OpenBaoK8sAuthRole) == "" {
 		return fmt.Errorf("openbao k8s auth role is required")

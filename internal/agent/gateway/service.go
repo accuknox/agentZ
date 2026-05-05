@@ -33,15 +33,6 @@ const (
 	labelSessionID = "clawarmor.accuknox.com/session-id"
 )
 
-const (
-	defaultCreateThresholdRatio           = 0.9
-	defaultCreateHistoryToolResultRatio   = 0.008
-	defaultCreateKeepRecentRequests       = 2
-	defaultCreateOversizedToolResultRatio = 0.065
-	defaultCreateMaxHistoryRuns           = 50
-	defaultCreateTemperature              = 0.2
-)
-
 // Config describes how to start the gateway.
 type Config struct {
 	Addr                    string
@@ -55,7 +46,7 @@ type Config struct {
 	AgentSessionTarget      string
 	AgentTraceEndpoint      string
 	OpenBaoAddr             string
-	SecretMountPath         string
+	OpenBaoSecretMountPath  string
 	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
 	OpenBaoK8sAuthTokenPath string
@@ -100,15 +91,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if cfg.Addr == "" {
-		cfg.Addr = DefaultListenAddr
-	}
-	if cfg.Namespace == "" {
-		cfg.Namespace = DefaultNamespace
-	}
-	if cfg.ValkeyAddr == "" {
-		cfg.ValkeyAddr = DefaultValkeyAddr
-	}
 	if strings.TrimSpace(cfg.PostgresDSN) == "" {
 		return fmt.Errorf("postgres dsn is required")
 	}
@@ -118,14 +100,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	if strings.TrimSpace(cfg.AgentTraceEndpoint) == "" {
 		return fmt.Errorf("agent trace endpoint is required")
 	}
-	if strings.TrimSpace(cfg.AgentServerAddress) == "" {
-		cfg.AgentServerAddress = DefaultAgentServerAddress
-	}
 	if strings.TrimSpace(cfg.OpenBaoAddr) == "" {
 		return fmt.Errorf("openbao addr is required")
 	}
-	if strings.TrimSpace(cfg.SecretMountPath) == "" {
-		return fmt.Errorf("secret mount path is required")
+	if strings.TrimSpace(cfg.OpenBaoSecretMountPath) == "" {
+		return fmt.Errorf("openbao secret mount path is required")
 	}
 	if strings.TrimSpace(cfg.OpenBaoK8sAuthRole) == "" {
 		return fmt.Errorf("openbao k8s auth role is required")
@@ -177,7 +156,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		queries:        gatewaydb.New(db),
 		cfg:            cfg,
 		bao:            baoClient,
-		baoKV:          baoClient.KVv2(cfg.SecretMountPath),
+		baoKV:          baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 		consumers:      make(map[string]struct{}),
 		sessionWaiters: make(map[string]map[chan struct{}]struct{}),
 	}

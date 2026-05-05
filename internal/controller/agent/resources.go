@@ -194,7 +194,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 	}
 	if r.sinjectorEnabled() {
 		serviceAccountName = agt.Name
-		bundleKey := configDefault(r.Config.SinjectorCASecretBundleKey, defaultSinjectorCASecretBundleKey)
+		bundleKey := r.Config.SinjectorCASecretBundleKey
 		volumes = append(volumes, corev1.Volume{
 			Name: sinjectorCAVolume,
 			VolumeSource: corev1.VolumeSource{
@@ -292,10 +292,10 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent) []corev1.EnvVar {
 	forced := map[string]string{
 		"https_proxy":         proxy,
 		"HTTPS_PROXY":         proxy,
-		"SSL_CERT_FILE":       configDefault(r.Config.AgentCABundlePath, defaultAgentCABundlePath),
-		"REQUESTS_CA_BUNDLE":  configDefault(r.Config.AgentCABundlePath, defaultAgentCABundlePath),
-		"CURL_CA_BUNDLE":      configDefault(r.Config.AgentCABundlePath, defaultAgentCABundlePath),
-		"NODE_EXTRA_CA_CERTS": configDefault(r.Config.AgentCABundlePath, defaultAgentCABundlePath),
+		"SSL_CERT_FILE":       r.Config.AgentCABundlePath,
+		"REQUESTS_CA_BUNDLE":  r.Config.AgentCABundlePath,
+		"CURL_CA_BUNDLE":      r.Config.AgentCABundlePath,
+		"NODE_EXTRA_CA_CERTS": r.Config.AgentCABundlePath,
 	}
 	env := make([]corev1.EnvVar, 0, len(agt.Spec.Env)+len(forced))
 	for _, item := range agt.Spec.Env {

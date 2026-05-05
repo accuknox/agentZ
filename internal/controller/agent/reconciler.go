@@ -57,6 +57,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile moves the cluster state toward the desired Agent state.
+//
+//nolint:gocyclo
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	agt := &clawarmorv1alpha1.Agent{}
 	err := r.Get(ctx, req.NamespacedName, agt)
@@ -212,7 +214,7 @@ func (r *Reconciler) proxyAddress(agt *clawarmorv1alpha1.Agent) string {
 	}
 	port, err := sinjectorPort(r.Config)
 	if err != nil {
-		port = defaultSinjectorPort
+		port = 8080
 	}
 	return fmt.Sprintf(
 		"http://%s.%s.svc.cluster.local:%d",

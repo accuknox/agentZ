@@ -67,12 +67,20 @@ var (
 	sinjectorListenAddress                           string
 	openBaoAddr                                      string
 	managerOpenBaoAddr                               string
-	secretMountPath                                  string
+	openBaoSecretMountPath                           string
 	openBaoK8sAuthMountPath                          string
 	openBaoK8sAuthTokenPath                          string
 	managerOpenBaoK8sAuthRole                        string
 	managerOpenBaoK8sAuthTokenPath                   string
 	sinjectorCASecretName                            string
+	sinjectorCASecretCertKey                         string
+	sinjectorCASecretKeyKey                          string
+	sinjectorCASecretBundleKey                       string
+	sinjectorCACertPath                              string
+	sinjectorCAKeyPath                               string
+	agentCABundlePath                                string
+	watchNamespace                                   string
+	enableWebhooks                                   bool
 )
 
 type silentExitCoder interface {
@@ -196,7 +204,6 @@ var managerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:        "agent-default-image",
 			Usage:       "Default container image for Agent pods",
-			Value:       envOr("CLAWARMOR_AGENT_DEFAULT_IMAGE", ""),
 			Destination: &agentDefaultImage,
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -205,7 +212,6 @@ var managerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:        "sinjector-image",
 			Usage:       "Container image for secret injection proxy pods",
-			Value:       envOr("CLAWARMOR_SINJECTOR_IMAGE", ""),
 			Destination: &sinjectorImage,
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -246,9 +252,9 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:        "secret-mount-path",
+			Name:        "openbao-secret-mount-path",
 			Usage:       "OpenBao KV v2 secret engine mount path",
-			Destination: &secretMountPath,
+			Destination: &openBaoSecretMountPath,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -295,6 +301,62 @@ var managerCmd = &cli.Command{
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-ca-secret-cert-key",
+			Usage:       "Secret key holding the SIP CA certificate",
+			Value:       "tls.crt",
+			Destination: &sinjectorCASecretCertKey,
+			Hidden:      true,
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-ca-secret-key-key",
+			Usage:       "Secret key holding the SIP CA private key",
+			Value:       "tls.key",
+			Destination: &sinjectorCASecretKeyKey,
+			Hidden:      true,
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-ca-secret-bundle-key",
+			Usage:       "Secret key holding the SIP CA bundle",
+			Value:       "ca.crt",
+			Destination: &sinjectorCASecretBundleKey,
+			Hidden:      true,
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-ca-cert-path",
+			Usage:       "Path to SIP CA certificate inside the sinjector container",
+			Value:       "/etc/clawarmor/sinjector-ca/tls.crt",
+			Destination: &sinjectorCACertPath,
+			Hidden:      true,
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-ca-key-path",
+			Usage:       "Path to SIP CA private key inside the sinjector container",
+			Value:       "/etc/clawarmor/sinjector-ca/tls.key",
+			Destination: &sinjectorCAKeyPath,
+			Hidden:      true,
+		},
+		&cli.StringFlag{
+			Name:        "agent-ca-bundle-path",
+			Usage:       "Path to CA bundle mounted in Agent containers",
+			Value:       "/etc/clawarmor/sinjector-ca/ca.crt",
+			Destination: &agentCABundlePath,
+			Hidden:      true,
+		},
+		&cli.StringFlag{
+			Name:        "watch-namespace",
+			Usage:       "Namespace(s) to watch and manage. Use commas for multiple.",
+			Destination: &watchNamespace,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.BoolFlag{
+			Name:        "enable-webhooks",
+			Usage:       "Enable admission webhooks",
+			Value:       true,
+			Destination: &enableWebhooks,
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
@@ -383,15 +445,6 @@ var managerCmd = &cli.Command{
 			metricsServerOptions.KeyName = metricsCertKey
 		}
 
-		// get the namespace(s) for namespace-scoped mode from WATCH_NAMESPACE
-		// environment variable. The manager will only watch and manage
-		// resources in the specified namespace(s).
-		watchNamespace, err := getWatchNamespace()
-		if err != nil {
-			setupLog.Error(err, "Unable to get WATCH_NAMESPACE, the manager will watch and manage resources in all namespaces")
-			os.Exit(1)
-		}
-
 		// configure manager options for namespace-scoped mode
 		mgrOptions := ctrl.Options{
 			Scheme:                 scheme,
@@ -415,9 +468,15 @@ var managerCmd = &cli.Command{
 			// LeaderElectionReleaseOnCancel: true,
 		}
 
-		// configure cache to watch namespace(s) specified in WATCH_NAMESPACE
-		mgrOptions.Cache = setupCacheNamespaces(watchNamespace)
-		setupLog.Info("Watching namespace(s)", "namespaces", watchNamespace)
+		// configure cache to watch namespace(s) specified by --watch-namespace
+		if strings.TrimSpace(watchNamespace) != "" {
+			defaultNamespaces := make(map[string]cache.Config)
+			for ns := range strings.SplitSeq(watchNamespace, ",") {
+				defaultNamespaces[strings.TrimSpace(ns)] = cache.Config{}
+			}
+			mgrOptions.Cache = cache.Options{DefaultNamespaces: defaultNamespaces}
+			setupLog.Info("Watching namespace(s)", "namespaces", watchNamespace)
+		}
 
 		mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), mgrOptions)
 		if err != nil {
@@ -432,20 +491,26 @@ var managerCmd = &cli.Command{
 			SinjectorListenAddress:         sinjectorListenAddress,
 			OpenBaoAddr:                    openBaoAddr,
 			ManagerOpenBaoAddr:             managerOpenBaoAddr,
-			SecretMountPath:                secretMountPath,
+			OpenBaoSecretMountPath:         openBaoSecretMountPath,
 			OpenBaoK8sAuthMountPath:        openBaoK8sAuthMountPath,
 			OpenBaoK8sAuthTokenPath:        openBaoK8sAuthTokenPath,
 			ManagerOpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
 			ManagerOpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 			SinjectorCASecretName:          sinjectorCASecretName,
+			SinjectorCASecretCertKey:       sinjectorCASecretCertKey,
+			SinjectorCASecretKeyKey:        sinjectorCASecretKeyKey,
+			SinjectorCASecretBundleKey:     sinjectorCASecretBundleKey,
+			SinjectorCACertPath:            sinjectorCACertPath,
+			SinjectorCAKeyPath:             sinjectorCAKeyPath,
+			AgentCABundlePath:              agentCABundlePath,
 		}
 		var bao agent.OpenBaoProvisioner
 		if sinjectorImage != "" || proxyAddress != "" {
 			if openBaoAddr == "" {
 				return fmt.Errorf("openbao addr is required when sinjector is enabled")
 			}
-			if secretMountPath == "" {
-				return fmt.Errorf("secret mount path is required when sinjector is enabled")
+			if openBaoSecretMountPath == "" {
+				return fmt.Errorf("openbao secret mount path is required when sinjector is enabled")
 			}
 			if sinjectorCASecretName == "" {
 				return fmt.Errorf("sinjector ca secret name is required when sinjector is enabled")
@@ -466,8 +531,7 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "Failed to create controller", "controller", "Agent")
 			os.Exit(1)
 		}
-		// nolint:goconst
-		if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if enableWebhooks {
 			err = webhookv1alpha1.SetupAgentWebhookWithManager(
 				mgr,
 				webhookv1alpha1.AgentWebhookConfig{
@@ -514,39 +578,4 @@ func main() {
 		slog.ErrorContext(ctx, err.Error())
 		os.Exit(1)
 	}
-}
-
-// getWatchNamespace returns the namespace(s) the manager should watch for changes.
-// It reads the value from the WATCH_NAMESPACE environment variable.
-// - If WATCH_NAMESPACE is not set, an error is returned
-// - If WATCH_NAMESPACE contains a single namespace, the manager watches that namespace
-// - If WATCH_NAMESPACE contains comma-separated namespaces, the manager watches those namespaces
-func getWatchNamespace() (string, error) {
-	watchNamespaceEnvVar := "WATCH_NAMESPACE"
-	ns, found := os.LookupEnv(watchNamespaceEnvVar)
-	if !found {
-		return "", fmt.Errorf("%s must be set", watchNamespaceEnvVar)
-	}
-	return ns, nil
-}
-
-// setupCacheNamespaces configures the cache to watch specific namespace(s).
-// It supports both single namespace ("ns1") and multi-namespace ("ns1,ns2,ns3")
-// formats.
-func setupCacheNamespaces(namespaces string) cache.Options {
-	defaultNamespaces := make(map[string]cache.Config)
-	for ns := range strings.SplitSeq(namespaces, ",") {
-		defaultNamespaces[strings.TrimSpace(ns)] = cache.Config{}
-	}
-	return cache.Options{
-		DefaultNamespaces: defaultNamespaces,
-	}
-}
-
-func envOr(key, fallback string) string {
-	val := os.Getenv(key)
-	if val != "" {
-		return val
-	}
-	return fallback
 }

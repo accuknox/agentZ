@@ -501,8 +501,7 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, gate
 		})
 	}
 
-	historyRatio := defaultCreateHistoryToolResultRatio
-	oversizedRatio := defaultCreateOversizedToolResultRatio
+	var historyRatio, oversizedRatio *float64
 	if req.Compaction != nil {
 		if req.Compaction.ThresholdRatio != nil && (*req.Compaction.ThresholdRatio < 0.2 || *req.Compaction.ThresholdRatio > 0.95) {
 			fields = append(fields, gatewayapi.FieldError{
@@ -511,22 +510,24 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, gate
 			})
 		}
 		if req.Compaction.HistoryToolResultRatio != nil {
-			historyRatio = *req.Compaction.HistoryToolResultRatio
-			if historyRatio < 0 || historyRatio > 1 {
+			r := *req.Compaction.HistoryToolResultRatio
+			if r < 0 || r > 1 {
 				fields = append(fields, gatewayapi.FieldError{
 					Field:   "compaction.historyToolResultRatio",
 					Message: "must be between 0 and 1",
 				})
 			}
+			historyRatio = req.Compaction.HistoryToolResultRatio
 		}
 		if req.Compaction.OversizedToolResultRatio != nil {
-			oversizedRatio = *req.Compaction.OversizedToolResultRatio
-			if oversizedRatio < 0.05 || oversizedRatio > 0.1 {
+			r := *req.Compaction.OversizedToolResultRatio
+			if r < 0.05 || r > 0.1 {
 				fields = append(fields, gatewayapi.FieldError{
 					Field:   "compaction.oversizedToolResultRatio",
 					Message: "must be between 0.05 and 0.1",
 				})
 			}
+			oversizedRatio = req.Compaction.OversizedToolResultRatio
 		}
 		if req.Compaction.KeepRecentRequests != nil && *req.Compaction.KeepRecentRequests < 0 {
 			fields = append(fields, gatewayapi.FieldError{
@@ -535,7 +536,7 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, gate
 			})
 		}
 	}
-	if historyRatio >= oversizedRatio {
+	if historyRatio != nil && oversizedRatio != nil && *historyRatio >= *oversizedRatio {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "compaction.historyToolResultRatio",
 			Message: "must be less than compaction.oversizedToolResultRatio",
@@ -600,35 +601,6 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, gate
 }
 
 func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sessionID uuid.UUID, name string, mode gatewayapi.CompactionMode) *clawarmorv1alpha1.Agent {
-	thresholdRatio := defaultCreateThresholdRatio
-	historyRatio := defaultCreateHistoryToolResultRatio
-	keepRecentRequests := int32(defaultCreateKeepRecentRequests)
-	oversizedRatio := defaultCreateOversizedToolResultRatio
-	if req.Compaction != nil {
-		if req.Compaction.ThresholdRatio != nil {
-			thresholdRatio = *req.Compaction.ThresholdRatio
-		}
-		if req.Compaction.HistoryToolResultRatio != nil {
-			historyRatio = *req.Compaction.HistoryToolResultRatio
-		}
-		if req.Compaction.KeepRecentRequests != nil {
-			keepRecentRequests = *req.Compaction.KeepRecentRequests
-		}
-		if req.Compaction.OversizedToolResultRatio != nil {
-			oversizedRatio = *req.Compaction.OversizedToolResultRatio
-		}
-	}
-
-	maxHistoryRuns := int32(defaultCreateMaxHistoryRuns)
-	if req.MaxHistoryRuns != nil {
-		maxHistoryRuns = *req.MaxHistoryRuns
-	}
-
-	primaryTemp := defaultCreateTemperature
-	if req.Model.Primary.Temperature != nil {
-		primaryTemp = *req.Model.Primary.Temperature
-	}
-
 	specMode := clawarmorv1alpha1.CompactionModeSummary
 	if mode == gatewayapi.Truncate {
 		specMode = clawarmorv1alpha1.CompactionModeTruncate
@@ -644,7 +616,31 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sess
 		systemPrompt = *req.SystemPrompt
 	}
 
-	compactionEnabled := true
+	compaction := clawarmorv1alpha1.ContextCompactionConfig{Mode: specMode}
+	if req.Compaction != nil {
+		if req.Compaction.ThresholdRatio != nil {
+			compaction.ThresholdRatio = *req.Compaction.ThresholdRatio
+		}
+		if req.Compaction.HistoryToolResultRatio != nil {
+			compaction.HistoryToolResultRatio = *req.Compaction.HistoryToolResultRatio
+		}
+		if req.Compaction.KeepRecentRequests != nil {
+			compaction.KeepRecentRequests = int(*req.Compaction.KeepRecentRequests)
+		}
+		if req.Compaction.OversizedToolResultRatio != nil {
+			compaction.OversizedToolResultRatio = *req.Compaction.OversizedToolResultRatio
+		}
+	}
+
+	modelCfg := clawarmorv1alpha1.ModelConfig{
+		Name:          req.Model.Primary.Name,
+		ContextWindow: int(req.Model.Primary.ContextWindow),
+		Stream:        true,
+	}
+	if req.Model.Primary.Temperature != nil {
+		modelCfg.Temperature = *req.Model.Primary.Temperature
+	}
+
 	agt := &clawarmorv1alpha1.Agent{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: clawarmorv1alpha1.GroupVersion.String(),
@@ -659,27 +655,12 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sess
 			},
 		},
 		Spec: clawarmorv1alpha1.AgentSpec{
-			Image: s.cfg.AgentImage,
-			Env:   env,
-			Server: clawarmorv1alpha1.ServerConfig{
-				Address: s.cfg.AgentServerAddress,
-			},
+			Image:        s.cfg.AgentImage,
+			Env:          env,
+			Server:       clawarmorv1alpha1.ServerConfig{Address: s.cfg.AgentServerAddress},
 			SystemPrompt: systemPrompt,
-			Compaction: clawarmorv1alpha1.ContextCompactionConfig{
-				Mode:                     specMode,
-				Enabled:                  &compactionEnabled,
-				ThresholdRatio:           thresholdRatio,
-				HistoryToolResultRatio:   historyRatio,
-				KeepRecentRequests:       int(keepRecentRequests),
-				OversizedToolResultRatio: oversizedRatio,
-			},
-			MaxHistoryRuns: int(maxHistoryRuns),
-			Model: clawarmorv1alpha1.ModelConfig{
-				Name:          req.Model.Primary.Name,
-				ContextWindow: int(req.Model.Primary.ContextWindow),
-				Temperature:   primaryTemp,
-				Stream:        true,
-			},
+			Compaction:   compaction,
+			Model:        modelCfg,
 			Session: clawarmorv1alpha1.SessionConfig{
 				ID:        sessionID.String(),
 				Enabled:   true,
@@ -693,40 +674,37 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sess
 			},
 		},
 	}
+
+	if req.MaxHistoryRuns != nil {
+		agt.Spec.MaxHistoryRuns = int(*req.MaxHistoryRuns)
+	}
+
 	if req.Model.Summary != nil {
-		summaryTemp := defaultCreateTemperature
-		if req.Model.Summary.Temperature != nil {
-			summaryTemp = *req.Model.Summary.Temperature
-		}
-		agt.Spec.SummaryModel = clawarmorv1alpha1.SummaryModelConfig{
+		summaryModel := clawarmorv1alpha1.SummaryModelConfig{
 			Name:          req.Model.Summary.Name,
 			ContextWindow: int(req.Model.Summary.ContextWindow),
-			Temperature:   summaryTemp,
+		}
+		if req.Model.Summary.Temperature != nil {
+			summaryModel.Temperature = *req.Model.Summary.Temperature
+		}
+		agt.Spec.SummaryModel = summaryModel
+	}
+
+	if req.Tools != nil {
+		if req.Tools.HostExec != nil && req.Tools.HostExec.Enabled != nil {
+			agt.Spec.Tools.HostExec.Enabled = req.Tools.HostExec.Enabled
+		}
+		if req.Tools.WebFetch != nil && req.Tools.WebFetch.Enabled != nil {
+			agt.Spec.Tools.WebFetch.Enabled = req.Tools.WebFetch.Enabled
+		}
+		if req.Tools.File != nil && req.Tools.File.Enabled != nil {
+			agt.Spec.Tools.File.Enabled = req.Tools.File.Enabled
+		}
+		if req.Tools.Arxiv != nil && req.Tools.Arxiv.Enabled != nil {
+			agt.Spec.Tools.Arxiv.Enabled = req.Tools.Arxiv.Enabled
 		}
 	}
 
-	hostExecEnabled := true
-	webFetchEnabled := true
-	fileEnabled := false
-	arxivEnabled := false
-	if req.Tools != nil {
-		if req.Tools.HostExec != nil && req.Tools.HostExec.Enabled != nil {
-			hostExecEnabled = *req.Tools.HostExec.Enabled
-		}
-		if req.Tools.WebFetch != nil && req.Tools.WebFetch.Enabled != nil {
-			webFetchEnabled = *req.Tools.WebFetch.Enabled
-		}
-		if req.Tools.File != nil && req.Tools.File.Enabled != nil {
-			fileEnabled = *req.Tools.File.Enabled
-		}
-		if req.Tools.Arxiv != nil && req.Tools.Arxiv.Enabled != nil {
-			arxivEnabled = *req.Tools.Arxiv.Enabled
-		}
-	}
-	agt.Spec.Tools.HostExec.Enabled = &hostExecEnabled
-	agt.Spec.Tools.WebFetch.Enabled = &webFetchEnabled
-	agt.Spec.Tools.File.Enabled = &fileEnabled
-	agt.Spec.Tools.Arxiv.Enabled = &arxivEnabled
 	return agt
 }
 

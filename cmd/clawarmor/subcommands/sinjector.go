@@ -38,7 +38,7 @@ var sinjectorServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:     "secret-mount-path",
+			Name:     "openbao-secret-mount-path",
 			Usage:    "OpenBao KV v2 secret engine mount path",
 			Required: true,
 			Config: cli.StringConfig{
@@ -102,7 +102,7 @@ var sinjectorServeCmd = &cli.Command{
 		return sinjector.Serve(ctx, sinjector.Config{
 			Addr:                    c.String("addr"),
 			OpenBaoAddr:             c.String("openbao-addr"),
-			SecretMountPath:         c.String("secret-mount-path"),
+			OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
 			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
 			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
 			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),

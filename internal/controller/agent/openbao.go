@@ -13,8 +13,6 @@ import (
 	baoapi "github.com/openbao/openbao/api/v2"
 )
 
-const defaultOpenBaoK8sAuthMountPath = "kubernetes"
-
 //go:embed policies/sinjector-readonly.hcl
 var sinjectorPolicyTemplate string
 
@@ -62,18 +60,10 @@ func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvi
 	if role == "" {
 		return nil, fmt.Errorf("manager openbao k8s auth role is required")
 	}
-	tokenPath := cfg.ManagerOpenBaoK8sAuthTokenPath
-	if tokenPath == "" {
-		tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	}
-	mount := cfg.OpenBaoK8sAuthMountPath
-	if mount == "" {
-		mount = defaultOpenBaoK8sAuthMountPath
-	}
 	auth, err := k8sauth.NewKubernetesAuth(
 		role,
-		k8sauth.WithMountPath(mount),
-		k8sauth.WithServiceAccountTokenPath(tokenPath),
+		k8sauth.WithMountPath(cfg.OpenBaoK8sAuthMountPath),
+		k8sauth.WithServiceAccountTokenPath(cfg.ManagerOpenBaoK8sAuthTokenPath),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create kubernetes auth: %w", err)
@@ -85,7 +75,7 @@ func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvi
 }
 
 func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
-	policy, err := renderSinjectorPolicy(cfg.SecretMountPath, opts.SessionID)
+	policy, err := renderSinjectorPolicy(cfg.OpenBaoSecretMountPath, opts.SessionID)
 	if err != nil {
 		return err
 	}
@@ -93,11 +83,7 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 		return fmt.Errorf("put openbao policy: %w", err)
 	}
 
-	mount := cfg.OpenBaoK8sAuthMountPath
-	if mount == "" {
-		mount = defaultOpenBaoK8sAuthMountPath
-	}
-	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(mount, "/"), opts.RoleName)
+	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName)
 	_, err = p.client.Logical().WriteWithContext(ctx, rolePath, map[string]any{
 		"bound_service_account_names":      opts.ServiceAccountName,
 		"bound_service_account_namespaces": opts.Namespace,
@@ -125,11 +111,7 @@ func renderSinjectorPolicy(mount, sessionID string) (string, error) {
 }
 
 func (p *openBaoProvisioner) CleanupSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
-	mount := cfg.OpenBaoK8sAuthMountPath
-	if mount == "" {
-		mount = defaultOpenBaoK8sAuthMountPath
-	}
-	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(mount, "/"), opts.RoleName)
+	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName)
 	if _, err := p.client.Logical().DeleteWithContext(ctx, rolePath); err != nil {
 		slog.WarnContext(
 			ctx,

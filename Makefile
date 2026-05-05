@@ -52,9 +52,10 @@ build:
 # Run agent controller manager
 .PHONY: run-manager
 run-manager:
-	ENABLE_WEBHOOKS=false WATCH_NAMESPACE=default go run ./cmd/clawarmor manager \
+	go run ./cmd/clawarmor manager \
 		--health-probe-bind-address :8888 \
-		--sinjector-listen-address 0.0.0.0:8080
+		--watch-namespace default \
+		--enable-webhooks false
 
 # Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer

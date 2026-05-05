@@ -14,57 +14,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package agent
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
-	"maps"
-	"math"
-	"net"
-	"strconv"
 	"strings"
+	"time"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/yaml"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
-	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 )
 
-const (
-	configKey       = "config.yaml"
-	configMountPath = "/etc/clawarmor/config.yaml"
-	configVolume    = "config"
-)
-
-var (
-	errImageEmpty  = errors.New("agent image must not be empty")
-	errPortInvalid = errors.New("server.address must include a valid port")
-)
-
-// AgentRuntimeConfig configures controller-side launch defaults.
-type AgentRuntimeConfig struct {
-	DefaultImage string
-}
-
-// AgentReconciler reconciles an Agent object.
-type AgentReconciler struct {
+// Reconciler reconciles an Agent object.
+type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Config AgentRuntimeConfig
+	Config RuntimeConfig
+	Bao    OpenBaoProvisioner
 }
 
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents,verbs=get;list;watch;create;update;patch;delete
@@ -74,9 +53,11 @@ type AgentReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile moves the cluster state toward the desired Agent state.
-func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	agt := &clawarmorv1alpha1.Agent{}
 	err := r.Get(ctx, req.NamespacedName, agt)
 	if err != nil {
@@ -84,6 +65,16 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	if !agt.DeletionTimestamp.IsZero() {
+		if ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
+			if err := r.cleanupSinjector(ctx, agt); err != nil {
+				return ctrl.Result{}, fmt.Errorf("cleanup sinjector: %w", err)
+			}
+			patch := client.MergeFrom(agt.DeepCopy())
+			ctrlutil.RemoveFinalizer(agt, sinjectorFinalizer)
+			if err := r.Patch(ctx, agt, patch); err != nil {
+				return ctrl.Result{}, fmt.Errorf("remove sinjector finalizer: %w", err)
+			}
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -132,6 +123,47 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
+	if r.sinjectorEnabled() {
+		if !ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
+			patch := client.MergeFrom(agt.DeepCopy())
+			ctrlutil.AddFinalizer(agt, sinjectorFinalizer)
+			if err := r.Patch(ctx, agt, patch); err != nil {
+				return ctrl.Result{}, fmt.Errorf("add sinjector finalizer: %w", err)
+			}
+		}
+		err = r.reconcileSinjector(ctx, agt)
+		if err != nil {
+			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+			if updateErr != nil {
+				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+			}
+			return ctrl.Result{}, fmt.Errorf("reconcile sinjector: %w", err)
+		}
+		ready, err := r.sinjectorReady(ctx, agt)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("check sinjector readiness: %w", err)
+		}
+		if !ready {
+			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+		}
+	} else if ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
+		if err := r.deleteSinjectorResources(ctx, agt); err != nil {
+			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+			if updateErr != nil {
+				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+			}
+			return ctrl.Result{}, fmt.Errorf("delete sinjector resources: %w", err)
+		}
+		if err := r.cleanupSinjector(ctx, agt); err != nil {
+			return ctrl.Result{}, fmt.Errorf("cleanup sinjector: %w", err)
+		}
+		patch := client.MergeFrom(agt.DeepCopy())
+		ctrlutil.RemoveFinalizer(agt, sinjectorFinalizer)
+		if err := r.Patch(ctx, agt, patch); err != nil {
+			return ctrl.Result{}, fmt.Errorf("remove sinjector finalizer: %w", err)
+		}
+	}
+
 	hash, err := configHash(cfgYAML, agt.Spec.Env)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
@@ -158,289 +190,39 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AgentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&clawarmorv1alpha1.Agent{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&ciliumv2.CiliumNetworkPolicy{}).
 		Named("agent").
 		Complete(r)
 }
 
-func (r *AgentReconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, cfg string) error {
-	current := &corev1.ConfigMap{}
-	current.Name = agt.Name
-	current.Namespace = agt.Namespace
-
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = resourceLabels(agt)
-		current.Annotations = agt.Annotations
-		current.Data = map[string]string{
-			configKey: cfg,
-		}
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
-	if err != nil {
-		return fmt.Errorf("create or patch configmap: %w", err)
-	}
-	return nil
+func (r *Reconciler) sinjectorEnabled() bool {
+	return r.Config.SinjectorImage != "" || r.Config.ProxyAddress != ""
 }
 
-func (r *AgentReconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
-	desired, err := r.buildService(agt)
-	if err != nil {
-		return err
+func (r *Reconciler) proxyAddress(agt *clawarmorv1alpha1.Agent) string {
+	if r.Config.ProxyAddress != "" {
+		return strings.ReplaceAll(r.Config.ProxyAddress, "{AGENT_NAME}", agt.Name)
 	}
-	current := &corev1.Service{}
-	current.Name = desired.Name
-	current.Namespace = desired.Namespace
-
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = desired.Labels
-		current.Annotations = desired.Annotations
-		current.Spec.Ports = desired.Spec.Ports
-		current.Spec.Selector = desired.Spec.Selector
-		current.Spec.Type = desired.Spec.Type
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
+	port, err := sinjectorPort(r.Config)
 	if err != nil {
-		return fmt.Errorf("create or patch service: %w", err)
+		port = defaultSinjectorPort
 	}
-	return nil
+	return fmt.Sprintf(
+		"http://%s.%s.svc.cluster.local:%d",
+		sinjectorName(agt),
+		agt.Namespace,
+		port,
+	)
 }
 
-func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string) error {
-	desired, err := r.buildDeployment(agt, hash)
-	if err != nil {
-		return err
-	}
-	err = ctrl.SetControllerReference(agt, desired, r.Scheme)
-	if err != nil {
-		return fmt.Errorf("set controller reference: %w", err)
-	}
-
-	current := &appsv1.Deployment{}
-	err = r.Get(ctx, client.ObjectKeyFromObject(desired), current)
-	if err != nil {
-		if apierr.IsNotFound(err) {
-			err = r.Create(ctx, desired)
-			if err != nil {
-				return fmt.Errorf("create deployment: %w", err)
-			}
-			return nil
-		}
-		return fmt.Errorf("get deployment: %w", err)
-	}
-
-	patch := client.MergeFrom(current.DeepCopy())
-	current.Name = desired.Name
-	current.Namespace = desired.Namespace
-	current.Spec = desired.Spec
-	if current.Labels == nil {
-		current.Labels = map[string]string{}
-	}
-	if current.Annotations == nil {
-		current.Annotations = map[string]string{}
-	}
-	maps.Copy(current.Labels, desired.Labels)
-	maps.Copy(current.Annotations, desired.Annotations)
-
-	err = r.Patch(ctx, current, patch)
-	if err != nil {
-		return fmt.Errorf("patch deployment: %w", err)
-	}
-	return nil
-}
-
-func (r *AgentReconciler) buildService(agt *clawarmorv1alpha1.Agent) (*corev1.Service, error) {
-	port, err := serverPort(agt.Spec.Server.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        agt.Name,
-			Namespace:   agt.Namespace,
-			Labels:      resourceLabels(agt),
-			Annotations: agt.Annotations,
-		},
-		Spec: corev1.ServiceSpec{
-			Type:     corev1.ServiceTypeClusterIP,
-			Selector: selectorLabels(agt),
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "grpc",
-					Port:       port,
-					TargetPort: intstr.FromInt32(port),
-					Protocol:   corev1.ProtocolTCP,
-				},
-			},
-		},
-	}, nil
-}
-
-func (r *AgentReconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) (*appsv1.Deployment, error) {
-	port, err := serverPort(agt.Spec.Server.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	image := agt.Spec.Image
-	if image == "" {
-		image = r.Config.DefaultImage
-	}
-
-	labels := resourceLabels(agt)
-	podLabels := make(map[string]string, len(labels))
-	maps.Copy(podLabels, labels)
-
-	podAnnotations := make(map[string]string, len(agt.Annotations)+2)
-	maps.Copy(podAnnotations, agt.Annotations)
-	podAnnotations["clawarmor.accuknox.com/config-hash"] = hash
-	podAnnotations["kubearmor-visibility"] = "process,file"
-
-	replicas := int32(1)
-	grace := int64(0)
-	timeout := agt.Spec.Server.GracefulShutdownTimeout.Duration
-	if timeout > 0 {
-		grace = int64(math.Ceil(timeout.Seconds()))
-	}
-
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        agt.Name,
-			Namespace:   agt.Namespace,
-			Labels:      labels,
-			Annotations: agt.Annotations,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: selectorLabels(agt),
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels:      podLabels,
-					Annotations: podAnnotations,
-				},
-				Spec: corev1.PodSpec{
-					AutomountServiceAccountToken:  new(false),
-					TerminationGracePeriodSeconds: &grace,
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: new(true),
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: configVolume,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: agt.Name,
-									},
-								},
-							},
-						},
-					},
-					Containers: []corev1.Container{
-						{
-							Name:            "agent",
-							Image:           image,
-							ImagePullPolicy: agt.Spec.ImagePullPolicy,
-							WorkingDir:      agentconfig.DefaultHomeDir,
-							Args: []string{
-								"agent",
-								"serve",
-								"--config",
-								configMountPath,
-							},
-							Env:       agt.Spec.Env,
-							Resources: agt.Spec.Resources,
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "grpc",
-									ContainerPort: port,
-									Protocol:      corev1.ProtocolTCP,
-								},
-							},
-							SecurityContext: &corev1.SecurityContext{
-								AllowPrivilegeEscalation: new(false),
-								ReadOnlyRootFilesystem:   new(true),
-								RunAsNonRoot:             new(true),
-								Capabilities: &corev1.Capabilities{
-									Drop: []corev1.Capability{"ALL"},
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      configVolume,
-									MountPath: configMountPath,
-									SubPath:   configKey,
-									ReadOnly:  true,
-								},
-							},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicyAlways,
-				},
-			},
-		},
-	}, nil
-}
-
-func selectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
-	return map[string]string{
-		"app.kubernetes.io/name":         "clawarmor-agent",
-		"app.kubernetes.io/instance":     agt.Name,
-		"clawarmor.accuknox.com/agent":   agt.Name,
-		"clawarmor.accuknox.com/managed": "true",
-	}
-}
-
-func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
-	labels := make(map[string]string, len(agt.Labels)+4)
-	maps.Copy(labels, agt.Labels)
-	maps.Copy(labels, selectorLabels(agt))
-	return labels
-}
-
-func renderConfig(agt *clawarmorv1alpha1.Agent) ([]byte, error) {
-	cfg := *agt.Spec.DeepCopy()
-	cfg.Env = nil
-	cfg.Server.GracefulShutdownTimeout = metav1.Duration{}
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("marshal yaml: %w", err)
-	}
-	return data, nil
-}
-
-func configHash(cfgYAML []byte, env []corev1.EnvVar) (string, error) {
-	envYAML, err := yaml.Marshal(env)
-	if err != nil {
-		return "", fmt.Errorf("marshal env yaml: %w", err)
-	}
-	sum := sha256.Sum256(append(cfgYAML, envYAML...))
-	return fmt.Sprintf("%x", sum), nil
-}
-
-func serverPort(addr string) (int32, error) {
-	_, rawPort, err := net.SplitHostPort(strings.TrimSpace(addr))
-	if err != nil {
-		return 0, errPortInvalid
-	}
-	port, err := strconv.ParseInt(rawPort, 10, 32)
-	if err != nil || port <= 0 || port > 65535 {
-		return 0, errPortInvalid
-	}
-	return int32(port), nil
-}
-
-func (r *AgentReconciler) updateAgentStatus(ctx context.Context, key types.NamespacedName) error {
+func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.NamespacedName) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		agt := &clawarmorv1alpha1.Agent{}
 		err := r.Get(ctx, key, agt)
@@ -564,7 +346,7 @@ func (r *AgentReconciler) updateAgentStatus(ctx context.Context, key types.Names
 	})
 }
 
-func (r *AgentReconciler) setDegradedStatus(ctx context.Context, key types.NamespacedName, gen int64, recErr error) error {
+func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.NamespacedName, gen int64, recErr error) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		agt := &clawarmorv1alpha1.Agent{}
 		err := r.Get(ctx, key, agt)

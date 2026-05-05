@@ -1,0 +1,150 @@
+package agent
+
+import (
+	"bytes"
+	"context"
+	_ "embed"
+	"fmt"
+	"log/slog"
+	"strings"
+	"text/template"
+
+	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
+	baoapi "github.com/openbao/openbao/api/v2"
+)
+
+const defaultOpenBaoK8sAuthMountPath = "kubernetes"
+
+//go:embed policies/sinjector-readonly.hcl
+var sinjectorPolicyTemplate string
+
+var sinjectorPolicy = template.Must(template.New("sinjector-policy").Parse(sinjectorPolicyTemplate))
+
+// OpenBaoProvisioner reconciles SIP-specific OpenBao auth objects.
+type OpenBaoProvisioner interface {
+	ProvisionSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error
+	CleanupSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error
+}
+
+// SinjectorOpenBaoOptions identifies the SIP OpenBao identity and secret scope.
+type SinjectorOpenBaoOptions struct {
+	Namespace          string
+	ServiceAccountName string
+	RoleName           string
+	PolicyName         string
+	SessionID          string
+}
+
+type openBaoProvisioner struct {
+	client *baoapi.Client
+}
+
+type sinjectorPolicyData struct {
+	DataPath     string
+	MetadataPath string
+}
+
+// NewOpenBaoProvisioner creates an OpenBao provisioner for controller use.
+func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvisioner, error) {
+	addr := strings.TrimSpace(cfg.ManagerOpenBaoAddr)
+	if addr == "" {
+		addr = strings.TrimSpace(cfg.OpenBaoAddr)
+	}
+	if addr == "" {
+		return nil, fmt.Errorf("openbao addr is required")
+	}
+	client, err := baoapi.NewClient(&baoapi.Config{Address: addr})
+	if err != nil {
+		return nil, fmt.Errorf("create openbao client: %w", err)
+	}
+
+	role := strings.TrimSpace(cfg.ManagerOpenBaoK8sAuthRole)
+	if role == "" {
+		return nil, fmt.Errorf("manager openbao k8s auth role is required")
+	}
+	tokenPath := cfg.ManagerOpenBaoK8sAuthTokenPath
+	if tokenPath == "" {
+		tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	}
+	mount := cfg.OpenBaoK8sAuthMountPath
+	if mount == "" {
+		mount = defaultOpenBaoK8sAuthMountPath
+	}
+	auth, err := k8sauth.NewKubernetesAuth(
+		role,
+		k8sauth.WithMountPath(mount),
+		k8sauth.WithServiceAccountTokenPath(tokenPath),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create kubernetes auth: %w", err)
+	}
+	if _, err := client.Auth().Login(ctx, auth); err != nil {
+		return nil, fmt.Errorf("openbao kubernetes auth login: %w", err)
+	}
+	return &openBaoProvisioner{client: client}, nil
+}
+
+func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
+	policy, err := renderSinjectorPolicy(cfg.SecretMountPath, opts.SessionID)
+	if err != nil {
+		return err
+	}
+	if err := p.client.Sys().PutPolicyWithContext(ctx, opts.PolicyName, policy); err != nil {
+		return fmt.Errorf("put openbao policy: %w", err)
+	}
+
+	mount := cfg.OpenBaoK8sAuthMountPath
+	if mount == "" {
+		mount = defaultOpenBaoK8sAuthMountPath
+	}
+	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(mount, "/"), opts.RoleName)
+	_, err = p.client.Logical().WriteWithContext(ctx, rolePath, map[string]any{
+		"bound_service_account_names":      opts.ServiceAccountName,
+		"bound_service_account_namespaces": opts.Namespace,
+		"policies":                         opts.PolicyName,
+		"token_ttl":                        "1h",
+		"token_max_ttl":                    "1h",
+	})
+	if err != nil {
+		return fmt.Errorf("put openbao kubernetes role: %w", err)
+	}
+	return nil
+}
+
+func renderSinjectorPolicy(mount, sessionID string) (string, error) {
+	mount = strings.Trim(mount, "/")
+	data := sinjectorPolicyData{
+		DataPath:     fmt.Sprintf("%s/data/%s/*", mount, sessionID),
+		MetadataPath: fmt.Sprintf("%s/metadata/%s/*", mount, sessionID),
+	}
+	var out bytes.Buffer
+	if err := sinjectorPolicy.Execute(&out, data); err != nil {
+		return "", fmt.Errorf("render openbao policy: %w", err)
+	}
+	return out.String(), nil
+}
+
+func (p *openBaoProvisioner) CleanupSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
+	mount := cfg.OpenBaoK8sAuthMountPath
+	if mount == "" {
+		mount = defaultOpenBaoK8sAuthMountPath
+	}
+	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(mount, "/"), opts.RoleName)
+	if _, err := p.client.Logical().DeleteWithContext(ctx, rolePath); err != nil {
+		slog.WarnContext(
+			ctx,
+			"failed to delete openbao kubernetes role",
+			slog.String("role", opts.RoleName),
+			slog.Any("err", err),
+		)
+	}
+	if err := p.client.Sys().DeletePolicyWithContext(ctx, opts.PolicyName); err != nil {
+		slog.WarnContext(
+			ctx,
+			"failed to delete openbao policy",
+			slog.String("policy", opts.PolicyName),
+			slog.Any("err", err),
+		)
+	}
+	return nil
+}

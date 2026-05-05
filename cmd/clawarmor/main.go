@@ -28,6 +28,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/go-logr/logr"
 	"github.com/urfave/cli/v3"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,7 +45,7 @@ import (
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
 	agentcmd "github.com/accuknox/clawarmor/cmd/clawarmor/subcommands/agent"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
-	"github.com/accuknox/clawarmor/internal/controller"
+	"github.com/accuknox/clawarmor/internal/controller/agent"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -61,6 +62,17 @@ var (
 	enableHTTP2                                      bool
 	tlsOpts                                          []func(*tls.Config)
 	agentDefaultImage                                string
+	sinjectorImage                                   string
+	proxyAddress                                     string
+	sinjectorListenAddress                           string
+	openBaoAddr                                      string
+	managerOpenBaoAddr                               string
+	secretMountPath                                  string
+	openBaoK8sAuthMountPath                          string
+	openBaoK8sAuthTokenPath                          string
+	managerOpenBaoK8sAuthRole                        string
+	managerOpenBaoK8sAuthTokenPath                   string
+	sinjectorCASecretName                            string
 )
 
 type silentExitCoder interface {
@@ -105,6 +117,7 @@ var cmd = &cli.Command{
 	Commands: []*cli.Command{
 		agentcmd.AgentCmd,
 		managerCmd,
+		subcommands.SinjectorCmd,
 		subcommands.SessionCmd,
 		subcommands.ObserverCmd,
 	},
@@ -185,6 +198,100 @@ var managerCmd = &cli.Command{
 			Usage:       "Default container image for Agent pods",
 			Value:       envOr("CLAWARMOR_AGENT_DEFAULT_IMAGE", ""),
 			Destination: &agentDefaultImage,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-image",
+			Usage:       "Container image for secret injection proxy pods",
+			Value:       envOr("CLAWARMOR_SINJECTOR_IMAGE", ""),
+			Destination: &sinjectorImage,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "proxy-address",
+			Usage:       "Agent HTTP(S)_PROXY value. Supports {AGENT_NAME}.",
+			Destination: &proxyAddress,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-listen-address",
+			Usage:       "Secret injection proxy listen address",
+			Value:       "0.0.0.0:8080",
+			Destination: &sinjectorListenAddress,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "openbao-addr",
+			Usage:       "OpenBao server address",
+			Destination: &openBaoAddr,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-openbao-addr",
+			Usage:       "Controller-manager OpenBao address for provisioning",
+			Hidden:      true,
+			Destination: &managerOpenBaoAddr,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "secret-mount-path",
+			Usage:       "OpenBao KV v2 secret engine mount path",
+			Destination: &secretMountPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "openbao-k8s-auth-mount-path",
+			Usage:       "OpenBao Kubernetes auth mount path",
+			Value:       "kubernetes",
+			Destination: &openBaoK8sAuthMountPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "openbao-k8s-auth-token-path",
+			Usage:       "SIP Kubernetes service account token path",
+			Value:       "/var/run/secrets/kubernetes.io/serviceaccount/token",
+			Destination: &openBaoK8sAuthTokenPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-openbao-k8s-auth-role",
+			Usage:       "OpenBao Kubernetes auth role for controller-manager provisioning",
+			Destination: &managerOpenBaoK8sAuthRole,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-openbao-k8s-auth-token-path",
+			Usage:       "Controller-manager Kubernetes token path for OpenBao auth",
+			Value:       "/var/run/secrets/kubernetes.io/serviceaccount/token",
+			Destination: &managerOpenBaoK8sAuthTokenPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "sinjector-ca-secret-name",
+			Usage:       "Shared cert-manager Secret containing SIP CA cert/key/bundle",
+			Destination: &sinjectorCASecretName,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -318,12 +425,42 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
-		reconciler := &controller.AgentReconciler{
+		runtimeConfig := agent.RuntimeConfig{
+			DefaultImage:                   agentDefaultImage,
+			SinjectorImage:                 sinjectorImage,
+			ProxyAddress:                   proxyAddress,
+			SinjectorListenAddress:         sinjectorListenAddress,
+			OpenBaoAddr:                    openBaoAddr,
+			ManagerOpenBaoAddr:             managerOpenBaoAddr,
+			SecretMountPath:                secretMountPath,
+			OpenBaoK8sAuthMountPath:        openBaoK8sAuthMountPath,
+			OpenBaoK8sAuthTokenPath:        openBaoK8sAuthTokenPath,
+			ManagerOpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
+			ManagerOpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
+			SinjectorCASecretName:          sinjectorCASecretName,
+		}
+		var bao agent.OpenBaoProvisioner
+		if sinjectorImage != "" || proxyAddress != "" {
+			if openBaoAddr == "" {
+				return fmt.Errorf("openbao addr is required when sinjector is enabled")
+			}
+			if secretMountPath == "" {
+				return fmt.Errorf("secret mount path is required when sinjector is enabled")
+			}
+			if sinjectorCASecretName == "" {
+				return fmt.Errorf("sinjector ca secret name is required when sinjector is enabled")
+			}
+			bao, err = agent.NewOpenBaoProvisioner(ctx, runtimeConfig)
+			if err != nil {
+				setupLog.Error(err, "Failed to create OpenBao provisioner")
+				os.Exit(1)
+			}
+		}
+		reconciler := &agent.Reconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-			Config: controller.AgentRuntimeConfig{
-				DefaultImage: agentDefaultImage,
-			},
+			Config: runtimeConfig,
+			Bao:    bao,
 		}
 		if err := reconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "Agent")
@@ -366,6 +503,7 @@ var managerCmd = &cli.Command{
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clawarmorv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ciliumv2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

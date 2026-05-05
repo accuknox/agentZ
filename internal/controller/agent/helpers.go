@@ -51,24 +51,22 @@ var (
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
-	DefaultImage                   string
-	SinjectorImage                 string
-	SinjectorListenAddress         string
-	ProxyAddress                   string
-	OpenBaoAddr                    string
-	ManagerOpenBaoAddr             string
-	OpenBaoSecretMountPath         string
-	SinjectorCASecretName          string
-	SinjectorCASecretCertKey       string
-	SinjectorCASecretKeyKey        string
-	SinjectorCASecretBundleKey     string
-	SinjectorCACertPath            string
-	SinjectorCAKeyPath             string
-	AgentCABundlePath              string
-	OpenBaoK8sAuthMountPath        string
-	OpenBaoK8sAuthTokenPath        string
-	ManagerOpenBaoK8sAuthRole      string
-	ManagerOpenBaoK8sAuthTokenPath string
+	DefaultImage                     string
+	SinjectorImage                   string
+	OpenBaoAddr                      string
+	ManagerOpenBaoAddr               string
+	OpenBaoSecretMountPath           string
+	SinjectorCASecretName            string
+	SinjectorCASecretCertKey         string
+	SinjectorCASecretKeyKey          string
+	SinjectorCASecretBundleKey       string
+	SinjectorCACertPath              string
+	SinjectorCAKeyPath               string
+	AgentCABundlePath                string
+	OpenBaoK8sAuthMountPath          string
+	SinjectorOpenBaoK8sAuthTokenPath string
+	ManagerOpenBaoK8sAuthRole        string
+	ManagerOpenBaoK8sAuthTokenPath   string
 }
 
 func selectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
@@ -100,8 +98,8 @@ func sinjectorName(agt *clawarmorv1alpha1.Agent) string {
 	return agt.Name + sinjectorNameSuffix
 }
 
-func sinjectorPort(cfg RuntimeConfig) (int32, error) {
-	return serverPort(cfg.SinjectorListenAddress)
+func sinjectorPort(agt *clawarmorv1alpha1.Agent) (int32, error) {
+	return serverPort(agt.Spec.Server.Address)
 }
 
 func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {

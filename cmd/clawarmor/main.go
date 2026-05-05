@@ -63,13 +63,11 @@ var (
 	tlsOpts                                          []func(*tls.Config)
 	agentDefaultImage                                string
 	sinjectorImage                                   string
-	proxyAddress                                     string
-	sinjectorListenAddress                           string
 	openBaoAddr                                      string
 	managerOpenBaoAddr                               string
 	openBaoSecretMountPath                           string
 	openBaoK8sAuthMountPath                          string
-	openBaoK8sAuthTokenPath                          string
+	sinjectorOpenBaoK8sAuthTokenPath                 string
 	managerOpenBaoK8sAuthRole                        string
 	managerOpenBaoK8sAuthTokenPath                   string
 	sinjectorCASecretName                            string
@@ -217,23 +215,7 @@ var managerCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
-		&cli.StringFlag{
-			Name:        "proxy-address",
-			Usage:       "Agent HTTP(S)_PROXY value. Supports {AGENT_NAME}.",
-			Destination: &proxyAddress,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.StringFlag{
-			Name:        "sinjector-listen-address",
-			Usage:       "Secret injection proxy listen address",
-			Value:       "0.0.0.0:8080",
-			Destination: &sinjectorListenAddress,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
+
 		&cli.StringFlag{
 			Name:        "openbao-addr",
 			Usage:       "OpenBao server address",
@@ -269,10 +251,10 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:        "openbao-k8s-auth-token-path",
+			Name:        "sinjector-openbao-k8s-auth-token-path",
 			Usage:       "SIP Kubernetes service account token path",
 			Value:       "/var/run/secrets/kubernetes.io/serviceaccount/token",
-			Destination: &openBaoK8sAuthTokenPath,
+			Destination: &sinjectorOpenBaoK8sAuthTokenPath,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -485,27 +467,25 @@ var managerCmd = &cli.Command{
 		}
 
 		runtimeConfig := agent.RuntimeConfig{
-			DefaultImage:                   agentDefaultImage,
-			SinjectorImage:                 sinjectorImage,
-			ProxyAddress:                   proxyAddress,
-			SinjectorListenAddress:         sinjectorListenAddress,
-			OpenBaoAddr:                    openBaoAddr,
-			ManagerOpenBaoAddr:             managerOpenBaoAddr,
-			OpenBaoSecretMountPath:         openBaoSecretMountPath,
-			OpenBaoK8sAuthMountPath:        openBaoK8sAuthMountPath,
-			OpenBaoK8sAuthTokenPath:        openBaoK8sAuthTokenPath,
-			ManagerOpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
-			ManagerOpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
-			SinjectorCASecretName:          sinjectorCASecretName,
-			SinjectorCASecretCertKey:       sinjectorCASecretCertKey,
-			SinjectorCASecretKeyKey:        sinjectorCASecretKeyKey,
-			SinjectorCASecretBundleKey:     sinjectorCASecretBundleKey,
-			SinjectorCACertPath:            sinjectorCACertPath,
-			SinjectorCAKeyPath:             sinjectorCAKeyPath,
-			AgentCABundlePath:              agentCABundlePath,
+			DefaultImage:                     agentDefaultImage,
+			SinjectorImage:                   sinjectorImage,
+			OpenBaoAddr:                      openBaoAddr,
+			ManagerOpenBaoAddr:               managerOpenBaoAddr,
+			OpenBaoSecretMountPath:           openBaoSecretMountPath,
+			OpenBaoK8sAuthMountPath:          openBaoK8sAuthMountPath,
+			SinjectorOpenBaoK8sAuthTokenPath: sinjectorOpenBaoK8sAuthTokenPath,
+			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
+			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
+			SinjectorCASecretName:            sinjectorCASecretName,
+			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,
+			SinjectorCASecretKeyKey:          sinjectorCASecretKeyKey,
+			SinjectorCASecretBundleKey:       sinjectorCASecretBundleKey,
+			SinjectorCACertPath:              sinjectorCACertPath,
+			SinjectorCAKeyPath:               sinjectorCAKeyPath,
+			AgentCABundlePath:                agentCABundlePath,
 		}
 		var bao agent.OpenBaoProvisioner
-		if sinjectorImage != "" || proxyAddress != "" {
+		if sinjectorImage != "" {
 			if openBaoAddr == "" {
 				return fmt.Errorf("openbao addr is required when sinjector is enabled")
 			}

@@ -134,7 +134,7 @@ func (r *Reconciler) reconcileSinjectorService(ctx context.Context, agt *clawarm
 	current := &corev1.Service{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
-	port, err := sinjectorPort(r.Config)
+	port, err := sinjectorPort(agt)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *claw
 }
 
 func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
-	port, err := sinjectorPort(r.Config)
+	port, err := sinjectorPort(agt)
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 }
 
 func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*appsv1.Deployment, error) {
-	port, err := sinjectorPort(r.Config)
+	port, err := sinjectorPort(agt)
 	if err != nil {
 		return nil, err
 	}
@@ -273,12 +273,12 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*ap
 	args := []string{
 		"sinjector",
 		"serve",
-		"--addr", r.Config.SinjectorListenAddress,
+		"--addr", agt.Spec.Server.Address,
 		"--openbao-addr", r.Config.OpenBaoAddr,
 		"--openbao-secret-mount-path", r.Config.OpenBaoSecretMountPath,
 		"--openbao-k8s-auth-role", sinjectorName(agt),
 		"--openbao-k8s-auth-mount-path", r.Config.OpenBaoK8sAuthMountPath,
-		"--openbao-k8s-auth-token-path", r.Config.OpenBaoK8sAuthTokenPath,
+		"--openbao-k8s-auth-token-path", r.Config.SinjectorOpenBaoK8sAuthTokenPath,
 		"--session-id", agt.Spec.Session.ID,
 		"--ca-cert-path", certPath,
 		"--ca-key-path", keyPath,

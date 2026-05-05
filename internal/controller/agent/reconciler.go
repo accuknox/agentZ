@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -205,14 +204,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *Reconciler) sinjectorEnabled() bool {
-	return r.Config.SinjectorImage != "" || r.Config.ProxyAddress != ""
+	return r.Config.SinjectorImage != ""
 }
 
 func (r *Reconciler) proxyAddress(agt *clawarmorv1alpha1.Agent) string {
-	if r.Config.ProxyAddress != "" {
-		return strings.ReplaceAll(r.Config.ProxyAddress, "{AGENT_NAME}", agt.Name)
-	}
-	port, err := sinjectorPort(r.Config)
+	port, err := sinjectorPort(agt)
 	if err != nil {
 		port = 8080
 	}

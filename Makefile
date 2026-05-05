@@ -7,6 +7,7 @@ PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.p
 
 # Image URL to render into Kubernetes manifests.
 IMAGE ?= murtazau/clawarmor:latest
+AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
 
 .PHONY: all
 all: generate lint build
@@ -49,13 +50,37 @@ lint:
 build:
 	go build ./...
 
+# Run agent gateway
+.PHONY: run-gateway
+run-gateway:
+	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	go run ./cmd/clawarmor agent gateway \
+		--target-override=localhost:8080 \
+		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
+		--agent-image=$(AGENT_IMAGE) \
+		--agent-session-target=172.18.0.1:8081 \
+		--agent-trace-endpoint=172.18.0.1:4317 \
+		--openbao-addr=http://localhost:8200 \
+		--openbao-secret-mount-path=kv \
+		--openbao-k8s-auth-role=clawarmor-gateway \
+		--openbao-k8s-auth-token-path=/tmp/sa-token
+
 # Run agent controller manager
 .PHONY: run-manager
 run-manager:
+	kubectl -n default create token default --duration=24h > /tmp/sa-token
 	go run ./cmd/clawarmor manager \
-		--health-probe-bind-address :8888 \
-		--watch-namespace default \
-		--enable-webhooks false
+		--health-probe-bind-address=:8888 \
+		--watch-namespace=default \
+		--enable-webhooks=false \
+		--agent-default-image=$(AGENT_IMAGE) \
+		--sinjector-image=$(IMAGE) \
+		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
+		--openbao-secret-mount-path=kv \
+		--manager-openbao-addr=http://localhost:8200 \
+		--manager-openbao-k8s-auth-role=clawarmor-manager \
+		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
+		--sinjector-ca-secret-name=sinjector
 
 # Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer

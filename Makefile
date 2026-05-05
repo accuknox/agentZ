@@ -82,6 +82,16 @@ run-manager:
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector
 
+# Run session service
+.PHONY: run-session-service
+run-session-service:
+	go run ./cmd/clawarmor session serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
+
+# Run observer
+.PHONY: run-observer
+run-observer:
+	go run ./cmd/clawarmor observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
+
 # Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer
 build-installer: generate

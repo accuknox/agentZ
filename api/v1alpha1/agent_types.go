@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -125,6 +126,17 @@ type AgentSpec struct {
 	// Tools configures optional runtime tools.
 	// +optional
 	Tools ToolsConfig `json:"tools,omitempty"`
+
+	// Packages lists nix packages (e.g. "python3", "nodejs_22", "ripgrep")
+	// to install into the agent pod. Each entry is prefixed with nixpkgs#
+	// automatically. Leave empty to skip nix init container bootstrapping.
+	// +optional
+	Packages []string `json:"packages,omitempty"`
+
+	// NixStoreSize sets the size of the agent-specific nix store PVC.
+	// +kubebuilder:default="5Gi"
+	// +optional
+	NixStoreSize resource.Quantity `json:"nixStoreSize,omitempty"`
 }
 
 // ServerConfig defines the agent gRPC server settings.

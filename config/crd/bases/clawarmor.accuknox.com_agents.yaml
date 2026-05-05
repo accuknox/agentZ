@@ -339,6 +339,22 @@ spec:
                 required:
                 - name
                 type: object
+              nixStoreSize:
+                anyOf:
+                - type: integer
+                - type: string
+                default: 5Gi
+                description: NixStoreSize sets the size of the agent-specific nix store PVC.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              packages:
+                description: |-
+                  Packages lists nix packages (e.g. "python3", "nodejs_22", "ripgrep")
+                  to install into the agent pod. Each entry is prefixed with nixpkgs#
+                  automatically. Leave empty to skip nix init container bootstrapping.
+                items:
+                  type: string
+                type: array
               resources:
                 description: Resources defines compute resources allocated to the Agent pod.
                 properties:

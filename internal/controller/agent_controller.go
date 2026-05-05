@@ -30,6 +30,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -48,6 +49,14 @@ const (
 	configKey       = "config.yaml"
 	configMountPath = "/etc/clawarmor/config.yaml"
 	configVolume    = "config"
+
+	nixAgentVolume = "nix-agent"
+	nixAgentMount  = "/mnt/nix"
+	nixLinkVolume  = "nix-link"
+	nixLinkMount   = "/nix"
+	nixLinkStage   = "/tmp/nix-link"
+	nixInitImage   = "murtazau/clawarmor-nix-init:latest"
+	nixPkgEnv      = "NIX_PACKAGES"
 )
 
 var (
@@ -58,6 +67,7 @@ var (
 // AgentRuntimeConfig configures controller-side launch defaults.
 type AgentRuntimeConfig struct {
 	DefaultImage string
+	SharedNixPVC string
 }
 
 // AgentReconciler reconciles an Agent object.
@@ -74,6 +84,7 @@ type AgentReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;delete
 
 // Reconcile moves the cluster state toward the desired Agent state.
 func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -132,6 +143,15 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
+	err = r.reconcileNixPVCs(ctx, agt)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("reconcile nix pvcs: %w", err)
+	}
+
 	hash, err := configHash(cfgYAML, agt.Spec.Env)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
@@ -183,6 +203,38 @@ func (r *AgentReconciler) reconcileConfigMap(ctx context.Context, agt *clawarmor
 	})
 	if err != nil {
 		return fmt.Errorf("create or patch configmap: %w", err)
+	}
+	return nil
+}
+
+func (r *AgentReconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+	if len(agt.Spec.Packages) == 0 {
+		return nil
+	}
+
+	agentPVC := &corev1.PersistentVolumeClaim{}
+	agentPVC.Name = agt.Name + "-nix"
+	agentPVC.Namespace = agt.Namespace
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, agentPVC, func() error {
+		agentPVC.Labels = resourceLabels(agt)
+		if len(agentPVC.Spec.AccessModes) == 0 {
+			agentPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			}
+		}
+		if agentPVC.Spec.Resources.Requests == nil {
+			size := agt.Spec.NixStoreSize
+			if size.IsZero() {
+				size = resource.MustParse("5Gi")
+			}
+			agentPVC.Spec.Resources.Requests = corev1.ResourceList{
+				corev1.ResourceStorage: size,
+			}
+		}
+		return ctrl.SetControllerReference(agt, agentPVC, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("ensure agent nix pvc: %w", err)
 	}
 	return nil
 }
@@ -308,6 +360,117 @@ func (r *AgentReconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash str
 		grace = int64(math.Ceil(timeout.Seconds()))
 	}
 
+	useNix := len(agt.Spec.Packages) > 0
+
+	volumes := []corev1.Volume{
+		{
+			Name: configVolume,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: agt.Name,
+					},
+				},
+			},
+		},
+	}
+
+	mainVolumeMounts := []corev1.VolumeMount{
+		{
+			Name:      configVolume,
+			MountPath: configMountPath,
+			SubPath:   configKey,
+			ReadOnly:  true,
+		},
+	}
+
+	mainEnv := make([]corev1.EnvVar, len(agt.Spec.Env))
+	copy(mainEnv, agt.Spec.Env)
+
+	var initContainers []corev1.Container
+
+	if useNix {
+		volumes = append(volumes,
+			corev1.Volume{
+				Name: nixAgentVolume,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: agt.Name + "-nix",
+					},
+				},
+			},
+			corev1.Volume{
+				Name: nixLinkVolume,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		)
+		initVolumeMounts := []corev1.VolumeMount{
+			{Name: nixAgentVolume, MountPath: nixAgentMount},
+			{Name: nixLinkVolume, MountPath: nixLinkStage},
+		}
+		initEnv := []corev1.EnvVar{
+			{Name: nixPkgEnv, Value: strings.Join(agt.Spec.Packages, ",")},
+		}
+
+		if r.Config.SharedNixPVC != "" {
+			volumes = append(volumes, corev1.Volume{
+				Name: "nix-shared",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: r.Config.SharedNixPVC,
+					},
+				},
+			})
+			initVolumeMounts = append(initVolumeMounts,
+				corev1.VolumeMount{Name: "nix-shared", MountPath: "/nix-shared"},
+			)
+			initEnv = append(initEnv,
+				corev1.EnvVar{Name: "NIX_SHARED_PVC", Value: r.Config.SharedNixPVC},
+			)
+		}
+
+		initContainers = append(initContainers, corev1.Container{
+			Name:            "nix-init",
+			Image:           nixInitImage,
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Env:             initEnv,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: new(false),
+				RunAsUser:                new(int64(0)),
+				RunAsNonRoot:             new(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			VolumeMounts: initVolumeMounts,
+		})
+
+		mainVolumeMounts = append(mainVolumeMounts,
+			corev1.VolumeMount{
+				Name:      nixAgentVolume,
+				MountPath: nixAgentMount,
+				ReadOnly:  true,
+			},
+			corev1.VolumeMount{
+				Name:      nixLinkVolume,
+				MountPath: nixLinkMount,
+			},
+		)
+
+		mainEnv = append(mainEnv,
+			corev1.EnvVar{
+				Name:  "NIX_PROFILES",
+				Value: "/nix/profile",
+			},
+			corev1.EnvVar{
+				Name:  "PATH",
+				Value: "/nix/profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+			},
+		)
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        agt.Name,
@@ -334,18 +497,8 @@ func (r *AgentReconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash str
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
-					Volumes: []corev1.Volume{
-						{
-							Name: configVolume,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: agt.Name,
-									},
-								},
-							},
-						},
-					},
+					Volumes:        volumes,
+					InitContainers: initContainers,
 					Containers: []corev1.Container{
 						{
 							Name:            "agent",
@@ -358,7 +511,7 @@ func (r *AgentReconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash str
 								"--config",
 								configMountPath,
 							},
-							Env:       agt.Spec.Env,
+							Env:       mainEnv,
 							Resources: agt.Spec.Resources,
 							Ports: []corev1.ContainerPort{
 								{
@@ -375,14 +528,7 @@ func (r *AgentReconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash str
 									Drop: []corev1.Capability{"ALL"},
 								},
 							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      configVolume,
-									MountPath: configMountPath,
-									SubPath:   configKey,
-									ReadOnly:  true,
-								},
-							},
+							VolumeMounts: mainVolumeMounts,
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyAlways,

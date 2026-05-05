@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -113,6 +114,9 @@ func (d *AgentCustomDefaulter) Default(_ context.Context, agt *clawarmorv1alpha1
 		enabled := false
 		agt.Spec.Tools.Arxiv.Enabled = &enabled
 	}
+	if agt.Spec.NixStoreSize.IsZero() {
+		agt.Spec.NixStoreSize = resource.MustParse("5Gi")
+	}
 	return nil
 }
 
@@ -150,6 +154,14 @@ func (v *AgentCustomValidator) ValidateUpdate(_ context.Context, oldAgt, newAgt 
 		allErrs = append(allErrs, field.Invalid(
 			path,
 			newAgt.Spec.Session.ID,
+			"field is immutable",
+		))
+	}
+	if oldAgt.Spec.NixStoreSize.Cmp(newAgt.Spec.NixStoreSize) != 0 {
+		path := field.NewPath("spec").Child("nixStoreSize")
+		allErrs = append(allErrs, field.Invalid(
+			path,
+			newAgt.Spec.NixStoreSize.String(),
 			"field is immutable",
 		))
 	}

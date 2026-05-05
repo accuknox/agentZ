@@ -61,6 +61,7 @@ var (
 	enableHTTP2                                      bool
 	tlsOpts                                          []func(*tls.Config)
 	agentDefaultImage                                string
+	nixStorePVC                                      string
 )
 
 type silentExitCoder interface {
@@ -185,6 +186,15 @@ var managerCmd = &cli.Command{
 			Usage:       "Default container image for Agent pods",
 			Value:       envOr("CLAWARMOR_AGENT_DEFAULT_IMAGE", ""),
 			Destination: &agentDefaultImage,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "nix-store-pvc",
+			Usage:       "Name of the shared nix store PVC (pre-created by admin)",
+			Value:       envOr("CLAWARMOR_NIX_STORE_PVC", ""),
+			Destination: &nixStorePVC,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -323,6 +333,7 @@ var managerCmd = &cli.Command{
 			Scheme: mgr.GetScheme(),
 			Config: controller.AgentRuntimeConfig{
 				DefaultImage: agentDefaultImage,
+				SharedNixPVC: nixStorePVC,
 			},
 		}
 		if err := reconciler.SetupWithManager(mgr); err != nil {

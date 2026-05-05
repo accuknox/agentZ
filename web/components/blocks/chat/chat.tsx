@@ -260,7 +260,7 @@ function ComposerActivity({ active }: { active: boolean }) {
 
   return (
     <div className="flex h-6 items-center px-3 font-mono text-sm md:px-4">
-      <Shimmer active={active} className="text-chat-user" duration={1.05} spread={5}>
+      <Shimmer active={active} className="text-chat-user" duration={1}>
         ........
       </Shimmer>
     </div>

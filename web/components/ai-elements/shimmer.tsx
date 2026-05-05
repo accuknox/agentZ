@@ -2,50 +2,59 @@
 
 import { cn } from "@/lib/utils"
 import { motion } from "motion/react"
-import type { CSSProperties } from "react"
-import { memo, useMemo } from "react"
+import { memo } from "react"
 
 export interface TextShimmerProps {
   children: string
   active?: boolean
   className?: string
   duration?: number
-  spread?: number
 }
+
+const snakeLength = 5
 
 const ShimmerComponent = ({
   children,
   active = true,
   className,
-  duration = 2,
-  spread = 2,
+  duration = 1,
 }: TextShimmerProps) => {
-  const dynamicSpread = useMemo(() => (children?.length ?? 0) * spread, [children, spread])
+  if (!active) {
+    return <span className={className}>{children}</span>
+  }
+
+  const text = children ?? ""
+  const charCount = text.length
 
   return (
-    <motion.span
-      animate={{ backgroundPosition: active ? "0% center" : "100% center" }}
-      className={cn(
-        "relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
-        "[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),var(--color-foreground),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
-        className
-      )}
-      initial={{ backgroundPosition: "100% center" }}
-      style={
-        {
-          "--spread": `${dynamicSpread}px`,
-          backgroundImage:
-            "var(--bg), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
-        } as CSSProperties
-      }
-      transition={{
-        duration,
-        ease: "linear",
-        repeat: active ? Number.POSITIVE_INFINITY : 0,
-      }}
+    <span
+      className={cn("relative inline-block leading-none", className)}
+      style={{ width: `${charCount}ch` }}
     >
-      {children}
-    </motion.span>
+      <span className="text-[0.65em] text-muted-foreground/25">{text}</span>
+
+      {Array.from({ length: snakeLength }).map((_, i) => (
+        <motion.span
+          key={i}
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 h-[0.6em] w-[0.6em] -translate-y-1/2 rounded-[2px] bg-current"
+          initial={{ left: "0ch" }}
+          animate={{
+            left: ["0ch", `${charCount - 1}ch`],
+          }}
+          transition={{
+            duration: duration / 2,
+            ease: "easeInOut",
+            repeat: Infinity,
+            repeatType: "reverse",
+            delay: i * 0.08,
+          }}
+          style={{
+            opacity: 1 - i * 0.18,
+          }}
+        />
+      ))}
+    </span>
   )
 }
 

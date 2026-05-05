@@ -162,19 +162,19 @@ function AgentBadge({ status }: { status: AgentStatus }) {
   switch (status) {
     case "PROGRESSING":
       return (
-        <span className="shrink-0 text-yellow-400">
+        <span className="shrink-0 text-chat-interrupted">
           <Spinner aria-label="Provisioning" className="size-3" />
         </span>
       )
     case "WORKING":
       return (
-        <span className="shrink-0 text-blue-400">
+        <span className="shrink-0 text-chat-user">
           <Spinner aria-label="Working" className="size-3" />
         </span>
       )
     case "DEGRADED":
       return (
-        <span className="shrink-0 text-red-500">
+        <span className="shrink-0 text-destructive">
           <Spinner aria-label="Degraded" className="size-3" />
         </span>
       )
@@ -183,7 +183,7 @@ function AgentBadge({ status }: { status: AgentStatus }) {
         <span
           aria-label="Idle"
           role="status"
-          className="size-1.5 shrink-0 rounded-full bg-green-500"
+          className="size-1.5 shrink-0 rounded-full bg-chat-active"
         />
       )
     case "WAITING_FOR_HUMAN_INTERACTION":
@@ -201,7 +201,7 @@ function AgentBadge({ status }: { status: AgentStatus }) {
         <span
           aria-label="Unknown"
           role="status"
-          className="size-1.5 shrink-0 rounded-full bg-red-500"
+          className="size-1.5 shrink-0 rounded-full bg-destructive"
         />
       )
   }

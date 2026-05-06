@@ -691,6 +691,47 @@ export type JsonValue =
     }
 
 /**
+ * Secret key name. Alphanumeric and underscores only.
+ */
+export type SecretKey = string
+
+/**
+ * Secret value. Max 48 KB.
+ */
+export type SecretValue = string
+
+export type SecretEntry = {
+  key: SecretKey
+  value: SecretValue
+}
+
+export type SecretListItem = {
+  key: SecretKey
+  created_at: string
+  modified_at: string
+}
+
+export type PutSecretsRequest = {
+  secrets: Array<SecretEntry>
+}
+
+export type PutSecretsResponse = {
+  /**
+   * Number of secrets stored.
+   */
+  stored: number
+}
+
+export type DeleteSecretsRequest = {
+  keys: Array<SecretKey>
+}
+
+export type ListSecretsResponse = {
+  items: Array<SecretListItem>
+  next_page_token: string
+}
+
+/**
  * Session UUID.
  */
 export type SessionIdQuery = SessionId
@@ -1477,3 +1518,126 @@ export type WatchAgentsResponses = {
 }
 
 export type WatchAgentsResponse = WatchAgentsResponses[keyof WatchAgentsResponses]
+
+export type PutSecretData = {
+  body: PutSecretsRequest
+  path: {
+    /**
+     * Session UUID.
+     */
+    sessionID: SessionId
+  }
+  query?: never
+  url: "/api/secret/{sessionID}/put"
+}
+
+export type PutSecretErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type PutSecretError = PutSecretErrors[keyof PutSecretErrors]
+
+export type PutSecretResponses = {
+  /**
+   * Secrets stored.
+   */
+  201: PutSecretsResponse
+}
+
+export type PutSecretResponse = PutSecretResponses[keyof PutSecretResponses]
+
+export type DeleteSecretData = {
+  body: DeleteSecretsRequest
+  path: {
+    /**
+     * Session UUID.
+     */
+    sessionID: SessionId
+  }
+  query?: never
+  url: "/api/secret/{sessionID}/delete"
+}
+
+export type DeleteSecretErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteSecretError = DeleteSecretErrors[keyof DeleteSecretErrors]
+
+export type DeleteSecretResponses = {
+  /**
+   * Secrets deleted.
+   */
+  204: void
+}
+
+export type DeleteSecretResponse = DeleteSecretResponses[keyof DeleteSecretResponses]
+
+export type ListSecretsData = {
+  body?: never
+  path: {
+    /**
+     * Session UUID.
+     */
+    sessionID: SessionId
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/secret/{sessionID}/list"
+}
+
+export type ListSecretsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListSecretsError = ListSecretsErrors[keyof ListSecretsErrors]
+
+export type ListSecretsResponses = {
+  /**
+   * Paginated secret keys.
+   */
+  200: ListSecretsResponse
+}
+
+export type ListSecretsResponse2 = ListSecretsResponses[keyof ListSecretsResponses]

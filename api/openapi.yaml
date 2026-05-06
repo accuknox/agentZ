@@ -501,8 +501,8 @@ paths:
       operationId: listSecrets
       summary: List secret keys for a session.
       description: >
-        Returns a paginated list of secret key names. Secret values are never
-        included in the response.
+        Returns a paginated list of secret keys with created and last modified
+        timestamps. Secret values are never included in the response.
       tags: [secrets]
       parameters:
       - $ref: '#/components/parameters/SessionIDPath'
@@ -2246,6 +2246,20 @@ components:
           $ref: '#/components/schemas/SecretValue'
       required: [key, value]
 
+    SecretListItem:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          $ref: '#/components/schemas/SecretKey'
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+      required: [key, created_at, modified_at]
+
     PutSecretsRequest:
       type: object
       additionalProperties: false
@@ -2283,10 +2297,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        keys:
+        items:
           type: array
           items:
-            $ref: '#/components/schemas/SecretKey'
+            $ref: '#/components/schemas/SecretListItem'
         next_page_token:
           type: string
-      required: [keys, next_page_token]
+      required: [items, next_page_token]

@@ -1,15 +1,24 @@
 package gateway
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	baoapi "github.com/openbao/openbao/api/v2"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/sinjector"
 )
 
 const (
@@ -127,6 +136,11 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID ga
 		stored++
 	}
 
+	if err := s.syncAgentEnv(ctx, sessionUUID, req.Secrets, nil); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
 		Stored: int32(stored),
 	})
@@ -240,7 +254,74 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, sessionID
 		}
 	}
 
+	if err := s.syncAgentEnv(ctx, sessionUUID, nil, req.Keys); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// syncAgentEnv updates the Agent CR spec.env by adding placeholder entries
+// for secrets in add and removing entries whose Name matches keys in remove.
+func (s *Service) syncAgentEnv(ctx context.Context, sessionUUID uuid.UUID, add []gatewayapi.SecretEntry, remove []string) error {
+	row, err := s.queries.GatewayGetSession(ctx, sessionUUID)
+	if err != nil {
+		return fmt.Errorf("get session: %w", err)
+	}
+
+	removeSet := make(map[string]struct{}, len(remove))
+	for _, key := range remove {
+		removeSet[strings.TrimSpace(key)] = struct{}{}
+	}
+
+	addSet := make(map[string]string, len(add))
+	for _, entry := range add {
+		key := strings.TrimSpace(entry.Key)
+		addSet[key] = sinjector.PlaceholderPrefix + key
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		agt, err := s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Get(
+			ctx,
+			row.AgentName,
+			metav1.GetOptions{},
+		)
+		if err != nil {
+			return err
+		}
+
+		newEnv := make([]corev1.EnvVar, 0, len(agt.Spec.Env))
+		for _, ev := range agt.Spec.Env {
+			if _, ok := removeSet[ev.Name]; ok {
+				continue
+			}
+			if _, ok := addSet[ev.Name]; ok {
+				continue
+			}
+			newEnv = append(newEnv, ev)
+		}
+
+		keys := make([]string, 0, len(addSet))
+		for key := range addSet {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			newEnv = append(newEnv, corev1.EnvVar{
+				Name:  key,
+				Value: addSet[key],
+			})
+		}
+
+		agt.Spec.Env = newEnv
+		_, err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Update(
+			ctx,
+			agt,
+			metav1.UpdateOptions{},
+		)
+		return err
+	})
 }
 
 // ListSecrets handles GET /api/secret/{sessionID}/list.
@@ -284,15 +365,16 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, sessionID 
 		after = strings.TrimSpace(*params.PageToken)
 	}
 
-	listPath := fmt.Sprintf("%s/metadata/%s", s.cfg.OpenBaoSecretMountPath, sessionUUID.String())
+	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, sessionUUID.String())
 	secret, err := s.bao.Logical().ListPageWithContext(r.Context(), listPath, after, limit+1)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "list secrets failed", slog.String("path", listPath), slog.Any("err", err))
 		writeError(w, r, mapOpenBaoError(err))
 		return
 	}
 	if secret == nil || secret.Data == nil {
 		writeJSON(w, http.StatusOK, gatewayapi.ListSecretsResponse{
-			Keys:          []string{},
+			Items:         []gatewayapi.SecretListItem{},
 			NextPageToken: "",
 		})
 		return
@@ -306,10 +388,35 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, sessionID 
 		}
 	}
 
-	resp := gatewayapi.ListSecretsResponse{Keys: keys, NextPageToken: ""}
-	if len(keys) > limit {
-		resp.Keys = keys[:limit]
-		resp.NextPageToken = keys[limit-1]
+	rawKeyInfo, _ := secret.Data["key_info"].(map[string]any)
+
+	items := make([]gatewayapi.SecretListItem, 0, len(keys))
+	for _, key := range keys {
+		item := gatewayapi.SecretListItem{
+			Key: key,
+		}
+		if info, ok := rawKeyInfo[key].(map[string]any); ok {
+			if ct, ok := info["created_time"].(string); ok && ct != "" {
+				if t, err := time.Parse(time.RFC3339Nano, ct); err == nil {
+					item.CreatedAt = t
+				}
+			}
+			if ut, ok := info["updated_time"].(string); ok && ut != "" {
+				if t, err := time.Parse(time.RFC3339Nano, ut); err == nil {
+					item.ModifiedAt = t
+				}
+			}
+		}
+		items = append(items, item)
+	}
+
+	resp := gatewayapi.ListSecretsResponse{
+		Items:         items,
+		NextPageToken: "",
+	}
+	if len(items) > limit {
+		resp.Items = items[:limit]
+		resp.NextPageToken = items[limit-1].Key
 	}
 
 	writeJSON(w, http.StatusOK, resp)

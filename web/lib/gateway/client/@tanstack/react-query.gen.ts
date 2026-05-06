@@ -7,6 +7,7 @@ import {
   compactSession,
   createAgent,
   deleteAgent,
+  deleteSecret,
   getChatHistory,
   getSpanDetail,
   interruptSession,
@@ -14,9 +15,11 @@ import {
   listFileObservability,
   listNetworkObservability,
   listProcessObservability,
+  listSecrets,
   listSpans,
   listTraces,
   type Options,
+  putSecret,
   sendMessage,
   updateAgent,
 } from "../sdk.gen"
@@ -30,6 +33,9 @@ import type {
   DeleteAgentData,
   DeleteAgentError,
   DeleteAgentResponse,
+  DeleteSecretData,
+  DeleteSecretError,
+  DeleteSecretResponse,
   GetChatHistoryData,
   GetChatHistoryError,
   GetChatHistoryResponse,
@@ -51,12 +57,18 @@ import type {
   ListProcessObservabilityData,
   ListProcessObservabilityError,
   ListProcessObservabilityResponse2,
+  ListSecretsData,
+  ListSecretsError,
+  ListSecretsResponse2,
   ListSpansData,
   ListSpansError,
   ListSpansResponse2,
   ListTracesData,
   ListTracesError,
   ListTracesResponse2,
+  PutSecretData,
+  PutSecretError,
+  PutSecretResponse,
   SendMessageData,
   SendMessageError,
   SendMessageResponse2,
@@ -455,3 +467,83 @@ export const compactSessionMutation = (
   }
   return mutationOptions
 }
+
+/**
+ * Store or overwrite secrets for a session.
+ *
+ * Creates or overwrites key-value secrets under the session. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each.
+ *
+ */
+export const putSecretMutation = (
+  options?: Partial<Options<PutSecretData>>
+): UseMutationOptions<PutSecretResponse, PutSecretError, Options<PutSecretData>> => {
+  const mutationOptions: UseMutationOptions<
+    PutSecretResponse,
+    PutSecretError,
+    Options<PutSecretData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await putSecret({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete secrets for a session.
+ *
+ * Deletes the specified secret keys for the session. Missing keys are ignored.
+ *
+ */
+export const deleteSecretMutation = (
+  options?: Partial<Options<DeleteSecretData>>
+): UseMutationOptions<DeleteSecretResponse, DeleteSecretError, Options<DeleteSecretData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteSecretResponse,
+    DeleteSecretError,
+    Options<DeleteSecretData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteSecret({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listSecretsQueryKey = (options: Options<ListSecretsData>) =>
+  createQueryKey("listSecrets", options)
+
+/**
+ * List secret keys for a session.
+ *
+ * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
+ *
+ */
+export const listSecretsOptions = (options: Options<ListSecretsData>) =>
+  queryOptions<
+    ListSecretsResponse2,
+    ListSecretsError,
+    ListSecretsResponse2,
+    ReturnType<typeof listSecretsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listSecrets({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listSecretsQueryKey(options),
+  })

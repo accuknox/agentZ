@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -18,7 +17,6 @@ const (
 	sessionstoreSummaryName   = "clawarmor"
 	sessionSummaryModeAuto    = "auto"
 	sessionSummaryModeManual  = "manual"
-	openAIAPIKeyEnv           = "OPENAI_API_KEY"
 )
 
 type modelBackend struct {
@@ -70,19 +68,19 @@ func unknownContextWindowMessage(path string, modelName string) string {
 	)
 }
 
-func buildChatModel(cfg clawarmorv1alpha1.AgentSpec) model.Model {
+func buildChatModel(cfg clawarmorv1alpha1.AgentSpec, apiKey string) model.Model {
 	return openAIModel(modelBackend{
 		name:    cfg.Model.Name,
 		baseURL: cfg.Model.BaseURL,
-	})
+	}, apiKey)
 }
 
-func buildSummaryModel(cfg clawarmorv1alpha1.AgentSpec) model.Model {
+func buildSummaryModel(cfg clawarmorv1alpha1.AgentSpec, apiKey string) model.Model {
 	return withGenerationDefaults(
 		openAIModel(modelBackend{
 			name:    cfg.SummaryModel.Name,
 			baseURL: cfg.SummaryModel.BaseURL,
-		}),
+		}, apiKey),
 		generationConfig(
 			cfg.SummaryModel.Temperature,
 			cfg.SummaryModel.MaxTokens,
@@ -93,12 +91,11 @@ func buildSummaryModel(cfg clawarmorv1alpha1.AgentSpec) model.Model {
 	)
 }
 
-func openAIModel(backend modelBackend) model.Model {
+func openAIModel(backend modelBackend, apiKey string) model.Model {
 	opts := []openai.Option{}
 	if backend.baseURL != "" {
 		opts = append(opts, openai.WithBaseURL(backend.baseURL))
 	}
-	apiKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
 	if apiKey != "" {
 		opts = append(opts, openai.WithAPIKey(apiKey))
 	}

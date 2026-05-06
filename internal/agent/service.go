@@ -37,7 +37,8 @@ const (
 
 // ServiceConfig describes how to start the agent gRPC server.
 type ServiceConfig struct {
-	ConfigPath string
+	ConfigPath   string
+	OpenAIAPIKey string
 }
 
 type service struct {

@@ -31,6 +31,7 @@ var Cmd = &cli.Command{
 		interruptCmd,
 		compactCmd,
 		subscribeCmd,
+		secretCmd,
 		listTracesCmd,
 		listSpansCmd,
 		getSpanDetailCmd,

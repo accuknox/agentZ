@@ -33,7 +33,8 @@ const interruptedRunMessage = "Run interrupted by user."
 
 // RuntimeOptions configures the local agent runtime.
 type RuntimeOptions struct {
-	ConfigPath string
+	ConfigPath   string
+	OpenAIAPIKey string
 }
 
 // Runtime holds the runnable agent system.
@@ -69,8 +70,8 @@ func NewRuntime(ctx context.Context, opts RuntimeOptions) (*Runtime, error) {
 		return nil, err
 	}
 
-	mdl := buildChatModel(cfg)
-	summaryModel := buildSummaryModel(cfg)
+	mdl := buildChatModel(cfg, opts.OpenAIAPIKey)
+	summaryModel := buildSummaryModel(cfg, opts.OpenAIAPIKey)
 	summarizer, err := buildSummarizer(summaryModel, cfg)
 	if err != nil {
 		if traceClean != nil {

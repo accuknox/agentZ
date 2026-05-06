@@ -13,6 +13,8 @@ tags:
   description: Agent listing and status streaming APIs.
 - name: lens
   description: Trace, span, and OS observability APIs.
+- name: secrets
+  description: Session secret management APIs.
 
 paths:
   /api/chat-history:
@@ -434,6 +436,89 @@ paths:
                 $ref: '#/components/schemas/WatchAgentsEvent'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/secret/{sessionID}/put:
+    post:
+      operationId: putSecret
+      summary: Store or overwrite secrets for a session.
+      description: >
+        Creates or overwrites key-value secrets under the session.
+        Keys may contain alphanumeric characters and underscores, up to 128
+        characters. Values are limited to 48 KB each.
+      tags: [secrets]
+      parameters:
+      - $ref: '#/components/parameters/SessionIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutSecretsRequest'
+      responses:
+        '201':
+          description: Secrets stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PutSecretsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/secret/{sessionID}/delete:
+    post:
+      operationId: deleteSecret
+      summary: Delete secrets for a session.
+      description: >
+        Deletes the specified secret keys for the session. Missing keys are
+        ignored.
+      tags: [secrets]
+      parameters:
+      - $ref: '#/components/parameters/SessionIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteSecretsRequest'
+      responses:
+        '204':
+          description: Secrets deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/secret/{sessionID}/list:
+    get:
+      operationId: listSecrets
+      summary: List secret keys for a session.
+      description: >
+        Returns a paginated list of secret keys with created and last modified
+        timestamps. Secret values are never included in the response.
+      tags: [secrets]
+      parameters:
+      - $ref: '#/components/parameters/SessionIDPath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated secret keys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListSecretsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -2138,3 +2223,84 @@ components:
       - type: object
         additionalProperties:
           $ref: '#/components/schemas/JSONValue'
+
+    SecretKey:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9_]+$'
+      description: Secret key name. Alphanumeric and underscores only.
+
+    SecretValue:
+      type: string
+      maxLength: 49152
+      description: Secret value. Max 48 KB.
+
+    SecretEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          $ref: '#/components/schemas/SecretKey'
+        value:
+          $ref: '#/components/schemas/SecretValue'
+      required: [key, value]
+
+    SecretListItem:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          $ref: '#/components/schemas/SecretKey'
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+      required: [key, created_at, modified_at]
+
+    PutSecretsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretEntry'
+          maxItems: 100
+      required: [secrets]
+
+    PutSecretsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        stored:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of secrets stored.
+      required: [stored]
+
+    DeleteSecretsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretKey'
+          maxItems: 100
+      required: [keys]
+
+    ListSecretsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretListItem'
+        next_page_token:
+          type: string
+      required: [items, next_page_token]

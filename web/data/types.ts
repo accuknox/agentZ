@@ -289,3 +289,11 @@ export type CreateAgentFormState = {
 export type DeleteAgentFormState = {
   error?: Error
 }
+
+export type PutSecretFormState = {
+  error?: Error
+}
+
+export type DeleteSecretFormState = {
+  error?: Error
+}

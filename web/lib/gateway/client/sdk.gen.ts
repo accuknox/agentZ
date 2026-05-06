@@ -14,6 +14,9 @@ import type {
   DeleteAgentData,
   DeleteAgentErrors,
   DeleteAgentResponses,
+  DeleteSecretData,
+  DeleteSecretErrors,
+  DeleteSecretResponses,
   GetChatHistoryData,
   GetChatHistoryErrors,
   GetChatHistoryResponses,
@@ -35,12 +38,18 @@ import type {
   ListProcessObservabilityData,
   ListProcessObservabilityErrors,
   ListProcessObservabilityResponses,
+  ListSecretsData,
+  ListSecretsErrors,
+  ListSecretsResponses,
   ListSpansData,
   ListSpansErrors,
   ListSpansResponses,
   ListTracesData,
   ListTracesErrors,
   ListTracesResponses,
+  PutSecretData,
+  PutSecretErrors,
+  PutSecretResponses,
   SendMessageData,
   SendMessageErrors,
   SendMessageResponses,
@@ -60,6 +69,8 @@ import {
   zCompactSessionBody,
   zCreateAgentBody,
   zDeleteAgentBody,
+  zDeleteSecretBody,
+  zDeleteSecretPath,
   zGetChatHistoryQuery,
   zGetSpanDetailQuery,
   zInterruptSessionBody,
@@ -67,8 +78,12 @@ import {
   zListFileObservabilityQuery,
   zListNetworkObservabilityQuery,
   zListProcessObservabilityQuery,
+  zListSecretsPath,
+  zListSecretsQuery,
   zListSpansQuery,
   zListTracesQuery,
+  zPutSecretBody,
+  zPutSecretPath,
   zSendMessageBody,
   zSubscribeSessionBody,
   zUpdateAgentBody,
@@ -456,4 +471,78 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options?.headers,
     },
+  })
+
+/**
+ * Store or overwrite secrets for a session.
+ *
+ * Creates or overwrites key-value secrets under the session. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each.
+ *
+ */
+export const putSecret = <ThrowOnError extends boolean = false>(
+  options: Options<PutSecretData, ThrowOnError>
+) =>
+  (options.client ?? client).post<PutSecretResponses, PutSecretErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPutSecretBody,
+          path: zPutSecretPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/secret/{sessionID}/put",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete secrets for a session.
+ *
+ * Deletes the specified secret keys for the session. Missing keys are ignored.
+ *
+ */
+export const deleteSecret = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteSecretData, ThrowOnError>
+) =>
+  (options.client ?? client).post<DeleteSecretResponses, DeleteSecretErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zDeleteSecretBody,
+          path: zDeleteSecretPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/secret/{sessionID}/delete",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List secret keys for a session.
+ *
+ * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
+ *
+ */
+export const listSecrets = <ThrowOnError extends boolean = false>(
+  options: Options<ListSecretsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListSecretsResponses, ListSecretsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListSecretsPath,
+          query: zListSecretsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/secret/{sessionID}/list",
+    ...options,
   })

@@ -33,10 +33,19 @@ var agentServeCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.StringFlag{
+			Name:    "openai-api-key",
+			Usage:   "OpenAI API key",
+			Sources: cli.EnvVars("OPENAI_API_KEY"),
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return agent.Serve(ctx, agent.ServiceConfig{
-			ConfigPath: c.String("config"),
+			ConfigPath:   c.String("config"),
+			OpenAIAPIKey: c.String("openai-api-key"),
 		})
 	},
 }
@@ -120,6 +129,46 @@ var agentGatewayCmd = &cli.Command{
 			Usage: "Maximum graceful shutdown period. Use 0 for no timeout.",
 			Value: 15 * time.Second,
 		},
+		&cli.StringFlag{
+			Name:     "openbao-addr",
+			Usage:    "OpenBao server address (e.g. http://openbao:8200)",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:     "openbao-secret-mount-path",
+			Usage:    "OpenBao KV v2 secret engine mount path",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:     "openbao-k8s-auth-role",
+			Usage:    "OpenBao Kubernetes auth role name",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:  "openbao-k8s-auth-mount-path",
+			Usage: "OpenBao Kubernetes auth mount path",
+			Value: "kubernetes",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:  "openbao-k8s-auth-token-path",
+			Usage: "Path to Kubernetes service account JWT for OpenBao auth. Defaults to in-pod path.",
+			Value: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return gateway.Serve(ctx, gateway.Config{
@@ -133,6 +182,11 @@ var agentGatewayCmd = &cli.Command{
 			AgentServerAddress:      c.String("agent-server-address"),
 			AgentSessionTarget:      c.String("agent-session-target"),
 			AgentTraceEndpoint:      c.String("agent-trace-endpoint"),
+			OpenBaoAddr:             c.String("openbao-addr"),
+			OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
+			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
+			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
+			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
 		})
 	},
 }

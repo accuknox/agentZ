@@ -90,3 +90,11 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - envs
+  verbs:
+  - get
+  - list
+  - watch

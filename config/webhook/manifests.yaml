@@ -23,6 +23,26 @@ webhooks:
     resources:
     - agents
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-clawarmor-accuknox-com-v1alpha1-environment
+  failurePolicy: Fail
+  name: menvironment-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - clawarmor.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - envs
+  sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -48,4 +68,25 @@ webhooks:
     - UPDATE
     resources:
     - agents
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-clawarmor-accuknox-com-v1alpha1-environment
+  failurePolicy: Fail
+  name: venvironment-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - clawarmor.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - envs
   sideEffects: None

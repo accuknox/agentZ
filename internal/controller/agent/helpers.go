@@ -129,12 +129,18 @@ func renderConfig(agt *clawarmorv1alpha1.Agent) ([]byte, error) {
 	return data, nil
 }
 
-func configHash(cfgYAML []byte, env []corev1.EnvVar) (string, error) {
+func configHash(cfgYAML []byte, env []corev1.EnvVar, packages []string) (string, error) {
 	envYAML, err := yaml.Marshal(env)
 	if err != nil {
 		return "", fmt.Errorf("marshal env yaml: %w", err)
 	}
-	sum := sha256.Sum256(append(cfgYAML, envYAML...))
+	packageYAML, err := yaml.Marshal(packages)
+	if err != nil {
+		return "", fmt.Errorf("marshal package yaml: %w", err)
+	}
+	hashInput := append(cfgYAML, envYAML...)
+	hashInput = append(hashInput, packageYAML...)
+	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum), nil
 }
 

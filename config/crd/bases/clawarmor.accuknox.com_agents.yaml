@@ -251,6 +251,20 @@ spec:
                   - name
                   type: object
                 type: array
+              environmentRef:
+                description: EnvironmentRef references reusable package and policy configuration.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               image:
                 description: Image is the container image used for the Agent runtime.
                 type: string
@@ -347,14 +361,6 @@ spec:
                 description: NixStoreSize sets the size of the agent-specific nix store PVC.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
-              packages:
-                description: |-
-                  Packages lists nix packages (e.g. "python3", "nodejs_22", "ripgrep")
-                  to install into the agent pod. Each entry is prefixed with nixpkgs#
-                  automatically. Leave empty to skip nix init container bootstrapping.
-                items:
-                  type: string
-                type: array
               resources:
                 description: Resources defines compute resources allocated to the Agent pod.
                 properties:

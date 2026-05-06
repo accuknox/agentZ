@@ -127,11 +127,9 @@ type AgentSpec struct {
 	// +optional
 	Tools ToolsConfig `json:"tools,omitempty"`
 
-	// Packages lists nix packages (e.g. "python3", "nodejs_22", "ripgrep")
-	// to install into the agent pod. Each entry is prefixed with nixpkgs#
-	// automatically. Leave empty to skip nix init container bootstrapping.
+	// EnvironmentRef references reusable package and policy configuration.
 	// +optional
-	Packages []string `json:"packages,omitempty"`
+	EnvironmentRef *corev1.LocalObjectReference `json:"environmentRef,omitempty"`
 
 	// NixStoreSize sets the size of the agent-specific nix store PVC.
 	// +kubebuilder:default="5Gi"

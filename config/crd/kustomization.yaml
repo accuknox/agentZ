@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/clawarmor.accuknox.com_agents.yaml
+- bases/clawarmor.accuknox.com_envs.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 # patches:

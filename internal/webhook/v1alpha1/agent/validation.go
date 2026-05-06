@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package agent
 
 import (
 	"context"
@@ -23,129 +23,30 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 )
 
-// AgentWebhookConfig configures Agent defaulting behavior.
-type AgentWebhookConfig struct {
-	AgentDefaultImage string
-}
-
-// DefaultAgentWebhookConfig returns an AgentWebhookConfig with production defaults.
-func DefaultAgentWebhookConfig() AgentWebhookConfig {
-	return AgentWebhookConfig{
-		AgentDefaultImage: "murtazau/clawarmor-agent:latest",
-	}
-}
-
-// SetupAgentWebhookWithManager registers the webhook for Agent in the manager.
-func SetupAgentWebhookWithManager(mgr ctrl.Manager, cfg AgentWebhookConfig) error {
-	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.Agent{}).
-		WithValidator(&AgentCustomValidator{}).
-		WithDefaulter(&AgentCustomDefaulter{
-			AgentDefaultImage: cfg.AgentDefaultImage,
-		}).
-		Complete()
-}
-
-// +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-agent,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=agents,verbs=create;update,versions=v1alpha1,name=magent-v1alpha1.kb.io,admissionReviewVersions=v1
-
-// AgentCustomDefaulter sets default values for Agent resources.
-//
-// +kubebuilder:object:generate=false
-type AgentCustomDefaulter struct {
-	AgentDefaultImage string
-}
-
-const (
-	defaultCompactionThresholdRatio           = 0.9
-	defaultCompactionHistoryToolResultRatio   = 0.008
-	defaultCompactionKeepRecentRequests       = 2
-	defaultCompactionOversizedToolResultRatio = 0.065
-	defaultMaxHistoryRuns                     = 50
-	defaultTemperature                        = 0.2
-)
-
-// Default applies defaults to an Agent resource.
-func (d *AgentCustomDefaulter) Default(_ context.Context, agt *clawarmorv1alpha1.Agent) error {
-	if agt.Spec.Image == "" {
-		agt.Spec.Image = d.AgentDefaultImage
-	}
-	if agt.Spec.ImagePullPolicy == "" {
-		agt.Spec.ImagePullPolicy = corev1.PullIfNotPresent
-	}
-	if agt.Spec.Compaction.Mode == "" {
-		agt.Spec.Compaction.Mode = clawarmorv1alpha1.CompactionModeSummary
-	}
-	if agt.Spec.Compaction.Enabled == nil {
-		enabled := true
-		agt.Spec.Compaction.Enabled = &enabled
-	}
-	if agt.Spec.Compaction.ThresholdRatio == 0 {
-		agt.Spec.Compaction.ThresholdRatio = defaultCompactionThresholdRatio
-	}
-	if agt.Spec.Compaction.HistoryToolResultRatio == 0 {
-		agt.Spec.Compaction.HistoryToolResultRatio = defaultCompactionHistoryToolResultRatio
-	}
-	if agt.Spec.Compaction.KeepRecentRequests == 0 {
-		agt.Spec.Compaction.KeepRecentRequests = defaultCompactionKeepRecentRequests
-	}
-	if agt.Spec.Compaction.OversizedToolResultRatio == 0 {
-		agt.Spec.Compaction.OversizedToolResultRatio = defaultCompactionOversizedToolResultRatio
-	}
-	if agt.Spec.MaxHistoryRuns == 0 {
-		agt.Spec.MaxHistoryRuns = defaultMaxHistoryRuns
-	}
-	if agt.Spec.Model.Temperature == 0 {
-		agt.Spec.Model.Temperature = defaultTemperature
-	}
-	if agt.Spec.SummaryModel.Temperature == 0 {
-		agt.Spec.SummaryModel.Temperature = defaultTemperature
-	}
-	if agt.Spec.Tools.HostExec.Enabled == nil {
-		enabled := true
-		agt.Spec.Tools.HostExec.Enabled = &enabled
-	}
-	if agt.Spec.Tools.WebFetch.Enabled == nil {
-		enabled := true
-		agt.Spec.Tools.WebFetch.Enabled = &enabled
-	}
-	if agt.Spec.Tools.File.Enabled == nil {
-		enabled := false
-		agt.Spec.Tools.File.Enabled = &enabled
-	}
-	if agt.Spec.Tools.Arxiv.Enabled == nil {
-		enabled := false
-		agt.Spec.Tools.Arxiv.Enabled = &enabled
-	}
-	if agt.Spec.NixStoreSize.IsZero() {
-		agt.Spec.NixStoreSize = resource.MustParse("5Gi")
-	}
-	return nil
-}
-
 // +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-agent,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=agents,verbs=create;update,versions=v1alpha1,name=vagent-v1alpha1.kb.io,admissionReviewVersions=v1
 
-// AgentCustomValidator validates Agent resources.
+// Validator validates Agent resources.
 //
 // +kubebuilder:object:generate=false
-type AgentCustomValidator struct{}
+type Validator struct{}
 
-var (
-	_ admission.Defaulter[*clawarmorv1alpha1.Agent] = &AgentCustomDefaulter{}
-	_ admission.Validator[*clawarmorv1alpha1.Agent] = &AgentCustomValidator{}
-)
+var _ admission.Validator[*clawarmorv1alpha1.Agent] = &Validator{}
+
+// NewValidator builds an Agent validator.
+func NewValidator() *Validator {
+	return &Validator{}
+}
 
 // ValidateCreate validates Agent creation.
-func (v *AgentCustomValidator) ValidateCreate(_ context.Context, agt *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
-	allErrs := v.validateAgent(agt)
+func (v *Validator) ValidateCreate(_ context.Context, agt *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
+	allErrs := validateAgent(agt)
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
@@ -158,8 +59,8 @@ func (v *AgentCustomValidator) ValidateCreate(_ context.Context, agt *clawarmorv
 }
 
 // ValidateUpdate validates Agent updates.
-func (v *AgentCustomValidator) ValidateUpdate(_ context.Context, oldAgt, newAgt *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
-	allErrs := v.validateAgent(newAgt)
+func (v *Validator) ValidateUpdate(_ context.Context, oldAgt, newAgt *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
+	allErrs := validateAgent(newAgt)
 	if oldAgt.Spec.Session.ID != newAgt.Spec.Session.ID {
 		path := field.NewPath("spec").Child("session").Child("id")
 		allErrs = append(allErrs, field.Invalid(
@@ -188,11 +89,11 @@ func (v *AgentCustomValidator) ValidateUpdate(_ context.Context, oldAgt, newAgt 
 }
 
 // ValidateDelete validates Agent deletion.
-func (v *AgentCustomValidator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field.ErrorList {
+func validateAgent(agt *clawarmorv1alpha1.Agent) field.ErrorList {
 	var allErrs field.ErrorList
 	specPath := field.NewPath("spec")
 	sessionPath := specPath.Child("session")
@@ -208,6 +109,13 @@ func (v *AgentCustomValidator) validateAgent(agt *clawarmorv1alpha1.Agent) field
 				"must be a valid UUIDv4",
 			))
 		}
+	}
+
+	if agt.Spec.EnvironmentRef != nil && strings.TrimSpace(agt.Spec.EnvironmentRef.Name) == "" {
+		allErrs = append(allErrs, field.Required(
+			specPath.Child("environmentRef").Child("name"),
+			"field is required when environmentRef is set",
+		))
 	}
 
 	serverPath := specPath.Child("server").Child("address")

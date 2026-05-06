@@ -29,14 +29,15 @@ import (
 	. "github.com/onsi/gomega"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	agentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/agent"
 )
 
 var _ = Describe("Agent Webhook", func() {
 	var (
 		obj       *clawarmorv1alpha1.Agent
 		oldObj    *clawarmorv1alpha1.Agent
-		validator AgentCustomValidator
-		defaulter AgentCustomDefaulter
+		validator *agentwebhook.Validator
+		defaulter *agentwebhook.Defaulter
 	)
 
 	BeforeEach(func() {
@@ -56,6 +57,12 @@ var _ = Describe("Agent Webhook", func() {
 				SummaryModel: clawarmorv1alpha1.SummaryModelConfig{
 					Name: "gpt-5.4-nano",
 				},
+				Compaction: clawarmorv1alpha1.ContextCompactionConfig{
+					Mode:                     clawarmorv1alpha1.CompactionModeSummary,
+					ThresholdRatio:           agentwebhook.DefaultCompactionThresholdRatio,
+					HistoryToolResultRatio:   agentwebhook.DefaultCompactionHistoryToolResultRatio,
+					OversizedToolResultRatio: agentwebhook.DefaultCompactionOversizedToolResultRatio,
+				},
 				Session: clawarmorv1alpha1.SessionConfig{
 					ID:      "550e8400-e29b-41d4-a716-446655440000",
 					Enabled: false,
@@ -63,8 +70,10 @@ var _ = Describe("Agent Webhook", func() {
 			},
 		}
 		oldObj = obj.DeepCopy()
-		validator = AgentCustomValidator{}
-		defaulter = AgentCustomDefaulter{AgentDefaultImage: "murtazau/clawarmor-agent:latest"}
+		validator = agentwebhook.NewValidator()
+		defaulter = agentwebhook.NewDefaulter(agentwebhook.WebhookConfig{
+			AgentDefaultImage: "murtazau/clawarmor-agent:latest",
+		})
 	})
 
 	It("defaults image and pull policy", func() {
@@ -122,6 +131,14 @@ var _ = Describe("Agent Webhook", func() {
 
 	It("rejects create when model name is empty", func() {
 		obj.Spec.Model.Name = ""
+
+		_, err := validator.ValidateCreate(ctx, obj)
+
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("rejects create when environment reference name is empty", func() {
+		obj.Spec.EnvironmentRef = &corev1.LocalObjectReference{}
 
 		_, err := validator.ValidateCreate(ctx, obj)
 

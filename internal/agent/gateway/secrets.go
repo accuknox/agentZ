@@ -25,6 +25,7 @@ const (
 	maxSecretKeyLen   = 128
 	maxSecretValueLen = 49152 // 48 KB
 	maxSecretEntries  = 100
+	sessionSecretPage = 200
 )
 
 // PutSecret handles POST /api/secret/{sessionID}/put.
@@ -427,4 +428,70 @@ func mapOpenBaoError(err error) *apiError {
 		return newAPIError(http.StatusNotFound, "not_found", "secret not found", err)
 	}
 	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+}
+
+func (s *Service) deleteSessionSecrets(ctx context.Context, sessionUUID uuid.UUID) error {
+	keys, err := s.sessionSecretKeys(ctx, sessionUUID)
+	if err != nil {
+		return err
+	}
+
+	for _, key := range keys {
+		path := fmt.Sprintf("%s/%s", sessionUUID.String(), key)
+		if err := s.baoKV.DeleteMetadata(ctx, path); err != nil {
+			if errors.Is(err, baoapi.ErrSecretNotFound) {
+				continue
+			}
+			return err
+		}
+	}
+
+	if err := s.baoKV.DeleteMetadata(ctx, sessionUUID.String()); err != nil {
+		if !errors.Is(err, baoapi.ErrSecretNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) sessionSecretKeys(ctx context.Context, sessionUUID uuid.UUID) ([]string, error) {
+	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, sessionUUID.String())
+	after := ""
+	keys := []string{}
+	for {
+		secret, err := s.bao.Logical().ListPageWithContext(ctx, listPath, after, sessionSecretPage+1)
+		if err != nil {
+			if errors.Is(err, baoapi.ErrSecretNotFound) {
+				return keys, nil
+			}
+			return nil, err
+		}
+		if secret == nil || secret.Data == nil {
+			return keys, nil
+		}
+
+		rawKeys, _ := secret.Data["keys"].([]any)
+		if len(rawKeys) == 0 {
+			return keys, nil
+		}
+
+		page := make([]string, 0, len(rawKeys))
+		for _, raw := range rawKeys {
+			key, ok := raw.(string)
+			if ok && key != "" {
+				page = append(page, key)
+			}
+		}
+		if len(page) == 0 {
+			return keys, nil
+		}
+
+		if len(page) <= sessionSecretPage {
+			keys = append(keys, page...)
+			return keys, nil
+		}
+
+		keys = append(keys, page[:sessionSecretPage]...)
+		after = page[sessionSecretPage-1]
+	}
 }

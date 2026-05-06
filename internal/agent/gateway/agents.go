@@ -227,6 +227,11 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.deleteSessionSecrets(r.Context(), sessionID); err != nil {
+		writeError(w, r, mapOpenBaoError(err))
+		return
+	}
+
 	rows, err := s.queries.GatewayDeleteSession(r.Context(), sessionID)
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("delete session", err))

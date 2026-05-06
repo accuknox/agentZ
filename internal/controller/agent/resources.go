@@ -77,8 +77,8 @@ func (r *Reconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha
 	return nil
 }
 
-func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string) error {
-	desired, err := r.buildDeployment(agt, hash)
+func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string, packages []string) error {
+	desired, err := r.buildDeployment(agt, hash, packages)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) (*corev1.Service
 	}, nil
 }
 
-func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) (*appsv1.Deployment, error) {
+func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, packages []string) (*appsv1.Deployment, error) {
 	port, err := serverPort(agt.Spec.Server.Address)
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 			ReadOnly:  true,
 		})
 	}
-	if len(agt.Spec.Packages) > 0 {
+	if len(packages) > 0 {
 		volumes = append(volumes,
 			corev1.Volume{
 				Name: nixAgentVolume,
@@ -236,7 +236,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 			{Name: nixLinkVolume, MountPath: nixLinkStage},
 		}
 		initEnv := []corev1.EnvVar{
-			{Name: nixPkgEnv, Value: strings.Join(agt.Spec.Packages, ",")},
+			{Name: nixPkgEnv, Value: strings.Join(packages, ",")},
 		}
 
 		if r.Config.SharedNixPVC != "" {
@@ -330,7 +330,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 								"--config",
 								configMountPath,
 							},
-							Env:       r.agentEnv(agt),
+							Env:       r.agentEnv(agt, packages),
 							Resources: agt.Spec.Resources,
 							Ports: []corev1.ContainerPort{
 								{
@@ -356,7 +356,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 	}, nil
 }
 
-func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent) []corev1.EnvVar {
+func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string) []corev1.EnvVar {
 	var env []corev1.EnvVar
 	if !r.sinjectorEnabled() {
 		env = make([]corev1.EnvVar, len(agt.Spec.Env))
@@ -393,7 +393,7 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent) []corev1.EnvVar {
 			env = append(env, corev1.EnvVar{Name: key, Value: forced[key]})
 		}
 	}
-	if len(agt.Spec.Packages) > 0 {
+	if len(packages) > 0 {
 		env = append(env,
 			corev1.EnvVar{
 				Name:  "NIX_PROFILES",

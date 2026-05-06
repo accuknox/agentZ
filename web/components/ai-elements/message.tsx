@@ -71,6 +71,20 @@ const streamdownComponents: Components = {
 
     return <CodeBlock code={code} language={language} showLineNumbers={false} />
   },
+  p: ({ children, className, node: _, ...props }) => (
+    <div className={cn("sd-paragraph", className)} {...props}>
+      {children}
+    </div>
+  ),
+  li: ({ children, className, node: _, ...props }) => (
+    <li
+      {...props}
+      className={cn("py-1 [&>.sd-paragraph]:inline", className)}
+      data-streamdown="list-item"
+    >
+      {children}
+    </li>
+  ),
 }
 
 export const MessageResponse = memo(
@@ -80,7 +94,7 @@ export const MessageResponse = memo(
         "size-full whitespace-pre-wrap break-words",
         "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         "[&_blockquote]:my-[0.0875rem] [&_blockquote]:py-0 [&_blockquote]:pr-3 [&_blockquote]:pl-4",
-        "[&_blockquote_p]:my-0 [&_p]:my-[0.0875rem] [&_pre]:my-[0.0875rem]",
+        "[&_blockquote_.sd-paragraph]:my-0 [&_.sd-paragraph]:my-[0.0875rem] [&_pre]:my-[0.0875rem]",
         "[&_ol]:my-[0.0875rem] [&_ol]:list-decimal [&_ol]:pl-6",
         "[&_ul]:my-[0.0875rem] [&_ul]:list-disc [&_ul]:pl-6",
         "[&_li]:my-0 [&_li]:pl-1",

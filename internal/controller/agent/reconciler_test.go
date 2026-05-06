@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package agent
 
 import (
 	"context"
@@ -44,17 +44,17 @@ var _ = Describe("Agent Controller", func() {
 		ctx        context.Context
 		key        types.NamespacedName
 		name       string
-		reconciler *AgentReconciler
+		reconciler *Reconciler
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		name = fmt.Sprintf("agent-%d", time.Now().UnixNano())
 		key = types.NamespacedName{Name: name, Namespace: namespace}
-		reconciler = &AgentReconciler{
+		reconciler = &Reconciler{
 			Client: k8sClient,
 			Scheme: k8sClient.Scheme(),
-			Config: AgentRuntimeConfig{
+			Config: RuntimeConfig{
 				DefaultImage: "murtazau/clawarmor-agent:latest",
 			},
 		}

@@ -319,6 +319,11 @@ type DeleteAgentRequest struct {
 	SessionId SessionIDInput `json:"session_id"`
 }
 
+// DeleteSecretsRequest defines model for DeleteSecretsRequest.
+type DeleteSecretsRequest struct {
+	Keys []SecretKey `json:"keys"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Code    string        `json:"code"`
@@ -497,6 +502,12 @@ type ListProcessObservabilityResponse_Events_Item struct {
 	union json.RawMessage
 }
 
+// ListSecretsResponse defines model for ListSecretsResponse.
+type ListSecretsResponse struct {
+	Items         []SecretListItem `json:"items"`
+	NextPageToken string           `json:"next_page_token"`
+}
+
 // ListSpansResponse defines model for ListSpansResponse.
 type ListSpansResponse struct {
 	NextPageToken string `json:"next_page_token"`
@@ -614,11 +625,46 @@ type PromptTokensDetails struct {
 	CachedTokens        int32  `json:"cached_tokens"`
 }
 
+// PutSecretsRequest defines model for PutSecretsRequest.
+type PutSecretsRequest struct {
+	Secrets []SecretEntry `json:"secrets"`
+}
+
+// PutSecretsResponse defines model for PutSecretsResponse.
+type PutSecretsResponse struct {
+	// Stored Number of secrets stored.
+	Stored int32 `json:"stored"`
+}
+
 // RequestID Agent request UUID.
 type RequestID = openapi_types.UUID
 
 // RunID Agent run UUID.
 type RunID = openapi_types.UUID
+
+// SecretEntry defines model for SecretEntry.
+type SecretEntry struct {
+	// Key Secret key name. Alphanumeric and underscores only.
+	Key SecretKey `json:"key"`
+
+	// Value Secret value. Max 48 KB.
+	Value SecretValue `json:"value"`
+}
+
+// SecretKey Secret key name. Alphanumeric and underscores only.
+type SecretKey = string
+
+// SecretListItem defines model for SecretListItem.
+type SecretListItem struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// Key Secret key name. Alphanumeric and underscores only.
+	Key        SecretKey `json:"key"`
+	ModifiedAt time.Time `json:"modified_at"`
+}
+
+// SecretValue Secret value. Max 48 KB.
+type SecretValue = string
 
 // SendMessageRequest defines model for SendMessageRequest.
 type SendMessageRequest struct {
@@ -1263,6 +1309,15 @@ type ListTracesParams struct {
 	StartedBefore *StartedBeforeQuery `form:"started_before,omitempty" json:"started_before,omitempty"`
 }
 
+// ListSecretsParams defines parameters for ListSecrets.
+type ListSecretsParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
 // CompactSessionJSONRequestBody defines body for CompactSession for application/json ContentType.
 type CompactSessionJSONRequestBody = SessionActionRequest
 
@@ -1274,6 +1329,12 @@ type DeleteAgentJSONRequestBody = DeleteAgentRequest
 
 // InterruptSessionJSONRequestBody defines body for InterruptSession for application/json ContentType.
 type InterruptSessionJSONRequestBody = SessionActionRequest
+
+// DeleteSecretJSONRequestBody defines body for DeleteSecret for application/json ContentType.
+type DeleteSecretJSONRequestBody = DeleteSecretsRequest
+
+// PutSecretJSONRequestBody defines body for PutSecret for application/json ContentType.
+type PutSecretJSONRequestBody = PutSecretsRequest
 
 // SendMessageJSONRequestBody defines body for SendMessage for application/json ContentType.
 type SendMessageJSONRequestBody = SendMessageRequest
@@ -2178,6 +2239,19 @@ type ClientInterface interface {
 	// ListTraces request
 	ListTraces(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteSecretWithBody request with any body
+	DeleteSecretWithBody(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteSecret(ctx context.Context, sessionID SessionIDPath, body DeleteSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListSecrets request
+	ListSecrets(ctx context.Context, sessionID SessionIDPath, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutSecretWithBody request with any body
+	PutSecretWithBody(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutSecret(ctx context.Context, sessionID SessionIDPath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SendMessageWithBody request with any body
 	SendMessageWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2381,6 +2455,66 @@ func (c *Client) ListSpans(ctx context.Context, params *ListSpansParams, reqEdit
 
 func (c *Client) ListTraces(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListTracesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteSecretWithBody(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSecretRequestWithBody(c.Server, sessionID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteSecret(ctx context.Context, sessionID SessionIDPath, body DeleteSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSecretRequest(c.Server, sessionID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListSecrets(ctx context.Context, sessionID SessionIDPath, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListSecretsRequest(c.Server, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutSecretWithBody(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutSecretRequestWithBody(c.Server, sessionID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutSecret(ctx context.Context, sessionID SessionIDPath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutSecretRequest(c.Server, sessionID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3495,6 +3629,172 @@ func NewListTracesRequest(server string, params *ListTracesParams) (*http.Reques
 	return req, nil
 }
 
+// NewDeleteSecretRequest calls the generic DeleteSecret builder with application/json body
+func NewDeleteSecretRequest(server string, sessionID SessionIDPath, body DeleteSecretJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteSecretRequestWithBody(server, sessionID, "application/json", bodyReader)
+}
+
+// NewDeleteSecretRequestWithBody generates requests for DeleteSecret with any type of body
+func NewDeleteSecretRequestWithBody(server string, sessionID SessionIDPath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/secret/%s/delete", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListSecretsRequest generates requests for ListSecrets
+func NewListSecretsRequest(server string, sessionID SessionIDPath, params *ListSecretsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/secret/%s/list", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutSecretRequest calls the generic PutSecret builder with application/json body
+func NewPutSecretRequest(server string, sessionID SessionIDPath, body PutSecretJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutSecretRequestWithBody(server, sessionID, "application/json", bodyReader)
+}
+
+// NewPutSecretRequestWithBody generates requests for PutSecret with any type of body
+func NewPutSecretRequestWithBody(server string, sessionID SessionIDPath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/secret/%s/put", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewSendMessageRequest calls the generic SendMessage builder with application/json body
 func NewSendMessageRequest(server string, body SendMessageJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3748,6 +4048,19 @@ type ClientWithResponsesInterface interface {
 
 	// ListTracesWithResponse request
 	ListTracesWithResponse(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*ListTracesResp, error)
+
+	// DeleteSecretWithBodyWithResponse request with any body
+	DeleteSecretWithBodyWithResponse(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteSecretResp, error)
+
+	DeleteSecretWithResponse(ctx context.Context, sessionID SessionIDPath, body DeleteSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteSecretResp, error)
+
+	// ListSecretsWithResponse request
+	ListSecretsWithResponse(ctx context.Context, sessionID SessionIDPath, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*ListSecretsResp, error)
+
+	// PutSecretWithBodyWithResponse request with any body
+	PutSecretWithBodyWithResponse(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
+
+	PutSecretWithResponse(ctx context.Context, sessionID SessionIDPath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
 
 	// SendMessageWithBodyWithResponse request with any body
 	SendMessageWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SendMessageResp, error)
@@ -4071,6 +4384,80 @@ func (r ListTracesResp) StatusCode() int {
 	return 0
 }
 
+type DeleteSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListSecretsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListSecretsResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListSecretsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListSecretsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PutSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *PutSecretsResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r PutSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type SendMessageResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4310,6 +4697,49 @@ func (c *ClientWithResponses) ListTracesWithResponse(ctx context.Context, params
 		return nil, err
 	}
 	return ParseListTracesResp(rsp)
+}
+
+// DeleteSecretWithBodyWithResponse request with arbitrary body returning *DeleteSecretResp
+func (c *ClientWithResponses) DeleteSecretWithBodyWithResponse(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteSecretResp, error) {
+	rsp, err := c.DeleteSecretWithBody(ctx, sessionID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteSecretResp(rsp)
+}
+
+func (c *ClientWithResponses) DeleteSecretWithResponse(ctx context.Context, sessionID SessionIDPath, body DeleteSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteSecretResp, error) {
+	rsp, err := c.DeleteSecret(ctx, sessionID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteSecretResp(rsp)
+}
+
+// ListSecretsWithResponse request returning *ListSecretsResp
+func (c *ClientWithResponses) ListSecretsWithResponse(ctx context.Context, sessionID SessionIDPath, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*ListSecretsResp, error) {
+	rsp, err := c.ListSecrets(ctx, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListSecretsResp(rsp)
+}
+
+// PutSecretWithBodyWithResponse request with arbitrary body returning *PutSecretResp
+func (c *ClientWithResponses) PutSecretWithBodyWithResponse(ctx context.Context, sessionID SessionIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSecretResp, error) {
+	rsp, err := c.PutSecretWithBody(ctx, sessionID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutSecretResp(rsp)
+}
+
+func (c *ClientWithResponses) PutSecretWithResponse(ctx context.Context, sessionID SessionIDPath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSecretResp, error) {
+	rsp, err := c.PutSecret(ctx, sessionID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutSecretResp(rsp)
 }
 
 // SendMessageWithBodyWithResponse request with arbitrary body returning *SendMessageResp
@@ -4951,6 +5381,140 @@ func ParseListTracesResp(rsp *http.Response) (*ListTracesResp, error) {
 	return response, nil
 }
 
+// ParseDeleteSecretResp parses an HTTP response from a DeleteSecretWithResponse call
+func ParseDeleteSecretResp(rsp *http.Response) (*DeleteSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListSecretsResp parses an HTTP response from a ListSecretsWithResponse call
+func ParseListSecretsResp(rsp *http.Response) (*ListSecretsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListSecretsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListSecretsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutSecretResp parses an HTTP response from a PutSecretWithResponse call
+func ParsePutSecretResp(rsp *http.Response) (*PutSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest PutSecretsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseSendMessageResp parses an HTTP response from a SendMessageWithResponse call
 func ParseSendMessageResp(rsp *http.Response) (*SendMessageResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5184,6 +5748,15 @@ type ServerInterface interface {
 	// List paginated trace summaries.
 	// (GET /api/list-traces)
 	ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams)
+	// Delete secrets for a session.
+	// (POST /api/secret/{sessionID}/delete)
+	DeleteSecret(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath)
+	// List secret keys for a session.
+	// (GET /api/secret/{sessionID}/list)
+	ListSecrets(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath, params ListSecretsParams)
+	// Store or overwrite secrets for a session.
+	// (POST /api/secret/{sessionID}/put)
+	PutSecret(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath)
 	// Send a user prompt to a session agent.
 	// (POST /api/send-message)
 	SendMessage(w http.ResponseWriter, r *http.Request)
@@ -5271,6 +5844,24 @@ func (_ Unimplemented) ListSpans(w http.ResponseWriter, r *http.Request, params 
 // List paginated trace summaries.
 // (GET /api/list-traces)
 func (_ Unimplemented) ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete secrets for a session.
+// (POST /api/secret/{sessionID}/delete)
+func (_ Unimplemented) DeleteSecret(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List secret keys for a session.
+// (GET /api/secret/{sessionID}/list)
+func (_ Unimplemented) ListSecrets(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath, params ListSecretsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Store or overwrite secrets for a session.
+// (POST /api/secret/{sessionID}/put)
+func (_ Unimplemented) PutSecret(w http.ResponseWriter, r *http.Request, sessionID SessionIDPath) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5897,6 +6488,100 @@ func (siw *ServerInterfaceWrapper) ListTraces(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteSecret operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSecret(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID SessionIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSecret(w, r, sessionID)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSecrets operation middleware
+func (siw *ServerInterfaceWrapper) ListSecrets(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID SessionIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSecretsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSecrets(w, r, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSecret operation middleware
+func (siw *ServerInterfaceWrapper) PutSecret(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID SessionIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSecret(w, r, sessionID)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SendMessage operation middleware
 func (siw *ServerInterfaceWrapper) SendMessage(w http.ResponseWriter, r *http.Request) {
 
@@ -6114,6 +6799,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/list-traces", wrapper.ListTraces)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/secret/{sessionID}/delete", wrapper.DeleteSecret)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/secret/{sessionID}/list", wrapper.ListSecrets)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/secret/{sessionID}/put", wrapper.PutSecret)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/send-message", wrapper.SendMessage)
 	})
 	r.Group(func(r chi.Router) {
@@ -6132,108 +6826,117 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"I9WTEeojSTtl83Xz/wEAAP//C2IMp+euAAA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

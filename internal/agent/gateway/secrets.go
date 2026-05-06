@@ -1,0 +1,430 @@
+package gateway
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+	baoapi "github.com/openbao/openbao/api/v2"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
+
+	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/sinjector"
+)
+
+const (
+	maxSecretKeyLen   = 128
+	maxSecretValueLen = 49152 // 48 KB
+	maxSecretEntries  = 100
+)
+
+// PutSecret handles POST /api/secret/{sessionID}/put.
+func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID gatewayapi.SessionIDPath) {
+	_, sessionUUID, ok := validSessionID(w, r, sessionID.String(), "sessionID")
+	if !ok {
+		return
+	}
+
+	exists, err := s.queries.GatewaySessionExists(r.Context(), sessionUUID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if !exists {
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"session not found",
+			errAgentNotFound,
+		))
+		return
+	}
+
+	var req gatewayapi.PutSecretsRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	if len(req.Secrets) == 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "secrets",
+				Message: "must contain at least one entry",
+			},
+		))
+		return
+	}
+	if len(req.Secrets) > maxSecretEntries {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "secrets",
+				Message: fmt.Sprintf("must contain at most %d entries", maxSecretEntries),
+			},
+		))
+		return
+	}
+
+	fields := make([]gatewayapi.FieldError, 0, len(req.Secrets))
+	for i, entry := range req.Secrets {
+		key := strings.TrimSpace(entry.Key)
+		if key == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("secrets[%d].key", i),
+				Message: "required",
+			})
+			continue
+		}
+		if utf8.RuneCountInString(key) > maxSecretKeyLen {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("secrets[%d].key", i),
+				Message: fmt.Sprintf("must be at most %d characters", maxSecretKeyLen),
+			})
+			continue
+		}
+		if strings.ContainsRune(key, '/') {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("secrets[%d].key", i),
+				Message: "must not contain '/'",
+			})
+			continue
+		}
+		if len(entry.Value) > maxSecretValueLen {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("secrets[%d].value", i),
+				Message: fmt.Sprintf("must be at most %d bytes", maxSecretValueLen),
+			})
+			continue
+		}
+	}
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	ctx := r.Context()
+
+	var stored int
+	for _, entry := range req.Secrets {
+		path := fmt.Sprintf("%s/%s", sessionUUID.String(), strings.TrimSpace(entry.Key))
+		if _, err := s.baoKV.Put(ctx, path, map[string]any{"value": entry.Value}); err != nil {
+			writeError(w, r, mapOpenBaoError(err))
+			return
+		}
+		stored++
+	}
+
+	if err := s.syncAgentEnv(ctx, sessionUUID, req.Secrets, nil); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
+		Stored: int32(stored),
+	})
+}
+
+// DeleteSecret handles POST /api/secret/{sessionID}/delete.
+func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, sessionID gatewayapi.SessionIDPath) {
+	_, sessionUUID, ok := validSessionID(w, r, sessionID.String(), "sessionID")
+	if !ok {
+		return
+	}
+
+	exists, err := s.queries.GatewaySessionExists(r.Context(), sessionUUID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if !exists {
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"session not found",
+			errAgentNotFound,
+		))
+		return
+	}
+
+	var req gatewayapi.DeleteSecretsRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	if len(req.Keys) == 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "keys",
+				Message: "must contain at least one key",
+			},
+		))
+		return
+	}
+	if len(req.Keys) > maxSecretEntries {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "keys",
+				Message: fmt.Sprintf("must contain at most %d keys", maxSecretEntries),
+			},
+		))
+		return
+	}
+
+	fields := make([]gatewayapi.FieldError, 0, len(req.Keys))
+	for i, key := range req.Keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("keys[%d]", i),
+				Message: "required",
+			})
+			continue
+		}
+		if utf8.RuneCountInString(key) > maxSecretKeyLen {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("keys[%d]", i),
+				Message: fmt.Sprintf("must be at most %d characters", maxSecretKeyLen),
+			})
+			continue
+		}
+		if strings.ContainsRune(key, '/') {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("keys[%d]", i),
+				Message: "must not contain '/'",
+			})
+			continue
+		}
+	}
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	ctx := r.Context()
+	for _, key := range req.Keys {
+		path := fmt.Sprintf("%s/%s", sessionUUID.String(), strings.TrimSpace(key))
+		if err := s.baoKV.Delete(ctx, path); err != nil {
+			if !errors.Is(err, baoapi.ErrSecretNotFound) {
+				writeError(w, r, mapOpenBaoError(err))
+				return
+			}
+		}
+		// also delete metadata so the key no longer appears in listings.
+		if err := s.baoKV.DeleteMetadata(ctx, path); err != nil {
+			if !errors.Is(err, baoapi.ErrSecretNotFound) {
+				writeError(w, r, mapOpenBaoError(err))
+				return
+			}
+		}
+	}
+
+	if err := s.syncAgentEnv(ctx, sessionUUID, nil, req.Keys); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// syncAgentEnv updates the Agent CR spec.env by adding placeholder entries
+// for secrets in add and removing entries whose Name matches keys in remove.
+func (s *Service) syncAgentEnv(ctx context.Context, sessionUUID uuid.UUID, add []gatewayapi.SecretEntry, remove []string) error {
+	row, err := s.queries.GatewayGetSession(ctx, sessionUUID)
+	if err != nil {
+		return fmt.Errorf("get session: %w", err)
+	}
+
+	removeSet := make(map[string]struct{}, len(remove))
+	for _, key := range remove {
+		removeSet[strings.TrimSpace(key)] = struct{}{}
+	}
+
+	addSet := make(map[string]string, len(add))
+	for _, entry := range add {
+		key := strings.TrimSpace(entry.Key)
+		addSet[key] = sinjector.PlaceholderPrefix + key
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		agt, err := s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Get(
+			ctx,
+			row.AgentName,
+			metav1.GetOptions{},
+		)
+		if err != nil {
+			return err
+		}
+
+		newEnv := make([]corev1.EnvVar, 0, len(agt.Spec.Env))
+		for _, ev := range agt.Spec.Env {
+			if _, ok := removeSet[ev.Name]; ok {
+				continue
+			}
+			if _, ok := addSet[ev.Name]; ok {
+				continue
+			}
+			newEnv = append(newEnv, ev)
+		}
+
+		keys := make([]string, 0, len(addSet))
+		for key := range addSet {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			newEnv = append(newEnv, corev1.EnvVar{
+				Name:  key,
+				Value: addSet[key],
+			})
+		}
+
+		agt.Spec.Env = newEnv
+		_, err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Update(
+			ctx,
+			agt,
+			metav1.UpdateOptions{},
+		)
+		return err
+	})
+}
+
+// ListSecrets handles GET /api/secret/{sessionID}/list.
+func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, sessionID gatewayapi.SessionIDPath, params gatewayapi.ListSecretsParams) {
+	_, sessionUUID, ok := validSessionID(w, r, sessionID.String(), "sessionID")
+	if !ok {
+		return
+	}
+
+	exists, err := s.queries.GatewaySessionExists(r.Context(), sessionUUID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if !exists {
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"session not found",
+			errAgentNotFound,
+		))
+		return
+	}
+
+	limit := 50
+	if params.Limit != nil {
+		limit = int(*params.Limit)
+	}
+	if limit < 1 || limit > 200 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
+		return
+	}
+
+	after := ""
+	if params.PageToken != nil {
+		after = strings.TrimSpace(*params.PageToken)
+	}
+
+	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, sessionUUID.String())
+	secret, err := s.bao.Logical().ListPageWithContext(r.Context(), listPath, after, limit+1)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "list secrets failed", slog.String("path", listPath), slog.Any("err", err))
+		writeError(w, r, mapOpenBaoError(err))
+		return
+	}
+	if secret == nil || secret.Data == nil {
+		writeJSON(w, http.StatusOK, gatewayapi.ListSecretsResponse{
+			Items:         []gatewayapi.SecretListItem{},
+			NextPageToken: "",
+		})
+		return
+	}
+
+	rawKeys, _ := secret.Data["keys"].([]any)
+	keys := make([]string, 0, len(rawKeys))
+	for _, k := range rawKeys {
+		if s, ok := k.(string); ok {
+			keys = append(keys, s)
+		}
+	}
+
+	rawKeyInfo, _ := secret.Data["key_info"].(map[string]any)
+
+	items := make([]gatewayapi.SecretListItem, 0, len(keys))
+	for _, key := range keys {
+		item := gatewayapi.SecretListItem{
+			Key: key,
+		}
+		if info, ok := rawKeyInfo[key].(map[string]any); ok {
+			if ct, ok := info["created_time"].(string); ok && ct != "" {
+				if t, err := time.Parse(time.RFC3339Nano, ct); err == nil {
+					item.CreatedAt = t
+				}
+			}
+			if ut, ok := info["updated_time"].(string); ok && ut != "" {
+				if t, err := time.Parse(time.RFC3339Nano, ut); err == nil {
+					item.ModifiedAt = t
+				}
+			}
+		}
+		items = append(items, item)
+	}
+
+	resp := gatewayapi.ListSecretsResponse{
+		Items:         items,
+		NextPageToken: "",
+	}
+	if len(items) > limit {
+		resp.Items = items[:limit]
+		resp.NextPageToken = items[limit-1].Key
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func mapOpenBaoError(err error) *apiError {
+	if errors.Is(err, baoapi.ErrSecretNotFound) {
+		return newAPIError(http.StatusNotFound, "not_found", "secret not found", err)
+	}
+	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+}

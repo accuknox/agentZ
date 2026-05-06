@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar"
 import type { ListAgentActionResponse } from "@/data/types"
 import { NavLens } from "./lens"
+import { NavSecrets } from "./secrets"
 
 export function AppSidebar({
   agents,
@@ -32,6 +33,7 @@ export function AppSidebar({
           <Suspense fallback={null}>
             <NavLens />
           </Suspense>
+          <NavSecrets />
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>

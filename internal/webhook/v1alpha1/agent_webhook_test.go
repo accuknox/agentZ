@@ -64,7 +64,7 @@ var _ = Describe("Agent Webhook", func() {
 		}
 		oldObj = obj.DeepCopy()
 		validator = AgentCustomValidator{}
-		defaulter = AgentCustomDefaulter{DefaultImage: "murtazau/clawarmor-agent:latest"}
+		defaulter = AgentCustomDefaulter{AgentDefaultImage: "murtazau/clawarmor-agent:latest"}
 	})
 
 	It("defaults image and pull policy", func() {

@@ -828,6 +828,51 @@ export const zChatHistoryResponse = z.object({
 })
 
 /**
+ * Secret key name. Alphanumeric and underscores only.
+ */
+export const zSecretKey = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9_]+$/)
+
+/**
+ * Secret value. Max 48 KB.
+ */
+export const zSecretValue = z.string().max(49152)
+
+export const zSecretEntry = z.object({
+  key: zSecretKey,
+  value: zSecretValue,
+})
+
+export const zSecretListItem = z.object({
+  key: zSecretKey,
+  created_at: z.iso.datetime(),
+  modified_at: z.iso.datetime(),
+})
+
+export const zPutSecretsRequest = z.object({
+  secrets: z.array(zSecretEntry).max(100),
+})
+
+export const zPutSecretsResponse = z.object({
+  stored: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+})
+
+export const zDeleteSecretsRequest = z.object({
+  keys: z.array(zSecretKey).max(100),
+})
+
+export const zListSecretsResponse = z.object({
+  items: z.array(zSecretListItem),
+  next_page_token: z.string(),
+})
+
+/**
  * Session UUID.
  */
 export const zSessionIdQuery = zSessionId
@@ -1054,3 +1099,39 @@ export const zWatchAgentsBody = zWatchAgentsRequest
  * Stream of agent status changes.
  */
 export const zWatchAgentsResponse = zWatchAgentsEvent
+
+export const zPutSecretBody = zPutSecretsRequest
+
+export const zPutSecretPath = z.object({
+  sessionID: zSessionId,
+})
+
+/**
+ * Secrets stored.
+ */
+export const zPutSecretResponse = zPutSecretsResponse
+
+export const zDeleteSecretBody = zDeleteSecretsRequest
+
+export const zDeleteSecretPath = z.object({
+  sessionID: zSessionId,
+})
+
+/**
+ * Secrets deleted.
+ */
+export const zDeleteSecretResponse = z.void()
+
+export const zListSecretsPath = z.object({
+  sessionID: zSessionId,
+})
+
+export const zListSecretsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated secret keys.
+ */
+export const zListSecretsResponse2 = zListSecretsResponse

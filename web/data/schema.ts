@@ -1,5 +1,19 @@
 import * as z from "zod"
 
+export const secretKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Secret name is required")
+  .max(128, "Secret name must be at most 128 characters")
+  .regex(/^[A-Za-z0-9_]+$/, "Use letters, numbers, and underscores only")
+
+export const secretValueSchema = z.string().max(49152, "Secret value must be at most 48 KB")
+
+export const secretFormSchema = z.object({
+  key: secretKeySchema,
+  value: secretValueSchema,
+})
+
 export const maxSystemPromptChars = 4096
 export const primaryModels = [
   "gpt-5.5",

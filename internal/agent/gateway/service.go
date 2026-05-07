@@ -86,6 +86,12 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
+// SetAPIError stores the structured error details for request logging.
+func (r *statusRecorder) SetAPIError(code string, cause error) {
+	r.apiCode = code
+	r.cause = cause
+}
+
 func (r *statusRecorder) Flush() {
 	flusher, ok := r.ResponseWriter.(http.Flusher)
 	if ok {
@@ -253,11 +259,28 @@ func requestLog(next http.Handler) http.Handler {
 		if rec.apiCode != "" {
 			attrs = append(attrs, slog.String("code", rec.apiCode))
 		}
-		if rec.cause != nil && (rec.status >= http.StatusInternalServerError || rec.status == http.StatusOK) {
+		if rec.cause != nil && shouldLogRequestCause(r.Context(), rec.status) {
 			attrs = append(attrs, slog.Any("err", rec.cause))
+		}
+		if rec.status >= http.StatusInternalServerError {
 			slog.LogAttrs(r.Context(), slog.LevelError, "gateway request completed", attrs...)
+			return
+		}
+		if rec.status >= http.StatusBadRequest &&
+			slog.Default().Enabled(r.Context(), slog.LevelDebug) {
+			slog.LogAttrs(r.Context(), slog.LevelDebug, "gateway request completed", attrs...)
 			return
 		}
 		slog.LogAttrs(r.Context(), slog.LevelInfo, "gateway request completed", attrs...)
 	})
+}
+
+func shouldLogRequestCause(ctx context.Context, status int) bool {
+	if status >= http.StatusInternalServerError || status == http.StatusOK {
+		return true
+	}
+	if status < http.StatusBadRequest {
+		return false
+	}
+	return slog.Default().Enabled(ctx, slog.LevelDebug)
 }

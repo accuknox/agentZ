@@ -708,13 +708,21 @@ export type SecretKey = string
  */
 export type SecretValue = string
 
+/**
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ *
+ */
+export type SecretHost = string
+
 export type SecretEntry = {
   key: SecretKey
   value: SecretValue
+  hosts: Array<SecretHost>
 }
 
 export type SecretListItem = {
   key: SecretKey
+  hosts: Array<SecretHost>
   created_at: string
   modified_at: string
 }

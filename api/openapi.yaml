@@ -446,9 +446,13 @@ paths:
       operationId: putSecret
       summary: Store or overwrite secrets for a session.
       description: >
-        Creates or overwrites key-value secrets under the session.
+        Creates or overwrites key-value secrets under the session. Each secret
+        is bound to one or more hosts and is only injected for matching CONNECT
+        destinations.
         Keys may contain alphanumeric characters and underscores, up to 128
-        characters. Values are limited to 48 KB each.
+        characters. Values are limited to 48 KB each. Hosts may be exact
+        hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6
+        addresses, or IPv4/IPv6 CIDR ranges.
       tags: [secrets]
       parameters:
       - $ref: '#/components/parameters/SessionIDPath'
@@ -2356,6 +2360,15 @@ components:
       maxLength: 49152
       description: Secret value. Max 48 KB.
 
+    SecretHost:
+      type: string
+      minLength: 1
+      maxLength: 253
+      description: >
+        Allowed request host. Use an exact hostname, wildcard hostname with a
+        leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range.
+        Wildcards match any subdomain depth and do not match the apex domain.
+
     SecretEntry:
       type: object
       additionalProperties: false
@@ -2364,7 +2377,13 @@ components:
           $ref: '#/components/schemas/SecretKey'
         value:
           $ref: '#/components/schemas/SecretValue'
-      required: [key, value]
+        hosts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretHost'
+          minItems: 1
+          maxItems: 100
+      required: [key, value, hosts]
 
     SecretListItem:
       type: object
@@ -2372,13 +2391,17 @@ components:
       properties:
         key:
           $ref: '#/components/schemas/SecretKey'
+        hosts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretHost'
         created_at:
           type: string
           format: date-time
         modified_at:
           type: string
           format: date-time
-      required: [key, created_at, modified_at]
+      required: [key, hosts, created_at, modified_at]
 
     PutSecretsRequest:
       type: object

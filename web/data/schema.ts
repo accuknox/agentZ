@@ -1,4 +1,5 @@
 import * as z from "zod"
+import ipaddr from "ipaddr.js"
 
 export const secretKeySchema = z
   .string()
@@ -7,12 +8,88 @@ export const secretKeySchema = z
   .max(128, "Secret name must be at most 128 characters")
   .regex(/^[A-Za-z0-9_]+$/, "Use letters, numbers, and underscores only")
 
-export const secretValueSchema = z.string().max(49152, "Secret value must be at most 48 KB")
+export const secretValueSchema = z
+  .string()
+  .min(1, "Secret value is required")
+  .max(49152, "Secret value must be at most 48 KB")
+
+export const secretHostSchema = z
+  .string()
+  .trim()
+  .min(1, "Host is required")
+  .max(253, "Host must be at most 253 characters")
+  .refine(isSecretHost, "Use a hostname, *.hostname, IP address, or CIDR range")
+
+export const secretHostsInputSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(/[\n,]+/)
+      .map((host) => host.trim())
+      .filter(Boolean)
+  )
+  .pipe(
+    z
+      .array(secretHostSchema)
+      .min(1, "At least one host is required")
+      .max(100, "Use at most 100 hosts")
+      .transform((hosts) => Array.from(new Set(hosts.map(normalizeSecretHost))).sort())
+  )
 
 export const secretFormSchema = z.object({
   key: secretKeySchema,
   value: secretValueSchema,
+  hosts: secretHostsInputSchema,
 })
+
+export const secretFormInputSchema = z.object({
+  key: secretKeySchema,
+  value: secretValueSchema,
+  hosts: z.string().min(1, "At least one host is required"),
+})
+
+const domainLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/
+
+function isSecretHost(value: string) {
+  const host = value.trim()
+  if (isCIDR(host) || isIP(host)) {
+    return true
+  }
+  if (host.startsWith("*.")) {
+    return isDomain(host.slice(2))
+  }
+  return isDomain(host)
+}
+
+function normalizeSecretHost(value: string) {
+  const host = value.trim()
+  if (host.startsWith("*.")) {
+    return `*.${host.slice(2).toLowerCase().replace(/\.$/, "")}`
+  }
+  if (isDomain(host)) {
+    return host.toLowerCase().replace(/\.$/, "")
+  }
+  return host
+}
+
+function isDomain(value: string) {
+  const domain = value.trim().replace(/\.$/, "")
+  if (domain.length === 0 || domain.length > 253 || domain.includes("..")) {
+    return false
+  }
+  if (isIP(domain)) {
+    return false
+  }
+  return domain.split(".").every((label) => domainLabelPattern.test(label))
+}
+
+function isIP(value: string) {
+  return ipaddr.isValid(value)
+}
+
+function isCIDR(value: string) {
+  return ipaddr.isValidCIDR(value)
+}
 
 export const maxSystemPromptChars = 4096
 export const primaryModels = [

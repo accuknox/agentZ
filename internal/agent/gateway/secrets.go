@@ -113,6 +113,13 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID ga
 			})
 			continue
 		}
+		if _, err := sinjector.NormalizeSecretHosts(entry.Hosts); err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("secrets[%d].hosts", i),
+				Message: err.Error(),
+			})
+			continue
+		}
 	}
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -130,7 +137,16 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID ga
 	var stored int
 	for _, entry := range req.Secrets {
 		path := fmt.Sprintf("%s/%s", sessionUUID.String(), strings.TrimSpace(entry.Key))
-		if _, err := s.baoKV.Put(ctx, path, map[string]any{"value": entry.Value}); err != nil {
+		hosts, err := sinjector.NormalizeSecretHosts(entry.Hosts)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		data := map[string]any{
+			"value": entry.Value,
+			"hosts": hosts,
+		}
+		if _, err := s.baoKV.Put(ctx, path, data); err != nil {
 			writeError(w, r, mapOpenBaoError(err))
 			return
 		}
@@ -393,8 +409,14 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, sessionID 
 
 	items := make([]gatewayapi.SecretListItem, 0, len(keys))
 	for _, key := range keys {
+		hosts, err := s.readSecretHosts(r.Context(), sessionUUID, key)
+		if err != nil {
+			writeError(w, r, mapOpenBaoError(err))
+			return
+		}
 		item := gatewayapi.SecretListItem{
-			Key: key,
+			Key:   key,
+			Hosts: hosts,
 		}
 		if info, ok := rawKeyInfo[key].(map[string]any); ok {
 			if ct, ok := info["created_time"].(string); ok && ct != "" {
@@ -452,6 +474,41 @@ func (s *Service) deleteSessionSecrets(ctx context.Context, sessionUUID uuid.UUI
 		}
 	}
 	return nil
+}
+
+func (s *Service) readSecretHosts(ctx context.Context, sessionUUID uuid.UUID, key string) ([]string, error) {
+	path := fmt.Sprintf("%s/%s", sessionUUID.String(), key)
+	secret, err := s.baoKV.Get(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if secret == nil {
+		return nil, baoapi.ErrSecretNotFound
+	}
+	hosts, err := secretDataHosts(secret.Data["hosts"])
+	if err != nil {
+		return nil, err
+	}
+	return hosts, nil
+}
+
+func secretDataHosts(raw any) ([]string, error) {
+	hosts := []string{}
+	switch items := raw.(type) {
+	case []any:
+		for _, item := range items {
+			host, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("secret hosts are invalid")
+			}
+			hosts = append(hosts, host)
+		}
+	case []string:
+		hosts = append(hosts, items...)
+	default:
+		return nil, fmt.Errorf("secret hosts are invalid")
+	}
+	return sinjector.NormalizeSecretHosts(hosts)
 }
 
 func (s *Service) sessionSecretKeys(ctx context.Context, sessionUUID uuid.UUID) ([]string, error) {

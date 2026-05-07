@@ -141,29 +141,48 @@ func validate(cfg Config) error {
 	return nil
 }
 
-func (r resolver) resolve(ctx context.Context, name string) (string, error) {
+func (r resolver) resolve(ctx context.Context, name string) (resolvedSecret, error) {
 	secret, err := r.kv.Get(ctx, fmt.Sprintf("%s/%s", r.sessionID, name))
 	if err != nil {
-		return "", fmt.Errorf("read openbao secret %q: %w", name, err)
+		return resolvedSecret{}, fmt.Errorf("read openbao secret %q: %w", name, err)
 	}
 	if secret == nil {
-		return "", fmt.Errorf("openbao secret %q not found", name)
+		return resolvedSecret{}, fmt.Errorf("openbao secret %q not found", name)
 	}
 	value, ok := secret.Data["value"].(string)
 	if !ok {
-		return "", fmt.Errorf("%w: %s", errBadSecret, name)
+		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}
 	if err := validateSecretValue(value); err != nil {
-		return "", fmt.Errorf("%w: %s", errBadSecret, name)
+		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}
-	return value, nil
+	var hosts []string
+	switch rawHosts := secret.Data["hosts"].(type) {
+	case []any:
+		for _, raw := range rawHosts {
+			host, ok := raw.(string)
+			if !ok {
+				return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
+			}
+			hosts = append(hosts, host)
+		}
+	case []string:
+		hosts = append(hosts, rawHosts...)
+	default:
+		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
+	}
+	hosts, err = NormalizeSecretHosts(hosts)
+	if err != nil {
+		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
+	}
+	return resolvedSecret{value: value, hosts: hosts}, nil
 }
 
-func rewriteRequest(req *http.Request, res secretResolver) *http.Request {
+func rewriteRequest(req *http.Request, res secretResolver, target string) *http.Request {
 	ctx := req.Context()
 
 	if req.URL != nil {
-		path, changed := replacePath(ctx, req.URL.Path, res)
+		path, changed := replacePath(ctx, req.URL.Path, res, target)
 		if changed {
 			req.URL.Path = path
 			req.URL.RawPath = ""
@@ -173,7 +192,7 @@ func rewriteRequest(req *http.Request, res secretResolver) *http.Request {
 		changed = false
 		for key, items := range values {
 			for i, item := range items {
-				next, ok := replacePlaceholders(ctx, item, res)
+				next, ok := replacePlaceholders(ctx, item, res, target)
 				if ok {
 					values[key][i] = next
 					changed = true
@@ -187,7 +206,7 @@ func rewriteRequest(req *http.Request, res secretResolver) *http.Request {
 
 	for key, items := range req.Header {
 		for i, item := range items {
-			next, ok := replaceHeaderValue(ctx, key, item, res)
+			next, ok := replaceHeaderValue(ctx, key, item, res, target)
 			if ok {
 				req.Header[key][i] = next
 			}
@@ -197,14 +216,14 @@ func rewriteRequest(req *http.Request, res secretResolver) *http.Request {
 	return req
 }
 
-func replaceHeaderValue(ctx context.Context, key, value string, res secretResolver) (string, bool) {
+func replaceHeaderValue(ctx context.Context, key, value string, res secretResolver, target string) (string, bool) {
 	if !strings.EqualFold(key, "Authorization") {
-		return replacePlaceholders(ctx, value, res)
+		return replacePlaceholders(ctx, value, res, target)
 	}
 
 	scheme, raw, ok := strings.Cut(value, " ")
 	if !ok || !strings.EqualFold(scheme, "Basic") {
-		return replacePlaceholders(ctx, value, res)
+		return replacePlaceholders(ctx, value, res, target)
 	}
 	raw = strings.TrimSpace(raw)
 	decoded, err := base64.StdEncoding.DecodeString(raw)
@@ -212,7 +231,7 @@ func replaceHeaderValue(ctx context.Context, key, value string, res secretResolv
 		slog.WarnContext(ctx, "failed to decode basic auth header", slog.Any("err", err))
 		return value, false
 	}
-	next, changed := replacePlaceholders(ctx, string(decoded), res)
+	next, changed := replacePlaceholders(ctx, string(decoded), res, target)
 	if !changed {
 		return value, false
 	}

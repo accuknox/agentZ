@@ -187,6 +187,7 @@ export type {
   RequestId,
   RunId,
   SecretEntry,
+  SecretHost,
   SecretKey,
   SecretListItem,
   SecretValue,

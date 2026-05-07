@@ -58,6 +58,20 @@ export function createSecretColumns(
       cell: ({ row }) => <span className="font-mono text-sm">{row.original.key}</span>,
     },
     {
+      accessorKey: "hosts",
+      header: "Hosts",
+      cell: ({ row }) => (
+        <div className="flex max-w-120 flex-wrap gap-x-2 gap-y-0.5 text-xs">
+          {row.original.hosts.map((host, i) => (
+            <span key={host} className="font-mono text-muted-foreground">
+              {i > 0 ? <span className="mr-2 text-border">/</span> : null}
+              {host}
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button
@@ -141,6 +155,7 @@ function SecretActions({
         sessionID={sessionID}
         mode="update"
         secretKey={item.key}
+        hosts={item.hosts}
         putSecretAction={putSecretAction}
         open={editOpen}
         onOpenChangeAction={setEditOpen}

@@ -77,7 +77,7 @@ func (p *proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	case looksLikeHTTP2(peek):
 		relay(clientBuf, upstream)
 	case looksLikeHTTP(peek):
-		p.handleHTTP(ctx, clientBuf, upstream)
+		p.handleHTTP(ctx, clientBuf, upstream, host)
 	default:
 		relay(clientBuf, upstream)
 	}
@@ -118,7 +118,7 @@ func (p *proxy) handleTLS(ctx context.Context, client net.Conn, upstream net.Con
 	tlsClientBuf := &readBufferedConn{Conn: tlsClient, r: tlsBr}
 
 	if looksLikeHTTP(tlsPeek) {
-		p.handleHTTP(ctx, tlsClientBuf, tlsUpstream)
+		p.handleHTTP(ctx, tlsClientBuf, tlsUpstream, host)
 		return
 	}
 
@@ -129,7 +129,7 @@ func (p *proxy) handleTLS(ctx context.Context, client net.Conn, upstream net.Con
 // headers, path, and query params, forwards to upstream, then relays the
 // response back. On 101 Switching Protocols or HTTP/2 preface, it falls back
 // to raw bidirectional copy.
-func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Conn) {
+func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Conn, target string) {
 	clientBr := bufio.NewReader(client)
 	upstreamBr := bufio.NewReader(upstream)
 
@@ -142,7 +142,7 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Co
 			return
 		}
 
-		req = rewriteRequest(req.WithContext(ctx), p.resolver)
+		req = rewriteRequest(req.WithContext(ctx), p.resolver, target)
 
 		if err := req.Write(upstream); err != nil {
 			slog.DebugContext(ctx, "write request failed", slog.Any("err", err))

@@ -25,6 +25,7 @@ import type { DeleteSecretFormState, PutSecretFormState } from "@/data/types"
 
 const columnClassName: Record<string, string> = {
   key: "min-w-48",
+  hosts: "min-w-72",
   created_at: "w-65",
   modified_at: "w-65",
   actions: "w-14",

@@ -853,13 +853,21 @@ export const zSecretKey = z
  */
 export const zSecretValue = z.string().max(49152)
 
+/**
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ *
+ */
+export const zSecretHost = z.string().min(1).max(253)
+
 export const zSecretEntry = z.object({
   key: zSecretKey,
   value: zSecretValue,
+  hosts: z.array(zSecretHost).min(1).max(100),
 })
 
 export const zSecretListItem = z.object({
   key: zSecretKey,
+  hosts: z.array(zSecretHost),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
 })

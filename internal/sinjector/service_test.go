@@ -22,7 +22,7 @@ func TestRewriteRequestRewritesBasicAuth(t *testing.T) {
 		values: map[string]string{"TOKEN": "secret"},
 		calls:  map[string]int{},
 	}
-	got := rewriteRequest(req.WithContext(context.Background()), res)
+	got := rewriteRequest(req.WithContext(context.Background()), res, "example.com:443")
 	value := strings.TrimPrefix(got.Header.Get("Authorization"), "Basic ")
 	decoded, err := base64.StdEncoding.DecodeString(value)
 	if err != nil {

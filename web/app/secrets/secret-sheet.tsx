@@ -4,11 +4,18 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import type { PutSecretFormState } from "@/data/types"
-import { secretFormSchema } from "@/data/schema"
+import { secretFormInputSchema, secretHostSchema } from "@/data/schema"
 import type * as z from "zod"
+import { Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -19,7 +26,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-type SecretFormValues = z.infer<typeof secretFormSchema>
+type SecretFormValues = z.infer<typeof secretFormInputSchema>
 
 type PutSecretAction = (
   sessionID: string,
@@ -31,6 +38,7 @@ export function SecretSheet({
   sessionID,
   mode,
   secretKey,
+  hosts,
   putSecretAction,
   open,
   onOpenChangeAction,
@@ -38,18 +46,22 @@ export function SecretSheet({
   sessionID: string
   mode: "create" | "update"
   secretKey?: string
+  hosts?: string[]
   putSecretAction: PutSecretAction
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }) {
   const [state, action] = React.useActionState(putSecretAction.bind(null, sessionID), {})
   const [isPending, startTransition] = React.useTransition()
+  const [hostDraft, setHostDraft] = React.useState("")
+  const [hostDraftError, setHostDraftError] = React.useState<string>()
 
   const form = useForm<SecretFormValues>({
-    resolver: zodResolver(secretFormSchema),
+    resolver: zodResolver(secretFormInputSchema),
     defaultValues: {
       key: secretKey ?? "",
       value: "",
+      hosts: hosts?.join("\n") ?? "",
     },
   })
 
@@ -62,17 +74,19 @@ export function SecretSheet({
 
   React.useEffect(() => {
     if (open) {
+      const nextHosts = hosts ?? []
       form.reset({
         key: secretKey ?? "",
         value: "",
+        hosts: nextHosts.join("\n"),
       })
     }
-  }, [open, secretKey, form])
+  }, [open, secretKey, hosts, form])
 
   React.useEffect(() => {
     if (state.error?.errors) {
       for (const err of state.error.errors) {
-        if (err.field === "key" || err.field === "value") {
+        if (err.field === "key" || err.field === "value" || err.field === "hosts") {
           form.setError(err.field, { type: "server", message: err.message })
         }
       }
@@ -80,10 +94,53 @@ export function SecretSheet({
   }, [state.error, form])
 
   function onSubmit(data: SecretFormValues) {
+    if (hostDraft.trim() !== "") {
+      setHostDraftError("Add or clear the host before submitting")
+      return
+    }
+
     const formData = new FormData()
+    formData.append("mode", mode)
     formData.append("key", data.key)
     formData.append("value", data.value)
+    formData.append("hosts", data.hosts)
     startTransition(() => action(formData))
+  }
+
+  function addHost() {
+    const parsed = secretHostSchema.safeParse(hostDraft)
+    if (!parsed.success) {
+      setHostDraftError(parsed.error.issues[0]?.message ?? "Host is invalid")
+      return
+    }
+
+    const host = normalizeHost(parsed.data)
+    const hosts = parseHostsValue(form.getValues("hosts"))
+    const nextHosts = Array.from(new Set([...hosts, host])).sort()
+    setHostDraft("")
+    setHostDraftError(undefined)
+    form.setValue("hosts", nextHosts.join("\n"), {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.clearErrors("hosts")
+  }
+
+  function removeHost(host: string) {
+    const hosts = parseHostsValue(form.getValues("hosts"))
+    const nextHosts = hosts.filter((item) => item !== host)
+    form.setValue("hosts", nextHosts.join("\n"), {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }
+
+  function onSheetOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      setHostDraft("")
+      setHostDraftError(undefined)
+    }
+    onOpenChangeAction(nextOpen)
   }
 
   const title = mode === "create" ? "New secret" : "Update secret"
@@ -94,17 +151,14 @@ export function SecretSheet({
   const submitLabel = mode === "create" ? "Create secret" : "Update secret"
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChangeAction}>
-      <SheetContent className="h-full sm:max-w-sm">
+    <Sheet open={open} onOpenChange={onSheetOpenChange}>
+      <SheetContent className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!">
         <SheetHeader className="shrink-0">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
-        >
-          <FieldGroup className="flex-1 min-h-0">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col gap-4 p-4">
+          <FieldGroup>
             <Controller
               name="key"
               control={form.control}
@@ -127,10 +181,76 @@ export function SecretSheet({
               )}
             />
             <Controller
+              name="hosts"
+              control={form.control}
+              render={({ field, fieldState }) => {
+                const hostList = parseHostsValue(field.value)
+
+                return (
+                  <Field data-invalid={fieldState.invalid || Boolean(hostDraftError)}>
+                    <FieldLabel htmlFor="secret-hosts">Hosts</FieldLabel>
+                    <FieldDescription className="text-muted-foreground/80">
+                      Exact host, wildcard host, IP, or CIDR. Wildcards match subdomains.
+                    </FieldDescription>
+                    <input type="hidden" name={field.name} ref={field.ref} value={field.value} />
+                    <InputGroup className="h-9">
+                      <InputGroupInput
+                        id="secret-hosts"
+                        value={hostDraft}
+                        onBlur={field.onBlur}
+                        onChange={(event) => {
+                          setHostDraft(event.target.value)
+                          setHostDraftError(undefined)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") {
+                            return
+                          }
+                          event.preventDefault()
+                          addHost()
+                        }}
+                        placeholder="api.example.com, *.example.com, 10.0.0.0/24"
+                        className="font-mono"
+                        aria-invalid={fieldState.invalid || Boolean(hostDraftError)}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton onClick={addHost} aria-label="Add host">
+                          <Plus />
+                          Add
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    {hostList.length > 0 ? (
+                      <div className="overflow-hidden rounded-md border">
+                        {hostList.map((host) => (
+                          <div
+                            key={host}
+                            className="flex h-8 items-center justify-between gap-3 border-b px-2.5 last:border-b-0"
+                          >
+                            <span className="truncate font-mono text-sm">{host}</span>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+                              onClick={() => removeHost(host)}
+                              aria-label={`Remove ${host}`}
+                            >
+                              <X data-icon="inline-end" size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {hostDraftError ? <FieldError errors={[{ message: hostDraftError }]} /> : null}
+                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  </Field>
+                )
+              }}
+            />
+            <Controller
               name="value"
               control={form.control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid} className="flex-1 min-h-0">
+                <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="secret-value">Value</FieldLabel>
                   <Textarea
                     id="secret-value"
@@ -140,7 +260,7 @@ export function SecretSheet({
                     onBlur={field.onBlur}
                     onChange={field.onChange}
                     placeholder="Enter secret value..."
-                    className="min-h-0 flex-1 resize-none font-mono"
+                    className="min-h-32 resize-y font-mono"
                     aria-invalid={fieldState.invalid}
                   />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
@@ -151,7 +271,9 @@ export function SecretSheet({
           {(() => {
             if (!state.error) return null
             const fieldErrors =
-              state.error.errors?.filter((e) => e.field === "key" || e.field === "value") ?? []
+              state.error.errors?.filter(
+                (e) => e.field === "key" || e.field === "value" || e.field === "hosts"
+              ) ?? []
             const hasGeneralError =
               !state.error.errors || state.error.errors.length > fieldErrors.length
             if (!hasGeneralError) return null
@@ -171,4 +293,22 @@ export function SecretSheet({
       </SheetContent>
     </Sheet>
   )
+}
+
+function normalizeHost(value: string) {
+  const host = value.trim()
+  if (host.startsWith("*.")) {
+    return `*.${host.slice(2).toLowerCase().replace(/\.$/, "")}`
+  }
+  if (host.includes(":") || host.includes("/")) {
+    return host
+  }
+  return host.toLowerCase().replace(/\.$/, "")
+}
+
+function parseHostsValue(value: string) {
+  return value
+    .split("\n")
+    .map((host) => host.trim())
+    .filter(Boolean)
 }

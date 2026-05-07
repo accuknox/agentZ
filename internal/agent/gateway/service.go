@@ -70,6 +70,8 @@ type Service struct {
 	mu             sync.Mutex
 	consumers      map[string]struct{}
 	sessionWaiters map[string]map[chan struct{}]struct{}
+	backendMu      sync.Mutex
+	backends       map[string]*backendClient
 }
 
 type statusRecorder struct {
@@ -178,7 +180,9 @@ func Serve(ctx context.Context, cfg Config) error {
 		k8sClient:      k8sClient,
 		consumers:      make(map[string]struct{}),
 		sessionWaiters: make(map[string]map[chan struct{}]struct{}),
+		backends:       make(map[string]*backendClient),
 	}
+	defer svc.closeBackendClients()
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

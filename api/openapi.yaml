@@ -15,6 +15,8 @@ tags:
   description: Trace, span, and OS observability APIs.
 - name: secrets
   description: Session secret management APIs.
+- name: environments
+  description: Environment resource management APIs.
 
 paths:
   /api/chat-history:
@@ -522,6 +524,102 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/environment/list:
+    get:
+      operationId: listEnvironments
+      summary: List paginated Environment resources.
+      tags: [environments]
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated environments.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEnvironmentsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/environment/create:
+    post:
+      operationId: createEnvironment
+      summary: Create an Environment resource.
+      tags: [environments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEnvironmentRequest'
+      responses:
+        '201':
+          description: Environment created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Environment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/environment/delete:
+    post:
+      operationId: deleteEnvironment
+      summary: Delete an Environment resource.
+      tags: [environments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteEnvironmentRequest'
+      responses:
+        '204':
+          description: Environment deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/environment/update/{name}:
+    post:
+      operationId: updateEnvironment
+      summary: Update an Environment resource.
+      description: >
+        Updates the packages list for an existing Environment. The name in the
+        path identifies the Environment.
+      tags: [environments]
+      parameters:
+      - $ref: '#/components/parameters/EnvironmentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEnvironmentRequest'
+      responses:
+        '200':
+          description: Environment updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Environment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   parameters:
     SessionIDQuery:
@@ -539,6 +637,14 @@ components:
       description: Session UUID.
       schema:
         $ref: '#/components/schemas/SessionID'
+
+    EnvironmentNamePath:
+      name: name
+      in: path
+      required: true
+      description: Environment name.
+      schema:
+        $ref: '#/components/schemas/EnvironmentName'
 
     SessionIDFilterQuery:
       name: session_id
@@ -733,6 +839,13 @@ components:
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
 
+    EnvironmentName:
+      type: string
+      minLength: 1
+      maxLength: 32
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+      description: Environment resource name.
+
     Error:
       type: object
       additionalProperties: false
@@ -846,6 +959,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        environmentName:
+          $ref: '#/components/schemas/EnvironmentName'
         systemPrompt:
           type: string
           maxLength: 4096
@@ -883,6 +998,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        environmentName:
+          $ref: '#/components/schemas/EnvironmentName'
         systemPrompt:
           type: string
           maxLength: 4096
@@ -897,7 +1014,7 @@ components:
           $ref: '#/components/schemas/CreateAgentModel'
         tools:
           $ref: '#/components/schemas/CreateAgentTools'
-      required: [name, model]
+      required: [name, environmentName, model]
 
     DeleteAgentRequest:
       type: object
@@ -915,6 +1032,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        environmentName:
+          $ref: '#/components/schemas/EnvironmentName'
         systemPrompt:
           type: string
           maxLength: 4096
@@ -928,6 +1047,7 @@ components:
           $ref: '#/components/schemas/UpdateAgentModel'
         tools:
           $ref: '#/components/schemas/UpdateAgentTools'
+      required: [environmentName]
 
     CreateAgentCompaction:
       type: object
@@ -2304,3 +2424,72 @@ components:
         next_page_token:
           type: string
       required: [items, next_page_token]
+
+    Environment:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/EnvironmentName'
+        packages:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        created_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: false
+          properties:
+            package_count:
+              type: integer
+              format: int32
+              minimum: 0
+          required: [package_count]
+      required: [name, packages, created_at, metadata]
+
+    ListEnvironmentsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        environments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Environment'
+        next_page_token:
+          type: string
+      required: [environments, next_page_token]
+
+    CreateEnvironmentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/EnvironmentName'
+        packages:
+          type: array
+          items:
+            type: string
+            minLength: 1
+      required: [name]
+
+    DeleteEnvironmentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/EnvironmentName'
+      required: [name]
+
+    UpdateEnvironmentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        packages:
+          type: array
+          items:
+            type: string
+            minLength: 1
+      required: [packages]

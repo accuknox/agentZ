@@ -17,7 +17,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
 	baoapi "github.com/openbao/openbao/api/v2"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/agent/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
 )
@@ -54,13 +58,14 @@ type Config struct {
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
-	ctx      context.Context
-	resolver *resolver
-	store    *valkeyStore
-	queries  gatewaydb.Querier
-	cfg      Config
-	bao      *baoapi.Client
-	baoKV    *baoapi.KVv2
+	ctx       context.Context
+	resolver  *resolver
+	store     *valkeyStore
+	queries   gatewaydb.Querier
+	cfg       Config
+	bao       *baoapi.Client
+	baoKV     *baoapi.KVv2
+	k8sClient ctrlclient.Client
 
 	mu             sync.Mutex
 	consumers      map[string]struct{}
@@ -116,6 +121,19 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	defer resolver.Close()
 
+	scheme := runtime.NewScheme()
+	if err := clawarmorv1alpha1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add clawarmor scheme: %w", err)
+	}
+	kubeCfg, err := ctrlconfig.GetConfig()
+	if err != nil {
+		return fmt.Errorf("load kube config: %w", err)
+	}
+	k8sClient, err := ctrlclient.New(kubeCfg, ctrlclient.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("create k8s client: %w", err)
+	}
+
 	store, err := newValkeyStore(cfg.ValkeyAddr, defaultRunTTL)
 	if err != nil {
 		return err
@@ -157,6 +175,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		cfg:            cfg,
 		bao:            baoClient,
 		baoKV:          baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		k8sClient:      k8sClient,
 		consumers:      make(map[string]struct{}),
 		sessionWaiters: make(map[string]map[chan struct{}]struct{}),
 	}

@@ -34,8 +34,16 @@ export const agentNameSchema = z
   .max(32, "Agent name must be at most 32 characters")
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
 
+export const environmentNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Environment name is required")
+  .max(32, "Environment name must be at most 32 characters")
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+
 export const identitySchema = z.object({
   name: agentNameSchema,
+  environmentName: environmentNameSchema,
   systemPrompt: z.string().max(maxSystemPromptChars, "System prompt is too long"),
 })
 
@@ -93,6 +101,11 @@ export const toolsSchema = z.object({
   webFetch: z.boolean(),
   file: z.boolean(),
   arxiv: z.boolean(),
+})
+
+export const createEnvironmentFormSchema = z.object({
+  name: environmentNameSchema,
+  packages: z.array(z.string()),
 })
 
 export const createAgentFormSchema = z

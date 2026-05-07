@@ -14,7 +14,7 @@ export function NavUser({
       <SidebarMenuItem>
         <SidebarMenuButton size="lg">
           <Avatar className="h-8 w-8 rounded-lg">
-            <AvatarFallback className="rounded-lg bg-transparent">CN</AvatarFallback>
+            <AvatarFallback className="rounded-lg bg-transparent">MU</AvatarFallback>
           </Avatar>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-medium">{user.name}</span>

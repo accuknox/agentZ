@@ -11,9 +11,15 @@ import type {
   CreateAgentData,
   CreateAgentErrors,
   CreateAgentResponses,
+  CreateEnvironmentData,
+  CreateEnvironmentErrors,
+  CreateEnvironmentResponses,
   DeleteAgentData,
   DeleteAgentErrors,
   DeleteAgentResponses,
+  DeleteEnvironmentData,
+  DeleteEnvironmentErrors,
+  DeleteEnvironmentResponses,
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
@@ -29,6 +35,9 @@ import type {
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
+  ListEnvironmentsData,
+  ListEnvironmentsErrors,
+  ListEnvironmentsResponses,
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
@@ -60,6 +69,9 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateEnvironmentData,
+  UpdateEnvironmentErrors,
+  UpdateEnvironmentResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
@@ -68,13 +80,16 @@ import type {
 import {
   zCompactSessionBody,
   zCreateAgentBody,
+  zCreateEnvironmentBody,
   zDeleteAgentBody,
+  zDeleteEnvironmentBody,
   zDeleteSecretBody,
   zDeleteSecretPath,
   zGetChatHistoryQuery,
   zGetSpanDetailQuery,
   zInterruptSessionBody,
   zListAgentsQuery,
+  zListEnvironmentsQuery,
   zListFileObservabilityQuery,
   zListNetworkObservabilityQuery,
   zListProcessObservabilityQuery,
@@ -88,6 +103,8 @@ import {
   zSubscribeSessionBody,
   zUpdateAgentBody,
   zUpdateAgentPath,
+  zUpdateEnvironmentBody,
+  zUpdateEnvironmentPath,
   zWatchAgentsBody,
 } from "./zod.gen"
 
@@ -545,4 +562,107 @@ export const listSecrets = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     url: "/api/secret/{sessionID}/list",
     ...options,
+  })
+
+/**
+ * List paginated Environment resources.
+ */
+export const listEnvironments = <ThrowOnError extends boolean = false>(
+  options?: Options<ListEnvironmentsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListEnvironmentsResponses, ListEnvironmentsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListEnvironmentsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/environment/list",
+    ...options,
+  })
+
+/**
+ * Create an Environment resource.
+ */
+export const createEnvironment = <ThrowOnError extends boolean = false>(
+  options: Options<CreateEnvironmentData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateEnvironmentResponses,
+    CreateEnvironmentErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateEnvironmentBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/environment/create",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an Environment resource.
+ */
+export const deleteEnvironment = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteEnvironmentData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    DeleteEnvironmentResponses,
+    DeleteEnvironmentErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zDeleteEnvironmentBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/environment/delete",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Update an Environment resource.
+ *
+ * Updates the packages list for an existing Environment. The name in the path identifies the Environment.
+ *
+ */
+export const updateEnvironment = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateEnvironmentData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    UpdateEnvironmentResponses,
+    UpdateEnvironmentErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateEnvironmentBody,
+          path: zUpdateEnvironmentPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/environment/update/{name}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })

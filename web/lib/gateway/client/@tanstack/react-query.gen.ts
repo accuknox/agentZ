@@ -6,12 +6,15 @@ import { client } from "../client.gen"
 import {
   compactSession,
   createAgent,
+  createEnvironment,
   deleteAgent,
+  deleteEnvironment,
   deleteSecret,
   getChatHistory,
   getSpanDetail,
   interruptSession,
   listAgents,
+  listEnvironments,
   listFileObservability,
   listNetworkObservability,
   listProcessObservability,
@@ -22,6 +25,7 @@ import {
   putSecret,
   sendMessage,
   updateAgent,
+  updateEnvironment,
 } from "../sdk.gen"
 import type {
   CompactSessionData,
@@ -30,9 +34,15 @@ import type {
   CreateAgentData,
   CreateAgentError,
   CreateAgentResponse,
+  CreateEnvironmentData,
+  CreateEnvironmentError,
+  CreateEnvironmentResponse,
   DeleteAgentData,
   DeleteAgentError,
   DeleteAgentResponse,
+  DeleteEnvironmentData,
+  DeleteEnvironmentError,
+  DeleteEnvironmentResponse,
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
@@ -48,6 +58,9 @@ import type {
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
+  ListEnvironmentsData,
+  ListEnvironmentsError,
+  ListEnvironmentsResponse2,
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
@@ -75,6 +88,9 @@ import type {
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
+  UpdateEnvironmentData,
+  UpdateEnvironmentError,
+  UpdateEnvironmentResponse,
 } from "../types.gen"
 
 export type QueryKey<TOptions extends Options> = [
@@ -547,3 +563,112 @@ export const listSecretsOptions = (options: Options<ListSecretsData>) =>
     },
     queryKey: listSecretsQueryKey(options),
   })
+
+export const listEnvironmentsQueryKey = (options?: Options<ListEnvironmentsData>) =>
+  createQueryKey("listEnvironments", options)
+
+/**
+ * List paginated Environment resources.
+ */
+export const listEnvironmentsOptions = (options?: Options<ListEnvironmentsData>) =>
+  queryOptions<
+    ListEnvironmentsResponse2,
+    ListEnvironmentsError,
+    ListEnvironmentsResponse2,
+    ReturnType<typeof listEnvironmentsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listEnvironments({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listEnvironmentsQueryKey(options),
+  })
+
+/**
+ * Create an Environment resource.
+ */
+export const createEnvironmentMutation = (
+  options?: Partial<Options<CreateEnvironmentData>>
+): UseMutationOptions<
+  CreateEnvironmentResponse,
+  CreateEnvironmentError,
+  Options<CreateEnvironmentData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateEnvironmentResponse,
+    CreateEnvironmentError,
+    Options<CreateEnvironmentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createEnvironment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete an Environment resource.
+ */
+export const deleteEnvironmentMutation = (
+  options?: Partial<Options<DeleteEnvironmentData>>
+): UseMutationOptions<
+  DeleteEnvironmentResponse,
+  DeleteEnvironmentError,
+  Options<DeleteEnvironmentData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteEnvironmentResponse,
+    DeleteEnvironmentError,
+    Options<DeleteEnvironmentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteEnvironment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Update an Environment resource.
+ *
+ * Updates the packages list for an existing Environment. The name in the path identifies the Environment.
+ *
+ */
+export const updateEnvironmentMutation = (
+  options?: Partial<Options<UpdateEnvironmentData>>
+): UseMutationOptions<
+  UpdateEnvironmentResponse,
+  UpdateEnvironmentError,
+  Options<UpdateEnvironmentData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateEnvironmentResponse,
+    UpdateEnvironmentError,
+    Options<UpdateEnvironmentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateEnvironment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}

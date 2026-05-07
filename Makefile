@@ -80,7 +80,8 @@ run-manager:
 		--manager-openbao-addr=http://localhost:8200 \
 		--manager-openbao-k8s-auth-role=clawarmor-manager \
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
-		--sinjector-ca-secret-name=sinjector
+		--sinjector-ca-secret-name=sinjector \
+		--nix-store-pvc=clawarmor-nix-store
 
 # Run session service
 .PHONY: run-session-service

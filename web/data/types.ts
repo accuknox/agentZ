@@ -1,5 +1,11 @@
 import type * as z from "zod"
-import type { Agent, ChatHistoryResponse, Error, ListAgent } from "@/lib/gateway/client"
+import type {
+  Agent,
+  ChatHistoryResponse,
+  Environment,
+  Error,
+  ListAgent,
+} from "@/lib/gateway/client"
 import type {
   compactionSchema,
   createAgentFormSchema,
@@ -287,6 +293,28 @@ export type CreateAgentFormState = {
 }
 
 export type DeleteAgentFormState = {
+  error?: Error
+}
+
+export type ListEnvironmentActionResponse =
+  | {
+      environments: Environment[]
+      nextPageToken: string
+      hasNextPage: boolean
+      error: undefined
+    }
+  | {
+      environments: undefined
+      nextPageToken?: undefined
+      hasNextPage?: undefined
+      error: Error
+    }
+
+export type DeleteEnvironmentFormState = {
+  error?: Error
+}
+
+export type CreateEnvironmentFormState = {
   error?: Error
 }
 

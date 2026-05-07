@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
 
@@ -77,6 +78,12 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name, mode, fields := validateCreateAgentRequest(req)
+	envFields, err := s.validateAgentEnvironmentName(r.Context(), req.EnvironmentName)
+	fields = append(fields, envFields...)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -133,6 +140,31 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, sessionID 
 	if !ok {
 		return
 	}
+	if fields := validateUpdateAgentRequest(req); len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+	envFields, err := s.validateAgentEnvironmentName(r.Context(), req.EnvironmentName)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if len(envFields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			envFields...,
+		))
+		return
+	}
 	if !updateAgentRequestHasChanges(req) {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -143,16 +175,6 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, sessionID 
 				Field:   "body",
 				Message: "must include at least one mutable field",
 			},
-		))
-		return
-	}
-	if fields := validateUpdateAgentRequest(req); len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
 		))
 		return
 	}
@@ -605,6 +627,46 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, gate
 	return name, mode, fields
 }
 
+func validateAgentEnvironmentNameField(fields []gatewayapi.FieldError, name string) []gatewayapi.FieldError {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return append(fields, gatewayapi.FieldError{
+			Field: "environmentName", Message: "required",
+		})
+	}
+	if len(name) > 32 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "environmentName", Message: "must be at most 32 characters",
+		})
+	}
+	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "environmentName", Message: "must be a valid DNS label",
+		})
+	}
+	return fields
+}
+
+func (s *Service) validateAgentEnvironmentName(ctx context.Context, name gatewayapi.EnvironmentName) ([]gatewayapi.FieldError, error) {
+	fields := validateAgentEnvironmentNameField(nil, name)
+	if len(fields) > 0 {
+		return fields, nil
+	}
+
+	var env clawarmorv1alpha1.Environment
+	key := types.NamespacedName{Namespace: s.cfg.Namespace, Name: name}
+	if err := s.k8sClient.Get(ctx, key, &env); err != nil {
+		if apierrors.IsNotFound(err) {
+			return []gatewayapi.FieldError{{
+				Field:   "environmentName",
+				Message: "environment not found",
+			}}, nil
+		}
+		return nil, fmt.Errorf("get environment %q: %w", name, err)
+	}
+	return nil, nil
+}
+
 func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sessionID uuid.UUID, name string, mode gatewayapi.CompactionMode) *clawarmorv1alpha1.Agent {
 	specMode := clawarmorv1alpha1.CompactionModeSummary
 	if mode == gatewayapi.Truncate {
@@ -677,6 +739,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sess
 				Enabled:       true,
 				TraceEndpoint: s.cfg.AgentTraceEndpoint,
 			},
+			EnvironmentRef: &corev1.LocalObjectReference{
+				Name: req.EnvironmentName,
+			},
 		},
 	}
 
@@ -715,6 +780,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, sess
 
 func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 	if req.Env != nil || req.SystemPrompt != nil || req.MaxHistoryRuns != nil {
+		return true
+	}
+	if strings.TrimSpace(req.EnvironmentName) != "" {
 		return true
 	}
 	if req.Compaction != nil {
@@ -851,6 +919,9 @@ func applyUpdateAgentRequest(agt *clawarmorv1alpha1.Agent, req gatewayapi.Update
 	if req.MaxHistoryRuns != nil {
 		agt.Spec.MaxHistoryRuns = int(*req.MaxHistoryRuns)
 	}
+	if strings.TrimSpace(req.EnvironmentName) != "" {
+		agt.Spec.EnvironmentRef = &corev1.LocalObjectReference{Name: req.EnvironmentName}
+	}
 	if req.Compaction != nil {
 		applyUpdateAgentCompaction(&agt.Spec.Compaction, req.Compaction)
 	}
@@ -953,6 +1024,9 @@ func configurationFromAgent(agt *clawarmorv1alpha1.Agent) gatewayapi.AgentConfig
 	}
 	if agt.Spec.SystemPrompt != "" {
 		cfg.SystemPrompt = &agt.Spec.SystemPrompt
+	}
+	if agt.Spec.EnvironmentRef != nil {
+		cfg.EnvironmentName = &agt.Spec.EnvironmentRef.Name
 	}
 
 	maxHistoryRuns := int32(agt.Spec.MaxHistoryRuns)

@@ -6,6 +6,7 @@ import { createAgentFormSchema } from "@/data/schema"
 export const defaultAgentWizardValues: AgentWizardValues = {
   identity: {
     name: "",
+    environmentName: "",
     systemPrompt: "",
   },
   compaction: {
@@ -35,6 +36,7 @@ export const defaultAgentWizardValues: AgentWizardValues = {
 export function agentFormValues(formData: FormData) {
   return {
     name: formData.get("name"),
+    environmentName: formData.get("environmentName"),
     systemPrompt: formData.get("systemPrompt") ?? "",
     compactionMode: formData.get("compactionMode"),
     thresholdRatio: formData.get("thresholdRatio"),
@@ -77,6 +79,7 @@ export function agentWizardValues(agent: ListAgent): AgentWizardValues {
   return {
     identity: {
       name: agent.name,
+      environmentName: config.environmentName ?? defaults.identity.environmentName,
       systemPrompt: config.systemPrompt ?? defaults.identity.systemPrompt,
     },
     compaction: {
@@ -108,6 +111,7 @@ export function agentWizardValues(agent: ListAgent): AgentWizardValues {
 
 function agentConfigurationRequest(data: CreateAgentFormValues): Omit<CreateAgentRequest, "name"> {
   const body: Omit<CreateAgentRequest, "name"> = {
+    environmentName: data.environmentName,
     systemPrompt: data.systemPrompt,
     compaction: {
       mode: data.compactionMode,

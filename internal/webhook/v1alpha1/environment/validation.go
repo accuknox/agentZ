@@ -18,6 +18,7 @@ package environment
 
 import (
 	"context"
+	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -26,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	"github.com/accuknox/clawarmor/internal/envhost"
 )
 
 var log = logf.Log.WithName("environment-resource")
@@ -47,13 +49,13 @@ func NewValidator(c client.Client) *Validator {
 }
 
 // ValidateCreate validates Environment creation.
-func (v *Validator) ValidateCreate(_ context.Context, _ *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
-	return nil, nil
+func (v *Validator) ValidateCreate(_ context.Context, env *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
+	return nil, validateAllowedHosts(env)
 }
 
 // ValidateUpdate validates Environment updates.
-func (v *Validator) ValidateUpdate(_ context.Context, _, _ *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
-	return nil, nil
+func (v *Validator) ValidateUpdate(_ context.Context, _, newEnv *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
+	return nil, validateAllowedHosts(newEnv)
 }
 
 // ValidateDelete validates Environment deletion.
@@ -96,4 +98,22 @@ func referencingAgentName(ctx context.Context, c client.Client, env *clawarmorv1
 		return agt.Name, nil
 	}
 	return "", nil
+}
+
+func validateAllowedHosts(env *clawarmorv1alpha1.Environment) error {
+	var fields field.ErrorList
+	path := field.NewPath("spec").Child("allowedHosts")
+	for i, entry := range env.Spec.AllowedHosts {
+		if _, err := envhost.Parse(entry); err != nil {
+			fields = append(fields, field.Invalid(
+				path.Index(i),
+				entry,
+				fmt.Sprintf("%v", err),
+			))
+		}
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(env.GroupVersionKind().GroupKind(), env.Name, fields)
 }

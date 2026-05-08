@@ -46,7 +46,7 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
   const [activeRequests, setActiveRequests] = useState<ActiveRequest[]>([])
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const stream = useSessionStream(id)
+  const stream = useSessionStream(id, !initialHistory.error)
   const send = useMutation(sendMessageMutation())
   const { error, isPending, mutateAsync } = send
   const history = useChatHistory({
@@ -166,7 +166,6 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
         setPendingMessages((messages) => {
           return messages.filter((message) => message.requestID !== optimisticID)
         })
-        throw error
       }
     },
     [completedRequestIDs, id, isWorking, mutateAsync]

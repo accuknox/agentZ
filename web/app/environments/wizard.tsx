@@ -2,14 +2,28 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { defineStepper } from "@stepperize/react"
-import { Box, PackageSearch as PackageSearchIcon } from "lucide-react"
+import { Box, Globe2, PackageSearch as PackageSearchIcon, Plus, X } from "lucide-react"
 import * as React from "react"
 import { useActionState, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { WizardShell } from "@/components/blocks/wizard"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import {
   createEnvironmentFormAction,
@@ -27,17 +41,26 @@ type EnvironmentIdentity = {
 
 type EnvironmentWizardData = {
   identity?: EnvironmentIdentity
+  packages?: string[]
 }
 
 type EnvironmentWizardProps = {
   initialName?: string
+  initialAllowedHosts?: string[]
   initialPackages?: string[]
   mode: EnvironmentWizardMode
 }
 
 type PackageStepProps = {
-  identity: EnvironmentIdentity
   initialPackages: string[]
+  onPrev: () => void
+  onNext: (packages: string[]) => void
+}
+
+type AllowedHostsStepProps = {
+  identity: EnvironmentIdentity
+  initialAllowedHosts: string[]
+  packages: string[]
   mode: EnvironmentWizardMode
   onPrev: () => void
 }
@@ -56,6 +79,11 @@ const steps = [
     id: "packages",
     title: "Packages",
     icon: PackageSearchIcon,
+  },
+  {
+    id: "allowedHosts",
+    title: "Allowed hosts",
+    icon: Globe2,
   },
 ] as const
 
@@ -119,8 +147,41 @@ function IdentityForm({
   )
 }
 
-function PackageStep({ identity, initialPackages, mode, onPrev }: PackageStepProps) {
+function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
   const [selected, setSelected] = React.useState<string[]>(initialPackages)
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        onNext(selected)
+      }}
+      className="flex flex-col gap-5"
+    >
+      <PackageSearch
+        installed={initialPackages}
+        selected={selected}
+        onSelectedChangeAction={setSelected}
+      />
+      <StepActions>
+        <Button type="button" variant="secondary" onClick={onPrev}>
+          Previous
+        </Button>
+        <Button type="submit">Next</Button>
+      </StepActions>
+    </form>
+  )
+}
+
+function AllowedHostsStep({
+  identity,
+  initialAllowedHosts,
+  packages,
+  mode,
+  onPrev,
+}: AllowedHostsStepProps) {
+  const [hosts, setHosts] = React.useState<string[]>(initialAllowedHosts)
+  const [draft, setDraft] = React.useState("")
   const formAction =
     mode === "update"
       ? updateEnvironmentFormAction.bind(null, identity.name)
@@ -128,18 +189,69 @@ function PackageStep({ identity, initialPackages, mode, onPrev }: PackageStepPro
   const [state, action, pending] = useActionState(formAction, {})
   const submitLabel = mode === "update" ? "Update environment" : "Create environment"
   const pendingLabel = mode === "update" ? "Updating..." : "Creating..."
+  const addHost = () => {
+    const value = draft.trim()
+    if (value === "") return
+    setHosts((current) => (current.includes(value) ? current : [...current, value]))
+    setDraft("")
+  }
 
   return (
     <form action={action} className="flex flex-col gap-5">
       <input type="hidden" name="name" value={identity.name} />
-      {selected.map((pkg) => (
+      {packages.map((pkg) => (
         <input key={pkg} type="hidden" name="packages" value={pkg} />
       ))}
-      <PackageSearch
-        installed={initialPackages}
-        selected={selected}
-        onSelectedChangeAction={setSelected}
-      />
+      {hosts.map((host) => (
+        <input key={host} type="hidden" name="allowedHosts" value={host} />
+      ))}
+      <FieldSet>
+        <FieldLegend>Allowed hosts</FieldLegend>
+        <FieldDescription>
+          Exact domains, leading wildcard domains, and IPv4 or IPv6 CIDR ranges.
+        </FieldDescription>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="environment-form-allowed-host">Host</FieldLabel>
+            <InputGroup className="h-9">
+              <InputGroupInput
+                id="environment-form-allowed-host"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return
+                  event.preventDefault()
+                  addHost()
+                }}
+                placeholder="api.github.com"
+                autoComplete="off"
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton onClick={addHost} aria-label="Add allowed host">
+                  <Plus />
+                  Add
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </Field>
+          {hosts.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {hosts.map((host) => (
+                <Button
+                  key={host}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setHosts((current) => current.filter((item) => item !== host))}
+                >
+                  {host}
+                  <X data-icon="inline-end" />
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </FieldGroup>
+      </FieldSet>
       {state.error ? (
         <div
           role="alert"
@@ -175,6 +287,7 @@ function StepActions({ children }: { children: React.ReactNode }) {
 }
 
 export function EnvironmentWizard({
+  initialAllowedHosts = [],
   initialName = "",
   initialPackages = [],
   mode,
@@ -185,12 +298,16 @@ export function EnvironmentWizard({
   return (
     <Stepper.Root
       className="flex min-h-0 w-full flex-1"
-      initialMetadata={{ identity: initialName ? initialIdentity : undefined }}
+      initialMetadata={{
+        identity: initialName ? initialIdentity : undefined,
+        packages: initialPackages,
+      }}
       orientation="horizontal"
     >
       {({ stepper }) => {
         const data: EnvironmentWizardData = {
           identity: stepper.metadata.get("identity") as EnvironmentIdentity | undefined,
+          packages: stepper.metadata.get("packages") as string[] | undefined,
         }
         const goPrev = () => {
           setDirection(-1)
@@ -230,15 +347,36 @@ export function EnvironmentWizard({
               packages: () =>
                 data.identity ? (
                   <PackageStep
-                    identity={data.identity}
                     initialPackages={initialPackages}
+                    onPrev={goPrev}
+                    onNext={(packages) => {
+                      stepper.metadata.set("packages", packages)
+                      goNext()
+                    }}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Complete the identity step before selecting packages.
+                    </p>
+                    <Button type="button" variant="secondary" onClick={goPrev}>
+                      Previous
+                    </Button>
+                  </div>
+                ),
+              allowedHosts: () =>
+                data.identity ? (
+                  <AllowedHostsStep
+                    identity={data.identity}
+                    initialAllowedHosts={initialAllowedHosts}
+                    packages={data.packages ?? initialPackages}
                     mode={mode}
                     onPrev={goPrev}
                   />
                 ) : (
                   <div className="flex flex-col gap-4">
                     <p className="text-sm text-muted-foreground">
-                      Complete the identity step before selecting packages.
+                      Complete the identity step before selecting allowed hosts.
                     </p>
                     <Button type="button" variant="secondary" onClick={goPrev}>
                       Previous

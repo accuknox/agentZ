@@ -8,7 +8,7 @@ export default async function UpdateEnvironmentPage({
   params: Promise<{ name: string }>
 }) {
   const { name } = await params
-  const result = await listEnvironmentsAction({ limit: 1 })
+  const result = await listEnvironmentsAction({ limit: 200 })
 
   if (result.error || !result.environments) {
     return (
@@ -28,7 +28,12 @@ export default async function UpdateEnvironmentPage({
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-normal">Update environment</h1>
       </div>
-      <EnvironmentWizard mode="update" initialName={env.name} initialPackages={env.packages} />
+      <EnvironmentWizard
+        mode="update"
+        initialName={env.name}
+        initialPackages={env.packages ?? []}
+        initialAllowedHosts={env.allowed_hosts ?? []}
+      />
     </main>
   )
 }

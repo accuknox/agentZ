@@ -66,6 +66,15 @@ export function createEnvironmentColumns(
       },
     },
     {
+      accessorFn: (env) => env.metadata.allowed_host_count,
+      id: "allowed_hosts",
+      header: "Allowed hosts",
+      cell: ({ row }) => {
+        const count = row.getValue<number>("allowed_hosts")
+        return `${count} host${count === 1 ? "" : "s"}`
+      },
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button
@@ -98,6 +107,7 @@ function EnvironmentActions({
   deleteEnvironmentAction: DeleteEnvironmentAction
 }) {
   const [open, setOpen] = React.useState(false)
+  const referenced = env.metadata.referenced_by_agent
 
   return (
     <div className="flex justify-end">
@@ -112,7 +122,11 @@ function EnvironmentActions({
           <DropdownMenuItem asChild>
             <Link href={`/environments/update/${env.name}`}>Edit</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive" onSelect={() => setOpen(true)}>
+          <DropdownMenuItem
+            className="text-destructive"
+            disabled={referenced}
+            onSelect={() => setOpen(true)}
+          >
             <Trash2 />
             Delete
           </DropdownMenuItem>
@@ -171,7 +185,11 @@ function DeleteEnvironmentDialog({
             </Button>
           </DialogClose>
           <form action={action}>
-            <Button type="submit" variant="destructive" disabled={pending}>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={pending || env.metadata.referenced_by_agent}
+            >
               {pending ? <Spinner /> : <Trash2 />}
               Delete
             </Button>

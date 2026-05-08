@@ -80,6 +80,7 @@ rules:
   - clawarmor.accuknox.com
   resources:
   - agents/finalizers
+  - envs/finalizers
   verbs:
   - update
 - apiGroups:
@@ -97,4 +98,6 @@ rules:
   verbs:
   - get
   - list
+  - patch
+  - update
   - watch

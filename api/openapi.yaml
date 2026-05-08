@@ -2459,6 +2459,11 @@ components:
           items:
             type: string
             minLength: 1
+        allowed_hosts:
+          type: array
+          items:
+            type: string
+            minLength: 1
         created_at:
           type: string
           format: date-time
@@ -2470,8 +2475,14 @@ components:
               type: integer
               format: int32
               minimum: 0
-          required: [package_count]
-      required: [name, packages, created_at, metadata]
+            allowed_host_count:
+              type: integer
+              format: int32
+              minimum: 0
+            referenced_by_agent:
+              type: boolean
+          required: [package_count, allowed_host_count, referenced_by_agent]
+      required: [name, packages, allowed_hosts, created_at, metadata]
 
     ListEnvironmentsResponse:
       type: object
@@ -2496,6 +2507,11 @@ components:
           items:
             type: string
             minLength: 1
+        allowed_hosts:
+          type: array
+          items:
+            type: string
+            minLength: 1
       required: [name]
 
     DeleteEnvironmentRequest:
@@ -2515,4 +2531,9 @@ components:
           items:
             type: string
             minLength: 1
-      required: [packages]
+        allowed_hosts:
+          type: array
+          items:
+            type: string
+            minLength: 1
+      required: [packages, allowed_hosts]

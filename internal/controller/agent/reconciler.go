@@ -102,13 +102,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
 	}
 
-	packages, err := r.resolveEnvironmentPackages(ctx, agt)
+	envCfg, err := r.resolveEnvironment(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("resolve environment packages: %w", err)
+		return ctrl.Result{}, fmt.Errorf("resolve environment: %w", err)
 	}
 
 	cfgYAML, err := renderConfig(agt)
@@ -138,7 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
-	err = r.reconcileNixPVCs(ctx, agt, packages)
+	err = r.reconcileNixPVCs(ctx, agt, envCfg.Packages)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -155,7 +155,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				return ctrl.Result{}, fmt.Errorf("add sinjector finalizer: %w", err)
 			}
 		}
-		err = r.reconcileSinjector(ctx, agt)
+		err = r.reconcileSinjector(ctx, agt, envCfg.AllowedHosts)
 		if err != nil {
 			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 			if updateErr != nil {
@@ -188,7 +188,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	hash, err := configHash(cfgYAML, agt.Spec.Env, packages)
+	err = r.reconcileEgressPolicy(ctx, agt, envCfg.AllowedHosts)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("reconcile egress policy: %w", err)
+	}
+
+	hash, err := configHash(cfgYAML, agt.Spec.Env, envCfg.Packages)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -196,7 +205,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return ctrl.Result{}, fmt.Errorf("hash config: %w", err)
 	}
-	err = r.reconcileDeployment(ctx, agt, hash, packages)
+	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -231,20 +240,33 @@ func (r *Reconciler) sinjectorEnabled() bool {
 	return r.Config.SinjectorImage != ""
 }
 
-func (r *Reconciler) resolveEnvironmentPackages(ctx context.Context, agt *clawarmorv1alpha1.Agent) ([]string, error) {
+type environmentConfig struct {
+	Packages     []string
+	AllowedHosts []string
+}
+
+func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alpha1.Agent) (environmentConfig, error) {
 	ref := agt.Spec.EnvironmentRef
 	if ref == nil {
-		return []string{}, nil
+		return environmentConfig{
+			Packages:     []string{},
+			AllowedHosts: []string{},
+		}, nil
 	}
 
 	env := &clawarmorv1alpha1.Environment{}
 	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
 	if err := r.Get(ctx, key, env); err != nil {
-		return nil, fmt.Errorf("get environment %q: %w", ref.Name, err)
+		return environmentConfig{}, fmt.Errorf("get environment %q: %w", ref.Name, err)
 	}
 	packages := make([]string, len(env.Spec.Packages))
 	copy(packages, env.Spec.Packages)
-	return packages, nil
+	allowedHosts := make([]string, len(env.Spec.AllowedHosts))
+	copy(allowedHosts, env.Spec.AllowedHosts)
+	return environmentConfig{
+		Packages:     packages,
+		AllowedHosts: allowedHosts,
+	}, nil
 }
 
 func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object) []reconcile.Request {

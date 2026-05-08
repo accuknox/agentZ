@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import {
   createEnvironment,
   deleteEnvironment,
+  listAgents,
   listEnvironments,
   updateEnvironment,
   type ListEnvironmentsData,
@@ -47,11 +48,34 @@ function revalidateEnvironmentConsumers() {
   revalidatePath("/agent/update/[id]", "page")
 }
 
+function environmentFormValues(formData: FormData) {
+  return {
+    packages: formData.getAll("packages").map((p) => String(p)),
+    allowedHosts: formData.getAll("allowedHosts").map((h) => String(h)),
+  }
+}
+
 export async function deleteEnvironmentFormAction(
   name: string,
   _: DeleteEnvironmentFormState,
   _formData: FormData
 ): Promise<DeleteEnvironmentFormState> {
+  const agentsResult = await listAgents({ query: { limit: 200 } })
+  if (agentsResult.error) {
+    return { error: agentsResult.error }
+  }
+  const referencingAgent = agentsResult.data.agents.find(
+    (agent) => agent.status !== "DELETED" && agent.configuration.environmentName === name
+  )
+  if (referencingAgent) {
+    return {
+      error: {
+        code: "ENVIRONMENT_REFERENCED",
+        message: `Environment is referenced by agent ${referencingAgent.name}`,
+      },
+    }
+  }
+
   const result = await deleteEnvironment({ body: { name } })
   if (result.error) {
     return { error: result.error }
@@ -65,12 +89,9 @@ export async function createEnvironmentFormAction(
   _: CreateEnvironmentFormState,
   formData: FormData
 ): Promise<CreateEnvironmentFormState> {
-  const rawName = formData.get("name")
-  const rawPackages = formData.getAll("packages")
-
   const parsed = createEnvironmentFormSchema.safeParse({
-    name: rawName,
-    packages: rawPackages.map((p) => String(p)),
+    name: formData.get("name"),
+    ...environmentFormValues(formData),
   })
 
   if (!parsed.success) {
@@ -90,6 +111,7 @@ export async function createEnvironmentFormAction(
     body: {
       name: parsed.data.name,
       packages: parsed.data.packages,
+      allowed_hosts: parsed.data.allowedHosts,
     },
   })
 
@@ -106,11 +128,9 @@ export async function updateEnvironmentFormAction(
   _: CreateEnvironmentFormState,
   formData: FormData
 ): Promise<CreateEnvironmentFormState> {
-  const rawPackages = formData.getAll("packages")
-
-  const parsed = createEnvironmentFormSchema.omit({ name: true }).safeParse({
-    packages: rawPackages.map((p) => String(p)),
-  })
+  const parsed = createEnvironmentFormSchema
+    .omit({ name: true })
+    .safeParse(environmentFormValues(formData))
 
   if (!parsed.success) {
     return {
@@ -126,7 +146,10 @@ export async function updateEnvironmentFormAction(
   }
 
   const result = await updateEnvironment({
-    body: { packages: parsed.data.packages },
+    body: {
+      packages: parsed.data.packages,
+      allowed_hosts: parsed.data.allowedHosts,
+    },
     path: { name },
   })
 

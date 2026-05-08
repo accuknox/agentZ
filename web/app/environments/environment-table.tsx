@@ -26,6 +26,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react"
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
   packages: "w-32",
+  allowed_hosts: "w-36",
   created_at: "w-44",
   actions: "w-14",
 }

@@ -19,10 +19,12 @@ import (
 )
 
 const (
-	labelAgentName = "clawarmor.accuknox.com/agent"
-	labelManaged   = "clawarmor.accuknox.com/managed"
-	labelAppName   = "app.kubernetes.io/name"
-	appNameAgent   = "clawarmor-agent"
+	labelAgentName     = "clawarmor.accuknox.com/agent"
+	labelSinjectorName = "clawarmor.accuknox.com/sinjector"
+	labelManaged       = "clawarmor.accuknox.com/managed"
+	labelAppName       = "app.kubernetes.io/name"
+	appNameAgent       = "clawarmor-agent"
+	appNameSinjector   = "clawarmor-sinjector"
 )
 
 type resolver struct {
@@ -80,6 +82,36 @@ func (r *resolver) resolve(ctx context.Context, namespace string, labels map[str
 		return uuid.Nil, false
 	}
 
+	return r.resolveAgent(ctx, namespace, agentName)
+}
+
+func (r *resolver) resolveNetwork(ctx context.Context, namespace string, labels map[string]string, podName string) (uuid.UUID, bool) {
+	if labels[labelManaged] != "true" {
+		return uuid.Nil, false
+	}
+
+	var agentName string
+
+	switch labels[labelAppName] {
+	case appNameAgent:
+		agentName = labels[labelAgentName]
+		if agentName == "" {
+			agentName = podName
+		}
+	case appNameSinjector:
+		agentName = labels[labelSinjectorName]
+	default:
+		return uuid.Nil, false
+	}
+
+	if agentName == "" {
+		return uuid.Nil, false
+	}
+
+	return r.resolveAgent(ctx, namespace, agentName)
+}
+
+func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string) (uuid.UUID, bool) {
 	key := namespace + "/" + agentName
 	r.mu.RLock()
 	id, ok := r.cache[key]

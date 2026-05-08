@@ -895,12 +895,18 @@ export const zListSecretsResponse = z.object({
 export const zEnvironment = z.object({
   name: zEnvironmentName,
   packages: z.array(z.string().min(1)),
+  allowed_hosts: z.array(z.string().min(1)),
   created_at: z.iso.datetime(),
   metadata: z.object({
     package_count: z
       .int()
       .gte(0)
       .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+    allowed_host_count: z
+      .int()
+      .gte(0)
+      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+    referenced_by_agent: z.boolean(),
   }),
 })
 
@@ -912,6 +918,7 @@ export const zListEnvironmentsResponse = z.object({
 export const zCreateEnvironmentRequest = z.object({
   name: zEnvironmentName,
   packages: z.array(z.string().min(1)).optional(),
+  allowed_hosts: z.array(z.string().min(1)).optional(),
 })
 
 export const zDeleteEnvironmentRequest = z.object({
@@ -920,6 +927,7 @@ export const zDeleteEnvironmentRequest = z.object({
 
 export const zUpdateEnvironmentRequest = z.object({
   packages: z.array(z.string().min(1)),
+  allowed_hosts: z.array(z.string().min(1)),
 })
 
 /**

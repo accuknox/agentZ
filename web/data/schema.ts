@@ -72,6 +72,34 @@ function normalizeSecretHost(value: string) {
   return host
 }
 
+function isEnvironmentHost(value: string) {
+  const host = value.trim()
+  if (isCIDR(host)) {
+    return true
+  }
+  if (isIP(host)) {
+    return false
+  }
+  if (host.startsWith("*.")) {
+    return isDomain(host.slice(2))
+  }
+  if (host.includes("*")) {
+    return false
+  }
+  return isDomain(host)
+}
+
+function normalizeEnvironmentHost(value: string) {
+  const host = value.trim()
+  if (isCIDR(host)) {
+    return normalizeCIDR(host)
+  }
+  if (host.startsWith("*.")) {
+    return `*.${host.slice(2).toLowerCase().replace(/\.$/, "")}`
+  }
+  return host.toLowerCase().replace(/\.$/, "")
+}
+
 function isDomain(value: string) {
   const domain = value.trim().replace(/\.$/, "")
   if (domain.length === 0 || domain.length > 253 || domain.includes("..")) {
@@ -89,6 +117,11 @@ function isIP(value: string) {
 
 function isCIDR(value: string) {
   return ipaddr.isValidCIDR(value)
+}
+
+function normalizeCIDR(value: string) {
+  const [addr, bits] = ipaddr.parseCIDR(value)
+  return `${addr.toString()}/${bits}`
 }
 
 export const maxSystemPromptChars = 4096
@@ -117,6 +150,14 @@ export const environmentNameSchema = z
   .min(1, "Environment name is required")
   .max(32, "Environment name must be at most 32 characters")
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+
+export const environmentAllowedHostSchema = z
+  .string()
+  .trim()
+  .min(1, "Host is required")
+  .max(253, "Host must be at most 253 characters")
+  .refine(isEnvironmentHost, "Use a hostname, *.hostname, or CIDR range")
+  .transform(normalizeEnvironmentHost)
 
 export const identitySchema = z.object({
   name: agentNameSchema,
@@ -183,6 +224,9 @@ export const toolsSchema = z.object({
 export const createEnvironmentFormSchema = z.object({
   name: environmentNameSchema,
   packages: z.array(z.string()),
+  allowedHosts: z
+    .array(environmentAllowedHostSchema)
+    .transform((hosts) => Array.from(new Set(hosts)).sort()),
 })
 
 export const createAgentFormSchema = z

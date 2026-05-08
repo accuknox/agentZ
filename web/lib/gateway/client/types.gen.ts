@@ -750,9 +750,12 @@ export type ListSecretsResponse = {
 export type Environment = {
   name: EnvironmentName
   packages: Array<string>
+  allowed_hosts: Array<string>
   created_at: string
   metadata: {
     package_count: number
+    allowed_host_count: number
+    referenced_by_agent: boolean
   }
 }
 
@@ -764,6 +767,7 @@ export type ListEnvironmentsResponse = {
 export type CreateEnvironmentRequest = {
   name: EnvironmentName
   packages?: Array<string>
+  allowed_hosts?: Array<string>
 }
 
 export type DeleteEnvironmentRequest = {
@@ -772,6 +776,7 @@ export type DeleteEnvironmentRequest = {
 
 export type UpdateEnvironmentRequest = {
   packages: Array<string>
+  allowed_hosts: Array<string>
 }
 
 /**

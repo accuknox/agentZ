@@ -10,3 +10,8 @@ spec:
   - python3
   - nodejs_22
   - ripgrep
+  allowedHosts:
+  - api.github.com
+  - "*.github.com"
+  - 10.0.0.0/24
+  - 2001:db8::/32

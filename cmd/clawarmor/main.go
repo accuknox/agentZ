@@ -46,6 +46,7 @@ import (
 	agentcmd "github.com/accuknox/clawarmor/cmd/clawarmor/subcommands/agent"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
+	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -531,6 +532,14 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "Failed to create controller", "controller", "Agent")
 			os.Exit(1)
 		}
+		envReconciler := &environmentcontroller.Reconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}
+		if err := envReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "Environment")
+			os.Exit(1)
+		}
 		if enableWebhooks {
 			err = webhookv1alpha1.SetupAgentWebhookWithManager(
 				mgr,
@@ -540,6 +549,10 @@ var managerCmd = &cli.Command{
 			)
 			if err != nil {
 				setupLog.Error(err, "Failed to create webhook", "webhook", "Agent")
+				os.Exit(1)
+			}
+			if err := webhookv1alpha1.SetupEnvironmentWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "Failed to create webhook", "webhook", "Environment")
 				os.Exit(1)
 			}
 		}

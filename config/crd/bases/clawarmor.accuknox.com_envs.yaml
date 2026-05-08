@@ -38,6 +38,13 @@ spec:
           spec:
             description: spec defines the desired state of Environment
             properties:
+              allowedHosts:
+                description: |-
+                  AllowedHosts lists exact domains, leading-star wildcard domains, and
+                  IPv4/IPv6 CIDRs the referencing Agent pods may reach.
+                items:
+                  type: string
+                type: array
               packages:
                 description: |-
                   Packages lists nix packages (e.g. "python3", "nodejs_22",

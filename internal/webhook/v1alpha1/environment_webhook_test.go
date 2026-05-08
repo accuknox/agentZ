@@ -76,6 +76,30 @@ var _ = Describe("Environment Webhook", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	It("allows valid allowed hosts", func() {
+		env.Spec.AllowedHosts = []string{
+			"api.github.com",
+			"*.github.com",
+			"10.0.0.0/24",
+			"2001:db8::/32",
+		}
+
+		_, err := validator.ValidateCreate(ctx, env)
+
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("rejects invalid allowed hosts", func() {
+		env.Spec.AllowedHosts = []string{
+			"api.*.github.com",
+			"10.0.0.1",
+		}
+
+		_, err := validator.ValidateCreate(ctx, env)
+
+		Expect(err).To(HaveOccurred())
+	})
+
 	It("rejects deleting a referenced environment", func() {
 		Expect(k8sClient.Create(ctx, env)).To(Succeed())
 		agt := &clawarmorv1alpha1.Agent{

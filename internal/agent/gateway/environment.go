@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/envhost"
 )
 
 // ListEnvironments handles GET /api/environment/list.
@@ -40,10 +42,15 @@ func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, param
 		writeInternalError(w, r, fmt.Errorf("list environments: %w", err))
 		return
 	}
+	refs, err := s.referencedEnvironmentNames(r.Context())
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("list environment references: %w", err))
+		return
+	}
 
 	items := make([]gatewayapi.Environment, 0, len(envList.Items))
 	for _, env := range envList.Items {
-		items = append(items, environmentFromCRD(env))
+		items = append(items, environmentFromCRD(env, refs[env.Name]))
 	}
 
 	start := min(offset, len(items))
@@ -80,14 +87,20 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	packages := []string{}
+	var rawPackages []string
 	if req.Packages != nil {
-		for _, p := range *req.Packages {
-			p = strings.TrimSpace(p)
-			if p != "" {
-				packages = append(packages, p)
-			}
-		}
+		rawPackages = *req.Packages
+	}
+	packages := normalizePackages(rawPackages)
+
+	var rawAllowedHosts []string
+	if req.AllowedHosts != nil {
+		rawAllowedHosts = *req.AllowedHosts
+	}
+	allowedHosts, err := envhost.NormalizeList(rawAllowedHosts)
+	if err != nil {
+		writeAllowedHostsError(w, r, err)
+		return
 	}
 
 	env := &clawarmorv1alpha1.Environment{
@@ -100,7 +113,8 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 			Namespace: s.cfg.Namespace,
 		},
 		Spec: clawarmorv1alpha1.EnvironmentSpec{
-			Packages: packages,
+			Packages:     packages,
+			AllowedHosts: allowedHosts,
 		},
 	}
 
@@ -109,7 +123,7 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, environmentFromCRD(*env))
+	writeJSON(w, http.StatusCreated, environmentFromCRD(*env, false))
 }
 
 // DeleteEnvironment handles POST /api/environment/delete.
@@ -134,6 +148,20 @@ func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
 	env := &clawarmorv1alpha1.Environment{}
 	env.Name = name
 	env.Namespace = s.cfg.Namespace
+	agentName, err := s.referencingAgentName(r.Context(), name)
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("check environment references: %w", err))
+		return
+	}
+	if agentName != "" {
+		writeError(w, r, newAPIError(
+			http.StatusConflict,
+			"environment_referenced",
+			"environment is referenced by agent "+agentName,
+			errBadRequest,
+		))
+		return
+	}
 
 	if err := s.k8sClient.Delete(r.Context(), env); err != nil {
 		writeError(w, r, mapKubeHTTPError("delete environment", err))
@@ -163,8 +191,14 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 	}
 
 	envName := strings.TrimSpace(name)
+	allowedHosts, err := envhost.NormalizeList(req.AllowedHosts)
+	if err != nil {
+		writeAllowedHostsError(w, r, err)
+		return
+	}
+
 	var updated *clawarmorv1alpha1.Environment
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		env := &clawarmorv1alpha1.Environment{}
 		if getErr := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{
 			Name:      envName,
@@ -173,14 +207,8 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 			return getErr
 		}
 
-		packages := []string{}
-		for _, p := range req.Packages {
-			p = strings.TrimSpace(p)
-			if p != "" {
-				packages = append(packages, p)
-			}
-		}
-		env.Spec.Packages = packages
+		env.Spec.Packages = normalizePackages(req.Packages)
+		env.Spec.AllowedHosts = allowedHosts
 
 		if updateErr := s.k8sClient.Update(r.Context(), env); updateErr != nil {
 			return updateErr
@@ -193,17 +221,64 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		return
 	}
 
-	writeJSON(w, http.StatusOK, environmentFromCRD(*updated))
+	agentName, err := s.referencingAgentName(r.Context(), updated.Name)
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("check environment references: %w", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, environmentFromCRD(*updated, agentName != ""))
 }
 
-func environmentFromCRD(env clawarmorv1alpha1.Environment) gatewayapi.Environment {
-	out := gatewayapi.Environment{
-		Name:      env.Name,
-		Packages:  env.Spec.Packages,
-		CreatedAt: env.CreationTimestamp.Time,
+func environmentFromCRD(env clawarmorv1alpha1.Environment, referenced bool) gatewayapi.Environment {
+	packages := []string{}
+	if env.Spec.Packages != nil {
+		packages = env.Spec.Packages
 	}
-	out.Metadata.PackageCount = int32(len(env.Spec.Packages))
+	allowedHosts := []string{}
+	if env.Spec.AllowedHosts != nil {
+		allowedHosts = env.Spec.AllowedHosts
+	}
+	out := gatewayapi.Environment{
+		Name:         env.Name,
+		Packages:     packages,
+		AllowedHosts: allowedHosts,
+		CreatedAt:    env.CreationTimestamp.Time,
+	}
+	out.Metadata.PackageCount = int32(len(packages))
+	out.Metadata.AllowedHostCount = int32(len(allowedHosts))
+	out.Metadata.ReferencedByAgent = referenced
 	return out
+}
+
+func (s *Service) referencedEnvironmentNames(ctx context.Context) (map[string]bool, error) {
+	refs := map[string]bool{}
+	agents := &clawarmorv1alpha1.AgentList{}
+	if err := s.k8sClient.List(ctx, agents, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+		return nil, err
+	}
+	for _, agt := range agents.Items {
+		ref := agt.Spec.EnvironmentRef
+		if ref == nil || ref.Name == "" {
+			continue
+		}
+		refs[ref.Name] = true
+	}
+	return refs, nil
+}
+
+func (s *Service) referencingAgentName(ctx context.Context, envName string) (string, error) {
+	agents := &clawarmorv1alpha1.AgentList{}
+	if err := s.k8sClient.List(ctx, agents, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+		return "", err
+	}
+	for _, agt := range agents.Items {
+		ref := agt.Spec.EnvironmentRef
+		if ref == nil || ref.Name != envName {
+			continue
+		}
+		return agt.Name, nil
+	}
+	return "", nil
 }
 
 func validateCreateEnvironmentRequest(req gatewayapi.CreateEnvironmentRequest) (string, []gatewayapi.FieldError) {
@@ -236,7 +311,6 @@ func validateCreateEnvironmentRequest(req gatewayapi.CreateEnvironmentRequest) (
 			}
 		}
 	}
-
 	return name, fields
 }
 
@@ -251,4 +325,28 @@ func validateUpdateEnvironmentRequest(req gatewayapi.UpdateEnvironmentRequest) [
 		}
 	}
 	return fields
+}
+
+func normalizePackages(raw []string) []string {
+	packages := []string{}
+	for _, p := range raw {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			packages = append(packages, p)
+		}
+	}
+	return packages
+}
+
+func writeAllowedHostsError(w http.ResponseWriter, r *http.Request, err error) {
+	writeError(w, r, newAPIError(
+		http.StatusBadRequest,
+		"invalid_request",
+		"request validation failed",
+		errBadRequest,
+		gatewayapi.FieldError{
+			Field:   "allowed_hosts",
+			Message: err.Error(),
+		},
+	))
 }

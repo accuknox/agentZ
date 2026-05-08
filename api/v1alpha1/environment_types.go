@@ -26,6 +26,11 @@ type EnvironmentSpec struct {
 	// container bootstrapping.
 	// +optional
 	Packages []string `json:"packages,omitempty"`
+
+	// AllowedHosts lists exact domains, leading-star wildcard domains, and
+	// IPv4/IPv6 CIDRs the referencing Agent pods may reach.
+	// +optional
+	AllowedHosts []string `json:"allowedHosts,omitempty"`
 }
 
 // EnvironmentStatus defines the observed state of Environment.

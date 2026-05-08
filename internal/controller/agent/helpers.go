@@ -49,6 +49,7 @@ const (
 	sinjectorCAVolume    = "sinjector-ca"
 	sinjectorCAMountPath = "/etc/clawarmor/sinjector-ca"
 	sinjectorFinalizer   = "clawarmor.accuknox.com/sinjector"
+	egressPolicySuffix   = "-egress"
 )
 
 var (
@@ -105,6 +106,10 @@ func sinjectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 
 func sinjectorName(agt *clawarmorv1alpha1.Agent) string {
 	return agt.Name + sinjectorNameSuffix
+}
+
+func egressPolicyName(agt *clawarmorv1alpha1.Agent) string {
+	return agt.Name + egressPolicySuffix
 }
 
 func sinjectorPort(agt *clawarmorv1alpha1.Agent) (int32, error) {

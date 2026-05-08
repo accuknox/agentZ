@@ -18,6 +18,16 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
   - apps
   resources:
   - deployments
@@ -70,6 +80,7 @@ rules:
   - clawarmor.accuknox.com
   resources:
   - agents/finalizers
+  - envs/finalizers
   verbs:
   - update
 - apiGroups:
@@ -80,3 +91,13 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - envs
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch

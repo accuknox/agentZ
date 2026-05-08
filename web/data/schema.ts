@@ -1,4 +1,5 @@
 import * as z from "zod"
+import ipaddr from "ipaddr.js"
 
 export const secretKeySchema = z
   .string()
@@ -7,12 +8,110 @@ export const secretKeySchema = z
   .max(128, "Secret name must be at most 128 characters")
   .regex(/^[A-Za-z0-9_]+$/, "Use letters, numbers, and underscores only")
 
-export const secretValueSchema = z.string().max(49152, "Secret value must be at most 48 KB")
+export const secretValueSchema = z
+  .string()
+  .min(1, "Secret value is required")
+  .max(49152, "Secret value must be at most 48 KB")
 
-export const secretFormSchema = z.object({
+export const secretHostSchema = z
+  .string()
+  .trim()
+  .min(1, "Host is required")
+  .max(253, "Host must be at most 253 characters")
+  .transform(normalizeSecretHost)
+
+export const secretHostsInputSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(/[\n,]+/)
+      .map((host) => host.trim())
+      .filter(Boolean)
+  )
+  .pipe(
+    z
+      .array(secretHostSchema)
+      .min(1, "At least one host is required")
+      .max(100, "Use at most 100 hosts")
+      .transform((hosts) => Array.from(new Set(hosts)).sort())
+  )
+
+export const secretFormInputSchema = z.object({
   key: secretKeySchema,
   value: secretValueSchema,
+  hosts: z.string().min(1, "At least one host is required"),
 })
+
+const domainLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/
+
+function normalizeSecretHost(value: string, ctx: z.RefinementCtx) {
+  const host = normalizeHost(value, true)
+  if (!host) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Use a hostname, *.hostname, IP address, or CIDR range",
+    })
+    return z.NEVER
+  }
+  return host
+}
+
+function normalizeEnvironmentHost(value: string, ctx: z.RefinementCtx) {
+  const host = normalizeHost(value, false)
+  if (!host) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Use a hostname, *.hostname, or CIDR range",
+    })
+    return z.NEVER
+  }
+  return host
+}
+
+function normalizeHost(value: string, allowIP: boolean) {
+  const host = value.trim()
+  if (isCIDR(host)) {
+    return normalizeCIDR(host)
+  }
+  if (isIP(host)) {
+    return allowIP ? host : undefined
+  }
+  if (host.startsWith("*.")) {
+    const domain = normalizeDomain(host.slice(2))
+    return domain ? `*.${domain}` : undefined
+  }
+  if (host.includes("*")) {
+    return undefined
+  }
+  return normalizeDomain(host)
+}
+
+function normalizeDomain(value: string) {
+  const domain = value.trim().replace(/\.$/, "")
+  if (domain.length === 0 || domain.length > 253 || domain.includes("..")) {
+    return undefined
+  }
+  if (isIP(domain)) {
+    return undefined
+  }
+  if (!domain.split(".").every((label) => domainLabelPattern.test(label))) {
+    return undefined
+  }
+  return domain.toLowerCase()
+}
+
+function isIP(value: string) {
+  return ipaddr.isValid(value)
+}
+
+function isCIDR(value: string) {
+  return ipaddr.isValidCIDR(value)
+}
+
+function normalizeCIDR(value: string) {
+  const [addr, bits] = ipaddr.parseCIDR(value)
+  return `${addr.toString()}/${bits}`
+}
 
 export const maxSystemPromptChars = 4096
 export const primaryModels = [
@@ -34,8 +133,23 @@ export const agentNameSchema = z
   .max(32, "Agent name must be at most 32 characters")
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
 
+export const environmentNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Environment name is required")
+  .max(32, "Environment name must be at most 32 characters")
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+
+export const environmentAllowedHostSchema = z
+  .string()
+  .trim()
+  .min(1, "Host is required")
+  .max(253, "Host must be at most 253 characters")
+  .transform(normalizeEnvironmentHost)
+
 export const identitySchema = z.object({
   name: agentNameSchema,
+  environmentName: environmentNameSchema,
   systemPrompt: z.string().max(maxSystemPromptChars, "System prompt is too long"),
 })
 
@@ -93,6 +207,14 @@ export const toolsSchema = z.object({
   webFetch: z.boolean(),
   file: z.boolean(),
   arxiv: z.boolean(),
+})
+
+export const createEnvironmentFormSchema = z.object({
+  name: environmentNameSchema,
+  packages: z.array(z.string()),
+  allowedHosts: z
+    .array(environmentAllowedHostSchema)
+    .transform((hosts) => Array.from(new Set(hosts)).sort()),
 })
 
 export const createAgentFormSchema = z

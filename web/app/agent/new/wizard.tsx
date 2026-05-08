@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { defineStepper } from "@stepperize/react"
 import { Bot, Hammer, Layers, SlidersHorizontal } from "lucide-react"
 import { motion } from "motion/react"
-import { useActionState, useEffect, useRef, useState } from "react"
+import Link from "next/link"
+import { useActionState, useEffect, useEffectEvent, useRef, useState } from "react"
 import {
   Controller,
   type Control,
@@ -29,12 +30,14 @@ import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
+import { listEnvironmentsAction } from "@/data/environment.actions"
 import {
   baseModelSchema,
   compactionSchema,
@@ -47,6 +50,7 @@ import {
 } from "@/data/schema"
 import type { AgentWizardValues, Compaction, Identity, Model, Tools } from "@/data/types"
 import { defaultAgentWizardValues } from "@/data/utils"
+import type { Environment } from "@/lib/gateway/client"
 
 const blinkIntervalMs = 2500
 
@@ -63,7 +67,10 @@ type WizardData = Partial<Omit<AgentWizardValues, "tools">>
 type WizardMode = "create" | "update"
 
 type StepperWithFormProps = {
+  environments: Environment[]
   initialValues?: AgentWizardValues
+  initialHasNextEnvironmentPage: boolean
+  initialNextEnvironmentPageToken: string
   mode?: WizardMode
   sessionID?: string
 }
@@ -115,14 +122,42 @@ const steps = [
 
 const { Stepper } = defineStepper(...steps)
 
+function uniqueEnvironments(environments: Environment[]) {
+  const seen = new Set<string>()
+  return environments.filter((environment) => {
+    if (seen.has(environment.name)) return false
+
+    seen.add(environment.name)
+    return true
+  })
+}
+
+function agentWizardValuesWithEnvironment(
+  values: AgentWizardValues,
+  environments: Environment[]
+): AgentWizardValues {
+  const environmentName = values.identity.environmentName || environments[0]?.name || ""
+
+  return {
+    ...values,
+    identity: {
+      ...values.identity,
+      environmentName,
+    },
+  }
+}
+
 function AgentWizardBotFlare() {
   const botRef = useRef<BotIconHandle>(null)
+  const startBotAnimation = useEffectEvent(() => {
+    botRef.current?.startAnimation()
+  })
 
   useEffect(() => {
-    botRef.current?.startAnimation()
+    startBotAnimation()
 
     const interval = window.setInterval(() => {
-      botRef.current?.startAnimation()
+      startBotAnimation()
     }, blinkIntervalMs)
 
     return () => window.clearInterval(interval)
@@ -156,11 +191,17 @@ const canVisitStep = (index: number, currentIndex: number, data: WizardData) => 
 
 function IdentityForm({
   defaultValues,
+  environments,
+  hasNextEnvironmentPage,
   lockName,
+  nextEnvironmentPageToken,
   onNext,
 }: {
   defaultValues?: Identity
+  environments: Environment[]
+  hasNextEnvironmentPage: boolean
   lockName?: boolean
+  nextEnvironmentPageToken: string
   onNext: (data: Identity) => void
 }) {
   const form = useForm<Identity>({
@@ -173,6 +214,7 @@ function IdentityForm({
     defaultValue: form.getValues("systemPrompt"),
   })
   const promptLen = [...systemPrompt].length
+  const hasEnvironments = environments.length > 0
 
   return (
     <form id="agent-form-identity" onSubmit={form.handleSubmit(onNext)} className="space-y-5">
@@ -194,6 +236,40 @@ function IdentityForm({
                 aria-invalid={fieldState.invalid}
                 placeholder="coding-agent"
               />
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
+        <Controller
+          name="environmentName"
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="agent-form-environment">Environment</FieldLabel>
+              <EnvironmentSelect
+                disabled={!hasEnvironments}
+                id="agent-form-environment"
+                name={field.name}
+                value={field.value}
+                initialEnvironments={environments}
+                initialHasNextPage={hasNextEnvironmentPage}
+                initialNextPageToken={nextEnvironmentPageToken}
+                onBlurAction={field.onBlur}
+                onValueChangeAction={field.onChange}
+                aria-invalid={fieldState.invalid}
+              />
+              {!hasEnvironments ? (
+                <FieldDescription>
+                  Create an environment{" "}
+                  <Link
+                    href="/environments/new"
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    here
+                  </Link>{" "}
+                  before continuing.
+                </FieldDescription>
+              ) : null}
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
@@ -226,9 +302,116 @@ function IdentityForm({
         />
       </FieldGroup>
       <StepActions>
-        <Button type="submit">Next</Button>
+        <Button type="submit" disabled={!hasEnvironments}>
+          Next
+        </Button>
       </StepActions>
     </form>
+  )
+}
+
+function EnvironmentSelect({
+  "aria-invalid": ariaInvalid,
+  disabled,
+  id,
+  initialEnvironments,
+  initialHasNextPage,
+  initialNextPageToken,
+  name,
+  onBlurAction,
+  onValueChangeAction,
+  value,
+}: {
+  "aria-invalid"?: boolean
+  disabled?: boolean
+  id: string
+  initialEnvironments: Environment[]
+  initialHasNextPage: boolean
+  initialNextPageToken: string
+  name: string
+  onBlurAction: () => void
+  onValueChangeAction: (value: string) => void
+  value: string
+}) {
+  const [environments, setEnvironments] = useState(() => uniqueEnvironments(initialEnvironments))
+  const [hasNextPage, setHasNextPage] = useState(initialHasNextPage)
+  const [nextPageToken, setNextPageToken] = useState(initialNextPageToken)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string>()
+  const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null)
+  const loadNextPage = useEffectEvent(async () => {
+    if (!hasNextPage || loading || nextPageToken === "") return
+
+    setLoading(true)
+    setError(undefined)
+    const result = await listEnvironmentsAction({ limit: 50, page_token: nextPageToken })
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error.message)
+      return
+    }
+
+    setEnvironments((current) => uniqueEnvironments([...current, ...result.environments]))
+    setHasNextPage(result.hasNextPage)
+    setNextPageToken(result.nextPageToken)
+  })
+
+  const selectedIsLoaded = environments.some((environment) => environment.name === value)
+  const options =
+    value && !selectedIsLoaded
+      ? [
+          {
+            name: value,
+            packages: [],
+            created_at: "",
+            metadata: { package_count: 0 },
+          },
+          ...environments,
+        ]
+      : environments
+
+  useEffect(() => {
+    if (!sentinel || !hasNextPage) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void loadNextPage()
+        }
+      },
+      { rootMargin: "48px" }
+    )
+    observer.observe(sentinel)
+
+    return () => observer.disconnect()
+  }, [hasNextPage, sentinel])
+
+  return (
+    <Select value={value} disabled={disabled} onValueChange={onValueChangeAction} name={name}>
+      <SelectTrigger id={id} onBlur={onBlurAction} aria-invalid={ariaInvalid} className="w-full">
+        <SelectValue placeholder="Select an environment" />
+      </SelectTrigger>
+      <SelectContent className="max-h-72">
+        <SelectGroup>
+          {options.map((environment) => (
+            <SelectItem key={environment.name} value={environment.name}>
+              {environment.name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+        {hasNextPage ? (
+          <div
+            ref={setSentinel}
+            className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground"
+          >
+            {loading ? <Spinner aria-hidden="true" /> : null}
+            {loading ? "Loading environments..." : "Scroll for more environments"}
+          </div>
+        ) : null}
+        {error ? <div className="px-2 py-1.5 text-xs text-destructive">{error}</div> : null}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -474,8 +657,17 @@ function ToolsForm({
   })
   const copy = wizardCopy[mode]
 
+  async function submitAction(formData: FormData) {
+    const isValid = await form.trigger()
+    if (!isValid) {
+      return
+    }
+
+    await action(formData)
+  }
+
   return (
-    <form id="agent-form-tools" action={action} className="space-y-5">
+    <form id="agent-form-tools" action={submitAction} className="space-y-5">
       <HiddenAgentFields data={data} />
       <FieldGroup>
         <CheckboxField
@@ -677,6 +869,7 @@ function HiddenAgentFields({
   return (
     <>
       <input type="hidden" name="name" value={data.identity.name} />
+      <input type="hidden" name="environmentName" value={data.identity.environmentName} />
       <input type="hidden" name="systemPrompt" value={data.identity.systemPrompt} />
       <input type="hidden" name="compactionMode" value={data.compaction.mode} />
       <input type="hidden" name="thresholdRatio" value={String(data.compaction.thresholdRatio)} />
@@ -723,19 +916,23 @@ function HiddenAgentFields({
 }
 
 export function StepperWithForm({
+  environments,
   initialValues = defaultAgentWizardValues,
+  initialHasNextEnvironmentPage,
+  initialNextEnvironmentPageToken,
   mode = "create",
   sessionID,
 }: StepperWithFormProps) {
   const [direction, setDirection] = useState(1)
+  const initialWizardValues = agentWizardValuesWithEnvironment(initialValues, environments)
 
   return (
     <Stepper.Root
       className="flex min-h-0 w-full flex-1"
       initialMetadata={{
-        identity: initialValues.identity,
-        compaction: initialValues.compaction,
-        model: initialValues.model,
+        identity: initialWizardValues.identity,
+        compaction: initialWizardValues.compaction,
+        model: initialWizardValues.model,
       }}
       orientation="vertical"
     >
@@ -789,7 +986,10 @@ export function StepperWithForm({
               identity: () => (
                 <IdentityForm
                   defaultValues={formData.identity}
+                  environments={environments}
+                  hasNextEnvironmentPage={initialHasNextEnvironmentPage}
                   lockName={mode === "update"}
+                  nextEnvironmentPageToken={initialNextEnvironmentPageToken}
                   onNext={(data) => {
                     setStepData("identity", data)
                     goNext()
@@ -823,7 +1023,7 @@ export function StepperWithForm({
                 createReadyData ? (
                   <ToolsForm
                     data={createReadyData}
-                    defaultValues={initialValues.tools}
+                    defaultValues={initialWizardValues.tools}
                     mode={mode}
                     onPrev={goPrev}
                     sessionID={sessionID}

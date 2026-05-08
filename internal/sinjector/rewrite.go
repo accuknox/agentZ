@@ -14,10 +14,31 @@ const (
 )
 
 type secretResolver interface {
-	resolve(context.Context, string) (string, error)
+	resolve(context.Context, string) (resolvedSecret, error)
 }
 
-func replacePlaceholders(ctx context.Context, src string, res secretResolver) (string, bool) {
+type resolvedSecret struct {
+	value string
+	hosts []string
+}
+
+type placeholderOptions struct {
+	context string
+	path    bool
+}
+
+func replacePlaceholders(ctx context.Context, src string, res secretResolver, target string) (string, bool) {
+	return replaceSecretRefs(ctx, src, res, target, placeholderOptions{})
+}
+
+func replacePath(ctx context.Context, path string, res secretResolver, target string) (string, bool) {
+	return replaceSecretRefs(ctx, path, res, target, placeholderOptions{
+		context: " in path",
+		path:    true,
+	})
+}
+
+func replaceSecretRefs(ctx context.Context, src string, res secretResolver, target string, opts placeholderOptions) (string, bool) {
 	if !strings.Contains(src, PlaceholderPrefix) {
 		return src, false
 	}
@@ -34,7 +55,7 @@ func replacePlaceholders(ctx context.Context, src string, res secretResolver) (s
 		out.WriteString(src[:idx])
 		nameStart := idx + len(PlaceholderPrefix)
 		if nameStart >= len(src) || !isSecretNameFirstByte(src[nameStart]) {
-			slog.WarnContext(ctx, "invalid secret placeholder", slog.String("reason", "bad first byte"))
+			slog.WarnContext(ctx, "invalid secret placeholder"+opts.context, slog.String("reason", "bad first byte"))
 			out.WriteString(src[idx : idx+len(PlaceholderPrefix)])
 			src = src[idx+len(PlaceholderPrefix):]
 			continue
@@ -47,105 +68,50 @@ func replacePlaceholders(ctx context.Context, src string, res secretResolver) (s
 			nameEnd++
 		}
 		if nameEnd-nameStart == maxSecretNameLen && nameEnd < len(src) && isSecretNameByte(src[nameEnd]) {
-			slog.WarnContext(ctx, "secret placeholder name is too long")
+			slog.WarnContext(ctx, "secret placeholder name is too long"+opts.context)
 			out.WriteString(src[idx : idx+len(PlaceholderPrefix)])
 			src = src[idx+len(PlaceholderPrefix):]
 			continue
 		}
 		if nameEnd < len(src) && !isPlaceholderDelimiter(src[nameEnd]) {
-			slog.WarnContext(ctx, "invalid secret placeholder delimiter", slog.String("name", src[nameStart:nameEnd]))
+			slog.WarnContext(ctx, "invalid secret placeholder delimiter"+opts.context, slog.String("name", src[nameStart:nameEnd]))
 			out.WriteString(src[idx : idx+len(PlaceholderPrefix)])
 			src = src[idx+len(PlaceholderPrefix):]
 			continue
 		}
 
 		name := src[nameStart:nameEnd]
-		value, err := res.resolve(ctx, name)
+		secret, err := res.resolve(ctx, name)
 		if err != nil {
-			slog.WarnContext(ctx, "failed to resolve secret", slog.String("name", name), slog.Any("err", err))
+			slog.WarnContext(ctx, "failed to resolve secret"+opts.context, slog.String("name", name), slog.Any("err", err))
 			out.WriteString(src[idx:nameEnd])
 			src = src[nameEnd:]
 			continue
 		}
-		if err := validateSecretValue(value); err != nil {
-			slog.WarnContext(ctx, "secret value is invalid", slog.String("name", name), slog.Any("err", err))
+		if !SecretHostMatches(target, secret.hosts) {
+			slog.WarnContext(ctx, "secret host mismatch"+opts.context, slog.String("name", name), slog.String("host", target))
 			out.WriteString(src[idx:nameEnd])
 			src = src[nameEnd:]
 			continue
 		}
-		out.WriteString(value)
+		if err := validateSecretValue(secret.value); err != nil {
+			slog.WarnContext(ctx, "secret value is invalid"+opts.context, slog.String("name", name), slog.Any("err", err))
+			out.WriteString(src[idx:nameEnd])
+			src = src[nameEnd:]
+			continue
+		}
+		if opts.path {
+			err = validatePathSecret(secret.value)
+		}
+		if err != nil {
+			slog.WarnContext(ctx, "secret value is unsafe for url path", slog.String("name", name), slog.Any("err", err))
+			out.WriteString(src[idx:nameEnd])
+			src = src[nameEnd:]
+			continue
+		}
+		out.WriteString(secret.value)
 		changed = true
 		src = src[nameEnd:]
-	}
-
-	return out.String(), changed
-}
-
-func replacePath(ctx context.Context, path string, res secretResolver) (string, bool) {
-	if !strings.Contains(path, PlaceholderPrefix) {
-		return path, false
-	}
-
-	var out strings.Builder
-	changed := false
-	for len(path) > 0 {
-		idx := strings.Index(path, PlaceholderPrefix)
-		if idx < 0 {
-			out.WriteString(path)
-			break
-		}
-
-		out.WriteString(path[:idx])
-		nameStart := idx + len(PlaceholderPrefix)
-		if nameStart >= len(path) || !isSecretNameFirstByte(path[nameStart]) {
-			slog.WarnContext(ctx, "invalid secret placeholder in path", slog.String("reason", "bad first byte"))
-			out.WriteString(path[idx : idx+len(PlaceholderPrefix)])
-			path = path[idx+len(PlaceholderPrefix):]
-			continue
-		}
-		nameEnd := nameStart
-		for nameEnd < len(path) && nameEnd-nameStart < maxSecretNameLen {
-			if !isSecretNameByte(path[nameEnd]) {
-				break
-			}
-			nameEnd++
-		}
-		if nameEnd-nameStart == maxSecretNameLen && nameEnd < len(path) && isSecretNameByte(path[nameEnd]) {
-			slog.WarnContext(ctx, "secret placeholder name is too long in path")
-			out.WriteString(path[idx : idx+len(PlaceholderPrefix)])
-			path = path[idx+len(PlaceholderPrefix):]
-			continue
-		}
-		if nameEnd < len(path) && !isPlaceholderDelimiter(path[nameEnd]) {
-			slog.WarnContext(ctx, "invalid secret placeholder delimiter in path", slog.String("name", path[nameStart:nameEnd]))
-			out.WriteString(path[idx : idx+len(PlaceholderPrefix)])
-			path = path[idx+len(PlaceholderPrefix):]
-			continue
-		}
-
-		name := path[nameStart:nameEnd]
-		value, err := res.resolve(ctx, name)
-		if err != nil {
-			slog.WarnContext(ctx, "failed to resolve path secret", slog.String("name", name), slog.Any("err", err))
-			out.WriteString(path[idx:nameEnd])
-			path = path[nameEnd:]
-			continue
-		}
-		if err := validateSecretValue(value); err != nil {
-			slog.WarnContext(ctx, "secret value is invalid in path", slog.String("name", name), slog.Any("err", err))
-			out.WriteString(path[idx:nameEnd])
-			path = path[nameEnd:]
-			continue
-		}
-		if err := validatePathSecret(value); err != nil {
-			slog.WarnContext(ctx, "secret value is unsafe for url path", slog.String("name", name), slog.Any("err", err))
-			out.WriteString(path[idx:nameEnd])
-			path = path[nameEnd:]
-			continue
-		}
-		out.WriteString(value)
-		changed = true
-		path = path[nameEnd:]
 	}
 
 	return out.String(), changed

@@ -65,7 +65,6 @@ import {
   shortLensID,
   useTokenPagination,
 } from "@/app/lens/traces/client-utils"
-const telemetryPageSize = 15
 
 const columnClassName: Record<string, string> = {
   trace: "min-w-40 w-[20%]",
@@ -403,7 +402,6 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
 }
 
 type TraceInspectorTab = "spans" | "telemetry"
-type TelemetryTab = "process" | "file" | "network"
 
 function TraceInspector({
   trace,

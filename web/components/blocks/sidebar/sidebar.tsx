@@ -13,6 +13,7 @@ import {
 import type { ListAgentActionResponse } from "@/data/types"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
+import { NavEnvironments } from "./environments"
 
 export function AppSidebar({
   agents,
@@ -34,6 +35,7 @@ export function AppSidebar({
             <NavLens />
           </Suspense>
           <NavSecrets />
+          <NavEnvironments />
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>

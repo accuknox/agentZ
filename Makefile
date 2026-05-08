@@ -73,14 +73,15 @@ run-manager:
 		--health-probe-bind-address=:8888 \
 		--watch-namespace=default \
 		--enable-webhooks=false \
-		--agent-default-image=$(AGENT_IMAGE) \
+		--agent-image=$(AGENT_IMAGE) \
 		--sinjector-image=$(IMAGE) \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
 		--manager-openbao-k8s-auth-role=clawarmor-manager \
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
-		--sinjector-ca-secret-name=sinjector
+		--sinjector-ca-secret-name=sinjector \
+		--nix-store-pvc=clawarmor-nix-store
 
 # Run session service
 .PHONY: run-session-service

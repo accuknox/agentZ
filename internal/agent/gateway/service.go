@@ -17,7 +17,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
 	baoapi "github.com/openbao/openbao/api/v2"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/agent/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
 )
@@ -54,17 +58,20 @@ type Config struct {
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
-	ctx      context.Context
-	resolver *resolver
-	store    *valkeyStore
-	queries  gatewaydb.Querier
-	cfg      Config
-	bao      *baoapi.Client
-	baoKV    *baoapi.KVv2
+	ctx       context.Context
+	resolver  *resolver
+	store     *valkeyStore
+	queries   gatewaydb.Querier
+	cfg       Config
+	bao       *baoapi.Client
+	baoKV     *baoapi.KVv2
+	k8sClient ctrlclient.Client
 
 	mu             sync.Mutex
 	consumers      map[string]struct{}
 	sessionWaiters map[string]map[chan struct{}]struct{}
+	backendMu      sync.Mutex
+	backends       map[string]*backendClient
 }
 
 type statusRecorder struct {
@@ -77,6 +84,12 @@ type statusRecorder struct {
 func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
+}
+
+// SetAPIError stores the structured error details for request logging.
+func (r *statusRecorder) SetAPIError(code string, cause error) {
+	r.apiCode = code
+	r.cause = cause
 }
 
 func (r *statusRecorder) Flush() {
@@ -115,6 +128,19 @@ func Serve(ctx context.Context, cfg Config) error {
 		return err
 	}
 	defer resolver.Close()
+
+	scheme := runtime.NewScheme()
+	if err := clawarmorv1alpha1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add clawarmor scheme: %w", err)
+	}
+	kubeCfg, err := ctrlconfig.GetConfig()
+	if err != nil {
+		return fmt.Errorf("load kube config: %w", err)
+	}
+	k8sClient, err := ctrlclient.New(kubeCfg, ctrlclient.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("create k8s client: %w", err)
+	}
 
 	store, err := newValkeyStore(cfg.ValkeyAddr, defaultRunTTL)
 	if err != nil {
@@ -157,9 +183,12 @@ func Serve(ctx context.Context, cfg Config) error {
 		cfg:            cfg,
 		bao:            baoClient,
 		baoKV:          baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		k8sClient:      k8sClient,
 		consumers:      make(map[string]struct{}),
 		sessionWaiters: make(map[string]map[chan struct{}]struct{}),
+		backends:       make(map[string]*backendClient),
 	}
+	defer svc.closeBackendClients()
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -230,11 +259,28 @@ func requestLog(next http.Handler) http.Handler {
 		if rec.apiCode != "" {
 			attrs = append(attrs, slog.String("code", rec.apiCode))
 		}
-		if rec.cause != nil && (rec.status >= http.StatusInternalServerError || rec.status == http.StatusOK) {
+		if rec.cause != nil && shouldLogRequestCause(r.Context(), rec.status) {
 			attrs = append(attrs, slog.Any("err", rec.cause))
+		}
+		if rec.status >= http.StatusInternalServerError {
 			slog.LogAttrs(r.Context(), slog.LevelError, "gateway request completed", attrs...)
+			return
+		}
+		if rec.status >= http.StatusBadRequest &&
+			slog.Default().Enabled(r.Context(), slog.LevelDebug) {
+			slog.LogAttrs(r.Context(), slog.LevelDebug, "gateway request completed", attrs...)
 			return
 		}
 		slog.LogAttrs(r.Context(), slog.LevelInfo, "gateway request completed", attrs...)
 	})
+}
+
+func shouldLogRequestCause(ctx context.Context, status int) bool {
+	if status >= http.StatusInternalServerError || status == http.StatusOK {
+		return true
+	}
+	if status < http.StatusBadRequest {
+		return false
+	}
+	return slog.Default().Enabled(ctx, slog.LevelDebug)
 }

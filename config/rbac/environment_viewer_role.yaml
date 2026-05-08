@@ -1,0 +1,29 @@
+# This rule is not used by the project clawarmor itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants read-only access to clawarmor.accuknox.com resources.
+# This role is intended for users who need visibility into these resources
+# without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: clawarmor
+    app.kubernetes.io/managed-by: kustomize
+  name: environment-viewer-role
+rules:
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - envs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - envs/status
+  verbs:
+  - get

@@ -46,6 +46,7 @@ import (
 	agentcmd "github.com/accuknox/clawarmor/cmd/clawarmor/subcommands/agent"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
+	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -61,7 +62,9 @@ var (
 	secureMetrics                                    bool
 	enableHTTP2                                      bool
 	tlsOpts                                          []func(*tls.Config)
-	agentDefaultImage                                string
+	agentImage                                       string
+	nixStorePVC                                      string
+	agentInitImage                                   string
 	sinjectorImage                                   string
 	openBaoAddr                                      string
 	managerOpenBaoAddr                               string
@@ -200,9 +203,25 @@ var managerCmd = &cli.Command{
 			Destination: &enableHTTP2,
 		},
 		&cli.StringFlag{
-			Name:        "agent-default-image",
+			Name:        "agent-image",
 			Usage:       "Default container image for Agent pods",
-			Destination: &agentDefaultImage,
+			Destination: &agentImage,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "nix-store-pvc",
+			Usage:       "Name of the shared nix store PVC (pre-created by admin)",
+			Destination: &nixStorePVC,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "agent-init-image",
+			Usage:       "Container image for nix agent init containers",
+			Destination: &agentInitImage,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -467,7 +486,9 @@ var managerCmd = &cli.Command{
 		}
 
 		runtimeConfig := agent.RuntimeConfig{
-			DefaultImage:                     agentDefaultImage,
+			AgentDefaultImage:                agentImage,
+			SharedNixPVC:                     nixStorePVC,
+			AgentInitImage:                   agentInitImage,
 			SinjectorImage:                   sinjectorImage,
 			OpenBaoAddr:                      openBaoAddr,
 			ManagerOpenBaoAddr:               managerOpenBaoAddr,
@@ -511,15 +532,27 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "Failed to create controller", "controller", "Agent")
 			os.Exit(1)
 		}
+		envReconciler := &environmentcontroller.Reconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}
+		if err := envReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "Environment")
+			os.Exit(1)
+		}
 		if enableWebhooks {
 			err = webhookv1alpha1.SetupAgentWebhookWithManager(
 				mgr,
 				webhookv1alpha1.AgentWebhookConfig{
-					DefaultImage: agentDefaultImage,
+					AgentDefaultImage: agentImage,
 				},
 			)
 			if err != nil {
 				setupLog.Error(err, "Failed to create webhook", "webhook", "Agent")
+				os.Exit(1)
+			}
+			if err := webhookv1alpha1.SetupEnvironmentWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "Failed to create webhook", "webhook", "Environment")
 				os.Exit(1)
 			}
 		}

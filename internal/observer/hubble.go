@@ -165,7 +165,7 @@ func resolveManagedSource(ctx context.Context, r *resolver, src *flowpb.Endpoint
 	}
 
 	labels := normalizeHubbleLabels(src.GetLabels())
-	sessionID, ok := r.resolve(ctx, src.GetNamespace(), labels, "", src.GetPodName())
+	sessionID, ok := r.resolveNetwork(ctx, src.GetNamespace(), labels, src.GetPodName())
 	if !ok {
 		return managedSource{}, false
 	}

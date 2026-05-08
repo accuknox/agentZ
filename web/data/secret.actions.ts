@@ -1,51 +1,13 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { updateTag } from "next/cache"
+import { redirect } from "next/navigation"
 import { deleteSecret, listSecrets, putSecret } from "@/lib/gateway/client"
-import type { Error, SecretListItem } from "@/lib/gateway/client"
-import { zSecretKey, zSecretValue } from "@/lib/gateway/client/zod.gen"
-
-export type ListSecretsActionResponse =
-  | {
-      items: SecretListItem[]
-      nextPageToken: string
-      hasNextPage: boolean
-      error: undefined
-    }
-  | {
-      items: undefined
-      nextPageToken?: undefined
-      hasNextPage?: undefined
-      error: Error
-    }
-
-export async function listSecretsAction(
-  sessionID: string,
-  query?: { limit?: number; page_token?: string }
-): Promise<ListSecretsActionResponse> {
-  const result = await listSecrets({
-    path: { sessionID },
-    query,
-  })
-
-  if (result.error) {
-    return {
-      items: undefined,
-      error: result.error,
-    }
-  }
-
-  const items = result.data.items
-  const nextPageToken = result.data.next_page_token
-  const hasNextPage = nextPageToken.length > 0
-
-  return {
-    items,
-    nextPageToken,
-    hasNextPage,
-    error: undefined,
-  }
-}
+import type { Error } from "@/lib/gateway/client"
+import { zSecretKey } from "@/lib/gateway/client/zod.gen"
+import { secretsTag, sessionSecretsTag } from "@/data/cache"
+import { secretHostsInputSchema, secretValueSchema } from "./schema"
+import type { DeleteSecretFormState, PutSecretFormState } from "./types"
 
 async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> {
   const keys: string[] = []
@@ -55,6 +17,7 @@ async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> 
     const result = await listSecrets({
       path: { sessionID },
       query: { limit: 200, page_token: pageToken },
+      cache: "no-store",
     })
 
     if (result.error) {
@@ -76,10 +39,6 @@ async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> 
   return keys
 }
 
-export type PutSecretFormState = {
-  error?: Error
-}
-
 export async function putSecretFormAction(
   sessionID: string,
   _: PutSecretFormState,
@@ -87,6 +46,8 @@ export async function putSecretFormAction(
 ): Promise<PutSecretFormState> {
   const key = formData.get("key")
   const value = formData.get("value")
+  const hosts = formData.get("hosts")
+  const mode = formData.get("mode")
 
   const parsedKey = zSecretKey.safeParse(key)
   if (!parsedKey.success) {
@@ -102,7 +63,7 @@ export async function putSecretFormAction(
     }
   }
 
-  const parsedValue = zSecretValue.safeParse(value)
+  const parsedValue = secretValueSchema.safeParse(value)
   if (!parsedValue.success) {
     return {
       error: {
@@ -116,22 +77,38 @@ export async function putSecretFormAction(
     }
   }
 
-  const existingKeys = await fetchAllSecretKeys(sessionID)
-  if (Array.isArray(existingKeys)) {
-    const normalizedKey = parsedKey.data.toLowerCase()
-    const duplicate = existingKeys.find((k) => k.toLowerCase() === normalizedKey)
-    if (duplicate) {
-      return {
-        error: {
-          code: "DUPLICATE_SECRET",
-          message: "Secret configuration is invalid",
-          errors: [
-            {
-              field: "key",
-              message: `A secret named "${duplicate}" already exists. Secrets are case-insensitive.`,
-            },
-          ],
-        },
+  const parsedHosts = secretHostsInputSchema.safeParse(hosts)
+  if (!parsedHosts.success) {
+    return {
+      error: {
+        code: "INVALID_FORM",
+        message: "Secret configuration is invalid",
+        errors: parsedHosts.error.issues.map((issue) => ({
+          field: "hosts",
+          message: issue.message,
+        })),
+      },
+    }
+  }
+
+  if (mode !== "update") {
+    const existingKeys = await fetchAllSecretKeys(sessionID)
+    if (Array.isArray(existingKeys)) {
+      const normalizedKey = parsedKey.data.toLowerCase()
+      const duplicate = existingKeys.find((k) => k.toLowerCase() === normalizedKey)
+      if (duplicate) {
+        return {
+          error: {
+            code: "DUPLICATE_SECRET",
+            message: "Secret configuration is invalid",
+            errors: [
+              {
+                field: "key",
+                message: `A secret named "${duplicate}" already exists. Secrets are case-insensitive.`,
+              },
+            ],
+          },
+        }
       }
     }
   }
@@ -139,7 +116,7 @@ export async function putSecretFormAction(
   const result = await putSecret({
     path: { sessionID },
     body: {
-      secrets: [{ key: parsedKey.data, value: parsedValue.data }],
+      secrets: [{ key: parsedKey.data, value: parsedValue.data, hosts: parsedHosts.data }],
     },
   })
 
@@ -147,12 +124,9 @@ export async function putSecretFormAction(
     return { error: result.error }
   }
 
-  revalidatePath("/secrets")
-  return {}
-}
-
-export type DeleteSecretFormState = {
-  error?: Error
+  updateTag(secretsTag)
+  updateTag(sessionSecretsTag(sessionID))
+  redirect(`/secrets?session_id=${encodeURIComponent(sessionID)}`)
 }
 
 export async function deleteSecretFormAction(
@@ -187,6 +161,7 @@ export async function deleteSecretFormAction(
     return { error: result.error }
   }
 
-  revalidatePath("/secrets")
-  return {}
+  updateTag(secretsTag)
+  updateTag(sessionSecretsTag(sessionID))
+  redirect(`/secrets?session_id=${encodeURIComponent(sessionID)}`)
 }

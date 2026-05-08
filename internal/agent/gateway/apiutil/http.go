@@ -40,10 +40,10 @@ func NewError(status int, code string, message string, cause error, fields ...ga
 // RecordRequestError records the API error on a compatible response writer.
 func RecordRequestError(w http.ResponseWriter, code string, cause error) {
 	rec, ok := w.(interface {
-		setAPIError(string, error)
+		SetAPIError(string, error)
 	})
 	if ok {
-		rec.setAPIError(code, cause)
+		rec.SetAPIError(code, cause)
 	}
 }
 

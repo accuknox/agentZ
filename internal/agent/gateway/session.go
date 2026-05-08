@@ -54,7 +54,7 @@ func (s *Service) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backend, err := newBackendClient(resolved.Target)
+	backend, err := s.backendClient(resolved.Target)
 	if err != nil {
 		writeError(w, r, newAPIError(
 			http.StatusServiceUnavailable,
@@ -64,7 +64,6 @@ func (s *Service) SendMessage(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	defer backend.Close()
 
 	callCtx, cancel := backendCallContext(r.Context())
 	defer cancel()
@@ -163,7 +162,7 @@ func (s *Service) InterruptSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backend, err := newBackendClient(resolved.Target)
+	backend, err := s.backendClient(resolved.Target)
 	if err != nil {
 		writeError(w, r, newAPIError(
 			http.StatusServiceUnavailable,
@@ -173,7 +172,6 @@ func (s *Service) InterruptSession(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	defer backend.Close()
 
 	callCtx, cancel := backendCallContext(r.Context())
 	defer cancel()
@@ -209,7 +207,7 @@ func (s *Service) CompactSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backend, err := newBackendClient(resolved.Target)
+	backend, err := s.backendClient(resolved.Target)
 	if err != nil {
 		writeError(w, r, newAPIError(
 			http.StatusServiceUnavailable,
@@ -219,7 +217,6 @@ func (s *Service) CompactSession(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	defer backend.Close()
 
 	callCtx, cancel := backendCallContext(r.Context())
 	defer cancel()
@@ -386,7 +383,7 @@ func (s *Service) startConsumer(runID string, target string) error {
 }
 
 func (s *Service) consumeBackendRun(ctx context.Context, target, runID string) {
-	backend, err := newBackendClient(target)
+	backend, err := s.backendClient(target)
 	if err != nil {
 		slog.ErrorContext(ctx, "dial backend stream failed",
 			slog.String("run_id", runID),
@@ -394,7 +391,6 @@ func (s *Service) consumeBackendRun(ctx context.Context, target, runID string) {
 		)
 		return
 	}
-	defer backend.Close()
 
 	stream, err := backend.client.StreamRun(ctx, &agentpb.StreamRunRequest{RunId: runID})
 	if err != nil {
@@ -467,11 +463,10 @@ func (s *Service) finishRunIfRunning(ctx context.Context, runID string) error {
 }
 
 func (s *Service) activeRun(ctx context.Context, sessionID string, target string) (activeRun, bool, error) {
-	backend, err := newBackendClient(target)
+	backend, err := s.backendClient(target)
 	if err != nil {
 		return activeRun{}, false, status.Errorf(codes.Unavailable, "dial backend: %v", err)
 	}
-	defer backend.Close()
 
 	callCtx, cancel := backendCallContext(ctx)
 	defer cancel()

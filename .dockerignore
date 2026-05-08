@@ -10,3 +10,6 @@
 # Re-include Go module files
 !go.mod
 !go.sum
+
+# Re-include nix init script used by Dockerfile.nix-init
+!hack/nix-init.sh

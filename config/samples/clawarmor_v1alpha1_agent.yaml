@@ -8,6 +8,8 @@ metadata:
 spec:
   image: murtazau/clawarmor-agent:latest
   imagePullPolicy: Never
+  environmentRef:
+    name: environment-sample
   env:
   - name: OPENAI_API_KEY
     valueFrom:

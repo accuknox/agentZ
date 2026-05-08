@@ -77,8 +77,8 @@ func (r *Reconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha
 	return nil
 }
 
-func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string) error {
-	desired, err := r.buildDeployment(agt, hash)
+func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string, packages []string) error {
+	desired, err := r.buildDeployment(agt, hash, packages)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) (*corev1.Service
 	}, nil
 }
 
-func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) (*appsv1.Deployment, error) {
+func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, packages []string) (*appsv1.Deployment, error) {
 	port, err := serverPort(agt.Spec.Server.Address)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 
 	image := agt.Spec.Image
 	if image == "" {
-		image = r.Config.DefaultImage
+		image = r.Config.AgentDefaultImage
 	}
 
 	labels := resourceLabels(agt)
@@ -192,6 +192,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 			ReadOnly:  true,
 		},
 	}
+	var initContainers []corev1.Container
 	if r.sinjectorEnabled() {
 		serviceAccountName = agt.Name
 		bundleKey := r.Config.SinjectorCASecretBundleKey
@@ -212,6 +213,80 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 			MountPath: sinjectorCAMountPath,
 			ReadOnly:  true,
 		})
+	}
+	if len(packages) > 0 {
+		volumes = append(volumes,
+			corev1.Volume{
+				Name: nixAgentVolume,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: agt.Name + "-nix",
+					},
+				},
+			},
+			corev1.Volume{
+				Name: nixLinkVolume,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		)
+		initVolumeMounts := []corev1.VolumeMount{
+			{Name: nixAgentVolume, MountPath: nixAgentMount},
+			{Name: nixLinkVolume, MountPath: nixLinkStage},
+		}
+		initEnv := []corev1.EnvVar{
+			{Name: nixPkgEnv, Value: strings.Join(packages, ",")},
+		}
+
+		if r.Config.SharedNixPVC != "" {
+			volumes = append(volumes, corev1.Volume{
+				Name: "nix-shared",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: r.Config.SharedNixPVC,
+					},
+				},
+			})
+			initVolumeMounts = append(initVolumeMounts,
+				corev1.VolumeMount{Name: "nix-shared", MountPath: "/nix-shared"},
+			)
+			initEnv = append(initEnv,
+				corev1.EnvVar{Name: "NIX_SHARED_PVC", Value: r.Config.SharedNixPVC},
+			)
+		}
+
+		initImage := r.Config.AgentInitImage
+		if initImage == "" {
+			initImage = nixInitImage
+		}
+		initContainers = append(initContainers, corev1.Container{
+			Name:            "nix-init",
+			Image:           initImage,
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Env:             initEnv,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: new(false),
+				RunAsUser:                new(int64(0)),
+				RunAsNonRoot:             new(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			VolumeMounts: initVolumeMounts,
+		})
+
+		volumeMounts = append(volumeMounts,
+			corev1.VolumeMount{
+				Name:      nixAgentVolume,
+				MountPath: nixAgentMount,
+				ReadOnly:  true,
+			},
+			corev1.VolumeMount{
+				Name:      nixLinkVolume,
+				MountPath: nixLinkMount,
+			},
+		)
 	}
 
 	return &appsv1.Deployment{
@@ -241,7 +316,8 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
-					Volumes: volumes,
+					Volumes:        volumes,
+					InitContainers: initContainers,
 					Containers: []corev1.Container{
 						{
 							Name:            "agent",
@@ -254,7 +330,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 								"--config",
 								configMountPath,
 							},
-							Env:       r.agentEnv(agt),
+							Env:       r.agentEnv(agt, packages),
 							Resources: agt.Spec.Resources,
 							Ports: []corev1.ContainerPort{
 								{
@@ -274,46 +350,60 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string) 
 							VolumeMounts: volumeMounts,
 						},
 					},
-					RestartPolicy: corev1.RestartPolicyAlways,
 				},
 			},
 		},
 	}, nil
 }
 
-func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent) []corev1.EnvVar {
+func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string) []corev1.EnvVar {
+	var env []corev1.EnvVar
 	if !r.sinjectorEnabled() {
-		return agt.Spec.Env
-	}
-	proxy := r.proxyAddress(agt)
-	proxy = strings.TrimPrefix(proxy, "https://")
-	proxy = strings.TrimPrefix(proxy, "http://")
-	proxy = "http://" + proxy
-	forced := map[string]string{
-		"https_proxy":         proxy,
-		"HTTPS_PROXY":         proxy,
-		"SSL_CERT_FILE":       r.Config.AgentCABundlePath,
-		"REQUESTS_CA_BUNDLE":  r.Config.AgentCABundlePath,
-		"CURL_CA_BUNDLE":      r.Config.AgentCABundlePath,
-		"NODE_EXTRA_CA_CERTS": r.Config.AgentCABundlePath,
-	}
-	env := make([]corev1.EnvVar, 0, len(agt.Spec.Env)+len(forced))
-	for _, item := range agt.Spec.Env {
-		if _, ok := forced[item.Name]; ok {
-			continue
+		env = make([]corev1.EnvVar, len(agt.Spec.Env))
+		copy(env, agt.Spec.Env)
+	} else {
+		proxy := r.proxyAddress(agt)
+		proxy = strings.TrimPrefix(proxy, "https://")
+		proxy = strings.TrimPrefix(proxy, "http://")
+		proxy = "http://" + proxy
+		forced := map[string]string{
+			"https_proxy":         proxy,
+			"HTTPS_PROXY":         proxy,
+			"SSL_CERT_FILE":       r.Config.AgentCABundlePath,
+			"REQUESTS_CA_BUNDLE":  r.Config.AgentCABundlePath,
+			"CURL_CA_BUNDLE":      r.Config.AgentCABundlePath,
+			"NODE_EXTRA_CA_CERTS": r.Config.AgentCABundlePath,
 		}
-		env = append(env, item)
+		env = make([]corev1.EnvVar, 0, len(agt.Spec.Env)+len(forced))
+		for _, item := range agt.Spec.Env {
+			if _, ok := forced[item.Name]; ok {
+				continue
+			}
+			env = append(env, item)
+		}
+		keys := []string{
+			"https_proxy",
+			"HTTPS_PROXY",
+			"SSL_CERT_FILE",
+			"REQUESTS_CA_BUNDLE",
+			"CURL_CA_BUNDLE",
+			"NODE_EXTRA_CA_CERTS",
+		}
+		for _, key := range keys {
+			env = append(env, corev1.EnvVar{Name: key, Value: forced[key]})
+		}
 	}
-	keys := []string{
-		"https_proxy",
-		"HTTPS_PROXY",
-		"SSL_CERT_FILE",
-		"REQUESTS_CA_BUNDLE",
-		"CURL_CA_BUNDLE",
-		"NODE_EXTRA_CA_CERTS",
-	}
-	for _, key := range keys {
-		env = append(env, corev1.EnvVar{Name: key, Value: forced[key]})
+	if len(packages) > 0 {
+		env = append(env,
+			corev1.EnvVar{
+				Name:  "NIX_PROFILES",
+				Value: "/nix/profile",
+			},
+			corev1.EnvVar{
+				Name:  "PATH",
+				Value: "/nix/profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+			},
+		)
 	}
 	return env
 }

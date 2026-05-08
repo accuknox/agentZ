@@ -1,7 +1,8 @@
 import { Suspense } from "react"
-import { listAgentsAction } from "@/data/agent.actions"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { selectedSessionID } from "@/data/agent.utils"
 import { getTraceChartAction, listTracesAction } from "@/data/lens.actions"
-import type { ListAgentActionResponse, ListAgentWithConfigActionResponse } from "@/data/types"
+import type { ListAgentWithConfigActionResponse } from "@/data/types"
 import { TracesChart } from "@/app/lens/traces/traces-chart"
 import { TracesChartSkeleton } from "@/app/lens/traces/traces-chart-skeleton"
 import { TracesFilters } from "@/app/lens/traces/traces-filters"
@@ -28,7 +29,7 @@ export default async function TracesPage({
   searchParams: Promise<TracesSearchParams>
 }) {
   const params = await searchParams
-  const agents = listAgentsAction(true)
+  const agents = listAgentsCachedQuery(true)
   const from = firstSearchParam(params.from)
   const to = firstSearchParam(params.to)
   const range = traceDateRange(from, to)
@@ -171,12 +172,4 @@ function TracesFiltersSkeleton() {
 
 function ErrorPanel({ message }: { message: string }) {
   return <div className="rounded-md bg-destructive/5 p-4 text-sm text-destructive">{message}</div>
-}
-
-function selectedSessionID(result: ListAgentActionResponse, sessionID?: string) {
-  if (result.error) {
-    return undefined
-  }
-
-  return sessionID ?? result.agents[0]?.session_id
 }

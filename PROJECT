@@ -23,4 +23,18 @@ resources:
     defaulting: true
     validation: true
     webhookVersion: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: accuknox.com
+  group: clawarmor
+  kind: Environment
+  path: github.com/accuknox/clawarmor/api/v1alpha1
+  plural: envs
+  version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
 version: "3"

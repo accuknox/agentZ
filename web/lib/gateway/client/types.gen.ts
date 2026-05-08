@@ -43,6 +43,11 @@ export type ObservabilityAction = "Allowed" | "Blocked"
 
 export type AgentName = string
 
+/**
+ * Environment resource name.
+ */
+export type EnvironmentName = string
+
 export type Error = {
   code: string
   message: string
@@ -90,6 +95,7 @@ export type AgentConfiguration = {
   env?: {
     [key: string]: string
   }
+  environmentName?: EnvironmentName
   systemPrompt?: string
   compaction?: CreateAgentCompaction
   maxHistoryRuns?: number
@@ -111,6 +117,7 @@ export type CreateAgentRequest = {
   env?: {
     [key: string]: string
   }
+  environmentName: EnvironmentName
   systemPrompt?: string
   compaction?: CreateAgentCompaction
   maxHistoryRuns?: number
@@ -126,6 +133,7 @@ export type UpdateAgentRequest = {
   env?: {
     [key: string]: string
   }
+  environmentName: EnvironmentName
   systemPrompt?: string
   compaction?: UpdateAgentCompaction
   maxHistoryRuns?: number
@@ -700,13 +708,21 @@ export type SecretKey = string
  */
 export type SecretValue = string
 
+/**
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ *
+ */
+export type SecretHost = string
+
 export type SecretEntry = {
   key: SecretKey
   value: SecretValue
+  hosts: Array<SecretHost>
 }
 
 export type SecretListItem = {
   key: SecretKey
+  hosts: Array<SecretHost>
   created_at: string
   modified_at: string
 }
@@ -731,6 +747,38 @@ export type ListSecretsResponse = {
   next_page_token: string
 }
 
+export type Environment = {
+  name: EnvironmentName
+  packages: Array<string>
+  allowed_hosts: Array<string>
+  created_at: string
+  metadata: {
+    package_count: number
+    allowed_host_count: number
+    referenced_by_agent: boolean
+  }
+}
+
+export type ListEnvironmentsResponse = {
+  environments: Array<Environment>
+  next_page_token: string
+}
+
+export type CreateEnvironmentRequest = {
+  name: EnvironmentName
+  packages?: Array<string>
+  allowed_hosts?: Array<string>
+}
+
+export type DeleteEnvironmentRequest = {
+  name: EnvironmentName
+}
+
+export type UpdateEnvironmentRequest = {
+  packages: Array<string>
+  allowed_hosts: Array<string>
+}
+
 /**
  * Session UUID.
  */
@@ -740,6 +788,11 @@ export type SessionIdQuery = SessionId
  * Session UUID.
  */
 export type SessionIdPath = SessionId
+
+/**
+ * Environment name.
+ */
+export type EnvironmentNamePath = EnvironmentName
 
 /**
  * Optional session UUID filters. Repeat the query parameter for multiple sessions.
@@ -1641,3 +1694,145 @@ export type ListSecretsResponses = {
 }
 
 export type ListSecretsResponse2 = ListSecretsResponses[keyof ListSecretsResponses]
+
+export type ListEnvironmentsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/environment/list"
+}
+
+export type ListEnvironmentsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListEnvironmentsError = ListEnvironmentsErrors[keyof ListEnvironmentsErrors]
+
+export type ListEnvironmentsResponses = {
+  /**
+   * Paginated environments.
+   */
+  200: ListEnvironmentsResponse
+}
+
+export type ListEnvironmentsResponse2 = ListEnvironmentsResponses[keyof ListEnvironmentsResponses]
+
+export type CreateEnvironmentData = {
+  body: CreateEnvironmentRequest
+  path?: never
+  query?: never
+  url: "/api/environment/create"
+}
+
+export type CreateEnvironmentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current session state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateEnvironmentError = CreateEnvironmentErrors[keyof CreateEnvironmentErrors]
+
+export type CreateEnvironmentResponses = {
+  /**
+   * Environment created.
+   */
+  201: Environment
+}
+
+export type CreateEnvironmentResponse = CreateEnvironmentResponses[keyof CreateEnvironmentResponses]
+
+export type DeleteEnvironmentData = {
+  body: DeleteEnvironmentRequest
+  path?: never
+  query?: never
+  url: "/api/environment/delete"
+}
+
+export type DeleteEnvironmentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteEnvironmentError = DeleteEnvironmentErrors[keyof DeleteEnvironmentErrors]
+
+export type DeleteEnvironmentResponses = {
+  /**
+   * Environment deleted.
+   */
+  204: void
+}
+
+export type DeleteEnvironmentResponse = DeleteEnvironmentResponses[keyof DeleteEnvironmentResponses]
+
+export type UpdateEnvironmentData = {
+  body: UpdateEnvironmentRequest
+  path: {
+    /**
+     * Environment name.
+     */
+    name: EnvironmentName
+  }
+  query?: never
+  url: "/api/environment/update/{name}"
+}
+
+export type UpdateEnvironmentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateEnvironmentError = UpdateEnvironmentErrors[keyof UpdateEnvironmentErrors]
+
+export type UpdateEnvironmentResponses = {
+  /**
+   * Environment updated.
+   */
+  200: Environment
+}
+
+export type UpdateEnvironmentResponse = UpdateEnvironmentResponses[keyof UpdateEnvironmentResponses]

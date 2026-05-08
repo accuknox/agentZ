@@ -95,6 +95,12 @@ var secretPutCmd = &cli.Command{
 			Required: true,
 			Config:   cli.StringConfig{TrimSpace: true},
 		},
+		&cli.StringSliceFlag{
+			Name:     "host",
+			Usage:    "Allowed hostname, wildcard hostname, IP, or CIDR; may be repeated",
+			Required: true,
+			Config:   cli.StringConfig{TrimSpace: true},
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		sessionID, err := requiredArg(c, "session-id")
@@ -113,6 +119,11 @@ var secretPutCmd = &cli.Command{
 		}
 
 		rawSecrets := c.StringSlice("secret")
+		rawHosts := c.StringSlice("host")
+		if len(rawHosts) == 0 {
+			return writeAPIExit(c, "invalid_argument", "at least one host is required")
+		}
+
 		secrets := make([]gatewayapi.SecretEntry, 0, len(rawSecrets))
 		for _, raw := range rawSecrets {
 			key, value, ok := strings.Cut(raw, "=")
@@ -120,6 +131,7 @@ var secretPutCmd = &cli.Command{
 				return writeAPIExit(c, "invalid_argument", "secret must be in key=value format")
 			}
 			secrets = append(secrets, gatewayapi.SecretEntry{
+				Hosts: rawHosts,
 				Key:   key,
 				Value: value,
 			})

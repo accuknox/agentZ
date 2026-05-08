@@ -39,7 +39,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 )
 
-func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
 	if err := r.reconcileServiceAccount(ctx, agt, agt.Name, resourceLabels(agt)); err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alp
 	if err := r.reconcileSinjectorDeployment(ctx, agt); err != nil {
 		return err
 	}
-	if err := r.reconcileSinjectorPolicy(ctx, agt); err != nil {
+	if err := r.reconcileSinjectorPolicy(ctx, agt, allowedHosts); err != nil {
 		return err
 	}
 	return nil
@@ -194,11 +194,19 @@ func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *claw
 	return nil
 }
 
-func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
 	port, err := sinjectorPort(agt)
 	if err != nil {
 		return err
 	}
+	egress, err := egressRulesForHosts(allowedHosts, automaticEgressHosts(agt))
+	if err != nil {
+		return err
+	}
+	if len(egress) == 0 {
+		egress = append(egress, dnsEgressRule())
+	}
+	egress = append(egress, openBaoEgressRule())
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
@@ -242,6 +250,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 					}},
 				}},
 			}},
+			Egress: egress,
 		}
 		return ctrl.SetControllerReference(agt, current, r.Scheme)
 	})
@@ -251,6 +260,43 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 	return nil
 }
 
+func openBaoEgressRule() ciliumapi.EgressRule {
+	return ciliumapi.EgressRule{
+		EgressCommonRule: ciliumapi.EgressCommonRule{
+			ToEndpoints: []ciliumapi.EndpointSelector{
+				ciliumapi.NewESFromLabels(
+					ciliumlabels.NewLabel(
+						"io.kubernetes.pod.namespace",
+						"openbao",
+						ciliumlabels.LabelSourceK8s,
+					),
+					ciliumlabels.NewLabel(
+						"app.kubernetes.io/instance",
+						"openbao",
+						ciliumlabels.LabelSourceK8s,
+					),
+					ciliumlabels.NewLabel(
+						"app.kubernetes.io/name",
+						"openbao",
+						ciliumlabels.LabelSourceK8s,
+					),
+					ciliumlabels.NewLabel(
+						"component",
+						"server",
+						ciliumlabels.LabelSourceK8s,
+					),
+				),
+			},
+		},
+		ToPorts: ciliumapi.PortRules{{
+			Ports: []ciliumapi.PortProtocol{{
+				Port:     "8200",
+				Protocol: ciliumapi.ProtoTCP,
+			}},
+		}},
+	}
+}
+
 func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*appsv1.Deployment, error) {
 	port, err := sinjectorPort(agt)
 	if err != nil {
@@ -258,7 +304,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*ap
 	}
 	image := r.Config.SinjectorImage
 	if image == "" {
-		image = r.Config.DefaultImage
+		image = r.Config.AgentDefaultImage
 	}
 	labels := sinjectorLabels(agt)
 	podLabels := make(map[string]string, len(labels))

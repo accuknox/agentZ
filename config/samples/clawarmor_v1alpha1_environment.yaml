@@ -1,0 +1,17 @@
+apiVersion: clawarmor.accuknox.com/v1alpha1
+kind: Environment
+metadata:
+  labels:
+    app.kubernetes.io/name: clawarmor
+    app.kubernetes.io/managed-by: kustomize
+  name: environment-sample
+spec:
+  packages:
+  - python3
+  - nodejs_22
+  - ripgrep
+  allowedHosts:
+  - api.github.com
+  - "*.github.com"
+  - 10.0.0.0/24
+  - 2001:db8::/32

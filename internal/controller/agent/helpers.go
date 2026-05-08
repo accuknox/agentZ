@@ -38,10 +38,18 @@ const (
 	configKey            = "config.yaml"
 	configMountPath      = agentconfig.DefaultHomeDir + "/config.yaml"
 	configVolume         = "config"
+	nixAgentVolume       = "nix-agent"
+	nixAgentMount        = "/mnt/nix"
+	nixLinkVolume        = "nix-link"
+	nixLinkMount         = "/nix"
+	nixLinkStage         = "/tmp/nix-link"
+	nixInitImage         = "murtazau/clawarmor-nix-init:latest"
+	nixPkgEnv            = "NIX_PACKAGES"
 	sinjectorNameSuffix  = "-sinjector"
 	sinjectorCAVolume    = "sinjector-ca"
 	sinjectorCAMountPath = "/etc/clawarmor/sinjector-ca"
 	sinjectorFinalizer   = "clawarmor.accuknox.com/sinjector"
+	egressPolicySuffix   = "-egress"
 )
 
 var (
@@ -51,7 +59,9 @@ var (
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
-	DefaultImage                     string
+	AgentDefaultImage                string
+	SharedNixPVC                     string
+	AgentInitImage                   string
 	SinjectorImage                   string
 	OpenBaoAddr                      string
 	ManagerOpenBaoAddr               string
@@ -98,6 +108,10 @@ func sinjectorName(agt *clawarmorv1alpha1.Agent) string {
 	return agt.Name + sinjectorNameSuffix
 }
 
+func egressPolicyName(agt *clawarmorv1alpha1.Agent) string {
+	return agt.Name + egressPolicySuffix
+}
+
 func sinjectorPort(agt *clawarmorv1alpha1.Agent) (int32, error) {
 	return serverPort(agt.Spec.Server.Address)
 }
@@ -120,12 +134,18 @@ func renderConfig(agt *clawarmorv1alpha1.Agent) ([]byte, error) {
 	return data, nil
 }
 
-func configHash(cfgYAML []byte, env []corev1.EnvVar) (string, error) {
+func configHash(cfgYAML []byte, env []corev1.EnvVar, packages []string) (string, error) {
 	envYAML, err := yaml.Marshal(env)
 	if err != nil {
 		return "", fmt.Errorf("marshal env yaml: %w", err)
 	}
-	sum := sha256.Sum256(append(cfgYAML, envYAML...))
+	packageYAML, err := yaml.Marshal(packages)
+	if err != nil {
+		return "", fmt.Errorf("marshal package yaml: %w", err)
+	}
+	hashInput := append(cfgYAML, envYAML...)
+	hashInput = append(hashInput, packageYAML...)
+	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum), nil
 }
 

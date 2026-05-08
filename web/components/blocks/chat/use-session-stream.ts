@@ -11,9 +11,13 @@ import type { ChatMessage } from "./types"
 
 type SubscribeSessionQueryKey = ["subscribeSession", string]
 
-export function useSessionStream(sessionID: string): UseQueryResult<ChatMessage[], Error> {
+export function useSessionStream(
+  sessionID: string,
+  enabled = true
+): UseQueryResult<ChatMessage[], Error> {
   return useQuery(
     queryOptions({
+      enabled,
       queryFn: streamedQuery<SubscribeSessionResponse, ChatMessage[], SubscribeSessionQueryKey>({
         initialValue: [],
         refetchMode: "append",

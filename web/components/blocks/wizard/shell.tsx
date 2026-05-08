@@ -3,6 +3,7 @@
 import { WizardPanel } from "./panel"
 import { WizardStepNav } from "./step-nav"
 import type { WizardShellProps, WizardStep } from "./types"
+import { cn } from "@/lib/utils"
 
 export function WizardShell<TStep extends WizardStep>({
   canVisitStepAction,
@@ -10,15 +11,22 @@ export function WizardShell<TStep extends WizardStep>({
   currentIndex,
   currentStepId,
   direction,
+  layout = "vertical",
   onStepSelectAction,
   panelAdornment,
   steps,
 }: WizardShellProps<TStep>) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row md:gap-6">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-4",
+        layout === "vertical" && "md:flex-row md:gap-5"
+      )}
+    >
       <WizardStepNav
         canVisitStepAction={canVisitStepAction}
         currentIndex={currentIndex}
+        layout={layout}
         onStepSelectAction={onStepSelectAction}
         steps={steps}
       />

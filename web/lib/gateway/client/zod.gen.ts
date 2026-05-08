@@ -54,6 +54,15 @@ export const zAgentName = z
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
+/**
+ * Environment resource name.
+ */
+export const zEnvironmentName = z
+  .string()
+  .min(1)
+  .max(32)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
 export const zFieldError = z.object({
   field: z.string().min(1),
   message: z.string().min(1),
@@ -151,6 +160,7 @@ export const zUpdateAgentTools = z.object({
 
 export const zUpdateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),
+  environmentName: zEnvironmentName,
   systemPrompt: z.string().max(4096).optional(),
   compaction: zUpdateAgentCompaction.optional(),
   maxHistoryRuns: z
@@ -179,6 +189,7 @@ export const zCreateAgentTools = z.object({
 
 export const zAgentConfiguration = z.object({
   env: z.record(z.string(), z.string()).optional(),
+  environmentName: zEnvironmentName.optional(),
   systemPrompt: z.string().max(4096).optional(),
   compaction: zCreateAgentCompaction.optional(),
   maxHistoryRuns: z
@@ -205,6 +216,7 @@ export const zListAgentsResponse = z.object({
 export const zCreateAgentRequest = z.object({
   name: zAgentName,
   env: z.record(z.string(), z.string()).optional(),
+  environmentName: zEnvironmentName,
   systemPrompt: z.string().max(4096).optional(),
   compaction: zCreateAgentCompaction.optional(),
   maxHistoryRuns: z
@@ -841,13 +853,21 @@ export const zSecretKey = z
  */
 export const zSecretValue = z.string().max(49152)
 
+/**
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ *
+ */
+export const zSecretHost = z.string().min(1).max(253)
+
 export const zSecretEntry = z.object({
   key: zSecretKey,
   value: zSecretValue,
+  hosts: z.array(zSecretHost).min(1).max(100),
 })
 
 export const zSecretListItem = z.object({
   key: zSecretKey,
+  hosts: z.array(zSecretHost),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
 })
@@ -872,6 +892,44 @@ export const zListSecretsResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zEnvironment = z.object({
+  name: zEnvironmentName,
+  packages: z.array(z.string().min(1)),
+  allowed_hosts: z.array(z.string().min(1)),
+  created_at: z.iso.datetime(),
+  metadata: z.object({
+    package_count: z
+      .int()
+      .gte(0)
+      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+    allowed_host_count: z
+      .int()
+      .gte(0)
+      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+    referenced_by_agent: z.boolean(),
+  }),
+})
+
+export const zListEnvironmentsResponse = z.object({
+  environments: z.array(zEnvironment),
+  next_page_token: z.string(),
+})
+
+export const zCreateEnvironmentRequest = z.object({
+  name: zEnvironmentName,
+  packages: z.array(z.string().min(1)).optional(),
+  allowed_hosts: z.array(z.string().min(1)).optional(),
+})
+
+export const zDeleteEnvironmentRequest = z.object({
+  name: zEnvironmentName,
+})
+
+export const zUpdateEnvironmentRequest = z.object({
+  packages: z.array(z.string().min(1)),
+  allowed_hosts: z.array(z.string().min(1)),
+})
+
 /**
  * Session UUID.
  */
@@ -881,6 +939,11 @@ export const zSessionIdQuery = zSessionId
  * Session UUID.
  */
 export const zSessionIdPath = zSessionId
+
+/**
+ * Environment name.
+ */
+export const zEnvironmentNamePath = zEnvironmentName
 
 /**
  * Optional session UUID filters. Repeat the query parameter for multiple sessions.
@@ -1135,3 +1198,38 @@ export const zListSecretsQuery = z.object({
  * Paginated secret keys.
  */
 export const zListSecretsResponse2 = zListSecretsResponse
+
+export const zListEnvironmentsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated environments.
+ */
+export const zListEnvironmentsResponse2 = zListEnvironmentsResponse
+
+export const zCreateEnvironmentBody = zCreateEnvironmentRequest
+
+/**
+ * Environment created.
+ */
+export const zCreateEnvironmentResponse = zEnvironment
+
+export const zDeleteEnvironmentBody = zDeleteEnvironmentRequest
+
+/**
+ * Environment deleted.
+ */
+export const zDeleteEnvironmentResponse = z.void()
+
+export const zUpdateEnvironmentBody = zUpdateEnvironmentRequest
+
+export const zUpdateEnvironmentPath = z.object({
+  name: zEnvironmentName,
+})
+
+/**
+ * Environment updated.
+ */
+export const zUpdateEnvironmentResponse = zEnvironment

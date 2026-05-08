@@ -1,6 +1,6 @@
 import type { ChatHistoryResponse, StoredSessionEvent, ToolCall } from "@/lib/gateway/client"
 import { getToolErrorText, getToolResultState, parseToolPayload } from "./tool-payload"
-import type { ChatMessage, ChatMessagePart, ChatTool, ChatToolPart } from "./types"
+import type { ChatMessage, ChatMessagePart, ChatTool } from "./types"
 
 type HistoryToolCall = {
   input: unknown

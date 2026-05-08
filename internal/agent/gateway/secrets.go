@@ -25,7 +25,14 @@ const (
 	maxSecretKeyLen   = 128
 	maxSecretValueLen = 49152 // 48 KB
 	maxSecretEntries  = 100
+	sessionSecretPage = 200
 )
+
+type normalizedSecretEntry struct {
+	key   string
+	value string
+	hosts []string
+}
 
 // PutSecret handles POST /api/secret/{sessionID}/put.
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID gatewayapi.SessionIDPath) {
@@ -81,8 +88,48 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID ga
 		return
 	}
 
-	fields := make([]gatewayapi.FieldError, 0, len(req.Secrets))
-	for i, entry := range req.Secrets {
+	entries, fields := normalizeSecretEntries(req.Secrets)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	ctx := r.Context()
+
+	var stored int
+	for _, entry := range entries {
+		path := fmt.Sprintf("%s/%s", sessionUUID.String(), entry.key)
+		data := map[string]any{
+			"value": entry.value,
+			"hosts": entry.hosts,
+		}
+		if _, err := s.baoKV.Put(ctx, path, data); err != nil {
+			writeError(w, r, mapOpenBaoError(err))
+			return
+		}
+		stored++
+	}
+
+	if err := s.syncAgentEnv(ctx, sessionUUID, req.Secrets, nil); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
+		Stored: int32(stored),
+	})
+}
+
+func normalizeSecretEntries(raw []gatewayapi.SecretEntry) ([]normalizedSecretEntry, []gatewayapi.FieldError) {
+	entries := make([]normalizedSecretEntry, 0, len(raw))
+	fields := make([]gatewayapi.FieldError, 0, len(raw))
+	for i, entry := range raw {
 		key := strings.TrimSpace(entry.Key)
 		if key == "" {
 			fields = append(fields, gatewayapi.FieldError{
@@ -112,38 +159,23 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID ga
 			})
 			continue
 		}
-	}
-	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
-		return
-	}
 
-	ctx := r.Context()
-
-	var stored int
-	for _, entry := range req.Secrets {
-		path := fmt.Sprintf("%s/%s", sessionUUID.String(), strings.TrimSpace(entry.Key))
-		if _, err := s.baoKV.Put(ctx, path, map[string]any{"value": entry.Value}); err != nil {
-			writeError(w, r, mapOpenBaoError(err))
-			return
+		hosts, err := sinjector.NormalizeSecretHosts(entry.Hosts)
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("secrets[%d].hosts", i),
+				Message: err.Error(),
+			})
+			continue
 		}
-		stored++
-	}
 
-	if err := s.syncAgentEnv(ctx, sessionUUID, req.Secrets, nil); err != nil {
-		writeInternalError(w, r, err)
-		return
+		entries = append(entries, normalizedSecretEntry{
+			key:   key,
+			value: entry.Value,
+			hosts: hosts,
+		})
 	}
-
-	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
-		Stored: int32(stored),
-	})
+	return entries, fields
 }
 
 // DeleteSecret handles POST /api/secret/{sessionID}/delete.
@@ -392,8 +424,14 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, sessionID 
 
 	items := make([]gatewayapi.SecretListItem, 0, len(keys))
 	for _, key := range keys {
+		hosts, err := s.readSecretHosts(r.Context(), sessionUUID, key)
+		if err != nil {
+			writeError(w, r, mapOpenBaoError(err))
+			return
+		}
 		item := gatewayapi.SecretListItem{
-			Key: key,
+			Key:   key,
+			Hosts: hosts,
 		}
 		if info, ok := rawKeyInfo[key].(map[string]any); ok {
 			if ct, ok := info["created_time"].(string); ok && ct != "" {
@@ -427,4 +465,105 @@ func mapOpenBaoError(err error) *apiError {
 		return newAPIError(http.StatusNotFound, "not_found", "secret not found", err)
 	}
 	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+}
+
+func (s *Service) deleteSessionSecrets(ctx context.Context, sessionUUID uuid.UUID) error {
+	keys, err := s.sessionSecretKeys(ctx, sessionUUID)
+	if err != nil {
+		return err
+	}
+
+	for _, key := range keys {
+		path := fmt.Sprintf("%s/%s", sessionUUID.String(), key)
+		if err := s.baoKV.DeleteMetadata(ctx, path); err != nil {
+			if errors.Is(err, baoapi.ErrSecretNotFound) {
+				continue
+			}
+			return err
+		}
+	}
+
+	if err := s.baoKV.DeleteMetadata(ctx, sessionUUID.String()); err != nil {
+		if !errors.Is(err, baoapi.ErrSecretNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) readSecretHosts(ctx context.Context, sessionUUID uuid.UUID, key string) ([]string, error) {
+	path := fmt.Sprintf("%s/%s", sessionUUID.String(), key)
+	secret, err := s.baoKV.Get(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if secret == nil {
+		return nil, baoapi.ErrSecretNotFound
+	}
+	hosts, err := secretDataHosts(secret.Data["hosts"])
+	if err != nil {
+		return nil, err
+	}
+	return hosts, nil
+}
+
+func secretDataHosts(raw any) ([]string, error) {
+	hosts := []string{}
+	switch items := raw.(type) {
+	case []any:
+		for _, item := range items {
+			host, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("secret hosts are invalid")
+			}
+			hosts = append(hosts, host)
+		}
+	case []string:
+		hosts = append(hosts, items...)
+	default:
+		return nil, fmt.Errorf("secret hosts are invalid")
+	}
+	return sinjector.NormalizeSecretHosts(hosts)
+}
+
+func (s *Service) sessionSecretKeys(ctx context.Context, sessionUUID uuid.UUID) ([]string, error) {
+	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, sessionUUID.String())
+	after := ""
+	keys := []string{}
+	for {
+		secret, err := s.bao.Logical().ListPageWithContext(ctx, listPath, after, sessionSecretPage+1)
+		if err != nil {
+			if errors.Is(err, baoapi.ErrSecretNotFound) {
+				return keys, nil
+			}
+			return nil, err
+		}
+		if secret == nil || secret.Data == nil {
+			return keys, nil
+		}
+
+		rawKeys, _ := secret.Data["keys"].([]any)
+		if len(rawKeys) == 0 {
+			return keys, nil
+		}
+
+		page := make([]string, 0, len(rawKeys))
+		for _, raw := range rawKeys {
+			key, ok := raw.(string)
+			if ok && key != "" {
+				page = append(page, key)
+			}
+		}
+		if len(page) == 0 {
+			return keys, nil
+		}
+
+		if len(page) <= sessionSecretPage {
+			keys = append(keys, page...)
+			return keys, nil
+		}
+
+		keys = append(keys, page[:sessionSecretPage]...)
+		after = page[sessionSecretPage-1]
+	}
 }

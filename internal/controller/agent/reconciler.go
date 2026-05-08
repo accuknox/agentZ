@@ -26,6 +26,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,6 +34,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 )
@@ -48,10 +51,12 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents/finalizers,verbs=update
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=envs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
@@ -79,7 +84,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	if agt.Spec.Image == "" && r.Config.DefaultImage == "" {
+	if agt.Spec.Image == "" && r.Config.AgentDefaultImage == "" {
 		err = errImageEmpty
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -95,6 +100,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
 		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
+	}
+
+	envCfg, err := r.resolveEnvironment(ctx, agt)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("resolve environment: %w", err)
 	}
 
 	cfgYAML, err := renderConfig(agt)
@@ -124,6 +138,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
+	err = r.reconcileNixPVCs(ctx, agt, envCfg.Packages)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("reconcile nix pvcs: %w", err)
+	}
+
 	if r.sinjectorEnabled() {
 		if !ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
 			patch := client.MergeFrom(agt.DeepCopy())
@@ -132,7 +155,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				return ctrl.Result{}, fmt.Errorf("add sinjector finalizer: %w", err)
 			}
 		}
-		err = r.reconcileSinjector(ctx, agt)
+		err = r.reconcileSinjector(ctx, agt, envCfg.AllowedHosts)
 		if err != nil {
 			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 			if updateErr != nil {
@@ -165,7 +188,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	hash, err := configHash(cfgYAML, agt.Spec.Env)
+	err = r.reconcileEgressPolicy(ctx, agt, envCfg.AllowedHosts)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("reconcile egress policy: %w", err)
+	}
+
+	hash, err := configHash(cfgYAML, agt.Spec.Env, envCfg.Packages)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -173,7 +205,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return ctrl.Result{}, fmt.Errorf("hash config: %w", err)
 	}
-	err = r.reconcileDeployment(ctx, agt, hash)
+	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -194,6 +226,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&clawarmorv1alpha1.Agent{}).
+		Watches(&clawarmorv1alpha1.Environment{}, handler.EnqueueRequestsFromMapFunc(r.agentsForEnvironment)).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
@@ -205,6 +238,94 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *Reconciler) sinjectorEnabled() bool {
 	return r.Config.SinjectorImage != ""
+}
+
+type environmentConfig struct {
+	Packages     []string
+	AllowedHosts []string
+}
+
+func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alpha1.Agent) (environmentConfig, error) {
+	ref := agt.Spec.EnvironmentRef
+	if ref == nil {
+		return environmentConfig{
+			Packages:     []string{},
+			AllowedHosts: []string{},
+		}, nil
+	}
+
+	env := &clawarmorv1alpha1.Environment{}
+	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
+	if err := r.Get(ctx, key, env); err != nil {
+		return environmentConfig{}, fmt.Errorf("get environment %q: %w", ref.Name, err)
+	}
+	packages := make([]string, len(env.Spec.Packages))
+	copy(packages, env.Spec.Packages)
+	allowedHosts := make([]string, len(env.Spec.AllowedHosts))
+	copy(allowedHosts, env.Spec.AllowedHosts)
+	return environmentConfig{
+		Packages:     packages,
+		AllowedHosts: allowedHosts,
+	}, nil
+}
+
+func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object) []reconcile.Request {
+	env, ok := obj.(*clawarmorv1alpha1.Environment)
+	if !ok {
+		return []reconcile.Request{}
+	}
+
+	agents := &clawarmorv1alpha1.AgentList{}
+	if err := r.List(ctx, agents, client.InNamespace(env.Namespace)); err != nil {
+		return []reconcile.Request{}
+	}
+
+	requests := []reconcile.Request{}
+	for _, agt := range agents.Items {
+		ref := agt.Spec.EnvironmentRef
+		if ref == nil || ref.Name != env.Name {
+			continue
+		}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      agt.Name,
+				Namespace: agt.Namespace,
+			},
+		})
+	}
+	return requests
+}
+
+func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha1.Agent, packages []string) error {
+	if len(packages) == 0 {
+		return nil
+	}
+
+	agentPVC := &corev1.PersistentVolumeClaim{}
+	agentPVC.Name = agt.Name + "-nix"
+	agentPVC.Namespace = agt.Namespace
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, agentPVC, func() error {
+		agentPVC.Labels = resourceLabels(agt)
+		if len(agentPVC.Spec.AccessModes) == 0 {
+			agentPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			}
+		}
+		if agentPVC.Spec.Resources.Requests == nil {
+			size := agt.Spec.NixStoreSize
+			if size.IsZero() {
+				size = resource.MustParse("5Gi")
+			}
+			agentPVC.Spec.Resources.Requests = corev1.ResourceList{
+				corev1.ResourceStorage: size,
+			}
+		}
+		return ctrl.SetControllerReference(agt, agentPVC, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("ensure agent nix pvc: %w", err)
+	}
+	return nil
 }
 
 func (r *Reconciler) proxyAddress(agt *clawarmorv1alpha1.Agent) string {

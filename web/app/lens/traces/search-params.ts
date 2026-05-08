@@ -1,14 +1,7 @@
 import { dayjs } from "@/lib/dayjs"
+export { firstSearchParam } from "@/lib/search-params"
 
 export const defaultLimit = 25
-
-export function firstSearchParam(value?: string | string[]) {
-  if (Array.isArray(value)) {
-    return value[0]
-  }
-
-  return value
-}
 
 export function parseLimitParam(value?: string) {
   const limit = Number(value)

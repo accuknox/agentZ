@@ -8,16 +8,21 @@ import (
 
 type testResolver struct {
 	values map[string]string
+	hosts  map[string][]string
 	calls  map[string]int
 }
 
-func (r *testResolver) resolve(_ context.Context, name string) (string, error) {
+func (r *testResolver) resolve(_ context.Context, name string) (resolvedSecret, error) {
 	r.calls[name]++
 	value, ok := r.values[name]
 	if !ok {
-		return "", errors.New("not found")
+		return resolvedSecret{}, errors.New("not found")
 	}
-	return value, nil
+	hosts := r.hosts[name]
+	if len(hosts) == 0 {
+		hosts = []string{"example.com"}
+	}
+	return resolvedSecret{value: value, hosts: hosts}, nil
 }
 
 func TestReplacePlaceholders(t *testing.T) {
@@ -29,6 +34,7 @@ func TestReplacePlaceholders(t *testing.T) {
 		context.Background(),
 		"Bearer clawarmor:resolve:env:OPENAI_API_KEY",
 		res,
+		"example.com:443",
 	)
 	if !changed {
 		t.Fatal("changed = false, want true")
@@ -50,6 +56,7 @@ func TestReplacePlaceholdersLeavesInvalidNameUnchanged(t *testing.T) {
 		context.Background(),
 		"Bearer clawarmor:resolve:env:TOKEN-NAME",
 		res,
+		"example.com:443",
 	)
 	if changed {
 		t.Fatal("changed = true, want false")
@@ -71,6 +78,7 @@ func TestReplacePlaceholdersLeavesDangerousSecretUnchanged(t *testing.T) {
 		context.Background(),
 		"Bearer clawarmor:resolve:env:TOKEN",
 		res,
+		"example.com:443",
 	)
 	if changed {
 		t.Fatal("changed = true, want false")
@@ -89,6 +97,7 @@ func TestReplacePath(t *testing.T) {
 		context.Background(),
 		"/bot/clawarmor:resolve:env:TOKEN/sendMessage",
 		res,
+		"example.com:443",
 	)
 	if !changed {
 		t.Fatal("changed = false, want true")
@@ -107,11 +116,32 @@ func TestReplacePathLeavesTraversalSecretUnchanged(t *testing.T) {
 		context.Background(),
 		"/bot/clawarmor:resolve:env:TOKEN/sendMessage",
 		res,
+		"example.com:443",
 	)
 	if changed {
 		t.Fatal("changed = true, want false")
 	}
 	if got != "/bot/clawarmor:resolve:env:TOKEN/sendMessage" {
 		t.Fatalf("got %q, want unchanged path", got)
+	}
+}
+
+func TestReplacePlaceholdersLeavesMismatchedHostUnchanged(t *testing.T) {
+	res := &testResolver{
+		values: map[string]string{"TOKEN": "secret"},
+		hosts:  map[string][]string{"TOKEN": {"api.example.com"}},
+		calls:  map[string]int{},
+	}
+	got, changed := replacePlaceholders(
+		context.Background(),
+		"Bearer clawarmor:resolve:env:TOKEN",
+		res,
+		"other.example.com:443",
+	)
+	if changed {
+		t.Fatal("changed = true, want false")
+	}
+	if got != "Bearer clawarmor:resolve:env:TOKEN" {
+		t.Fatalf("got %q, want unchanged text", got)
 	}
 }

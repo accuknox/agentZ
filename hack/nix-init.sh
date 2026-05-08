@@ -1,20 +1,20 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -e
 
-if [ -z "${NIX_PACKAGES:-}" ]; then
+if [[ -z "${NIX_PACKAGES:-}" ]]; then
     echo "NIX_PACKAGES env var is required"
     exit 1
 fi
 
-if [ -n "${NIX_SHARED_PVC:-}" ]; then
+if [[ -n "${NIX_SHARED_PVC:-}" ]]; then
     export NIX_CONF_DIR=/tmp/nix-etc
     mkdir -p /tmp/nix-etc
-    cat > /tmp/nix-etc/nix.conf <<'NIXEOF'
-experimental-features = nix-command flakes
-sandbox = false
-substituters = file:///nix-shared?priority=100 https://cache.nixos.org?priority=50
-NIXEOF
+    {
+        echo "experimental-features = nix-command flakes"
+        echo "sandbox = false"
+        echo "substituters = file:///nix-shared?priority=100 https://cache.nixos.org?priority=50"
+    } | tee /tmp/nix-etc/nix.conf >/dev/null
 fi
 
 build_packages() {
@@ -32,7 +32,7 @@ rm -rf /mnt/nix/nix /mnt/nix/profile 2>/dev/null || true
 nix copy --to /mnt/nix --no-check-sigs $(nix path-info --recursive /tmp/prof)
 nix profile add --profile /mnt/nix/profile $PACKAGES
 
-if [ -n "${NIX_SHARED_PVC:-}" ]; then
+if [[ -n "${NIX_SHARED_PVC:-}" ]]; then
     nix copy --to file:///nix-shared --no-check-sigs $(nix path-info --recursive /tmp/prof) 2>/dev/null || true
 fi
 

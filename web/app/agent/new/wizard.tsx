@@ -5,7 +5,7 @@ import { defineStepper } from "@stepperize/react"
 import { Bot, Hammer, Layers, SlidersHorizontal } from "lucide-react"
 import { motion } from "motion/react"
 import Link from "next/link"
-import { useActionState, useCallback, useEffect, useRef, useState } from "react"
+import { useActionState, useEffect, useEffectEvent, useRef, useState } from "react"
 import {
   Controller,
   type Control,
@@ -149,12 +149,15 @@ function agentWizardValuesWithEnvironment(
 
 function AgentWizardBotFlare() {
   const botRef = useRef<BotIconHandle>(null)
+  const startBotAnimation = useEffectEvent(() => {
+    botRef.current?.startAnimation()
+  })
 
   useEffect(() => {
-    botRef.current?.startAnimation()
+    startBotAnimation()
 
     const interval = window.setInterval(() => {
-      botRef.current?.startAnimation()
+      startBotAnimation()
     }, blinkIntervalMs)
 
     return () => window.clearInterval(interval)
@@ -336,22 +339,7 @@ function EnvironmentSelect({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
   const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null)
-
-  const selectedIsLoaded = environments.some((environment) => environment.name === value)
-  const options =
-    value && !selectedIsLoaded
-      ? [
-          {
-            name: value,
-            packages: [],
-            created_at: "",
-            metadata: { package_count: 0 },
-          },
-          ...environments,
-        ]
-      : environments
-
-  const loadNextPage = useCallback(async () => {
+  const loadNextPage = useEffectEvent(async () => {
     if (!hasNextPage || loading || nextPageToken === "") return
 
     setLoading(true)
@@ -367,7 +355,21 @@ function EnvironmentSelect({
     setEnvironments((current) => uniqueEnvironments([...current, ...result.environments]))
     setHasNextPage(result.hasNextPage)
     setNextPageToken(result.nextPageToken)
-  }, [hasNextPage, loading, nextPageToken])
+  })
+
+  const selectedIsLoaded = environments.some((environment) => environment.name === value)
+  const options =
+    value && !selectedIsLoaded
+      ? [
+          {
+            name: value,
+            packages: [],
+            created_at: "",
+            metadata: { package_count: 0 },
+          },
+          ...environments,
+        ]
+      : environments
 
   useEffect(() => {
     if (!sentinel || !hasNextPage) return
@@ -383,7 +385,7 @@ function EnvironmentSelect({
     observer.observe(sentinel)
 
     return () => observer.disconnect()
-  }, [hasNextPage, loadNextPage, sentinel])
+  }, [hasNextPage, sentinel])
 
   return (
     <Select value={value} disabled={disabled} onValueChange={onValueChangeAction} name={name}>
@@ -655,8 +657,17 @@ function ToolsForm({
   })
   const copy = wizardCopy[mode]
 
+  async function submitAction(formData: FormData) {
+    const isValid = await form.trigger()
+    if (!isValid) {
+      return
+    }
+
+    await action(formData)
+  }
+
   return (
-    <form id="agent-form-tools" action={action} className="space-y-5">
+    <form id="agent-form-tools" action={submitAction} className="space-y-5">
       <HiddenAgentFields data={data} />
       <FieldGroup>
         <CheckboxField

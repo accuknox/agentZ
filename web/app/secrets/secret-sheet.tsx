@@ -51,8 +51,7 @@ export function SecretSheet({
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }) {
-  const [state, action] = React.useActionState(putSecretAction.bind(null, sessionID), {})
-  const [isPending, startTransition] = React.useTransition()
+  const [state, action, isPending] = React.useActionState(putSecretAction.bind(null, sessionID), {})
   const [hostDraft, setHostDraft] = React.useState("")
   const [hostDraftError, setHostDraftError] = React.useState<string>()
 
@@ -93,18 +92,18 @@ export function SecretSheet({
     }
   }, [state.error, form])
 
-  function onSubmit(data: SecretFormValues) {
+  async function submitAction(formData: FormData) {
+    const isValid = await form.trigger()
+    if (!isValid) {
+      return
+    }
+
     if (hostDraft.trim() !== "") {
       setHostDraftError("Add or clear the host before submitting")
       return
     }
 
-    const formData = new FormData()
-    formData.append("mode", mode)
-    formData.append("key", data.key)
-    formData.append("value", data.value)
-    formData.append("hosts", data.hosts)
-    startTransition(() => action(formData))
+    await action(formData)
   }
 
   function addHost() {
@@ -149,6 +148,19 @@ export function SecretSheet({
       ? "Create a new secret for this agent. Secret values cannot be read after creation."
       : `Override the value for "${secretKey}". The previous value will be permanently replaced.`
   const submitLabel = mode === "create" ? "Create secret" : "Update secret"
+  const generalErrorMessage = (() => {
+    if (!state.error) {
+      return undefined
+    }
+
+    const fieldErrors =
+      state.error.errors?.filter(
+        (error) => error.field === "key" || error.field === "value" || error.field === "hosts"
+      ) ?? []
+    const hasGeneralError = !state.error.errors || state.error.errors.length > fieldErrors.length
+
+    return hasGeneralError ? state.error.message : undefined
+  })()
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
@@ -157,7 +169,8 @@ export function SecretSheet({
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col gap-4 p-4">
+        <form action={submitAction} className="flex flex-1 flex-col gap-4 p-4">
+          <input type="hidden" name="mode" value={mode} />
           <FieldGroup>
             <Controller
               name="key"
@@ -268,21 +281,11 @@ export function SecretSheet({
               )}
             />
           </FieldGroup>
-          {(() => {
-            if (!state.error) return null
-            const fieldErrors =
-              state.error.errors?.filter(
-                (e) => e.field === "key" || e.field === "value" || e.field === "hosts"
-              ) ?? []
-            const hasGeneralError =
-              !state.error.errors || state.error.errors.length > fieldErrors.length
-            if (!hasGeneralError) return null
-            return (
-              <p className="shrink-0 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {state.error.message}
-              </p>
-            )
-          })()}
+          {generalErrorMessage ? (
+            <p className="shrink-0 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {generalErrorMessage}
+            </p>
+          ) : null}
           <div className="shrink-0">
             <Button type="submit" disabled={isPending} className="w-full">
               {isPending ? <Spinner /> : null}

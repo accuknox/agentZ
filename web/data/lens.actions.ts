@@ -55,7 +55,7 @@ type AggregatedTelemetryEvent = {
 export async function listTracesAction(
   query: ListTracesData["query"]
 ): Promise<ListTracesActionResponse> {
-  const result = await listTraces({ query })
+  const result = await listTraces({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -81,6 +81,7 @@ export async function getTraceChartAction(
       started_before: query.started_before,
       limit: chartSourceLimit,
     },
+    cache: "no-store",
   })
   if (result.error) {
     return { data: undefined, error: result.error }
@@ -101,7 +102,7 @@ export async function getTraceChartAction(
 export async function listSpansAction(
   query: ListSpansData["query"]
 ): Promise<ListSpansActionResponse> {
-  const result = await listSpans({ query })
+  const result = await listSpans({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -121,7 +122,7 @@ export async function listSpansAction(
 export async function getSpanDetailAction(
   query: GetSpanDetailData["query"]
 ): Promise<SpanDetailActionResponse> {
-  const result = await getSpanDetail({ query })
+  const result = await getSpanDetail({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -160,9 +161,9 @@ export async function getRuntimeTelemetryAction({
     event_time_before: isoDateTimeParam(started_before),
   }
   const [processes, files, networks] = await Promise.all([
-    listProcessObservability({ query }),
-    listFileObservability({ query }),
-    listNetworkObservability({ query }),
+    listProcessObservability({ query, cache: "no-store" }),
+    listFileObservability({ query, cache: "no-store" }),
+    listNetworkObservability({ query, cache: "no-store" }),
   ])
   if (processes.error) {
     return { data: undefined, error: processes.error }
@@ -217,7 +218,7 @@ export async function getRuntimeTelemetryTabAction({
   }
 
   if (tab === "process") {
-    const result = await listProcessObservability({ query })
+    const result = await listProcessObservability({ query, cache: "no-store" })
     if (result.error) {
       return { data: undefined, error: result.error }
     }
@@ -236,7 +237,7 @@ export async function getRuntimeTelemetryTabAction({
   }
 
   if (tab === "file") {
-    const result = await listFileObservability({ query })
+    const result = await listFileObservability({ query, cache: "no-store" })
     if (result.error) {
       return { data: undefined, error: result.error }
     }
@@ -252,7 +253,7 @@ export async function getRuntimeTelemetryTabAction({
     }
   }
 
-  const result = await listNetworkObservability({ query })
+  const result = await listNetworkObservability({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -386,7 +387,7 @@ export async function getProcessTelemetryAction({
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
 
-  const result = await listProcessObservability({ query })
+  const result = await listProcessObservability({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -427,7 +428,7 @@ export async function getFileTelemetryAction({
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
 
-  const result = await listFileObservability({ query })
+  const result = await listFileObservability({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -468,7 +469,7 @@ export async function getNetworkTelemetryAction({
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
 
-  const result = await listNetworkObservability({ query })
+  const result = await listNetworkObservability({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }

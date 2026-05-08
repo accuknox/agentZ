@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { listAgentsAction } from "@/data/agent.actions"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
 import Providers from "./providers"
 
 const oxanium = Oxanium({ subsets: ["latin"], variable: "--font-heading" })
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const agents = listAgentsAction()
+  const agents = listAgentsCachedQuery()
 
   return (
     <html

@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { deleteAgentFormAction, listAgentsAction } from "@/data/agent.actions"
+import { deleteAgentFormAction } from "@/data/agent.actions"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { Button } from "@/components/ui/button"
 import { AgentTable } from "@/app/agent-table"
 import type { DeleteAgentFormState } from "@/data/types"
@@ -41,7 +42,7 @@ async function Agents({
 }) {
   const params = searchParams ? await searchParams : undefined
   const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
-  const result = await listAgentsAction(true, { limit: 50, page_token: pageToken })
+  const result = await listAgentsCachedQuery(true, { limit: 50, page_token: pageToken })
 
   if (result.error) {
     return (

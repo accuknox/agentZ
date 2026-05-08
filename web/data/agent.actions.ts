@@ -1,72 +1,26 @@
 "use server"
 
 import { redirect } from "next/navigation"
+import { updateTag } from "next/cache"
 import {
   createAgent,
   deleteAgent,
   getChatHistory,
-  listAgents,
   updateAgent,
-  type Agent,
   type GetChatHistoryData,
-  type ListAgentsData,
-  type ListAgent,
 } from "@/lib/gateway/client"
 import type {
   ChatHistoryActionResponse,
   CreateAgentFormState,
   DeleteAgentFormState,
-  ListAgentActionResponse,
-  ListAgentWithConfigActionResponse,
 } from "@/data/types"
 import { createAgentRequest, updateAgentRequest, parseAgentForm } from "@/data/utils"
-import { revalidatePath } from "next/cache"
-
-export async function listAgentsAction(): Promise<ListAgentActionResponse>
-export async function listAgentsAction(
-  includeConfig: false,
-  query?: ListAgentsData["query"]
-): Promise<ListAgentActionResponse>
-export async function listAgentsAction(
-  includeConfig: true,
-  query?: ListAgentsData["query"]
-): Promise<ListAgentWithConfigActionResponse>
-export async function listAgentsAction(includeConfig = false, query?: ListAgentsData["query"]) {
-  const result = await listAgents({ query })
-  if (result.error) {
-    return {
-      agents: undefined,
-      nextPageToken: undefined,
-      hasNextPage: undefined,
-      error: result.error,
-    }
-  }
-
-  const agents = result.data.agents.filter((agent) => agent.status !== "DELETED")
-  const nextPageToken = result.data.next_page_token
-  const hasNextPage = nextPageToken.length > 0
-
-  if (includeConfig) {
-    return {
-      agents,
-      nextPageToken,
-      hasNextPage,
-      error: undefined,
-    } satisfies ListAgentActionResponse<ListAgent>
-  }
-
-  return {
-    agents: agents.map(({ configuration: _, ...agent }) => agent),
-    nextPageToken,
-    hasNextPage,
-    error: undefined,
-  } satisfies ListAgentActionResponse<Agent>
-}
+import { agentsTag } from "@/data/cache"
 
 export async function getChatHistoryAction(
   query: GetChatHistoryData["query"]
 ): Promise<ChatHistoryActionResponse> {
-  const result = await getChatHistory({ query })
+  const result = await getChatHistory({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -88,7 +42,7 @@ export async function createAgentFormAction(
     return { error: result.error }
   }
 
-  revalidatePath("/")
+  updateTag(agentsTag)
   redirect("/")
 }
 
@@ -110,7 +64,7 @@ export async function updateAgentFormAction(
     return { error: result.error }
   }
 
-  revalidatePath("/")
+  updateTag(agentsTag)
   redirect("/")
 }
 
@@ -124,6 +78,6 @@ export async function deleteAgentFormAction(
     return { error: result.error }
   }
 
-  revalidatePath("/")
-  return {}
+  updateTag(agentsTag)
+  redirect("/")
 }

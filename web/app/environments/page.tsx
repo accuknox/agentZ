@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { deleteEnvironmentFormAction, listEnvironmentsAction } from "@/data/environment.actions"
+import { deleteEnvironmentFormAction } from "@/data/environment.actions"
+import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { Button } from "@/components/ui/button"
 import { EnvironmentTable } from "./environment-table"
 import type { DeleteEnvironmentFormState } from "@/data/types"
@@ -44,7 +45,7 @@ async function Environments({
 }) {
   const params = searchParams ? await searchParams : undefined
   const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
-  const result = await listEnvironmentsAction({ limit: 50, page_token: pageToken })
+  const result = await listEnvironmentsCachedQuery({ limit: 50, page_token: pageToken })
 
   if (result.error) {
     return (

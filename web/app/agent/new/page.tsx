@@ -1,8 +1,8 @@
-import { listEnvironmentsAction } from "@/data/environment.actions"
+import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { StepperWithForm } from "./wizard"
 
 export default async function NewAgent() {
-  const environments = await listEnvironmentsAction({ limit: 50 })
+  const environments = await listEnvironmentsCachedQuery({ limit: 50 })
 
   if (environments.error) {
     return (

@@ -1,53 +1,13 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { updateTag } from "next/cache"
+import { redirect } from "next/navigation"
 import { deleteSecret, listSecrets, putSecret } from "@/lib/gateway/client"
-import type { Error, SecretListItem } from "@/lib/gateway/client"
+import type { Error } from "@/lib/gateway/client"
 import { zSecretKey } from "@/lib/gateway/client/zod.gen"
+import { secretsTag, sessionSecretsTag } from "@/data/cache"
 import { secretHostsInputSchema, secretValueSchema } from "./schema"
 import type { DeleteSecretFormState, PutSecretFormState } from "./types"
-
-export type ListSecretsActionResponse =
-  | {
-      items: SecretListItem[]
-      nextPageToken: string
-      hasNextPage: boolean
-      error: undefined
-    }
-  | {
-      items: undefined
-      nextPageToken?: undefined
-      hasNextPage?: undefined
-      error: Error
-    }
-
-export async function listSecretsAction(
-  sessionID: string,
-  query?: { limit?: number; page_token?: string }
-): Promise<ListSecretsActionResponse> {
-  const result = await listSecrets({
-    path: { sessionID },
-    query,
-  })
-
-  if (result.error) {
-    return {
-      items: undefined,
-      error: result.error,
-    }
-  }
-
-  const items = result.data.items
-  const nextPageToken = result.data.next_page_token
-  const hasNextPage = nextPageToken.length > 0
-
-  return {
-    items,
-    nextPageToken,
-    hasNextPage,
-    error: undefined,
-  }
-}
 
 async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> {
   const keys: string[] = []
@@ -57,6 +17,7 @@ async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> 
     const result = await listSecrets({
       path: { sessionID },
       query: { limit: 200, page_token: pageToken },
+      cache: "no-store",
     })
 
     if (result.error) {
@@ -163,8 +124,9 @@ export async function putSecretFormAction(
     return { error: result.error }
   }
 
-  revalidatePath("/secrets")
-  return {}
+  updateTag(secretsTag)
+  updateTag(sessionSecretsTag(sessionID))
+  redirect(`/secrets?session_id=${encodeURIComponent(sessionID)}`)
 }
 
 export async function deleteSecretFormAction(
@@ -199,6 +161,7 @@ export async function deleteSecretFormAction(
     return { error: result.error }
   }
 
-  revalidatePath("/secrets")
-  return {}
+  updateTag(secretsTag)
+  updateTag(sessionSecretsTag(sessionID))
+  redirect(`/secrets?session_id=${encodeURIComponent(sessionID)}`)
 }

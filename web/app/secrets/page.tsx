@@ -1,24 +1,15 @@
 import { Suspense } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { listAgentsAction } from "@/data/agent.actions"
-import {
-  deleteSecretFormAction,
-  listSecretsAction,
-  putSecretFormAction,
-} from "@/data/secret.actions"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { selectedSessionID } from "@/data/agent.utils"
+import { deleteSecretFormAction, putSecretFormAction } from "@/data/secret.actions"
+import { listSecretsCachedQuery } from "@/data/secret.queries"
 import type { ListAgentActionResponse } from "@/data/types"
+import { firstSearchParam } from "@/lib/search-params"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
 import { SecretTable } from "./secret-table"
-
-function firstSearchParam(value?: string | string[]) {
-  if (Array.isArray(value)) {
-    return value[0]
-  }
-
-  return value
-}
 
 type SearchParams = {
   page_token?: string | string[]
@@ -31,7 +22,7 @@ export default async function SecretsPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
-  const agents = listAgentsAction()
+  const agents = listAgentsCachedQuery()
   const pageToken = firstSearchParam(params.page_token)
   const sessionID = firstSearchParam(params.session_id)
 
@@ -137,7 +128,7 @@ async function Secrets({
     return <EmptyState message="No agents available" />
   }
 
-  const result = await listSecretsAction(selected, {
+  const result = await listSecretsCachedQuery(selected, {
     limit: 50,
     page_token: pageToken,
   })
@@ -156,14 +147,6 @@ async function Secrets({
       putSecretAction={putSecretAction}
     />
   )
-}
-
-function selectedSessionID(result: ListAgentActionResponse, sessionID?: string) {
-  if (result.error || !result.agents) {
-    return undefined
-  }
-
-  return sessionID ?? result.agents[0]?.session_id
 }
 
 function FiltersSkeleton() {

@@ -1,7 +1,7 @@
 "use server"
 
 import { redirect } from "next/navigation"
-import { revalidatePath } from "next/cache"
+import { updateTag } from "next/cache"
 import {
   createEnvironment,
   deleteEnvironment,
@@ -18,6 +18,7 @@ import type {
   ListEnvironmentActionResponse,
 } from "@/data/types"
 import type * as z from "zod"
+import { environmentsTag } from "@/data/cache"
 
 export async function listEnvironmentsAction(
   query?: ListEnvironmentsData["query"]
@@ -42,12 +43,6 @@ export async function listEnvironmentsAction(
     hasNextPage,
     error: undefined,
   }
-}
-
-function revalidateEnvironmentConsumers() {
-  revalidatePath("/environments")
-  revalidatePath("/agent/new")
-  revalidatePath("/agent/update/[id]", "page")
 }
 
 function environmentFormValues(formData: FormData) {
@@ -82,7 +77,7 @@ async function finishEnvironmentMutation(error?: Error): Promise<CreateEnvironme
     return { error }
   }
 
-  revalidateEnvironmentConsumers()
+  updateTag(environmentsTag)
   redirect("/environments")
 }
 
@@ -91,7 +86,10 @@ export async function deleteEnvironmentFormAction(
   _: DeleteEnvironmentFormState,
   _formData: FormData
 ): Promise<DeleteEnvironmentFormState> {
-  const agentsResult = await listAgents({ query: { limit: 200 } })
+  const agentsResult = await listAgents({
+    query: { limit: 200 },
+    cache: "no-store",
+  })
   if (agentsResult.error) {
     return { error: agentsResult.error }
   }
@@ -112,8 +110,8 @@ export async function deleteEnvironmentFormAction(
     return { error: result.error }
   }
 
-  revalidateEnvironmentConsumers()
-  return {}
+  updateTag(environmentsTag)
+  redirect("/environments")
 }
 
 export async function createEnvironmentFormAction(

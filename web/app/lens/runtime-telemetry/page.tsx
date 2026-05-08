@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation"
-import { listAgentsAction } from "@/data/agent.actions"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
 
 export default async function RuntimeTelemetryPage() {
-  const result = await listAgentsAction(true)
+  const result = await listAgentsCachedQuery(true)
   const agents = result.agents ?? []
   const firstAgent = agents[0]
 

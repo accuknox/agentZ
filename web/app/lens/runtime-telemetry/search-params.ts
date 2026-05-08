@@ -1,12 +1,5 @@
 import { dayjs } from "@/lib/dayjs"
-
-export function firstSearchParam(value?: string | string[]) {
-  if (Array.isArray(value)) {
-    return value[0]
-  }
-
-  return value
-}
+export { firstSearchParam } from "@/lib/search-params"
 
 export type TelemetryDateRange = {
   from: string

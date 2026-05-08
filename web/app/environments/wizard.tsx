@@ -5,7 +5,7 @@ import { defineStepper } from "@stepperize/react"
 import { Box, Globe2, PackageSearch as PackageSearchIcon, Plus, X } from "lucide-react"
 import * as React from "react"
 import { useActionState, useState } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { WizardShell } from "@/components/blocks/wizard"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,7 +30,7 @@ import {
   updateEnvironmentFormAction,
 } from "@/data/environment.actions"
 import * as z from "zod"
-import { environmentNameSchema } from "@/data/schema"
+import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
 import { PackageSearch } from "./package-search"
 
 type EnvironmentWizardMode = "create" | "update"
@@ -68,6 +68,18 @@ type AllowedHostsStepProps = {
 const identitySchema = z.object({
   name: environmentNameSchema,
 })
+
+const allowedHostsStepSchema = z.object({
+  allowedHosts: z
+    .array(environmentAllowedHostSchema)
+    .transform((hosts) => Array.from(new Set(hosts)).sort()),
+})
+
+type PackageStepValues = {
+  packages: string[]
+}
+
+type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
 
 const steps = [
   {
@@ -148,20 +160,31 @@ function IdentityForm({
 }
 
 function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
-  const [selected, setSelected] = React.useState<string[]>(initialPackages)
+  const form = useForm<PackageStepValues>({
+    defaultValues: {
+      packages: initialPackages,
+    },
+  })
+  const selected = useWatch({
+    control: form.control,
+    name: "packages",
+    defaultValue: initialPackages,
+  })
 
   return (
     <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        onNext(selected)
-      }}
+      onSubmit={form.handleSubmit((data) => onNext(data.packages))}
       className="flex flex-col gap-5"
     >
       <PackageSearch
         installed={initialPackages}
         selected={selected}
-        onSelectedChangeAction={setSelected}
+        onSelectedChangeAction={(packages) =>
+          form.setValue("packages", packages, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
+        }
       />
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
@@ -180,24 +203,85 @@ function AllowedHostsStep({
   mode,
   onPrev,
 }: AllowedHostsStepProps) {
-  const [hosts, setHosts] = React.useState<string[]>(initialAllowedHosts)
   const [draft, setDraft] = React.useState("")
+  const [draftError, setDraftError] = React.useState<string>()
   const formAction =
     mode === "update"
       ? updateEnvironmentFormAction.bind(null, identity.name)
       : createEnvironmentFormAction
   const [state, action, pending] = useActionState(formAction, {})
+  const form = useForm<AllowedHostsStepValues>({
+    resolver: zodResolver(allowedHostsStepSchema),
+    defaultValues: {
+      allowedHosts: initialAllowedHosts,
+    },
+  })
   const submitLabel = mode === "update" ? "Update environment" : "Create environment"
   const pendingLabel = mode === "update" ? "Updating..." : "Creating..."
-  const addHost = () => {
-    const value = draft.trim()
-    if (value === "") return
-    setHosts((current) => (current.includes(value) ? current : [...current, value]))
+  const hosts = useWatch({
+    control: form.control,
+    name: "allowedHosts",
+    defaultValue: initialAllowedHosts,
+  })
+  const allowedHostsError = form.formState.errors.allowedHosts
+  const hostFieldInvalid = Boolean(allowedHostsError) || Boolean(draftError)
+  const generalError =
+    state.error && !state.error.errors?.some((error) => error.field === "allowedHosts")
+      ? state.error
+      : undefined
+
+  React.useEffect(() => {
+    if (!state.error?.errors) {
+      return
+    }
+
+    for (const error of state.error.errors) {
+      if (error.field === "allowedHosts") {
+        form.setError("allowedHosts", {
+          type: "server",
+          message: error.message,
+        })
+      }
+    }
+  }, [form, state.error])
+
+  function setHosts(hosts: string[]) {
+    form.setValue("allowedHosts", hosts, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }
+
+  function addHost() {
+    const parsed = environmentAllowedHostSchema.safeParse(draft)
+    if (!parsed.success) {
+      setDraftError(parsed.error.issues[0]?.message ?? "Host is invalid")
+      return
+    }
+
+    const nextHosts = Array.from(new Set([...hosts, parsed.data])).sort()
+    setHosts(nextHosts)
     setDraft("")
+    setDraftError(undefined)
+    form.clearErrors("allowedHosts")
+  }
+
+  async function submitAction(formData: FormData) {
+    const isValid = await form.trigger()
+    if (!isValid) {
+      return
+    }
+
+    if (draft.trim() !== "") {
+      setDraftError("Add or clear the host before submitting")
+      return
+    }
+
+    await action(formData)
   }
 
   return (
-    <form action={action} className="flex flex-col gap-5">
+    <form action={submitAction} className="flex flex-col gap-5">
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (
         <input key={pkg} type="hidden" name="packages" value={pkg} />
@@ -211,13 +295,16 @@ function AllowedHostsStep({
           Exact domains, leading wildcard domains, and IPv4 or IPv6 CIDR ranges.
         </FieldDescription>
         <FieldGroup>
-          <Field>
+          <Field data-invalid={hostFieldInvalid}>
             <FieldLabel htmlFor="environment-form-allowed-host">Host</FieldLabel>
             <InputGroup className="h-9">
               <InputGroupInput
                 id="environment-form-allowed-host"
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => {
+                  setDraft(event.target.value)
+                  setDraftError(undefined)
+                }}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") return
                   event.preventDefault()
@@ -225,6 +312,7 @@ function AllowedHostsStep({
                 }}
                 placeholder="api.github.com"
                 autoComplete="off"
+                aria-invalid={hostFieldInvalid}
               />
               <InputGroupAddon align="inline-end">
                 <InputGroupButton onClick={addHost} aria-label="Add allowed host">
@@ -242,7 +330,7 @@ function AllowedHostsStep({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setHosts((current) => current.filter((item) => item !== host))}
+                  onClick={() => setHosts(hosts.filter((item) => item !== host))}
                 >
                   {host}
                   <X data-icon="inline-end" />
@@ -250,17 +338,19 @@ function AllowedHostsStep({
               ))}
             </div>
           ) : null}
+          {draftError ? <FieldError errors={[{ message: draftError }]} /> : null}
+          {allowedHostsError ? <FieldError errors={[allowedHostsError]} /> : null}
         </FieldGroup>
       </FieldSet>
-      {state.error ? (
+      {generalError ? (
         <div
           role="alert"
           className="rounded border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
         >
-          <p className="font-medium">{state.error.message}</p>
-          {state.error.errors && state.error.errors.length > 0 ? (
+          <p className="font-medium">{generalError.message}</p>
+          {generalError.errors && generalError.errors.length > 0 ? (
             <ul className="mt-2 list-disc pl-5">
-              {state.error.errors.map((error) => (
+              {generalError.errors.map((error) => (
                 <li key={`${error.field}-${error.message}`}>
                   {error.field}: {error.message}
                 </li>

@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation"
 import { StepperWithForm } from "@/app/agent/new/wizard"
-import { listAgentsAction } from "@/data/agent.actions"
-import { listEnvironmentsAction } from "@/data/environment.actions"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { agentWizardValues } from "@/data/utils"
 
 export default async function UpdateAgent({ params }: PageProps<"/agent/update/[id]">) {
   const { id } = await params
   const [result, environments] = await Promise.all([
-    listAgentsAction(true, { limit: 1, session_id: [id] }),
-    listEnvironmentsAction({ limit: 50 }),
+    listAgentsCachedQuery(true, { limit: 1, session_id: [id] }),
+    listEnvironmentsCachedQuery({ limit: 50 }),
   ])
 
   if (result.error) {

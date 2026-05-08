@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { listEnvironmentsAction } from "@/data/environment.actions"
+import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { EnvironmentWizard } from "../../wizard"
 
 export default async function UpdateEnvironmentPage({
@@ -8,7 +8,7 @@ export default async function UpdateEnvironmentPage({
   params: Promise<{ name: string }>
 }) {
   const { name } = await params
-  const result = await listEnvironmentsAction({ limit: 200 })
+  const result = await listEnvironmentsCachedQuery({ limit: 200 })
 
   if (result.error || !result.environments) {
     return (

@@ -28,6 +28,12 @@ const (
 	sessionSecretPage = 200
 )
 
+type normalizedSecretEntry struct {
+	key   string
+	value string
+	hosts []string
+}
+
 // PutSecret handles POST /api/secret/{sessionID}/put.
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID gatewayapi.SessionIDPath) {
 	_, sessionUUID, ok := validSessionID(w, r, sessionID.String(), "sessionID")
@@ -82,8 +88,48 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID ga
 		return
 	}
 
-	fields := make([]gatewayapi.FieldError, 0, len(req.Secrets))
-	for i, entry := range req.Secrets {
+	entries, fields := normalizeSecretEntries(req.Secrets)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	ctx := r.Context()
+
+	var stored int
+	for _, entry := range entries {
+		path := fmt.Sprintf("%s/%s", sessionUUID.String(), entry.key)
+		data := map[string]any{
+			"value": entry.value,
+			"hosts": entry.hosts,
+		}
+		if _, err := s.baoKV.Put(ctx, path, data); err != nil {
+			writeError(w, r, mapOpenBaoError(err))
+			return
+		}
+		stored++
+	}
+
+	if err := s.syncAgentEnv(ctx, sessionUUID, req.Secrets, nil); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
+		Stored: int32(stored),
+	})
+}
+
+func normalizeSecretEntries(raw []gatewayapi.SecretEntry) ([]normalizedSecretEntry, []gatewayapi.FieldError) {
+	entries := make([]normalizedSecretEntry, 0, len(raw))
+	fields := make([]gatewayapi.FieldError, 0, len(raw))
+	for i, entry := range raw {
 		key := strings.TrimSpace(entry.Key)
 		if key == "" {
 			fields = append(fields, gatewayapi.FieldError{
@@ -113,54 +159,23 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, sessionID ga
 			})
 			continue
 		}
-		if _, err := sinjector.NormalizeSecretHosts(entry.Hosts); err != nil {
+
+		hosts, err := sinjector.NormalizeSecretHosts(entry.Hosts)
+		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("secrets[%d].hosts", i),
 				Message: err.Error(),
 			})
 			continue
 		}
-	}
-	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
-		return
-	}
 
-	ctx := r.Context()
-
-	var stored int
-	for _, entry := range req.Secrets {
-		path := fmt.Sprintf("%s/%s", sessionUUID.String(), strings.TrimSpace(entry.Key))
-		hosts, err := sinjector.NormalizeSecretHosts(entry.Hosts)
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
-		data := map[string]any{
-			"value": entry.Value,
-			"hosts": hosts,
-		}
-		if _, err := s.baoKV.Put(ctx, path, data); err != nil {
-			writeError(w, r, mapOpenBaoError(err))
-			return
-		}
-		stored++
+		entries = append(entries, normalizedSecretEntry{
+			key:   key,
+			value: entry.Value,
+			hosts: hosts,
+		})
 	}
-
-	if err := s.syncAgentEnv(ctx, sessionUUID, req.Secrets, nil); err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
-		Stored: int32(stored),
-	})
+	return entries, fields
 }
 
 // DeleteSecret handles POST /api/secret/{sessionID}/delete.

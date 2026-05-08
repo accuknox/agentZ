@@ -32,7 +32,7 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
-	"github.com/accuknox/clawarmor/internal/envhost"
+	"github.com/accuknox/clawarmor/internal/envutil"
 )
 
 func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
@@ -91,8 +91,8 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowed
 	}, nil
 }
 
-func egressRulesForHosts(allowedHosts []string, extraHosts []envhost.Host) ([]ciliumapi.EgressRule, error) {
-	hosts, err := envhost.ParseList(allowedHosts)
+func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ciliumapi.EgressRule, error) {
+	hosts, err := envutil.ParseHostList(allowedHosts)
 	if err != nil {
 		return nil, err
 	}
@@ -105,11 +105,11 @@ func egressRulesForHosts(allowedHosts []string, extraHosts []envhost.Host) ([]ci
 	cidrs := ciliumapi.CIDRRuleSlice{}
 	for _, host := range hosts {
 		switch host.Kind {
-		case envhost.KindDomain:
+		case envutil.HostKindDomain:
 			fqdns = append(fqdns, ciliumapi.FQDNSelector{MatchName: host.Value})
-		case envhost.KindWildcard:
+		case envutil.HostKindWildcard:
 			fqdns = append(fqdns, ciliumapi.FQDNSelector{MatchPattern: host.Value})
-		case envhost.KindCIDR:
+		case envutil.HostKindCIDR:
 			cidrs = append(cidrs, ciliumapi.CIDRRule{Cidr: ciliumapi.CIDR(host.Value)})
 		}
 	}
@@ -186,8 +186,8 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent, port int32) ciliumapi.Egr
 	}
 }
 
-func automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envhost.Host {
-	var hosts []envhost.Host
+func automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
+	var hosts []envutil.Host
 	if agt.Spec.Session.Enabled {
 		hosts = append(hosts, hostForEndpoint(agt.Spec.Session.Target)...)
 	}
@@ -195,39 +195,39 @@ func automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envhost.Host {
 		hosts = append(hosts, hostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)...)
 	}
 	// TODO: move away from init-container to an init Job
-	hosts = append(hosts, []envhost.Host{
-		{Kind: envhost.KindWildcard, Value: "*.nixos.org"},
-		{Kind: envhost.KindDomain, Value: "github.com"},
-		{Kind: envhost.KindWildcard, Value: "*.github.com"},
+	hosts = append(hosts, []envutil.Host{
+		{Kind: envutil.HostKindWildcard, Value: "*.nixos.org"},
+		{Kind: envutil.HostKindDomain, Value: "github.com"},
+		{Kind: envutil.HostKindWildcard, Value: "*.github.com"},
 	}...)
 	return hosts
 }
 
-func hostForEndpoint(endpoint string) []envhost.Host {
+func hostForEndpoint(endpoint string) []envutil.Host {
 	host := strings.TrimSpace(endpoint)
 	if host == "" {
-		return []envhost.Host{}
+		return []envutil.Host{}
 	}
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
 	host = strings.Trim(host, "[]")
 	if host == "" || host == "localhost" {
-		return []envhost.Host{}
+		return []envutil.Host{}
 	}
 	if addr, err := netip.ParseAddr(host); err == nil {
 		bits := 128
 		if addr.Is4() {
 			bits = 32
 		}
-		return []envhost.Host{{
-			Kind:  envhost.KindCIDR,
+		return []envutil.Host{{
+			Kind:  envutil.HostKindCIDR,
 			Value: netip.PrefixFrom(addr, bits).String(),
 		}}
 	}
-	parsed, err := envhost.Parse(host)
+	parsed, err := envutil.ParseHost(host)
 	if err != nil {
-		return []envhost.Host{}
+		return []envutil.Host{}
 	}
-	return []envhost.Host{parsed}
+	return []envutil.Host{parsed}
 }

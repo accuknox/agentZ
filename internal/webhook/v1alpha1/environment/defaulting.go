@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
-	"github.com/accuknox/clawarmor/internal/envhost"
+	"github.com/accuknox/clawarmor/internal/envutil"
 )
 
 // +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-environment,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=envs,verbs=create;update,versions=v1alpha1,name=menvironment-v1alpha1.kb.io,admissionReviewVersions=v1
@@ -41,7 +41,7 @@ func NewDefaulter() *Defaulter {
 
 // Default applies defaults to an Environment resource.
 func (d *Defaulter) Default(_ context.Context, env *clawarmorv1alpha1.Environment) error {
-	hosts, err := envhost.NormalizeList(env.Spec.AllowedHosts)
+	hosts, err := envutil.NormalizeHostList(env.Spec.AllowedHosts)
 	if err != nil {
 		return nil
 	}

@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
-	"github.com/accuknox/clawarmor/internal/envhost"
+	"github.com/accuknox/clawarmor/internal/envutil"
 )
 
 var log = logf.Log.WithName("environment-resource")
@@ -65,7 +65,12 @@ func (v *Validator) ValidateDelete(ctx context.Context, env *clawarmorv1alpha1.E
 		return nil, nil
 	}
 
-	agentName, err := referencingAgentName(ctx, v.client, env)
+	agentName, err := envutil.ReferencingAgentName(
+		ctx,
+		v.client,
+		env.Namespace,
+		env.Name,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -84,27 +89,11 @@ func (v *Validator) ValidateDelete(ctx context.Context, env *clawarmorv1alpha1.E
 	)
 }
 
-func referencingAgentName(ctx context.Context, c client.Client, env *clawarmorv1alpha1.Environment) (string, error) {
-	agents := &clawarmorv1alpha1.AgentList{}
-	if err := c.List(ctx, agents, client.InNamespace(env.Namespace)); err != nil {
-		return "", err
-	}
-
-	for _, agt := range agents.Items {
-		ref := agt.Spec.EnvironmentRef
-		if ref == nil || ref.Name != env.Name {
-			continue
-		}
-		return agt.Name, nil
-	}
-	return "", nil
-}
-
 func validateAllowedHosts(env *clawarmorv1alpha1.Environment) error {
 	var fields field.ErrorList
 	path := field.NewPath("spec").Child("allowedHosts")
 	for i, entry := range env.Spec.AllowedHosts {
-		if _, err := envhost.Parse(entry); err != nil {
+		if _, err := envutil.ParseHost(entry); err != nil {
 			fields = append(fields, field.Invalid(
 				path.Index(i),
 				entry,

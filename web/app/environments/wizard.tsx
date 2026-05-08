@@ -344,45 +344,25 @@ export function EnvironmentWizard({
                   }}
                 />
               ),
-              packages: () =>
-                data.identity ? (
-                  <PackageStep
-                    initialPackages={initialPackages}
-                    onPrev={goPrev}
-                    onNext={(packages) => {
-                      stepper.metadata.set("packages", packages)
-                      goNext()
-                    }}
-                  />
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    <p className="text-sm text-muted-foreground">
-                      Complete the identity step before selecting packages.
-                    </p>
-                    <Button type="button" variant="secondary" onClick={goPrev}>
-                      Previous
-                    </Button>
-                  </div>
-                ),
-              allowedHosts: () =>
-                data.identity ? (
-                  <AllowedHostsStep
-                    identity={data.identity}
-                    initialAllowedHosts={initialAllowedHosts}
-                    packages={data.packages ?? initialPackages}
-                    mode={mode}
-                    onPrev={goPrev}
-                  />
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    <p className="text-sm text-muted-foreground">
-                      Complete the identity step before selecting allowed hosts.
-                    </p>
-                    <Button type="button" variant="secondary" onClick={goPrev}>
-                      Previous
-                    </Button>
-                  </div>
-                ),
+              packages: () => (
+                <PackageStep
+                  initialPackages={data.packages ?? initialPackages}
+                  onPrev={goPrev}
+                  onNext={(packages) => {
+                    stepper.metadata.set("packages", packages)
+                    goNext()
+                  }}
+                />
+              ),
+              allowedHosts: () => (
+                <AllowedHostsStep
+                  identity={data.identity!}
+                  initialAllowedHosts={initialAllowedHosts}
+                  packages={data.packages ?? initialPackages}
+                  mode={mode}
+                  onPrev={goPrev}
+                />
+              ),
             })}
           </WizardShell>
         )

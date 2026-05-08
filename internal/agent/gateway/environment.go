@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,7 +12,7 @@ import (
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewayapi "github.com/accuknox/clawarmor/internal/agent/gateway/openapi"
-	"github.com/accuknox/clawarmor/internal/envhost"
+	"github.com/accuknox/clawarmor/internal/envutil"
 )
 
 // ListEnvironments handles GET /api/environment/list.
@@ -42,7 +41,11 @@ func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, param
 		writeInternalError(w, r, fmt.Errorf("list environments: %w", err))
 		return
 	}
-	refs, err := s.referencedEnvironmentNames(r.Context())
+	refs, err := envutil.ReferencedNames(
+		r.Context(),
+		s.k8sClient,
+		s.cfg.Namespace,
+	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("list environment references: %w", err))
 		return
@@ -97,7 +100,7 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.AllowedHosts != nil {
 		rawAllowedHosts = *req.AllowedHosts
 	}
-	allowedHosts, err := envhost.NormalizeList(rawAllowedHosts)
+	allowedHosts, err := envutil.NormalizeHostList(rawAllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)
 		return
@@ -148,7 +151,12 @@ func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
 	env := &clawarmorv1alpha1.Environment{}
 	env.Name = name
 	env.Namespace = s.cfg.Namespace
-	agentName, err := s.referencingAgentName(r.Context(), name)
+	agentName, err := envutil.ReferencingAgentName(
+		r.Context(),
+		s.k8sClient,
+		s.cfg.Namespace,
+		name,
+	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("check environment references: %w", err))
 		return
@@ -191,7 +199,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 	}
 
 	envName := strings.TrimSpace(name)
-	allowedHosts, err := envhost.NormalizeList(req.AllowedHosts)
+	allowedHosts, err := envutil.NormalizeHostList(req.AllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)
 		return
@@ -221,7 +229,12 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		return
 	}
 
-	agentName, err := s.referencingAgentName(r.Context(), updated.Name)
+	agentName, err := envutil.ReferencingAgentName(
+		r.Context(),
+		s.k8sClient,
+		s.cfg.Namespace,
+		updated.Name,
+	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("check environment references: %w", err))
 		return
@@ -250,41 +263,21 @@ func environmentFromCRD(env clawarmorv1alpha1.Environment, referenced bool) gate
 	return out
 }
 
-func (s *Service) referencedEnvironmentNames(ctx context.Context) (map[string]bool, error) {
-	refs := map[string]bool{}
-	agents := &clawarmorv1alpha1.AgentList{}
-	if err := s.k8sClient.List(ctx, agents, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
-		return nil, err
-	}
-	for _, agt := range agents.Items {
-		ref := agt.Spec.EnvironmentRef
-		if ref == nil || ref.Name == "" {
-			continue
-		}
-		refs[ref.Name] = true
-	}
-	return refs, nil
-}
-
-func (s *Service) referencingAgentName(ctx context.Context, envName string) (string, error) {
-	agents := &clawarmorv1alpha1.AgentList{}
-	if err := s.k8sClient.List(ctx, agents, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
-		return "", err
-	}
-	for _, agt := range agents.Items {
-		ref := agt.Spec.EnvironmentRef
-		if ref == nil || ref.Name != envName {
-			continue
-		}
-		return agt.Name, nil
-	}
-	return "", nil
-}
-
 func validateCreateEnvironmentRequest(req gatewayapi.CreateEnvironmentRequest) (string, []gatewayapi.FieldError) {
-	fields := []gatewayapi.FieldError{}
-
 	name := strings.TrimSpace(req.Name)
+	fields := validateEnvironmentName(name)
+	if req.Packages != nil {
+		fields = append(fields, validatePackageList(*req.Packages)...)
+	}
+	return name, fields
+}
+
+func validateUpdateEnvironmentRequest(req gatewayapi.UpdateEnvironmentRequest) []gatewayapi.FieldError {
+	return validatePackageList(req.Packages)
+}
+
+func validateEnvironmentName(name string) []gatewayapi.FieldError {
+	fields := []gatewayapi.FieldError{}
 	if name == "" {
 		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "required"})
 	}
@@ -300,23 +293,12 @@ func validateCreateEnvironmentRequest(req gatewayapi.CreateEnvironmentRequest) (
 			})
 		}
 	}
-
-	if req.Packages != nil {
-		for i, p := range *req.Packages {
-			if strings.TrimSpace(p) == "" {
-				fields = append(fields, gatewayapi.FieldError{
-					Field:   fmt.Sprintf("packages[%d]", i),
-					Message: "must not be empty",
-				})
-			}
-		}
-	}
-	return name, fields
+	return fields
 }
 
-func validateUpdateEnvironmentRequest(req gatewayapi.UpdateEnvironmentRequest) []gatewayapi.FieldError {
+func validatePackageList(packages []string) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
-	for i, p := range req.Packages {
+	for i, p := range packages {
 		if strings.TrimSpace(p) == "" {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("packages[%d]", i),

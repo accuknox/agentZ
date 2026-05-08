@@ -18,7 +18,7 @@ export const secretHostSchema = z
   .trim()
   .min(1, "Host is required")
   .max(253, "Host must be at most 253 characters")
-  .refine(isSecretHost, "Use a hostname, *.hostname, IP address, or CIDR range")
+  .transform(normalizeSecretHost)
 
 export const secretHostsInputSchema = z
   .string()
@@ -33,14 +33,8 @@ export const secretHostsInputSchema = z
       .array(secretHostSchema)
       .min(1, "At least one host is required")
       .max(100, "Use at most 100 hosts")
-      .transform((hosts) => Array.from(new Set(hosts.map(normalizeSecretHost))).sort())
+      .transform((hosts) => Array.from(new Set(hosts)).sort())
   )
-
-export const secretFormSchema = z.object({
-  key: secretKeySchema,
-  value: secretValueSchema,
-  hosts: secretHostsInputSchema,
-})
 
 export const secretFormInputSchema = z.object({
   key: secretKeySchema,
@@ -50,65 +44,60 @@ export const secretFormInputSchema = z.object({
 
 const domainLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/
 
-function isSecretHost(value: string) {
-  const host = value.trim()
-  if (isCIDR(host) || isIP(host)) {
-    return true
-  }
-  if (host.startsWith("*.")) {
-    return isDomain(host.slice(2))
-  }
-  return isDomain(host)
-}
-
-function normalizeSecretHost(value: string) {
-  const host = value.trim()
-  if (host.startsWith("*.")) {
-    return `*.${host.slice(2).toLowerCase().replace(/\.$/, "")}`
-  }
-  if (isDomain(host)) {
-    return host.toLowerCase().replace(/\.$/, "")
+function normalizeSecretHost(value: string, ctx: z.RefinementCtx) {
+  const host = normalizeHost(value, true)
+  if (!host) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Use a hostname, *.hostname, IP address, or CIDR range",
+    })
+    return z.NEVER
   }
   return host
 }
 
-function isEnvironmentHost(value: string) {
-  const host = value.trim()
-  if (isCIDR(host)) {
-    return true
+function normalizeEnvironmentHost(value: string, ctx: z.RefinementCtx) {
+  const host = normalizeHost(value, false)
+  if (!host) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Use a hostname, *.hostname, or CIDR range",
+    })
+    return z.NEVER
   }
-  if (isIP(host)) {
-    return false
-  }
-  if (host.startsWith("*.")) {
-    return isDomain(host.slice(2))
-  }
-  if (host.includes("*")) {
-    return false
-  }
-  return isDomain(host)
+  return host
 }
 
-function normalizeEnvironmentHost(value: string) {
+function normalizeHost(value: string, allowIP: boolean) {
   const host = value.trim()
   if (isCIDR(host)) {
     return normalizeCIDR(host)
   }
-  if (host.startsWith("*.")) {
-    return `*.${host.slice(2).toLowerCase().replace(/\.$/, "")}`
+  if (isIP(host)) {
+    return allowIP ? host : undefined
   }
-  return host.toLowerCase().replace(/\.$/, "")
+  if (host.startsWith("*.")) {
+    const domain = normalizeDomain(host.slice(2))
+    return domain ? `*.${domain}` : undefined
+  }
+  if (host.includes("*")) {
+    return undefined
+  }
+  return normalizeDomain(host)
 }
 
-function isDomain(value: string) {
+function normalizeDomain(value: string) {
   const domain = value.trim().replace(/\.$/, "")
   if (domain.length === 0 || domain.length > 253 || domain.includes("..")) {
-    return false
+    return undefined
   }
   if (isIP(domain)) {
-    return false
+    return undefined
   }
-  return domain.split(".").every((label) => domainLabelPattern.test(label))
+  if (!domain.split(".").every((label) => domainLabelPattern.test(label))) {
+    return undefined
+  }
+  return domain.toLowerCase()
 }
 
 function isIP(value: string) {
@@ -156,7 +145,6 @@ export const environmentAllowedHostSchema = z
   .trim()
   .min(1, "Host is required")
   .max(253, "Host must be at most 253 characters")
-  .refine(isEnvironmentHost, "Use a hostname, *.hostname, or CIDR range")
   .transform(normalizeEnvironmentHost)
 
 export const identitySchema = z.object({

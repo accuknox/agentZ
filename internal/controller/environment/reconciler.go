@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	"github.com/accuknox/clawarmor/internal/envutil"
 )
 
 const finalizer = "clawarmor.accuknox.com/environment-protection"
@@ -50,7 +51,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	agentName, err := r.referencingAgentName(ctx, env)
+	agentName, err := envutil.ReferencingAgentName(
+		ctx,
+		r.Client,
+		env.Namespace,
+		env.Name,
+	)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("find referencing agent: %w", err)
 	}
@@ -90,21 +96,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&clawarmorv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.environmentForAgent)).
 		Named("environment").
 		Complete(r)
-}
-
-func (r *Reconciler) referencingAgentName(ctx context.Context, env *clawarmorv1alpha1.Environment) (string, error) {
-	agents := &clawarmorv1alpha1.AgentList{}
-	if err := r.List(ctx, agents, client.InNamespace(env.Namespace)); err != nil {
-		return "", err
-	}
-	for _, agt := range agents.Items {
-		ref := agt.Spec.EnvironmentRef
-		if ref == nil || ref.Name != env.Name {
-			continue
-		}
-		return agt.Name, nil
-	}
-	return "", nil
 }
 
 func (r *Reconciler) environmentForAgent(_ context.Context, obj client.Object) []reconcile.Request {

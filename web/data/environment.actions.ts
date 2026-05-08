@@ -8,6 +8,7 @@ import {
   listAgents,
   listEnvironments,
   updateEnvironment,
+  type Error,
   type ListEnvironmentsData,
 } from "@/lib/gateway/client"
 import { createEnvironmentFormSchema } from "@/data/schema"
@@ -16,6 +17,7 @@ import type {
   DeleteEnvironmentFormState,
   ListEnvironmentActionResponse,
 } from "@/data/types"
+import type * as z from "zod"
 
 export async function listEnvironmentsAction(
   query?: ListEnvironmentsData["query"]
@@ -53,6 +55,35 @@ function environmentFormValues(formData: FormData) {
     packages: formData.getAll("packages").map((p) => String(p)),
     allowedHosts: formData.getAll("allowedHosts").map((h) => String(h)),
   }
+}
+
+function invalidEnvironmentForm(error: z.ZodError): CreateEnvironmentFormState {
+  return {
+    error: {
+      code: "INVALID_FORM",
+      message: "Environment configuration is invalid",
+      errors: error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    },
+  }
+}
+
+function environmentPayload(data: { packages: string[]; allowedHosts: string[] }) {
+  return {
+    packages: data.packages,
+    allowed_hosts: data.allowedHosts,
+  }
+}
+
+async function finishEnvironmentMutation(error?: Error): Promise<CreateEnvironmentFormState> {
+  if (error) {
+    return { error }
+  }
+
+  revalidateEnvironmentConsumers()
+  redirect("/environments")
 }
 
 export async function deleteEnvironmentFormAction(
@@ -95,32 +126,17 @@ export async function createEnvironmentFormAction(
   })
 
   if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "Environment configuration is invalid",
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.join("."),
-          message: issue.message,
-        })),
-      },
-    }
+    return invalidEnvironmentForm(parsed.error)
   }
 
   const result = await createEnvironment({
     body: {
       name: parsed.data.name,
-      packages: parsed.data.packages,
-      allowed_hosts: parsed.data.allowedHosts,
+      ...environmentPayload(parsed.data),
     },
   })
 
-  if (result.error) {
-    return { error: result.error }
-  }
-
-  revalidateEnvironmentConsumers()
-  redirect("/environments")
+  return finishEnvironmentMutation(result.error)
 }
 
 export async function updateEnvironmentFormAction(
@@ -133,30 +149,13 @@ export async function updateEnvironmentFormAction(
     .safeParse(environmentFormValues(formData))
 
   if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "Environment configuration is invalid",
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.join("."),
-          message: issue.message,
-        })),
-      },
-    }
+    return invalidEnvironmentForm(parsed.error)
   }
 
   const result = await updateEnvironment({
-    body: {
-      packages: parsed.data.packages,
-      allowed_hosts: parsed.data.allowedHosts,
-    },
+    body: environmentPayload(parsed.data),
     path: { name },
   })
 
-  if (result.error) {
-    return { error: result.error }
-  }
-
-  revalidateEnvironmentConsumers()
-  redirect("/environments")
+  return finishEnvironmentMutation(result.error)
 }

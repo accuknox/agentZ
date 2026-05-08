@@ -114,7 +114,7 @@ export function SecretSheet({
       return
     }
 
-    const host = normalizeHost(parsed.data)
+    const host = parsed.data
     const hosts = parseHostsValue(form.getValues("hosts"))
     const nextHosts = Array.from(new Set([...hosts, host])).sort()
     setHostDraft("")
@@ -293,17 +293,6 @@ export function SecretSheet({
       </SheetContent>
     </Sheet>
   )
-}
-
-function normalizeHost(value: string) {
-  const host = value.trim()
-  if (host.startsWith("*.")) {
-    return `*.${host.slice(2).toLowerCase().replace(/\.$/, "")}`
-  }
-  if (host.includes(":") || host.includes("/")) {
-    return host
-  }
-  return host.toLowerCase().replace(/\.$/, "")
 }
 
 function parseHostsValue(value: string) {

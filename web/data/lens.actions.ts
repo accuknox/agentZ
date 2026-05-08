@@ -22,15 +22,12 @@ import {
   type Trace,
 } from "@/lib/gateway/client"
 import type {
-  FileTelemetryActionData,
   FileTelemetryActionResponse,
   FileTelemetryRow,
   ListSpansActionResponse,
   ListTracesActionResponse,
-  NetworkTelemetryActionData,
   NetworkTelemetryActionResponse,
   NetworkTelemetryRow,
-  ProcessTelemetryActionData,
   ProcessTelemetryActionResponse,
   ProcessTelemetryRow,
   RuntimeTelemetryActionResponse,
@@ -492,89 +489,6 @@ export async function getNetworkTelemetryAction({
   }
 }
 
-function normalizeProcessEvents(events: ProcessObservabilityEvent[]) {
-  const grouped = new Map<string, { event: ProcessObservabilityEvent; count: number }>()
-
-  for (const event of events) {
-    const key = `${event.process}|${event.command_invocation}|${event.action}`
-    const existing = grouped.get(key)
-    if (existing) {
-      existing.count++
-      if (event.event_time > existing.event.event_time) {
-        existing.event = event
-      }
-    } else {
-      grouped.set(key, { event, count: 1 })
-    }
-  }
-
-  return Array.from(grouped.values())
-    .map(({ event, count }) => ({
-      process: event.process,
-      command: event.command_invocation || event.parent_process,
-      action: event.action,
-      occurrences: count,
-      lastSeen: formatEventTime(event.event_time),
-    }))
-    .toSorted((a, b) => b.occurrences - a.occurrences)
-}
-
-function normalizeFileEvents(events: FileObservabilityEvent[]) {
-  const grouped = new Map<string, { event: FileObservabilityEvent; count: number }>()
-
-  for (const event of events) {
-    const key = `${event.file_path_accessed}|${event.process}|${event.action}`
-    const existing = grouped.get(key)
-    if (existing) {
-      existing.count++
-      if (event.event_time > existing.event.event_time) {
-        existing.event = event
-      }
-    } else {
-      grouped.set(key, { event, count: 1 })
-    }
-  }
-
-  return Array.from(grouped.values())
-    .map(({ event, count }) => ({
-      filePath: event.file_path_accessed,
-      process: event.command_invocation || event.process,
-      action: event.action,
-      occurrences: count,
-      lastSeen: formatEventTime(event.event_time),
-    }))
-    .toSorted((a, b) => b.occurrences - a.occurrences)
-}
-
-function normalizeNetworkEvents(events: NetworkObservabilityEvent[]) {
-  const grouped = new Map<string, { event: NetworkObservabilityEvent; count: number }>()
-
-  for (const event of events) {
-    const key = `${event.destination_domain || event.destination_ip}|${event.destination_port}|${event.protocol}|${event.action}`
-    const existing = grouped.get(key)
-    if (existing) {
-      existing.count++
-      if (event.event_time > existing.event.event_time) {
-        existing.event = event
-      }
-    } else {
-      grouped.set(key, { event, count: 1 })
-    }
-  }
-
-  return Array.from(grouped.values())
-    .map(({ event, count }) => ({
-      destinationDomain: event.destination_domain || "",
-      destinationIP: event.destination_ip,
-      destinationPort: event.destination_port,
-      protocol: event.protocol,
-      action: event.action,
-      occurrences: count,
-      lastSeen: formatEventTime(event.event_time),
-    }))
-    .toSorted((a, b) => b.occurrences - a.occurrences)
-}
-
 function formatEventTime(eventTime: string): string {
   const parsed = dayjs(eventTime)
   if (!parsed.isValid()) {
@@ -586,68 +500,6 @@ function formatEventTime(eventTime: string): string {
   }
 
   return parsed.format("MMM D, YYYY, h:mm A")
-}
-
-function computeTelemetryChart(events: { event_time: string }[]): TraceChartActionData {
-  if (events.length === 0) {
-    return { points: [], total: 0, granularity: "no data" }
-  }
-
-  const eventTimes = events.map((e) => dayjs(e.event_time))
-  const minTime = eventTimes.reduce((min, t) => (t.isBefore(min) ? t : min), eventTimes[0])
-  const maxTime = eventTimes.reduce((max, t) => (t.isAfter(max) ? t : max), eventTimes[0])
-
-  const from = minTime
-  const to = maxTime
-  const totalMs = to.valueOf() - from.valueOf()
-  const bucketCount = maxTelemetryChartPoints
-
-  if (totalMs === 0) {
-    return {
-      points: [
-        {
-          label: from.format("MMM D, h:mm A"),
-          count: events.length,
-          startedAfter: from.toISOString(),
-          startedBefore: to.toISOString(),
-        },
-      ],
-      total: events.length,
-      granularity: "single point",
-    }
-  }
-
-  const bucketMs = totalMs / bucketCount
-
-  const buckets = Array(bucketCount).fill(0)
-
-  for (const event of events) {
-    const eventMs = dayjs(event.event_time).valueOf()
-    let bucketIndex = Math.floor((eventMs - from.valueOf()) / bucketMs)
-    if (bucketIndex < 0) bucketIndex = 0
-    if (bucketIndex >= bucketCount) bucketIndex = bucketCount - 1
-    buckets[bucketIndex]++
-  }
-
-  const points = buckets
-    .map((count, index) => {
-      const bucketStart = from.add(index * bucketMs)
-      const bucketEnd = bucketStart.add(bucketMs)
-
-      return {
-        label: chartPointLabel(bucketStart, bucketEnd),
-        count,
-        startedAfter: bucketStart.toISOString(),
-        startedBefore: bucketEnd.toISOString(),
-      }
-    })
-    .filter((p) => p.count > 0)
-
-  return {
-    points,
-    total: events.length,
-    granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
-  }
 }
 
 function traceChartPoints(traces: Trace[]): TraceChartPoint[] {

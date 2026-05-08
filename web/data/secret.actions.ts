@@ -5,6 +5,7 @@ import { deleteSecret, listSecrets, putSecret } from "@/lib/gateway/client"
 import type { Error, SecretListItem } from "@/lib/gateway/client"
 import { zSecretKey } from "@/lib/gateway/client/zod.gen"
 import { secretHostsInputSchema, secretValueSchema } from "./schema"
+import type { DeleteSecretFormState, PutSecretFormState } from "./types"
 
 export type ListSecretsActionResponse =
   | {
@@ -75,10 +76,6 @@ async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> 
   }
 
   return keys
-}
-
-export type PutSecretFormState = {
-  error?: Error
 }
 
 export async function putSecretFormAction(
@@ -168,10 +165,6 @@ export async function putSecretFormAction(
 
   revalidatePath("/secrets")
   return {}
-}
-
-export type DeleteSecretFormState = {
-  error?: Error
 }
 
 export async function deleteSecretFormAction(

@@ -28,7 +28,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		rows := make([][]any, 0, len(b.processes))
 		for _, ev := range b.processes {
 			rows = append(rows, []any{
-				ev.sessionID,
+				ev.agentName,
 				ev.eventTime,
 				ev.podNamespace,
 				ev.podName,
@@ -43,7 +43,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 			ctx,
 			pgx.Identifier{"observer_process_events"},
 			[]string{
-				"session_id",
+				"agent_name",
 				"event_time",
 				"pod_namespace",
 				"pod_name",
@@ -64,7 +64,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		rows := make([][]any, 0, len(b.files))
 		for _, ev := range b.files {
 			rows = append(rows, []any{
-				ev.sessionID,
+				ev.agentName,
 				ev.eventTime,
 				ev.podNamespace,
 				ev.podName,
@@ -79,7 +79,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 			ctx,
 			pgx.Identifier{"observer_file_events"},
 			[]string{
-				"session_id",
+				"agent_name",
 				"event_time",
 				"pod_namespace",
 				"pod_name",
@@ -100,7 +100,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		rows := make([][]any, 0, len(b.networks))
 		for _, ev := range b.networks {
 			rows = append(rows, []any{
-				ev.sessionID,
+				ev.agentName,
 				ev.eventTime,
 				ev.podNamespace,
 				ev.podName,
@@ -116,7 +116,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 			ctx,
 			pgx.Identifier{"observer_network_events"},
 			[]string{
-				"session_id",
+				"agent_name",
 				"event_time",
 				"pod_namespace",
 				"pod_name",
@@ -152,7 +152,7 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 	payloads := make([]observerdb.InsertTraceSpanPayloadParams, 0, len(traces))
 	for _, ev := range traces {
 		spans = append(spans, observerdb.InsertTraceSpanParams{
-			SessionID:          ev.sessionID,
+			AgentName:          ev.agentName,
 			TraceID:            ev.traceID,
 			SpanID:             ev.spanID,
 			ParentSpanID:       ev.parentSpanID,

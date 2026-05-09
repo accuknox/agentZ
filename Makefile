@@ -3,8 +3,6 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.proto
-
 # Image URL to render into Kubernetes manifests.
 IMAGE ?= murtazau/clawarmor:latest
 AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
@@ -12,14 +10,13 @@ AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
 .PHONY: all
 all: generate lint build
 
-# Generate sql and protobuf stubs and code containing DeepCopy, DeepCopyInto,
-# and DeepCopyObject method implementations and WebhookConfiguration,
-# ClusterRole and CustomResourceDefinition objects.
+# Generate sql stubs, code containing DeepCopy, DeepCopyInto, and DeepCopyObject
+# method implementations and WebhookConfiguration, ClusterRole and
+# CustomResourceDefinition objects.
 .PHONY: generate
 generate:
 	sqlc generate
 	oapi-codegen -config oapi-codegen.gateway.yaml api/openapi.yaml
-	buf generate
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=true webhook \
 		paths="./api/...;./internal/controller/...;./internal/webhook/..." \
@@ -41,8 +38,6 @@ test: $(LOCALBIN)
 lint:
 	go vet ./...
 	"$(GOLANGCI_LINT)" run
-	buf lint
-	protoc --lint_out=sort_imports:. $(PROTO_FILES)
 	yamllint .
 
 # Build clawarmor binary.

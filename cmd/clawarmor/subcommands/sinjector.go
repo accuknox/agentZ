@@ -70,8 +70,8 @@ var sinjectorServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:     "session-id",
-			Usage:    "Agent session ID",
+			Name:     "agent-name",
+			Usage:    "Agent name",
 			Required: true,
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -106,7 +106,7 @@ var sinjectorServeCmd = &cli.Command{
 			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
 			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
 			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
-			SessionID:               c.String("session-id"),
+			AgentName:               c.String("agent-name"),
 			CACertPath:              c.String("ca-cert-path"),
 			CAKeyPath:               c.String("ca-key-path"),
 			Verbose:                 c.Bool("verbose"),

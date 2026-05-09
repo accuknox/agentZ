@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE TABLE observer_process_events(
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   event_time TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   pod_namespace TEXT NOT NULL,
@@ -14,20 +14,20 @@ CREATE TABLE observer_process_events(
 );
 
 CREATE INDEX observer_process_events_session_time_idx
-  ON observer_process_events(session_id, event_time DESC, id DESC);
+  ON observer_process_events(agent_name, event_time DESC, id DESC);
 
 CREATE INDEX observer_process_events_time_brin_idx
   ON observer_process_events USING BRIN(event_time);
 
 CREATE INDEX observer_process_events_session_action_time_idx
-  ON observer_process_events(session_id, action, event_time DESC, id DESC);
+  ON observer_process_events(agent_name, action, event_time DESC, id DESC);
 
 CREATE INDEX observer_process_events_session_process_time_idx
-  ON observer_process_events(session_id, process, event_time DESC, id DESC);
+  ON observer_process_events(agent_name, process, event_time DESC, id DESC);
 
 CREATE TABLE observer_file_events(
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   event_time TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   pod_namespace TEXT NOT NULL,
@@ -40,20 +40,20 @@ CREATE TABLE observer_file_events(
 );
 
 CREATE INDEX observer_file_events_session_time_idx
-  ON observer_file_events(session_id, event_time DESC, id DESC);
+  ON observer_file_events(agent_name, event_time DESC, id DESC);
 
 CREATE INDEX observer_file_events_time_brin_idx
   ON observer_file_events USING BRIN(event_time);
 
 CREATE INDEX observer_file_events_session_action_time_idx
-  ON observer_file_events(session_id, action, event_time DESC, id DESC);
+  ON observer_file_events(agent_name, action, event_time DESC, id DESC);
 
 CREATE INDEX observer_file_events_session_path_time_idx
-  ON observer_file_events(session_id, file_path_accessed, event_time DESC, id DESC);
+  ON observer_file_events(agent_name, file_path_accessed, event_time DESC, id DESC);
 
 CREATE TABLE observer_network_events(
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   event_time TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   pod_namespace TEXT NOT NULL,
@@ -67,17 +67,17 @@ CREATE TABLE observer_network_events(
 );
 
 CREATE INDEX observer_network_events_session_time_idx
-  ON observer_network_events(session_id, event_time DESC, id DESC);
+  ON observer_network_events(agent_name, event_time DESC, id DESC);
 
 CREATE INDEX observer_network_events_time_brin_idx
   ON observer_network_events USING BRIN(event_time);
 
 CREATE INDEX observer_network_events_session_action_time_idx
-  ON observer_network_events(session_id, action, event_time DESC, id DESC);
+  ON observer_network_events(agent_name, action, event_time DESC, id DESC);
 
 CREATE INDEX observer_network_events_session_destination_time_idx
   ON observer_network_events(
-    session_id,
+    agent_name,
     destination_ip,
     destination_port,
     protocol,

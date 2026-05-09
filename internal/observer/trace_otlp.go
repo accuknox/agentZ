@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	attrClawArmorSessionID = "clawarmor.session_id"
+	attrClawArmorAgentName = "clawarmor.agent_name"
 	attrClawArmorRunID     = "clawarmor.run_id"
 	attrClawArmorRequestID = "clawarmor.request_id"
 
@@ -44,7 +44,7 @@ const (
 	attrErrorMessage                = "error.message"
 )
 
-var errTraceSessionIDMissing = errors.New("clawarmor.session_id missing")
+var errTraceAgentNameMissing = errors.New("clawarmor.agent_name missing")
 
 type traceReceiver struct {
 	tracev1.UnimplementedTraceServiceServer
@@ -126,11 +126,11 @@ func normalizeTraceRequest(req *tracev1.ExportTraceServiceRequest) ([]traceSpanE
 
 func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSpanEvent, error) {
 	if sp == nil || len(sp.GetTraceId()) != 16 || len(sp.GetSpanId()) != 8 {
-		return traceSpanEvent{}, errTraceSessionIDMissing
+		return traceSpanEvent{}, errTraceAgentNameMissing
 	}
 
 	spanAttrs := attrsMap(sp.GetAttributes())
-	sessionID, err := requiredSessionID(spanAttrs, resourceAttrs)
+	agentName, err := requiredAgentName(spanAttrs, resourceAttrs)
 	if err != nil {
 		return traceSpanEvent{}, err
 	}
@@ -159,7 +159,7 @@ func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSp
 	}
 
 	return traceSpanEvent{
-		sessionID:          sessionID,
+		agentName:          agentName,
 		traceID:            cloneBytes(sp.GetTraceId()),
 		spanID:             cloneBytes(sp.GetSpanId()),
 		parentSpanID:       cloneBytes(sp.GetParentSpanId()),
@@ -187,16 +187,12 @@ func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSp
 	}, nil
 }
 
-func requiredSessionID(spanAttrs, resourceAttrs map[string]any) (uuid.UUID, error) {
-	raw := firstStringAttr(spanAttrs, resourceAttrs, attrClawArmorSessionID)
+func requiredAgentName(spanAttrs, resourceAttrs map[string]any) (string, error) {
+	raw := strings.TrimSpace(firstStringAttr(spanAttrs, resourceAttrs, attrClawArmorAgentName))
 	if raw == "" {
-		return uuid.Nil, errTraceSessionIDMissing
+		return "", errTraceAgentNameMissing
 	}
-	id, err := uuid.Parse(raw)
-	if err != nil || id.Version() != 4 {
-		return uuid.Nil, errTraceSessionIDMissing
-	}
-	return id, nil
+	return raw, nil
 }
 
 func attrsMap(attrs []*commonpb.KeyValue) map[string]any {

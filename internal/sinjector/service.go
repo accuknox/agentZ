@@ -35,7 +35,7 @@ type Config struct {
 	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
 	OpenBaoK8sAuthTokenPath string
-	SessionID               string
+	AgentName               string
 	CACertPath              string
 	CAKeyPath               string
 	Verbose                 bool
@@ -43,7 +43,7 @@ type Config struct {
 
 type resolver struct {
 	kv        *baoapi.KVv2
-	sessionID string
+	agentName string
 }
 
 // Serve starts the secret injection proxy and blocks until shutdown.
@@ -81,7 +81,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		certCache: newCertStore(1024),
 		resolver: resolver{
 			kv:        baoClient.KVv2(cfg.OpenBaoSecretMountPath),
-			sessionID: cfg.SessionID,
+			agentName: cfg.AgentName,
 		},
 	}
 
@@ -97,7 +97,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	go func() {
 		slog.InfoContext(ctx, "starting secret injection proxy",
 			slog.String("addr", cfg.Addr),
-			slog.String("session_id", cfg.SessionID),
+			slog.String("agent_name", cfg.AgentName),
 		)
 		errCh <- srv.ListenAndServe()
 	}()
@@ -129,8 +129,8 @@ func validate(cfg Config) error {
 	if strings.TrimSpace(cfg.OpenBaoK8sAuthRole) == "" {
 		return fmt.Errorf("openbao k8s auth role is required")
 	}
-	if strings.TrimSpace(cfg.SessionID) == "" {
-		return fmt.Errorf("session id is required")
+	if strings.TrimSpace(cfg.AgentName) == "" {
+		return fmt.Errorf("agent name is required")
 	}
 	if strings.TrimSpace(cfg.CACertPath) == "" {
 		return fmt.Errorf("ca cert path is required")
@@ -142,7 +142,7 @@ func validate(cfg Config) error {
 }
 
 func (r resolver) resolve(ctx context.Context, name string) (resolvedSecret, error) {
-	secret, err := r.kv.Get(ctx, fmt.Sprintf("%s/%s", r.sessionID, name))
+	secret, err := r.kv.Get(ctx, fmt.Sprintf("%s/%s", r.agentName, name))
 	if err != nil {
 		return resolvedSecret{}, fmt.Errorf("read openbao secret %q: %w", name, err)
 	}

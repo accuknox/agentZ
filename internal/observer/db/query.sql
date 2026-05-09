@@ -1,7 +1,7 @@
 -- name: ListProcessEventsBetween :many
 SELECT
   id,
-  session_id,
+  agent_name,
   event_time,
   ingested_at,
   pod_namespace,
@@ -12,7 +12,7 @@ SELECT
   action,
   source
 FROM observer_process_events
-WHERE session_id = sqlc.arg(session_id)
+WHERE agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(updated_after)::timestamptz
   AND event_time <= sqlc.arg(updated_before)::timestamptz
 ORDER BY event_time ASC, id ASC
@@ -20,7 +20,7 @@ LIMIT sqlc.arg(page_size);
 
 -- name: InsertTraceSpan :batchexec
 INSERT INTO observer_trace_spans(
-  session_id,
+  agent_name,
   trace_id,
   span_id,
   parent_span_id,
@@ -45,7 +45,7 @@ INSERT INTO observer_trace_spans(
   pod_namespace,
   pod_name
 ) VALUES (
-  sqlc.arg(session_id),
+  sqlc.arg(agent_name),
   sqlc.arg(trace_id),
   sqlc.arg(span_id),
   sqlc.arg(parent_span_id),
@@ -97,7 +97,7 @@ ON CONFLICT(trace_id, span_id, start_time) DO NOTHING;
 -- name: RefreshTraceSummary :batchexec
 INSERT INTO observer_traces(
   trace_id,
-  session_id,
+  agent_name,
   root_span_id,
   started_at,
   ended_at,
@@ -115,7 +115,7 @@ INSERT INTO observer_traces(
   updated_at
 ) SELECT
   observer_trace_spans.trace_id,
-  (ARRAY_AGG(session_id ORDER BY start_time ASC))[1],
+  (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
   COALESCE(
     (ARRAY_AGG(span_id ORDER BY
       CASE WHEN parent_span_id = ''::BYTEA THEN 0 ELSE 1 END,
@@ -158,7 +158,7 @@ FROM observer_trace_spans
 WHERE observer_trace_spans.trace_id = sqlc.arg(trace_id)
 GROUP BY observer_trace_spans.trace_id
 ON CONFLICT(trace_id) DO UPDATE SET
-  session_id = EXCLUDED.session_id,
+  agent_name = EXCLUDED.agent_name,
   root_span_id = EXCLUDED.root_span_id,
   started_at = EXCLUDED.started_at,
   ended_at = EXCLUDED.ended_at,
@@ -178,7 +178,7 @@ ON CONFLICT(trace_id) DO UPDATE SET
 -- name: ListFileEventsBetween :many
 SELECT
   id,
-  session_id,
+  agent_name,
   event_time,
   ingested_at,
   pod_namespace,
@@ -189,7 +189,7 @@ SELECT
   action,
   source
 FROM observer_file_events
-WHERE session_id = sqlc.arg(session_id)
+WHERE agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(updated_after)::timestamptz
   AND event_time <= sqlc.arg(updated_before)::timestamptz
 ORDER BY event_time ASC, id ASC
@@ -198,7 +198,7 @@ LIMIT sqlc.arg(page_size);
 -- name: ListNetworkEventsBetween :many
 SELECT
   id,
-  session_id,
+  agent_name,
   event_time,
   ingested_at,
   pod_namespace,
@@ -210,7 +210,7 @@ SELECT
   action,
   source
 FROM observer_network_events
-WHERE session_id = sqlc.arg(session_id)
+WHERE agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(updated_after)::timestamptz
   AND event_time <= sqlc.arg(updated_before)::timestamptz
 ORDER BY event_time ASC, id ASC

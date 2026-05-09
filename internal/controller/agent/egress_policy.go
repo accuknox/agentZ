@@ -71,12 +71,9 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowed
 	if err != nil {
 		return nil, err
 	}
+
 	if r.sinjectorEnabled() {
-		port, err := sinjectorPort(agt)
-		if err != nil {
-			return nil, err
-		}
-		egress = append(egress, sinjectorEgressRule(agt, port))
+		egress = append(egress, sinjectorEgressRule(agt))
 	}
 
 	return &ciliumapi.Rule{
@@ -157,7 +154,7 @@ func dnsEgressRule() ciliumapi.EgressRule {
 	}
 }
 
-func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent, port int32) ciliumapi.EgressRule {
+func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent) ciliumapi.EgressRule {
 	return ciliumapi.EgressRule{
 		EgressCommonRule: ciliumapi.EgressCommonRule{
 			ToEndpoints: []ciliumapi.EndpointSelector{
@@ -178,7 +175,7 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent, port int32) ciliumapi.Egr
 		ToPorts: ciliumapi.PortRules{{
 			Ports: []ciliumapi.PortProtocol{
 				{
-					Port:     fmt.Sprintf("%d", port),
+					Port:     "4096",
 					Protocol: ciliumapi.ProtoTCP,
 				},
 			},
@@ -188,9 +185,6 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent, port int32) ciliumapi.Egr
 
 func automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
 	var hosts []envutil.Host
-	if agt.Spec.Session.Enabled {
-		hosts = append(hosts, hostForEndpoint(agt.Spec.Session.Target)...)
-	}
 	if agt.Spec.Telemetry.Enabled {
 		hosts = append(hosts, hostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)...)
 	}

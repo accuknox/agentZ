@@ -8,14 +8,12 @@ package observerdb
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const listFileEventsBetween = `-- name: ListFileEventsBetween :many
 SELECT
   id,
-  session_id,
+  agent_name,
   event_time,
   ingested_at,
   pod_namespace,
@@ -26,7 +24,7 @@ SELECT
   action,
   source
 FROM observer_file_events
-WHERE session_id = $1
+WHERE agent_name = $1
   AND event_time >= $2::timestamptz
   AND event_time <= $3::timestamptz
 ORDER BY event_time ASC, id ASC
@@ -34,7 +32,7 @@ LIMIT $4
 `
 
 type ListFileEventsBetweenParams struct {
-	SessionID     uuid.UUID `json:"session_id"`
+	AgentName     string    `json:"agent_name"`
 	UpdatedAfter  time.Time `json:"updated_after"`
 	UpdatedBefore time.Time `json:"updated_before"`
 	PageSize      int32     `json:"page_size"`
@@ -42,7 +40,7 @@ type ListFileEventsBetweenParams struct {
 
 func (q *Queries) ListFileEventsBetween(ctx context.Context, arg ListFileEventsBetweenParams) ([]ObserverFileEvent, error) {
 	rows, err := q.db.Query(ctx, listFileEventsBetween,
-		arg.SessionID,
+		arg.AgentName,
 		arg.UpdatedAfter,
 		arg.UpdatedBefore,
 		arg.PageSize,
@@ -56,7 +54,7 @@ func (q *Queries) ListFileEventsBetween(ctx context.Context, arg ListFileEventsB
 		var i ObserverFileEvent
 		if err := rows.Scan(
 			&i.ID,
-			&i.SessionID,
+			&i.AgentName,
 			&i.EventTime,
 			&i.IngestedAt,
 			&i.PodNamespace,
@@ -80,7 +78,7 @@ func (q *Queries) ListFileEventsBetween(ctx context.Context, arg ListFileEventsB
 const listNetworkEventsBetween = `-- name: ListNetworkEventsBetween :many
 SELECT
   id,
-  session_id,
+  agent_name,
   event_time,
   ingested_at,
   pod_namespace,
@@ -92,7 +90,7 @@ SELECT
   action,
   source
 FROM observer_network_events
-WHERE session_id = $1
+WHERE agent_name = $1
   AND event_time >= $2::timestamptz
   AND event_time <= $3::timestamptz
 ORDER BY event_time ASC, id ASC
@@ -100,7 +98,7 @@ LIMIT $4
 `
 
 type ListNetworkEventsBetweenParams struct {
-	SessionID     uuid.UUID `json:"session_id"`
+	AgentName     string    `json:"agent_name"`
 	UpdatedAfter  time.Time `json:"updated_after"`
 	UpdatedBefore time.Time `json:"updated_before"`
 	PageSize      int32     `json:"page_size"`
@@ -108,7 +106,7 @@ type ListNetworkEventsBetweenParams struct {
 
 func (q *Queries) ListNetworkEventsBetween(ctx context.Context, arg ListNetworkEventsBetweenParams) ([]ObserverNetworkEvent, error) {
 	rows, err := q.db.Query(ctx, listNetworkEventsBetween,
-		arg.SessionID,
+		arg.AgentName,
 		arg.UpdatedAfter,
 		arg.UpdatedBefore,
 		arg.PageSize,
@@ -122,7 +120,7 @@ func (q *Queries) ListNetworkEventsBetween(ctx context.Context, arg ListNetworkE
 		var i ObserverNetworkEvent
 		if err := rows.Scan(
 			&i.ID,
-			&i.SessionID,
+			&i.AgentName,
 			&i.EventTime,
 			&i.IngestedAt,
 			&i.PodNamespace,
@@ -147,7 +145,7 @@ func (q *Queries) ListNetworkEventsBetween(ctx context.Context, arg ListNetworkE
 const listProcessEventsBetween = `-- name: ListProcessEventsBetween :many
 SELECT
   id,
-  session_id,
+  agent_name,
   event_time,
   ingested_at,
   pod_namespace,
@@ -158,7 +156,7 @@ SELECT
   action,
   source
 FROM observer_process_events
-WHERE session_id = $1
+WHERE agent_name = $1
   AND event_time >= $2::timestamptz
   AND event_time <= $3::timestamptz
 ORDER BY event_time ASC, id ASC
@@ -166,7 +164,7 @@ LIMIT $4
 `
 
 type ListProcessEventsBetweenParams struct {
-	SessionID     uuid.UUID `json:"session_id"`
+	AgentName     string    `json:"agent_name"`
 	UpdatedAfter  time.Time `json:"updated_after"`
 	UpdatedBefore time.Time `json:"updated_before"`
 	PageSize      int32     `json:"page_size"`
@@ -174,7 +172,7 @@ type ListProcessEventsBetweenParams struct {
 
 func (q *Queries) ListProcessEventsBetween(ctx context.Context, arg ListProcessEventsBetweenParams) ([]ObserverProcessEvent, error) {
 	rows, err := q.db.Query(ctx, listProcessEventsBetween,
-		arg.SessionID,
+		arg.AgentName,
 		arg.UpdatedAfter,
 		arg.UpdatedBefore,
 		arg.PageSize,
@@ -188,7 +186,7 @@ func (q *Queries) ListProcessEventsBetween(ctx context.Context, arg ListProcessE
 		var i ObserverProcessEvent
 		if err := rows.Scan(
 			&i.ID,
-			&i.SessionID,
+			&i.AgentName,
 			&i.EventTime,
 			&i.IngestedAt,
 			&i.PodNamespace,

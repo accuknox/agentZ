@@ -10,7 +10,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -20,7 +19,7 @@ var (
 
 const insertTraceSpan = `-- name: InsertTraceSpan :batchexec
 INSERT INTO observer_trace_spans(
-  session_id,
+  agent_name,
   trace_id,
   span_id,
   parent_span_id,
@@ -80,7 +79,7 @@ type InsertTraceSpanBatchResults struct {
 }
 
 type InsertTraceSpanParams struct {
-	SessionID          uuid.UUID `json:"session_id"`
+	AgentName          string    `json:"agent_name"`
 	TraceID            []byte    `json:"trace_id"`
 	SpanID             []byte    `json:"span_id"`
 	ParentSpanID       []byte    `json:"parent_span_id"`
@@ -110,7 +109,7 @@ func (q *Queries) InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanPara
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
-			a.SessionID,
+			a.AgentName,
 			a.TraceID,
 			a.SpanID,
 			a.ParentSpanID,
@@ -245,7 +244,7 @@ func (b *InsertTraceSpanPayloadBatchResults) Close() error {
 const refreshTraceSummary = `-- name: RefreshTraceSummary :batchexec
 INSERT INTO observer_traces(
   trace_id,
-  session_id,
+  agent_name,
   root_span_id,
   started_at,
   ended_at,
@@ -263,7 +262,7 @@ INSERT INTO observer_traces(
   updated_at
 ) SELECT
   observer_trace_spans.trace_id,
-  (ARRAY_AGG(session_id ORDER BY start_time ASC))[1],
+  (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
   COALESCE(
     (ARRAY_AGG(span_id ORDER BY
       CASE WHEN parent_span_id = ''::BYTEA THEN 0 ELSE 1 END,
@@ -306,7 +305,7 @@ FROM observer_trace_spans
 WHERE observer_trace_spans.trace_id = $1
 GROUP BY observer_trace_spans.trace_id
 ON CONFLICT(trace_id) DO UPDATE SET
-  session_id = EXCLUDED.session_id,
+  agent_name = EXCLUDED.agent_name,
   root_span_id = EXCLUDED.root_span_id,
   started_at = EXCLUDED.started_at,
   ended_at = EXCLUDED.ended_at,

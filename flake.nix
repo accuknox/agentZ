@@ -28,11 +28,6 @@
               postgresql_18
               openapi-generator-cli
               oapi-codegen
-              protobuf
-              buf
-              protoc-gen-lint
-              protoc-gen-go
-              protoc-gen-go-grpc
               bun
               nodejs
               package-version-server

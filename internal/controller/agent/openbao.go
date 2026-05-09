@@ -30,7 +30,7 @@ type SinjectorOpenBaoOptions struct {
 	ServiceAccountName string
 	RoleName           string
 	PolicyName         string
-	SessionID          string
+	AgentName          string
 }
 
 type openBaoProvisioner struct {
@@ -75,7 +75,7 @@ func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvi
 }
 
 func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
-	policy, err := renderSinjectorPolicy(cfg.OpenBaoSecretMountPath, opts.SessionID)
+	policy, err := renderSinjectorPolicy(cfg.OpenBaoSecretMountPath, opts.AgentName)
 	if err != nil {
 		return err
 	}
@@ -97,11 +97,11 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 	return nil
 }
 
-func renderSinjectorPolicy(mount, sessionID string) (string, error) {
+func renderSinjectorPolicy(mount, agentName string) (string, error) {
 	mount = strings.Trim(mount, "/")
 	data := sinjectorPolicyData{
-		DataPath:     fmt.Sprintf("%s/data/%s/*", mount, sessionID),
-		MetadataPath: fmt.Sprintf("%s/metadata/%s/*", mount, sessionID),
+		DataPath:     fmt.Sprintf("%s/data/%s/*", mount, agentName),
+		MetadataPath: fmt.Sprintf("%s/metadata/%s/*", mount, agentName),
 	}
 	var out bytes.Buffer
 	if err := sinjectorPolicy.Execute(&out, data); err != nil {

@@ -43,7 +43,6 @@ import (
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
-	agentcmd "github.com/accuknox/clawarmor/cmd/clawarmor/subcommands/agent"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
 	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
@@ -124,11 +123,10 @@ var cmd = &cli.Command{
 		},
 	},
 	Commands: []*cli.Command{
-		agentcmd.AgentCmd,
 		managerCmd,
-		subcommands.SinjectorCmd,
-		subcommands.SessionCmd,
+		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,
+		subcommands.SinjectorCmd,
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		level := c.String("log-level")

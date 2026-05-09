@@ -1,6 +1,6 @@
 CREATE TABLE observer_process_events(
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   event_time TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   pod_namespace TEXT NOT NULL,
@@ -13,20 +13,20 @@ CREATE TABLE observer_process_events(
 );
 
 CREATE INDEX observer_process_events_session_time_idx
-  ON observer_process_events(session_id, event_time DESC, id DESC);
+  ON observer_process_events(agent_name, event_time DESC, id DESC);
 
 CREATE INDEX observer_process_events_time_brin_idx
   ON observer_process_events USING BRIN(event_time);
 
 CREATE INDEX observer_process_events_session_action_time_idx
-  ON observer_process_events(session_id, action, event_time DESC, id DESC);
+  ON observer_process_events(agent_name, action, event_time DESC, id DESC);
 
 CREATE INDEX observer_process_events_session_process_time_idx
-  ON observer_process_events(session_id, process, event_time DESC, id DESC);
+  ON observer_process_events(agent_name, process, event_time DESC, id DESC);
 
 CREATE TABLE observer_file_events(
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   event_time TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   pod_namespace TEXT NOT NULL,
@@ -39,20 +39,20 @@ CREATE TABLE observer_file_events(
 );
 
 CREATE INDEX observer_file_events_session_time_idx
-  ON observer_file_events(session_id, event_time DESC, id DESC);
+  ON observer_file_events(agent_name, event_time DESC, id DESC);
 
 CREATE INDEX observer_file_events_time_brin_idx
   ON observer_file_events USING BRIN(event_time);
 
 CREATE INDEX observer_file_events_session_action_time_idx
-  ON observer_file_events(session_id, action, event_time DESC, id DESC);
+  ON observer_file_events(agent_name, action, event_time DESC, id DESC);
 
 CREATE INDEX observer_file_events_session_path_time_idx
-  ON observer_file_events(session_id, file_path_accessed, event_time DESC, id DESC);
+  ON observer_file_events(agent_name, file_path_accessed, event_time DESC, id DESC);
 
 CREATE TABLE observer_network_events(
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   event_time TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   pod_namespace TEXT NOT NULL,
@@ -66,17 +66,17 @@ CREATE TABLE observer_network_events(
 );
 
 CREATE INDEX observer_network_events_session_time_idx
-  ON observer_network_events(session_id, event_time DESC, id DESC);
+  ON observer_network_events(agent_name, event_time DESC, id DESC);
 
 CREATE INDEX observer_network_events_time_brin_idx
   ON observer_network_events USING BRIN(event_time);
 
 CREATE INDEX observer_network_events_session_action_time_idx
-  ON observer_network_events(session_id, action, event_time DESC, id DESC);
+  ON observer_network_events(agent_name, action, event_time DESC, id DESC);
 
 CREATE INDEX observer_network_events_session_destination_time_idx
   ON observer_network_events(
-    session_id,
+    agent_name,
     destination_ip,
     destination_port,
     protocol,
@@ -86,7 +86,7 @@ CREATE INDEX observer_network_events_session_destination_time_idx
 
 CREATE TABLE observer_traces(
   trace_id BYTEA PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   root_span_id BYTEA NOT NULL DEFAULT ''::BYTEA,
   started_at TIMESTAMPTZ NOT NULL,
   ended_at TIMESTAMPTZ NOT NULL,
@@ -105,17 +105,17 @@ CREATE TABLE observer_traces(
 );
 
 CREATE INDEX observer_traces_session_started_idx
-  ON observer_traces(session_id, started_at DESC);
+  ON observer_traces(agent_name, started_at DESC);
 
 CREATE INDEX observer_traces_session_started_trace_idx
-  ON observer_traces(session_id, started_at DESC, trace_id DESC);
+  ON observer_traces(agent_name, started_at DESC, trace_id DESC);
 
 CREATE INDEX observer_traces_started_brin_idx
   ON observer_traces USING BRIN(started_at);
 
 CREATE TABLE observer_trace_spans(
   id BIGINT GENERATED ALWAYS AS IDENTITY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   trace_id BYTEA NOT NULL,
   span_id BYTEA NOT NULL,
   parent_span_id BYTEA NOT NULL DEFAULT ''::BYTEA,
@@ -148,19 +148,19 @@ CREATE TABLE observer_trace_spans_default
   PARTITION OF observer_trace_spans DEFAULT;
 
 CREATE INDEX observer_trace_spans_session_time_idx
-  ON observer_trace_spans(session_id, start_time DESC, id DESC);
+  ON observer_trace_spans(agent_name, start_time DESC, id DESC);
 
 CREATE INDEX observer_trace_spans_trace_time_idx
   ON observer_trace_spans(trace_id, start_time ASC);
 
 CREATE INDEX observer_trace_spans_session_trace_span_idx
-  ON observer_trace_spans(session_id, trace_id, span_id, start_time ASC, id ASC);
+  ON observer_trace_spans(agent_name, trace_id, span_id, start_time ASC, id ASC);
 
 CREATE INDEX observer_trace_spans_trace_parent_idx
   ON observer_trace_spans(trace_id, parent_span_id);
 
 CREATE INDEX observer_trace_spans_session_pod_time_idx
-  ON observer_trace_spans(session_id, pod_namespace, pod_name, start_time DESC);
+  ON observer_trace_spans(agent_name, pod_namespace, pod_name, start_time DESC);
 
 CREATE INDEX observer_trace_spans_time_brin_idx
   ON observer_trace_spans USING BRIN(start_time);

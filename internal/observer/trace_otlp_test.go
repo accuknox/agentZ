@@ -3,7 +3,6 @@ package observer
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -13,12 +12,12 @@ import (
 func TestNormalizeTraceRequestExtractsGenAIPayloads(t *testing.T) {
 	t.Parallel()
 
-	sessionID := uuid.MustParse("51047bae-702a-4115-bcde-95fff10593bb")
+	const agentName = "agent-sample"
 	req := &tracev1.ExportTraceServiceRequest{
 		ResourceSpans: []*tracepb.ResourceSpans{{
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
-					stringKV(attrClawArmorSessionID, sessionID.String()),
+					stringKV(attrClawArmorAgentName, agentName),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{
@@ -43,8 +42,8 @@ func TestNormalizeTraceRequestExtractsGenAIPayloads(t *testing.T) {
 		t.Fatalf("len(events) = %d, want 1", len(events))
 	}
 	ev := events[0]
-	if ev.sessionID != sessionID {
-		t.Fatalf("sessionID = %s, want %s", ev.sessionID, sessionID)
+	if ev.agentName != agentName {
+		t.Fatalf("agentName = %s, want %s", ev.agentName, agentName)
 	}
 	if ev.operationName != "chat" {
 		t.Fatalf("operationName = %q, want chat", ev.operationName)

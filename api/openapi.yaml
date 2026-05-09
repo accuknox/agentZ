@@ -2,15 +2,13 @@ openapi: 3.0.3
 info:
   title: ClawArmor HTTP API
   version: 0.1.0
-  description: HTTP API for ClawArmor agent sessions and status streams.
+  description: HTTP API for ClawArmor agents, lens, secrets, and environments.
 servers:
 - url: /
   description: Current origin
 tags:
-- name: sessions
-  description: Session history and interaction APIs.
 - name: agents
-  description: Agent listing and status streaming APIs.
+  description: Agent lifecycle and status APIs.
 - name: lens
   description: Trace, span, and OS observability APIs.
 - name: secrets
@@ -19,36 +17,13 @@ tags:
   description: Environment resource management APIs.
 
 paths:
-  /api/chat-history:
-    get:
-      operationId: getChatHistory
-      summary: Get paginated session event history.
-      tags: [sessions]
-      parameters:
-      - $ref: '#/components/parameters/SessionIDQuery'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        '200':
-          description: Paginated chat history for the session.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatHistoryResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /api/list-agents:
     get:
       operationId: listAgents
       summary: List paginated agent summaries.
       tags: [agents]
       parameters:
-      - $ref: '#/components/parameters/SessionIDFilterQuery'
+      - $ref: '#/components/parameters/AgentNameFilterQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -69,7 +44,7 @@ paths:
       summary: List paginated trace summaries.
       tags: [lens]
       parameters:
-      - $ref: '#/components/parameters/SessionIDQuery'
+      - $ref: '#/components/parameters/AgentNameQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/StartedAfterQuery'
@@ -94,7 +69,7 @@ paths:
       summary: List paginated spans for a trace.
       tags: [lens]
       parameters:
-      - $ref: '#/components/parameters/SessionIDQuery'
+      - $ref: '#/components/parameters/AgentNameQuery'
       - $ref: '#/components/parameters/TraceIDQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
@@ -118,7 +93,7 @@ paths:
       summary: Get span details and correlated OS observability.
       tags: [lens]
       parameters:
-      - $ref: '#/components/parameters/SessionIDQuery'
+      - $ref: '#/components/parameters/AgentNameQuery'
       - $ref: '#/components/parameters/TraceIDQuery'
       - $ref: '#/components/parameters/SpanIDQuery'
       responses:
@@ -141,7 +116,7 @@ paths:
       summary: List paginated process observability events.
       tags: [lens]
       parameters:
-      - $ref: '#/components/parameters/SessionIDQuery'
+      - $ref: '#/components/parameters/AgentNameQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/EventTimeAfterQuery'
@@ -168,7 +143,7 @@ paths:
       summary: List paginated file observability events.
       tags: [lens]
       parameters:
-      - $ref: '#/components/parameters/SessionIDQuery'
+      - $ref: '#/components/parameters/AgentNameQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/EventTimeAfterQuery'
@@ -195,7 +170,7 @@ paths:
       summary: List paginated network observability events.
       tags: [lens]
       parameters:
-      - $ref: '#/components/parameters/SessionIDQuery'
+      - $ref: '#/components/parameters/AgentNameQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/EventTimeAfterQuery'
@@ -219,9 +194,9 @@ paths:
   /api/create-agent:
     post:
       operationId: createAgent
-      summary: Create a session-backed Agent.
+      summary: Create an Agent resource.
       description: >
-        Creates a session row and Agent custom resource. The request returns
+        Creates an agent record and Agent custom resource. The request returns
         after the Agent resource is created and does not wait for the Agent to
         become ready.
       tags: [agents]
@@ -248,7 +223,7 @@ paths:
   /api/delete-agent:
     post:
       operationId: deleteAgent
-      summary: Delete a session-backed Agent.
+      summary: Delete an Agent resource.
       tags: [agents]
       requestBody:
         required: true
@@ -258,7 +233,7 @@ paths:
               $ref: '#/components/schemas/DeleteAgentRequest'
       responses:
         '204':
-          description: Agent and session were deleted.
+          description: Agent was deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -266,17 +241,16 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/update-agent/{sessionID}:
+  /api/update-agent/{agentName}:
     post:
       operationId: updateAgent
-      summary: Update a session-backed Agent.
+      summary: Update an Agent resource.
       description: >
-        Updates mutable Agent configuration for an existing session. The
-        session ID in the path identifies the Agent; Agent name is immutable
-        and is not accepted in the request body.
+        Updates mutable Agent fields for an existing Agent. The agent name in
+        the path identifies the Agent and is immutable.
       tags: [agents]
       parameters:
-      - $ref: '#/components/parameters/SessionIDPath'
+      - $ref: '#/components/parameters/AgentNamePath'
       requestBody:
         required: true
         content:
@@ -299,128 +273,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/send-message:
-    post:
-      operationId: sendMessage
-      summary: Send a user prompt to a session agent.
-      tags: [sessions]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-      responses:
-        '200':
-          description: Message accepted and run started.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SendMessageResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /api/subscribe-session:
-    post:
-      operationId: subscribeSession
-      summary: Subscribe to live events for a session.
-      description: >
-        Returns an SSE stream. Each event data payload is a JSON object matching
-        SessionStreamEvent.
-      tags: [sessions]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SubscribeSessionRequest'
-      responses:
-        '200':
-          description: Stream of session run events.
-          content:
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/SessionStreamEvent'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /api/interrupt-session:
-    post:
-      operationId: interruptSession
-      summary: Interrupt the active run for a session.
-      tags: [sessions]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SessionActionRequest'
-      responses:
-        '200':
-          description: Interrupt result.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/InterruptSessionResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /api/compact-session:
-    post:
-      operationId: compactSession
-      summary: Compact the current session history.
-      tags: [sessions]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SessionActionRequest'
-      responses:
-        '200':
-          description: Compaction result.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompactSessionResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '412':
-          $ref: '#/components/responses/FailedPrecondition'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /api/watch-agents:
     post:
       operationId: watchAgents
       summary: Watch agent status changes.
       description: >
         Returns an SSE stream. Each event data payload is a JSON object matching
-        WatchAgentsEvent. If session_ids is omitted or empty, all known agents
+        WatchAgentsEvent. If agent_names is omitted or empty, all known agents
         are watched.
       tags: [agents]
       requestBody:
@@ -441,12 +300,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/secret/{sessionID}/put:
+  /api/secret/{agentName}/put:
     post:
       operationId: putSecret
-      summary: Store or overwrite secrets for a session.
+      summary: Store or overwrite secrets for an agent.
       description: >
-        Creates or overwrites key-value secrets under the session. Each secret
+        Creates or overwrites key-value secrets under the agent. Each secret
         is bound to one or more hosts and is only injected for matching CONNECT
         destinations.
         Keys may contain alphanumeric characters and underscores, up to 128
@@ -455,7 +314,7 @@ paths:
         addresses, or IPv4/IPv6 CIDR ranges.
       tags: [secrets]
       parameters:
-      - $ref: '#/components/parameters/SessionIDPath'
+      - $ref: '#/components/parameters/AgentNamePath'
       requestBody:
         required: true
         content:
@@ -476,16 +335,16 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/secret/{sessionID}/delete:
+  /api/secret/{agentName}/delete:
     post:
       operationId: deleteSecret
-      summary: Delete secrets for a session.
+      summary: Delete secrets for an agent.
       description: >
-        Deletes the specified secret keys for the session. Missing keys are
+        Deletes the specified secret keys for the agent. Missing keys are
         ignored.
       tags: [secrets]
       parameters:
-      - $ref: '#/components/parameters/SessionIDPath'
+      - $ref: '#/components/parameters/AgentNamePath'
       requestBody:
         required: true
         content:
@@ -502,16 +361,16 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/secret/{sessionID}/list:
+  /api/secret/{agentName}/list:
     get:
       operationId: listSecrets
-      summary: List secret keys for a session.
+      summary: List secret keys for an agent.
       description: >
         Returns a paginated list of secret keys with created and last modified
         timestamps. Secret values are never included in the response.
       tags: [secrets]
       parameters:
-      - $ref: '#/components/parameters/SessionIDPath'
+      - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -626,21 +485,21 @@ paths:
 
 components:
   parameters:
-    SessionIDQuery:
-      name: session_id
+    AgentNameQuery:
+      name: agent_name
       in: query
       required: true
-      description: Session UUID.
+      description: Agent name.
       schema:
-        $ref: '#/components/schemas/SessionID'
+        $ref: '#/components/schemas/AgentName'
 
-    SessionIDPath:
-      name: sessionID
+    AgentNamePath:
+      name: agentName
       in: path
       required: true
-      description: Session UUID.
+      description: Agent name.
       schema:
-        $ref: '#/components/schemas/SessionID'
+        $ref: '#/components/schemas/AgentName'
 
     EnvironmentNamePath:
       name: name
@@ -650,17 +509,17 @@ components:
       schema:
         $ref: '#/components/schemas/EnvironmentName'
 
-    SessionIDFilterQuery:
-      name: session_id
+    AgentNameFilterQuery:
+      name: agent_name
       in: query
       required: false
-      description: Optional session UUID filters. Repeat the query parameter for multiple sessions.
+      description: Optional agent name filters. Repeat the query parameter for multiple agents.
       style: form
       explode: true
       schema:
         type: array
         items:
-          $ref: '#/components/schemas/SessionID'
+          $ref: '#/components/schemas/AgentName'
 
     LimitQuery:
       name: limit
@@ -766,19 +625,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     Conflict:
-      description: Request conflicts with current session state.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    FailedPrecondition:
-      description: The session is not in the required state.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Unavailable:
-      description: A required backend is unavailable.
+      description: Request conflicts with current agent state.
       content:
         application/json:
           schema:
@@ -791,28 +638,6 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
-    SessionID:
-      type: string
-      format: uuid
-      description: ClawArmor session UUID.
-
-    SessionIDInput:
-      type: string
-      format: uuid
-      x-go-type: string
-      minLength: 1
-      description: ClawArmor session UUID.
-
-    RunID:
-      type: string
-      format: uuid
-      description: Agent run UUID.
-
-    RequestID:
-      type: string
-      format: uuid
-      description: Agent request UUID.
-
     TraceID:
       type: string
       minLength: 32
@@ -880,38 +705,6 @@ components:
           minLength: 1
       required: [field, message]
 
-    ChatHistoryResponse:
-      type: object
-      additionalProperties: false
-      properties:
-        session_id:
-          $ref: '#/components/schemas/SessionID'
-        events:
-          type: array
-          items:
-            $ref: '#/components/schemas/StoredSessionEvent'
-        next_page_token:
-          type: string
-      required: [session_id, events, next_page_token]
-
-    StoredSessionEvent:
-      type: object
-      additionalProperties: false
-      properties:
-        seq:
-          type: integer
-          format: int64
-          minimum: 1
-        event_id:
-          type: string
-          minLength: 1
-        event_ts:
-          type: string
-          format: date-time
-        payload:
-          $ref: '#/components/schemas/TrpcAgentEventPayload'
-      required: [seq, event_id, event_ts, payload]
-
     ListAgentsResponse:
       type: object
       additionalProperties: false
@@ -919,20 +712,10 @@ components:
         agents:
           type: array
           items:
-            $ref: '#/components/schemas/ListAgent'
+            $ref: '#/components/schemas/Agent'
         next_page_token:
           type: string
       required: [agents, next_page_token]
-
-    ListAgent:
-      allOf:
-      - $ref: '#/components/schemas/Agent'
-      - type: object
-        additionalProperties: false
-        properties:
-          configuration:
-            $ref: '#/components/schemas/AgentConfiguration'
-        required: [configuration]
 
     Agent:
       type: object
@@ -940,8 +723,6 @@ components:
       properties:
         name:
           $ref: '#/components/schemas/AgentName'
-        session_id:
-          $ref: '#/components/schemas/SessionID'
         last_activity:
           type: string
           format: date-time
@@ -953,33 +734,7 @@ components:
           format: date-time
         status:
           $ref: '#/components/schemas/AgentStatus'
-      required: [name, session_id, last_activity, created_at, modified_at, status]
-
-    AgentConfiguration:
-      type: object
-      additionalProperties: false
-      properties:
-        env:
-          type: object
-          additionalProperties:
-            type: string
-        environmentName:
-          $ref: '#/components/schemas/EnvironmentName'
-        systemPrompt:
-          type: string
-          maxLength: 4096
-        compaction:
-          $ref: '#/components/schemas/CreateAgentCompaction'
-        maxHistoryRuns:
-          type: integer
-          format: int32
-          minimum: 0
-          default: 50
-        model:
-          $ref: '#/components/schemas/CreateAgentModel'
-        tools:
-          $ref: '#/components/schemas/CreateAgentTools'
-      required: [model]
+      required: [name, last_activity, created_at, modified_at, status]
 
     AgentStatus:
       type: string
@@ -989,8 +744,6 @@ components:
       - DEGRADED
       - DELETED
       - IDLE
-      - WORKING
-      - WAITING_FOR_HUMAN_INTERACTION
 
     CreateAgentRequest:
       type: object
@@ -1004,29 +757,15 @@ components:
             type: string
         environmentName:
           $ref: '#/components/schemas/EnvironmentName'
-        systemPrompt:
-          type: string
-          maxLength: 4096
-        compaction:
-          $ref: '#/components/schemas/CreateAgentCompaction'
-        maxHistoryRuns:
-          type: integer
-          format: int32
-          minimum: 0
-          default: 50
-        model:
-          $ref: '#/components/schemas/CreateAgentModel'
-        tools:
-          $ref: '#/components/schemas/CreateAgentTools'
-      required: [name, environmentName, model]
+      required: [name, environmentName]
 
     DeleteAgentRequest:
       type: object
       additionalProperties: false
       properties:
-        session_id:
-          $ref: '#/components/schemas/SessionIDInput'
-      required: [session_id]
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+      required: [agent_name]
 
     UpdateAgentRequest:
       type: object
@@ -1038,237 +777,7 @@ components:
             type: string
         environmentName:
           $ref: '#/components/schemas/EnvironmentName'
-        systemPrompt:
-          type: string
-          maxLength: 4096
-        compaction:
-          $ref: '#/components/schemas/UpdateAgentCompaction'
-        maxHistoryRuns:
-          type: integer
-          format: int32
-          minimum: 0
-        model:
-          $ref: '#/components/schemas/UpdateAgentModel'
-        tools:
-          $ref: '#/components/schemas/UpdateAgentTools'
-      required: [environmentName]
-
-    CreateAgentCompaction:
-      type: object
-      additionalProperties: false
-      properties:
-        mode:
-          $ref: '#/components/schemas/CompactionMode'
-        thresholdRatio:
-          type: number
-          format: double
-          minimum: 0.2
-          maximum: 0.95
-          default: 0.9
-        historyToolResultRatio:
-          type: number
-          format: double
-          minimum: 0
-          maximum: 1
-          default: 0.008
-        keepRecentRequests:
-          type: integer
-          format: int32
-          minimum: 0
-          default: 2
-        oversizedToolResultRatio:
-          type: number
-          format: double
-          minimum: 0.05
-          maximum: 0.1
-          default: 0.065
-
-    UpdateAgentCompaction:
-      type: object
-      additionalProperties: false
-      properties:
-        mode:
-          $ref: '#/components/schemas/CompactionMode'
-        thresholdRatio:
-          type: number
-          format: double
-          minimum: 0.2
-          maximum: 0.95
-        historyToolResultRatio:
-          type: number
-          format: double
-          minimum: 0
-          maximum: 1
-        keepRecentRequests:
-          type: integer
-          format: int32
-          minimum: 0
-        oversizedToolResultRatio:
-          type: number
-          format: double
-          minimum: 0.05
-          maximum: 0.1
-
-    CompactionMode:
-      type: string
-      enum:
-      - summary
-      - truncate
-      default: summary
-
-    CreateAgentModel:
-      type: object
-      additionalProperties: false
-      properties:
-        primary:
-          $ref: '#/components/schemas/CreateAgentModelConfig'
-        summary:
-          $ref: '#/components/schemas/CreateAgentModelConfig'
-      required: [primary]
-
-    UpdateAgentModel:
-      type: object
-      additionalProperties: false
-      properties:
-        primary:
-          $ref: '#/components/schemas/UpdateAgentModelConfig'
-        summary:
-          $ref: '#/components/schemas/UpdateAgentModelConfig'
-
-    CreateAgentModelConfig:
-      type: object
-      additionalProperties: false
-      properties:
-        name:
-          type: string
-          minLength: 1
-        contextWindow:
-          type: integer
-          format: int32
-          minimum: 1
-        temperature:
-          type: number
-          format: double
-          minimum: 0
-          maximum: 1
-          default: 0.2
-      required: [name, contextWindow]
-
-    UpdateAgentModelConfig:
-      type: object
-      additionalProperties: false
-      properties:
-        name:
-          type: string
-          minLength: 1
-        contextWindow:
-          type: integer
-          format: int32
-          minimum: 1
-        temperature:
-          type: number
-          format: double
-          minimum: 0
-          maximum: 1
-
-    CreateAgentTools:
-      type: object
-      additionalProperties: false
-      properties:
-        hostExec:
-          $ref: '#/components/schemas/CreateAgentEnabledByDefaultTool'
-        webFetch:
-          $ref: '#/components/schemas/CreateAgentEnabledByDefaultTool'
-        file:
-          $ref: '#/components/schemas/CreateAgentDisabledByDefaultTool'
-        arxiv:
-          $ref: '#/components/schemas/CreateAgentDisabledByDefaultTool'
-
-    UpdateAgentTools:
-      type: object
-      additionalProperties: false
-      properties:
-        hostExec:
-          $ref: '#/components/schemas/UpdateAgentTool'
-        webFetch:
-          $ref: '#/components/schemas/UpdateAgentTool'
-        file:
-          $ref: '#/components/schemas/UpdateAgentTool'
-        arxiv:
-          $ref: '#/components/schemas/UpdateAgentTool'
-
-    UpdateAgentTool:
-      type: object
-      additionalProperties: false
-      properties:
-        enabled:
-          type: boolean
-
-    CreateAgentEnabledByDefaultTool:
-      type: object
-      additionalProperties: false
-      properties:
-        enabled:
-          type: boolean
-          default: true
-
-    CreateAgentDisabledByDefaultTool:
-      type: object
-      additionalProperties: false
-      properties:
-        enabled:
-          type: boolean
-          default: false
-
-    SendMessageRequest:
-      type: object
-      additionalProperties: false
-      properties:
-        session_id:
-          $ref: '#/components/schemas/SessionIDInput'
-        prompt:
-          type: string
-          minLength: 1
-      required: [session_id, prompt]
-
-    SendMessageResponse:
-      type: object
-      additionalProperties: false
-      properties:
-        session_id:
-          $ref: '#/components/schemas/SessionID'
-        run_id:
-          $ref: '#/components/schemas/RunID'
-        request_id:
-          $ref: '#/components/schemas/RequestID'
-      required: [session_id, run_id, request_id]
-
-    SubscribeSessionRequest:
-      $ref: '#/components/schemas/SessionActionRequest'
-
-    SessionActionRequest:
-      type: object
-      additionalProperties: false
-      properties:
-        session_id:
-          $ref: '#/components/schemas/SessionIDInput'
-      required: [session_id]
-
-    InterruptSessionResponse:
-      type: object
-      additionalProperties: false
-      properties:
-        interrupted:
-          type: boolean
-      required: [interrupted]
-
-    CompactSessionResponse:
-      type: object
-      additionalProperties: false
-      properties:
-        message:
-          type: string
-      required: [message]
+      minProperties: 1
 
     ListTracesResponse:
       type: object
@@ -1288,8 +797,8 @@ components:
       properties:
         trace_id:
           $ref: '#/components/schemas/TraceID'
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         root_span_id:
           $ref: '#/components/schemas/OptionalSpanID'
         started_at:
@@ -1339,7 +848,7 @@ components:
           format: date-time
       required:
       - trace_id
-      - session_id
+      - agent_name
       - root_span_id
       - started_at
       - ended_at
@@ -1376,8 +885,8 @@ components:
           type: integer
           format: int64
           minimum: 1
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         trace_id:
           $ref: '#/components/schemas/TraceID'
         span_id:
@@ -1441,7 +950,7 @@ components:
           format: date-time
       required:
       - id
-      - session_id
+      - agent_name
       - trace_id
       - span_id
       - parent_span_id
@@ -1520,8 +1029,8 @@ components:
           type: integer
           format: int64
           minimum: 1
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         event_time:
           type: string
           format: date-time
@@ -1544,7 +1053,7 @@ components:
           type: string
       required:
       - id
-      - session_id
+      - agent_name
       - event_time
       - ingested_at
       - pod_namespace
@@ -1559,8 +1068,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         last_seen:
           type: string
           format: date-time
@@ -1579,7 +1088,7 @@ components:
           format: int64
           minimum: 1
       required:
-      - session_id
+      - agent_name
       - last_seen
       - process
       - parent_process
@@ -1610,8 +1119,8 @@ components:
           type: integer
           format: int64
           minimum: 1
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         event_time:
           type: string
           format: date-time
@@ -1634,7 +1143,7 @@ components:
           type: string
       required:
       - id
-      - session_id
+      - agent_name
       - event_time
       - ingested_at
       - pod_namespace
@@ -1649,8 +1158,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         last_seen:
           type: string
           format: date-time
@@ -1669,7 +1178,7 @@ components:
           format: int64
           minimum: 1
       required:
-      - session_id
+      - agent_name
       - last_seen
       - file_path_accessed
       - process
@@ -1700,8 +1209,8 @@ components:
           type: integer
           format: int64
           minimum: 1
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         event_time:
           type: string
           format: date-time
@@ -1728,7 +1237,7 @@ components:
           type: string
       required:
       - id
-      - session_id
+      - agent_name
       - event_time
       - ingested_at
       - pod_namespace
@@ -1744,8 +1253,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        session_id:
-          $ref: '#/components/schemas/SessionID'
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
         last_seen:
           type: string
           format: date-time
@@ -1768,7 +1277,7 @@ components:
           format: int64
           minimum: 1
       required:
-      - session_id
+      - agent_name
       - last_seen
       - destination_domain
       - destination_ip
@@ -1782,10 +1291,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        session_ids:
+        agent_names:
           type: array
           items:
-            $ref: '#/components/schemas/SessionIDInput'
+            $ref: '#/components/schemas/AgentName'
           uniqueItems: true
 
     WatchAgentsEvent:
@@ -1797,544 +1306,6 @@ components:
           items:
             $ref: '#/components/schemas/Agent'
       required: [agents]
-
-    SessionStreamEvent:
-      oneOf:
-      - $ref: '#/components/schemas/SessionStreamUnspecifiedEvent'
-      - $ref: '#/components/schemas/SessionRunStartedEvent'
-      - $ref: '#/components/schemas/SessionAssistantDeltaEvent'
-      - $ref: '#/components/schemas/SessionAssistantMessageEvent'
-      - $ref: '#/components/schemas/SessionToolCallEvent'
-      - $ref: '#/components/schemas/SessionToolResultEvent'
-      - $ref: '#/components/schemas/SessionRunCompletedEvent'
-      - $ref: '#/components/schemas/SessionRunInterruptedEvent'
-      - $ref: '#/components/schemas/SessionRunErrorEvent'
-      discriminator:
-        propertyName: type
-        mapping:
-          EVENT_TYPE_UNSPECIFIED: '#/components/schemas/SessionStreamUnspecifiedEvent'
-          EVENT_TYPE_RUN_STARTED: '#/components/schemas/SessionRunStartedEvent'
-          EVENT_TYPE_ASSISTANT_DELTA: '#/components/schemas/SessionAssistantDeltaEvent'
-          EVENT_TYPE_ASSISTANT_MESSAGE: '#/components/schemas/SessionAssistantMessageEvent'
-          EVENT_TYPE_TOOL_CALL: '#/components/schemas/SessionToolCallEvent'
-          EVENT_TYPE_TOOL_RESULT: '#/components/schemas/SessionToolResultEvent'
-          EVENT_TYPE_RUN_COMPLETED: '#/components/schemas/SessionRunCompletedEvent'
-          EVENT_TYPE_RUN_INTERRUPTED: '#/components/schemas/SessionRunInterruptedEvent'
-          EVENT_TYPE_RUN_ERROR: '#/components/schemas/SessionRunErrorEvent'
-
-    SessionStreamBase:
-      type: object
-      additionalProperties: false
-      properties:
-        sequence:
-          type: integer
-          format: int64
-          minimum: 0
-        session_id:
-          $ref: '#/components/schemas/SessionID'
-        run_id:
-          $ref: '#/components/schemas/RunID'
-        request_id:
-          $ref: '#/components/schemas/RequestID'
-        type:
-          $ref: '#/components/schemas/SessionStreamEventType'
-      required: [sequence, session_id, run_id, request_id, type]
-
-    SessionStreamEventType:
-      type: string
-      enum:
-      - EVENT_TYPE_UNSPECIFIED
-      - EVENT_TYPE_RUN_STARTED
-      - EVENT_TYPE_ASSISTANT_DELTA
-      - EVENT_TYPE_ASSISTANT_MESSAGE
-      - EVENT_TYPE_TOOL_CALL
-      - EVENT_TYPE_TOOL_RESULT
-      - EVENT_TYPE_RUN_COMPLETED
-      - EVENT_TYPE_RUN_INTERRUPTED
-      - EVENT_TYPE_RUN_ERROR
-
-    SessionStreamUnspecifiedEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_UNSPECIFIED]
-        required: [type]
-
-    SessionRunStartedEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_RUN_STARTED]
-          content:
-            type: string
-            description: The prompt that started the run.
-        required: [type, content]
-
-    SessionAssistantDeltaEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_ASSISTANT_DELTA]
-          content:
-            type: string
-          reasoning_content:
-            type: string
-        required: [type]
-
-    SessionAssistantMessageEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_ASSISTANT_MESSAGE]
-          content:
-            type: string
-          reasoning_content:
-            type: string
-        required: [type, content]
-
-    SessionToolCallEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_TOOL_CALL]
-          tool_name:
-            type: string
-          tool_payload:
-            type: string
-            description: JSON-encoded tool arguments.
-        required: [type, tool_name, tool_payload]
-
-    SessionToolResultEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_TOOL_RESULT]
-          tool_name:
-            type: string
-          tool_payload:
-            type: string
-        required: [type, tool_name, tool_payload]
-
-    SessionRunCompletedEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_RUN_COMPLETED]
-        required: [type]
-
-    SessionRunInterruptedEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_RUN_INTERRUPTED]
-          content:
-            type: string
-        required: [type]
-
-    SessionRunErrorEvent:
-      allOf:
-      - $ref: '#/components/schemas/SessionStreamBase'
-      - type: object
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            enum: [EVENT_TYPE_RUN_ERROR]
-          error:
-            type: string
-            minLength: 1
-        required: [type, error]
-
-    TrpcAgentEventPayload:
-      type: object
-      additionalProperties: false
-      properties:
-        requestID:
-          type: string
-        invocationId:
-          type: string
-        parentInvocationId:
-          type: string
-        author:
-          type: string
-        id:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-        branch:
-          type: string
-        tag:
-          type: string
-        requiresCompletion:
-          type: boolean
-        longRunningToolIDs:
-          type: object
-          additionalProperties:
-            type: object
-            additionalProperties: false
-        stateDelta:
-          type: object
-          additionalProperties:
-            type: string
-            format: byte
-        extensions:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/JSONValue'
-        actions:
-          $ref: '#/components/schemas/EventActions'
-        filterKey:
-          type: string
-        version:
-          type: integer
-          format: int32
-          minimum: 0
-        object:
-          $ref: '#/components/schemas/ModelObjectType'
-        created:
-          type: integer
-          format: int64
-          minimum: 0
-        model:
-          type: string
-        choices:
-          type: array
-          items:
-            $ref: '#/components/schemas/Choice'
-        usage:
-          $ref: '#/components/schemas/Usage'
-        system_fingerprint:
-          type: string
-          nullable: true
-        error:
-          $ref: '#/components/schemas/ModelResponseError'
-        done:
-          type: boolean
-        is_partial:
-          type: boolean
-      required: [invocationId, author, id, timestamp]
-
-    EventActions:
-      type: object
-      additionalProperties: false
-      properties:
-        skipSummarization:
-          type: boolean
-
-    ModelObjectType:
-      type: string
-      enum:
-      - error
-      - tool.response
-      - preprocessing.basic
-      - preprocessing.content
-      - preprocessing.identity
-      - preprocessing.instruction
-      - preprocessing.planning
-      - postprocessing.planning
-      - postprocessing.code_execution
-      - agent.transfer
-      - runner.completion
-      - state.update
-      - chat.completion.chunk
-      - chat.completion
-
-    Choice:
-      type: object
-      additionalProperties: false
-      properties:
-        index:
-          type: integer
-          format: int32
-          minimum: 0
-        message:
-          $ref: '#/components/schemas/ModelMessage'
-        delta:
-          $ref: '#/components/schemas/ModelMessage'
-        finish_reason:
-          type: string
-          nullable: true
-      required: [index]
-
-    ModelMessage:
-      type: object
-      additionalProperties: false
-      properties:
-        role:
-          $ref: '#/components/schemas/MessageRole'
-        content:
-          type: string
-        content_parts:
-          type: array
-          items:
-            $ref: '#/components/schemas/ContentPart'
-        tool_id:
-          type: string
-        tool_name:
-          type: string
-        tool_calls:
-          type: array
-          items:
-            $ref: '#/components/schemas/ToolCall'
-        reasoning_content:
-          type: string
-      required: [role]
-
-    MessageRole:
-      type: string
-      enum: [system, user, assistant, tool]
-
-    ContentPart:
-      oneOf:
-      - $ref: '#/components/schemas/TextContentPart'
-      - $ref: '#/components/schemas/ImageContentPart'
-      - $ref: '#/components/schemas/AudioContentPart'
-      - $ref: '#/components/schemas/FileContentPart'
-      discriminator:
-        propertyName: type
-        mapping:
-          text: '#/components/schemas/TextContentPart'
-          image: '#/components/schemas/ImageContentPart'
-          audio: '#/components/schemas/AudioContentPart'
-          file: '#/components/schemas/FileContentPart'
-
-    TextContentPart:
-      type: object
-      additionalProperties: false
-      properties:
-        type:
-          type: string
-          enum: [text]
-        text:
-          type: string
-      required: [type, text]
-
-    ImageContentPart:
-      type: object
-      additionalProperties: false
-      properties:
-        type:
-          type: string
-          enum: [image]
-        image:
-          $ref: '#/components/schemas/Image'
-      required: [type, image]
-
-    AudioContentPart:
-      type: object
-      additionalProperties: false
-      properties:
-        type:
-          type: string
-          enum: [audio]
-        audio:
-          $ref: '#/components/schemas/Audio'
-      required: [type, audio]
-
-    FileContentPart:
-      type: object
-      additionalProperties: false
-      properties:
-        type:
-          type: string
-          enum: [file]
-        file:
-          $ref: '#/components/schemas/File'
-      required: [type, file]
-
-    Image:
-      type: object
-      additionalProperties: false
-      properties:
-        url:
-          type: string
-          format: uri
-        data:
-          type: string
-          format: byte
-        detail:
-          $ref: '#/components/schemas/ImageDetail'
-        format:
-          type: string
-          enum: [png, jpg, jpeg, webp, gif]
-
-    ImageDetail:
-      type: string
-      enum: [low, high, auto]
-
-    Audio:
-      type: object
-      additionalProperties: false
-      properties:
-        data:
-          type: string
-          format: byte
-        format:
-          type: string
-          enum: [wav, mp3]
-      required: [data, format]
-
-    File:
-      type: object
-      additionalProperties: false
-      properties:
-        filename:
-          type: string
-        data:
-          type: string
-          format: byte
-        file_id:
-          type: string
-        format:
-          type: string
-          description: MIME type for file data.
-
-    ToolCall:
-      type: object
-      additionalProperties: false
-      properties:
-        type:
-          type: string
-          enum: [function]
-        function:
-          $ref: '#/components/schemas/FunctionDefinitionParam'
-        id:
-          type: string
-        index:
-          type: integer
-          format: int32
-          minimum: 0
-          nullable: true
-        extra_fields:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/JSONValue'
-      required: [type]
-
-    FunctionDefinitionParam:
-      type: object
-      additionalProperties: false
-      properties:
-        name:
-          type: string
-          pattern: '^[A-Za-z0-9_-]{1,64}$'
-        strict:
-          type: boolean
-        description:
-          type: string
-        arguments:
-          type: string
-          description: JSON-encoded function arguments.
-      required: [name]
-
-    Usage:
-      type: object
-      additionalProperties: false
-      properties:
-        prompt_tokens:
-          type: integer
-          format: int32
-          minimum: 0
-        completion_tokens:
-          type: integer
-          format: int32
-          minimum: 0
-        total_tokens:
-          type: integer
-          format: int32
-          minimum: 0
-        prompt_tokens_details:
-          $ref: '#/components/schemas/PromptTokensDetails'
-        timing_info:
-          $ref: '#/components/schemas/TimingInfo'
-      required:
-      - prompt_tokens
-      - completion_tokens
-      - total_tokens
-      - prompt_tokens_details
-
-    PromptTokensDetails:
-      type: object
-      additionalProperties: false
-      properties:
-        cached_tokens:
-          type: integer
-          format: int32
-          minimum: 0
-        cache_creation_tokens:
-          type: integer
-          format: int32
-          minimum: 0
-        cache_read_tokens:
-          type: integer
-          format: int32
-          minimum: 0
-      required: [cached_tokens]
-
-    TimingInfo:
-      type: object
-      additionalProperties: false
-      properties:
-        time_to_first_token:
-          type: integer
-          format: int64
-          minimum: 0
-          description: Go time.Duration encoded as nanoseconds.
-        reasoning_duration:
-          type: integer
-          format: int64
-          minimum: 0
-          description: Go time.Duration encoded as nanoseconds.
-
-    ModelResponseError:
-      type: object
-      additionalProperties: false
-      properties:
-        message:
-          type: string
-        type:
-          type: string
-          enum: [stream_error, api_error, flow_error, run_error]
-        param:
-          type: string
-          nullable: true
-        code:
-          type: string
-          nullable: true
-      required: [message, type]
 
     JSONValue:
       oneOf:

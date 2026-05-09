@@ -21,22 +21,15 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
-	"net"
-	"strconv"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
-	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 )
 
 const (
 	configKey            = "config.yaml"
-	configMountPath      = agentconfig.DefaultHomeDir + "/config.yaml"
 	configVolume         = "config"
 	nixAgentVolume       = "nix-agent"
 	nixAgentMount        = "/mnt/nix"
@@ -112,10 +105,6 @@ func egressPolicyName(agt *clawarmorv1alpha1.Agent) string {
 	return agt.Name + egressPolicySuffix
 }
 
-func sinjectorPort(agt *clawarmorv1alpha1.Agent) (int32, error) {
-	return serverPort(agt.Spec.Server.Address)
-}
-
 func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	labels := make(map[string]string, len(agt.Labels)+4)
 	maps.Copy(labels, agt.Labels)
@@ -126,7 +115,6 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 func renderConfig(agt *clawarmorv1alpha1.Agent) ([]byte, error) {
 	cfg := *agt.Spec.DeepCopy()
 	cfg.Env = nil
-	cfg.Server.GracefulShutdownTimeout = metav1.Duration{}
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("marshal yaml: %w", err)
@@ -147,24 +135,4 @@ func configHash(cfgYAML []byte, env []corev1.EnvVar, packages []string) (string,
 	hashInput = append(hashInput, packageYAML...)
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum), nil
-}
-
-func serverPort(addr string) (int32, error) {
-	_, rawPort, err := net.SplitHostPort(strings.TrimSpace(addr))
-	if err != nil {
-		return 0, errPortInvalid
-	}
-	port, err := strconv.ParseInt(rawPort, 10, 32)
-	if err != nil || port <= 0 || port > 65535 {
-		return 0, errPortInvalid
-	}
-	return int32(port), nil
-}
-
-func gracePeriod(agt *clawarmorv1alpha1.Agent) int64 {
-	timeout := agt.Spec.Server.GracefulShutdownTimeout.Duration
-	if timeout > 0 {
-		return int64(math.Ceil(timeout.Seconds()))
-	}
-	return 0
 }

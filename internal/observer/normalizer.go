@@ -4,11 +4,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 )
 
-func normalizeLog(item *pb.Log, namespace string, sessionID uuid.UUID) (event, bool) {
+func normalizeLog(item *pb.Log, namespace, agentName string) (event, bool) {
 	if item == nil {
 		return event{}, false
 	}
@@ -24,7 +23,7 @@ func normalizeLog(item *pb.Log, namespace string, sessionID uuid.UUID) (event, b
 			return event{}, false
 		}
 		return event{process: &processEvent{
-			sessionID:         sessionID,
+			agentName:         agentName,
 			eventTime:         ts,
 			podNamespace:      item.GetNamespaceName(),
 			podName:           item.GetPodName(),
@@ -41,7 +40,7 @@ func normalizeLog(item *pb.Log, namespace string, sessionID uuid.UUID) (event, b
 			return event{}, false
 		}
 		return event{file: &fileEvent{
-			sessionID:         sessionID,
+			agentName:         agentName,
 			eventTime:         ts,
 			podNamespace:      item.GetNamespaceName(),
 			podName:           item.GetPodName(),
@@ -56,7 +55,7 @@ func normalizeLog(item *pb.Log, namespace string, sessionID uuid.UUID) (event, b
 	}
 }
 
-func normalizeAlert(item *pb.Alert, namespace string, sessionID uuid.UUID) (event, bool) {
+func normalizeAlert(item *pb.Alert, namespace, agentName string) (event, bool) {
 	if item == nil || item.GetNamespaceName() != namespace {
 		return event{}, false
 	}
@@ -70,7 +69,7 @@ func normalizeAlert(item *pb.Alert, namespace string, sessionID uuid.UUID) (even
 			return event{}, false
 		}
 		return event{process: &processEvent{
-			sessionID:         sessionID,
+			agentName:         agentName,
 			eventTime:         ts,
 			podNamespace:      item.GetNamespaceName(),
 			podName:           item.GetPodName(),
@@ -87,7 +86,7 @@ func normalizeAlert(item *pb.Alert, namespace string, sessionID uuid.UUID) (even
 			return event{}, false
 		}
 		return event{file: &fileEvent{
-			sessionID:         sessionID,
+			agentName:         agentName,
 			eventTime:         ts,
 			podNamespace:      item.GetNamespaceName(),
 			podName:           item.GetPodName(),

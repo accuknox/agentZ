@@ -2,8 +2,6 @@ package observer
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -25,7 +23,7 @@ type event struct {
 }
 
 type processEvent struct {
-	sessionID         uuid.UUID
+	agentName         string
 	eventTime         time.Time
 	podNamespace      string
 	podName           string
@@ -37,7 +35,7 @@ type processEvent struct {
 }
 
 type fileEvent struct {
-	sessionID         uuid.UUID
+	agentName         string
 	eventTime         time.Time
 	podNamespace      string
 	podName           string
@@ -49,7 +47,7 @@ type fileEvent struct {
 }
 
 type networkEvent struct {
-	sessionID         uuid.UUID
+	agentName         string
 	eventTime         time.Time
 	podNamespace      string
 	podName           string
@@ -62,7 +60,7 @@ type networkEvent struct {
 }
 
 type traceSpanEvent struct {
-	sessionID          uuid.UUID
+	agentName          string
 	traceID            []byte
 	spanID             []byte
 	parentSpanID       []byte

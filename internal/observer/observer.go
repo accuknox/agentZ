@@ -12,7 +12,6 @@ import (
 	"time"
 
 	observerpb "github.com/cilium/cilium/api/v1/observer"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 	"google.golang.org/grpc"
@@ -180,12 +179,12 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 				return err
 			}
 			atomic.AddUint64(&s.received, 1)
-			sessionID, ok := resolveSession(ctx, r, item.GetNamespaceName(), item.GetLabels(), item.GetOwner(), item.GetPodName())
+			agentName, ok := resolveAgent(ctx, r, item.GetNamespaceName(), item.GetLabels(), item.GetOwner(), item.GetPodName())
 			if !ok {
 				atomic.AddUint64(&s.filtered, 1)
 				continue
 			}
-			ev, ok := normalizeLog(item, cfg.Namespace, sessionID)
+			ev, ok := normalizeLog(item, cfg.Namespace, agentName)
 			if !ok {
 				atomic.AddUint64(&s.filtered, 1)
 				continue
@@ -206,12 +205,12 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 				return err
 			}
 			atomic.AddUint64(&s.received, 1)
-			sessionID, ok := resolveSession(ctx, r, item.GetNamespaceName(), item.GetLabels(), item.GetOwner(), item.GetPodName())
+			agentName, ok := resolveAgent(ctx, r, item.GetNamespaceName(), item.GetLabels(), item.GetOwner(), item.GetPodName())
 			if !ok {
 				atomic.AddUint64(&s.filtered, 1)
 				continue
 			}
-			ev, ok := normalizeAlert(item, cfg.Namespace, sessionID)
+			ev, ok := normalizeAlert(item, cfg.Namespace, agentName)
 			if !ok {
 				atomic.AddUint64(&s.filtered, 1)
 				continue
@@ -225,7 +224,7 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 	}
 }
 
-func resolveSession(ctx context.Context, r *resolver, namespace, rawLabels string, owner *pb.Podowner, podName string) (uuid.UUID, bool) {
+func resolveAgent(ctx context.Context, r *resolver, namespace, rawLabels string, owner *pb.Podowner, podName string) (string, bool) {
 	ownerName := ""
 	if owner != nil {
 		ownerName = owner.GetName()

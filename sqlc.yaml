@@ -1,30 +1,6 @@
 version: "2"
 sql:
 - engine: postgresql
-  queries: internal/session/db/query.sql
-  schema: internal/session/db/schema.sql
-  gen:
-    go:
-      package: sessiondb
-      out: internal/session/db
-      sql_package: pgx/v5
-      emit_json_tags: true
-      emit_interface: true
-      emit_empty_slices: true
-      overrides:
-      - db_type: uuid
-        go_type:
-          import: github.com/google/uuid
-          type: UUID
-      - db_type: timestamptz
-        go_type:
-          import: time
-          type: Time
-      - db_type: jsonb
-        go_type:
-          slice: true
-          type: byte
-- engine: postgresql
   queries: internal/observer/db/query.sql
   schema:
   - internal/session/db/schema.sql
@@ -47,14 +23,14 @@ sql:
           import: time
           type: Time
 - engine: postgresql
-  queries: internal/agent/gateway/db/query.sql
+  queries: internal/gateway/db/query.sql
   schema:
   - internal/session/db/schema.sql
   - internal/observer/db/schema.sql
   gen:
     go:
       package: gatewaydb
-      out: internal/agent/gateway/db
+      out: internal/gateway/db
       sql_package: pgx/v5
       emit_json_tags: true
       emit_interface: true

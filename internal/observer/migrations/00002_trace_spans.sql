@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE TABLE observer_traces(
   trace_id BYTEA PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   root_span_id BYTEA NOT NULL DEFAULT ''::BYTEA,
   started_at TIMESTAMPTZ NOT NULL,
   ended_at TIMESTAMPTZ NOT NULL,
@@ -20,14 +20,14 @@ CREATE TABLE observer_traces(
 );
 
 CREATE INDEX observer_traces_session_started_idx
-  ON observer_traces(session_id, started_at DESC);
+  ON observer_traces(agent_name, started_at DESC);
 
 CREATE INDEX observer_traces_started_brin_idx
   ON observer_traces USING BRIN(started_at);
 
 CREATE TABLE observer_trace_spans(
   id BIGINT GENERATED ALWAYS AS IDENTITY,
-  session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
   trace_id BYTEA NOT NULL,
   span_id BYTEA NOT NULL,
   parent_span_id BYTEA NOT NULL DEFAULT ''::BYTEA,
@@ -60,7 +60,7 @@ CREATE TABLE observer_trace_spans_default
   PARTITION OF observer_trace_spans DEFAULT;
 
 CREATE INDEX observer_trace_spans_session_time_idx
-  ON observer_trace_spans(session_id, start_time DESC, id DESC);
+  ON observer_trace_spans(agent_name, start_time DESC, id DESC);
 
 CREATE INDEX observer_trace_spans_trace_time_idx
   ON observer_trace_spans(trace_id, start_time ASC);
@@ -69,7 +69,7 @@ CREATE INDEX observer_trace_spans_trace_parent_idx
   ON observer_trace_spans(trace_id, parent_span_id);
 
 CREATE INDEX observer_trace_spans_session_pod_time_idx
-  ON observer_trace_spans(session_id, pod_namespace, pod_name, start_time DESC);
+  ON observer_trace_spans(agent_name, pod_namespace, pod_name, start_time DESC);
 
 CREATE INDEX observer_trace_spans_time_brin_idx
   ON observer_trace_spans USING BRIN(start_time);

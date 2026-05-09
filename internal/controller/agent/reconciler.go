@@ -93,7 +93,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
 	}
 
-	_, err = serverPort(agt.Spec.Server.Address)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -329,15 +328,11 @@ func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha
 }
 
 func (r *Reconciler) proxyAddress(agt *clawarmorv1alpha1.Agent) string {
-	port, err := sinjectorPort(agt)
-	if err != nil {
-		port = 8080
-	}
 	return fmt.Sprintf(
 		"http://%s.%s.svc.cluster.local:%d",
 		sinjectorName(agt),
 		agt.Namespace,
-		port,
+		4096,
 	)
 }
 
@@ -367,11 +362,6 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.Namespaced
 			return fmt.Errorf("get deployment: %w", depErr)
 		}
 
-		port, portErr := serverPort(agt.Spec.Server.Address)
-		if portErr != nil {
-			port = 0
-		}
-
 		agt.Status.ServiceName = ""
 		agt.Status.URL = ""
 		if svcErr == nil {
@@ -380,14 +370,9 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.Namespaced
 				"http://%s.%s.svc.cluster.local:%d",
 				svc.Name,
 				svc.Namespace,
-				port,
+				4096,
 			)
 		}
-		agt.Status.ConfigMapName = ""
-		if cmErr == nil {
-			agt.Status.ConfigMapName = cm.Name
-		}
-		agt.Status.ObservedSessionID = agt.Spec.Session.ID
 		agt.Status.ObservedGeneration = agt.Generation
 
 		if dep.Name == "" {
@@ -473,7 +458,6 @@ func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.Namespaced
 			return client.IgnoreNotFound(err)
 		}
 
-		agt.Status.ObservedSessionID = agt.Spec.Session.ID
 		agt.Status.ObservedGeneration = gen
 		reason := clawarmorv1alpha1.ReasonReconcileFailed
 		if errors.Is(recErr, errImageEmpty) || errors.Is(recErr, errPortInvalid) {

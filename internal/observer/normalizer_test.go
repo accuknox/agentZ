@@ -4,14 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 )
 
 func TestNormalizeLogProcess(t *testing.T) {
 	t.Parallel()
 
-	sessionID := uuid.MustParse("51047bae-702a-4115-bcde-95fff10593bb")
+	const agentName = "agent-sample"
 	ev, ok := normalizeLog(&pb.Log{
 		UpdatedTime:       "2026-04-20T15:04:59.058553Z",
 		NamespaceName:     "default",
@@ -21,15 +20,15 @@ func TestNormalizeLogProcess(t *testing.T) {
 		ProcessName:       "/usr/bin/id",
 		ParentProcessName: "/usr/bin/dash",
 		Resource:          "/usr/bin/id -u",
-	}, "default", sessionID)
+	}, "default", agentName)
 	if !ok {
 		t.Fatal("normalizeLog() filtered process event")
 	}
 	if ev.process == nil {
 		t.Fatal("process event is nil")
 	}
-	if ev.process.sessionID != sessionID {
-		t.Fatalf("sessionID = %s, want %s", ev.process.sessionID, sessionID)
+	if ev.process.agentName != agentName {
+		t.Fatalf("agentName = %s, want %s", ev.process.agentName, agentName)
 	}
 	if ev.process.commandInvocation != "/usr/bin/id -u" {
 		t.Fatalf("commandInvocation = %q", ev.process.commandInvocation)
@@ -55,7 +54,7 @@ func TestNormalizeAlertBlockedProcess(t *testing.T) {
 		ProcessName:   "/usr/bin/whoami",
 		Resource:      "/usr/bin/whoami",
 		Action:        "Block",
-	}, "default", uuid.MustParse("51047bae-702a-4115-bcde-95fff10593bb"))
+	}, "default", "agent-sample")
 	if !ok {
 		t.Fatal("normalizeAlert() filtered blocked process event")
 	}
@@ -82,7 +81,7 @@ func TestNormalizeLogFile(t *testing.T) {
 		ProcessName:   "/usr/bin/curl",
 		Source:        "/usr/bin/curl -I https://example.com",
 		Resource:      "/etc/hosts extra=data",
-	}, "default", uuid.MustParse("51047bae-702a-4115-bcde-95fff10593bb"))
+	}, "default", "agent-sample")
 	if !ok {
 		t.Fatal("normalizeLog() filtered file event")
 	}
@@ -105,7 +104,7 @@ func TestNormalizeLogFiltersOtherNamespace(t *testing.T) {
 		Type:          "ContainerLog",
 		Operation:     "Process",
 		ProcessName:   "/usr/bin/id",
-	}, "default", uuid.MustParse("51047bae-702a-4115-bcde-95fff10593bb"))
+	}, "default", "agent-sample")
 	if ok {
 		t.Fatal("normalizeLog() accepted event from another namespace")
 	}

@@ -301,7 +301,6 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 							ImagePullPolicy: agt.Spec.ImagePullPolicy,
 							WorkingDir:      "/home/clawarmor",
 							Args: []string{
-								"opencode",
 								"serve",
 								"--hostname=0.0.0.0",
 								"--port=4096",
@@ -317,7 +316,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: new(false),
-								ReadOnlyRootFilesystem:   new(true),
+								ReadOnlyRootFilesystem:   new(false),
 								RunAsNonRoot:             new(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},
@@ -338,25 +337,27 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string) [
 	proxy = strings.TrimPrefix(proxy, "http://")
 	proxy = "http://" + proxy
 
-	forced := map[string]string{
-		"https_proxy":         proxy,
-		"HTTPS_PROXY":         proxy,
-		"SSL_CERT_FILE":       r.Config.AgentCABundlePath,
-		"REQUESTS_CA_BUNDLE":  r.Config.AgentCABundlePath,
-		"CURL_CA_BUNDLE":      r.Config.AgentCABundlePath,
-		"NODE_EXTRA_CA_CERTS": r.Config.AgentCABundlePath,
+	forced := []corev1.EnvVar{
+		{Name: "https_proxy", Value: proxy},
+		{Name: "HTTPS_PROXY", Value: proxy},
+		{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
+		{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+		{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+		{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+	}
+	forcedNames := make(map[string]struct{}, len(forced))
+	for _, item := range forced {
+		forcedNames[item.Name] = struct{}{}
 	}
 
 	var env []corev1.EnvVar
 
 	if r.sinjectorEnabled() {
-		for key := range forced {
-			env = append(env, corev1.EnvVar{Name: key, Value: forced[key]})
-		}
+		env = append(env, forced...)
 	}
 
 	for _, item := range agt.Spec.Env {
-		if _, ok := forced[item.Name]; ok {
+		if _, ok := forcedNames[item.Name]; ok {
 			continue
 		}
 		env = append(env, item)

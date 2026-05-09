@@ -49,11 +49,10 @@ build:
 .PHONY: run-gateway
 run-gateway:
 	kubectl -n default create token default --duration=24h > /tmp/sa-token
-	go run ./cmd/clawarmor agent gateway \
-		--target-override=localhost:8080 \
+	go run ./cmd/clawarmor gateway serve \
+		--target-override=localhost:4096 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
 		--agent-image=$(AGENT_IMAGE) \
-		--agent-session-target=172.18.0.1:8081 \
 		--agent-trace-endpoint=172.18.0.1:4317 \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
@@ -77,11 +76,6 @@ run-manager:
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=clawarmor-nix-store
-
-# Run session service
-.PHONY: run-session-service
-run-session-service:
-	go run ./cmd/clawarmor session serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
 
 # Run observer
 .PHONY: run-observer

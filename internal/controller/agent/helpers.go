@@ -36,7 +36,7 @@ const (
 	nixLinkVolume        = "nix-link"
 	nixLinkMount         = "/nix"
 	nixLinkStage         = "/tmp/nix-link"
-	nixInitImage         = "murtazau/clawarmor-nix-init:latest"
+	nixInitImage         = "murtazau/clawarmor-init:latest"
 	nixPkgEnv            = "NIX_PACKAGES"
 	sinjectorNameSuffix  = "-sinjector"
 	sinjectorCAVolume    = "sinjector-ca"

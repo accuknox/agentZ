@@ -301,7 +301,6 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 	args := []string{
 		"sinjector",
 		"serve",
-		"--addr 4096",
 		"--agent-name", agt.Name,
 		"--openbao-addr", r.Config.OpenBaoAddr,
 		"--openbao-secret-mount-path", r.Config.OpenBaoSecretMountPath,

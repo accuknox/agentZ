@@ -12,6 +12,42 @@
         in
         {
           formatter = pkgs.nixpkgs-fmt;
+          packages.agentImage = pkgs.dockerTools.buildLayeredImage {
+            name = "murtazau/clawarmor-agent";
+            tag = "latest";
+            contents = with pkgs; [
+              bashInteractive
+              coreutils
+              cacert
+              opencode
+              dockerTools.binSh
+            ];
+            fakeRootCommands = ''
+              ${pkgs.dockerTools.shadowSetup}
+
+              groupadd -g 1000 opencode
+              useradd \
+                -u 1000 \
+                -g 1000 \
+                -d /home/opencode \
+                -s ${pkgs.bashInteractive}/bin/bash \
+                opencode
+
+              mkdir -p /home/opencode
+              chown -R 1000:1000 /home/opencode
+            '';
+            enableFakechroot = true;
+            config = {
+              User = "1000:1000";
+              WorkingDir = "/home/opencode";
+              Env = [
+                "HOME=/home/opencode"
+                "USER=opencode"
+                "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              ];
+              Entrypoint = [ "${pkgs.opencode}/bin/opencode" ];
+            };
+          };
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
               nixd

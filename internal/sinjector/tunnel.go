@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -167,7 +168,7 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Co
 			return
 		}
 
-		writeErr := resp.Write(client)
+		writeErr := writeResponse(client, resp)
 		_ = resp.Body.Close()
 		if writeErr != nil {
 			return
@@ -177,6 +178,79 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Co
 			return
 		}
 	}
+}
+
+// writeResponse streams an HTTP/1.1 response to dst without the buffered
+// serialization used by net/http, which can coalesce small chunks and hurt
+// token-by-token streaming behavior.
+func writeResponse(dst net.Conn, resp *http.Response) error {
+	if _, err := fmt.Fprintf(dst, "HTTP/1.1 %s\r\n", resp.Status); err != nil {
+		return err
+	}
+
+	header := resp.Header.Clone()
+	chunked := resp.ContentLength < 0 && resp.Body != nil &&
+		bodyAllowed(resp.StatusCode)
+	if chunked {
+		header.Del("Content-Length")
+		header.Set("Transfer-Encoding", "chunked")
+	}
+	if !chunked {
+		header.Del("Transfer-Encoding")
+	}
+	if resp.Close {
+		header.Set("Connection", "close")
+	}
+
+	if err := header.Write(dst); err != nil {
+		return err
+	}
+	if _, err := io.WriteString(dst, "\r\n"); err != nil {
+		return err
+	}
+	if resp.Body == nil || !bodyAllowed(resp.StatusCode) {
+		return nil
+	}
+	if chunked {
+		return writeChunkedBody(dst, resp.Body)
+	}
+	_, err := io.Copy(dst, resp.Body)
+	return err
+}
+
+// writeChunkedBody preserves streaming semantics by emitting chunk frames as
+// each upstream read completes instead of buffering behind a bufio.Writer.
+func writeChunkedBody(dst net.Conn, body io.Reader) error {
+	buf := make([]byte, 32*1024)
+	for {
+		n, err := body.Read(buf)
+		if n > 0 {
+			if _, werr := fmt.Fprintf(dst, "%x\r\n", n); werr != nil {
+				return werr
+			}
+			if _, werr := dst.Write(buf[:n]); werr != nil {
+				return werr
+			}
+			if _, werr := io.WriteString(dst, "\r\n"); werr != nil {
+				return werr
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			_, werr := io.WriteString(dst, "0\r\n\r\n")
+			return werr
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
+// bodyAllowed reports whether the response status permits a message body.
+func bodyAllowed(status int) bool {
+	if status >= 100 && status < 200 {
+		return false
+	}
+	return status != http.StatusNoContent && status != http.StatusNotModified
 }
 
 // relay copies bytes bidirectionally between a and b, then closes both.

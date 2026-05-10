@@ -1,10 +1,13 @@
 package gateway
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os/signal"
 	"strings"
@@ -83,6 +86,26 @@ func (r *statusRecorder) Flush() {
 	if ok {
 		flusher.Flush()
 	}
+}
+
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	}
+	return hijacker.Hijack()
+}
+
+func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
+	readerFrom, ok := r.ResponseWriter.(io.ReaderFrom)
+	if ok {
+		return readerFrom.ReadFrom(src)
+	}
+	return io.Copy(r.ResponseWriter, src)
+}
+
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
 }
 
 // Serve starts the agent gateway HTTP server and blocks until shutdown.
@@ -204,6 +227,8 @@ func (s *Service) routes() http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+	r.HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
+	r.HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 	return gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
 		BaseRouter:       r,
 		ErrorHandlerFunc: s.handleRouteError,

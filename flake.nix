@@ -15,13 +15,6 @@
           packages.agentImage = pkgs.dockerTools.buildLayeredImage {
             name = "murtazau/clawarmor-agent";
             tag = "latest";
-            contents = with pkgs; [
-              bashInteractive
-              coreutils
-              cacert
-              opencode
-              dockerTools.binSh
-            ];
             fakeRootCommands = ''
               ${pkgs.dockerTools.shadowSetup}
 
@@ -33,8 +26,9 @@
                 -s ${pkgs.bashInteractive}/bin/bash \
                 opencode
 
-              mkdir -p /home/opencode
+              mkdir -p /home/opencode /tmp
               chown -R 1000:1000 /home/opencode
+              chmod 1777 /tmp
             '';
             enableFakechroot = true;
             config = {
@@ -43,9 +37,8 @@
               Env = [
                 "HOME=/home/opencode"
                 "USER=opencode"
-                "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
               ];
-              Entrypoint = [ "${pkgs.opencode}/bin/opencode" ];
+              Entrypoint = [ "opencode" ];
             };
           };
           devShells.default = pkgs.mkShell {

@@ -19,7 +19,7 @@ import (
 
 const (
 	// DefaultListenAddr is the default SIP listen address.
-	DefaultListenAddr  = "0.0.0.0:8080"
+	DefaultListenAddr  = "0.0.0.0:4096"
 	defaultHeaderBytes = 1 << 20
 	defaultReadTimeout = 10 * time.Second
 	defaultIdleTimeout = 60 * time.Second

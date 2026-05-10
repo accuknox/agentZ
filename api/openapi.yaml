@@ -17,7 +17,7 @@ tags:
   description: Environment resource management APIs.
 
 paths:
-  /api/list-agents:
+  /api/agent/list:
     get:
       operationId: listAgents
       summary: List paginated agent summaries.
@@ -38,7 +38,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/list-traces:
+  /api/lens/trace/list:
     get:
       operationId: listTraces
       summary: List paginated trace summaries.
@@ -63,7 +63,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/list-trace-sessions:
+  /api/lens/trace/session/list:
     get:
       operationId: listTraceSessions
       summary: List paginated per-session trace summaries.
@@ -88,7 +88,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/list-spans:
+  /api/lens/span/list:
     get:
       operationId: listSpans
       summary: List paginated spans for a trace.
@@ -112,7 +112,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/get-span-detail:
+  /api/lens/span/detail:
     get:
       operationId: getSpanDetail
       summary: Get span details and correlated OS observability.
@@ -135,7 +135,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/list-process-observability:
+  /api/lens/observability/process/list:
     get:
       operationId: listProcessObservability
       summary: List paginated process observability events.
@@ -162,7 +162,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/list-file-observability:
+  /api/lens/observability/file/list:
     get:
       operationId: listFileObservability
       summary: List paginated file observability events.
@@ -189,7 +189,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/list-network-observability:
+  /api/lens/observability/network/list:
     get:
       operationId: listNetworkObservability
       summary: List paginated network observability events.
@@ -216,7 +216,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/create-agent:
+  /api/agent/create:
     post:
       operationId: createAgent
       summary: Create an Agent resource.
@@ -245,7 +245,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/delete-agent:
+  /api/agent/delete:
     post:
       operationId: deleteAgent
       summary: Delete an Agent resource.
@@ -266,7 +266,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/update-agent/{agentName}:
+  /api/agent/update/{agentName}:
     post:
       operationId: updateAgent
       summary: Update an Agent resource.
@@ -298,7 +298,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/watch-agents:
+  /api/agent/watch:
     post:
       operationId: watchAgents
       summary: Watch agent status changes.

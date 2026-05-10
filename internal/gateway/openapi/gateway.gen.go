@@ -562,8 +562,11 @@ type InternalError = Error
 // NotFound defines model for NotFound.
 type NotFound = Error
 
-// ListEnvironmentsParams defines parameters for ListEnvironments.
-type ListEnvironmentsParams struct {
+// ListAgentsParams defines parameters for ListAgents.
+type ListAgentsParams struct {
+	// AgentName Optional agent name filters. Repeat the query parameter for multiple agents.
+	AgentName *AgentNameFilterQuery `form:"agent_name,omitempty" json:"agent_name,omitempty"`
+
 	// Limit Maximum number of items to return.
 	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -571,23 +574,8 @@ type ListEnvironmentsParams struct {
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
 }
 
-// GetSpanDetailParams defines parameters for GetSpanDetail.
-type GetSpanDetailParams struct {
-	// AgentName Agent name.
-	AgentName AgentNameQuery `form:"agent_name" json:"agent_name"`
-
-	// TraceId Lowercase hexadecimal OTLP trace ID.
-	TraceId TraceIDQuery `form:"trace_id" json:"trace_id"`
-
-	// SpanId Lowercase hexadecimal OTLP span ID.
-	SpanId SpanIDQuery `form:"span_id" json:"span_id"`
-}
-
-// ListAgentsParams defines parameters for ListAgents.
-type ListAgentsParams struct {
-	// AgentName Optional agent name filters. Repeat the query parameter for multiple agents.
-	AgentName *AgentNameFilterQuery `form:"agent_name,omitempty" json:"agent_name,omitempty"`
-
+// ListEnvironmentsParams defines parameters for ListEnvironments.
+type ListEnvironmentsParams struct {
 	// Limit Maximum number of items to return.
 	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -667,6 +655,18 @@ type ListProcessObservabilityParams struct {
 	Aggregated *AggregatedQuery `form:"aggregated,omitempty" json:"aggregated,omitempty"`
 }
 
+// GetSpanDetailParams defines parameters for GetSpanDetail.
+type GetSpanDetailParams struct {
+	// AgentName Agent name.
+	AgentName AgentNameQuery `form:"agent_name" json:"agent_name"`
+
+	// TraceId Lowercase hexadecimal OTLP trace ID.
+	TraceId TraceIDQuery `form:"trace_id" json:"trace_id"`
+
+	// SpanId Lowercase hexadecimal OTLP span ID.
+	SpanId SpanIDQuery `form:"span_id" json:"span_id"`
+}
+
 // ListSpansParams defines parameters for ListSpans.
 type ListSpansParams struct {
 	// AgentName Agent name.
@@ -682,8 +682,8 @@ type ListSpansParams struct {
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
 }
 
-// ListTraceSessionsParams defines parameters for ListTraceSessions.
-type ListTraceSessionsParams struct {
+// ListTracesParams defines parameters for ListTraces.
+type ListTracesParams struct {
 	// AgentName Agent name.
 	AgentName AgentNameQuery `form:"agent_name" json:"agent_name"`
 
@@ -700,8 +700,8 @@ type ListTraceSessionsParams struct {
 	StartedBefore *StartedBeforeQuery `form:"started_before,omitempty" json:"started_before,omitempty"`
 }
 
-// ListTracesParams defines parameters for ListTraces.
-type ListTracesParams struct {
+// ListTraceSessionsParams defines parameters for ListTraceSessions.
+type ListTraceSessionsParams struct {
 	// AgentName Agent name.
 	AgentName AgentNameQuery `form:"agent_name" json:"agent_name"`
 
@@ -733,6 +733,12 @@ type CreateAgentJSONRequestBody = CreateAgentRequest
 // DeleteAgentJSONRequestBody defines body for DeleteAgent for application/json ContentType.
 type DeleteAgentJSONRequestBody = DeleteAgentRequest
 
+// UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
+type UpdateAgentJSONRequestBody = UpdateAgentRequest
+
+// WatchAgentsJSONRequestBody defines body for WatchAgents for application/json ContentType.
+type WatchAgentsJSONRequestBody = WatchAgentsRequest
+
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody = CreateEnvironmentRequest
 
@@ -747,12 +753,6 @@ type DeleteSecretJSONRequestBody = DeleteSecretsRequest
 
 // PutSecretJSONRequestBody defines body for PutSecret for application/json ContentType.
 type PutSecretJSONRequestBody = PutSecretsRequest
-
-// UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
-type UpdateAgentJSONRequestBody = UpdateAgentRequest
-
-// WatchAgentsJSONRequestBody defines body for WatchAgents for application/json ContentType.
-type WatchAgentsJSONRequestBody = WatchAgentsRequest
 
 // AsJSONValue0 returns the union data inside the JSONValue as a JSONValue0
 func (t JSONValue) AsJSONValue0() (JSONValue0, error) {
@@ -1163,6 +1163,19 @@ type ClientInterface interface {
 
 	DeleteAgent(ctx context.Context, body DeleteAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAgents request
+	ListAgents(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAgentWithBody request with any body
+	UpdateAgentWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WatchAgentsWithBody request with any body
+	WatchAgentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WatchAgents(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateEnvironmentWithBody request with any body
 	CreateEnvironmentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1181,12 +1194,6 @@ type ClientInterface interface {
 
 	UpdateEnvironment(ctx context.Context, name EnvironmentNamePath, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetSpanDetail request
-	GetSpanDetail(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListAgents request
-	ListAgents(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListFileObservability request
 	ListFileObservability(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1196,14 +1203,17 @@ type ClientInterface interface {
 	// ListProcessObservability request
 	ListProcessObservability(ctx context.Context, params *ListProcessObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSpanDetail request
+	GetSpanDetail(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListSpans request
 	ListSpans(ctx context.Context, params *ListSpansParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListTraceSessions request
-	ListTraceSessions(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListTraces request
 	ListTraces(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListTraceSessions request
+	ListTraceSessions(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteSecretWithBody request with any body
 	DeleteSecretWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1217,16 +1227,6 @@ type ClientInterface interface {
 	PutSecretWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PutSecret(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateAgentWithBody request with any body
-	UpdateAgentWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// WatchAgentsWithBody request with any body
-	WatchAgentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	WatchAgents(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) CreateAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1267,6 +1267,66 @@ func (c *Client) DeleteAgentWithBody(ctx context.Context, contentType string, bo
 
 func (c *Client) DeleteAgent(ctx context.Context, body DeleteAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteAgentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgents(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WatchAgentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchAgentsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WatchAgents(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchAgentsRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1361,30 +1421,6 @@ func (c *Client) UpdateEnvironment(ctx context.Context, name EnvironmentNamePath
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetSpanDetail(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetSpanDetailRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListAgents(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAgentsRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListFileObservability(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListFileObservabilityRequest(c.Server, params)
 	if err != nil {
@@ -1421,6 +1457,18 @@ func (c *Client) ListProcessObservability(ctx context.Context, params *ListProce
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetSpanDetail(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSpanDetailRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListSpans(ctx context.Context, params *ListSpansParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListSpansRequest(c.Server, params)
 	if err != nil {
@@ -1433,8 +1481,8 @@ func (c *Client) ListSpans(ctx context.Context, params *ListSpansParams, reqEdit
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListTraceSessions(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListTraceSessionsRequest(c.Server, params)
+func (c *Client) ListTraces(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTracesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1445,8 +1493,8 @@ func (c *Client) ListTraceSessions(ctx context.Context, params *ListTraceSession
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListTraces(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListTracesRequest(c.Server, params)
+func (c *Client) ListTraceSessions(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTraceSessionsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1517,54 +1565,6 @@ func (c *Client) PutSecret(ctx context.Context, agentName AgentNamePath, body Pu
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateAgentWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateAgentRequestWithBody(c.Server, agentName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateAgentRequest(c.Server, agentName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WatchAgentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchAgentsRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WatchAgents(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchAgentsRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // NewCreateAgentRequest calls the generic CreateAgent builder with application/json body
 func NewCreateAgentRequest(server string, body CreateAgentJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1585,7 +1585,7 @@ func NewCreateAgentRequestWithBody(server string, contentType string, body io.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/create-agent")
+	operationPath := fmt.Sprintf("/api/agent/create")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1625,7 +1625,175 @@ func NewDeleteAgentRequestWithBody(server string, contentType string, body io.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/delete-agent")
+	operationPath := fmt.Sprintf("/api/agent/delete")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAgentsRequest generates requests for ListAgents
+func NewListAgentsRequest(server string, params *ListAgentsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/list")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.AgentName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, *params.AgentName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAgentRequest calls the generic UpdateAgent builder with application/json body
+func NewUpdateAgentRequest(server string, agentName AgentNamePath, body UpdateAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAgentRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewUpdateAgentRequestWithBody generates requests for UpdateAgent with any type of body
+func NewUpdateAgentRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/update/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewWatchAgentsRequest calls the generic WatchAgents builder with application/json body
+func NewWatchAgentsRequest(server string, body WatchAgentsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWatchAgentsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewWatchAgentsRequestWithBody generates requests for WatchAgents with any type of body
+func NewWatchAgentsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/watch")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1837,156 +2005,6 @@ func NewUpdateEnvironmentRequestWithBody(server string, name EnvironmentNamePath
 	return req, nil
 }
 
-// NewGetSpanDetailRequest generates requests for GetSpanDetail
-func NewGetSpanDetailRequest(server string, params *GetSpanDetailParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/get-span-detail")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, params.AgentName); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "trace_id", runtime.ParamLocationQuery, params.TraceId); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "span_id", runtime.ParamLocationQuery, params.SpanId); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListAgentsRequest generates requests for ListAgents
-func NewListAgentsRequest(server string, params *ListAgentsParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/list-agents")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.AgentName != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, *params.AgentName); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.PageToken != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewListFileObservabilityRequest generates requests for ListFileObservability
 func NewListFileObservabilityRequest(server string, params *ListFileObservabilityParams) (*http.Request, error) {
 	var err error
@@ -1996,7 +2014,7 @@ func NewListFileObservabilityRequest(server string, params *ListFileObservabilit
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/list-file-observability")
+	operationPath := fmt.Sprintf("/api/lens/observability/file/list")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2137,7 +2155,7 @@ func NewListNetworkObservabilityRequest(server string, params *ListNetworkObserv
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/list-network-observability")
+	operationPath := fmt.Sprintf("/api/lens/observability/network/list")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2278,7 +2296,7 @@ func NewListProcessObservabilityRequest(server string, params *ListProcessObserv
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/list-process-observability")
+	operationPath := fmt.Sprintf("/api/lens/observability/process/list")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2410,6 +2428,75 @@ func NewListProcessObservabilityRequest(server string, params *ListProcessObserv
 	return req, nil
 }
 
+// NewGetSpanDetailRequest generates requests for GetSpanDetail
+func NewGetSpanDetailRequest(server string, params *GetSpanDetailParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/lens/span/detail")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, params.AgentName); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "trace_id", runtime.ParamLocationQuery, params.TraceId); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "span_id", runtime.ParamLocationQuery, params.SpanId); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListSpansRequest generates requests for ListSpans
 func NewListSpansRequest(server string, params *ListSpansParams) (*http.Request, error) {
 	var err error
@@ -2419,7 +2506,7 @@ func NewListSpansRequest(server string, params *ListSpansParams) (*http.Request,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/list-spans")
+	operationPath := fmt.Sprintf("/api/lens/span/list")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2499,8 +2586,8 @@ func NewListSpansRequest(server string, params *ListSpansParams) (*http.Request,
 	return req, nil
 }
 
-// NewListTraceSessionsRequest generates requests for ListTraceSessions
-func NewListTraceSessionsRequest(server string, params *ListTraceSessionsParams) (*http.Request, error) {
+// NewListTracesRequest generates requests for ListTraces
+func NewListTracesRequest(server string, params *ListTracesParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2508,7 +2595,7 @@ func NewListTraceSessionsRequest(server string, params *ListTraceSessionsParams)
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/list-trace-sessions")
+	operationPath := fmt.Sprintf("/api/lens/trace/list")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2608,8 +2695,8 @@ func NewListTraceSessionsRequest(server string, params *ListTraceSessionsParams)
 	return req, nil
 }
 
-// NewListTracesRequest generates requests for ListTraces
-func NewListTracesRequest(server string, params *ListTracesParams) (*http.Request, error) {
+// NewListTraceSessionsRequest generates requests for ListTraceSessions
+func NewListTraceSessionsRequest(server string, params *ListTraceSessionsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2617,7 +2704,7 @@ func NewListTracesRequest(server string, params *ListTracesParams) (*http.Reques
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/list-traces")
+	operationPath := fmt.Sprintf("/api/lens/trace/session/list")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2883,93 +2970,6 @@ func NewPutSecretRequestWithBody(server string, agentName AgentNamePath, content
 	return req, nil
 }
 
-// NewUpdateAgentRequest calls the generic UpdateAgent builder with application/json body
-func NewUpdateAgentRequest(server string, agentName AgentNamePath, body UpdateAgentJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateAgentRequestWithBody(server, agentName, "application/json", bodyReader)
-}
-
-// NewUpdateAgentRequestWithBody generates requests for UpdateAgent with any type of body
-func NewUpdateAgentRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/update-agent/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewWatchAgentsRequest calls the generic WatchAgents builder with application/json body
-func NewWatchAgentsRequest(server string, body WatchAgentsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewWatchAgentsRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewWatchAgentsRequestWithBody generates requests for WatchAgents with any type of body
-func NewWatchAgentsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/watch-agents")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -3023,6 +3023,19 @@ type ClientWithResponsesInterface interface {
 
 	DeleteAgentWithResponse(ctx context.Context, body DeleteAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentResp, error)
 
+	// ListAgentsWithResponse request
+	ListAgentsWithResponse(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*ListAgentsResp, error)
+
+	// UpdateAgentWithBodyWithResponse request with any body
+	UpdateAgentWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
+
+	UpdateAgentWithResponse(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
+
+	// WatchAgentsWithBodyWithResponse request with any body
+	WatchAgentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error)
+
+	WatchAgentsWithResponse(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error)
+
 	// CreateEnvironmentWithBodyWithResponse request with any body
 	CreateEnvironmentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateEnvironmentResp, error)
 
@@ -3041,12 +3054,6 @@ type ClientWithResponsesInterface interface {
 
 	UpdateEnvironmentWithResponse(ctx context.Context, name EnvironmentNamePath, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnvironmentResp, error)
 
-	// GetSpanDetailWithResponse request
-	GetSpanDetailWithResponse(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*GetSpanDetailResp, error)
-
-	// ListAgentsWithResponse request
-	ListAgentsWithResponse(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*ListAgentsResp, error)
-
 	// ListFileObservabilityWithResponse request
 	ListFileObservabilityWithResponse(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*ListFileObservabilityResp, error)
 
@@ -3056,14 +3063,17 @@ type ClientWithResponsesInterface interface {
 	// ListProcessObservabilityWithResponse request
 	ListProcessObservabilityWithResponse(ctx context.Context, params *ListProcessObservabilityParams, reqEditors ...RequestEditorFn) (*ListProcessObservabilityResp, error)
 
+	// GetSpanDetailWithResponse request
+	GetSpanDetailWithResponse(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*GetSpanDetailResp, error)
+
 	// ListSpansWithResponse request
 	ListSpansWithResponse(ctx context.Context, params *ListSpansParams, reqEditors ...RequestEditorFn) (*ListSpansResp, error)
 
-	// ListTraceSessionsWithResponse request
-	ListTraceSessionsWithResponse(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*ListTraceSessionsResp, error)
-
 	// ListTracesWithResponse request
 	ListTracesWithResponse(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*ListTracesResp, error)
+
+	// ListTraceSessionsWithResponse request
+	ListTraceSessionsWithResponse(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*ListTraceSessionsResp, error)
 
 	// DeleteSecretWithBodyWithResponse request with any body
 	DeleteSecretWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteSecretResp, error)
@@ -3077,16 +3087,6 @@ type ClientWithResponsesInterface interface {
 	PutSecretWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
 
 	PutSecretWithResponse(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
-
-	// UpdateAgentWithBodyWithResponse request with any body
-	UpdateAgentWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
-
-	UpdateAgentWithResponse(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
-
-	// WatchAgentsWithBodyWithResponse request with any body
-	WatchAgentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error)
-
-	WatchAgentsWithResponse(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error)
 }
 
 type CreateAgentResp struct {
@@ -3132,6 +3132,79 @@ func (r DeleteAgentResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r DeleteAgentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListAgentsResponse
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAgentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Agent
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAgentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAgentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WatchAgentsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r WatchAgentsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WatchAgentsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3236,55 +3309,6 @@ func (r UpdateEnvironmentResp) StatusCode() int {
 	return 0
 }
 
-type GetSpanDetailResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *SpanDetailResponse
-	JSON400      *BadRequest
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetSpanDetailResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetSpanDetailResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListAgentsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ListAgentsResponse
-	JSON400      *BadRequest
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListAgentsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListAgentsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type ListFileObservabilityResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3360,6 +3384,31 @@ func (r ListProcessObservabilityResp) StatusCode() int {
 	return 0
 }
 
+type GetSpanDetailResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SpanDetailResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSpanDetailResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSpanDetailResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListSpansResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3385,31 +3434,6 @@ func (r ListSpansResp) StatusCode() int {
 	return 0
 }
 
-type ListTraceSessionsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ListTraceSessionsResponse
-	JSON400      *BadRequest
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListTraceSessionsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListTraceSessionsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type ListTracesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3429,6 +3453,31 @@ func (r ListTracesResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListTracesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListTraceSessionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListTraceSessionsResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListTraceSessionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListTraceSessionsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3509,55 +3558,6 @@ func (r PutSecretResp) StatusCode() int {
 	return 0
 }
 
-type UpdateAgentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Agent
-	JSON400      *BadRequest
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateAgentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateAgentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type WatchAgentsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *BadRequest
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r WatchAgentsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r WatchAgentsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 // CreateAgentWithBodyWithResponse request with arbitrary body returning *CreateAgentResp
 func (c *ClientWithResponses) CreateAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentResp, error) {
 	rsp, err := c.CreateAgentWithBody(ctx, contentType, body, reqEditors...)
@@ -3590,6 +3590,49 @@ func (c *ClientWithResponses) DeleteAgentWithResponse(ctx context.Context, body 
 		return nil, err
 	}
 	return ParseDeleteAgentResp(rsp)
+}
+
+// ListAgentsWithResponse request returning *ListAgentsResp
+func (c *ClientWithResponses) ListAgentsWithResponse(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*ListAgentsResp, error) {
+	rsp, err := c.ListAgents(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentsResp(rsp)
+}
+
+// UpdateAgentWithBodyWithResponse request with arbitrary body returning *UpdateAgentResp
+func (c *ClientWithResponses) UpdateAgentWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error) {
+	rsp, err := c.UpdateAgentWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAgentWithResponse(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error) {
+	rsp, err := c.UpdateAgent(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentResp(rsp)
+}
+
+// WatchAgentsWithBodyWithResponse request with arbitrary body returning *WatchAgentsResp
+func (c *ClientWithResponses) WatchAgentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error) {
+	rsp, err := c.WatchAgentsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchAgentsResp(rsp)
+}
+
+func (c *ClientWithResponses) WatchAgentsWithResponse(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error) {
+	rsp, err := c.WatchAgents(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchAgentsResp(rsp)
 }
 
 // CreateEnvironmentWithBodyWithResponse request with arbitrary body returning *CreateEnvironmentResp
@@ -3652,24 +3695,6 @@ func (c *ClientWithResponses) UpdateEnvironmentWithResponse(ctx context.Context,
 	return ParseUpdateEnvironmentResp(rsp)
 }
 
-// GetSpanDetailWithResponse request returning *GetSpanDetailResp
-func (c *ClientWithResponses) GetSpanDetailWithResponse(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*GetSpanDetailResp, error) {
-	rsp, err := c.GetSpanDetail(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetSpanDetailResp(rsp)
-}
-
-// ListAgentsWithResponse request returning *ListAgentsResp
-func (c *ClientWithResponses) ListAgentsWithResponse(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*ListAgentsResp, error) {
-	rsp, err := c.ListAgents(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListAgentsResp(rsp)
-}
-
 // ListFileObservabilityWithResponse request returning *ListFileObservabilityResp
 func (c *ClientWithResponses) ListFileObservabilityWithResponse(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*ListFileObservabilityResp, error) {
 	rsp, err := c.ListFileObservability(ctx, params, reqEditors...)
@@ -3697,6 +3722,15 @@ func (c *ClientWithResponses) ListProcessObservabilityWithResponse(ctx context.C
 	return ParseListProcessObservabilityResp(rsp)
 }
 
+// GetSpanDetailWithResponse request returning *GetSpanDetailResp
+func (c *ClientWithResponses) GetSpanDetailWithResponse(ctx context.Context, params *GetSpanDetailParams, reqEditors ...RequestEditorFn) (*GetSpanDetailResp, error) {
+	rsp, err := c.GetSpanDetail(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSpanDetailResp(rsp)
+}
+
 // ListSpansWithResponse request returning *ListSpansResp
 func (c *ClientWithResponses) ListSpansWithResponse(ctx context.Context, params *ListSpansParams, reqEditors ...RequestEditorFn) (*ListSpansResp, error) {
 	rsp, err := c.ListSpans(ctx, params, reqEditors...)
@@ -3706,15 +3740,6 @@ func (c *ClientWithResponses) ListSpansWithResponse(ctx context.Context, params 
 	return ParseListSpansResp(rsp)
 }
 
-// ListTraceSessionsWithResponse request returning *ListTraceSessionsResp
-func (c *ClientWithResponses) ListTraceSessionsWithResponse(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*ListTraceSessionsResp, error) {
-	rsp, err := c.ListTraceSessions(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListTraceSessionsResp(rsp)
-}
-
 // ListTracesWithResponse request returning *ListTracesResp
 func (c *ClientWithResponses) ListTracesWithResponse(ctx context.Context, params *ListTracesParams, reqEditors ...RequestEditorFn) (*ListTracesResp, error) {
 	rsp, err := c.ListTraces(ctx, params, reqEditors...)
@@ -3722,6 +3747,15 @@ func (c *ClientWithResponses) ListTracesWithResponse(ctx context.Context, params
 		return nil, err
 	}
 	return ParseListTracesResp(rsp)
+}
+
+// ListTraceSessionsWithResponse request returning *ListTraceSessionsResp
+func (c *ClientWithResponses) ListTraceSessionsWithResponse(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*ListTraceSessionsResp, error) {
+	rsp, err := c.ListTraceSessions(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListTraceSessionsResp(rsp)
 }
 
 // DeleteSecretWithBodyWithResponse request with arbitrary body returning *DeleteSecretResp
@@ -3765,40 +3799,6 @@ func (c *ClientWithResponses) PutSecretWithResponse(ctx context.Context, agentNa
 		return nil, err
 	}
 	return ParsePutSecretResp(rsp)
-}
-
-// UpdateAgentWithBodyWithResponse request with arbitrary body returning *UpdateAgentResp
-func (c *ClientWithResponses) UpdateAgentWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error) {
-	rsp, err := c.UpdateAgentWithBody(ctx, agentName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateAgentResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateAgentWithResponse(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error) {
-	rsp, err := c.UpdateAgent(ctx, agentName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateAgentResp(rsp)
-}
-
-// WatchAgentsWithBodyWithResponse request with arbitrary body returning *WatchAgentsResp
-func (c *ClientWithResponses) WatchAgentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error) {
-	rsp, err := c.WatchAgentsWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWatchAgentsResp(rsp)
-}
-
-func (c *ClientWithResponses) WatchAgentsWithResponse(ctx context.Context, body WatchAgentsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error) {
-	rsp, err := c.WatchAgents(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWatchAgentsResp(rsp)
 }
 
 // ParseCreateAgentResp parses an HTTP response from a CreateAgentWithResponse call
@@ -3875,6 +3875,133 @@ func ParseDeleteAgentResp(rsp *http.Response) (*DeleteAgentResp, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentsResp parses an HTTP response from a ListAgentsWithResponse call
+func ParseListAgentsResp(rsp *http.Response) (*ListAgentsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListAgentsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAgentResp parses an HTTP response from a UpdateAgentWithResponse call
+func ParseUpdateAgentResp(rsp *http.Response) (*UpdateAgentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAgentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Agent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWatchAgentsResp parses an HTTP response from a WatchAgentsWithResponse call
+func ParseWatchAgentsResp(rsp *http.Response) (*WatchAgentsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WatchAgentsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -4062,93 +4189,6 @@ func ParseUpdateEnvironmentResp(rsp *http.Response) (*UpdateEnvironmentResp, err
 	return response, nil
 }
 
-// ParseGetSpanDetailResp parses an HTTP response from a GetSpanDetailWithResponse call
-func ParseGetSpanDetailResp(rsp *http.Response) (*GetSpanDetailResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetSpanDetailResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SpanDetailResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListAgentsResp parses an HTTP response from a ListAgentsWithResponse call
-func ParseListAgentsResp(rsp *http.Response) (*ListAgentsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListAgentsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListAgentsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseListFileObservabilityResp parses an HTTP response from a ListFileObservabilityWithResponse call
 func ParseListFileObservabilityResp(rsp *http.Response) (*ListFileObservabilityResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4290,6 +4330,53 @@ func ParseListProcessObservabilityResp(rsp *http.Response) (*ListProcessObservab
 	return response, nil
 }
 
+// ParseGetSpanDetailResp parses an HTTP response from a GetSpanDetailWithResponse call
+func ParseGetSpanDetailResp(rsp *http.Response) (*GetSpanDetailResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSpanDetailResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SpanDetailResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListSpansResp parses an HTTP response from a ListSpansWithResponse call
 func ParseListSpansResp(rsp *http.Response) (*ListSpansResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4337,22 +4424,22 @@ func ParseListSpansResp(rsp *http.Response) (*ListSpansResp, error) {
 	return response, nil
 }
 
-// ParseListTraceSessionsResp parses an HTTP response from a ListTraceSessionsWithResponse call
-func ParseListTraceSessionsResp(rsp *http.Response) (*ListTraceSessionsResp, error) {
+// ParseListTracesResp parses an HTTP response from a ListTracesWithResponse call
+func ParseListTracesResp(rsp *http.Response) (*ListTracesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListTraceSessionsResp{
+	response := &ListTracesResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListTraceSessionsResponse
+		var dest ListTracesResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4384,22 +4471,22 @@ func ParseListTraceSessionsResp(rsp *http.Response) (*ListTraceSessionsResp, err
 	return response, nil
 }
 
-// ParseListTracesResp parses an HTTP response from a ListTracesWithResponse call
-func ParseListTracesResp(rsp *http.Response) (*ListTracesResp, error) {
+// ParseListTraceSessionsResp parses an HTTP response from a ListTraceSessionsWithResponse call
+func ParseListTraceSessionsResp(rsp *http.Response) (*ListTraceSessionsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListTracesResp{
+	response := &ListTraceSessionsResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListTracesResponse
+		var dest ListTraceSessionsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4565,101 +4652,23 @@ func ParsePutSecretResp(rsp *http.Response) (*PutSecretResp, error) {
 	return response, nil
 }
 
-// ParseUpdateAgentResp parses an HTTP response from a UpdateAgentWithResponse call
-func ParseUpdateAgentResp(rsp *http.Response) (*UpdateAgentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateAgentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Agent
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseWatchAgentsResp parses an HTTP response from a WatchAgentsWithResponse call
-func ParseWatchAgentsResp(rsp *http.Response) (*WatchAgentsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &WatchAgentsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Create an Agent resource.
-	// (POST /api/create-agent)
+	// (POST /api/agent/create)
 	CreateAgent(w http.ResponseWriter, r *http.Request)
 	// Delete an Agent resource.
-	// (POST /api/delete-agent)
+	// (POST /api/agent/delete)
 	DeleteAgent(w http.ResponseWriter, r *http.Request)
+	// List paginated agent summaries.
+	// (GET /api/agent/list)
+	ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams)
+	// Update an Agent resource.
+	// (POST /api/agent/update/{agentName})
+	UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Watch agent status changes.
+	// (POST /api/agent/watch)
+	WatchAgents(w http.ResponseWriter, r *http.Request)
 	// Create an Environment resource.
 	// (POST /api/environment/create)
 	CreateEnvironment(w http.ResponseWriter, r *http.Request)
@@ -4672,30 +4681,27 @@ type ServerInterface interface {
 	// Update an Environment resource.
 	// (POST /api/environment/update/{name})
 	UpdateEnvironment(w http.ResponseWriter, r *http.Request, name EnvironmentNamePath)
-	// Get span details and correlated OS observability.
-	// (GET /api/get-span-detail)
-	GetSpanDetail(w http.ResponseWriter, r *http.Request, params GetSpanDetailParams)
-	// List paginated agent summaries.
-	// (GET /api/list-agents)
-	ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams)
 	// List paginated file observability events.
-	// (GET /api/list-file-observability)
+	// (GET /api/lens/observability/file/list)
 	ListFileObservability(w http.ResponseWriter, r *http.Request, params ListFileObservabilityParams)
 	// List paginated network observability events.
-	// (GET /api/list-network-observability)
+	// (GET /api/lens/observability/network/list)
 	ListNetworkObservability(w http.ResponseWriter, r *http.Request, params ListNetworkObservabilityParams)
 	// List paginated process observability events.
-	// (GET /api/list-process-observability)
+	// (GET /api/lens/observability/process/list)
 	ListProcessObservability(w http.ResponseWriter, r *http.Request, params ListProcessObservabilityParams)
+	// Get span details and correlated OS observability.
+	// (GET /api/lens/span/detail)
+	GetSpanDetail(w http.ResponseWriter, r *http.Request, params GetSpanDetailParams)
 	// List paginated spans for a trace.
-	// (GET /api/list-spans)
+	// (GET /api/lens/span/list)
 	ListSpans(w http.ResponseWriter, r *http.Request, params ListSpansParams)
-	// List paginated per-session trace summaries.
-	// (GET /api/list-trace-sessions)
-	ListTraceSessions(w http.ResponseWriter, r *http.Request, params ListTraceSessionsParams)
 	// List paginated trace summaries.
-	// (GET /api/list-traces)
+	// (GET /api/lens/trace/list)
 	ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams)
+	// List paginated per-session trace summaries.
+	// (GET /api/lens/trace/session/list)
+	ListTraceSessions(w http.ResponseWriter, r *http.Request, params ListTraceSessionsParams)
 	// Delete secrets for an agent.
 	// (POST /api/secret/{agentName}/delete)
 	DeleteSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
@@ -4705,12 +4711,6 @@ type ServerInterface interface {
 	// Store or overwrite secrets for an agent.
 	// (POST /api/secret/{agentName}/put)
 	PutSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
-	// Update an Agent resource.
-	// (POST /api/update-agent/{agentName})
-	UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
-	// Watch agent status changes.
-	// (POST /api/watch-agents)
-	WatchAgents(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -4718,14 +4718,32 @@ type ServerInterface interface {
 type Unimplemented struct{}
 
 // Create an Agent resource.
-// (POST /api/create-agent)
+// (POST /api/agent/create)
 func (_ Unimplemented) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Delete an Agent resource.
-// (POST /api/delete-agent)
+// (POST /api/agent/delete)
 func (_ Unimplemented) DeleteAgent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List paginated agent summaries.
+// (GET /api/agent/list)
+func (_ Unimplemented) ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update an Agent resource.
+// (POST /api/agent/update/{agentName})
+func (_ Unimplemented) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Watch agent status changes.
+// (POST /api/agent/watch)
+func (_ Unimplemented) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4753,51 +4771,45 @@ func (_ Unimplemented) UpdateEnvironment(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Get span details and correlated OS observability.
-// (GET /api/get-span-detail)
-func (_ Unimplemented) GetSpanDetail(w http.ResponseWriter, r *http.Request, params GetSpanDetailParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// List paginated agent summaries.
-// (GET /api/list-agents)
-func (_ Unimplemented) ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
 // List paginated file observability events.
-// (GET /api/list-file-observability)
+// (GET /api/lens/observability/file/list)
 func (_ Unimplemented) ListFileObservability(w http.ResponseWriter, r *http.Request, params ListFileObservabilityParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // List paginated network observability events.
-// (GET /api/list-network-observability)
+// (GET /api/lens/observability/network/list)
 func (_ Unimplemented) ListNetworkObservability(w http.ResponseWriter, r *http.Request, params ListNetworkObservabilityParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // List paginated process observability events.
-// (GET /api/list-process-observability)
+// (GET /api/lens/observability/process/list)
 func (_ Unimplemented) ListProcessObservability(w http.ResponseWriter, r *http.Request, params ListProcessObservabilityParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Get span details and correlated OS observability.
+// (GET /api/lens/span/detail)
+func (_ Unimplemented) GetSpanDetail(w http.ResponseWriter, r *http.Request, params GetSpanDetailParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List paginated spans for a trace.
-// (GET /api/list-spans)
+// (GET /api/lens/span/list)
 func (_ Unimplemented) ListSpans(w http.ResponseWriter, r *http.Request, params ListSpansParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// List paginated per-session trace summaries.
-// (GET /api/list-trace-sessions)
-func (_ Unimplemented) ListTraceSessions(w http.ResponseWriter, r *http.Request, params ListTraceSessionsParams) {
+// List paginated trace summaries.
+// (GET /api/lens/trace/list)
+func (_ Unimplemented) ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// List paginated trace summaries.
-// (GET /api/list-traces)
-func (_ Unimplemented) ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams) {
+// List paginated per-session trace summaries.
+// (GET /api/lens/trace/session/list)
+func (_ Unimplemented) ListTraceSessions(w http.ResponseWriter, r *http.Request, params ListTraceSessionsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4816,18 +4828,6 @@ func (_ Unimplemented) ListSecrets(w http.ResponseWriter, r *http.Request, agent
 // Store or overwrite secrets for an agent.
 // (POST /api/secret/{agentName}/put)
 func (_ Unimplemented) PutSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Update an Agent resource.
-// (POST /api/update-agent/{agentName})
-func (_ Unimplemented) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Watch agent status changes.
-// (POST /api/watch-agents)
-func (_ Unimplemented) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4859,6 +4859,88 @@ func (siw *ServerInterfaceWrapper) DeleteAgent(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteAgent(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAgents operation middleware
+func (siw *ServerInterfaceWrapper) ListAgents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAgentsParams
+
+	// ------------- Optional query parameter "agent_name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "agent_name", r.URL.Query(), &params.AgentName)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgents(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAgent operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAgent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAgent(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WatchAgents operation middleware
+func (siw *ServerInterfaceWrapper) WatchAgents(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WatchAgents(w, r)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -4947,113 +5029,6 @@ func (siw *ServerInterfaceWrapper) UpdateEnvironment(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateEnvironment(w, r, name)
-	}))
-
-	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
-		handler = siw.HandlerMiddlewares[i](handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetSpanDetail operation middleware
-func (siw *ServerInterfaceWrapper) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetSpanDetailParams
-
-	// ------------- Required query parameter "agent_name" -------------
-
-	if paramValue := r.URL.Query().Get("agent_name"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_name"})
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "agent_name", r.URL.Query(), &params.AgentName)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
-		return
-	}
-
-	// ------------- Required query parameter "trace_id" -------------
-
-	if paramValue := r.URL.Query().Get("trace_id"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "trace_id"})
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "trace_id", r.URL.Query(), &params.TraceId)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "trace_id", Err: err})
-		return
-	}
-
-	// ------------- Required query parameter "span_id" -------------
-
-	if paramValue := r.URL.Query().Get("span_id"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "span_id"})
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "span_id", r.URL.Query(), &params.SpanId)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "span_id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSpanDetail(w, r, params)
-	}))
-
-	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
-		handler = siw.HandlerMiddlewares[i](handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListAgents operation middleware
-func (siw *ServerInterfaceWrapper) ListAgents(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListAgentsParams
-
-	// ------------- Optional query parameter "agent_name" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "agent_name", r.URL.Query(), &params.AgentName)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
-		return
-	}
-
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
-		return
-	}
-
-	// ------------- Optional query parameter "page_token" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListAgents(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -5309,6 +5284,70 @@ func (siw *ServerInterfaceWrapper) ListProcessObservability(w http.ResponseWrite
 	handler.ServeHTTP(w, r)
 }
 
+// GetSpanDetail operation middleware
+func (siw *ServerInterfaceWrapper) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSpanDetailParams
+
+	// ------------- Required query parameter "agent_name" -------------
+
+	if paramValue := r.URL.Query().Get("agent_name"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_name"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "agent_name", r.URL.Query(), &params.AgentName)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "trace_id" -------------
+
+	if paramValue := r.URL.Query().Get("trace_id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "trace_id"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "trace_id", r.URL.Query(), &params.TraceId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "trace_id", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "span_id" -------------
+
+	if paramValue := r.URL.Query().Get("span_id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "span_id"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "span_id", r.URL.Query(), &params.SpanId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "span_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSpanDetail(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListSpans operation middleware
 func (siw *ServerInterfaceWrapper) ListSpans(w http.ResponseWriter, r *http.Request) {
 
@@ -5365,72 +5404,6 @@ func (siw *ServerInterfaceWrapper) ListSpans(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListSpans(w, r, params)
-	}))
-
-	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
-		handler = siw.HandlerMiddlewares[i](handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListTraceSessions operation middleware
-func (siw *ServerInterfaceWrapper) ListTraceSessions(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListTraceSessionsParams
-
-	// ------------- Required query parameter "agent_name" -------------
-
-	if paramValue := r.URL.Query().Get("agent_name"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_name"})
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "agent_name", r.URL.Query(), &params.AgentName)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
-		return
-	}
-
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
-		return
-	}
-
-	// ------------- Optional query parameter "page_token" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
-		return
-	}
-
-	// ------------- Optional query parameter "started_after" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "started_after", r.URL.Query(), &params.StartedAfter)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "started_after", Err: err})
-		return
-	}
-
-	// ------------- Optional query parameter "started_before" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "started_before", r.URL.Query(), &params.StartedBefore)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "started_before", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListTraceSessions(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -5497,6 +5470,72 @@ func (siw *ServerInterfaceWrapper) ListTraces(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListTraces(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTraceSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListTraceSessions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTraceSessionsParams
+
+	// ------------- Required query parameter "agent_name" -------------
+
+	if paramValue := r.URL.Query().Get("agent_name"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_name"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "agent_name", r.URL.Query(), &params.AgentName)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "started_after" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "started_after", r.URL.Query(), &params.StartedAfter)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "started_after", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "started_before" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "started_before", r.URL.Query(), &params.StartedBefore)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "started_before", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTraceSessions(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -5591,45 +5630,6 @@ func (siw *ServerInterfaceWrapper) PutSecret(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutSecret(w, r, agentName)
-	}))
-
-	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
-		handler = siw.HandlerMiddlewares[i](handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// UpdateAgent operation middleware
-func (siw *ServerInterfaceWrapper) UpdateAgent(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// ------------- Path parameter "agentName" -------------
-	var agentName AgentNamePath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateAgent(w, r, agentName)
-	}))
-
-	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
-		handler = siw.HandlerMiddlewares[i](handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// WatchAgents operation middleware
-func (siw *ServerInterfaceWrapper) WatchAgents(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.WatchAgents(w, r)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -5753,10 +5753,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/create-agent", wrapper.CreateAgent)
+		r.Post(options.BaseURL+"/api/agent/create", wrapper.CreateAgent)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/delete-agent", wrapper.DeleteAgent)
+		r.Post(options.BaseURL+"/api/agent/delete", wrapper.DeleteAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/list", wrapper.ListAgents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/update/{agentName}", wrapper.UpdateAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/watch", wrapper.WatchAgents)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/environment/create", wrapper.CreateEnvironment)
@@ -5771,28 +5780,25 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/environment/update/{name}", wrapper.UpdateEnvironment)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/get-span-detail", wrapper.GetSpanDetail)
+		r.Get(options.BaseURL+"/api/lens/observability/file/list", wrapper.ListFileObservability)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/list-agents", wrapper.ListAgents)
+		r.Get(options.BaseURL+"/api/lens/observability/network/list", wrapper.ListNetworkObservability)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/list-file-observability", wrapper.ListFileObservability)
+		r.Get(options.BaseURL+"/api/lens/observability/process/list", wrapper.ListProcessObservability)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/list-network-observability", wrapper.ListNetworkObservability)
+		r.Get(options.BaseURL+"/api/lens/span/detail", wrapper.GetSpanDetail)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/list-process-observability", wrapper.ListProcessObservability)
+		r.Get(options.BaseURL+"/api/lens/span/list", wrapper.ListSpans)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/list-spans", wrapper.ListSpans)
+		r.Get(options.BaseURL+"/api/lens/trace/list", wrapper.ListTraces)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/list-trace-sessions", wrapper.ListTraceSessions)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/list-traces", wrapper.ListTraces)
+		r.Get(options.BaseURL+"/api/lens/trace/session/list", wrapper.ListTraceSessions)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/secret/{agentName}/delete", wrapper.DeleteSecret)
@@ -5803,12 +5809,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/secret/{agentName}/put", wrapper.PutSecret)
 	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/update-agent/{agentName}", wrapper.UpdateAgent)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/watch-agents", wrapper.WatchAgents)
-	})
 
 	return r
 }
@@ -5816,80 +5816,80 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

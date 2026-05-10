@@ -12,7 +12,7 @@ import (
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 )
 
-// ListTraces handles GET /api/list-traces.
+// ListTraces handles GET /api/lens/trace/list.
 func (s *Service) ListTraces(w http.ResponseWriter, r *http.Request, params gatewayapi.ListTracesParams) {
 	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
 	if !ok {
@@ -88,7 +88,7 @@ func (s *Service) ListTraces(w http.ResponseWriter, r *http.Request, params gate
 	})
 }
 
-// ListTraceSessions handles GET /api/list-trace-sessions.
+// ListTraceSessions handles GET /api/lens/trace/session/list.
 func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, params gatewayapi.ListTraceSessionsParams) {
 	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
 	if !ok {
@@ -167,7 +167,7 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, para
 	})
 }
 
-// ListSpans handles GET /api/list-spans.
+// ListSpans handles GET /api/lens/span/list.
 func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, params gatewayapi.ListSpansParams) {
 	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
 	if !ok {
@@ -219,7 +219,7 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, params gatew
 	})
 }
 
-// GetSpanDetail handles GET /api/get-span-detail.
+// GetSpanDetail handles GET /api/lens/span/detail.
 func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, params gatewayapi.GetSpanDetailParams) {
 	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
 	if !ok {
@@ -269,17 +269,17 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, params g
 	})
 }
 
-// ListProcessObservability handles GET /api/list-process-observability.
+// ListProcessObservability handles GET /api/lens/observability/process/list.
 func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListProcessObservabilityParams) {
 	s.listProcessObservability(w, r, params)
 }
 
-// ListFileObservability handles GET /api/list-file-observability.
+// ListFileObservability handles GET /api/lens/observability/file/list.
 func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListFileObservabilityParams) {
 	s.listFileObservability(w, r, params)
 }
 
-// ListNetworkObservability handles GET /api/list-network-observability.
+// ListNetworkObservability handles GET /api/lens/observability/network/list.
 func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListNetworkObservabilityParams) {
 	s.listNetworkObservability(w, r, params)
 }

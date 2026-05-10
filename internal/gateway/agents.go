@@ -22,7 +22,7 @@ import (
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 )
 
-// ListAgents handles GET /api/list-agents.
+// ListAgents handles GET /api/agent/list.
 func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListAgentsParams) {
 	limit := 50
 	if params.Limit != nil {
@@ -67,7 +67,7 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 	})
 }
 
-// CreateAgent handles POST /api/create-agent.
+// CreateAgent handles POST /api/agent/create.
 //
 //nolint:gocyclo
 func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +123,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UpdateAgent handles POST /api/update-agent/{agentName}.
+// UpdateAgent handles POST /api/agent/update/{agentName}.
 func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	var req gatewayapi.UpdateAgentRequest
 	if !decodeJSONBody(w, r, &req, false) {
@@ -217,7 +217,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	})
 }
 
-// DeleteAgent handles POST /api/delete-agent.
+// DeleteAgent handles POST /api/agent/delete.
 func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	var req gatewayapi.DeleteAgentRequest
 	if !decodeJSONBody(w, r, &req, false) {
@@ -267,7 +267,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// WatchAgents handles POST /api/watch-agents.
+// WatchAgents handles POST /api/agent/watch.
 func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	var req gatewayapi.WatchAgentsRequest
 	if r.Body != nil {

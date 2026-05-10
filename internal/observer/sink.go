@@ -18,12 +18,14 @@ type stats struct {
 	failed   uint64
 }
 
-func (s *stats) addReceived(n uint64) {
-	atomic.AddUint64(&s.received, n)
-}
-
-func (s *stats) addFiltered(n uint64) {
-	atomic.AddUint64(&s.filtered, n)
+// values returns the current absolute counters.
+func (s *stats) values() stats {
+	return stats{
+		received: atomic.LoadUint64(&s.received),
+		filtered: atomic.LoadUint64(&s.filtered),
+		flushed:  atomic.LoadUint64(&s.flushed),
+		failed:   atomic.LoadUint64(&s.failed),
+	}
 }
 
 type collector struct {

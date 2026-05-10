@@ -18,6 +18,7 @@ import {
   listSecrets,
   listSpans,
   listTraces,
+  listTraceSessions,
   type Options,
   putSecret,
   updateAgent,
@@ -65,6 +66,9 @@ import type {
   ListSpansResponse2,
   ListTracesData,
   ListTracesError,
+  ListTraceSessionsData,
+  ListTraceSessionsError,
+  ListTraceSessionsResponse2,
   ListTracesResponse2,
   PutSecretData,
   PutSecretError,
@@ -164,6 +168,31 @@ export const listTracesOptions = (options: Options<ListTracesData>) =>
       return data
     },
     queryKey: listTracesQueryKey(options),
+  })
+
+export const listTraceSessionsQueryKey = (options: Options<ListTraceSessionsData>) =>
+  createQueryKey("listTraceSessions", options)
+
+/**
+ * List paginated per-session trace summaries.
+ */
+export const listTraceSessionsOptions = (options: Options<ListTraceSessionsData>) =>
+  queryOptions<
+    ListTraceSessionsResponse2,
+    ListTraceSessionsError,
+    ListTraceSessionsResponse2,
+    ReturnType<typeof listTraceSessionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listTraceSessions({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listTraceSessionsQueryKey(options),
   })
 
 export const listSpansQueryKey = (options: Options<ListSpansData>) =>

@@ -40,15 +40,16 @@ SELECT
   started_at,
   ended_at,
   duration_ns,
+  duration_ms,
   span_count,
   error_count,
   tool_count,
   model_count,
-  run_id,
-  request_id,
-  conversation_id,
   input_tokens,
   output_tokens,
+  cached_input_tokens,
+  cached_write_tokens,
+  cost_usd,
   status_code,
   updated_at
 FROM observer_traces
@@ -66,33 +67,74 @@ WHERE agent_name = sqlc.arg(agent_name)
 ORDER BY started_at DESC, trace_id DESC
 LIMIT sqlc.arg(page_size);
 
+-- name: GatewayListTraceSessions :many
+SELECT
+  trace_id,
+  session_id,
+  agent_name,
+  root_span_id,
+  started_at,
+  ended_at,
+  duration_ns,
+  duration_ms,
+  span_count,
+  error_count,
+  tool_count,
+  model_count,
+  input_tokens,
+  output_tokens,
+  cached_input_tokens,
+  cached_write_tokens,
+  cost_usd,
+  status_code,
+  updated_at
+FROM observer_trace_sessions
+WHERE agent_name = sqlc.arg(agent_name)
+  AND started_at >= sqlc.arg(started_after)
+  AND started_at <= sqlc.arg(started_before)
+  AND (
+    NOT sqlc.arg(cursor_set)::bool
+    OR started_at < sqlc.arg(cursor_started_at)
+    OR (
+      started_at = sqlc.arg(cursor_started_at)
+      AND trace_id < sqlc.arg(cursor_trace_id)
+    )
+    OR (
+      started_at = sqlc.arg(cursor_started_at)
+      AND trace_id = sqlc.arg(cursor_trace_id)
+      AND session_id < sqlc.arg(cursor_session_id)
+    )
+  )
+ORDER BY started_at DESC, trace_id DESC, session_id DESC
+LIMIT sqlc.arg(page_size);
+
 -- name: GatewayListSpans :many
 SELECT
   id,
   agent_name,
+  session_id,
   trace_id,
   span_id,
   parent_span_id,
   start_time,
   end_time,
   duration_ns,
+  duration_ms,
   name,
+  span_class,
   operation_name,
   kind,
   status_code,
   error_type,
   error_message,
-  conversation_id,
-  run_id,
-  request_id,
   model,
   tool_name,
   input_tokens,
   output_tokens,
   cached_input_tokens,
-  time_to_first_token_ms,
-  pod_namespace,
-  pod_name,
+  cached_write_tokens,
+  cost_usd,
+  llm_finish_reason,
   ingested_at
 FROM observer_trace_spans
 WHERE agent_name = sqlc.arg(agent_name)
@@ -113,29 +155,31 @@ WITH span_row AS (
   SELECT
     id,
     agent_name,
+    session_id,
     trace_id,
     span_id,
     parent_span_id,
     start_time,
     end_time,
     duration_ns,
+    duration_ms,
     name,
+    span_class,
     operation_name,
     kind,
     status_code,
     error_type,
     error_message,
-    conversation_id,
-    run_id,
-    request_id,
     model,
     tool_name,
     input_tokens,
     output_tokens,
     cached_input_tokens,
-    time_to_first_token_ms,
-    pod_namespace,
-    pod_name,
+    cached_write_tokens,
+    cost_usd,
+    llm_finish_reason,
+    resource_attributes,
+    span_attributes,
     ingested_at
   FROM observer_trace_spans sp
   WHERE sp.agent_name = sqlc.arg(agent_name)
@@ -147,35 +191,36 @@ WITH span_row AS (
 SELECT
   s.id,
   s.agent_name,
+  s.session_id,
   s.trace_id,
   s.span_id,
   s.parent_span_id,
   s.start_time,
   s.end_time,
   s.duration_ns,
+  s.duration_ms,
   s.name,
+  s.span_class,
   s.operation_name,
   s.kind,
   s.status_code,
   s.error_type,
   s.error_message,
-  s.conversation_id,
-  s.run_id,
-  s.request_id,
   s.model,
   s.tool_name,
   s.input_tokens,
   s.output_tokens,
   s.cached_input_tokens,
-  s.time_to_first_token_ms,
-  s.pod_namespace,
-  s.pod_name,
+  s.cached_write_tokens,
+  s.cost_usd,
+  s.llm_finish_reason,
+  s.resource_attributes,
+  s.span_attributes,
   s.ingested_at,
   COALESCE(p.input_messages, 'null'::jsonb) AS input_messages,
   COALESCE(p.output_messages, 'null'::jsonb) AS output_messages,
   COALESCE(p.tool_arguments, 'null'::jsonb) AS tool_arguments,
-  COALESCE(p.tool_result, 'null'::jsonb) AS tool_result,
-  COALESCE(p.metadata, '{}'::jsonb) AS metadata
+  COALESCE(p.tool_result, 'null'::jsonb) AS tool_result
 FROM span_row s
 LEFT JOIN observer_trace_span_payloads p
   ON p.trace_id = s.trace_id

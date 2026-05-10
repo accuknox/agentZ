@@ -79,6 +79,11 @@ export type ListTracesResponse = {
   next_page_token: string
 }
 
+export type ListTraceSessionsResponse = {
+  trace_sessions: Array<TraceSession>
+  next_page_token: string
+}
+
 export type Trace = {
   trace_id: TraceId
   agent_name: AgentName
@@ -86,15 +91,38 @@ export type Trace = {
   started_at: string
   ended_at: string
   duration_ns: number
+  duration_ms: number
   span_count: number
   error_count: number
   tool_count: number
   model_count: number
-  run_id: string
-  request_id: string
-  conversation_id: string
   input_tokens: number
   output_tokens: number
+  cached_input_tokens: number
+  cached_write_tokens: number
+  cost_usd: number
+  status_code: string
+  updated_at: string
+}
+
+export type TraceSession = {
+  trace_id: TraceId
+  session_id: string
+  agent_name: AgentName
+  root_span_id: OptionalSpanId
+  started_at: string
+  ended_at: string
+  duration_ns: number
+  duration_ms: number
+  span_count: number
+  error_count: number
+  tool_count: number
+  model_count: number
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  cached_write_tokens: number
+  cost_usd: number
   status_code: string
   updated_at: string
 }
@@ -107,30 +135,35 @@ export type ListSpansResponse = {
 export type Span = {
   id: number
   agent_name: AgentName
+  session_id: string
   trace_id: TraceId
   span_id: SpanId
   parent_span_id: OptionalSpanId
   start_time: string
   end_time: string
   duration_ns: number
+  duration_ms: number
   name: string
+  span_class: string
   operation_name: string
   kind: string
   status_code: string
   error_type: string
   error_message: string
-  conversation_id: string
-  run_id: string
-  request_id: string
   model: string
   tool_name: string
   input_tokens: number
   output_tokens: number
   cached_input_tokens: number
-  time_to_first_token_ms: number
-  pod_namespace: string
-  pod_name: string
+  cached_write_tokens: number
+  cost_usd: number
+  llm_finish_reason: string
   ingested_at: string
+}
+
+export type SpanDetail = Span & {
+  resource_attributes: JsonValue
+  span_attributes: JsonValue
 }
 
 export type SpanPayload = {
@@ -138,11 +171,10 @@ export type SpanPayload = {
   output_messages: JsonValue
   tool_arguments: JsonValue
   tool_result: JsonValue
-  metadata: JsonValue
 }
 
 export type SpanDetailResponse = {
-  span: Span
+  span: SpanDetail
   payload: SpanPayload
 }
 
@@ -501,6 +533,61 @@ export type ListTracesResponses = {
 }
 
 export type ListTracesResponse2 = ListTracesResponses[keyof ListTracesResponses]
+
+export type ListTraceSessionsData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
+  }
+  url: "/api/list-trace-sessions"
+}
+
+export type ListTraceSessionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListTraceSessionsError = ListTraceSessionsErrors[keyof ListTraceSessionsErrors]
+
+export type ListTraceSessionsResponses = {
+  /**
+   * Paginated per-session trace summaries.
+   */
+  200: ListTraceSessionsResponse
+}
+
+export type ListTraceSessionsResponse2 =
+  ListTraceSessionsResponses[keyof ListTraceSessionsResponses]
 
 export type ListSpansData = {
   body?: never

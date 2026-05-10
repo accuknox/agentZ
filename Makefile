@@ -18,7 +18,7 @@ generate:
 	sqlc generate
 	oapi-codegen -config oapi-codegen.gateway.yaml api/openapi.yaml
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
-	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=true webhook \
+	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./api/...;./internal/controller/...;./internal/webhook/..." \
 		output:crd:artifacts:config=config/crd/bases
 

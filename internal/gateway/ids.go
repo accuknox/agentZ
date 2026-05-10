@@ -21,6 +21,12 @@ type tracePageCursor struct {
 	TraceID   string    `json:"trace_id"`
 }
 
+type traceSessionPageCursor struct {
+	StartedAt time.Time `json:"started_at"`
+	TraceID   string    `json:"trace_id"`
+	SessionID string    `json:"session_id"`
+}
+
 type spanPageCursor struct {
 	StartTime time.Time `json:"start_time"`
 	ID        int64     `json:"id"`
@@ -233,6 +239,18 @@ func decodeTracePageToken(w http.ResponseWriter, r *http.Request, token *gateway
 	if cursor.StartedAt.IsZero() || cursor.TraceID == "" {
 		writeInvalidPageToken(w, r, errBadRequest)
 		return tracePageCursor{}, false, false
+	}
+	return cursor, true, true
+}
+
+func decodeTraceSessionPageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (traceSessionPageCursor, bool, bool) {
+	cursor, set, ok := decodeCursorPageToken[traceSessionPageCursor](w, r, token)
+	if !ok || !set {
+		return cursor, set, ok
+	}
+	if cursor.StartedAt.IsZero() || cursor.TraceID == "" || cursor.SessionID == "" {
+		writeInvalidPageToken(w, r, errBadRequest)
+		return traceSessionPageCursor{}, false, false
 	}
 	return cursor, true, true
 }

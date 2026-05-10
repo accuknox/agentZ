@@ -60,11 +60,109 @@ func (s *Service) ListTraces(w http.ResponseWriter, r *http.Request, params gate
 			})
 			break
 		}
-		items = append(items, traceFromRow(row))
+		items = append(items, gatewayapi.Trace{
+			TraceId:           hex.EncodeToString(row.TraceID),
+			AgentName:         row.AgentName,
+			RootSpanId:        hex.EncodeToString(row.RootSpanID),
+			StartedAt:         row.StartedAt,
+			EndedAt:           row.EndedAt,
+			DurationNs:        row.DurationNs,
+			DurationMs:        row.DurationMs,
+			SpanCount:         row.SpanCount,
+			ErrorCount:        row.ErrorCount,
+			ToolCount:         row.ToolCount,
+			ModelCount:        row.ModelCount,
+			InputTokens:       row.InputTokens,
+			OutputTokens:      row.OutputTokens,
+			CachedInputTokens: row.CachedInputTokens,
+			CachedWriteTokens: row.CachedWriteTokens,
+			CostUsd:           row.CostUsd,
+			StatusCode:        row.StatusCode,
+			UpdatedAt:         row.UpdatedAt,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, gatewayapi.ListTracesResponse{
 		Traces:        items,
+		NextPageToken: next,
+	})
+}
+
+// ListTraceSessions handles GET /api/list-trace-sessions.
+func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, params gatewayapi.ListTraceSessionsParams) {
+	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+	if !ok {
+		return
+	}
+	limit, ok := validLimit(w, r, params.Limit)
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeTraceSessionPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
+	cursorTraceID, ok := decodeOptionalTraceCursor(w, r, cursor.TraceID, cursorSet)
+	if !ok {
+		return
+	}
+	startedAfter, startedBefore, ok := traceTimeBounds(w, r, params.StartedAfter, params.StartedBefore)
+	if !ok {
+		return
+	}
+
+	rows, err := s.queries.GatewayListTraceSessions(r.Context(), gatewaydb.GatewayListTraceSessionsParams{
+		AgentName:       agentName,
+		StartedAfter:    startedAfter,
+		StartedBefore:   startedBefore,
+		CursorSet:       cursorSet,
+		CursorStartedAt: cursor.StartedAt,
+		CursorTraceID:   cursorTraceID,
+		CursorSessionID: cursor.SessionID,
+		PageSize:        int32(limit + 1),
+	})
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	items := make([]gatewayapi.TraceSession, 0, limit)
+	var next string
+	for i, row := range rows {
+		if i == limit {
+			last := rows[limit-1]
+			next = encodeCursorPageToken(traceSessionPageCursor{
+				StartedAt: last.StartedAt,
+				TraceID:   hex.EncodeToString(last.TraceID),
+				SessionID: last.SessionID,
+			})
+			break
+		}
+		items = append(items, gatewayapi.TraceSession{
+			TraceId:           hex.EncodeToString(row.TraceID),
+			SessionId:         row.SessionID,
+			AgentName:         row.AgentName,
+			RootSpanId:        hex.EncodeToString(row.RootSpanID),
+			StartedAt:         row.StartedAt,
+			EndedAt:           row.EndedAt,
+			DurationNs:        row.DurationNs,
+			DurationMs:        row.DurationMs,
+			SpanCount:         row.SpanCount,
+			ErrorCount:        row.ErrorCount,
+			ToolCount:         row.ToolCount,
+			ModelCount:        row.ModelCount,
+			InputTokens:       row.InputTokens,
+			OutputTokens:      row.OutputTokens,
+			CachedInputTokens: row.CachedInputTokens,
+			CachedWriteTokens: row.CachedWriteTokens,
+			CostUsd:           row.CostUsd,
+			StatusCode:        row.StatusCode,
+			UpdatedAt:         row.UpdatedAt,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, gatewayapi.ListTraceSessionsResponse{
+		TraceSessions: items,
 		NextPageToken: next,
 	})
 }
@@ -112,7 +210,7 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, params gatew
 			})
 			break
 		}
-		items = append(items, spanFromRow(row))
+		items = append(items, spanFromListRow(row))
 	}
 
 	writeJSON(w, http.StatusOK, gatewayapi.ListSpansResponse{
@@ -160,8 +258,13 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, params g
 		return
 	}
 
+	span, ok := spanDetailFromRow(w, r, row)
+	if !ok {
+		return
+	}
+
 	writeJSON(w, http.StatusOK, gatewayapi.SpanDetailResponse{
-		Span:    spanFromDetail(row),
+		Span:    span,
 		Payload: payload,
 	})
 }
@@ -469,88 +572,77 @@ func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func traceFromRow(row gatewaydb.ObserverTrace) gatewayapi.Trace {
-	return gatewayapi.Trace{
-		TraceId:        hex.EncodeToString(row.TraceID),
-		AgentName:      row.AgentName,
-		RootSpanId:     hex.EncodeToString(row.RootSpanID),
-		StartedAt:      row.StartedAt,
-		EndedAt:        row.EndedAt,
-		DurationNs:     row.DurationNs,
-		SpanCount:      row.SpanCount,
-		ErrorCount:     row.ErrorCount,
-		ToolCount:      row.ToolCount,
-		ModelCount:     row.ModelCount,
-		RunId:          row.RunID,
-		RequestId:      row.RequestID,
-		ConversationId: row.ConversationID,
-		InputTokens:    row.InputTokens,
-		OutputTokens:   row.OutputTokens,
-		StatusCode:     row.StatusCode,
-		UpdatedAt:      row.UpdatedAt,
-	}
-}
-
-func spanFromRow(row gatewaydb.ObserverTraceSpan) gatewayapi.Span {
+func spanFromListRow(row gatewaydb.GatewayListSpansRow) gatewayapi.Span {
 	return gatewayapi.Span{
-		Id:                 row.ID,
-		AgentName:          row.AgentName,
-		TraceId:            hex.EncodeToString(row.TraceID),
-		SpanId:             hex.EncodeToString(row.SpanID),
-		ParentSpanId:       hex.EncodeToString(row.ParentSpanID),
-		StartTime:          row.StartTime,
-		EndTime:            row.EndTime,
-		DurationNs:         row.DurationNs,
-		Name:               row.Name,
-		OperationName:      row.OperationName,
-		Kind:               row.Kind,
-		StatusCode:         row.StatusCode,
-		ErrorType:          row.ErrorType,
-		ErrorMessage:       row.ErrorMessage,
-		ConversationId:     row.ConversationID,
-		RunId:              row.RunID,
-		RequestId:          row.RequestID,
-		Model:              row.Model,
-		ToolName:           row.ToolName,
-		InputTokens:        row.InputTokens,
-		OutputTokens:       row.OutputTokens,
-		CachedInputTokens:  row.CachedInputTokens,
-		TimeToFirstTokenMs: row.TimeToFirstTokenMs,
-		PodNamespace:       row.PodNamespace,
-		PodName:            row.PodName,
-		IngestedAt:         row.IngestedAt,
+		Id:                row.ID,
+		AgentName:         row.AgentName,
+		SessionId:         row.SessionID,
+		TraceId:           hex.EncodeToString(row.TraceID),
+		SpanId:            hex.EncodeToString(row.SpanID),
+		ParentSpanId:      hex.EncodeToString(row.ParentSpanID),
+		StartTime:         row.StartTime,
+		EndTime:           row.EndTime,
+		DurationNs:        row.DurationNs,
+		DurationMs:        row.DurationMs,
+		Name:              row.Name,
+		SpanClass:         row.SpanClass,
+		OperationName:     row.OperationName,
+		Kind:              row.Kind,
+		StatusCode:        row.StatusCode,
+		ErrorType:         row.ErrorType,
+		ErrorMessage:      row.ErrorMessage,
+		Model:             row.Model,
+		ToolName:          row.ToolName,
+		InputTokens:       row.InputTokens,
+		OutputTokens:      row.OutputTokens,
+		CachedInputTokens: row.CachedInputTokens,
+		CachedWriteTokens: row.CachedWriteTokens,
+		CostUsd:           row.CostUsd,
+		LlmFinishReason:   row.LlmFinishReason,
+		IngestedAt:        row.IngestedAt,
 	}
 }
 
-func spanFromDetail(row gatewaydb.GatewayGetSpanDetailRow) gatewayapi.Span {
-	return spanFromRow(gatewaydb.ObserverTraceSpan{
-		ID:                 row.ID,
+func spanDetailFromRow(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGetSpanDetailRow) (gatewayapi.SpanDetail, bool) {
+	resourceAttrs, ok := jsonValue(w, r, row.ResourceAttributes)
+	if !ok {
+		return gatewayapi.SpanDetail{}, false
+	}
+	spanAttrs, ok := jsonValue(w, r, row.SpanAttributes)
+	if !ok {
+		return gatewayapi.SpanDetail{}, false
+	}
+
+	return gatewayapi.SpanDetail{
 		AgentName:          row.AgentName,
-		TraceID:            row.TraceID,
-		SpanID:             row.SpanID,
-		ParentSpanID:       row.ParentSpanID,
-		StartTime:          row.StartTime,
-		EndTime:            row.EndTime,
+		CachedInputTokens:  row.CachedInputTokens,
+		CachedWriteTokens:  row.CachedWriteTokens,
+		CostUsd:            row.CostUsd,
+		DurationMs:         row.DurationMs,
 		DurationNs:         row.DurationNs,
+		EndTime:            row.EndTime,
+		ErrorMessage:       row.ErrorMessage,
+		ErrorType:          row.ErrorType,
+		Id:                 row.ID,
+		IngestedAt:         row.IngestedAt,
+		InputTokens:        row.InputTokens,
+		Kind:               row.Kind,
+		LlmFinishReason:    row.LlmFinishReason,
+		Model:              row.Model,
 		Name:               row.Name,
 		OperationName:      row.OperationName,
-		Kind:               row.Kind,
-		StatusCode:         row.StatusCode,
-		ErrorType:          row.ErrorType,
-		ErrorMessage:       row.ErrorMessage,
-		ConversationID:     row.ConversationID,
-		RunID:              row.RunID,
-		RequestID:          row.RequestID,
-		Model:              row.Model,
-		ToolName:           row.ToolName,
-		InputTokens:        row.InputTokens,
 		OutputTokens:       row.OutputTokens,
-		CachedInputTokens:  row.CachedInputTokens,
-		TimeToFirstTokenMs: row.TimeToFirstTokenMs,
-		PodNamespace:       row.PodNamespace,
-		PodName:            row.PodName,
-		IngestedAt:         row.IngestedAt,
-	})
+		ParentSpanId:       hex.EncodeToString(row.ParentSpanID),
+		ResourceAttributes: resourceAttrs,
+		SessionId:          row.SessionID,
+		SpanAttributes:     spanAttrs,
+		SpanClass:          row.SpanClass,
+		SpanId:             hex.EncodeToString(row.SpanID),
+		StartTime:          row.StartTime,
+		StatusCode:         row.StatusCode,
+		ToolName:           row.ToolName,
+		TraceId:            hex.EncodeToString(row.TraceID),
+	}, true
 }
 
 func spanPayload(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGetSpanDetailRow) (gatewayapi.SpanPayload, bool) {
@@ -570,16 +662,11 @@ func spanPayload(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGe
 	if !ok {
 		return gatewayapi.SpanPayload{}, false
 	}
-	metadata, ok := jsonValue(w, r, row.Metadata)
-	if !ok {
-		return gatewayapi.SpanPayload{}, false
-	}
 	return gatewayapi.SpanPayload{
 		InputMessages:  inputMessages,
 		OutputMessages: outputMessages,
 		ToolArguments:  toolArguments,
 		ToolResult:     toolResult,
-		Metadata:       metadata,
 	}, true
 }
 

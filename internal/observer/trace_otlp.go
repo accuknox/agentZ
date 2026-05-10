@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -19,32 +20,46 @@ import (
 
 const (
 	attrClawArmorAgentName = "clawarmor.agent_name"
-	attrClawArmorRunID     = "clawarmor.run_id"
-	attrClawArmorRequestID = "clawarmor.request_id"
+	attrSessionID          = "session.id"
+	attrSpanKind           = "openinference.span.kind"
 
-	attrK8sNamespace = "k8s.namespace.name"
-	attrK8sPodName   = "k8s.pod.name"
+	attrInputValue     = "input.value"
+	attrInputMimeType  = "input.mime_type"
+	attrOutputValue    = "output.value"
+	attrOutputMimeType = "output.mime_type"
 
-	attrGenAIOperation              = "gen_ai.operation.name"
-	attrGenAIConversation           = "gen_ai.conversation.id"
-	attrGenAIRequestModel           = "gen_ai.request.model"
-	attrGenAIResponseModel          = "gen_ai.response.model"
-	attrGenAIInputMessages          = "gen_ai.input.messages"
-	attrGenAIOutputMessages         = "gen_ai.output.messages"
-	attrGenAIUsageInputTokens       = "gen_ai.usage.input_tokens"
-	attrGenAIUsageOutputTokens      = "gen_ai.usage.output_tokens"
-	attrGenAIUsageInputTokensCached = "gen_ai.usage.input_tokens.cached"
-	attrGenAIToolName               = "gen_ai.tool.name"
-	attrGenAIToolCallArguments      = "gen_ai.tool.call.arguments"
-	attrGenAIToolCallResult         = "gen_ai.tool.call.result"
-	attrLLMRequest                  = "trpc.go.agent.llm_request"
-	attrLLMResponse                 = "trpc.go.agent.llm_response"
-	attrTimeToFirstToken            = "trpc_agent_go.client.time_to_first_token"
-	attrErrorType                   = "error.type"
-	attrErrorMessage                = "error.message"
+	attrLLMModelName       = "llm.model_name"
+	attrLLMInputMessages   = "llm.input_messages"
+	attrLLMOutputMessages  = "llm.output_messages"
+	attrLLMTokenPrompt     = "llm.token_count.prompt"
+	attrLLMTokenCompletion = "llm.token_count.completion"
+	attrLLMTokenCacheRead  = "llm.token_count.prompt_details.cache_read"
+	attrLLMTokenCacheWrite = "llm.token_count.prompt_details.cache_write"
+	attrLLMCostTotal       = "llm.cost.total"
+	attrLLMFinishReason    = "llm.finish_reason"
+
+	attrToolName       = "tool.name"
+	attrToolParameters = "tool.parameters"
+	attrToolError      = "tool.error"
+
+	attrErrorType    = "error.type"
+	attrErrorMessage = "error.message"
+
+	null = "null"
+
+	spanClassSession = "session"
+	spanClassLLM     = "llm"
+	spanClassTool    = "tool"
+
+	operationSession     = "session"
+	operationChat        = "chat"
+	operationExecuteTool = "execute_tool"
 )
 
-var errTraceAgentNameMissing = errors.New("clawarmor.agent_name missing")
+var (
+	errTraceAgentNameMissing = errors.New("clawarmor.agent_name missing")
+	errTraceSessionIDMissing = errors.New("session.id missing")
+)
 
 type traceReceiver struct {
 	tracev1.UnimplementedTraceServiceServer
@@ -95,9 +110,9 @@ func (r *traceReceiver) Export(ctx context.Context, req *tracev1.ExportTraceServ
 		}
 	}
 	if rejected > 0 {
-		r.stats.addFiltered(uint64(rejected))
+		atomic.AddUint64(&r.stats.filtered, uint64(rejected))
 	}
-	r.stats.addReceived(uint64(len(events) + rejected))
+	atomic.AddUint64(&r.stats.received, uint64(len(events)+rejected))
 	return &tracev1.ExportTraceServiceResponse{}, nil
 }
 
@@ -130,69 +145,157 @@ func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSp
 	}
 
 	spanAttrs := attrsMap(sp.GetAttributes())
-	agentName, err := requiredAgentName(spanAttrs, resourceAttrs)
+
+	agentName, err := requiredStringAttr(spanAttrs, resourceAttrs, attrClawArmorAgentName, errTraceAgentNameMissing)
+	if err != nil {
+		return traceSpanEvent{}, err
+	}
+
+	sessionID, err := requiredStringAttr(spanAttrs, resourceAttrs, attrSessionID, errTraceSessionIDMissing)
 	if err != nil {
 		return traceSpanEvent{}, err
 	}
 
 	start := unixNano(sp.GetStartTimeUnixNano())
 	end := unixNano(sp.GetEndTimeUnixNano())
-	duration := max(end.Sub(start).Nanoseconds(), 0)
+	durationNS := max(end.Sub(start).Nanoseconds(), 0)
+	durationMS := float64(durationNS) / float64(time.Millisecond)
 
-	statusCode := statusCode(sp.GetStatus())
-	errorMessage := stringAttr(spanAttrs, attrErrorMessage)
+	spanClass, operationName := classifySpan(sp.GetName(), spanAttrs)
+	status := statusCode(sp.GetStatus())
+	errorMessage := firstStringAttr(spanAttrs, resourceAttrs, attrErrorMessage)
 	if errorMessage == "" && sp.GetStatus() != nil {
 		errorMessage = sp.GetStatus().GetMessage()
 	}
 
-	payload := traceSpanPayload{
-		inputMessages:  jsonPayload(spanAttrs[attrGenAIInputMessages]),
-		outputMessages: jsonPayload(spanAttrs[attrGenAIOutputMessages]),
-		toolArguments:  jsonPayload(spanAttrs[attrGenAIToolCallArguments]),
-		toolResult:     jsonPayload(spanAttrs[attrGenAIToolCallResult]),
-		metadata:       traceMetadata(spanAttrs),
-	}
+	model := firstNonEmpty(
+		stringAttr(spanAttrs, attrLLMModelName),
+		stringAttr(spanAttrs, "gen_ai.response.model"),
+		stringAttr(spanAttrs, "gen_ai.request.model"),
+	)
 
-	modelName := stringAttr(spanAttrs, attrGenAIRequestModel)
-	if modelName == "" {
-		modelName = stringAttr(spanAttrs, attrGenAIResponseModel)
-	}
+	toolName := firstNonEmpty(
+		stringAttr(spanAttrs, attrToolName),
+		stringAttr(spanAttrs, "gen_ai.tool.name"),
+	)
+
+	payload, strippedAttrs := extractSpanPayload(spanClass, spanAttrs)
+	resourceJSON := jsonObject(resourceAttrsForStorage(resourceAttrs))
+	spanJSON := jsonObject(strippedAttrs)
 
 	return traceSpanEvent{
 		agentName:          agentName,
+		sessionID:          sessionID,
 		traceID:            cloneBytes(sp.GetTraceId()),
 		spanID:             cloneBytes(sp.GetSpanId()),
 		parentSpanID:       cloneBytes(sp.GetParentSpanId()),
 		startTime:          start,
 		endTime:            end,
-		durationNS:         duration,
+		durationNS:         durationNS,
+		durationMS:         durationMS,
 		name:               sp.GetName(),
-		operationName:      stringAttr(spanAttrs, attrGenAIOperation),
+		spanClass:          spanClass,
+		operationName:      operationName,
 		kind:               spanKind(sp.GetKind()),
-		statusCode:         statusCode,
-		errorType:          stringAttr(spanAttrs, attrErrorType),
+		statusCode:         status,
+		errorType:          firstStringAttr(spanAttrs, resourceAttrs, attrErrorType),
 		errorMessage:       errorMessage,
-		conversationID:     stringAttr(spanAttrs, attrGenAIConversation),
-		runID:              firstStringAttr(spanAttrs, resourceAttrs, attrClawArmorRunID),
-		requestID:          firstStringAttr(spanAttrs, resourceAttrs, attrClawArmorRequestID),
-		model:              modelName,
-		toolName:           stringAttr(spanAttrs, attrGenAIToolName),
-		inputTokens:        intAttr(spanAttrs, attrGenAIUsageInputTokens),
-		outputTokens:       intAttr(spanAttrs, attrGenAIUsageOutputTokens),
-		cachedInputTokens:  intAttr(spanAttrs, attrGenAIUsageInputTokensCached),
-		timeToFirstTokenMS: floatAttr(spanAttrs, attrTimeToFirstToken) * 1000,
-		podNamespace:       firstStringAttr(spanAttrs, resourceAttrs, attrK8sNamespace),
-		podName:            firstStringAttr(spanAttrs, resourceAttrs, attrK8sPodName),
+		model:              model,
+		toolName:           toolName,
+		inputTokens:        intAttr(spanAttrs, attrLLMTokenPrompt),
+		outputTokens:       intAttr(spanAttrs, attrLLMTokenCompletion),
+		cachedInputTokens:  intAttr(spanAttrs, attrLLMTokenCacheRead),
+		cachedWriteTokens:  intAttr(spanAttrs, attrLLMTokenCacheWrite),
+		costUSD:            floatAttr(spanAttrs, attrLLMCostTotal),
+		llmFinishReason:    stringAttr(spanAttrs, attrLLMFinishReason),
+		resourceAttributes: resourceJSON,
+		spanAttributes:     spanJSON,
 		payload:            payload,
 	}, nil
 }
 
-func requiredAgentName(spanAttrs, resourceAttrs map[string]any) (string, error) {
-	raw := strings.TrimSpace(firstStringAttr(spanAttrs, resourceAttrs, attrClawArmorAgentName))
-	if raw == "" {
-		return "", errTraceAgentNameMissing
+func resourceAttrsForStorage(attrs map[string]any) map[string]any {
+	out := cloneMap(attrs)
+	delete(out, "os.type")
+	delete(out, "host.arch")
+	return out
+}
+
+func extractSpanPayload(spanClass string, attrs map[string]any) (traceSpanPayload, map[string]any) {
+	out := cloneMap(attrs)
+	inputMessages := []byte(null)
+	outputMessages := []byte(null)
+	if spanClass == spanClassLLM {
+		inputMessages = extractJSONPayload(out, attrLLMInputMessages)
+		outputMessages = extractJSONPayload(out, attrLLMOutputMessages)
 	}
-	return raw, nil
+
+	toolArguments := []byte(null)
+	toolResult := []byte(null)
+	if spanClass == spanClassTool {
+		toolArguments = extractJSONPayload(out, attrToolParameters)
+		if string(toolArguments) == null {
+			toolArguments = extractJSONPayload(out, "gen_ai.tool.call.arguments")
+		}
+
+		toolResult = extractJSONPayload(out, attrOutputValue)
+		if string(toolResult) == null {
+			toolResult = extractJSONPayload(out, "gen_ai.tool.call.result")
+		}
+		if string(toolResult) == null {
+			toolResult = extractJSONPayload(out, attrToolError)
+		}
+
+		delete(out, attrInputValue)
+		delete(out, attrInputMimeType)
+		delete(out, attrOutputMimeType)
+	}
+
+	return traceSpanPayload{
+		inputMessages:  inputMessages,
+		outputMessages: outputMessages,
+		toolArguments:  toolArguments,
+		toolResult:     toolResult,
+	}, out
+}
+
+func extractJSONPayload(attrs map[string]any, key string) []byte {
+	v, ok := attrs[key]
+	if !ok {
+		return []byte(null)
+	}
+	delete(attrs, key)
+	return jsonPayload(v)
+}
+
+func classifySpan(name string, attrs map[string]any) (string, string) {
+	switch strings.ToUpper(stringAttr(attrs, attrSpanKind)) {
+	case "AGENT":
+		return spanClassSession, operationSession
+	case "LLM":
+		return spanClassLLM, operationChat
+	case "TOOL":
+		return spanClassTool, operationExecuteTool
+	}
+
+	switch {
+	case name == "opencode.session":
+		return spanClassSession, operationSession
+	case name == "opencode.llm":
+		return spanClassLLM, operationChat
+	case strings.HasPrefix(name, "opencode.tool."):
+		return spanClassTool, operationExecuteTool
+	default:
+		return "", ""
+	}
+}
+
+func requiredStringAttr(first, second map[string]any, key string, err error) (string, error) {
+	v := strings.TrimSpace(firstStringAttr(first, second, key))
+	if v == "" {
+		return "", err
+	}
+	return v, nil
 }
 
 func attrsMap(attrs []*commonpb.KeyValue) map[string]any {
@@ -235,76 +338,18 @@ func anyValue(v *commonpb.AnyValue) any {
 	}
 }
 
-func traceMetadata(attrs map[string]any) []byte {
-	meta := map[string]any{}
-	addLLMRequestMetadata(meta, attrs[attrLLMRequest])
-	addLLMResponseMetadata(meta, attrs[attrLLMResponse])
-	addAttr(meta, "input_tokens", attrs[attrGenAIUsageInputTokens])
-	addAttr(meta, "output_tokens", attrs[attrGenAIUsageOutputTokens])
-	addAttr(meta, "cached_input_tokens", attrs[attrGenAIUsageInputTokensCached])
-	addAttr(meta, "time_to_first_token", attrs[attrTimeToFirstToken])
-	return jsonObject(meta)
-}
-
-func addLLMRequestMetadata(meta map[string]any, raw any) {
-	req, ok := jsonMap(raw)
-	if !ok {
-		return
-	}
-	if cfg, ok := req["generation_config"]; ok {
-		meta["generation_config"] = cfg
-	}
-}
-
-func addLLMResponseMetadata(meta map[string]any, raw any) {
-	resp, ok := jsonMap(raw)
-	if !ok {
-		return
-	}
-	keys := []string{
-		"id",
-		"model",
-		"object",
-		"created",
-		"timestamp",
-		"done",
-		"is_partial",
-		"usage",
-	}
-	for _, key := range keys {
-		addAttr(meta, key, resp[key])
-	}
-}
-
-func jsonMap(raw any) (map[string]any, bool) {
-	switch v := raw.(type) {
-	case map[string]any:
-		return v, true
-	case string:
-		var out map[string]any
-		if err := json.Unmarshal([]byte(v), &out); err != nil {
-			return nil, false
-		}
-		return out, true
-	default:
-		return nil, false
-	}
-}
-
-func addAttr(meta map[string]any, key string, value any) {
-	if value == nil {
-		return
-	}
-	meta[key] = value
-}
-
 func jsonPayload(v any) []byte {
 	if v == nil {
-		return []byte("null")
+		return []byte(null)
 	}
-	if s, ok := v.(string); ok {
-		if json.Valid([]byte(s)) {
-			return []byte(s)
+	switch x := v.(type) {
+	case string:
+		if json.Valid([]byte(x)) {
+			return []byte(x)
+		}
+	case []byte:
+		if json.Valid(x) {
+			return x
 		}
 	}
 	return mustJSON(v)
@@ -320,7 +365,7 @@ func jsonObject(v map[string]any) []byte {
 func mustJSON(v any) []byte {
 	data, err := json.Marshal(v)
 	if err != nil {
-		return []byte("null")
+		return []byte(null)
 	}
 	return data
 }
@@ -342,6 +387,8 @@ func stringAttr(attrs map[string]any, key string) string {
 		return strconv.FormatInt(v, 10)
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(v)
 	default:
 		return ""
 	}
@@ -369,12 +416,32 @@ func floatAttr(attrs map[string]any, key string) float64 {
 		return v
 	case int64:
 		return float64(v)
+	case int:
+		return float64(v)
 	case string:
 		n, _ := strconv.ParseFloat(v, 64)
 		return n
 	default:
 		return 0
 	}
+}
+
+func cloneMap(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func firstNonEmpty(items ...string) string {
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			return item
+		}
+	}
+	return ""
 }
 
 func unixNano(v uint64) time.Time {

@@ -376,5 +376,45 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string) [
 		)
 	}
 
+	env = upsertTelemetryResourceAttrs(env, agt.Name)
 	return env
+}
+
+func upsertTelemetryResourceAttrs(env []corev1.EnvVar, agentName string) []corev1.EnvVar {
+	key := "OPENCODE_RESOURCE_ATTRIBUTES"
+	attrKey := "clawarmor.agent_name"
+	for i := range env {
+		if env[i].Name != key {
+			continue
+		}
+		env[i].Value = mergeResourceAttrs(env[i].Value, attrKey, agentName)
+		return env
+	}
+	return append(env, corev1.EnvVar{
+		Name:  key,
+		Value: attrKey + "=" + agentName,
+	})
+}
+
+func mergeResourceAttrs(raw, key, value string) string {
+	items := strings.Split(raw, ",")
+	out := make([]string, 0, len(items)+1)
+	replaced := false
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		k, _, ok := strings.Cut(item, "=")
+		if ok && strings.TrimSpace(k) == key {
+			out = append(out, key+"="+value)
+			replaced = true
+			continue
+		}
+		out = append(out, item)
+	}
+	if !replaced {
+		out = append(out, key+"="+value)
+	}
+	return strings.Join(out, ",")
 }

@@ -46,6 +46,9 @@ import type {
   ListSpansResponses,
   ListTracesData,
   ListTracesErrors,
+  ListTraceSessionsData,
+  ListTraceSessionsErrors,
+  ListTraceSessionsResponses,
   ListTracesResponses,
   PutSecretData,
   PutSecretErrors,
@@ -77,6 +80,7 @@ import {
   zListSecretsPath,
   zListSecretsQuery,
   zListSpansQuery,
+  zListTraceSessionsQuery,
   zListTracesQuery,
   zPutSecretBody,
   zPutSecretPath,
@@ -142,6 +146,27 @@ export const listTraces = <ThrowOnError extends boolean = false>(
     url: "/api/list-traces",
     ...options,
   })
+
+/**
+ * List paginated per-session trace summaries.
+ */
+export const listTraceSessions = <ThrowOnError extends boolean = false>(
+  options: Options<ListTraceSessionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListTraceSessionsResponses, ListTraceSessionsErrors, ThrowOnError>(
+    {
+      requestValidator: async (data) =>
+        await z
+          .object({
+            body: z.never().optional(),
+            path: z.never().optional(),
+            query: zListTraceSessionsQuery,
+          })
+          .parseAsync(data),
+      url: "/api/list-trace-sessions",
+      ...options,
+    }
+  )
 
 /**
  * List paginated spans for a trace.

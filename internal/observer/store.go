@@ -150,32 +150,38 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 	q := observerdb.New(tx)
 	spans := make([]observerdb.InsertTraceSpanParams, 0, len(traces))
 	payloads := make([]observerdb.InsertTraceSpanPayloadParams, 0, len(traces))
+	traceIDs := make([][]byte, 0, len(traces))
+	traceSessions := make([]observerdb.RefreshTraceSessionSummaryParams, 0, len(traces))
+	seenTraceIDs := make(map[string]struct{}, len(traces))
+	seenTraceSessions := make(map[string]struct{}, len(traces))
 	for _, ev := range traces {
 		spans = append(spans, observerdb.InsertTraceSpanParams{
 			AgentName:          ev.agentName,
+			SessionID:          ev.sessionID,
 			TraceID:            ev.traceID,
 			SpanID:             ev.spanID,
 			ParentSpanID:       ev.parentSpanID,
 			StartTime:          ev.startTime,
 			EndTime:            ev.endTime,
 			DurationNs:         ev.durationNS,
+			DurationMs:         ev.durationMS,
 			Name:               ev.name,
+			SpanClass:          ev.spanClass,
 			OperationName:      ev.operationName,
 			Kind:               ev.kind,
 			StatusCode:         ev.statusCode,
 			ErrorType:          ev.errorType,
 			ErrorMessage:       ev.errorMessage,
-			ConversationID:     ev.conversationID,
-			RunID:              ev.runID,
-			RequestID:          ev.requestID,
 			Model:              ev.model,
 			ToolName:           ev.toolName,
 			InputTokens:        ev.inputTokens,
 			OutputTokens:       ev.outputTokens,
 			CachedInputTokens:  ev.cachedInputTokens,
-			TimeToFirstTokenMs: ev.timeToFirstTokenMS,
-			PodNamespace:       ev.podNamespace,
-			PodName:            ev.podName,
+			CachedWriteTokens:  ev.cachedWriteTokens,
+			CostUsd:            ev.costUSD,
+			LlmFinishReason:    ev.llmFinishReason,
+			ResourceAttributes: ev.resourceAttributes,
+			SpanAttributes:     ev.spanAttributes,
 		})
 		p := ev.payload
 		payloads = append(payloads, observerdb.InsertTraceSpanPayloadParams{
@@ -186,7 +192,22 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 			OutputMessages: p.outputMessages,
 			ToolArguments:  p.toolArguments,
 			ToolResult:     p.toolResult,
-			Metadata:       p.metadata,
+		})
+
+		traceKey := string(ev.traceID)
+		if _, ok := seenTraceIDs[traceKey]; !ok {
+			seenTraceIDs[traceKey] = struct{}{}
+			traceIDs = append(traceIDs, ev.traceID)
+		}
+
+		sessionKey := traceKey + "\x00" + ev.sessionID
+		if _, ok := seenTraceSessions[sessionKey]; ok {
+			continue
+		}
+		seenTraceSessions[sessionKey] = struct{}{}
+		traceSessions = append(traceSessions, observerdb.RefreshTraceSessionSummaryParams{
+			TraceID:   ev.traceID,
+			SessionID: ev.sessionID,
 		})
 	}
 
@@ -209,7 +230,7 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 		return fmt.Errorf("insert trace span payloads: %w", batchErr)
 	}
 
-	q.RefreshTraceSummary(ctx, uniqueTraceIDs(traces)).Exec(func(_ int, err error) {
+	q.RefreshTraceSummary(ctx, traceIDs).Exec(func(_ int, err error) {
 		if err != nil && batchErr == nil {
 			batchErr = err
 		}
@@ -218,19 +239,14 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 		return fmt.Errorf("upsert trace summaries: %w", batchErr)
 	}
 
-	return nil
-}
-
-func uniqueTraceIDs(traces []traceSpanEvent) [][]byte {
-	seen := map[string]struct{}{}
-	ids := make([][]byte, 0, len(traces))
-	for _, ev := range traces {
-		key := string(ev.traceID)
-		if _, ok := seen[key]; ok {
-			continue
+	q.RefreshTraceSessionSummary(ctx, traceSessions).Exec(func(_ int, err error) {
+		if err != nil && batchErr == nil {
+			batchErr = err
 		}
-		seen[key] = struct{}{}
-		ids = append(ids, ev.traceID)
+	})
+	if batchErr != nil {
+		return fmt.Errorf("upsert trace session summaries: %w", batchErr)
 	}
-	return ids
+
+	return nil
 }

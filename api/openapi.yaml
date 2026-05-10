@@ -63,6 +63,31 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/list-trace-sessions:
+    get:
+      operationId: listTraceSessions
+      summary: List paginated per-session trace summaries.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/StartedAfterQuery'
+      - $ref: '#/components/parameters/StartedBeforeQuery'
+      responses:
+        '200':
+          description: Paginated per-session trace summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTraceSessionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/list-spans:
     get:
       operationId: listSpans
@@ -791,6 +816,18 @@ components:
           type: string
       required: [traces, next_page_token]
 
+    ListTraceSessionsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        trace_sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TraceSession'
+        next_page_token:
+          type: string
+      required: [trace_sessions, next_page_token]
+
     Trace:
       type: object
       additionalProperties: false
@@ -811,6 +848,10 @@ components:
           type: integer
           format: int64
           minimum: 0
+        duration_ms:
+          type: number
+          format: double
+          minimum: 0
         span_count:
           type: integer
           format: int64
@@ -827,12 +868,6 @@ components:
           type: integer
           format: int64
           minimum: 0
-        run_id:
-          type: string
-        request_id:
-          type: string
-        conversation_id:
-          type: string
         input_tokens:
           type: integer
           format: int64
@@ -840,6 +875,18 @@ components:
         output_tokens:
           type: integer
           format: int64
+          minimum: 0
+        cached_input_tokens:
+          type: integer
+          format: int64
+          minimum: 0
+        cached_write_tokens:
+          type: integer
+          format: int64
+          minimum: 0
+        cost_usd:
+          type: number
+          format: double
           minimum: 0
         status_code:
           type: string
@@ -853,15 +900,104 @@ components:
       - started_at
       - ended_at
       - duration_ns
+      - duration_ms
       - span_count
       - error_count
       - tool_count
       - model_count
-      - run_id
-      - request_id
-      - conversation_id
       - input_tokens
       - output_tokens
+      - cached_input_tokens
+      - cached_write_tokens
+      - cost_usd
+      - status_code
+      - updated_at
+
+    TraceSession:
+      type: object
+      additionalProperties: false
+      properties:
+        trace_id:
+          $ref: '#/components/schemas/TraceID'
+        session_id:
+          type: string
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        root_span_id:
+          $ref: '#/components/schemas/OptionalSpanID'
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+        duration_ns:
+          type: integer
+          format: int64
+          minimum: 0
+        duration_ms:
+          type: number
+          format: double
+          minimum: 0
+        span_count:
+          type: integer
+          format: int64
+          minimum: 0
+        error_count:
+          type: integer
+          format: int64
+          minimum: 0
+        tool_count:
+          type: integer
+          format: int64
+          minimum: 0
+        model_count:
+          type: integer
+          format: int64
+          minimum: 0
+        input_tokens:
+          type: integer
+          format: int64
+          minimum: 0
+        output_tokens:
+          type: integer
+          format: int64
+          minimum: 0
+        cached_input_tokens:
+          type: integer
+          format: int64
+          minimum: 0
+        cached_write_tokens:
+          type: integer
+          format: int64
+          minimum: 0
+        cost_usd:
+          type: number
+          format: double
+          minimum: 0
+        status_code:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - trace_id
+      - session_id
+      - agent_name
+      - root_span_id
+      - started_at
+      - ended_at
+      - duration_ns
+      - duration_ms
+      - span_count
+      - error_count
+      - tool_count
+      - model_count
+      - input_tokens
+      - output_tokens
+      - cached_input_tokens
+      - cached_write_tokens
+      - cost_usd
       - status_code
       - updated_at
 
@@ -887,6 +1023,8 @@ components:
           minimum: 1
         agent_name:
           $ref: '#/components/schemas/AgentName'
+        session_id:
+          type: string
         trace_id:
           $ref: '#/components/schemas/TraceID'
         span_id:
@@ -903,7 +1041,13 @@ components:
           type: integer
           format: int64
           minimum: 0
+        duration_ms:
+          type: number
+          format: double
+          minimum: 0
         name:
+          type: string
+        span_class:
           type: string
         operation_name:
           type: string
@@ -914,12 +1058,6 @@ components:
         error_type:
           type: string
         error_message:
-          type: string
-        conversation_id:
-          type: string
-        run_id:
-          type: string
-        request_id:
           type: string
         model:
           type: string
@@ -937,13 +1075,15 @@ components:
           type: integer
           format: int64
           minimum: 0
-        time_to_first_token_ms:
+        cached_write_tokens:
+          type: integer
+          format: int64
+          minimum: 0
+        cost_usd:
           type: number
           format: double
           minimum: 0
-        pod_namespace:
-          type: string
-        pod_name:
+        llm_finish_reason:
           type: string
         ingested_at:
           type: string
@@ -951,30 +1091,44 @@ components:
       required:
       - id
       - agent_name
+      - session_id
       - trace_id
       - span_id
       - parent_span_id
       - start_time
       - end_time
       - duration_ns
+      - duration_ms
       - name
+      - span_class
       - operation_name
       - kind
       - status_code
       - error_type
       - error_message
-      - conversation_id
-      - run_id
-      - request_id
       - model
       - tool_name
       - input_tokens
       - output_tokens
       - cached_input_tokens
-      - time_to_first_token_ms
-      - pod_namespace
-      - pod_name
+      - cached_write_tokens
+      - cost_usd
+      - llm_finish_reason
       - ingested_at
+
+    SpanDetail:
+      allOf:
+      - $ref: '#/components/schemas/Span'
+      - type: object
+        additionalProperties: false
+        properties:
+          resource_attributes:
+            $ref: '#/components/schemas/JSONValue'
+          span_attributes:
+            $ref: '#/components/schemas/JSONValue'
+        required:
+        - resource_attributes
+        - span_attributes
 
     SpanPayload:
       type: object
@@ -988,21 +1142,18 @@ components:
           $ref: '#/components/schemas/JSONValue'
         tool_result:
           $ref: '#/components/schemas/JSONValue'
-        metadata:
-          $ref: '#/components/schemas/JSONValue'
       required:
       - input_messages
       - output_messages
       - tool_arguments
       - tool_result
-      - metadata
 
     SpanDetailResponse:
       type: object
       additionalProperties: false
       properties:
         span:
-          $ref: '#/components/schemas/Span'
+          $ref: '#/components/schemas/SpanDetail'
         payload:
           $ref: '#/components/schemas/SpanPayload'
       required: [span, payload]

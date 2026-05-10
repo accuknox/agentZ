@@ -22,7 +22,8 @@ type Querier interface {
 	GatewayListNetworkEventsAggregated(ctx context.Context, arg GatewayListNetworkEventsAggregatedParams) ([]GatewayListNetworkEventsAggregatedRow, error)
 	GatewayListProcessEvents(ctx context.Context, arg GatewayListProcessEventsParams) ([]ObserverProcessEvent, error)
 	GatewayListProcessEventsAggregated(ctx context.Context, arg GatewayListProcessEventsAggregatedParams) ([]GatewayListProcessEventsAggregatedRow, error)
-	GatewayListSpans(ctx context.Context, arg GatewayListSpansParams) ([]ObserverTraceSpan, error)
+	GatewayListSpans(ctx context.Context, arg GatewayListSpansParams) ([]GatewayListSpansRow, error)
+	GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]ObserverTraceSession, error)
 	GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]ObserverTrace, error)
 }
 

@@ -69,29 +69,31 @@ WITH span_row AS (
   SELECT
     id,
     agent_name,
+    session_id,
     trace_id,
     span_id,
     parent_span_id,
     start_time,
     end_time,
     duration_ns,
+    duration_ms,
     name,
+    span_class,
     operation_name,
     kind,
     status_code,
     error_type,
     error_message,
-    conversation_id,
-    run_id,
-    request_id,
     model,
     tool_name,
     input_tokens,
     output_tokens,
     cached_input_tokens,
-    time_to_first_token_ms,
-    pod_namespace,
-    pod_name,
+    cached_write_tokens,
+    cost_usd,
+    llm_finish_reason,
+    resource_attributes,
+    span_attributes,
     ingested_at
   FROM observer_trace_spans sp
   WHERE sp.agent_name = $1
@@ -103,35 +105,36 @@ WITH span_row AS (
 SELECT
   s.id,
   s.agent_name,
+  s.session_id,
   s.trace_id,
   s.span_id,
   s.parent_span_id,
   s.start_time,
   s.end_time,
   s.duration_ns,
+  s.duration_ms,
   s.name,
+  s.span_class,
   s.operation_name,
   s.kind,
   s.status_code,
   s.error_type,
   s.error_message,
-  s.conversation_id,
-  s.run_id,
-  s.request_id,
   s.model,
   s.tool_name,
   s.input_tokens,
   s.output_tokens,
   s.cached_input_tokens,
-  s.time_to_first_token_ms,
-  s.pod_namespace,
-  s.pod_name,
+  s.cached_write_tokens,
+  s.cost_usd,
+  s.llm_finish_reason,
+  s.resource_attributes,
+  s.span_attributes,
   s.ingested_at,
   COALESCE(p.input_messages, 'null'::jsonb) AS input_messages,
   COALESCE(p.output_messages, 'null'::jsonb) AS output_messages,
   COALESCE(p.tool_arguments, 'null'::jsonb) AS tool_arguments,
-  COALESCE(p.tool_result, 'null'::jsonb) AS tool_result,
-  COALESCE(p.metadata, '{}'::jsonb) AS metadata
+  COALESCE(p.tool_result, 'null'::jsonb) AS tool_result
 FROM span_row s
 LEFT JOIN observer_trace_span_payloads p
   ON p.trace_id = s.trace_id
@@ -148,35 +151,36 @@ type GatewayGetSpanDetailParams struct {
 type GatewayGetSpanDetailRow struct {
 	ID                 int64     `json:"id"`
 	AgentName          string    `json:"agent_name"`
+	SessionID          string    `json:"session_id"`
 	TraceID            []byte    `json:"trace_id"`
 	SpanID             []byte    `json:"span_id"`
 	ParentSpanID       []byte    `json:"parent_span_id"`
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
+	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
+	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`
 	Kind               string    `json:"kind"`
 	StatusCode         string    `json:"status_code"`
 	ErrorType          string    `json:"error_type"`
 	ErrorMessage       string    `json:"error_message"`
-	ConversationID     string    `json:"conversation_id"`
-	RunID              string    `json:"run_id"`
-	RequestID          string    `json:"request_id"`
 	Model              string    `json:"model"`
 	ToolName           string    `json:"tool_name"`
 	InputTokens        int64     `json:"input_tokens"`
 	OutputTokens       int64     `json:"output_tokens"`
 	CachedInputTokens  int64     `json:"cached_input_tokens"`
-	TimeToFirstTokenMs float64   `json:"time_to_first_token_ms"`
-	PodNamespace       string    `json:"pod_namespace"`
-	PodName            string    `json:"pod_name"`
+	CachedWriteTokens  int64     `json:"cached_write_tokens"`
+	CostUsd            float64   `json:"cost_usd"`
+	LlmFinishReason    string    `json:"llm_finish_reason"`
+	ResourceAttributes []byte    `json:"resource_attributes"`
+	SpanAttributes     []byte    `json:"span_attributes"`
 	IngestedAt         time.Time `json:"ingested_at"`
 	InputMessages      []byte    `json:"input_messages"`
 	OutputMessages     []byte    `json:"output_messages"`
 	ToolArguments      []byte    `json:"tool_arguments"`
 	ToolResult         []byte    `json:"tool_result"`
-	Metadata           []byte    `json:"metadata"`
 }
 
 func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error) {
@@ -185,35 +189,36 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 	err := row.Scan(
 		&i.ID,
 		&i.AgentName,
+		&i.SessionID,
 		&i.TraceID,
 		&i.SpanID,
 		&i.ParentSpanID,
 		&i.StartTime,
 		&i.EndTime,
 		&i.DurationNs,
+		&i.DurationMs,
 		&i.Name,
+		&i.SpanClass,
 		&i.OperationName,
 		&i.Kind,
 		&i.StatusCode,
 		&i.ErrorType,
 		&i.ErrorMessage,
-		&i.ConversationID,
-		&i.RunID,
-		&i.RequestID,
 		&i.Model,
 		&i.ToolName,
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.CachedInputTokens,
-		&i.TimeToFirstTokenMs,
-		&i.PodNamespace,
-		&i.PodName,
+		&i.CachedWriteTokens,
+		&i.CostUsd,
+		&i.LlmFinishReason,
+		&i.ResourceAttributes,
+		&i.SpanAttributes,
 		&i.IngestedAt,
 		&i.InputMessages,
 		&i.OutputMessages,
 		&i.ToolArguments,
 		&i.ToolResult,
-		&i.Metadata,
 	)
 	return i, err
 }
@@ -804,29 +809,29 @@ const gatewayListSpans = `-- name: GatewayListSpans :many
 SELECT
   id,
   agent_name,
+  session_id,
   trace_id,
   span_id,
   parent_span_id,
   start_time,
   end_time,
   duration_ns,
+  duration_ms,
   name,
+  span_class,
   operation_name,
   kind,
   status_code,
   error_type,
   error_message,
-  conversation_id,
-  run_id,
-  request_id,
   model,
   tool_name,
   input_tokens,
   output_tokens,
   cached_input_tokens,
-  time_to_first_token_ms,
-  pod_namespace,
-  pod_name,
+  cached_write_tokens,
+  cost_usd,
+  llm_finish_reason,
   ingested_at
 FROM observer_trace_spans
 WHERE agent_name = $1
@@ -852,7 +857,36 @@ type GatewayListSpansParams struct {
 	PageSize        int32     `json:"page_size"`
 }
 
-func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansParams) ([]ObserverTraceSpan, error) {
+type GatewayListSpansRow struct {
+	ID                int64     `json:"id"`
+	AgentName         string    `json:"agent_name"`
+	SessionID         string    `json:"session_id"`
+	TraceID           []byte    `json:"trace_id"`
+	SpanID            []byte    `json:"span_id"`
+	ParentSpanID      []byte    `json:"parent_span_id"`
+	StartTime         time.Time `json:"start_time"`
+	EndTime           time.Time `json:"end_time"`
+	DurationNs        int64     `json:"duration_ns"`
+	DurationMs        float64   `json:"duration_ms"`
+	Name              string    `json:"name"`
+	SpanClass         string    `json:"span_class"`
+	OperationName     string    `json:"operation_name"`
+	Kind              string    `json:"kind"`
+	StatusCode        string    `json:"status_code"`
+	ErrorType         string    `json:"error_type"`
+	ErrorMessage      string    `json:"error_message"`
+	Model             string    `json:"model"`
+	ToolName          string    `json:"tool_name"`
+	InputTokens       int64     `json:"input_tokens"`
+	OutputTokens      int64     `json:"output_tokens"`
+	CachedInputTokens int64     `json:"cached_input_tokens"`
+	CachedWriteTokens int64     `json:"cached_write_tokens"`
+	CostUsd           float64   `json:"cost_usd"`
+	LlmFinishReason   string    `json:"llm_finish_reason"`
+	IngestedAt        time.Time `json:"ingested_at"`
+}
+
+func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansParams) ([]GatewayListSpansRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListSpans,
 		arg.AgentName,
 		arg.TraceID,
@@ -865,36 +899,138 @@ func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansPara
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ObserverTraceSpan{}
+	items := []GatewayListSpansRow{}
 	for rows.Next() {
-		var i ObserverTraceSpan
+		var i GatewayListSpansRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentName,
+			&i.SessionID,
 			&i.TraceID,
 			&i.SpanID,
 			&i.ParentSpanID,
 			&i.StartTime,
 			&i.EndTime,
 			&i.DurationNs,
+			&i.DurationMs,
 			&i.Name,
+			&i.SpanClass,
 			&i.OperationName,
 			&i.Kind,
 			&i.StatusCode,
 			&i.ErrorType,
 			&i.ErrorMessage,
-			&i.ConversationID,
-			&i.RunID,
-			&i.RequestID,
 			&i.Model,
 			&i.ToolName,
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.CachedInputTokens,
-			&i.TimeToFirstTokenMs,
-			&i.PodNamespace,
-			&i.PodName,
+			&i.CachedWriteTokens,
+			&i.CostUsd,
+			&i.LlmFinishReason,
 			&i.IngestedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListTraceSessions = `-- name: GatewayListTraceSessions :many
+SELECT
+  trace_id,
+  session_id,
+  agent_name,
+  root_span_id,
+  started_at,
+  ended_at,
+  duration_ns,
+  duration_ms,
+  span_count,
+  error_count,
+  tool_count,
+  model_count,
+  input_tokens,
+  output_tokens,
+  cached_input_tokens,
+  cached_write_tokens,
+  cost_usd,
+  status_code,
+  updated_at
+FROM observer_trace_sessions
+WHERE agent_name = $1
+  AND started_at >= $2
+  AND started_at <= $3
+  AND (
+    NOT $4::bool
+    OR started_at < $5
+    OR (
+      started_at = $5
+      AND trace_id < $6
+    )
+    OR (
+      started_at = $5
+      AND trace_id = $6
+      AND session_id < $7
+    )
+  )
+ORDER BY started_at DESC, trace_id DESC, session_id DESC
+LIMIT $8
+`
+
+type GatewayListTraceSessionsParams struct {
+	AgentName       string    `json:"agent_name"`
+	StartedAfter    time.Time `json:"started_after"`
+	StartedBefore   time.Time `json:"started_before"`
+	CursorSet       bool      `json:"cursor_set"`
+	CursorStartedAt time.Time `json:"cursor_started_at"`
+	CursorTraceID   []byte    `json:"cursor_trace_id"`
+	CursorSessionID string    `json:"cursor_session_id"`
+	PageSize        int32     `json:"page_size"`
+}
+
+func (q *Queries) GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]ObserverTraceSession, error) {
+	rows, err := q.db.Query(ctx, gatewayListTraceSessions,
+		arg.AgentName,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.CursorSet,
+		arg.CursorStartedAt,
+		arg.CursorTraceID,
+		arg.CursorSessionID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ObserverTraceSession{}
+	for rows.Next() {
+		var i ObserverTraceSession
+		if err := rows.Scan(
+			&i.TraceID,
+			&i.SessionID,
+			&i.AgentName,
+			&i.RootSpanID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.DurationNs,
+			&i.DurationMs,
+			&i.SpanCount,
+			&i.ErrorCount,
+			&i.ToolCount,
+			&i.ModelCount,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CachedInputTokens,
+			&i.CachedWriteTokens,
+			&i.CostUsd,
+			&i.StatusCode,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -914,15 +1050,16 @@ SELECT
   started_at,
   ended_at,
   duration_ns,
+  duration_ms,
   span_count,
   error_count,
   tool_count,
   model_count,
-  run_id,
-  request_id,
-  conversation_id,
   input_tokens,
   output_tokens,
+  cached_input_tokens,
+  cached_write_tokens,
+  cost_usd,
   status_code,
   updated_at
 FROM observer_traces
@@ -975,15 +1112,16 @@ func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesPa
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.DurationNs,
+			&i.DurationMs,
 			&i.SpanCount,
 			&i.ErrorCount,
 			&i.ToolCount,
 			&i.ModelCount,
-			&i.RunID,
-			&i.RequestID,
-			&i.ConversationID,
 			&i.InputTokens,
 			&i.OutputTokens,
+			&i.CachedInputTokens,
+			&i.CachedWriteTokens,
+			&i.CostUsd,
 			&i.StatusCode,
 			&i.UpdatedAt,
 		); err != nil {

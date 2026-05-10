@@ -58,51 +58,76 @@ type ObserverProcessEvent struct {
 }
 
 type ObserverTrace struct {
-	TraceID        []byte    `json:"trace_id"`
-	AgentName      string    `json:"agent_name"`
-	RootSpanID     []byte    `json:"root_span_id"`
-	StartedAt      time.Time `json:"started_at"`
-	EndedAt        time.Time `json:"ended_at"`
-	DurationNs     int64     `json:"duration_ns"`
-	SpanCount      int64     `json:"span_count"`
-	ErrorCount     int64     `json:"error_count"`
-	ToolCount      int64     `json:"tool_count"`
-	ModelCount     int64     `json:"model_count"`
-	RunID          string    `json:"run_id"`
-	RequestID      string    `json:"request_id"`
-	ConversationID string    `json:"conversation_id"`
-	InputTokens    int64     `json:"input_tokens"`
-	OutputTokens   int64     `json:"output_tokens"`
-	StatusCode     string    `json:"status_code"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	TraceID           []byte    `json:"trace_id"`
+	AgentName         string    `json:"agent_name"`
+	RootSpanID        []byte    `json:"root_span_id"`
+	StartedAt         time.Time `json:"started_at"`
+	EndedAt           time.Time `json:"ended_at"`
+	DurationNs        int64     `json:"duration_ns"`
+	DurationMs        float64   `json:"duration_ms"`
+	SpanCount         int64     `json:"span_count"`
+	ErrorCount        int64     `json:"error_count"`
+	ToolCount         int64     `json:"tool_count"`
+	ModelCount        int64     `json:"model_count"`
+	InputTokens       int64     `json:"input_tokens"`
+	OutputTokens      int64     `json:"output_tokens"`
+	CachedInputTokens int64     `json:"cached_input_tokens"`
+	CachedWriteTokens int64     `json:"cached_write_tokens"`
+	CostUsd           float64   `json:"cost_usd"`
+	StatusCode        string    `json:"status_code"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type ObserverTraceSession struct {
+	TraceID           []byte    `json:"trace_id"`
+	SessionID         string    `json:"session_id"`
+	AgentName         string    `json:"agent_name"`
+	RootSpanID        []byte    `json:"root_span_id"`
+	StartedAt         time.Time `json:"started_at"`
+	EndedAt           time.Time `json:"ended_at"`
+	DurationNs        int64     `json:"duration_ns"`
+	DurationMs        float64   `json:"duration_ms"`
+	SpanCount         int64     `json:"span_count"`
+	ErrorCount        int64     `json:"error_count"`
+	ToolCount         int64     `json:"tool_count"`
+	ModelCount        int64     `json:"model_count"`
+	InputTokens       int64     `json:"input_tokens"`
+	OutputTokens      int64     `json:"output_tokens"`
+	CachedInputTokens int64     `json:"cached_input_tokens"`
+	CachedWriteTokens int64     `json:"cached_write_tokens"`
+	CostUsd           float64   `json:"cost_usd"`
+	StatusCode        string    `json:"status_code"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type ObserverTraceSpan struct {
 	ID                 int64     `json:"id"`
 	AgentName          string    `json:"agent_name"`
+	SessionID          string    `json:"session_id"`
 	TraceID            []byte    `json:"trace_id"`
 	SpanID             []byte    `json:"span_id"`
 	ParentSpanID       []byte    `json:"parent_span_id"`
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
+	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
+	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`
 	Kind               string    `json:"kind"`
 	StatusCode         string    `json:"status_code"`
 	ErrorType          string    `json:"error_type"`
 	ErrorMessage       string    `json:"error_message"`
-	ConversationID     string    `json:"conversation_id"`
-	RunID              string    `json:"run_id"`
-	RequestID          string    `json:"request_id"`
 	Model              string    `json:"model"`
 	ToolName           string    `json:"tool_name"`
 	InputTokens        int64     `json:"input_tokens"`
 	OutputTokens       int64     `json:"output_tokens"`
 	CachedInputTokens  int64     `json:"cached_input_tokens"`
-	TimeToFirstTokenMs float64   `json:"time_to_first_token_ms"`
-	PodNamespace       string    `json:"pod_namespace"`
-	PodName            string    `json:"pod_name"`
+	CachedWriteTokens  int64     `json:"cached_write_tokens"`
+	CostUsd            float64   `json:"cost_usd"`
+	LlmFinishReason    string    `json:"llm_finish_reason"`
+	ResourceAttributes []byte    `json:"resource_attributes"`
+	SpanAttributes     []byte    `json:"span_attributes"`
 	IngestedAt         time.Time `json:"ingested_at"`
 }
 
@@ -114,7 +139,6 @@ type ObserverTraceSpanPayload struct {
 	OutputMessages []byte    `json:"output_messages"`
 	ToolArguments  []byte    `json:"tool_arguments"`
 	ToolResult     []byte    `json:"tool_result"`
-	Metadata       []byte    `json:"metadata"`
 }
 
 type ObserverTraceSpanPayloadsDefault struct {
@@ -125,34 +149,35 @@ type ObserverTraceSpanPayloadsDefault struct {
 	OutputMessages []byte    `json:"output_messages"`
 	ToolArguments  []byte    `json:"tool_arguments"`
 	ToolResult     []byte    `json:"tool_result"`
-	Metadata       []byte    `json:"metadata"`
 }
 
 type ObserverTraceSpansDefault struct {
 	ID                 int64     `json:"id"`
 	AgentName          string    `json:"agent_name"`
+	SessionID          string    `json:"session_id"`
 	TraceID            []byte    `json:"trace_id"`
 	SpanID             []byte    `json:"span_id"`
 	ParentSpanID       []byte    `json:"parent_span_id"`
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
+	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
+	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`
 	Kind               string    `json:"kind"`
 	StatusCode         string    `json:"status_code"`
 	ErrorType          string    `json:"error_type"`
 	ErrorMessage       string    `json:"error_message"`
-	ConversationID     string    `json:"conversation_id"`
-	RunID              string    `json:"run_id"`
-	RequestID          string    `json:"request_id"`
 	Model              string    `json:"model"`
 	ToolName           string    `json:"tool_name"`
 	InputTokens        int64     `json:"input_tokens"`
 	OutputTokens       int64     `json:"output_tokens"`
 	CachedInputTokens  int64     `json:"cached_input_tokens"`
-	TimeToFirstTokenMs float64   `json:"time_to_first_token_ms"`
-	PodNamespace       string    `json:"pod_namespace"`
-	PodName            string    `json:"pod_name"`
+	CachedWriteTokens  int64     `json:"cached_write_tokens"`
+	CostUsd            float64   `json:"cost_usd"`
+	LlmFinishReason    string    `json:"llm_finish_reason"`
+	ResourceAttributes []byte    `json:"resource_attributes"`
+	SpanAttributes     []byte    `json:"span_attributes"`
 	IngestedAt         time.Time `json:"ingested_at"`
 }

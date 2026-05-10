@@ -341,13 +341,14 @@ func logStats(ctx context.Context, s *stats) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			vals := s.values()
 			slog.InfoContext(
 				ctx,
 				"observer stats",
-				slog.Uint64("received", atomic.LoadUint64(&s.received)),
-				slog.Uint64("filtered", atomic.LoadUint64(&s.filtered)),
-				slog.Uint64("flushed", atomic.LoadUint64(&s.flushed)),
-				slog.Uint64("failed", atomic.LoadUint64(&s.failed)),
+				slog.Uint64("received", vals.received),
+				slog.Uint64("filtered", vals.filtered),
+				slog.Uint64("flushed", vals.flushed),
+				slog.Uint64("failed", vals.failed),
 			)
 		}
 	}

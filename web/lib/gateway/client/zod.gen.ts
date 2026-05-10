@@ -87,6 +87,7 @@ export const zTrace = z.object({
   duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
+  duration_ms: z.number().gte(0),
   span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
@@ -99,15 +100,19 @@ export const zTrace = z.object({
   model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  run_id: z.string(),
-  request_id: z.string(),
-  conversation_id: z.string(),
   input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
   output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
+  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
   status_code: z.string(),
   updated_at: z.iso.datetime(),
 })
@@ -117,11 +122,57 @@ export const zListTracesResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zTraceSession = z.object({
+  trace_id: zTraceId,
+  session_id: z.string(),
+  agent_name: zAgentName,
+  root_span_id: zOptionalSpanId,
+  started_at: z.iso.datetime(),
+  ended_at: z.iso.datetime(),
+  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  duration_ms: z.number().gte(0),
+  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
+  status_code: z.string(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zListTraceSessionsResponse = z.object({
+  trace_sessions: z.array(zTraceSession),
+  next_page_token: z.string(),
+})
+
 export const zSpan = z.object({
   id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
   agent_name: zAgentName,
+  session_id: z.string(),
   trace_id: zTraceId,
   span_id: zSpanId,
   parent_span_id: zOptionalSpanId,
@@ -130,15 +181,14 @@ export const zSpan = z.object({
   duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
+  duration_ms: z.number().gte(0),
   name: z.string(),
+  span_class: z.string(),
   operation_name: z.string(),
   kind: z.string(),
   status_code: z.string(),
   error_type: z.string(),
   error_message: z.string(),
-  conversation_id: z.string(),
-  run_id: z.string(),
-  request_id: z.string(),
   model: z.string(),
   tool_name: z.string(),
   input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
@@ -150,9 +200,11 @@ export const zSpan = z.object({
   cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  time_to_first_token_ms: z.number().gte(0),
-  pod_namespace: z.string(),
-  pod_name: z.string(),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
+  llm_finish_reason: z.string(),
   ingested_at: z.iso.datetime(),
 })
 
@@ -295,16 +347,22 @@ export const zError = z.object({
   details: zJsonValue.optional(),
 })
 
+export const zSpanDetail = zSpan.and(
+  z.object({
+    resource_attributes: zJsonValue,
+    span_attributes: zJsonValue,
+  })
+)
+
 export const zSpanPayload = z.object({
   input_messages: zJsonValue,
   output_messages: zJsonValue,
   tool_arguments: zJsonValue,
   tool_result: zJsonValue,
-  metadata: zJsonValue,
 })
 
 export const zSpanDetailResponse = z.object({
-  span: zSpan,
+  span: zSpanDetail,
   payload: zSpanPayload,
 })
 
@@ -492,6 +550,19 @@ export const zListTracesQuery = z.object({
  * Paginated trace summaries.
  */
 export const zListTracesResponse2 = zListTracesResponse
+
+export const zListTraceSessionsQuery = z.object({
+  agent_name: zAgentName,
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  started_after: z.iso.datetime().optional(),
+  started_before: z.iso.datetime().optional(),
+})
+
+/**
+ * Paginated per-session trace summaries.
+ */
+export const zListTraceSessionsResponse2 = zListTraceSessionsResponse
 
 export const zListSpansQuery = z.object({
   agent_name: zAgentName,

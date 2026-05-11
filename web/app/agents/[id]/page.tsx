@@ -6,8 +6,8 @@ const initialHistoryLimit = 25
 export default async function ChatPage({ params }: PageProps<"/agents/[id]">) {
   const { id } = await params
   const initialHistory = await getChatHistoryAction({
+    agentName: id,
     limit: initialHistoryLimit,
-    session_id: id,
   })
 
   return (

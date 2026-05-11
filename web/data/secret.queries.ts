@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache"
 import { listSecrets } from "@/lib/gateway/client"
 import type { Error, SecretListItem } from "@/lib/gateway/client"
-import { secretsTag, sessionSecretsTag } from "@/data/cache"
+import { agentSecretsTag, secretsTag } from "@/data/cache"
 
 export type ListSecretsQueryResponse =
   | {
@@ -18,16 +18,16 @@ export type ListSecretsQueryResponse =
     }
 
 export async function listSecretsCachedQuery(
-  sessionID: string,
+  agentName: string,
   query?: { limit?: number; page_token?: string }
 ): Promise<ListSecretsQueryResponse> {
   "use cache"
 
   cacheLife("minutes")
-  cacheTag(secretsTag, sessionSecretsTag(sessionID))
+  cacheTag(secretsTag, agentSecretsTag(agentName))
 
   const result = await listSecrets({
-    path: { sessionID },
+    path: { agentName },
     query,
   })
 

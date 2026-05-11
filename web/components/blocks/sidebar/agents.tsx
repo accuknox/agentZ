@@ -44,7 +44,7 @@ export function NavAgentsSkeleton() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <SidebarMenuSub>
-              <SidebarMenuSubItem>
+              <SidebarMenuSubItem key="skeleton">
                 <SidebarMenuSkeleton />
                 <SidebarMenuSkeleton />
               </SidebarMenuSubItem>
@@ -67,18 +67,18 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
         initialValue: initialAgents,
         refetchMode: "reset",
         reducer: (agents, event) => {
-          const byID = new Map(agents.map((agent) => [agent.session_id, agent]))
+          const byName = new Map(agents.map((agent) => [agent.name, agent]))
 
           for (const agent of event.agents) {
             if (agent.status === "DELETED") {
-              byID.delete(agent.session_id)
+              byName.delete(agent.name)
               continue
             }
 
-            byID.set(agent.session_id, agent)
+            byName.set(agent.name, agent)
           }
 
-          return Array.from(byID.values()).sort((x, y) => {
+          return Array.from(byName.values()).sort((x, y) => {
             return (
               Date.parse(y.modified_at) - Date.parse(x.modified_at) || x.name.localeCompare(y.name)
             )
@@ -126,14 +126,20 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
           </SidebarMenuAction>
           <CollapsibleContent>
             <SidebarMenuSub>
-              {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
+              {error ? (
+                <SidebarMenuSubItem key="error">
+                  <p className="text-sm text-destructive">{error.message}</p>
+                </SidebarMenuSubItem>
+              ) : null}
               {!error && queryAgents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No agents</p>
+                <SidebarMenuSubItem key="empty">
+                  <p className="text-sm text-muted-foreground">No agents</p>
+                </SidebarMenuSubItem>
               ) : null}
               {queryAgents.map((agent) => (
-                <SidebarMenuSubItem key={agent.session_id}>
+                <SidebarMenuSubItem key={agent.name}>
                   <SidebarMenuSubButton asChild>
-                    <Link href={`/agents/${agent.session_id}`}>
+                    <Link href={`/agents/${agent.name}`}>
                       <AgentBadge status={agent.status} />
                       <span className="ml-1.5 truncate">{agent.name}</span>
                     </Link>
@@ -166,12 +172,6 @@ function AgentBadge({ status }: { status: AgentStatus }) {
           <Spinner aria-label="Provisioning" className="size-3" />
         </span>
       )
-    case "WORKING":
-      return (
-        <span className="shrink-0 text-chat-user">
-          <Spinner aria-label="Working" className="size-3" />
-        </span>
-      )
     case "DEGRADED":
       return (
         <span className="shrink-0 text-destructive">
@@ -185,16 +185,6 @@ function AgentBadge({ status }: { status: AgentStatus }) {
           role="status"
           className="size-1.5 shrink-0 rounded-full bg-chat-active"
         />
-      )
-    case "WAITING_FOR_HUMAN_INTERACTION":
-      return (
-        <span
-          aria-label="Waiting"
-          role="status"
-          className="relative size-1.5 shrink-0 rounded-full bg-foreground"
-        >
-          <span className="absolute inset-0 animate-ping rounded-full bg-foreground" />
-        </span>
       )
     default:
       return (

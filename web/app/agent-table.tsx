@@ -8,7 +8,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import type { ListAgent } from "@/lib/gateway/client"
+import type { Agent } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,9 +25,6 @@ import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
-  primaryModel: "min-w-40",
-  contextWindow: "w-32",
-  summaryModel: "min-w-40",
   created_at: "w-44",
   actions: "w-14",
 }
@@ -38,11 +35,11 @@ export function AgentTable({
   nextPageToken,
   deleteAgentAction,
 }: {
-  agents: ListAgent[]
+  agents: Agent[]
   hasNextPage: boolean
   nextPageToken: string
   deleteAgentAction: (
-    sessionID: string,
+    agentName: string,
     state: DeleteAgentFormState,
     formData: FormData
   ) => Promise<DeleteAgentFormState>

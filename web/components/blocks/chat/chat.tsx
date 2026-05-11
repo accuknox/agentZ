@@ -15,7 +15,7 @@ import {
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { Spinner } from "@/components/ui/spinner"
 import type { ChatHistoryActionResponse } from "@/data/types"
-import { sendMessageMutation } from "@/lib/gateway/client/@tanstack/react-query.gen"
+import { sessionPromptMutation } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { useMutation } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -24,15 +24,7 @@ import { useStickToBottomContext } from "use-stick-to-bottom"
 import { mergeChatMessages } from "./history"
 import { MessagePart } from "./message-parts"
 import { useChatHistory } from "./use-chat-history"
-import { useSessionStream } from "./use-session-stream"
 import type { ChatMessage } from "./types"
-
-const emptyMessages: ChatMessage[] = []
-
-type ActiveRequest = {
-  requestID: string
-  sessionID: string
-}
 
 type ChatProps = {
   id: string
@@ -44,15 +36,13 @@ type FetchOlderMessages = () => Promise<void>
 
 export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatProps) {
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
-  const [activeRequests, setActiveRequests] = useState<ActiveRequest[]>([])
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const stream = useSessionStream(id, !initialHistory.error)
-  const send = useMutation(sendMessageMutation())
+  const send = useMutation(sessionPromptMutation())
   const { error, isPending, mutateAsync } = send
   const history = useChatHistory({
+    agentName: id,
     initialData: initialHistory.data,
     limit: initialHistoryLimit,
-    sessionID: id,
   })
   const {
     error: historyError,
@@ -60,46 +50,23 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
     hasNextPage,
     isFetchingNextPage,
     messages: historyMessages,
+    refetch,
   } = history
-  const streamMessages = stream.data ?? emptyMessages
   const historyRequestIDs = useMemo(() => {
     return new Set(historyMessages.map((message) => message.requestID))
   }, [historyMessages])
-  const newStreamMessages = useMemo(() => {
-    return streamMessages.filter((message) => !historyRequestIDs.has(message.requestID))
-  }, [historyRequestIDs, streamMessages])
-  const streamRequestIDs = useMemo(() => {
-    return new Set(newStreamMessages.map((message) => message.requestID))
-  }, [newStreamMessages])
-  const displayedRequestIDs = useMemo(() => {
-    return new Set([...historyRequestIDs, ...streamRequestIDs])
-  }, [historyRequestIDs, streamRequestIDs])
-  const activeStreamMessage = streamMessages.find((message) => message.status === "streaming")
   const activePendingMessage = pendingMessages.find((message) => {
-    return !displayedRequestIDs.has(message.requestID)
-  })
-  const completedRequestIDs = useMemo(() => {
-    return new Set(
-      [...historyMessages, ...streamMessages]
-        .filter((message) => {
-          return message.role === "assistant" && message.status !== "streaming"
-        })
-        .map((message) => message.requestID)
-    )
-  }, [historyMessages, streamMessages])
-  const hasActiveRequest = activeRequests.some((request) => {
-    return request.sessionID === id && !completedRequestIDs.has(request.requestID)
+    return !historyRequestIDs.has(message.requestID)
   })
   const visibleMessages = useMemo(() => {
     const nextPendingMessages = pendingMessages.filter((message) => {
-      return !displayedRequestIDs.has(message.requestID)
+      return !historyRequestIDs.has(message.requestID)
     })
 
-    return mergeChatMessages(historyMessages, newStreamMessages, nextPendingMessages)
-  }, [displayedRequestIDs, historyMessages, newStreamMessages, pendingMessages])
-  const isWaiting = isPending || Boolean(activePendingMessage) || hasActiveRequest
-  const isWorking = isWaiting || Boolean(activeStreamMessage)
-  const submitStatus = isPending ? "submitted" : activeStreamMessage ? "streaming" : "ready"
+    return mergeChatMessages(historyMessages, nextPendingMessages)
+  }, [historyMessages, historyRequestIDs, pendingMessages])
+  const isWorking = isPending || Boolean(activePendingMessage)
+  const submitStatus = isPending ? "submitted" : "ready"
   const fetchOlderMessages = useCallback(async () => {
     if (!hasNextPage || isFetchingNextPage) {
       return
@@ -138,37 +105,27 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
       ])
 
       try {
-        const result = await mutateAsync({
-          body: { prompt, session_id: id },
+        await mutateAsync({
+          body: {
+            parts: [{ text: prompt, type: "text" }],
+          },
+          path: {
+            agentName: id,
+            sessionID: id,
+          },
         })
 
-        setActiveRequests((requests) => {
-          return [
-            ...requests.filter((request) => !completedRequestIDs.has(request.requestID)),
-            { requestID: result.request_id, sessionID: id },
-          ]
-        })
         setPendingMessages((messages) => {
-          return messages.map((message) => {
-            if (message.requestID !== optimisticID) {
-              return message
-            }
-
-            return {
-              ...message,
-              id: `${result.request_id}:user`,
-              requestID: result.request_id,
-              runID: result.run_id,
-            }
-          })
+          return messages.filter((message) => message.requestID !== optimisticID)
         })
+        await refetch()
       } catch (error) {
         setPendingMessages((messages) => {
           return messages.filter((message) => message.requestID !== optimisticID)
         })
       }
     },
-    [completedRequestIDs, id, isWorking, mutateAsync]
+    [id, isWorking, mutateAsync, refetch]
   )
 
   return (
@@ -220,7 +177,7 @@ export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatPr
           status={submitStatus}
         />
       </PromptInput>
-      {error ? <TranscriptAlert>{error.message}</TranscriptAlert> : null}
+      {error ? <TranscriptAlert>Request failed</TranscriptAlert> : null}
     </div>
   )
 }

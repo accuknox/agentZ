@@ -7,11 +7,17 @@ import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export function TelemetryTabs() {
   const searchParams = useSearchParams()
-  const sessionId = searchParams.get("session_id")
 
-  const href = (tab: string) => {
-    if (!sessionId) return tab
-    return `${tab}?session_id=${sessionId}`
+  const href = (tab: "process" | "file" | "network") => {
+    const next = new URLSearchParams(searchParams.toString())
+    const query = next.toString()
+    const path = `/lens/runtime-telemetry/${tab}`
+
+    if (!query) {
+      return path
+    }
+
+    return `${path}?${query}`
   }
 
   return (

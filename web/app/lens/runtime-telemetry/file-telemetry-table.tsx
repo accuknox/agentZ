@@ -4,6 +4,7 @@ import type { FileTelemetryActionData, FileTelemetryRow } from "@/data/types"
 import {
   TelemetryTable,
   ActionBadge,
+  TruncateCell,
   type TelemetryTableColumn,
 } from "@/app/lens/runtime-telemetry/telemetry-table"
 import { useTelemetryPagination } from "@/app/lens/runtime-telemetry/use-telemetry-pagination"
@@ -12,22 +13,14 @@ const columns: TelemetryTableColumn<FileTelemetryRow>[] = [
   {
     key: "filePath",
     header: "File Path Accessed",
-    className: "min-w-80",
-    render: (row) => (
-      <span className="max-w-[28rem] whitespace-normal break-all font-mono text-xs">
-        {row.filePath}
-      </span>
-    ),
+    className: "min-w-80 max-w-112",
+    render: (row) => <TruncateCell value={row.filePath} />,
   },
   {
     key: "process",
     header: "Process",
-    className: "min-w-72",
-    render: (row) => (
-      <span className="max-w-[28rem] whitespace-normal break-all font-mono text-xs">
-        {row.process}
-      </span>
-    ),
+    className: "min-w-72 max-w-112",
+    render: (row) => <TruncateCell value={row.process} />,
   },
   { key: "action", header: "Action", render: (row) => <ActionBadge action={row.action} /> },
   {

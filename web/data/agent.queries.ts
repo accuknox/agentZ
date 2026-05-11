@@ -1,21 +1,11 @@
 import { cacheLife, cacheTag } from "next/cache"
-import { listAgents, type Agent, type ListAgent, type ListAgentsData } from "@/lib/gateway/client"
-import type { ListAgentActionResponse, ListAgentWithConfigActionResponse } from "@/data/types"
+import { listAgents, type Agent, type ListAgentsData } from "@/lib/gateway/client"
+import type { ListAgentActionResponse } from "@/data/types"
 import { agentsTag } from "@/data/cache"
 
-export async function listAgentsCachedQuery(): Promise<ListAgentActionResponse>
 export async function listAgentsCachedQuery(
-  includeConfig: false,
   query?: ListAgentsData["query"]
-): Promise<ListAgentActionResponse>
-export async function listAgentsCachedQuery(
-  includeConfig: true,
-  query?: ListAgentsData["query"]
-): Promise<ListAgentWithConfigActionResponse>
-export async function listAgentsCachedQuery(
-  includeConfig = false,
-  query?: ListAgentsData["query"]
-) {
+): Promise<ListAgentActionResponse> {
   "use cache"
 
   cacheLife("minutes")
@@ -35,17 +25,8 @@ export async function listAgentsCachedQuery(
   const nextPageToken = result.data.next_page_token
   const hasNextPage = nextPageToken.length > 0
 
-  if (includeConfig) {
-    return {
-      agents,
-      nextPageToken,
-      hasNextPage,
-      error: undefined,
-    } satisfies ListAgentActionResponse<ListAgent>
-  }
-
   return {
-    agents: agents.map(({ configuration: _, ...agent }) => agent),
+    agents,
     nextPageToken,
     hasNextPage,
     error: undefined,

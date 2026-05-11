@@ -1,5 +1,3 @@
-import type { SessionStreamEvent } from "@/lib/gateway/client"
-
 export type ChatMessageStatus = "complete" | "error" | "interrupted" | "streaming"
 
 export type ChatMessage = {
@@ -38,12 +36,3 @@ export type ChatTool = {
   output?: unknown
   state: ChatToolState
 }
-
-export type AssistantDeltaEvent = Extract<
-  SessionStreamEvent,
-  { type: "EVENT_TYPE_ASSISTANT_DELTA" }
->
-
-export type ToolCallEvent = Extract<SessionStreamEvent, { type: "EVENT_TYPE_TOOL_CALL" }>
-
-export type ToolResultEvent = Extract<SessionStreamEvent, { type: "EVENT_TYPE_TOOL_RESULT" }>

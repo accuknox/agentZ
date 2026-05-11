@@ -32,24 +32,24 @@ const columnClassName: Record<string, string> = {
 }
 
 export function SecretTable({
-  sessionID,
+  agentName,
   secrets,
   hasNextPage,
   nextPageToken,
   deleteSecretAction,
   putSecretAction,
 }: {
-  sessionID: string
+  agentName: string
   secrets: SecretListItem[]
   hasNextPage: boolean
   nextPageToken: string
   deleteSecretAction: (
-    sessionID: string,
+    agentName: string,
     state: DeleteSecretFormState,
     formData: FormData
   ) => Promise<DeleteSecretFormState>
   putSecretAction: (
-    sessionID: string,
+    agentName: string,
     state: PutSecretFormState,
     formData: FormData
   ) => Promise<PutSecretFormState>
@@ -59,8 +59,8 @@ export function SecretTable({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const columns = React.useMemo(
-    () => createSecretColumns(sessionID, deleteSecretAction, putSecretAction),
-    [sessionID, deleteSecretAction, putSecretAction]
+    () => createSecretColumns(agentName, deleteSecretAction, putSecretAction),
+    [agentName, deleteSecretAction, putSecretAction]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

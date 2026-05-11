@@ -1,11 +1,5 @@
 import type * as z from "zod"
-import type {
-  Agent,
-  ChatHistoryResponse,
-  Environment,
-  Error,
-  ListAgent,
-} from "@/lib/gateway/client"
+import type { Agent, Environment, Error, SessionMessagesResponse } from "@/lib/gateway/client"
 import type {
   compactionSchema,
   createAgentFormSchema,
@@ -41,11 +35,9 @@ export type ListAgentActionResponse<TAgent = Agent> =
       error: Error
     }
 
-export type ListAgentWithConfigActionResponse = ListAgentActionResponse<ListAgent>
-
 export type ChatHistoryActionResponse =
   | {
-      data: ChatHistoryResponse
+      data: SessionMessagesResponse
       error: undefined
     }
   | {
@@ -54,8 +46,8 @@ export type ChatHistoryActionResponse =
     }
 
 export type TraceListItem = {
+  agentName: string
   traceId: string
-  sessionId: string
   startedAt: string
   endedAt: string
   startedDate: string
@@ -226,6 +218,7 @@ export type TraceChartActionResponse =
 
 export type SpanListItem = {
   id: number
+  agentName: string
   sessionId: string
   traceId: string
   spanId: string
@@ -236,15 +229,20 @@ export type SpanListItem = {
   durationMs: number
   displayName: string
   operationLabel: string
+  spanClass: string
+  kind: string
+  statusCode: string
+  llmFinishReason: string
   hasError: boolean
   error: string
-  timeToFirstToken: string
   spanType: "agent" | "model" | "tool" | "span"
   depth: number
   inputTokens: number
   cachedInputTokens: number
+  cachedWriteTokens: number
   outputTokens: number
   totalTokens: number
+  costUSD: number
   offsetPercent: number
   durationPercent: number
 }
@@ -276,6 +274,8 @@ export type SpanDetailPayloadSection = {
 export type SpanDetailActionData = {
   span: SpanListItem
   payload: SpanDetailPayloadSection[]
+  resourceAttributes: SpanDetailPayloadSection
+  spanAttributes: SpanDetailPayloadSection
 }
 
 export type SpanDetailActionResponse =

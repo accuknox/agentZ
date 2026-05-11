@@ -5,6 +5,28 @@ import * as z from "zod"
 import type { Client, Options as Options2, TDataShape } from "./client"
 import { client } from "./client.gen"
 import type {
+  AppAgentsData,
+  AppAgentsResponses,
+  AppLogData,
+  AppLogErrors,
+  AppLogResponses,
+  AppSkillsData,
+  AppSkillsResponses,
+  AuthRemoveData,
+  AuthRemoveErrors,
+  AuthRemoveResponses,
+  AuthSetData,
+  AuthSetErrors,
+  AuthSetResponses,
+  CommandListData,
+  CommandListResponses,
+  ConfigGetData,
+  ConfigGetResponses,
+  ConfigProvidersData,
+  ConfigProvidersResponses,
+  ConfigUpdateData,
+  ConfigUpdateErrors,
+  ConfigUpdateResponses,
   CreateAgentData,
   CreateAgentErrors,
   CreateAgentResponses,
@@ -20,9 +42,72 @@ import type {
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
+  EventSubscribeData,
+  EventSubscribeResponse,
+  EventSubscribeResponses,
+  ExperimentalConsoleGetData,
+  ExperimentalConsoleGetErrors,
+  ExperimentalConsoleGetResponses,
+  ExperimentalConsoleListOrgsData,
+  ExperimentalConsoleListOrgsErrors,
+  ExperimentalConsoleListOrgsResponses,
+  ExperimentalConsoleSwitchOrgData,
+  ExperimentalConsoleSwitchOrgResponses,
+  ExperimentalResourceListData,
+  ExperimentalResourceListResponses,
+  ExperimentalSessionListData,
+  ExperimentalSessionListResponses,
+  ExperimentalWorkspaceAdapterListData,
+  ExperimentalWorkspaceAdapterListResponses,
+  ExperimentalWorkspaceCreateData,
+  ExperimentalWorkspaceCreateErrors,
+  ExperimentalWorkspaceCreateResponses,
+  ExperimentalWorkspaceListData,
+  ExperimentalWorkspaceListResponses,
+  ExperimentalWorkspaceRemoveData,
+  ExperimentalWorkspaceRemoveErrors,
+  ExperimentalWorkspaceRemoveResponses,
+  ExperimentalWorkspaceStatusData,
+  ExperimentalWorkspaceStatusResponses,
+  ExperimentalWorkspaceSyncListData,
+  ExperimentalWorkspaceSyncListResponses,
+  ExperimentalWorkspaceWarpData,
+  ExperimentalWorkspaceWarpErrors,
+  ExperimentalWorkspaceWarpResponses,
+  FileListData,
+  FileListResponses,
+  FileReadData,
+  FileReadResponses,
+  FileStatusData,
+  FileStatusResponses,
+  FindFilesData,
+  FindFilesResponses,
+  FindSymbolsData,
+  FindSymbolsResponses,
+  FindTextData,
+  FindTextResponses,
+  FormatterStatusData,
+  FormatterStatusResponses,
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
+  GlobalConfigGetData,
+  GlobalConfigGetResponses,
+  GlobalConfigUpdateData,
+  GlobalConfigUpdateErrors,
+  GlobalConfigUpdateResponses,
+  GlobalDisposeData,
+  GlobalDisposeResponses,
+  GlobalEventData,
+  GlobalEventResponse,
+  GlobalEventResponses,
+  GlobalHealthData,
+  GlobalHealthResponses,
+  GlobalUpgradeData,
+  GlobalUpgradeErrors,
+  GlobalUpgradeResponses,
+  InstanceDisposeData,
+  InstanceDisposeResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
@@ -50,28 +135,341 @@ import type {
   ListTraceSessionsErrors,
   ListTraceSessionsResponses,
   ListTracesResponses,
+  LspStatusData,
+  LspStatusResponses,
+  McpAddData,
+  McpAddErrors,
+  McpAddResponses,
+  McpAuthAuthenticateData,
+  McpAuthAuthenticateErrors,
+  McpAuthAuthenticateResponses,
+  McpAuthCallbackData,
+  McpAuthCallbackErrors,
+  McpAuthCallbackResponses,
+  McpAuthRemoveData,
+  McpAuthRemoveErrors,
+  McpAuthRemoveResponses,
+  McpAuthStartData,
+  McpAuthStartErrors,
+  McpAuthStartResponses,
+  McpConnectData,
+  McpConnectResponses,
+  McpDisconnectData,
+  McpDisconnectResponses,
+  McpStatusData,
+  McpStatusResponses,
+  PartDeleteData,
+  PartDeleteErrors,
+  PartDeleteResponses,
+  PartUpdateData,
+  PartUpdateErrors,
+  PartUpdateResponses,
+  PathGetData,
+  PathGetResponses,
+  PermissionListData,
+  PermissionListResponses,
+  PermissionReplyData,
+  PermissionReplyErrors,
+  PermissionReplyResponses,
+  PermissionRespondData,
+  PermissionRespondErrors,
+  PermissionRespondResponses,
+  ProjectCurrentData,
+  ProjectCurrentResponses,
+  ProjectInitGitData,
+  ProjectInitGitResponses,
+  ProjectListData,
+  ProjectListResponses,
+  ProjectUpdateData,
+  ProjectUpdateErrors,
+  ProjectUpdateResponses,
+  ProviderAuthData,
+  ProviderAuthResponses,
+  ProviderListData,
+  ProviderListResponses,
+  ProviderOauthAuthorizeData,
+  ProviderOauthAuthorizeErrors,
+  ProviderOauthAuthorizeResponses,
+  ProviderOauthCallbackData,
+  ProviderOauthCallbackErrors,
+  ProviderOauthCallbackResponses,
+  PtyConnectData,
+  PtyConnectErrors,
+  PtyConnectResponses,
+  PtyConnectTokenData,
+  PtyConnectTokenErrors,
+  PtyConnectTokenResponses,
+  PtyCreateData,
+  PtyCreateErrors,
+  PtyCreateResponses,
+  PtyGetData,
+  PtyGetErrors,
+  PtyGetResponses,
+  PtyListData,
+  PtyListResponses,
+  PtyRemoveData,
+  PtyRemoveErrors,
+  PtyRemoveResponses,
+  PtyShellsData,
+  PtyShellsResponses,
+  PtyUpdateData,
+  PtyUpdateErrors,
+  PtyUpdateResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
+  QuestionListData,
+  QuestionListResponses,
+  QuestionRejectData,
+  QuestionRejectErrors,
+  QuestionRejectResponses,
+  QuestionReplyData,
+  QuestionReplyErrors,
+  QuestionReplyResponses,
+  SessionAbortData,
+  SessionAbortErrors,
+  SessionAbortResponses,
+  SessionChildrenData,
+  SessionChildrenErrors,
+  SessionChildrenResponses,
+  SessionCommandData,
+  SessionCommandErrors,
+  SessionCommandResponses,
+  SessionCreateData,
+  SessionCreateErrors,
+  SessionCreateResponses,
+  SessionDeleteData,
+  SessionDeleteErrors,
+  SessionDeleteMessageData,
+  SessionDeleteMessageErrors,
+  SessionDeleteMessageResponses,
+  SessionDeleteResponses,
+  SessionDiffData,
+  SessionDiffResponses,
+  SessionForkData,
+  SessionForkErrors,
+  SessionForkResponses,
+  SessionGetData,
+  SessionGetErrors,
+  SessionGetResponses,
+  SessionInitData,
+  SessionInitErrors,
+  SessionInitResponses,
+  SessionListData,
+  SessionListResponses,
+  SessionMessageData,
+  SessionMessageErrors,
+  SessionMessageResponses,
+  SessionMessagesData,
+  SessionMessagesErrors,
+  SessionMessagesResponses,
+  SessionPromptAsyncData,
+  SessionPromptAsyncErrors,
+  SessionPromptAsyncResponses,
+  SessionPromptData,
+  SessionPromptErrors,
+  SessionPromptResponses,
+  SessionRevertData,
+  SessionRevertErrors,
+  SessionRevertResponses,
+  SessionShareData,
+  SessionShareErrors,
+  SessionShareResponses,
+  SessionShellData,
+  SessionShellErrors,
+  SessionShellResponses,
+  SessionStatusData,
+  SessionStatusErrors,
+  SessionStatusResponses,
+  SessionSummarizeData,
+  SessionSummarizeErrors,
+  SessionSummarizeResponses,
+  SessionTodoData,
+  SessionTodoErrors,
+  SessionTodoResponses,
+  SessionUnrevertData,
+  SessionUnrevertErrors,
+  SessionUnrevertResponses,
+  SessionUnshareData,
+  SessionUnshareErrors,
+  SessionUnshareResponses,
+  SessionUpdateData,
+  SessionUpdateErrors,
+  SessionUpdateResponses,
+  SyncHistoryListData,
+  SyncHistoryListErrors,
+  SyncHistoryListResponses,
+  SyncReplayData,
+  SyncReplayErrors,
+  SyncReplayResponses,
+  SyncStartData,
+  SyncStartResponses,
+  SyncStealData,
+  SyncStealErrors,
+  SyncStealResponses,
+  ToolIdsData,
+  ToolIdsErrors,
+  ToolIdsResponses,
+  ToolListData,
+  ToolListErrors,
+  ToolListResponses,
+  TuiAppendPromptData,
+  TuiAppendPromptErrors,
+  TuiAppendPromptResponses,
+  TuiClearPromptData,
+  TuiClearPromptResponses,
+  TuiControlNextData,
+  TuiControlNextResponses,
+  TuiControlResponseData,
+  TuiControlResponseResponses,
+  TuiExecuteCommandData,
+  TuiExecuteCommandErrors,
+  TuiExecuteCommandResponses,
+  TuiOpenHelpData,
+  TuiOpenHelpResponses,
+  TuiOpenModelsData,
+  TuiOpenModelsResponses,
+  TuiOpenSessionsData,
+  TuiOpenSessionsResponses,
+  TuiOpenThemesData,
+  TuiOpenThemesResponses,
+  TuiPublishData,
+  TuiPublishErrors,
+  TuiPublishResponses,
+  TuiSelectSessionData,
+  TuiSelectSessionErrors,
+  TuiSelectSessionResponses,
+  TuiShowToastData,
+  TuiShowToastResponses,
+  TuiSubmitPromptData,
+  TuiSubmitPromptResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
   UpdateEnvironmentData,
   UpdateEnvironmentErrors,
   UpdateEnvironmentResponses,
+  V2SessionCompactData,
+  V2SessionCompactResponses,
+  V2SessionContextData,
+  V2SessionContextResponses,
+  V2SessionListData,
+  V2SessionListErrors,
+  V2SessionListResponses,
+  V2SessionMessagesData,
+  V2SessionMessagesErrors,
+  V2SessionMessagesResponses,
+  V2SessionPromptData,
+  V2SessionPromptResponses,
+  V2SessionWaitData,
+  V2SessionWaitResponses,
+  VcsApplyData,
+  VcsApplyErrors,
+  VcsApplyResponses,
+  VcsDiffData,
+  VcsDiffRawData,
+  VcsDiffRawResponses,
+  VcsDiffResponses,
+  VcsGetData,
+  VcsGetResponses,
+  VcsStatusData,
+  VcsStatusResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WorktreeCreateData,
+  WorktreeCreateErrors,
+  WorktreeCreateResponses,
+  WorktreeListData,
+  WorktreeListResponses,
+  WorktreeRemoveData,
+  WorktreeRemoveErrors,
+  WorktreeRemoveResponses,
+  WorktreeResetData,
+  WorktreeResetErrors,
+  WorktreeResetResponses,
 } from "./types.gen"
 import {
+  zAppAgentsPath,
+  zAppAgentsQuery,
+  zAppLogBody,
+  zAppLogPath,
+  zAppLogQuery,
+  zAppSkillsPath,
+  zAppSkillsQuery,
+  zAuthRemovePath,
+  zAuthSetBody,
+  zAuthSetPath,
+  zCommandListPath,
+  zCommandListQuery,
+  zConfigGetPath,
+  zConfigGetQuery,
+  zConfigProvidersPath,
+  zConfigProvidersQuery,
+  zConfigUpdateBody,
+  zConfigUpdatePath,
+  zConfigUpdateQuery,
   zCreateAgentBody,
   zCreateEnvironmentBody,
   zDeleteAgentBody,
   zDeleteEnvironmentBody,
   zDeleteSecretBody,
   zDeleteSecretPath,
+  zEventSubscribePath,
+  zEventSubscribeQuery,
+  zExperimentalConsoleGetPath,
+  zExperimentalConsoleGetQuery,
+  zExperimentalConsoleListOrgsPath,
+  zExperimentalConsoleListOrgsQuery,
+  zExperimentalConsoleSwitchOrgBody,
+  zExperimentalConsoleSwitchOrgPath,
+  zExperimentalConsoleSwitchOrgQuery,
+  zExperimentalResourceListPath,
+  zExperimentalResourceListQuery,
+  zExperimentalSessionListPath,
+  zExperimentalSessionListQuery,
+  zExperimentalWorkspaceAdapterListPath,
+  zExperimentalWorkspaceAdapterListQuery,
+  zExperimentalWorkspaceCreateBody,
+  zExperimentalWorkspaceCreatePath,
+  zExperimentalWorkspaceCreateQuery,
+  zExperimentalWorkspaceListPath,
+  zExperimentalWorkspaceListQuery,
+  zExperimentalWorkspaceRemovePath,
+  zExperimentalWorkspaceRemoveQuery,
+  zExperimentalWorkspaceStatusPath,
+  zExperimentalWorkspaceStatusQuery,
+  zExperimentalWorkspaceSyncListPath,
+  zExperimentalWorkspaceSyncListQuery,
+  zExperimentalWorkspaceWarpBody,
+  zExperimentalWorkspaceWarpPath,
+  zExperimentalWorkspaceWarpQuery,
+  zFileListPath,
+  zFileListQuery,
+  zFileReadPath,
+  zFileReadQuery,
+  zFileStatusPath,
+  zFileStatusQuery,
+  zFindFilesPath,
+  zFindFilesQuery,
+  zFindSymbolsPath,
+  zFindSymbolsQuery,
+  zFindTextPath,
+  zFindTextQuery,
+  zFormatterStatusPath,
+  zFormatterStatusQuery,
   zGetSpanDetailQuery,
+  zGlobalConfigGetPath,
+  zGlobalConfigUpdateBody,
+  zGlobalConfigUpdatePath,
+  zGlobalDisposePath,
+  zGlobalEventPath,
+  zGlobalHealthPath,
+  zGlobalUpgradeBody,
+  zGlobalUpgradePath,
+  zInstanceDisposePath,
+  zInstanceDisposeQuery,
   zListAgentsQuery,
   zListEnvironmentsQuery,
   zListFileObservabilityQuery,
@@ -82,13 +480,232 @@ import {
   zListSpansQuery,
   zListTraceSessionsQuery,
   zListTracesQuery,
+  zLspStatusPath,
+  zLspStatusQuery,
+  zMcpAddBody,
+  zMcpAddPath,
+  zMcpAddQuery,
+  zMcpAuthAuthenticatePath,
+  zMcpAuthAuthenticateQuery,
+  zMcpAuthCallbackBody,
+  zMcpAuthCallbackPath,
+  zMcpAuthCallbackQuery,
+  zMcpAuthRemovePath,
+  zMcpAuthRemoveQuery,
+  zMcpAuthStartPath,
+  zMcpAuthStartQuery,
+  zMcpConnectPath,
+  zMcpConnectQuery,
+  zMcpDisconnectPath,
+  zMcpDisconnectQuery,
+  zMcpStatusPath,
+  zMcpStatusQuery,
+  zPartDeletePath,
+  zPartDeleteQuery,
+  zPartUpdateBody,
+  zPartUpdatePath,
+  zPartUpdateQuery,
+  zPathGetPath,
+  zPathGetQuery,
+  zPermissionListPath,
+  zPermissionListQuery,
+  zPermissionReplyBody,
+  zPermissionReplyPath,
+  zPermissionReplyQuery,
+  zPermissionRespondBody,
+  zPermissionRespondPath,
+  zPermissionRespondQuery,
+  zProjectCurrentPath,
+  zProjectCurrentQuery,
+  zProjectInitGitPath,
+  zProjectInitGitQuery,
+  zProjectListPath,
+  zProjectListQuery,
+  zProjectUpdateBody,
+  zProjectUpdatePath,
+  zProjectUpdateQuery,
+  zProviderAuthPath,
+  zProviderAuthQuery,
+  zProviderListPath,
+  zProviderListQuery,
+  zProviderOauthAuthorizeBody,
+  zProviderOauthAuthorizePath,
+  zProviderOauthAuthorizeQuery,
+  zProviderOauthCallbackBody,
+  zProviderOauthCallbackPath,
+  zProviderOauthCallbackQuery,
+  zPtyConnectPath,
+  zPtyConnectQuery,
+  zPtyConnectTokenPath,
+  zPtyConnectTokenQuery,
+  zPtyCreateBody,
+  zPtyCreatePath,
+  zPtyCreateQuery,
+  zPtyGetPath,
+  zPtyGetQuery,
+  zPtyListPath,
+  zPtyListQuery,
+  zPtyRemovePath,
+  zPtyRemoveQuery,
+  zPtyShellsPath,
+  zPtyShellsQuery,
+  zPtyUpdateBody,
+  zPtyUpdatePath,
+  zPtyUpdateQuery,
   zPutSecretBody,
   zPutSecretPath,
+  zQuestionListPath,
+  zQuestionListQuery,
+  zQuestionRejectPath,
+  zQuestionRejectQuery,
+  zQuestionReplyBody,
+  zQuestionReplyPath,
+  zQuestionReplyQuery,
+  zSessionAbortPath,
+  zSessionAbortQuery,
+  zSessionChildrenPath,
+  zSessionChildrenQuery,
+  zSessionCommandBody,
+  zSessionCommandPath,
+  zSessionCommandQuery,
+  zSessionCreateBody,
+  zSessionCreatePath,
+  zSessionCreateQuery,
+  zSessionDeleteMessagePath,
+  zSessionDeleteMessageQuery,
+  zSessionDeletePath,
+  zSessionDeleteQuery,
+  zSessionDiffPath,
+  zSessionDiffQuery,
+  zSessionForkBody,
+  zSessionForkPath,
+  zSessionForkQuery,
+  zSessionGetPath,
+  zSessionGetQuery,
+  zSessionInitBody,
+  zSessionInitPath,
+  zSessionInitQuery,
+  zSessionListPath,
+  zSessionListQuery,
+  zSessionMessagePath,
+  zSessionMessageQuery,
+  zSessionMessagesPath,
+  zSessionMessagesQuery,
+  zSessionPromptAsyncBody,
+  zSessionPromptAsyncPath,
+  zSessionPromptAsyncQuery,
+  zSessionPromptBody,
+  zSessionPromptPath,
+  zSessionPromptQuery,
+  zSessionRevertBody,
+  zSessionRevertPath,
+  zSessionRevertQuery,
+  zSessionSharePath,
+  zSessionShareQuery,
+  zSessionShellBody,
+  zSessionShellPath,
+  zSessionShellQuery,
+  zSessionStatusPath,
+  zSessionStatusQuery,
+  zSessionSummarizeBody,
+  zSessionSummarizePath,
+  zSessionSummarizeQuery,
+  zSessionTodoPath,
+  zSessionTodoQuery,
+  zSessionUnrevertPath,
+  zSessionUnrevertQuery,
+  zSessionUnsharePath,
+  zSessionUnshareQuery,
+  zSessionUpdateBody,
+  zSessionUpdatePath,
+  zSessionUpdateQuery,
+  zSyncHistoryListBody,
+  zSyncHistoryListPath,
+  zSyncHistoryListQuery,
+  zSyncReplayBody,
+  zSyncReplayPath,
+  zSyncReplayQuery,
+  zSyncStartPath,
+  zSyncStartQuery,
+  zSyncStealBody,
+  zSyncStealPath,
+  zSyncStealQuery,
+  zToolIdsPath,
+  zToolIdsQuery,
+  zToolListPath,
+  zToolListQuery,
+  zTuiAppendPromptBody,
+  zTuiAppendPromptPath,
+  zTuiAppendPromptQuery,
+  zTuiClearPromptPath,
+  zTuiClearPromptQuery,
+  zTuiControlNextPath,
+  zTuiControlNextQuery,
+  zTuiControlResponseBody,
+  zTuiControlResponsePath,
+  zTuiControlResponseQuery,
+  zTuiExecuteCommandBody,
+  zTuiExecuteCommandPath,
+  zTuiExecuteCommandQuery,
+  zTuiOpenHelpPath,
+  zTuiOpenHelpQuery,
+  zTuiOpenModelsPath,
+  zTuiOpenModelsQuery,
+  zTuiOpenSessionsPath,
+  zTuiOpenSessionsQuery,
+  zTuiOpenThemesPath,
+  zTuiOpenThemesQuery,
+  zTuiPublishBody,
+  zTuiPublishPath,
+  zTuiPublishQuery,
+  zTuiSelectSessionBody,
+  zTuiSelectSessionPath,
+  zTuiSelectSessionQuery,
+  zTuiShowToastBody,
+  zTuiShowToastPath,
+  zTuiShowToastQuery,
+  zTuiSubmitPromptPath,
+  zTuiSubmitPromptQuery,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateEnvironmentBody,
   zUpdateEnvironmentPath,
+  zV2SessionCompactPath,
+  zV2SessionCompactQuery,
+  zV2SessionContextPath,
+  zV2SessionContextQuery,
+  zV2SessionListPath,
+  zV2SessionListQuery,
+  zV2SessionMessagesPath,
+  zV2SessionMessagesQuery,
+  zV2SessionPromptBody,
+  zV2SessionPromptPath,
+  zV2SessionPromptQuery,
+  zV2SessionWaitPath,
+  zV2SessionWaitQuery,
+  zVcsApplyBody,
+  zVcsApplyPath,
+  zVcsApplyQuery,
+  zVcsDiffPath,
+  zVcsDiffQuery,
+  zVcsDiffRawPath,
+  zVcsDiffRawQuery,
+  zVcsGetPath,
+  zVcsGetQuery,
+  zVcsStatusPath,
+  zVcsStatusQuery,
   zWatchAgentsBody,
+  zWorktreeCreateBody,
+  zWorktreeCreatePath,
+  zWorktreeCreateQuery,
+  zWorktreeListPath,
+  zWorktreeListQuery,
+  zWorktreeRemoveBody,
+  zWorktreeRemovePath,
+  zWorktreeRemoveQuery,
+  zWorktreeResetBody,
+  zWorktreeResetPath,
+  zWorktreeResetQuery,
 } from "./zod.gen"
 
 export type Options<
@@ -110,172 +727,6 @@ export type Options<
 }
 
 /**
- * List paginated agent summaries.
- */
-export const listAgents = <ThrowOnError extends boolean = false>(
-  options?: Options<ListAgentsData, ThrowOnError>
-) =>
-  (options?.client ?? client).get<ListAgentsResponses, ListAgentsErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zListAgentsQuery.optional(),
-        })
-        .parseAsync(data),
-    url: "/api/list-agents",
-    ...options,
-  })
-
-/**
- * List paginated trace summaries.
- */
-export const listTraces = <ThrowOnError extends boolean = false>(
-  options: Options<ListTracesData, ThrowOnError>
-) =>
-  (options.client ?? client).get<ListTracesResponses, ListTracesErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zListTracesQuery,
-        })
-        .parseAsync(data),
-    url: "/api/list-traces",
-    ...options,
-  })
-
-/**
- * List paginated per-session trace summaries.
- */
-export const listTraceSessions = <ThrowOnError extends boolean = false>(
-  options: Options<ListTraceSessionsData, ThrowOnError>
-) =>
-  (options.client ?? client).get<ListTraceSessionsResponses, ListTraceSessionsErrors, ThrowOnError>(
-    {
-      requestValidator: async (data) =>
-        await z
-          .object({
-            body: z.never().optional(),
-            path: z.never().optional(),
-            query: zListTraceSessionsQuery,
-          })
-          .parseAsync(data),
-      url: "/api/list-trace-sessions",
-      ...options,
-    }
-  )
-
-/**
- * List paginated spans for a trace.
- */
-export const listSpans = <ThrowOnError extends boolean = false>(
-  options: Options<ListSpansData, ThrowOnError>
-) =>
-  (options.client ?? client).get<ListSpansResponses, ListSpansErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zListSpansQuery,
-        })
-        .parseAsync(data),
-    url: "/api/list-spans",
-    ...options,
-  })
-
-/**
- * Get span details and correlated OS observability.
- */
-export const getSpanDetail = <ThrowOnError extends boolean = false>(
-  options: Options<GetSpanDetailData, ThrowOnError>
-) =>
-  (options.client ?? client).get<GetSpanDetailResponses, GetSpanDetailErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zGetSpanDetailQuery,
-        })
-        .parseAsync(data),
-    url: "/api/get-span-detail",
-    ...options,
-  })
-
-/**
- * List paginated process observability events.
- */
-export const listProcessObservability = <ThrowOnError extends boolean = false>(
-  options: Options<ListProcessObservabilityData, ThrowOnError>
-) =>
-  (options.client ?? client).get<
-    ListProcessObservabilityResponses,
-    ListProcessObservabilityErrors,
-    ThrowOnError
-  >({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zListProcessObservabilityQuery,
-        })
-        .parseAsync(data),
-    url: "/api/list-process-observability",
-    ...options,
-  })
-
-/**
- * List paginated file observability events.
- */
-export const listFileObservability = <ThrowOnError extends boolean = false>(
-  options: Options<ListFileObservabilityData, ThrowOnError>
-) =>
-  (options.client ?? client).get<
-    ListFileObservabilityResponses,
-    ListFileObservabilityErrors,
-    ThrowOnError
-  >({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zListFileObservabilityQuery,
-        })
-        .parseAsync(data),
-    url: "/api/list-file-observability",
-    ...options,
-  })
-
-/**
- * List paginated network observability events.
- */
-export const listNetworkObservability = <ThrowOnError extends boolean = false>(
-  options: Options<ListNetworkObservabilityData, ThrowOnError>
-) =>
-  (options.client ?? client).get<
-    ListNetworkObservabilityResponses,
-    ListNetworkObservabilityErrors,
-    ThrowOnError
-  >({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zListNetworkObservabilityQuery,
-        })
-        .parseAsync(data),
-    url: "/api/list-network-observability",
-    ...options,
-  })
-
-/**
  * Create an Agent resource.
  *
  * Creates an agent record and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
@@ -293,7 +744,7 @@ export const createAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/create-agent",
+    url: "/api/agent/create",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -316,12 +767,31 @@ export const deleteAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/delete-agent",
+    url: "/api/agent/delete",
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * List paginated agent summaries.
+ */
+export const listAgents = <ThrowOnError extends boolean = false>(
+  options?: Options<ListAgentsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListAgentsResponses, ListAgentsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListAgentsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/agent/list",
+    ...options,
   })
 
 /**
@@ -342,7 +812,7 @@ export const updateAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/update-agent/{agentName}",
+    url: "/api/agent/update/{agentName}",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -368,105 +838,12 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/watch-agents",
+    url: "/api/agent/watch",
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
     },
-  })
-
-/**
- * Store or overwrite secrets for an agent.
- *
- * Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges.
- *
- */
-export const putSecret = <ThrowOnError extends boolean = false>(
-  options: Options<PutSecretData, ThrowOnError>
-) =>
-  (options.client ?? client).post<PutSecretResponses, PutSecretErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: zPutSecretBody,
-          path: zPutSecretPath,
-          query: z.never().optional(),
-        })
-        .parseAsync(data),
-    url: "/api/secret/{agentName}/put",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Delete secrets for an agent.
- *
- * Deletes the specified secret keys for the agent. Missing keys are ignored.
- *
- */
-export const deleteSecret = <ThrowOnError extends boolean = false>(
-  options: Options<DeleteSecretData, ThrowOnError>
-) =>
-  (options.client ?? client).post<DeleteSecretResponses, DeleteSecretErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: zDeleteSecretBody,
-          path: zDeleteSecretPath,
-          query: z.never().optional(),
-        })
-        .parseAsync(data),
-    url: "/api/secret/{agentName}/delete",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * List secret keys for an agent.
- *
- * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
- *
- */
-export const listSecrets = <ThrowOnError extends boolean = false>(
-  options: Options<ListSecretsData, ThrowOnError>
-) =>
-  (options.client ?? client).get<ListSecretsResponses, ListSecretsErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: zListSecretsPath,
-          query: zListSecretsQuery.optional(),
-        })
-        .parseAsync(data),
-    url: "/api/secret/{agentName}/list",
-    ...options,
-  })
-
-/**
- * List paginated Environment resources.
- */
-export const listEnvironments = <ThrowOnError extends boolean = false>(
-  options?: Options<ListEnvironmentsData, ThrowOnError>
-) =>
-  (options?.client ?? client).get<ListEnvironmentsResponses, ListEnvironmentsErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zListEnvironmentsQuery.optional(),
-        })
-        .parseAsync(data),
-    url: "/api/environment/list",
-    ...options,
   })
 
 /**
@@ -524,6 +901,25 @@ export const deleteEnvironment = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated Environment resources.
+ */
+export const listEnvironments = <ThrowOnError extends boolean = false>(
+  options?: Options<ListEnvironmentsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListEnvironmentsResponses, ListEnvironmentsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListEnvironmentsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/environment/list",
+    ...options,
+  })
+
+/**
  * Update an Environment resource.
  *
  * Updates the packages list for an existing Environment. The name in the path identifies the Environment.
@@ -546,6 +942,3135 @@ export const updateEnvironment = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     url: "/api/environment/update/{name}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List paginated file observability events.
+ */
+export const listFileObservability = <ThrowOnError extends boolean = false>(
+  options: Options<ListFileObservabilityData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListFileObservabilityResponses,
+    ListFileObservabilityErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListFileObservabilityQuery,
+        })
+        .parseAsync(data),
+    url: "/api/lens/observability/file/list",
+    ...options,
+  })
+
+/**
+ * List paginated network observability events.
+ */
+export const listNetworkObservability = <ThrowOnError extends boolean = false>(
+  options: Options<ListNetworkObservabilityData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListNetworkObservabilityResponses,
+    ListNetworkObservabilityErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListNetworkObservabilityQuery,
+        })
+        .parseAsync(data),
+    url: "/api/lens/observability/network/list",
+    ...options,
+  })
+
+/**
+ * List paginated process observability events.
+ */
+export const listProcessObservability = <ThrowOnError extends boolean = false>(
+  options: Options<ListProcessObservabilityData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListProcessObservabilityResponses,
+    ListProcessObservabilityErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListProcessObservabilityQuery,
+        })
+        .parseAsync(data),
+    url: "/api/lens/observability/process/list",
+    ...options,
+  })
+
+/**
+ * Get span details and correlated OS observability.
+ */
+export const getSpanDetail = <ThrowOnError extends boolean = false>(
+  options: Options<GetSpanDetailData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetSpanDetailResponses, GetSpanDetailErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zGetSpanDetailQuery,
+        })
+        .parseAsync(data),
+    url: "/api/lens/span/detail",
+    ...options,
+  })
+
+/**
+ * List paginated spans for a trace.
+ */
+export const listSpans = <ThrowOnError extends boolean = false>(
+  options: Options<ListSpansData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListSpansResponses, ListSpansErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListSpansQuery,
+        })
+        .parseAsync(data),
+    url: "/api/lens/span/list",
+    ...options,
+  })
+
+/**
+ * List paginated trace summaries.
+ */
+export const listTraces = <ThrowOnError extends boolean = false>(
+  options: Options<ListTracesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListTracesResponses, ListTracesErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListTracesQuery,
+        })
+        .parseAsync(data),
+    url: "/api/lens/trace/list",
+    ...options,
+  })
+
+/**
+ * List paginated per-session trace summaries.
+ */
+export const listTraceSessions = <ThrowOnError extends boolean = false>(
+  options: Options<ListTraceSessionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListTraceSessionsResponses, ListTraceSessionsErrors, ThrowOnError>(
+    {
+      requestValidator: async (data) =>
+        await z
+          .object({
+            body: z.never().optional(),
+            path: z.never().optional(),
+            query: zListTraceSessionsQuery,
+          })
+          .parseAsync(data),
+      url: "/api/lens/trace/session/list",
+      ...options,
+    }
+  )
+
+/**
+ * List agents
+ *
+ * Get a list of all available AI agents in the OpenCode system.
+ */
+export const appAgents = <ThrowOnError extends boolean = false>(
+  options: Options<AppAgentsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<AppAgentsResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zAppAgentsPath,
+          query: zAppAgentsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/agent",
+    ...options,
+  })
+
+/**
+ * List v2 sessions
+ *
+ * Retrieve sessions in the requested order. Items keep that order across pages; use cursor.next or cursor.previous to move through the ordered list.
+ */
+export const v2SessionList = <ThrowOnError extends boolean = false>(
+  options: Options<V2SessionListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<V2SessionListResponses, V2SessionListErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zV2SessionListPath,
+          query: zV2SessionListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/api/session",
+    ...options,
+  })
+
+/**
+ * Compact v2 session
+ *
+ * Compact a v2 session conversation.
+ */
+export const v2SessionCompact = <ThrowOnError extends boolean = false>(
+  options: Options<V2SessionCompactData, ThrowOnError>
+) =>
+  (options.client ?? client).post<V2SessionCompactResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zV2SessionCompactPath,
+          query: zV2SessionCompactQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/api/session/{sessionID}/compact",
+    ...options,
+  })
+
+/**
+ * Get v2 session context
+ *
+ * Retrieve the active context messages for a v2 session (all messages after the last compaction).
+ */
+export const v2SessionContext = <ThrowOnError extends boolean = false>(
+  options: Options<V2SessionContextData, ThrowOnError>
+) =>
+  (options.client ?? client).get<V2SessionContextResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zV2SessionContextPath,
+          query: zV2SessionContextQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/api/session/{sessionID}/context",
+    ...options,
+  })
+
+/**
+ * Get v2 session messages
+ *
+ * Retrieve projected v2 messages for a session. Items keep the requested order across pages; use cursor.next or cursor.previous to move through the ordered timeline.
+ */
+export const v2SessionMessages = <ThrowOnError extends boolean = false>(
+  options: Options<V2SessionMessagesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<V2SessionMessagesResponses, V2SessionMessagesErrors, ThrowOnError>(
+    {
+      requestValidator: async (data) =>
+        await z
+          .object({
+            body: z.never().optional(),
+            path: zV2SessionMessagesPath,
+            query: zV2SessionMessagesQuery.optional(),
+          })
+          .parseAsync(data),
+      url: "/api/opencode/{agentName}/api/session/{sessionID}/message",
+      ...options,
+    }
+  )
+
+/**
+ * Send v2 message
+ *
+ * Create a v2 session message and queue it for the agent loop.
+ */
+export const v2SessionPrompt = <ThrowOnError extends boolean = false>(
+  options: Options<V2SessionPromptData, ThrowOnError>
+) =>
+  (options.client ?? client).post<V2SessionPromptResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zV2SessionPromptBody.optional(),
+          path: zV2SessionPromptPath,
+          query: zV2SessionPromptQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/api/session/{sessionID}/prompt",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Wait for v2 session
+ *
+ * Wait for a v2 session agent loop to become idle.
+ */
+export const v2SessionWait = <ThrowOnError extends boolean = false>(
+  options: Options<V2SessionWaitData, ThrowOnError>
+) =>
+  (options.client ?? client).post<V2SessionWaitResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zV2SessionWaitPath,
+          query: zV2SessionWaitQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/api/session/{sessionID}/wait",
+    ...options,
+  })
+
+/**
+ * Remove auth credentials
+ *
+ * Remove authentication credentials
+ */
+export const authRemove = <ThrowOnError extends boolean = false>(
+  options: Options<AuthRemoveData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<AuthRemoveResponses, AuthRemoveErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zAuthRemovePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/auth/{providerID}",
+    ...options,
+  })
+
+/**
+ * Set auth credentials
+ *
+ * Set authentication credentials
+ */
+export const authSet = <ThrowOnError extends boolean = false>(
+  options: Options<AuthSetData, ThrowOnError>
+) =>
+  (options.client ?? client).put<AuthSetResponses, AuthSetErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zAuthSetBody.optional(),
+          path: zAuthSetPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/auth/{providerID}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List commands
+ *
+ * Get a list of all available commands in the OpenCode system.
+ */
+export const commandList = <ThrowOnError extends boolean = false>(
+  options: Options<CommandListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<CommandListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zCommandListPath,
+          query: zCommandListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/command",
+    ...options,
+  })
+
+/**
+ * Get configuration
+ *
+ * Retrieve the current OpenCode configuration settings and preferences.
+ */
+export const configGet = <ThrowOnError extends boolean = false>(
+  options: Options<ConfigGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ConfigGetResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zConfigGetPath,
+          query: zConfigGetQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/config",
+    ...options,
+  })
+
+/**
+ * Update configuration
+ *
+ * Update OpenCode configuration settings and preferences.
+ */
+export const configUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<ConfigUpdateData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<ConfigUpdateResponses, ConfigUpdateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zConfigUpdateBody.optional(),
+          path: zConfigUpdatePath,
+          query: zConfigUpdateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/config",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List config providers
+ *
+ * Get a list of all configured AI providers and their default models.
+ */
+export const configProviders = <ThrowOnError extends boolean = false>(
+  options: Options<ConfigProvidersData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ConfigProvidersResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zConfigProvidersPath,
+          query: zConfigProvidersQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/config/providers",
+    ...options,
+  })
+
+/**
+ * Subscribe to events
+ *
+ * Get events
+ */
+export const eventSubscribe = <ThrowOnError extends boolean = false>(
+  options: Options<EventSubscribeData, ThrowOnError, EventSubscribeResponse>
+) =>
+  (options.client ?? client).sse.get<EventSubscribeResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zEventSubscribePath,
+          query: zEventSubscribeQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/event",
+    ...options,
+  })
+
+/**
+ * Get active Console provider metadata
+ *
+ * Get the active Console org name and the set of provider IDs managed by that Console org.
+ */
+export const experimentalConsoleGet = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalConsoleGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ExperimentalConsoleGetResponses,
+    ExperimentalConsoleGetErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalConsoleGetPath,
+          query: zExperimentalConsoleGetQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/console",
+    ...options,
+  })
+
+/**
+ * List switchable Console orgs
+ *
+ * Get the available Console orgs across logged-in accounts, including the current active org.
+ */
+export const experimentalConsoleListOrgs = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalConsoleListOrgsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ExperimentalConsoleListOrgsResponses,
+    ExperimentalConsoleListOrgsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalConsoleListOrgsPath,
+          query: zExperimentalConsoleListOrgsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/console/orgs",
+    ...options,
+  })
+
+/**
+ * Switch active Console org
+ *
+ * Persist a new active Console account/org selection for the current local OpenCode state.
+ */
+export const experimentalConsoleSwitchOrg = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalConsoleSwitchOrgData, ThrowOnError>
+) =>
+  (options.client ?? client).post<ExperimentalConsoleSwitchOrgResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zExperimentalConsoleSwitchOrgBody.optional(),
+          path: zExperimentalConsoleSwitchOrgPath,
+          query: zExperimentalConsoleSwitchOrgQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/console/switch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get MCP resources
+ *
+ * Get all available MCP resources from connected servers. Optionally filter by name.
+ */
+export const experimentalResourceList = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalResourceListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ExperimentalResourceListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalResourceListPath,
+          query: zExperimentalResourceListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/resource",
+    ...options,
+  })
+
+/**
+ * List sessions
+ *
+ * Get a list of all OpenCode sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
+ */
+export const experimentalSessionList = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalSessionListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ExperimentalSessionListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalSessionListPath,
+          query: zExperimentalSessionListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/session",
+    ...options,
+  })
+
+/**
+ * List tools
+ *
+ * Get a list of available tools with their JSON schema parameters for a specific provider and model combination.
+ */
+export const toolList = <ThrowOnError extends boolean = false>(
+  options: Options<ToolListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ToolListResponses, ToolListErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zToolListPath,
+          query: zToolListQuery,
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/tool",
+    ...options,
+  })
+
+/**
+ * List tool IDs
+ *
+ * Get a list of all available tool IDs, including both built-in tools and dynamically registered tools.
+ */
+export const toolIds = <ThrowOnError extends boolean = false>(
+  options: Options<ToolIdsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ToolIdsResponses, ToolIdsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zToolIdsPath,
+          query: zToolIdsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/tool/ids",
+    ...options,
+  })
+
+/**
+ * List workspaces
+ *
+ * List all workspaces.
+ */
+export const experimentalWorkspaceList = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalWorkspaceListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ExperimentalWorkspaceListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalWorkspaceListPath,
+          query: zExperimentalWorkspaceListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/workspace",
+    ...options,
+  })
+
+/**
+ * Create workspace
+ *
+ * Create a workspace for the current project.
+ */
+export const experimentalWorkspaceCreate = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalWorkspaceCreateData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ExperimentalWorkspaceCreateResponses,
+    ExperimentalWorkspaceCreateErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zExperimentalWorkspaceCreateBody.optional(),
+          path: zExperimentalWorkspaceCreatePath,
+          query: zExperimentalWorkspaceCreateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/workspace",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Remove workspace
+ *
+ * Remove an existing workspace.
+ */
+export const experimentalWorkspaceRemove = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalWorkspaceRemoveData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    ExperimentalWorkspaceRemoveResponses,
+    ExperimentalWorkspaceRemoveErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalWorkspaceRemovePath,
+          query: zExperimentalWorkspaceRemoveQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/workspace/{id}",
+    ...options,
+  })
+
+/**
+ * List workspace adapters
+ *
+ * List all available workspace adapters for the current project.
+ */
+export const experimentalWorkspaceAdapterList = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalWorkspaceAdapterListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ExperimentalWorkspaceAdapterListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalWorkspaceAdapterListPath,
+          query: zExperimentalWorkspaceAdapterListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/workspace/adapter",
+    ...options,
+  })
+
+/**
+ * Workspace status
+ *
+ * Get connection status for workspaces in the current project.
+ */
+export const experimentalWorkspaceStatus = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalWorkspaceStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ExperimentalWorkspaceStatusResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalWorkspaceStatusPath,
+          query: zExperimentalWorkspaceStatusQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/workspace/status",
+    ...options,
+  })
+
+/**
+ * Sync workspace list
+ *
+ * Register missing workspaces returned by workspace adapters.
+ */
+export const experimentalWorkspaceSyncList = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalWorkspaceSyncListData, ThrowOnError>
+) =>
+  (options.client ?? client).post<ExperimentalWorkspaceSyncListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zExperimentalWorkspaceSyncListPath,
+          query: zExperimentalWorkspaceSyncListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/workspace/sync-list",
+    ...options,
+  })
+
+/**
+ * Warp session into workspace
+ *
+ * Move a session's sync history into the target workspace, or detach it to the local project.
+ */
+export const experimentalWorkspaceWarp = <ThrowOnError extends boolean = false>(
+  options: Options<ExperimentalWorkspaceWarpData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ExperimentalWorkspaceWarpResponses,
+    ExperimentalWorkspaceWarpErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zExperimentalWorkspaceWarpBody.optional(),
+          path: zExperimentalWorkspaceWarpPath,
+          query: zExperimentalWorkspaceWarpQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/workspace/warp",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Remove worktree
+ *
+ * Remove a git worktree and delete its branch.
+ */
+export const worktreeRemove = <ThrowOnError extends boolean = false>(
+  options: Options<WorktreeRemoveData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<WorktreeRemoveResponses, WorktreeRemoveErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWorktreeRemoveBody.optional(),
+          path: zWorktreeRemovePath,
+          query: zWorktreeRemoveQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/worktree",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List worktrees
+ *
+ * List all sandbox worktrees for the current project.
+ */
+export const worktreeList = <ThrowOnError extends boolean = false>(
+  options: Options<WorktreeListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<WorktreeListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zWorktreeListPath,
+          query: zWorktreeListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/worktree",
+    ...options,
+  })
+
+/**
+ * Create worktree
+ *
+ * Create a new git worktree for the current project and run any configured startup scripts.
+ */
+export const worktreeCreate = <ThrowOnError extends boolean = false>(
+  options: Options<WorktreeCreateData, ThrowOnError>
+) =>
+  (options.client ?? client).post<WorktreeCreateResponses, WorktreeCreateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWorktreeCreateBody.optional(),
+          path: zWorktreeCreatePath,
+          query: zWorktreeCreateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/worktree",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Reset worktree
+ *
+ * Reset a worktree branch to the primary default branch.
+ */
+export const worktreeReset = <ThrowOnError extends boolean = false>(
+  options: Options<WorktreeResetData, ThrowOnError>
+) =>
+  (options.client ?? client).post<WorktreeResetResponses, WorktreeResetErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWorktreeResetBody.optional(),
+          path: zWorktreeResetPath,
+          query: zWorktreeResetQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/experimental/worktree/reset",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List files
+ *
+ * List files and directories in a specified path.
+ */
+export const fileList = <ThrowOnError extends boolean = false>(
+  options: Options<FileListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<FileListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zFileListPath,
+          query: zFileListQuery,
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/file",
+    ...options,
+  })
+
+/**
+ * Read file
+ *
+ * Read the content of a specified file.
+ */
+export const fileRead = <ThrowOnError extends boolean = false>(
+  options: Options<FileReadData, ThrowOnError>
+) =>
+  (options.client ?? client).get<FileReadResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zFileReadPath,
+          query: zFileReadQuery,
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/file/content",
+    ...options,
+  })
+
+/**
+ * Get file status
+ *
+ * Get the git status of all files in the project.
+ */
+export const fileStatus = <ThrowOnError extends boolean = false>(
+  options: Options<FileStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<FileStatusResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zFileStatusPath,
+          query: zFileStatusQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/file/status",
+    ...options,
+  })
+
+/**
+ * Find text
+ *
+ * Search for text patterns across files in the project using ripgrep.
+ */
+export const findText = <ThrowOnError extends boolean = false>(
+  options: Options<FindTextData, ThrowOnError>
+) =>
+  (options.client ?? client).get<FindTextResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zFindTextPath,
+          query: zFindTextQuery,
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/find",
+    ...options,
+  })
+
+/**
+ * Find files
+ *
+ * Search for files or directories by name or pattern in the project directory.
+ */
+export const findFiles = <ThrowOnError extends boolean = false>(
+  options: Options<FindFilesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<FindFilesResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zFindFilesPath,
+          query: zFindFilesQuery,
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/find/file",
+    ...options,
+  })
+
+/**
+ * Find symbols
+ *
+ * Search for workspace symbols like functions, classes, and variables using LSP.
+ */
+export const findSymbols = <ThrowOnError extends boolean = false>(
+  options: Options<FindSymbolsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<FindSymbolsResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zFindSymbolsPath,
+          query: zFindSymbolsQuery,
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/find/symbol",
+    ...options,
+  })
+
+/**
+ * Get formatter status
+ *
+ * Get formatter status
+ */
+export const formatterStatus = <ThrowOnError extends boolean = false>(
+  options: Options<FormatterStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<FormatterStatusResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zFormatterStatusPath,
+          query: zFormatterStatusQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/formatter",
+    ...options,
+  })
+
+/**
+ * Get global configuration
+ *
+ * Retrieve the current global OpenCode configuration settings and preferences.
+ */
+export const globalConfigGet = <ThrowOnError extends boolean = false>(
+  options: Options<GlobalConfigGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GlobalConfigGetResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGlobalConfigGetPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/global/config",
+    ...options,
+  })
+
+/**
+ * Update global configuration
+ *
+ * Update global OpenCode configuration settings and preferences.
+ */
+export const globalConfigUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<GlobalConfigUpdateData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    GlobalConfigUpdateResponses,
+    GlobalConfigUpdateErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zGlobalConfigUpdateBody.optional(),
+          path: zGlobalConfigUpdatePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/global/config",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Dispose instance
+ *
+ * Clean up and dispose all OpenCode instances, releasing all resources.
+ */
+export const globalDispose = <ThrowOnError extends boolean = false>(
+  options: Options<GlobalDisposeData, ThrowOnError>
+) =>
+  (options.client ?? client).post<GlobalDisposeResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGlobalDisposePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/global/dispose",
+    ...options,
+  })
+
+/**
+ * Get global events
+ *
+ * Subscribe to global events from the OpenCode system using server-sent events.
+ */
+export const globalEvent = <ThrowOnError extends boolean = false>(
+  options: Options<GlobalEventData, ThrowOnError, GlobalEventResponse>
+) =>
+  (options.client ?? client).sse.get<GlobalEventResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGlobalEventPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/global/event",
+    ...options,
+  })
+
+/**
+ * Get health
+ *
+ * Get health information about the OpenCode server.
+ */
+export const globalHealth = <ThrowOnError extends boolean = false>(
+  options: Options<GlobalHealthData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GlobalHealthResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGlobalHealthPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/global/health",
+    ...options,
+  })
+
+/**
+ * Upgrade opencode
+ *
+ * Upgrade opencode to the specified version or latest if not specified.
+ */
+export const globalUpgrade = <ThrowOnError extends boolean = false>(
+  options: Options<GlobalUpgradeData, ThrowOnError>
+) =>
+  (options.client ?? client).post<GlobalUpgradeResponses, GlobalUpgradeErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zGlobalUpgradeBody.optional(),
+          path: zGlobalUpgradePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/global/upgrade",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Dispose instance
+ *
+ * Clean up and dispose the current OpenCode instance, releasing all resources.
+ */
+export const instanceDispose = <ThrowOnError extends boolean = false>(
+  options: Options<InstanceDisposeData, ThrowOnError>
+) =>
+  (options.client ?? client).post<InstanceDisposeResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zInstanceDisposePath,
+          query: zInstanceDisposeQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/instance/dispose",
+    ...options,
+  })
+
+/**
+ * Write log
+ *
+ * Write a log entry to the server logs with specified level and metadata.
+ */
+export const appLog = <ThrowOnError extends boolean = false>(
+  options: Options<AppLogData, ThrowOnError>
+) =>
+  (options.client ?? client).post<AppLogResponses, AppLogErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zAppLogBody.optional(),
+          path: zAppLogPath,
+          query: zAppLogQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/log",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get LSP status
+ *
+ * Get LSP server status
+ */
+export const lspStatus = <ThrowOnError extends boolean = false>(
+  options: Options<LspStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<LspStatusResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zLspStatusPath,
+          query: zLspStatusQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/lsp",
+    ...options,
+  })
+
+/**
+ * Get MCP status
+ *
+ * Get the status of all Model Context Protocol (MCP) servers.
+ */
+export const mcpStatus = <ThrowOnError extends boolean = false>(
+  options: Options<McpStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<McpStatusResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zMcpStatusPath,
+          query: zMcpStatusQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp",
+    ...options,
+  })
+
+/**
+ * Add MCP server
+ *
+ * Dynamically add a new Model Context Protocol (MCP) server to the system.
+ */
+export const mcpAdd = <ThrowOnError extends boolean = false>(
+  options: Options<McpAddData, ThrowOnError>
+) =>
+  (options.client ?? client).post<McpAddResponses, McpAddErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zMcpAddBody.optional(),
+          path: zMcpAddPath,
+          query: zMcpAddQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Remove MCP OAuth
+ *
+ * Remove OAuth credentials for an MCP server.
+ */
+export const mcpAuthRemove = <ThrowOnError extends boolean = false>(
+  options: Options<McpAuthRemoveData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<McpAuthRemoveResponses, McpAuthRemoveErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zMcpAuthRemovePath,
+          query: zMcpAuthRemoveQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp/{name}/auth",
+    ...options,
+  })
+
+/**
+ * Start MCP OAuth
+ *
+ * Start OAuth authentication flow for a Model Context Protocol (MCP) server.
+ */
+export const mcpAuthStart = <ThrowOnError extends boolean = false>(
+  options: Options<McpAuthStartData, ThrowOnError>
+) =>
+  (options.client ?? client).post<McpAuthStartResponses, McpAuthStartErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zMcpAuthStartPath,
+          query: zMcpAuthStartQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp/{name}/auth",
+    ...options,
+  })
+
+/**
+ * Authenticate MCP OAuth
+ *
+ * Start OAuth flow and wait for callback (opens browser).
+ */
+export const mcpAuthAuthenticate = <ThrowOnError extends boolean = false>(
+  options: Options<McpAuthAuthenticateData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    McpAuthAuthenticateResponses,
+    McpAuthAuthenticateErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zMcpAuthAuthenticatePath,
+          query: zMcpAuthAuthenticateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp/{name}/auth/authenticate",
+    ...options,
+  })
+
+/**
+ * Complete MCP OAuth
+ *
+ * Complete OAuth authentication for a Model Context Protocol (MCP) server using the authorization code.
+ */
+export const mcpAuthCallback = <ThrowOnError extends boolean = false>(
+  options: Options<McpAuthCallbackData, ThrowOnError>
+) =>
+  (options.client ?? client).post<McpAuthCallbackResponses, McpAuthCallbackErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zMcpAuthCallbackBody.optional(),
+          path: zMcpAuthCallbackPath,
+          query: zMcpAuthCallbackQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp/{name}/auth/callback",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Connect an MCP server.
+ */
+export const mcpConnect = <ThrowOnError extends boolean = false>(
+  options: Options<McpConnectData, ThrowOnError>
+) =>
+  (options.client ?? client).post<McpConnectResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zMcpConnectPath,
+          query: zMcpConnectQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp/{name}/connect",
+    ...options,
+  })
+
+/**
+ * Disconnect an MCP server.
+ */
+export const mcpDisconnect = <ThrowOnError extends boolean = false>(
+  options: Options<McpDisconnectData, ThrowOnError>
+) =>
+  (options.client ?? client).post<McpDisconnectResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zMcpDisconnectPath,
+          query: zMcpDisconnectQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/mcp/{name}/disconnect",
+    ...options,
+  })
+
+/**
+ * Get paths
+ *
+ * Retrieve the current working directory and related path information for the OpenCode instance.
+ */
+export const pathGet = <ThrowOnError extends boolean = false>(
+  options: Options<PathGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<PathGetResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPathGetPath,
+          query: zPathGetQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/path",
+    ...options,
+  })
+
+/**
+ * List pending permissions
+ *
+ * Get all pending permission requests across all sessions.
+ */
+export const permissionList = <ThrowOnError extends boolean = false>(
+  options: Options<PermissionListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<PermissionListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPermissionListPath,
+          query: zPermissionListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/permission",
+    ...options,
+  })
+
+/**
+ * Respond to permission request
+ *
+ * Approve or deny a permission request from the AI assistant.
+ */
+export const permissionReply = <ThrowOnError extends boolean = false>(
+  options: Options<PermissionReplyData, ThrowOnError>
+) =>
+  (options.client ?? client).post<PermissionReplyResponses, PermissionReplyErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPermissionReplyBody.optional(),
+          path: zPermissionReplyPath,
+          query: zPermissionReplyQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/permission/{requestID}/reply",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List all projects
+ *
+ * Get a list of projects that have been opened with OpenCode.
+ */
+export const projectList = <ThrowOnError extends boolean = false>(
+  options: Options<ProjectListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ProjectListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zProjectListPath,
+          query: zProjectListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/project",
+    ...options,
+  })
+
+/**
+ * Update project
+ *
+ * Update project properties such as name, icon, and commands.
+ */
+export const projectUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<ProjectUpdateData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<ProjectUpdateResponses, ProjectUpdateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zProjectUpdateBody.optional(),
+          path: zProjectUpdatePath,
+          query: zProjectUpdateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/project/{projectID}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get current project
+ *
+ * Retrieve the currently active project that OpenCode is working with.
+ */
+export const projectCurrent = <ThrowOnError extends boolean = false>(
+  options: Options<ProjectCurrentData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ProjectCurrentResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zProjectCurrentPath,
+          query: zProjectCurrentQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/project/current",
+    ...options,
+  })
+
+/**
+ * Initialize git repository
+ *
+ * Create a git repository for the current project and return the refreshed project info.
+ */
+export const projectInitGit = <ThrowOnError extends boolean = false>(
+  options: Options<ProjectInitGitData, ThrowOnError>
+) =>
+  (options.client ?? client).post<ProjectInitGitResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zProjectInitGitPath,
+          query: zProjectInitGitQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/project/git/init",
+    ...options,
+  })
+
+/**
+ * List providers
+ *
+ * Get a list of all available AI providers, including both available and connected ones.
+ */
+export const providerList = <ThrowOnError extends boolean = false>(
+  options: Options<ProviderListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ProviderListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zProviderListPath,
+          query: zProviderListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/provider",
+    ...options,
+  })
+
+/**
+ * Start OAuth authorization
+ *
+ * Start the OAuth authorization flow for a provider.
+ */
+export const providerOauthAuthorize = <ThrowOnError extends boolean = false>(
+  options: Options<ProviderOauthAuthorizeData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ProviderOauthAuthorizeResponses,
+    ProviderOauthAuthorizeErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zProviderOauthAuthorizeBody.optional(),
+          path: zProviderOauthAuthorizePath,
+          query: zProviderOauthAuthorizeQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/provider/{providerID}/oauth/authorize",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Handle OAuth callback
+ *
+ * Handle the OAuth callback from a provider after user authorization.
+ */
+export const providerOauthCallback = <ThrowOnError extends boolean = false>(
+  options: Options<ProviderOauthCallbackData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ProviderOauthCallbackResponses,
+    ProviderOauthCallbackErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zProviderOauthCallbackBody.optional(),
+          path: zProviderOauthCallbackPath,
+          query: zProviderOauthCallbackQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/provider/{providerID}/oauth/callback",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get provider auth methods
+ *
+ * Retrieve available authentication methods for all AI providers.
+ */
+export const providerAuth = <ThrowOnError extends boolean = false>(
+  options: Options<ProviderAuthData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ProviderAuthResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zProviderAuthPath,
+          query: zProviderAuthQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/provider/auth",
+    ...options,
+  })
+
+/**
+ * List PTY sessions
+ *
+ * Get a list of all active pseudo-terminal (PTY) sessions managed by OpenCode.
+ */
+export const ptyList = <ThrowOnError extends boolean = false>(
+  options: Options<PtyListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<PtyListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPtyListPath,
+          query: zPtyListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty",
+    ...options,
+  })
+
+/**
+ * Create PTY session
+ *
+ * Create a new pseudo-terminal (PTY) session for running shell commands and processes.
+ */
+export const ptyCreate = <ThrowOnError extends boolean = false>(
+  options: Options<PtyCreateData, ThrowOnError>
+) =>
+  (options.client ?? client).post<PtyCreateResponses, PtyCreateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPtyCreateBody.optional(),
+          path: zPtyCreatePath,
+          query: zPtyCreateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Remove PTY session
+ *
+ * Remove and terminate a specific pseudo-terminal (PTY) session.
+ */
+export const ptyRemove = <ThrowOnError extends boolean = false>(
+  options: Options<PtyRemoveData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<PtyRemoveResponses, PtyRemoveErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPtyRemovePath,
+          query: zPtyRemoveQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty/{ptyID}",
+    ...options,
+  })
+
+/**
+ * Get PTY session
+ *
+ * Retrieve detailed information about a specific pseudo-terminal (PTY) session.
+ */
+export const ptyGet = <ThrowOnError extends boolean = false>(
+  options: Options<PtyGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<PtyGetResponses, PtyGetErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPtyGetPath,
+          query: zPtyGetQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty/{ptyID}",
+    ...options,
+  })
+
+/**
+ * Update PTY session
+ *
+ * Update properties of an existing pseudo-terminal (PTY) session.
+ */
+export const ptyUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<PtyUpdateData, ThrowOnError>
+) =>
+  (options.client ?? client).put<PtyUpdateResponses, PtyUpdateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPtyUpdateBody.optional(),
+          path: zPtyUpdatePath,
+          query: zPtyUpdateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty/{ptyID}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Connect to PTY session
+ *
+ * Establish a WebSocket connection to interact with a pseudo-terminal (PTY) session in real-time.
+ */
+export const ptyConnect = <ThrowOnError extends boolean = false>(
+  options: Options<PtyConnectData, ThrowOnError>
+) =>
+  (options.client ?? client).get<PtyConnectResponses, PtyConnectErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPtyConnectPath,
+          query: zPtyConnectQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty/{ptyID}/connect",
+    ...options,
+  })
+
+/**
+ * Create PTY WebSocket token
+ *
+ * Create a short-lived ticket for opening a PTY WebSocket connection.
+ */
+export const ptyConnectToken = <ThrowOnError extends boolean = false>(
+  options: Options<PtyConnectTokenData, ThrowOnError>
+) =>
+  (options.client ?? client).post<PtyConnectTokenResponses, PtyConnectTokenErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPtyConnectTokenPath,
+          query: zPtyConnectTokenQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty/{ptyID}/connect-token",
+    ...options,
+  })
+
+/**
+ * List available shells
+ *
+ * Get a list of available shells on the system.
+ */
+export const ptyShells = <ThrowOnError extends boolean = false>(
+  options: Options<PtyShellsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<PtyShellsResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPtyShellsPath,
+          query: zPtyShellsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/pty/shells",
+    ...options,
+  })
+
+/**
+ * List pending questions
+ *
+ * Get all pending question requests across all sessions.
+ */
+export const questionList = <ThrowOnError extends boolean = false>(
+  options: Options<QuestionListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<QuestionListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zQuestionListPath,
+          query: zQuestionListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/question",
+    ...options,
+  })
+
+/**
+ * Reject question request
+ *
+ * Reject a question request from the AI assistant.
+ */
+export const questionReject = <ThrowOnError extends boolean = false>(
+  options: Options<QuestionRejectData, ThrowOnError>
+) =>
+  (options.client ?? client).post<QuestionRejectResponses, QuestionRejectErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zQuestionRejectPath,
+          query: zQuestionRejectQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/question/{requestID}/reject",
+    ...options,
+  })
+
+/**
+ * Reply to question request
+ *
+ * Provide answers to a question request from the AI assistant.
+ */
+export const questionReply = <ThrowOnError extends boolean = false>(
+  options: Options<QuestionReplyData, ThrowOnError>
+) =>
+  (options.client ?? client).post<QuestionReplyResponses, QuestionReplyErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zQuestionReplyBody.optional(),
+          path: zQuestionReplyPath,
+          query: zQuestionReplyQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/question/{requestID}/reply",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List sessions
+ *
+ * Get a list of all OpenCode sessions, sorted by most recently updated.
+ */
+export const sessionList = <ThrowOnError extends boolean = false>(
+  options: Options<SessionListData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionListResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionListPath,
+          query: zSessionListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session",
+    ...options,
+  })
+
+/**
+ * Create session
+ *
+ * Create a new OpenCode session for interacting with AI assistants and managing conversations.
+ */
+export const sessionCreate = <ThrowOnError extends boolean = false>(
+  options: Options<SessionCreateData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionCreateResponses, SessionCreateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionCreateBody.optional(),
+          path: zSessionCreatePath,
+          query: zSessionCreateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete session
+ *
+ * Delete a session and permanently remove all associated data, including messages and history.
+ */
+export const sessionDelete = <ThrowOnError extends boolean = false>(
+  options: Options<SessionDeleteData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<SessionDeleteResponses, SessionDeleteErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionDeletePath,
+          query: zSessionDeleteQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}",
+    ...options,
+  })
+
+/**
+ * Get session
+ *
+ * Retrieve detailed information about a specific OpenCode session.
+ */
+export const sessionGet = <ThrowOnError extends boolean = false>(
+  options: Options<SessionGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionGetResponses, SessionGetErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionGetPath,
+          query: zSessionGetQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}",
+    ...options,
+  })
+
+/**
+ * Update session
+ *
+ * Update properties of an existing session, such as title or other metadata.
+ */
+export const sessionUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<SessionUpdateData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<SessionUpdateResponses, SessionUpdateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionUpdateBody.optional(),
+          path: zSessionUpdatePath,
+          query: zSessionUpdateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Abort session
+ *
+ * Abort an active session and stop any ongoing AI processing or command execution.
+ */
+export const sessionAbort = <ThrowOnError extends boolean = false>(
+  options: Options<SessionAbortData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionAbortResponses, SessionAbortErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionAbortPath,
+          query: zSessionAbortQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/abort",
+    ...options,
+  })
+
+/**
+ * Get session children
+ *
+ * Retrieve all child sessions that were forked from the specified parent session.
+ */
+export const sessionChildren = <ThrowOnError extends boolean = false>(
+  options: Options<SessionChildrenData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionChildrenResponses, SessionChildrenErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionChildrenPath,
+          query: zSessionChildrenQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/children",
+    ...options,
+  })
+
+/**
+ * Send command
+ *
+ * Send a new command to a session for execution by the AI assistant.
+ */
+export const sessionCommand = <ThrowOnError extends boolean = false>(
+  options: Options<SessionCommandData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionCommandResponses, SessionCommandErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionCommandBody.optional(),
+          path: zSessionCommandPath,
+          query: zSessionCommandQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/command",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get message diff
+ *
+ * Get the file changes (diff) that resulted from a specific user message in the session.
+ */
+export const sessionDiff = <ThrowOnError extends boolean = false>(
+  options: Options<SessionDiffData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionDiffResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionDiffPath,
+          query: zSessionDiffQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/diff",
+    ...options,
+  })
+
+/**
+ * Fork session
+ *
+ * Create a new session by forking an existing session at a specific message point.
+ */
+export const sessionFork = <ThrowOnError extends boolean = false>(
+  options: Options<SessionForkData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionForkResponses, SessionForkErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionForkBody.optional(),
+          path: zSessionForkPath,
+          query: zSessionForkQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/fork",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Initialize session
+ *
+ * Analyze the current application and create an AGENTS.md file with project-specific agent configurations.
+ */
+export const sessionInit = <ThrowOnError extends boolean = false>(
+  options: Options<SessionInitData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionInitResponses, SessionInitErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionInitBody.optional(),
+          path: zSessionInitPath,
+          query: zSessionInitQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/init",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get session messages
+ *
+ * Retrieve all messages in a session, including user prompts and AI responses.
+ */
+export const sessionMessages = <ThrowOnError extends boolean = false>(
+  options: Options<SessionMessagesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionMessagesResponses, SessionMessagesErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionMessagesPath,
+          query: zSessionMessagesQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/message",
+    ...options,
+  })
+
+/**
+ * Send message
+ *
+ * Create and send a new message to a session, streaming the AI response.
+ */
+export const sessionPrompt = <ThrowOnError extends boolean = false>(
+  options: Options<SessionPromptData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionPromptResponses, SessionPromptErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionPromptBody.optional(),
+          path: zSessionPromptPath,
+          query: zSessionPromptQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/message",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete message
+ *
+ * Permanently delete a specific message and all of its parts from a session without reverting file changes.
+ */
+export const sessionDeleteMessage = <ThrowOnError extends boolean = false>(
+  options: Options<SessionDeleteMessageData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    SessionDeleteMessageResponses,
+    SessionDeleteMessageErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionDeleteMessagePath,
+          query: zSessionDeleteMessageQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}",
+    ...options,
+  })
+
+/**
+ * Get message
+ *
+ * Retrieve a specific message from a session by its message ID.
+ */
+export const sessionMessage = <ThrowOnError extends boolean = false>(
+  options: Options<SessionMessageData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionMessageResponses, SessionMessageErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionMessagePath,
+          query: zSessionMessageQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}",
+    ...options,
+  })
+
+/**
+ * Delete a part from a message.
+ */
+export const partDelete = <ThrowOnError extends boolean = false>(
+  options: Options<PartDeleteData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<PartDeleteResponses, PartDeleteErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zPartDeletePath,
+          query: zPartDeleteQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID}",
+    ...options,
+  })
+
+/**
+ * Update a part in a message.
+ */
+export const partUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<PartUpdateData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<PartUpdateResponses, PartUpdateErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPartUpdateBody.optional(),
+          path: zPartUpdatePath,
+          query: zPartUpdateQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Respond to permission
+ *
+ * Approve or deny a permission request from the AI assistant.
+ *
+ * @deprecated
+ */
+export const permissionRespond = <ThrowOnError extends boolean = false>(
+  options: Options<PermissionRespondData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PermissionRespondResponses,
+    PermissionRespondErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPermissionRespondBody.optional(),
+          path: zPermissionRespondPath,
+          query: zPermissionRespondQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Send async message
+ *
+ * Create and send a new message to a session asynchronously, starting the session if needed and returning immediately.
+ */
+export const sessionPromptAsync = <ThrowOnError extends boolean = false>(
+  options: Options<SessionPromptAsyncData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    SessionPromptAsyncResponses,
+    SessionPromptAsyncErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionPromptAsyncBody.optional(),
+          path: zSessionPromptAsyncPath,
+          query: zSessionPromptAsyncQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/prompt_async",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Revert message
+ *
+ * Revert a specific message in a session, undoing its effects and restoring the previous state.
+ */
+export const sessionRevert = <ThrowOnError extends boolean = false>(
+  options: Options<SessionRevertData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionRevertResponses, SessionRevertErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionRevertBody.optional(),
+          path: zSessionRevertPath,
+          query: zSessionRevertQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/revert",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Unshare session
+ *
+ * Remove the shareable link for a session, making it private again.
+ */
+export const sessionUnshare = <ThrowOnError extends boolean = false>(
+  options: Options<SessionUnshareData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<SessionUnshareResponses, SessionUnshareErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionUnsharePath,
+          query: zSessionUnshareQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/share",
+    ...options,
+  })
+
+/**
+ * Share session
+ *
+ * Create a shareable link for a session, allowing others to view the conversation.
+ */
+export const sessionShare = <ThrowOnError extends boolean = false>(
+  options: Options<SessionShareData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionShareResponses, SessionShareErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionSharePath,
+          query: zSessionShareQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/share",
+    ...options,
+  })
+
+/**
+ * Run shell command
+ *
+ * Execute a shell command within the session context and return the AI's response.
+ */
+export const sessionShell = <ThrowOnError extends boolean = false>(
+  options: Options<SessionShellData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionShellResponses, SessionShellErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionShellBody.optional(),
+          path: zSessionShellPath,
+          query: zSessionShellQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/shell",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Summarize session
+ *
+ * Generate a concise summary of the session using AI compaction to preserve key information.
+ */
+export const sessionSummarize = <ThrowOnError extends boolean = false>(
+  options: Options<SessionSummarizeData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionSummarizeResponses, SessionSummarizeErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSessionSummarizeBody.optional(),
+          path: zSessionSummarizePath,
+          query: zSessionSummarizeQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/summarize",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get session todos
+ *
+ * Retrieve the todo list associated with a specific session, showing tasks and action items.
+ */
+export const sessionTodo = <ThrowOnError extends boolean = false>(
+  options: Options<SessionTodoData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionTodoResponses, SessionTodoErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionTodoPath,
+          query: zSessionTodoQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/todo",
+    ...options,
+  })
+
+/**
+ * Restore reverted messages
+ *
+ * Restore all previously reverted messages in a session.
+ */
+export const sessionUnrevert = <ThrowOnError extends boolean = false>(
+  options: Options<SessionUnrevertData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SessionUnrevertResponses, SessionUnrevertErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionUnrevertPath,
+          query: zSessionUnrevertQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/{sessionID}/unrevert",
+    ...options,
+  })
+
+/**
+ * Get session status
+ *
+ * Retrieve the current status of all sessions, including active, idle, and completed states.
+ */
+export const sessionStatus = <ThrowOnError extends boolean = false>(
+  options: Options<SessionStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<SessionStatusResponses, SessionStatusErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSessionStatusPath,
+          query: zSessionStatusQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/session/status",
+    ...options,
+  })
+
+/**
+ * List skills
+ *
+ * Get a list of all available skills in the OpenCode system.
+ */
+export const appSkills = <ThrowOnError extends boolean = false>(
+  options: Options<AppSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<AppSkillsResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zAppSkillsPath,
+          query: zAppSkillsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/skill",
+    ...options,
+  })
+
+/**
+ * List sync events
+ *
+ * List sync events for all aggregates. Keys are aggregate IDs the client already knows about, values are the last known sequence ID. Events with seq > value are returned for those aggregates. Aggregates not listed in the input get their full history.
+ */
+export const syncHistoryList = <ThrowOnError extends boolean = false>(
+  options: Options<SyncHistoryListData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SyncHistoryListResponses, SyncHistoryListErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSyncHistoryListBody.optional(),
+          path: zSyncHistoryListPath,
+          query: zSyncHistoryListQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/sync/history",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Replay sync events
+ *
+ * Validate and replay a complete sync event history.
+ */
+export const syncReplay = <ThrowOnError extends boolean = false>(
+  options: Options<SyncReplayData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SyncReplayResponses, SyncReplayErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSyncReplayBody.optional(),
+          path: zSyncReplayPath,
+          query: zSyncReplayQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/sync/replay",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Start workspace sync
+ *
+ * Start sync loops for workspaces in the current project that have active sessions.
+ */
+export const syncStart = <ThrowOnError extends boolean = false>(
+  options: Options<SyncStartData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SyncStartResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zSyncStartPath,
+          query: zSyncStartQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/sync/start",
+    ...options,
+  })
+
+/**
+ * Steal session into workspace
+ *
+ * Update a session to belong to the current workspace through the sync event system.
+ */
+export const syncSteal = <ThrowOnError extends boolean = false>(
+  options: Options<SyncStealData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SyncStealResponses, SyncStealErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSyncStealBody.optional(),
+          path: zSyncStealPath,
+          query: zSyncStealQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/sync/steal",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Append TUI prompt
+ *
+ * Append prompt to the TUI.
+ */
+export const tuiAppendPrompt = <ThrowOnError extends boolean = false>(
+  options: Options<TuiAppendPromptData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiAppendPromptResponses, TuiAppendPromptErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTuiAppendPromptBody.optional(),
+          path: zTuiAppendPromptPath,
+          query: zTuiAppendPromptQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/append-prompt",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Clear TUI prompt
+ *
+ * Clear the prompt.
+ */
+export const tuiClearPrompt = <ThrowOnError extends boolean = false>(
+  options: Options<TuiClearPromptData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiClearPromptResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zTuiClearPromptPath,
+          query: zTuiClearPromptQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/clear-prompt",
+    ...options,
+  })
+
+/**
+ * Get next TUI request
+ *
+ * Retrieve the next TUI request from the queue for processing.
+ */
+export const tuiControlNext = <ThrowOnError extends boolean = false>(
+  options: Options<TuiControlNextData, ThrowOnError>
+) =>
+  (options.client ?? client).get<TuiControlNextResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zTuiControlNextPath,
+          query: zTuiControlNextQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/control/next",
+    ...options,
+  })
+
+/**
+ * Submit TUI response
+ *
+ * Submit a response to the TUI request queue to complete a pending request.
+ */
+export const tuiControlResponse = <ThrowOnError extends boolean = false>(
+  options: Options<TuiControlResponseData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiControlResponseResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTuiControlResponseBody.optional(),
+          path: zTuiControlResponsePath,
+          query: zTuiControlResponseQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/control/response",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Execute TUI command
+ *
+ * Execute a TUI command.
+ */
+export const tuiExecuteCommand = <ThrowOnError extends boolean = false>(
+  options: Options<TuiExecuteCommandData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    TuiExecuteCommandResponses,
+    TuiExecuteCommandErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTuiExecuteCommandBody.optional(),
+          path: zTuiExecuteCommandPath,
+          query: zTuiExecuteCommandQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/execute-command",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Open help dialog
+ *
+ * Open the help dialog in the TUI to display user assistance information.
+ */
+export const tuiOpenHelp = <ThrowOnError extends boolean = false>(
+  options: Options<TuiOpenHelpData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiOpenHelpResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zTuiOpenHelpPath,
+          query: zTuiOpenHelpQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/open-help",
+    ...options,
+  })
+
+/**
+ * Open models dialog
+ *
+ * Open the model dialog.
+ */
+export const tuiOpenModels = <ThrowOnError extends boolean = false>(
+  options: Options<TuiOpenModelsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiOpenModelsResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zTuiOpenModelsPath,
+          query: zTuiOpenModelsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/open-models",
+    ...options,
+  })
+
+/**
+ * Open sessions dialog
+ *
+ * Open the session dialog.
+ */
+export const tuiOpenSessions = <ThrowOnError extends boolean = false>(
+  options: Options<TuiOpenSessionsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiOpenSessionsResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zTuiOpenSessionsPath,
+          query: zTuiOpenSessionsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/open-sessions",
+    ...options,
+  })
+
+/**
+ * Open themes dialog
+ *
+ * Open the theme dialog.
+ */
+export const tuiOpenThemes = <ThrowOnError extends boolean = false>(
+  options: Options<TuiOpenThemesData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiOpenThemesResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zTuiOpenThemesPath,
+          query: zTuiOpenThemesQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/open-themes",
+    ...options,
+  })
+
+/**
+ * Publish TUI event
+ *
+ * Publish a TUI event.
+ */
+export const tuiPublish = <ThrowOnError extends boolean = false>(
+  options: Options<TuiPublishData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiPublishResponses, TuiPublishErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTuiPublishBody.optional(),
+          path: zTuiPublishPath,
+          query: zTuiPublishQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/publish",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Select session
+ *
+ * Navigate the TUI to display the specified session.
+ */
+export const tuiSelectSession = <ThrowOnError extends boolean = false>(
+  options: Options<TuiSelectSessionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiSelectSessionResponses, TuiSelectSessionErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTuiSelectSessionBody.optional(),
+          path: zTuiSelectSessionPath,
+          query: zTuiSelectSessionQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/select-session",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Show TUI toast
+ *
+ * Show a toast notification in the TUI.
+ */
+export const tuiShowToast = <ThrowOnError extends boolean = false>(
+  options: Options<TuiShowToastData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiShowToastResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTuiShowToastBody.optional(),
+          path: zTuiShowToastPath,
+          query: zTuiShowToastQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/show-toast",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Submit TUI prompt
+ *
+ * Submit the prompt.
+ */
+export const tuiSubmitPrompt = <ThrowOnError extends boolean = false>(
+  options: Options<TuiSubmitPromptData, ThrowOnError>
+) =>
+  (options.client ?? client).post<TuiSubmitPromptResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zTuiSubmitPromptPath,
+          query: zTuiSubmitPromptQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/tui/submit-prompt",
+    ...options,
+  })
+
+/**
+ * Get VCS info
+ *
+ * Retrieve version control system (VCS) information for the current project, such as git branch.
+ */
+export const vcsGet = <ThrowOnError extends boolean = false>(
+  options: Options<VcsGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<VcsGetResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zVcsGetPath,
+          query: zVcsGetQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/vcs",
+    ...options,
+  })
+
+/**
+ * Apply VCS patch
+ *
+ * Apply a raw patch to the current working tree.
+ */
+export const vcsApply = <ThrowOnError extends boolean = false>(
+  options: Options<VcsApplyData, ThrowOnError>
+) =>
+  (options.client ?? client).post<VcsApplyResponses, VcsApplyErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zVcsApplyBody.optional(),
+          path: zVcsApplyPath,
+          query: zVcsApplyQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/vcs/apply",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get VCS diff
+ *
+ * Retrieve the current git diff for the working tree or against the default branch.
+ */
+export const vcsDiff = <ThrowOnError extends boolean = false>(
+  options: Options<VcsDiffData, ThrowOnError>
+) =>
+  (options.client ?? client).get<VcsDiffResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zVcsDiffPath,
+          query: zVcsDiffQuery,
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/vcs/diff",
+    ...options,
+  })
+
+/**
+ * Get raw VCS diff
+ *
+ * Retrieve a raw patch for current uncommitted changes.
+ */
+export const vcsDiffRaw = <ThrowOnError extends boolean = false>(
+  options: Options<VcsDiffRawData, ThrowOnError>
+) =>
+  (options.client ?? client).get<VcsDiffRawResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zVcsDiffRawPath,
+          query: zVcsDiffRawQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/vcs/diff/raw",
+    ...options,
+  })
+
+/**
+ * Get VCS status
+ *
+ * Retrieve changed files in the current working tree without patches.
+ */
+export const vcsStatus = <ThrowOnError extends boolean = false>(
+  options: Options<VcsStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<VcsStatusResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zVcsStatusPath,
+          query: zVcsStatusQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/opencode/{agentName}/vcs/status",
+    ...options,
+  })
+
+/**
+ * Delete secrets for an agent.
+ *
+ * Deletes the specified secret keys for the agent. Missing keys are ignored.
+ *
+ */
+export const deleteSecret = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteSecretData, ThrowOnError>
+) =>
+  (options.client ?? client).post<DeleteSecretResponses, DeleteSecretErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zDeleteSecretBody,
+          path: zDeleteSecretPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/secret/{agentName}/delete",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List secret keys for an agent.
+ *
+ * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
+ *
+ */
+export const listSecrets = <ThrowOnError extends boolean = false>(
+  options: Options<ListSecretsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListSecretsResponses, ListSecretsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListSecretsPath,
+          query: zListSecretsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/secret/{agentName}/list",
+    ...options,
+  })
+
+/**
+ * Store or overwrite secrets for an agent.
+ *
+ * Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges.
+ *
+ */
+export const putSecret = <ThrowOnError extends boolean = false>(
+  options: Options<PutSecretData, ThrowOnError>
+) =>
+  (options.client ?? client).post<PutSecretResponses, PutSecretErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPutSecretBody,
+          path: zPutSecretPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/secret/{agentName}/put",
     ...options,
     headers: {
       "Content-Type": "application/json",

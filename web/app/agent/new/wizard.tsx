@@ -72,7 +72,7 @@ type StepperWithFormProps = {
   initialHasNextEnvironmentPage: boolean
   initialNextEnvironmentPageToken: string
   mode?: WizardMode
-  sessionID?: string
+  agentName?: string
 }
 
 type WizardCopy = {
@@ -638,17 +638,17 @@ function ToolsForm({
   defaultValues,
   mode,
   onPrev,
-  sessionID,
+  agentName,
 }: {
   data: Pick<Required<WizardData>, "identity" | "compaction" | "model">
   defaultValues?: Tools
   mode: WizardMode
   onPrev: () => void
-  sessionID?: string
+  agentName?: string
 }) {
   const formAction =
-    mode === "update" && sessionID
-      ? updateAgentFormAction.bind(null, sessionID)
+    mode === "update" && agentName
+      ? updateAgentFormAction.bind(null, agentName)
       : createAgentFormAction
   const [state, action, isPending] = useActionState(formAction, {})
   const form = useForm<Tools>({
@@ -921,7 +921,7 @@ export function StepperWithForm({
   initialHasNextEnvironmentPage,
   initialNextEnvironmentPageToken,
   mode = "create",
-  sessionID,
+  agentName,
 }: StepperWithFormProps) {
   const [direction, setDirection] = useState(1)
   const initialWizardValues = agentWizardValuesWithEnvironment(initialValues, environments)
@@ -1026,7 +1026,7 @@ export function StepperWithForm({
                     defaultValues={initialWizardValues.tools}
                     mode={mode}
                     onPrev={goPrev}
-                    sessionID={sessionID}
+                    agentName={agentName}
                   />
                 ) : (
                   <div className="space-y-4">

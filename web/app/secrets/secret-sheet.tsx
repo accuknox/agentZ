@@ -29,13 +29,13 @@ import {
 type SecretFormValues = z.infer<typeof secretFormInputSchema>
 
 type PutSecretAction = (
-  sessionID: string,
+  agentName: string,
   state: PutSecretFormState,
   formData: FormData
 ) => Promise<PutSecretFormState>
 
 export function SecretSheet({
-  sessionID,
+  agentName,
   mode,
   secretKey,
   hosts,
@@ -43,7 +43,7 @@ export function SecretSheet({
   open,
   onOpenChangeAction,
 }: {
-  sessionID: string
+  agentName: string
   mode: "create" | "update"
   secretKey?: string
   hosts?: string[]
@@ -51,7 +51,7 @@ export function SecretSheet({
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }) {
-  const [state, action, isPending] = React.useActionState(putSecretAction.bind(null, sessionID), {})
+  const [state, action, isPending] = React.useActionState(putSecretAction.bind(null, agentName), {})
   const [hostDraft, setHostDraft] = React.useState("")
   const [hostDraftError, setHostDraftError] = React.useState<string>()
 

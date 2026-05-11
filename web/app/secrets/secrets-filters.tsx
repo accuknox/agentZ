@@ -15,24 +15,24 @@ import { BotIcon } from "lucide-react"
 
 export function SecretsFilters({
   agents,
-  selectedSessionID,
+  selectedAgentName,
 }: {
   agents: Agent[]
-  selectedSessionID?: string
+  selectedAgentName?: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [pending, startTransition] = React.useTransition()
 
-  function updateSessionID(sessionID: string) {
+  function updateAgentName(agentName: string) {
     const params = new URLSearchParams(searchParams)
     params.delete("page_token")
     params.delete("token_stack")
-    if (sessionID) {
-      params.set("session_id", sessionID)
+    if (agentName) {
+      params.set("agent_name", agentName)
     } else {
-      params.delete("session_id")
+      params.delete("agent_name")
     }
 
     startTransition(() => {
@@ -47,8 +47,8 @@ export function SecretsFilters({
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select
-          value={selectedSessionID}
-          onValueChange={updateSessionID}
+          value={selectedAgentName}
+          onValueChange={updateAgentName}
           disabled={agents.length === 0}
         >
           <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-64">
@@ -57,7 +57,7 @@ export function SecretsFilters({
           <SelectContent>
             <SelectGroup>
               {agents.map((agent) => (
-                <SelectItem key={agent.session_id} value={agent.session_id}>
+                <SelectItem key={agent.name} value={agent.name}>
                   <BotIcon className="inline-block" />
                   {agent.name}
                 </SelectItem>

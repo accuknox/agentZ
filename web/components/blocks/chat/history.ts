@@ -1,256 +1,99 @@
-import type { ChatHistoryResponse, StoredSessionEvent, ToolCall } from "@/lib/gateway/client"
-import { getToolErrorText, getToolResultState, parseToolPayload } from "./tool-payload"
-import type { ChatMessage, ChatMessagePart, ChatTool } from "./types"
+import type { OpencodePart, OpencodeToolPart, SessionMessagesResponse } from "@/lib/gateway/client"
+import { parseToolPayload } from "./tool-payload"
+import type { ChatMessage, ChatTextPart, ChatTool, ChatToolPart } from "./types"
 
-type HistoryToolCall = {
-  input: unknown
-  name: string
-  toolID: string
+export function chatHistoryToMessages(pages: SessionMessagesResponse[]): ChatMessage[] {
+  return pages
+    .flat()
+    .toReversed()
+    .flatMap((message) => messageToChatMessages(message.info, message.parts))
 }
 
-type HistoryReducerState = {
-  messages: ChatMessage[]
-  toolCalls: Map<string, HistoryToolCall>
-}
+function messageToChatMessages(
+  info: SessionMessagesResponse[number]["info"],
+  parts: OpencodePart[]
+): ChatMessage[] {
+  const textParts = parts.flatMap(toTextPart)
+  const toolParts = parts.flatMap(toToolPart)
+  const content = textParts.map((part) => part.content).join("")
 
-export function chatHistoryToMessages(pages: ChatHistoryResponse[]): ChatMessage[] {
-  const events = pages.flatMap((page) => page.events).toSorted((a, b) => a.seq - b.seq)
-
-  const state = events.reduce<HistoryReducerState>(
-    (next, event) => reduceStoredEvent(next, event),
-    { messages: [], toolCalls: new Map() }
-  )
-
-  return state.messages
-}
-
-function reduceStoredEvent(
-  state: HistoryReducerState,
-  event: StoredSessionEvent
-): HistoryReducerState {
-  const requestID = event.payload.requestID
-  if (!requestID) {
-    return state
-  }
-
-  const choice = event.payload.choices?.[0]
-  const message = choice?.message
-  if (message?.role === "user") {
-    return {
-      ...state,
-      messages: upsertMessage(state.messages, {
-        id: `${requestID}:user`,
-        content: message.content ?? "",
-        parts: textParts(`${requestID}:user`, message.content ?? ""),
-        requestID,
+  if (info.role === "user") {
+    return [
+      {
+        id: `${info.id}:user`,
+        content,
+        parts: textParts,
+        requestID: requestID(info),
         role: "user",
-        runID: event.payload.invocationId,
+        runID: info.id,
         status: "complete",
-      }),
-    }
+      },
+    ]
   }
 
-  if (message?.role === "assistant") {
-    const toolCalls = message.tool_calls ?? []
-    if (toolCalls.length > 0) {
-      return reduceToolCalls(state, event, requestID, toolCalls)
-    }
-
-    return upsertAssistantText(state, event, requestID, message.content ?? "")
-  }
-
-  if (message?.role === "tool") {
-    return reduceToolResult(state, event, requestID)
-  }
-
-  if (event.payload.object === "runner.completion") {
-    return {
-      ...state,
-      messages: updateAssistantStatus(state.messages, requestID, "complete"),
-    }
-  }
-
-  if (event.payload.object === "error" || event.payload.error) {
-    return upsertAssistantText(
-      state,
-      event,
-      requestID,
-      event.payload.error?.message ?? "Agent run failed",
-      "error"
-    )
-  }
-
-  return state
-}
-
-function reduceToolCalls(
-  state: HistoryReducerState,
-  event: StoredSessionEvent,
-  requestID: string,
-  toolCalls: ToolCall[]
-): HistoryReducerState {
-  const nextToolCalls = new Map(state.toolCalls)
-  let messages = state.messages
-
-  for (const call of toolCalls) {
-    const name = call.function?.name
-    if (!name) {
-      continue
-    }
-
-    const toolID = call.id ?? `${requestID}:${name}`
-    const input = parseToolPayload(call.function?.arguments ?? "")
-    nextToolCalls.set(toolID, { input, name, toolID })
-    messages = upsertAssistantTool(messages, event, requestID, {
-      id: toolID,
-      input,
-      name,
-      state: "input-available",
-    })
-  }
-
-  return { messages, toolCalls: nextToolCalls }
-}
-
-function reduceToolResult(
-  state: HistoryReducerState,
-  event: StoredSessionEvent,
-  requestID: string
-): HistoryReducerState {
-  const message = event.payload.choices?.[0]?.message
-  const toolID = message?.tool_id ?? `${requestID}:${message?.tool_name ?? "tool"}`
-  const existing = state.toolCalls.get(toolID)
-  const output = parseToolPayload(message?.content ?? "")
-  const name = existing?.name ?? message?.tool_name ?? "tool"
-
-  return {
-    ...state,
-    messages: upsertAssistantTool(state.messages, event, requestID, {
-      id: toolID,
-      input: existing?.input,
-      name,
-      output,
-      state: getToolResultState(output),
-      errorText: getToolErrorText(output),
-    }),
-  }
-}
-
-function upsertAssistantText(
-  state: HistoryReducerState,
-  event: StoredSessionEvent,
-  requestID: string,
-  content: string,
-  status: ChatMessage["status"] = "complete"
-): HistoryReducerState {
-  const existing = findAssistantMessage(state.messages, requestID)
-  const parts = content
-    ? upsertTextPart(existing?.parts ?? [], requestID, content)
-    : (existing?.parts ?? [])
-
-  return {
-    ...state,
-    messages: upsertMessage(state.messages, {
-      id: `${requestID}:assistant`,
+  return [
+    {
+      id: `${info.id}:assistant`,
       content,
-      parts,
-      requestID,
+      parts: [...textParts, ...toolParts],
+      requestID: requestID(info),
       role: "assistant",
-      runID: event.payload.invocationId,
-      status,
-    }),
-  }
+      runID: info.id,
+      status: info.error ? "error" : "complete",
+    },
+  ]
 }
 
-function upsertAssistantTool(
-  messages: ChatMessage[],
-  event: StoredSessionEvent,
-  requestID: string,
-  tool: ChatTool
-): ChatMessage[] {
-  const message = findAssistantMessage(messages, requestID) ?? {
-    id: `${requestID}:assistant`,
-    content: "",
-    parts: [],
-    requestID,
-    role: "assistant" as const,
-    runID: event.payload.invocationId,
-    status: "complete" as const,
-  }
-
-  return upsertMessage(messages, {
-    ...message,
-    parts: upsertToolPart(message.parts, tool),
-  })
-}
-
-function upsertTextPart(
-  parts: ChatMessagePart[],
-  requestID: string,
-  content: string
-): ChatMessagePart[] {
-  const id = `${requestID}:assistant:text`
-  const idx = parts.findIndex((part) => part.type === "text" && part.id === id)
-  if (idx === -1) {
-    return [...parts, { id, content, type: "text" }]
-  }
-
-  return parts.map((part, index) => {
-    if (index !== idx || part.type !== "text") {
-      return part
-    }
-
-    return { ...part, content }
-  })
-}
-
-function upsertToolPart(parts: ChatMessagePart[], tool: ChatTool): ChatMessagePart[] {
-  const idx = parts.findIndex((part) => part.type === "tool" && part.tool.id === tool.id)
-  if (idx === -1) {
-    return [...parts, { id: tool.id, tool, type: "tool" }]
-  }
-
-  return parts.map((part, index) => {
-    if (index !== idx || part.type !== "tool") {
-      return part
-    }
-
-    return { ...part, tool: { ...part.tool, ...tool } }
-  })
-}
-
-function updateAssistantStatus(
-  messages: ChatMessage[],
-  requestID: string,
-  status: ChatMessage["status"]
-): ChatMessage[] {
-  const message = findAssistantMessage(messages, requestID)
-  if (!message) {
-    return messages
-  }
-
-  return upsertMessage(messages, { ...message, status })
-}
-
-function textParts(id: string, content: string): ChatMessagePart[] {
-  if (!content) {
+function toTextPart(part: OpencodePart): ChatTextPart[] {
+  if (part.type !== "text" || !part.text) {
     return []
   }
 
-  return [{ id: `${id}:text`, content, type: "text" }]
+  return [{ id: part.id, content: part.text, type: "text" }]
 }
 
-function upsertMessage(messages: ChatMessage[], next: ChatMessage): ChatMessage[] {
-  const idx = messages.findIndex((message) => message.id === next.id)
-  if (idx === -1) {
-    return [...messages, next]
+function toToolPart(part: OpencodePart): ChatToolPart[] {
+  if (part.type !== "tool") {
+    return []
   }
 
-  return messages.map((message, index) => (index === idx ? next : message))
+  return [
+    {
+      id: part.id,
+      tool: {
+        id: part.callID,
+        input: part.state.input,
+        name: part.tool,
+        output: toolOutput(part),
+        state: toolState(part),
+        errorText: part.state.status === "error" ? part.state.error : undefined,
+      },
+      type: "tool",
+    },
+  ]
 }
 
-function findAssistantMessage(messages: ChatMessage[], requestID: string): ChatMessage | undefined {
-  return messages.find((message) => message.requestID === requestID && message.role === "assistant")
+function toolOutput(part: OpencodeToolPart): unknown {
+  if (part.state.status !== "completed") {
+    return undefined
+  }
+
+  return parseToolPayload(part.state.output)
+}
+
+function toolState(part: OpencodeToolPart): ChatTool["state"] {
+  switch (part.state.status) {
+    case "completed":
+      return "output-available"
+    case "error":
+      return "output-error"
+    default:
+      return "input-available"
+  }
+}
+
+function requestID(info: SessionMessagesResponse[number]["info"]): string {
+  return "parentID" in info ? info.parentID : info.id
 }
 
 export function mergeChatMessages(...groups: ChatMessage[][]): ChatMessage[] {

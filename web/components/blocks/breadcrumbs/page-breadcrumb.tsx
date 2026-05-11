@@ -24,7 +24,7 @@ export function PageBreadcrumb({ agents }: { agents: Promise<ListAgentActionResp
   const result = use(agents)
   const list = result.agents ?? []
   const crumbs = crumbsForSegments(segments, (id) => {
-    return list.find((agent) => agent.session_id === id)?.name
+    return list.find((agent) => agent.name === id)?.name
   })
 
   return (

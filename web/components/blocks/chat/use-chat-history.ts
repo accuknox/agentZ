@@ -1,18 +1,22 @@
 "use client"
 
-import { getChatHistory, type ChatHistoryResponse } from "@/lib/gateway/client"
 import { infiniteQueryOptions, useInfiniteQuery, type InfiniteData } from "@tanstack/react-query"
 import { useMemo } from "react"
+import {
+  sessionMessages,
+  type SessionMessagesData,
+  type SessionMessagesResponse,
+} from "@/lib/gateway/client"
 
 import { chatHistoryToMessages } from "./history"
 
 type UseChatHistoryParams = {
-  initialData?: ChatHistoryResponse
+  initialData?: SessionMessagesResponse
   limit: number
-  sessionID: string
+  agentName: string
 }
 
-export function useChatHistory({ initialData, limit, sessionID }: UseChatHistoryParams) {
+export function useChatHistory({ initialData, limit, agentName }: UseChatHistoryParams) {
   const queryInitialData = useMemo(() => {
     if (!initialData) {
       return undefined
@@ -21,13 +25,13 @@ export function useChatHistory({ initialData, limit, sessionID }: UseChatHistory
     return {
       pageParams: [undefined],
       pages: [initialData],
-    } satisfies InfiniteData<ChatHistoryResponse, string | undefined>
+    } satisfies InfiniteData<SessionMessagesResponse, string | undefined>
   }, [initialData])
   const query = useInfiniteQuery(
     chatHistoryOptions({
+      agentName,
       initialData: queryInitialData,
       limit,
-      sessionID,
     })
   )
   const messages = useMemo(() => {
@@ -40,26 +44,31 @@ export function useChatHistory({ initialData, limit, sessionID }: UseChatHistory
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     messages,
+    refetch: query.refetch,
   }
 }
 
 function chatHistoryOptions({
+  agentName,
   initialData,
   limit,
-  sessionID,
 }: {
-  initialData?: InfiniteData<ChatHistoryResponse, string | undefined>
+  agentName: string
+  initialData?: InfiniteData<SessionMessagesResponse, string | undefined>
   limit: number
-  sessionID: string
 }) {
   return infiniteQueryOptions({
-    queryKey: ["chatHistory", sessionID, limit],
+    queryKey: ["chatHistory", agentName, limit],
     queryFn: async ({ pageParam, signal }) => {
-      const query =
-        pageParam === undefined
-          ? { limit, session_id: sessionID }
-          : { limit, page_token: pageParam, session_id: sessionID }
-      const { data } = await getChatHistory({
+      const query: SessionMessagesData["query"] = {
+        before: pageParam,
+        limit,
+      }
+      const { data } = await sessionMessages({
+        path: {
+          agentName,
+          sessionID: agentName,
+        },
         query,
         signal,
         throwOnError: true,
@@ -69,7 +78,7 @@ function chatHistoryOptions({
     },
     initialData,
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.next_page_token || undefined,
+    getNextPageParam: (lastPage) => lastPage.at(-1)?.info.id,
     refetchOnMount: false,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,

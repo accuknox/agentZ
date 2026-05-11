@@ -35,14 +35,14 @@ async function Agents({
 }: {
   searchParams?: Promise<{ page_token?: string | string[] }>
   deleteAgentAction: (
-    sessionID: string,
+    agentName: string,
     state: DeleteAgentFormState,
     formData: FormData
   ) => Promise<DeleteAgentFormState>
 }) {
   const params = searchParams ? await searchParams : undefined
   const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
-  const result = await listAgentsCachedQuery(true, { limit: 50, page_token: pageToken })
+  const result = await listAgentsCachedQuery({ limit: 50, page_token: pageToken })
 
   if (result.error) {
     return (

@@ -4,7 +4,7 @@ import Link from "next/link"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
-import type { ListAgent } from "@/lib/gateway/client"
+import type { Agent } from "@/lib/gateway/client"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -25,12 +25,12 @@ import { Spinner } from "@/components/ui/spinner"
 import type { DeleteAgentFormState } from "@/data/types"
 
 type DeleteAgentAction = (
-  sessionID: string,
+  agentName: string,
   state: DeleteAgentFormState,
   formData: FormData
 ) => Promise<DeleteAgentFormState>
 
-export function createAgentColumns(deleteAgentAction: DeleteAgentAction): ColumnDef<ListAgent>[] {
+export function createAgentColumns(deleteAgentAction: DeleteAgentAction): ColumnDef<Agent>[] {
   return [
     {
       accessorKey: "name",
@@ -48,31 +48,11 @@ export function createAgentColumns(deleteAgentAction: DeleteAgentAction): Column
         const agent = row.original
 
         return (
-          <Link href={`/agent/${agent.session_id}`} className="font-medium hover:underline">
+          <Link href={`/agents/${agent.name}`} className="font-medium hover:underline">
             {agent.name}
           </Link>
         )
       },
-    },
-    {
-      accessorFn: (agent) => agent.configuration.model.primary.name,
-      id: "primaryModel",
-      header: "Primary Model",
-    },
-    {
-      accessorFn: (agent) => agent.configuration.model.primary.contextWindow,
-      id: "contextWindow",
-      header: "Context Window",
-      cell: ({ row }) => {
-        const contextWindow = row.getValue<number>("contextWindow")
-
-        return formatNumber(contextWindow)
-      },
-    },
-    {
-      accessorFn: (agent) => agent.configuration.model.summary?.name ?? "Unknown",
-      id: "summaryModel",
-      header: "Summary Model",
     },
     {
       accessorKey: "created_at",
@@ -103,7 +83,7 @@ function AgentActions({
   agent,
   deleteAgentAction,
 }: {
-  agent: ListAgent
+  agent: Agent
   deleteAgentAction: DeleteAgentAction
 }) {
   const [open, setOpen] = React.useState(false)
@@ -119,10 +99,10 @@ function AgentActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link href={`/agent/${agent.session_id}`}>Chat</Link>
+            <Link href={`/agents/${agent.name}`}>Chat</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href={`/agent/update/${agent.session_id}`}>Edit</Link>
+            <Link href={`/agent/update/${agent.name}`}>Edit</Link>
           </DropdownMenuItem>
           <DropdownMenuItem className="text-destructive" onSelect={() => setOpen(true)}>
             <Trash2 />
@@ -146,13 +126,13 @@ function DeleteAgentDialog({
   open,
   setOpen,
 }: {
-  agent: ListAgent
+  agent: Agent
   deleteAgentAction: DeleteAgentAction
   open: boolean
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const [state, action, pending] = React.useActionState(
-    deleteAgentAction.bind(null, agent.session_id),
+    deleteAgentAction.bind(null, agent.name),
     {}
   )
 
@@ -208,12 +188,4 @@ function formatDate(value?: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date)
-}
-
-function formatNumber(value?: number) {
-  if (value === undefined) {
-    return "Unknown"
-  }
-
-  return new Intl.NumberFormat("en").format(value)
 }

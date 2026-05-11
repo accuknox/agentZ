@@ -10,7 +10,7 @@ export default function FilePage({
   searchParams,
 }: {
   searchParams: Promise<{
-    session_id?: string | string[]
+    agent_name?: string | string[]
     from?: string | string[]
     to?: string | string[]
     telemetry_page_token?: string | string[]

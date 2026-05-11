@@ -2,37 +2,25 @@
 
 import * as z from "zod"
 
-/**
- * Lowercase hexadecimal OTLP trace ID.
- */
-export const zTraceId = z
-  .string()
-  .length(32)
-  .regex(/^[0-9a-f]{32}$/)
-
-/**
- * Lowercase hexadecimal OTLP span ID.
- */
-export const zSpanId = z
-  .string()
-  .length(16)
-  .regex(/^[0-9a-f]{16}$/)
-
-/**
- * Lowercase hexadecimal OTLP span ID, or empty for root spans.
- */
-export const zOptionalSpanId = z
-  .string()
-  .max(16)
-  .regex(/^([0-9a-f]{16})?$/)
-
-export const zObservabilityAction = z.enum(["Allowed", "Blocked"])
-
 export const zAgentName = z
   .string()
   .min(1)
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
+
+export const zAgent = z.object({
+  created_at: z.iso.datetime(),
+  last_activity: z.iso.datetime(),
+  modified_at: z.iso.datetime(),
+  name: zAgentName,
+  status: zAgentStatus,
+})
+
+export const zDeleteAgentRequest = z.object({
+  agent_name: zAgentName,
+})
 
 /**
  * Environment resource name.
@@ -43,290 +31,43 @@ export const zEnvironmentName = z
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
+export const zCreateAgentRequest = z.object({
+  env: z.record(z.string(), z.string()).optional(),
+  environmentName: zEnvironmentName,
+  name: zAgentName,
+})
+
+export const zCreateEnvironmentRequest = z.object({
+  allowed_hosts: z.array(z.string().min(1)).optional(),
+  name: zEnvironmentName,
+  packages: z.array(z.string().min(1)).optional(),
+})
+
+export const zDeleteEnvironmentRequest = z.object({
+  name: zEnvironmentName,
+})
+
+export const zEnvironment = z.object({
+  allowed_hosts: z.array(z.string().min(1)),
+  created_at: z.iso.datetime(),
+  metadata: z.object({
+    allowed_host_count: z
+      .int()
+      .gte(0)
+      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+    package_count: z
+      .int()
+      .gte(0)
+      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+    referenced_by_agent: z.boolean(),
+  }),
+  name: zEnvironmentName,
+  packages: z.array(z.string().min(1)),
+})
+
 export const zFieldError = z.object({
   field: z.string().min(1),
   message: z.string().min(1),
-})
-
-export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
-
-export const zAgent = z.object({
-  name: zAgentName,
-  last_activity: z.iso.datetime(),
-  created_at: z.iso.datetime(),
-  modified_at: z.iso.datetime(),
-  status: zAgentStatus,
-})
-
-export const zListAgentsResponse = z.object({
-  agents: z.array(zAgent),
-  next_page_token: z.string(),
-})
-
-export const zCreateAgentRequest = z.object({
-  name: zAgentName,
-  env: z.record(z.string(), z.string()).optional(),
-  environmentName: zEnvironmentName,
-})
-
-export const zDeleteAgentRequest = z.object({
-  agent_name: zAgentName,
-})
-
-export const zUpdateAgentRequest = z.object({
-  env: z.record(z.string(), z.string()).optional(),
-  environmentName: zEnvironmentName.optional(),
-})
-
-export const zTrace = z.object({
-  trace_id: zTraceId,
-  agent_name: zAgentName,
-  root_span_id: zOptionalSpanId,
-  started_at: z.iso.datetime(),
-  ended_at: z.iso.datetime(),
-  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  duration_ms: z.number().gte(0),
-  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cost_usd: z.number().gte(0),
-  status_code: z.string(),
-  updated_at: z.iso.datetime(),
-})
-
-export const zListTracesResponse = z.object({
-  traces: z.array(zTrace),
-  next_page_token: z.string(),
-})
-
-export const zTraceSession = z.object({
-  trace_id: zTraceId,
-  session_id: z.string(),
-  agent_name: zAgentName,
-  root_span_id: zOptionalSpanId,
-  started_at: z.iso.datetime(),
-  ended_at: z.iso.datetime(),
-  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  duration_ms: z.number().gte(0),
-  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cost_usd: z.number().gte(0),
-  status_code: z.string(),
-  updated_at: z.iso.datetime(),
-})
-
-export const zListTraceSessionsResponse = z.object({
-  trace_sessions: z.array(zTraceSession),
-  next_page_token: z.string(),
-})
-
-export const zSpan = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  agent_name: zAgentName,
-  session_id: z.string(),
-  trace_id: zTraceId,
-  span_id: zSpanId,
-  parent_span_id: zOptionalSpanId,
-  start_time: z.iso.datetime(),
-  end_time: z.iso.datetime(),
-  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  duration_ms: z.number().gte(0),
-  name: z.string(),
-  span_class: z.string(),
-  operation_name: z.string(),
-  kind: z.string(),
-  status_code: z.string(),
-  error_type: z.string(),
-  error_message: z.string(),
-  model: z.string(),
-  tool_name: z.string(),
-  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cost_usd: z.number().gte(0),
-  llm_finish_reason: z.string(),
-  ingested_at: z.iso.datetime(),
-})
-
-export const zListSpansResponse = z.object({
-  spans: z.array(zSpan),
-  next_page_token: z.string(),
-})
-
-export const zProcessObservabilityEvent = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  agent_name: zAgentName,
-  event_time: z.iso.datetime(),
-  ingested_at: z.iso.datetime(),
-  pod_namespace: z.string(),
-  pod_name: z.string(),
-  process: z.string(),
-  parent_process: z.string(),
-  command_invocation: z.string(),
-  action: zObservabilityAction,
-  source: z.string(),
-})
-
-export const zProcessObservabilityEventAggregated = z.object({
-  agent_name: zAgentName,
-  last_seen: z.iso.datetime(),
-  process: z.string(),
-  parent_process: z.string(),
-  command_invocation: z.string(),
-  action: zObservabilityAction,
-  source: z.string(),
-  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-})
-
-export const zListProcessObservabilityResponse = z.object({
-  events: z.array(z.union([zProcessObservabilityEvent, zProcessObservabilityEventAggregated])),
-  next_page_token: z.string(),
-})
-
-export const zFileObservabilityEvent = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  agent_name: zAgentName,
-  event_time: z.iso.datetime(),
-  ingested_at: z.iso.datetime(),
-  pod_namespace: z.string(),
-  pod_name: z.string(),
-  file_path_accessed: z.string(),
-  process: z.string(),
-  command_invocation: z.string(),
-  action: zObservabilityAction,
-  source: z.string(),
-})
-
-export const zFileObservabilityEventAggregated = z.object({
-  agent_name: zAgentName,
-  last_seen: z.iso.datetime(),
-  file_path_accessed: z.string(),
-  process: z.string(),
-  command_invocation: z.string(),
-  action: zObservabilityAction,
-  source: z.string(),
-  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-})
-
-export const zListFileObservabilityResponse = z.object({
-  events: z.array(z.union([zFileObservabilityEvent, zFileObservabilityEventAggregated])),
-  next_page_token: z.string(),
-})
-
-export const zNetworkObservabilityEvent = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  agent_name: zAgentName,
-  event_time: z.iso.datetime(),
-  ingested_at: z.iso.datetime(),
-  pod_namespace: z.string(),
-  pod_name: z.string(),
-  destination_domain: z.string(),
-  destination_ip: z.string(),
-  destination_port: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  protocol: z.string(),
-  action: zObservabilityAction,
-  source: z.string(),
-})
-
-export const zNetworkObservabilityEventAggregated = z.object({
-  agent_name: zAgentName,
-  last_seen: z.iso.datetime(),
-  destination_domain: z.string(),
-  destination_ip: z.string(),
-  destination_port: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  protocol: z.string(),
-  action: zObservabilityAction,
-  source: z.string(),
-  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-})
-
-export const zListNetworkObservabilityResponse = z.object({
-  events: z.array(z.union([zNetworkObservabilityEvent, zNetworkObservabilityEventAggregated])),
-  next_page_token: z.string(),
-})
-
-export const zWatchAgentsRequest = z.object({
-  agent_names: z.array(zAgentName).optional(),
-})
-
-export const zWatchAgentsEvent = z.object({
-  agents: z.array(zAgent),
 })
 
 export const zJsonValue = z.union([
@@ -342,29 +83,3372 @@ export const zJsonValue = z.union([
 
 export const zError = z.object({
   code: z.string().min(1),
-  message: z.string().min(1),
-  errors: z.array(zFieldError).optional(),
   details: zJsonValue.optional(),
+  errors: z.array(zFieldError).optional(),
+  message: z.string().min(1),
 })
 
-export const zSpanDetail = zSpan.and(
+export const zListAgentsResponse = z.object({
+  agents: z.array(zAgent),
+  next_page_token: z.string(),
+})
+
+export const zListEnvironmentsResponse = z.object({
+  environments: z.array(zEnvironment),
+  next_page_token: z.string(),
+})
+
+export const zObservabilityAction = z.enum(["Allowed", "Blocked"])
+
+export const zFileObservabilityEvent = z.object({
+  action: zObservabilityAction,
+  agent_name: zAgentName,
+  command_invocation: z.string(),
+  event_time: z.iso.datetime(),
+  file_path_accessed: z.string(),
+  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  ingested_at: z.iso.datetime(),
+  pod_name: z.string(),
+  pod_namespace: z.string(),
+  process: z.string(),
+  source: z.string(),
+})
+
+export const zFileObservabilityEventAggregated = z.object({
+  action: zObservabilityAction,
+  agent_name: zAgentName,
+  command_invocation: z.string(),
+  file_path_accessed: z.string(),
+  last_seen: z.iso.datetime(),
+  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  process: z.string(),
+  source: z.string(),
+})
+
+export const zListFileObservabilityResponse = z.object({
+  events: z.array(z.union([zFileObservabilityEvent, zFileObservabilityEventAggregated])),
+  next_page_token: z.string(),
+})
+
+export const zNetworkObservabilityEvent = z.object({
+  action: zObservabilityAction,
+  agent_name: zAgentName,
+  destination_domain: z.string(),
+  destination_ip: z.string(),
+  destination_port: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  event_time: z.iso.datetime(),
+  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  ingested_at: z.iso.datetime(),
+  pod_name: z.string(),
+  pod_namespace: z.string(),
+  protocol: z.string(),
+  source: z.string(),
+})
+
+export const zNetworkObservabilityEventAggregated = z.object({
+  action: zObservabilityAction,
+  agent_name: zAgentName,
+  destination_domain: z.string(),
+  destination_ip: z.string(),
+  destination_port: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  last_seen: z.iso.datetime(),
+  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  protocol: z.string(),
+  source: z.string(),
+})
+
+export const zListNetworkObservabilityResponse = z.object({
+  events: z.array(z.union([zNetworkObservabilityEvent, zNetworkObservabilityEventAggregated])),
+  next_page_token: z.string(),
+})
+
+export const zOpencodeApiError = z.object({
+  data: z.object({
+    isRetryable: z.boolean(),
+    message: z.string(),
+    metadata: z.record(z.string(), z.string()).optional(),
+    responseBody: z.string().optional(),
+    responseHeaders: z.record(z.string(), z.string()).optional(),
+    statusCode: z.int().gte(0).optional(),
+  }),
+  name: z.enum(["APIError"]),
+})
+
+export const zOpencodeAgentPart = z.object({
+  id: z.string(),
+  messageID: z.string(),
+  name: z.string(),
+  sessionID: z.string(),
+  source: z
+    .object({
+      end: z.int().gte(0),
+      start: z.int().gte(0),
+      value: z.string(),
+    })
+    .optional(),
+  type: z.enum(["agent"]),
+})
+
+export const zOpencodeAgentPartInput = z.object({
+  id: z.string().optional(),
+  name: z.string(),
+  source: z
+    .object({
+      end: z.int().gte(0),
+      start: z.int().gte(0),
+      value: z.string(),
+    })
+    .optional(),
+  type: z.enum(["agent"]),
+})
+
+export const zOpencodeApiAuth = z.object({
+  key: z.string(),
+  metadata: z.record(z.string(), z.string()).optional(),
+  type: z.enum(["api"]),
+})
+
+export const zOpencodeBadRequestError = z.object({
+  data: z.unknown(),
+  errors: z.array(z.record(z.string(), z.unknown())),
+  success: z.literal(false),
+})
+
+export const zOpencodeCommand = z.object({
+  agent: z.string().optional(),
+  description: z.string().optional(),
+  hints: z.array(z.string()),
+  model: z.string().optional(),
+  name: z.string(),
+  source: z.enum(["command", "mcp", "skill"]).optional(),
+  subtask: z.boolean().optional(),
+  template: z.string(),
+})
+
+export const zOpencodeCompactionPart = z.object({
+  auto: z.boolean(),
+  id: z.string(),
+  messageID: z.string(),
+  overflow: z.boolean().optional(),
+  sessionID: z.string(),
+  tail_start_id: z.string().optional(),
+  type: z.enum(["compaction"]),
+})
+
+export const zOpencodeConsoleState = z.object({
+  activeOrgName: z.string().optional(),
+  consoleManagedProviders: z.array(z.string()),
+  switchableOrgCount: z.int().gte(0),
+})
+
+export const zOpencodeContextOverflowError = z.object({
+  data: z.object({
+    message: z.string(),
+    responseBody: z.string().optional(),
+  }),
+  name: z.enum(["ContextOverflowError"]),
+})
+
+export const zOpencodeEventTuiCommandExecute = z.object({
+  id: z.string(),
+  properties: z.object({
+    command: z.union([
+      z.enum([
+        "session.list",
+        "session.new",
+        "session.share",
+        "session.interrupt",
+        "session.compact",
+        "session.page.up",
+        "session.page.down",
+        "session.line.up",
+        "session.line.down",
+        "session.half.page.up",
+        "session.half.page.down",
+        "session.first",
+        "session.last",
+        "prompt.clear",
+        "prompt.submit",
+        "agent.cycle",
+      ]),
+      z.string(),
+    ]),
+  }),
+  type: z.enum(["tui.command.execute"]),
+})
+
+export const zOpencodeEventTuiPromptAppend = z.object({
+  id: z.string(),
+  properties: z.object({
+    text: z.string(),
+  }),
+  type: z.enum(["tui.prompt.append"]),
+})
+
+export const zOpencodeEventTuiSessionSelect = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+  }),
+  type: z.enum(["tui.session.select"]),
+})
+
+export const zOpencodeEventTuiToastShow = z.object({
+  id: z.string(),
+  properties: z.object({
+    duration: z.int().gt(0).optional(),
+    message: z.string(),
+    title: z.string().optional(),
+    variant: z.enum(["info", "success", "warning", "error"]),
+  }),
+  type: z.enum(["tui.toast.show"]),
+})
+
+export const zOpencodeEventCommandExecuted = z.object({
+  id: z.string(),
+  properties: z.object({
+    arguments: z.string(),
+    messageID: z.string(),
+    name: z.string(),
+    sessionID: z.string(),
+  }),
+  type: z.enum(["command.executed"]),
+})
+
+export const zOpencodeEventFileEdited = z.object({
+  id: z.string(),
+  properties: z.object({
+    file: z.string(),
+  }),
+  type: z.enum(["file.edited"]),
+})
+
+export const zOpencodeEventFileWatcherUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    event: z.enum(["add", "change", "unlink"]),
+    file: z.string(),
+  }),
+  type: z.enum(["file.watcher.updated"]),
+})
+
+export const zOpencodeEventGlobalDisposed = z.object({
+  id: z.string(),
+  properties: z.record(z.string(), z.unknown()),
+  type: z.enum(["global.disposed"]),
+})
+
+export const zOpencodeEventInstallationUpdateAvailable = z.object({
+  id: z.string(),
+  properties: z.object({
+    version: z.string(),
+  }),
+  type: z.enum(["installation.update-available"]),
+})
+
+export const zOpencodeEventInstallationUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    version: z.string(),
+  }),
+  type: z.enum(["installation.updated"]),
+})
+
+export const zOpencodeEventLspClientDiagnostics = z.object({
+  id: z.string(),
+  properties: z.object({
+    path: z.string(),
+    serverID: z.string(),
+  }),
+  type: z.enum(["lsp.client.diagnostics"]),
+})
+
+export const zOpencodeEventLspUpdated = z.object({
+  id: z.string(),
+  properties: z.record(z.string(), z.unknown()),
+  type: z.enum(["lsp.updated"]),
+})
+
+export const zOpencodeEventMcpBrowserOpenFailed = z.object({
+  id: z.string(),
+  properties: z.object({
+    mcpName: z.string(),
+    url: z.string(),
+  }),
+  type: z.enum(["mcp.browser.open.failed"]),
+})
+
+export const zOpencodeEventMcpToolsChanged = z.object({
+  id: z.string(),
+  properties: z.object({
+    server: z.string(),
+  }),
+  type: z.enum(["mcp.tools.changed"]),
+})
+
+export const zOpencodeEventMessagePartDelta = z.object({
+  id: z.string(),
+  properties: z.object({
+    delta: z.string(),
+    field: z.string(),
+    messageID: z.string(),
+    partID: z.string(),
+    sessionID: z.string(),
+  }),
+  type: z.enum(["message.part.delta"]),
+})
+
+export const zOpencodeEventMessagePartRemoved = z.object({
+  id: z.string(),
+  properties: z.object({
+    messageID: z.string(),
+    partID: z.string(),
+    sessionID: z.string(),
+  }),
+  type: z.enum(["message.part.removed"]),
+})
+
+export const zOpencodeEventMessageRemoved = z.object({
+  id: z.string(),
+  properties: z.object({
+    messageID: z.string(),
+    sessionID: z.string(),
+  }),
+  type: z.enum(["message.removed"]),
+})
+
+export const zOpencodeEventPermissionReplied = z.object({
+  id: z.string(),
+  properties: z.object({
+    reply: z.enum(["once", "always", "reject"]),
+    requestID: z.string().regex(/^per/),
+    sessionID: z.string(),
+  }),
+  type: z.enum(["permission.replied"]),
+})
+
+export const zOpencodeEventPtyDeleted = z.object({
+  id: z.string(),
+  properties: z.object({
+    id: z.string(),
+  }),
+  type: z.enum(["pty.deleted"]),
+})
+
+export const zOpencodeEventPtyExited = z.object({
+  id: z.string(),
+  properties: z.object({
+    exitCode: z.int().gte(0),
+    id: z.string(),
+  }),
+  type: z.enum(["pty.exited"]),
+})
+
+export const zOpencodeEventServerConnected = z.object({
+  id: z.string(),
+  properties: z.record(z.string(), z.unknown()),
+  type: z.enum(["server.connected"]),
+})
+
+export const zOpencodeEventServerInstanceDisposed = z.object({
+  id: z.string(),
+  properties: z.object({
+    directory: z.string(),
+  }),
+  type: z.enum(["server.instance.disposed"]),
+})
+
+export const zOpencodeEventSessionCompacted = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+  }),
+  type: z.enum(["session.compacted"]),
+})
+
+export const zOpencodeEventSessionIdle = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+  }),
+  type: z.enum(["session.idle"]),
+})
+
+export const zOpencodeEventSessionNextAgentSwitched = z.object({
+  id: z.string(),
+  properties: z.object({
+    agent: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.agent.switched"]),
+})
+
+export const zOpencodeEventSessionNextCompactionDelta = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.compaction.delta"]),
+})
+
+export const zOpencodeEventSessionNextCompactionEnded = z.object({
+  id: z.string(),
+  properties: z.object({
+    include: z.string().optional(),
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.compaction.ended"]),
+})
+
+export const zOpencodeEventSessionNextCompactionStarted = z.object({
+  id: z.string(),
+  properties: z.object({
+    reason: z.enum(["auto", "manual"]),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.compaction.started"]),
+})
+
+export const zOpencodeEventSessionNextModelSwitched = z.object({
+  id: z.string(),
+  properties: z.object({
+    model: z.object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string(),
+    }),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.model.switched"]),
+})
+
+export const zOpencodeEventSessionNextReasoningDelta = z.object({
+  id: z.string(),
+  properties: z.object({
+    delta: z.string(),
+    reasoningID: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.reasoning.delta"]),
+})
+
+export const zOpencodeEventSessionNextReasoningEnded = z.object({
+  id: z.string(),
+  properties: z.object({
+    reasoningID: z.string(),
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.reasoning.ended"]),
+})
+
+export const zOpencodeEventSessionNextReasoningStarted = z.object({
+  id: z.string(),
+  properties: z.object({
+    reasoningID: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.reasoning.started"]),
+})
+
+export const zOpencodeEventSessionNextShellEnded = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    output: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.shell.ended"]),
+})
+
+export const zOpencodeEventSessionNextShellStarted = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    command: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.shell.started"]),
+})
+
+export const zOpencodeEventSessionNextStepEnded = z.object({
+  id: z.string(),
+  properties: z.object({
+    cost: z.number(),
+    finish: z.string(),
+    sessionID: z.string(),
+    snapshot: z.string().optional(),
+    timestamp: z.number(),
+    tokens: z.object({
+      cache: z.object({
+        read: z.number(),
+        write: z.number(),
+      }),
+      input: z.number(),
+      output: z.number(),
+      reasoning: z.number(),
+    }),
+  }),
+  type: z.enum(["session.next.step.ended"]),
+})
+
+export const zOpencodeEventSessionNextStepStarted = z.object({
+  id: z.string(),
+  properties: z.object({
+    agent: z.string(),
+    model: z.object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string(),
+    }),
+    sessionID: z.string(),
+    snapshot: z.string().optional(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.step.started"]),
+})
+
+export const zOpencodeEventSessionNextSynthetic = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.synthetic"]),
+})
+
+export const zOpencodeEventSessionNextTextDelta = z.object({
+  id: z.string(),
+  properties: z.object({
+    delta: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.text.delta"]),
+})
+
+export const zOpencodeEventSessionNextTextEnded = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.text.ended"]),
+})
+
+export const zOpencodeEventSessionNextTextStarted = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.text.started"]),
+})
+
+export const zOpencodeEventSessionNextToolCalled = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    input: z.record(z.string(), z.unknown()),
+    provider: z.object({
+      executed: z.boolean(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    }),
+    sessionID: z.string(),
+    timestamp: z.number(),
+    tool: z.string(),
+  }),
+  type: z.enum(["session.next.tool.called"]),
+})
+
+export const zOpencodeEventSessionNextToolInputDelta = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    delta: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.tool.input.delta"]),
+})
+
+export const zOpencodeEventSessionNextToolInputEnded = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.tool.input.ended"]),
+})
+
+export const zOpencodeEventSessionNextToolInputStarted = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    name: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.tool.input.started"]),
+})
+
+export const zOpencodeEventTuiCommandExecute2 = z.object({
+  properties: z.object({
+    command: z.union([
+      z.enum([
+        "session.list",
+        "session.new",
+        "session.share",
+        "session.interrupt",
+        "session.compact",
+        "session.page.up",
+        "session.page.down",
+        "session.line.up",
+        "session.line.down",
+        "session.half.page.up",
+        "session.half.page.down",
+        "session.first",
+        "session.last",
+        "prompt.clear",
+        "prompt.submit",
+        "agent.cycle",
+      ]),
+      z.string(),
+    ]),
+  }),
+  type: z.enum(["tui.command.execute"]),
+})
+
+export const zOpencodeEventTuiPromptAppend2 = z.object({
+  properties: z.object({
+    text: z.string(),
+  }),
+  type: z.enum(["tui.prompt.append"]),
+})
+
+export const zOpencodeEventTuiSessionSelect2 = z.object({
+  properties: z.object({
+    sessionID: z.string(),
+  }),
+  type: z.enum(["tui.session.select"]),
+})
+
+export const zOpencodeEventTuiToastShow2 = z.object({
+  properties: z.object({
+    duration: z.int().gt(0).optional(),
+    message: z.string(),
+    title: z.string().optional(),
+    variant: z.enum(["info", "success", "warning", "error"]),
+  }),
+  type: z.enum(["tui.toast.show"]),
+})
+
+export const zOpencodeEventTuiToastShow1 = z.object({
+  id: z.string(),
+  properties: z.object({
+    duration: z.int().gt(0).optional(),
+    message: z.string(),
+    title: z.string().optional(),
+    variant: z.enum(["info", "success", "warning", "error"]),
+  }),
+  type: z.enum(["tui.toast.show"]),
+})
+
+export const zOpencodeEventVcsBranchUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    branch: z.string().optional(),
+  }),
+  type: z.enum(["vcs.branch.updated"]),
+})
+
+export const zOpencodeEventWorkspaceFailed = z.object({
+  id: z.string(),
+  properties: z.object({
+    message: z.string(),
+  }),
+  type: z.enum(["workspace.failed"]),
+})
+
+export const zOpencodeEventWorkspaceReady = z.object({
+  id: z.string(),
+  properties: z.object({
+    name: z.string(),
+  }),
+  type: z.enum(["workspace.ready"]),
+})
+
+export const zOpencodeEventWorkspaceStatus = z.object({
+  id: z.string(),
+  properties: z.object({
+    status: z.enum(["connected", "connecting", "disconnected", "error"]),
+    workspaceID: z.string(),
+  }),
+  type: z.enum(["workspace.status"]),
+})
+
+export const zOpencodeEventWorktreeFailed = z.object({
+  id: z.string(),
+  properties: z.object({
+    message: z.string(),
+  }),
+  type: z.enum(["worktree.failed"]),
+})
+
+export const zOpencodeEventWorktreeReady = z.object({
+  id: z.string(),
+  properties: z.object({
+    branch: z.string(),
+    name: z.string(),
+  }),
+  type: z.enum(["worktree.ready"]),
+})
+
+export const zOpencodeFile = z.object({
+  added: z.int().gte(0),
+  path: z.string(),
+  removed: z.int().gte(0),
+  status: z.enum(["added", "deleted", "modified"]),
+})
+
+export const zOpencodeFileContent = z.object({
+  content: z.string(),
+  diff: z.string().optional(),
+  encoding: z.enum(["base64"]).optional(),
+  mimeType: z.string().optional(),
+  patch: z
+    .object({
+      hunks: z.array(
+        z.object({
+          lines: z.array(z.string()),
+          newLines: z.int().gte(0),
+          newStart: z.int().gte(0),
+          oldLines: z.int().gte(0),
+          oldStart: z.int().gte(0),
+        })
+      ),
+      index: z.string().optional(),
+      newFileName: z.string(),
+      newHeader: z.string().optional(),
+      oldFileName: z.string(),
+      oldHeader: z.string().optional(),
+    })
+    .optional(),
+  type: z.enum(["text", "binary"]),
+})
+
+export const zOpencodeFileNode = z.object({
+  absolute: z.string(),
+  ignored: z.boolean(),
+  name: z.string(),
+  path: z.string(),
+  type: z.enum(["file", "directory"]),
+})
+
+export const zOpencodeFilePartSourceText = z.object({
+  end: z.number(),
+  start: z.number(),
+  value: z.string(),
+})
+
+export const zOpencodeFileSource = z.object({
+  path: z.string(),
+  text: zOpencodeFilePartSourceText,
+  type: z.enum(["file"]),
+})
+
+export const zOpencodeFormatterStatus = z.object({
+  enabled: z.boolean(),
+  extensions: z.array(z.string()),
+  name: z.string(),
+})
+
+export const zOpencodeJsonSchema = z.record(z.string(), z.unknown())
+
+export const zOpencodeLspStatus = z.object({
+  id: z.string(),
+  name: z.string(),
+  root: z.string(),
+  status: z.enum(["connected", "error"]),
+})
+
+/**
+ * @deprecated Always uses stretch layout.
+ */
+export const zOpencodeLayoutConfig = z.enum(["auto", "stretch"])
+
+/**
+ * Log level
+ */
+export const zOpencodeLogLevel = z.enum(["DEBUG", "INFO", "WARN", "ERROR"])
+
+export const zOpencodeMcpStatusConnected = z.object({
+  status: z.enum(["connected"]),
+})
+
+export const zOpencodeMcpStatusDisabled = z.object({
+  status: z.enum(["disabled"]),
+})
+
+export const zOpencodeMcpStatusFailed = z.object({
+  error: z.string(),
+  status: z.enum(["failed"]),
+})
+
+export const zOpencodeMcpStatusNeedsAuth = z.object({
+  status: z.enum(["needs_auth"]),
+})
+
+export const zOpencodeMcpStatusNeedsClientRegistration = z.object({
+  error: z.string(),
+  status: z.enum(["needs_client_registration"]),
+})
+
+export const zOpencodeMcpStatus = z.union([
+  zOpencodeMcpStatusConnected,
+  zOpencodeMcpStatusDisabled,
+  zOpencodeMcpStatusFailed,
+  zOpencodeMcpStatusNeedsAuth,
+  zOpencodeMcpStatusNeedsClientRegistration,
+])
+
+export const zOpencodeMcpLocalConfig = z.object({
+  command: z.array(z.string()),
+  enabled: z.boolean().optional(),
+  environment: z.record(z.string(), z.string()).optional(),
+  timeout: z.int().gt(0).optional(),
+  type: z.enum(["local"]),
+})
+
+export const zOpencodeMcpOAuthConfig = z.object({
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
+  redirectUri: z.string().optional(),
+  scope: z.string().optional(),
+})
+
+export const zOpencodeMcpRemoteConfig = z.object({
+  enabled: z.boolean().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  oauth: z.union([zOpencodeMcpOAuthConfig, z.literal(false)]).optional(),
+  timeout: z.int().gt(0).optional(),
+  type: z.enum(["remote"]),
+  url: z.string(),
+})
+
+export const zOpencodeMcpResource = z.object({
+  client: z.string(),
+  description: z.string().optional(),
+  mimeType: z.string().optional(),
+  name: z.string(),
+  uri: z.string(),
+})
+
+export const zOpencodeMcpUnsupportedOAuthError = z.object({
+  error: z.string(),
+})
+
+export const zOpencodeMessageAbortedError = z.object({
+  data: z.object({
+    message: z.string(),
+  }),
+  name: z.enum(["MessageAbortedError"]),
+})
+
+export const zOpencodeMessageOutputLengthError = z.object({
+  data: z.record(z.string(), z.unknown()),
+  name: z.enum(["MessageOutputLengthError"]),
+})
+
+export const zOpencodeModel = z.object({
+  api: z.object({
+    id: z.string(),
+    npm: z.string(),
+    url: z.string(),
+  }),
+  capabilities: z.object({
+    attachment: z.boolean(),
+    input: z.object({
+      audio: z.boolean(),
+      image: z.boolean(),
+      pdf: z.boolean(),
+      text: z.boolean(),
+      video: z.boolean(),
+    }),
+    interleaved: z.union([
+      z.boolean(),
+      z.object({
+        field: z.enum(["reasoning_content", "reasoning_details"]),
+      }),
+    ]),
+    output: z.object({
+      audio: z.boolean(),
+      image: z.boolean(),
+      pdf: z.boolean(),
+      text: z.boolean(),
+      video: z.boolean(),
+    }),
+    reasoning: z.boolean(),
+    temperature: z.boolean(),
+    toolcall: z.boolean(),
+  }),
+  cost: z.object({
+    cache: z.object({
+      read: z.number(),
+      write: z.number(),
+    }),
+    experimentalOver200K: z
+      .object({
+        cache: z.object({
+          read: z.number(),
+          write: z.number(),
+        }),
+        input: z.number(),
+        output: z.number(),
+      })
+      .optional(),
+    input: z.number(),
+    output: z.number(),
+  }),
+  family: z.string().optional(),
+  headers: z.record(z.string(), z.string()),
+  id: z.string(),
+  limit: z.object({
+    context: z.number(),
+    input: z.number().optional(),
+    output: z.number(),
+  }),
+  name: z.string(),
+  options: z.record(z.string(), z.unknown()),
+  providerID: z.string(),
+  release_date: z.string(),
+  status: z.enum(["alpha", "beta", "deprecated", "active"]),
+  variants: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+})
+
+export const zOpencodeNotFoundError = z.object({
+  data: z.object({
+    message: z.string(),
+  }),
+  name: z.enum(["NotFoundError"]),
+})
+
+export const zOpencodeOAuth = z.object({
+  access: z.string(),
+  accountId: z.string().optional(),
+  enterpriseUrl: z.string().optional(),
+  expires: z.int().gte(0),
+  refresh: z.string(),
+  type: z.enum(["oauth"]),
+})
+
+export const zOpencodeOutputFormatJsonSchema = z.object({
+  retryCount: z.int().gte(0).optional(),
+  schema: zOpencodeJsonSchema,
+  type: z.enum(["json_schema"]),
+})
+
+export const zOpencodeOutputFormatText = z.object({
+  type: z.enum(["text"]),
+})
+
+export const zOpencodeOutputFormat = z.union([
+  zOpencodeOutputFormatText,
+  zOpencodeOutputFormatJsonSchema,
+])
+
+export const zOpencodePatchPart = z.object({
+  files: z.array(z.string()),
+  hash: z.string(),
+  id: z.string(),
+  messageID: z.string(),
+  sessionID: z.string(),
+  type: z.enum(["patch"]),
+})
+
+export const zOpencodePath = z.object({
+  config: z.string(),
+  directory: z.string(),
+  home: z.string(),
+  state: z.string(),
+  worktree: z.string(),
+})
+
+export const zOpencodePermissionAction = z.enum(["allow", "deny", "ask"])
+
+export const zOpencodePermissionActionConfig = z.enum(["ask", "allow", "deny"])
+
+export const zOpencodePermissionObjectConfig = z.record(z.string(), zOpencodePermissionActionConfig)
+
+export const zOpencodePermissionRequest = z.object({
+  always: z.array(z.string()),
+  id: z.string().regex(/^per/),
+  metadata: z.record(z.string(), z.unknown()),
+  patterns: z.array(z.string()),
+  permission: z.string(),
+  sessionID: z.string(),
+  tool: z
+    .object({
+      callID: z.string(),
+      messageID: z.string(),
+    })
+    .optional(),
+})
+
+export const zOpencodeEventPermissionAsked = z.object({
+  id: z.string(),
+  properties: zOpencodePermissionRequest,
+  type: z.enum(["permission.asked"]),
+})
+
+export const zOpencodePermissionRule = z.object({
+  action: zOpencodePermissionAction,
+  pattern: z.string(),
+  permission: z.string(),
+})
+
+export const zOpencodePermissionRuleConfig = z.union([
+  zOpencodePermissionActionConfig,
+  zOpencodePermissionObjectConfig,
+])
+
+export const zOpencodePermissionConfig = z.union([
+  zOpencodePermissionActionConfig,
   z.object({
-    resource_attributes: zJsonValue,
-    span_attributes: zJsonValue,
-  })
-)
+    bash: zOpencodePermissionRuleConfig.optional(),
+    codesearch: zOpencodePermissionActionConfig.optional(),
+    doom_loop: zOpencodePermissionActionConfig.optional(),
+    edit: zOpencodePermissionRuleConfig.optional(),
+    external_directory: zOpencodePermissionRuleConfig.optional(),
+    glob: zOpencodePermissionRuleConfig.optional(),
+    grep: zOpencodePermissionRuleConfig.optional(),
+    list: zOpencodePermissionRuleConfig.optional(),
+    lsp: zOpencodePermissionRuleConfig.optional(),
+    question: zOpencodePermissionActionConfig.optional(),
+    read: zOpencodePermissionRuleConfig.optional(),
+    repo_clone: zOpencodePermissionRuleConfig.optional(),
+    repo_overview: zOpencodePermissionRuleConfig.optional(),
+    skill: zOpencodePermissionRuleConfig.optional(),
+    task: zOpencodePermissionRuleConfig.optional(),
+    todowrite: zOpencodePermissionActionConfig.optional(),
+    webfetch: zOpencodePermissionActionConfig.optional(),
+    websearch: zOpencodePermissionActionConfig.optional(),
+  }),
+])
 
-export const zSpanPayload = z.object({
-  input_messages: zJsonValue,
-  output_messages: zJsonValue,
-  tool_arguments: zJsonValue,
-  tool_result: zJsonValue,
+export const zOpencodeAgentConfig = z.object({
+  color: z
+    .union([
+      z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      z.enum(["primary", "secondary", "accent", "success", "warning", "error", "info"]),
+    ])
+    .optional(),
+  description: z.string().optional(),
+  disable: z.boolean().optional(),
+  hidden: z.boolean().optional(),
+  maxSteps: z.int().gt(0).optional(),
+  mode: z.enum(["subagent", "primary", "all"]).optional(),
+  model: z.string().optional(),
+  options: z.record(z.string(), z.unknown()).optional(),
+  permission: zOpencodePermissionConfig.optional(),
+  prompt: z.string().optional(),
+  steps: z.int().gt(0).optional(),
+  temperature: z.number().optional(),
+  tools: z.record(z.string(), z.boolean()).optional(),
+  top_p: z.number().optional(),
+  variant: z.string().optional(),
 })
 
-export const zSpanDetailResponse = z.object({
-  span: zSpanDetail,
-  payload: zSpanPayload,
+export const zOpencodePermissionRuleset = z.array(zOpencodePermissionRule)
+
+export const zOpencodeAgent = z.object({
+  color: z.string().optional(),
+  description: z.string().optional(),
+  hidden: z.boolean().optional(),
+  mode: z.enum(["subagent", "primary", "all"]),
+  model: z
+    .object({
+      modelID: z.string(),
+      providerID: z.string(),
+    })
+    .optional(),
+  name: z.string(),
+  native: z.boolean().optional(),
+  options: z.record(z.string(), z.unknown()),
+  permission: zOpencodePermissionRuleset,
+  prompt: z.string().optional(),
+  steps: z.number().optional(),
+  temperature: z.number().optional(),
+  topP: z.number().optional(),
+  variant: z.string().optional(),
 })
+
+export const zOpencodeProject = z.object({
+  commands: z
+    .object({
+      start: z.string().optional(),
+    })
+    .optional(),
+  icon: z
+    .object({
+      color: z.string().optional(),
+      override: z.string().optional(),
+      url: z.string().optional(),
+    })
+    .optional(),
+  id: z.string(),
+  name: z.string().optional(),
+  sandboxes: z.array(z.string()),
+  time: z.object({
+    created: z.int().gte(0),
+    initialized: z.int().gte(0).optional(),
+    updated: z.int().gte(0),
+  }),
+  vcs: z.enum(["git"]).optional(),
+  worktree: z.string(),
+})
+
+export const zOpencodeEventProjectUpdated = z.object({
+  id: z.string(),
+  properties: zOpencodeProject,
+  type: z.enum(["project.updated"]),
+})
+
+export const zOpencodeProjectSummary = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  worktree: z.string(),
+})
+
+export const zOpencodePromptSource = z.object({
+  end: z.number(),
+  start: z.number(),
+  text: z.string(),
+})
+
+export const zOpencodePromptAgentAttachment = z.object({
+  name: z.string(),
+  source: zOpencodePromptSource.optional(),
+})
+
+export const zOpencodePromptFileAttachment = z.object({
+  description: z.string().optional(),
+  mime: z.string(),
+  name: z.string().optional(),
+  source: zOpencodePromptSource.optional(),
+  uri: z.string(),
+})
+
+export const zOpencodePrompt = z.object({
+  agents: z.array(zOpencodePromptAgentAttachment).optional(),
+  files: z.array(zOpencodePromptFileAttachment).optional(),
+  text: z.string(),
+})
+
+export const zOpencodeEventSessionNextPrompted = z.object({
+  id: z.string(),
+  properties: z.object({
+    prompt: zOpencodePrompt,
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.prompted"]),
+})
+
+export const zOpencodeProvider = z.object({
+  env: z.array(z.string()),
+  id: z.string(),
+  key: z.string().optional(),
+  models: z.record(z.string(), zOpencodeModel),
+  name: z.string(),
+  options: z.record(z.string(), z.unknown()),
+  source: z.enum(["env", "config", "custom", "api"]),
+})
+
+export const zOpencodeProviderAuthAuthorization = z.object({
+  instructions: z.string(),
+  method: z.enum(["auto", "code"]),
+  url: z.string(),
+})
+
+export const zOpencodeProviderAuthError = z.object({
+  data: z.object({
+    message: z.string(),
+    providerID: z.string(),
+  }),
+  name: z.enum(["ProviderAuthError"]),
+})
+
+export const zOpencodeProviderAuthMethod = z.object({
+  label: z.string(),
+  prompts: z
+    .array(
+      z.union([
+        z.object({
+          key: z.string(),
+          message: z.string(),
+          placeholder: z.string().optional(),
+          type: z.enum(["text"]),
+          when: z
+            .object({
+              key: z.string(),
+              op: z.enum(["eq", "neq"]),
+              value: z.string(),
+            })
+            .optional(),
+        }),
+        z.object({
+          key: z.string(),
+          message: z.string(),
+          options: z.array(
+            z.object({
+              hint: z.string().optional(),
+              label: z.string(),
+              value: z.string(),
+            })
+          ),
+          type: z.enum(["select"]),
+          when: z
+            .object({
+              key: z.string(),
+              op: z.enum(["eq", "neq"]),
+              value: z.string(),
+            })
+            .optional(),
+        }),
+      ])
+    )
+    .optional(),
+  type: z.enum(["oauth", "api"]),
+})
+
+export const zOpencodeProviderConfig = z.object({
+  api: z.string().optional(),
+  blacklist: z.array(z.string()).optional(),
+  env: z.array(z.string()).optional(),
+  id: z.string().optional(),
+  models: z
+    .record(
+      z.string(),
+      z.object({
+        attachment: z.boolean().optional(),
+        cost: z
+          .object({
+            cache_read: z.number().optional(),
+            cache_write: z.number().optional(),
+            context_over_200k: z
+              .object({
+                cache_read: z.number().optional(),
+                cache_write: z.number().optional(),
+                input: z.number(),
+                output: z.number(),
+              })
+              .optional(),
+            input: z.number(),
+            output: z.number(),
+          })
+          .optional(),
+        experimental: z.boolean().optional(),
+        family: z.string().optional(),
+        headers: z.record(z.string(), z.string()).optional(),
+        id: z.string().optional(),
+        interleaved: z
+          .union([
+            z.literal(true),
+            z.object({
+              field: z.enum(["reasoning_content", "reasoning_details"]),
+            }),
+          ])
+          .optional(),
+        limit: z
+          .object({
+            context: z.number(),
+            input: z.number().optional(),
+            output: z.number(),
+          })
+          .optional(),
+        modalities: z
+          .object({
+            input: z.array(z.enum(["text", "audio", "image", "video", "pdf"])),
+            output: z.array(z.enum(["text", "audio", "image", "video", "pdf"])),
+          })
+          .optional(),
+        name: z.string().optional(),
+        options: z.record(z.string(), z.unknown()).optional(),
+        provider: z
+          .object({
+            api: z.string().optional(),
+            npm: z.string().optional(),
+          })
+          .optional(),
+        reasoning: z.boolean().optional(),
+        release_date: z.string().optional(),
+        status: z.enum(["alpha", "beta", "deprecated", "active"]).optional(),
+        temperature: z.boolean().optional(),
+        tool_call: z.boolean().optional(),
+        variants: z
+          .record(
+            z.string(),
+            z.object({
+              disabled: z.boolean().optional(),
+            })
+          )
+          .optional(),
+      })
+    )
+    .optional(),
+  name: z.string().optional(),
+  npm: z.string().optional(),
+  options: z
+    .object({
+      apiKey: z.string().optional(),
+      baseURL: z.string().optional(),
+      chunkTimeout: z.int().gt(0).optional(),
+      enterpriseUrl: z.string().optional(),
+      setCacheKey: z.boolean().optional(),
+      timeout: z.union([z.int().gt(0), z.literal(false)]).optional(),
+    })
+    .optional(),
+  whitelist: z.array(z.string()).optional(),
+})
+
+export const zOpencodePty = z.object({
+  args: z.array(z.string()),
+  command: z.string(),
+  cwd: z.string(),
+  id: z.string(),
+  pid: z.int().gt(0),
+  status: z.enum(["running", "exited"]),
+  title: z.string(),
+})
+
+export const zOpencodeEventPtyCreated = z.object({
+  id: z.string(),
+  properties: z.object({
+    info: zOpencodePty,
+  }),
+  type: z.enum(["pty.created"]),
+})
+
+export const zOpencodeEventPtyUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    info: zOpencodePty,
+  }),
+  type: z.enum(["pty.updated"]),
+})
+
+export const zOpencodeQuestionAnswer = z.array(z.string())
+
+export const zOpencodeQuestionOption = z.object({
+  description: z.string(),
+  label: z.string(),
+})
+
+export const zOpencodeQuestionInfo = z.object({
+  custom: z.boolean().optional(),
+  header: z.string(),
+  multiple: z.boolean().optional(),
+  options: z.array(zOpencodeQuestionOption),
+  question: z.string(),
+})
+
+export const zOpencodeQuestionRejected = z.object({
+  requestID: z.string().regex(/^que/),
+  sessionID: z.string(),
+})
+
+export const zOpencodeEventQuestionRejected = z.object({
+  id: z.string(),
+  properties: zOpencodeQuestionRejected,
+  type: z.enum(["question.rejected"]),
+})
+
+export const zOpencodeQuestionReplied = z.object({
+  answers: z.array(zOpencodeQuestionAnswer),
+  requestID: z.string().regex(/^que/),
+  sessionID: z.string(),
+})
+
+export const zOpencodeEventQuestionReplied = z.object({
+  id: z.string(),
+  properties: zOpencodeQuestionReplied,
+  type: z.enum(["question.replied"]),
+})
+
+export const zOpencodeQuestionTool = z.object({
+  callID: z.string(),
+  messageID: z.string(),
+})
+
+export const zOpencodeQuestionRequest = z.object({
+  id: z.string().regex(/^que/),
+  questions: z.array(zOpencodeQuestionInfo),
+  sessionID: z.string(),
+  tool: zOpencodeQuestionTool.optional(),
+})
+
+export const zOpencodeEventQuestionAsked = z.object({
+  id: z.string(),
+  properties: zOpencodeQuestionRequest,
+  type: z.enum(["question.asked"]),
+})
+
+export const zOpencodeRange = z.object({
+  end: z.object({
+    character: z.int().gte(0),
+    line: z.int().gte(0),
+  }),
+  start: z.object({
+    character: z.int().gte(0),
+    line: z.int().gte(0),
+  }),
+})
+
+export const zOpencodeReasoningPart = z.object({
+  id: z.string(),
+  messageID: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  sessionID: z.string(),
+  text: z.string(),
+  time: z.object({
+    end: z.int().gte(0).optional(),
+    start: z.int().gte(0),
+  }),
+  type: z.enum(["reasoning"]),
+})
+
+export const zOpencodeReferenceConfigEntry = z.union([
+  z.string(),
+  z.object({
+    branch: z.string().optional(),
+    repository: z.string(),
+  }),
+  z.object({
+    path: z.string(),
+  }),
+])
+
+export const zOpencodeReferenceConfig = z.record(z.string(), zOpencodeReferenceConfigEntry)
+
+export const zOpencodeResourceSource = z.object({
+  clientName: z.string(),
+  text: zOpencodeFilePartSourceText,
+  type: z.enum(["resource"]),
+  uri: z.string(),
+})
+
+export const zOpencodeRetryPart = z.object({
+  attempt: z.int().gte(0),
+  error: zOpencodeApiError,
+  id: z.string(),
+  messageID: z.string(),
+  sessionID: z.string(),
+  time: z.object({
+    created: z.int().gte(0),
+  }),
+  type: z.enum(["retry"]),
+})
+
+/**
+ * Server configuration for opencode serve and web commands
+ */
+export const zOpencodeServerConfig = z.object({
+  cors: z.array(z.string()).optional(),
+  hostname: z.string().optional(),
+  mdns: z.boolean().optional(),
+  mdnsDomain: z.string().optional(),
+  port: z.int().gt(0).optional(),
+})
+
+export const zOpencodeConfig = z.object({
+  $schema: z.string().optional(),
+  agent: z
+    .object({
+      build: zOpencodeAgentConfig.optional(),
+      compaction: zOpencodeAgentConfig.optional(),
+      explore: zOpencodeAgentConfig.optional(),
+      general: zOpencodeAgentConfig.optional(),
+      plan: zOpencodeAgentConfig.optional(),
+      scout: zOpencodeAgentConfig.optional(),
+      summary: zOpencodeAgentConfig.optional(),
+      title: zOpencodeAgentConfig.optional(),
+    })
+    .optional(),
+  autoshare: z.boolean().optional(),
+  autoupdate: z.union([z.boolean(), z.enum(["notify"])]).optional(),
+  command: z
+    .record(
+      z.string(),
+      z.object({
+        agent: z.string().optional(),
+        description: z.string().optional(),
+        model: z.string().optional(),
+        subtask: z.boolean().optional(),
+        template: z.string(),
+      })
+    )
+    .optional(),
+  compaction: z
+    .object({
+      auto: z.boolean().optional(),
+      preserve_recent_tokens: z.int().gte(0).optional(),
+      prune: z.boolean().optional(),
+      reserved: z.int().gte(0).optional(),
+      tail_turns: z.int().gte(0).optional(),
+    })
+    .optional(),
+  default_agent: z.string().optional(),
+  disabled_providers: z.array(z.string()).optional(),
+  enabled_providers: z.array(z.string()).optional(),
+  enterprise: z
+    .object({
+      url: z.string().optional(),
+    })
+    .optional(),
+  experimental: z
+    .object({
+      batch_tool: z.boolean().optional(),
+      continue_loop_on_deny: z.boolean().optional(),
+      disable_paste_summary: z.boolean().optional(),
+      mcp_timeout: z.int().gt(0).optional(),
+      openTelemetry: z.boolean().optional(),
+      primary_tools: z.array(z.string()).optional(),
+    })
+    .optional(),
+  formatter: z
+    .union([
+      z.boolean(),
+      z.record(
+        z.string(),
+        z.object({
+          command: z.array(z.string()).optional(),
+          disabled: z.boolean().optional(),
+          environment: z.record(z.string(), z.string()).optional(),
+          extensions: z.array(z.string()).optional(),
+        })
+      ),
+    ])
+    .optional(),
+  instructions: z.array(z.string()).optional(),
+  layout: zOpencodeLayoutConfig.optional(),
+  logLevel: zOpencodeLogLevel.optional(),
+  lsp: z
+    .union([
+      z.boolean(),
+      z.record(
+        z.string(),
+        z.union([
+          z.object({
+            disabled: z.literal(true),
+          }),
+          z.object({
+            command: z.array(z.string()),
+            disabled: z.boolean().optional(),
+            env: z.record(z.string(), z.string()).optional(),
+            extensions: z.array(z.string()).optional(),
+            initialization: z.record(z.string(), z.unknown()).optional(),
+          }),
+        ])
+      ),
+    ])
+    .optional(),
+  mcp: z
+    .record(
+      z.string(),
+      z.union([
+        zOpencodeMcpLocalConfig,
+        zOpencodeMcpRemoteConfig,
+        z.object({
+          enabled: z.boolean(),
+        }),
+      ])
+    )
+    .optional(),
+  mode: z
+    .object({
+      build: zOpencodeAgentConfig.optional(),
+      plan: zOpencodeAgentConfig.optional(),
+    })
+    .optional(),
+  model: z.string().optional(),
+  permission: zOpencodePermissionConfig.optional(),
+  plugin: z.array(z.union([z.string(), z.tuple([z.unknown(), z.unknown()])])).optional(),
+  provider: z.record(z.string(), zOpencodeProviderConfig).optional(),
+  reference: zOpencodeReferenceConfig.optional(),
+  server: zOpencodeServerConfig.optional(),
+  share: z.enum(["manual", "auto", "disabled"]).optional(),
+  shell: z.string().optional(),
+  skills: z
+    .object({
+      paths: z.array(z.string()).optional(),
+      urls: z.array(z.string()).optional(),
+    })
+    .optional(),
+  small_model: z.string().optional(),
+  snapshot: z.boolean().optional(),
+  tool_output: z
+    .object({
+      max_bytes: z.int().gt(0).optional(),
+      max_lines: z.int().gt(0).optional(),
+    })
+    .optional(),
+  tools: z.record(z.string(), z.boolean()).optional(),
+  username: z.string().optional(),
+  watcher: z
+    .object({
+      ignore: z.array(z.string()).optional(),
+    })
+    .optional(),
+})
+
+export const zOpencodeSessionDelivery = z.enum(["immediate", "deferred"])
+
+export const zOpencodeSessionErrorUnknown = z.object({
+  message: z.string(),
+  type: z.enum(["unknown"]),
+})
+
+export const zOpencodeEventSessionNextStepFailed = z.object({
+  id: z.string(),
+  properties: z.object({
+    error: zOpencodeSessionErrorUnknown,
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.step.failed"]),
+})
+
+export const zOpencodeEventSessionNextToolFailed = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    error: zOpencodeSessionErrorUnknown,
+    provider: z.object({
+      executed: z.boolean(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    }),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.tool.failed"]),
+})
+
+export const zOpencodeSessionInfo = z.object({
+  agent: z.string().optional(),
+  id: z.string(),
+  model: z
+    .object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string(),
+    })
+    .optional(),
+  parentID: z.string().optional(),
+  path: z.string().optional(),
+  projectID: z.string(),
+  time: z.object({
+    archived: z.number().optional(),
+    created: z.number(),
+    updated: z.number(),
+  }),
+  title: z.string(),
+  workspaceID: z.string().optional(),
+})
+
+export const zOpencodeSessionMessageAgentSwitched = z.object({
+  agent: z.string(),
+  id: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  time: z.object({
+    created: z.number(),
+  }),
+  type: z.enum(["agent-switched"]),
+})
+
+export const zOpencodeSessionMessageAssistantReasoning = z.object({
+  id: z.string(),
+  text: z.string(),
+  type: z.enum(["reasoning"]),
+})
+
+export const zOpencodeSessionMessageAssistantText = z.object({
+  text: z.string(),
+  type: z.enum(["text"]),
+})
+
+export const zOpencodeSessionMessageCompaction = z.object({
+  id: z.string(),
+  include: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  reason: z.enum(["auto", "manual"]),
+  summary: z.string(),
+  time: z.object({
+    created: z.number(),
+  }),
+  type: z.enum(["compaction"]),
+})
+
+export const zOpencodeSessionMessageModelSwitched = z.object({
+  id: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  model: z.object({
+    id: z.string(),
+    providerID: z.string(),
+    variant: z.string(),
+  }),
+  time: z.object({
+    created: z.number(),
+  }),
+  type: z.enum(["model-switched"]),
+})
+
+export const zOpencodeSessionMessageShell = z.object({
+  callID: z.string(),
+  command: z.string(),
+  id: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  output: z.string(),
+  time: z.object({
+    completed: z.number().optional(),
+    created: z.number(),
+  }),
+  type: z.enum(["shell"]),
+})
+
+export const zOpencodeSessionMessageSynthetic = z.object({
+  id: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  sessionID: z.string(),
+  text: z.string(),
+  time: z.object({
+    created: z.number(),
+  }),
+  type: z.enum(["synthetic"]),
+})
+
+export const zOpencodeSessionMessageToolStatePending = z.object({
+  input: z.string(),
+  status: z.enum(["pending"]),
+})
+
+export const zOpencodeSessionMessageUser = z.object({
+  agents: z.array(zOpencodePromptAgentAttachment).optional(),
+  files: z.array(zOpencodePromptFileAttachment).optional(),
+  id: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  text: z.string(),
+  time: z.object({
+    created: z.number(),
+  }),
+  type: z.enum(["user"]),
+})
+
+export const zOpencodeSessionNextRetryError = z.object({
+  isRetryable: z.boolean(),
+  message: z.string(),
+  metadata: z.record(z.string(), z.string()).optional(),
+  responseBody: z.string().optional(),
+  responseHeaders: z.record(z.string(), z.string()).optional(),
+  statusCode: z.number().optional(),
+})
+
+export const zOpencodeEventSessionNextRetried = z.object({
+  id: z.string(),
+  properties: z.object({
+    attempt: z.number(),
+    error: zOpencodeSessionNextRetryError,
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.retried"]),
+})
+
+export const zOpencodeSessionStatus = z.union([
+  z.object({
+    type: z.enum(["idle"]),
+  }),
+  z.object({
+    action: z
+      .object({
+        label: z.string(),
+        link: z.string().optional(),
+        message: z.string(),
+        provider: z.string(),
+        reason: z.string(),
+        title: z.string(),
+      })
+      .optional(),
+    attempt: z.int().gte(0),
+    message: z.string(),
+    next: z.int().gte(0),
+    type: z.enum(["retry"]),
+  }),
+  z.object({
+    type: z.enum(["busy"]),
+  }),
+])
+
+export const zOpencodeEventSessionStatus = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+    status: zOpencodeSessionStatus,
+  }),
+  type: z.enum(["session.status"]),
+})
+
+export const zOpencodeSnapshotFileDiff = z.object({
+  additions: z.number(),
+  deletions: z.number(),
+  file: z.string().optional(),
+  patch: z.string().optional(),
+  status: z.enum(["added", "deleted", "modified"]).optional(),
+})
+
+export const zOpencodeEventSessionDiff = z.object({
+  id: z.string(),
+  properties: z.object({
+    diff: z.array(zOpencodeSnapshotFileDiff),
+    sessionID: z.string(),
+  }),
+  type: z.enum(["session.diff"]),
+})
+
+export const zOpencodeGlobalSession = z.object({
+  agent: z.string().optional(),
+  directory: z.string(),
+  id: z.string(),
+  model: z
+    .object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string().optional(),
+    })
+    .optional(),
+  parentID: z.string().optional(),
+  path: z.string().optional(),
+  permission: zOpencodePermissionRuleset.optional(),
+  project: z.union([zOpencodeProjectSummary, z.unknown()]),
+  projectID: z.string(),
+  revert: z
+    .object({
+      diff: z.string().optional(),
+      messageID: z.string(),
+      partID: z.string().optional(),
+      snapshot: z.string().optional(),
+    })
+    .optional(),
+  share: z
+    .object({
+      url: z.string(),
+    })
+    .optional(),
+  slug: z.string(),
+  summary: z
+    .object({
+      additions: z.number(),
+      deletions: z.number(),
+      diffs: z.array(zOpencodeSnapshotFileDiff).optional(),
+      files: z.number(),
+    })
+    .optional(),
+  time: z.object({
+    archived: z.number().optional(),
+    compacting: z.int().gte(0).optional(),
+    created: z.int().gte(0),
+    updated: z.int().gte(0),
+  }),
+  title: z.string(),
+  version: z.string(),
+  workspaceID: z.string().optional(),
+})
+
+export const zOpencodeSession = z.object({
+  agent: z.string().optional(),
+  directory: z.string(),
+  id: z.string(),
+  model: z
+    .object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string().optional(),
+    })
+    .optional(),
+  parentID: z.string().optional(),
+  path: z.string().optional(),
+  permission: zOpencodePermissionRuleset.optional(),
+  projectID: z.string(),
+  revert: z
+    .object({
+      diff: z.string().optional(),
+      messageID: z.string(),
+      partID: z.string().optional(),
+      snapshot: z.string().optional(),
+    })
+    .optional(),
+  share: z
+    .object({
+      url: z.string(),
+    })
+    .optional(),
+  slug: z.string(),
+  summary: z
+    .object({
+      additions: z.number(),
+      deletions: z.number(),
+      diffs: z.array(zOpencodeSnapshotFileDiff).optional(),
+      files: z.number(),
+    })
+    .optional(),
+  time: z.object({
+    archived: z.number().optional(),
+    compacting: z.int().gte(0).optional(),
+    created: z.int().gte(0),
+    updated: z.int().gte(0),
+  }),
+  title: z.string(),
+  version: z.string(),
+  workspaceID: z.string().optional(),
+})
+
+export const zOpencodeEventSessionCreated = z.object({
+  id: z.string(),
+  properties: z.object({
+    info: zOpencodeSession,
+    sessionID: z.string(),
+  }),
+  type: z.enum(["session.created"]),
+})
+
+export const zOpencodeEventSessionDeleted = z.object({
+  id: z.string(),
+  properties: z.object({
+    info: zOpencodeSession,
+    sessionID: z.string(),
+  }),
+  type: z.enum(["session.deleted"]),
+})
+
+export const zOpencodeEventSessionUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    info: zOpencodeSession,
+    sessionID: z.string(),
+  }),
+  type: z.enum(["session.updated"]),
+})
+
+export const zOpencodeSnapshotPart = z.object({
+  id: z.string(),
+  messageID: z.string(),
+  sessionID: z.string(),
+  snapshot: z.string(),
+  type: z.enum(["snapshot"]),
+})
+
+export const zOpencodeStepFinishPart = z.object({
+  cost: z.number(),
+  id: z.string(),
+  messageID: z.string(),
+  reason: z.string(),
+  sessionID: z.string(),
+  snapshot: z.string().optional(),
+  tokens: z.object({
+    cache: z.object({
+      read: z.number(),
+      write: z.number(),
+    }),
+    input: z.number(),
+    output: z.number(),
+    reasoning: z.number(),
+    total: z.number().optional(),
+  }),
+  type: z.enum(["step-finish"]),
+})
+
+export const zOpencodeStepStartPart = z.object({
+  id: z.string(),
+  messageID: z.string(),
+  sessionID: z.string(),
+  snapshot: z.string().optional(),
+  type: z.enum(["step-start"]),
+})
+
+export const zOpencodeStructuredOutputError = z.object({
+  data: z.object({
+    message: z.string(),
+    retries: z.int().gte(0),
+  }),
+  name: z.enum(["StructuredOutputError"]),
+})
+
+export const zOpencodeSubtaskPart = z.object({
+  agent: z.string(),
+  command: z.string().optional(),
+  description: z.string(),
+  id: z.string(),
+  messageID: z.string(),
+  model: z
+    .object({
+      modelID: z.string(),
+      providerID: z.string(),
+    })
+    .optional(),
+  prompt: z.string(),
+  sessionID: z.string(),
+  type: z.enum(["subtask"]),
+})
+
+export const zOpencodeSubtaskPartInput = z.object({
+  agent: z.string(),
+  command: z.string().optional(),
+  description: z.string(),
+  id: z.string().optional(),
+  model: z
+    .object({
+      modelID: z.string(),
+      providerID: z.string(),
+    })
+    .optional(),
+  prompt: z.string(),
+  type: z.enum(["subtask"]),
+})
+
+export const zOpencodeSymbol = z.object({
+  kind: z.int().gte(0),
+  location: z.object({
+    range: zOpencodeRange,
+    uri: z.string(),
+  }),
+  name: z.string(),
+})
+
+export const zOpencodeSymbolSource = z.object({
+  kind: z.int().gte(0),
+  name: z.string(),
+  path: z.string(),
+  range: zOpencodeRange,
+  text: zOpencodeFilePartSourceText,
+  type: z.enum(["symbol"]),
+})
+
+export const zOpencodeFilePartSource = z.union([
+  zOpencodeFileSource,
+  zOpencodeSymbolSource,
+  zOpencodeResourceSource,
+])
+
+export const zOpencodeFilePart = z.object({
+  filename: z.string().optional(),
+  id: z.string(),
+  messageID: z.string(),
+  mime: z.string(),
+  sessionID: z.string(),
+  source: zOpencodeFilePartSource.optional(),
+  type: z.enum(["file"]),
+  url: z.string(),
+})
+
+export const zOpencodeFilePartInput = z.object({
+  filename: z.string().optional(),
+  id: z.string().optional(),
+  mime: z.string(),
+  source: zOpencodeFilePartSource.optional(),
+  type: z.enum(["file"]),
+  url: z.string(),
+})
+
+export const zOpencodeSyncEventMessagePartRemoved = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    messageID: z.string(),
+    partID: z.string(),
+    sessionID: z.string(),
+  }),
+  id: z.string(),
+  name: z.enum(["message.part.removed.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventMessageRemoved = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    messageID: z.string(),
+    sessionID: z.string(),
+  }),
+  id: z.string(),
+  name: z.enum(["message.removed.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionCreated = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    info: zOpencodeSession,
+    sessionID: z.string(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.created.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionDeleted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    info: zOpencodeSession,
+    sessionID: z.string(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.deleted.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextAgentSwitched = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    agent: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.agent.switched.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextCompactionDelta = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.compaction.delta.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextCompactionEnded = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    include: z.string().optional(),
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.compaction.ended.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextCompactionStarted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    reason: z.enum(["auto", "manual"]),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.compaction.started.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextModelSwitched = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    model: z.object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string(),
+    }),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.model.switched.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextPrompted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    prompt: zOpencodePrompt,
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.prompted.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextReasoningDelta = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    delta: z.string(),
+    reasoningID: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.reasoning.delta.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextReasoningEnded = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    reasoningID: z.string(),
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.reasoning.ended.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextReasoningStarted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    reasoningID: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.reasoning.started.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextRetried = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    attempt: z.number(),
+    error: zOpencodeSessionNextRetryError,
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.retried.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextShellEnded = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    output: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.shell.ended.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextShellStarted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    command: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.shell.started.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextStepEnded = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    cost: z.number(),
+    finish: z.string(),
+    sessionID: z.string(),
+    snapshot: z.string().optional(),
+    timestamp: z.number(),
+    tokens: z.object({
+      cache: z.object({
+        read: z.number(),
+        write: z.number(),
+      }),
+      input: z.number(),
+      output: z.number(),
+      reasoning: z.number(),
+    }),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.step.ended.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextStepFailed = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    error: zOpencodeSessionErrorUnknown,
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.step.failed.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextStepStarted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    agent: z.string(),
+    model: z.object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string(),
+    }),
+    sessionID: z.string(),
+    snapshot: z.string().optional(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.step.started.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextSynthetic = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.synthetic.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextTextDelta = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    delta: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.text.delta.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextTextEnded = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.text.ended.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextTextStarted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.text.started.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextToolCalled = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    input: z.record(z.string(), z.unknown()),
+    provider: z.object({
+      executed: z.boolean(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    }),
+    sessionID: z.string(),
+    timestamp: z.number(),
+    tool: z.string(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.tool.called.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextToolFailed = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    error: zOpencodeSessionErrorUnknown,
+    provider: z.object({
+      executed: z.boolean(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    }),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.tool.failed.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextToolInputDelta = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    delta: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.tool.input.delta.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextToolInputEnded = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    sessionID: z.string(),
+    text: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.tool.input.ended.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextToolInputStarted = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    name: z.string(),
+    sessionID: z.string(),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.tool.input.started.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionUpdated = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    info: z.object({
+      agent: z.union([z.string(), z.unknown()]).optional(),
+      directory: z.union([z.string(), z.unknown()]).optional(),
+      id: z.union([z.string(), z.unknown()]).optional(),
+      model: z
+        .union([
+          z.object({
+            id: z.string(),
+            providerID: z.string(),
+            variant: z.string().optional(),
+          }),
+          z.unknown(),
+        ])
+        .optional(),
+      parentID: z.union([z.string(), z.unknown()]).optional(),
+      path: z.union([z.string(), z.unknown()]).optional(),
+      permission: z.union([zOpencodePermissionRuleset, z.unknown()]).optional(),
+      projectID: z.union([z.string(), z.unknown()]).optional(),
+      revert: z
+        .union([
+          z.object({
+            diff: z.string().optional(),
+            messageID: z.string(),
+            partID: z.string().optional(),
+            snapshot: z.string().optional(),
+          }),
+          z.unknown(),
+        ])
+        .optional(),
+      share: z
+        .object({
+          url: z.union([z.string(), z.unknown()]).optional(),
+        })
+        .optional(),
+      slug: z.union([z.string(), z.unknown()]).optional(),
+      summary: z
+        .union([
+          z.object({
+            additions: z.number(),
+            deletions: z.number(),
+            diffs: z.array(zOpencodeSnapshotFileDiff).optional(),
+            files: z.number(),
+          }),
+          z.unknown(),
+        ])
+        .optional(),
+      time: z
+        .object({
+          archived: z.union([z.number(), z.unknown()]).optional(),
+          compacting: z.union([z.int().gte(0), z.unknown()]).optional(),
+          created: z.union([z.int().gte(0), z.unknown()]).optional(),
+          updated: z.union([z.int().gte(0), z.unknown()]).optional(),
+        })
+        .optional(),
+      title: z.union([z.string(), z.unknown()]).optional(),
+      version: z.union([z.string(), z.unknown()]).optional(),
+      workspaceID: z.union([z.string(), z.unknown()]).optional(),
+    }),
+    sessionID: z.string(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.updated.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeTextPart = z.object({
+  id: z.string(),
+  ignored: z.boolean().optional(),
+  messageID: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  sessionID: z.string(),
+  synthetic: z.boolean().optional(),
+  text: z.string(),
+  time: z
+    .object({
+      end: z.int().gte(0).optional(),
+      start: z.int().gte(0),
+    })
+    .optional(),
+  type: z.enum(["text"]),
+})
+
+export const zOpencodeTextPartInput = z.object({
+  id: z.string().optional(),
+  ignored: z.boolean().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  synthetic: z.boolean().optional(),
+  text: z.string(),
+  time: z
+    .object({
+      end: z.int().gte(0).optional(),
+      start: z.int().gte(0),
+    })
+    .optional(),
+  type: z.enum(["text"]),
+})
+
+export const zOpencodeTodo = z.object({
+  content: z.string(),
+  priority: z.string(),
+  status: z.string(),
+})
+
+export const zOpencodeEventTodoUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    sessionID: z.string(),
+    todos: z.array(zOpencodeTodo),
+  }),
+  type: z.enum(["todo.updated"]),
+})
+
+export const zOpencodeToolFileContent = z.object({
+  mime: z.string(),
+  name: z.string().optional(),
+  type: z.enum(["file"]),
+  uri: z.string(),
+})
+
+export const zOpencodeToolIds = z.array(z.string())
+
+export const zOpencodeToolListItem = z.object({
+  description: z.string(),
+  id: z.string(),
+  parameters: z.unknown(),
+})
+
+export const zOpencodeToolList = z.array(zOpencodeToolListItem)
+
+export const zOpencodeToolStateCompleted = z.object({
+  attachments: z.array(zOpencodeFilePart).optional(),
+  input: z.record(z.string(), z.unknown()),
+  metadata: z.record(z.string(), z.unknown()),
+  output: z.string(),
+  status: z.enum(["completed"]),
+  time: z.object({
+    compacted: z.int().gte(0).optional(),
+    end: z.int().gte(0),
+    start: z.int().gte(0),
+  }),
+  title: z.string(),
+})
+
+export const zOpencodeToolStateError = z.object({
+  error: z.string(),
+  input: z.record(z.string(), z.unknown()),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  status: z.enum(["error"]),
+  time: z.object({
+    end: z.int().gte(0),
+    start: z.int().gte(0),
+  }),
+})
+
+export const zOpencodeToolStatePending = z.object({
+  input: z.record(z.string(), z.unknown()),
+  raw: z.string(),
+  status: z.enum(["pending"]),
+})
+
+export const zOpencodeToolStateRunning = z.object({
+  input: z.record(z.string(), z.unknown()),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  status: z.enum(["running"]),
+  time: z.object({
+    start: z.int().gte(0),
+  }),
+  title: z.string().optional(),
+})
+
+export const zOpencodeToolState = z.union([
+  zOpencodeToolStatePending,
+  zOpencodeToolStateRunning,
+  zOpencodeToolStateCompleted,
+  zOpencodeToolStateError,
+])
+
+export const zOpencodeToolPart = z.object({
+  callID: z.string(),
+  id: z.string(),
+  messageID: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  sessionID: z.string(),
+  state: zOpencodeToolState,
+  tool: z.string(),
+  type: z.enum(["tool"]),
+})
+
+export const zOpencodePart = z.union([
+  zOpencodeTextPart,
+  zOpencodeSubtaskPart,
+  zOpencodeReasoningPart,
+  zOpencodeFilePart,
+  zOpencodeToolPart,
+  zOpencodeStepStartPart,
+  zOpencodeStepFinishPart,
+  zOpencodeSnapshotPart,
+  zOpencodePatchPart,
+  zOpencodeAgentPart,
+  zOpencodeRetryPart,
+  zOpencodeCompactionPart,
+])
+
+export const zOpencodeEventMessagePartUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    part: zOpencodePart,
+    sessionID: z.string(),
+    time: z.int().gte(0),
+  }),
+  type: z.enum(["message.part.updated"]),
+})
+
+export const zOpencodeSyncEventMessagePartUpdated = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    part: zOpencodePart,
+    sessionID: z.string(),
+    time: z.int().gte(0),
+  }),
+  id: z.string(),
+  name: z.enum(["message.part.updated.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeToolTextContent = z.object({
+  text: z.string(),
+  type: z.enum(["text"]),
+})
+
+export const zOpencodeEventSessionNextToolProgress = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    content: z.array(z.union([zOpencodeToolTextContent, zOpencodeToolFileContent])),
+    sessionID: z.string(),
+    structured: z.record(z.string(), z.unknown()),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.tool.progress"]),
+})
+
+export const zOpencodeEventSessionNextToolSuccess = z.object({
+  id: z.string(),
+  properties: z.object({
+    callID: z.string(),
+    content: z.array(z.union([zOpencodeToolTextContent, zOpencodeToolFileContent])),
+    provider: z.object({
+      executed: z.boolean(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    }),
+    sessionID: z.string(),
+    structured: z.record(z.string(), z.unknown()),
+    timestamp: z.number(),
+  }),
+  type: z.enum(["session.next.tool.success"]),
+})
+
+export const zOpencodeSessionMessageToolStateCompleted = z.object({
+  attachments: z.array(zOpencodePromptFileAttachment).optional(),
+  content: z.array(z.union([zOpencodeToolTextContent, zOpencodeToolFileContent])),
+  input: z.record(z.string(), z.unknown()),
+  status: z.enum(["completed"]),
+  structured: z.record(z.string(), z.unknown()),
+})
+
+export const zOpencodeSessionMessageToolStateError = z.object({
+  content: z.array(z.union([zOpencodeToolTextContent, zOpencodeToolFileContent])),
+  error: zOpencodeSessionErrorUnknown,
+  input: z.record(z.string(), z.unknown()),
+  status: z.enum(["error"]),
+  structured: z.record(z.string(), z.unknown()),
+})
+
+export const zOpencodeSessionMessageToolStateRunning = z.object({
+  content: z.array(z.union([zOpencodeToolTextContent, zOpencodeToolFileContent])),
+  input: z.record(z.string(), z.unknown()),
+  status: z.enum(["running"]),
+  structured: z.record(z.string(), z.unknown()),
+})
+
+export const zOpencodeSessionMessageAssistantTool = z.object({
+  id: z.string(),
+  name: z.string(),
+  provider: z
+    .object({
+      executed: z.boolean(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
+  state: z.union([
+    zOpencodeSessionMessageToolStatePending,
+    zOpencodeSessionMessageToolStateRunning,
+    zOpencodeSessionMessageToolStateCompleted,
+    zOpencodeSessionMessageToolStateError,
+  ]),
+  time: z.object({
+    completed: z.number().optional(),
+    created: z.number(),
+    pruned: z.number().optional(),
+    ran: z.number().optional(),
+  }),
+  type: z.enum(["tool"]),
+})
+
+export const zOpencodeSessionMessageAssistant = z.object({
+  agent: z.string(),
+  content: z.array(
+    z.union([
+      zOpencodeSessionMessageAssistantText,
+      zOpencodeSessionMessageAssistantReasoning,
+      zOpencodeSessionMessageAssistantTool,
+    ])
+  ),
+  cost: z.number().optional(),
+  error: zOpencodeSessionErrorUnknown.optional(),
+  finish: z.string().optional(),
+  id: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  model: z.object({
+    id: z.string(),
+    providerID: z.string(),
+    variant: z.string(),
+  }),
+  snapshot: z
+    .object({
+      end: z.string().optional(),
+      start: z.string().optional(),
+    })
+    .optional(),
+  time: z.object({
+    completed: z.number().optional(),
+    created: z.number(),
+  }),
+  tokens: z
+    .object({
+      cache: z.object({
+        read: z.number(),
+        write: z.number(),
+      }),
+      input: z.number(),
+      output: z.number(),
+      reasoning: z.number(),
+    })
+    .optional(),
+  type: z.enum(["assistant"]),
+})
+
+export const zOpencodeSessionMessage = z.union([
+  zOpencodeSessionMessageAgentSwitched,
+  zOpencodeSessionMessageModelSwitched,
+  zOpencodeSessionMessageUser,
+  zOpencodeSessionMessageSynthetic,
+  zOpencodeSessionMessageShell,
+  zOpencodeSessionMessageAssistant,
+  zOpencodeSessionMessageCompaction,
+])
+
+export const zOpencodeSyncEventSessionNextToolProgress = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    content: z.array(z.union([zOpencodeToolTextContent, zOpencodeToolFileContent])),
+    sessionID: z.string(),
+    structured: z.record(z.string(), z.unknown()),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.tool.progress.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeSyncEventSessionNextToolSuccess = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    callID: z.string(),
+    content: z.array(z.union([zOpencodeToolTextContent, zOpencodeToolFileContent])),
+    provider: z.object({
+      executed: z.boolean(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    }),
+    sessionID: z.string(),
+    structured: z.record(z.string(), z.unknown()),
+    timestamp: z.number(),
+  }),
+  id: z.string(),
+  name: z.enum(["session.next.tool.success.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeUnknownError = z.object({
+  data: z.object({
+    message: z.string(),
+  }),
+  name: z.enum(["UnknownError"]),
+})
+
+export const zOpencodeAssistantMessage = z.object({
+  agent: z.string(),
+  cost: z.number(),
+  error: z
+    .union([
+      zOpencodeProviderAuthError,
+      zOpencodeUnknownError,
+      zOpencodeMessageOutputLengthError,
+      zOpencodeMessageAbortedError,
+      zOpencodeStructuredOutputError,
+      zOpencodeContextOverflowError,
+      zOpencodeApiError,
+    ])
+    .optional(),
+  finish: z.string().optional(),
+  id: z.string(),
+  mode: z.string(),
+  modelID: z.string(),
+  parentID: z.string(),
+  path: z.object({
+    cwd: z.string(),
+    root: z.string(),
+  }),
+  providerID: z.string(),
+  role: z.enum(["assistant"]),
+  sessionID: z.string(),
+  structured: z.unknown().optional(),
+  summary: z.boolean().optional(),
+  time: z.object({
+    completed: z.int().gte(0).optional(),
+    created: z.int().gte(0),
+  }),
+  tokens: z.object({
+    cache: z.object({
+      read: z.number(),
+      write: z.number(),
+    }),
+    input: z.number(),
+    output: z.number(),
+    reasoning: z.number(),
+    total: z.number().optional(),
+  }),
+  variant: z.string().optional(),
+})
+
+export const zOpencodeEventSessionError = z.object({
+  id: z.string(),
+  properties: z.object({
+    error: z
+      .union([
+        zOpencodeProviderAuthError,
+        zOpencodeUnknownError,
+        zOpencodeMessageOutputLengthError,
+        zOpencodeMessageAbortedError,
+        zOpencodeStructuredOutputError,
+        zOpencodeContextOverflowError,
+        zOpencodeApiError,
+      ])
+      .optional(),
+    sessionID: z.string().optional(),
+  }),
+  type: z.enum(["session.error"]),
+})
+
+export const zOpencodeUserMessage = z.object({
+  agent: z.string(),
+  format: zOpencodeOutputFormat.optional(),
+  id: z.string(),
+  model: z.object({
+    modelID: z.string(),
+    providerID: z.string(),
+    variant: z.string().optional(),
+  }),
+  role: z.enum(["user"]),
+  sessionID: z.string(),
+  summary: z
+    .object({
+      body: z.string().optional(),
+      diffs: z.array(zOpencodeSnapshotFileDiff),
+      title: z.string().optional(),
+    })
+    .optional(),
+  system: z.string().optional(),
+  time: z.object({
+    created: z.int().gte(0),
+  }),
+  tools: z.record(z.string(), z.boolean()).optional(),
+})
+
+export const zOpencodeMessage = z.union([zOpencodeUserMessage, zOpencodeAssistantMessage])
+
+export const zOpencodeEventMessageUpdated = z.object({
+  id: z.string(),
+  properties: z.object({
+    info: zOpencodeMessage,
+    sessionID: z.string(),
+  }),
+  type: z.enum(["message.updated"]),
+})
+
+export const zOpencodeEvent = z.union([
+  zOpencodeEventServerInstanceDisposed,
+  zOpencodeEventFileEdited,
+  zOpencodeEventFileWatcherUpdated,
+  zOpencodeEventLspClientDiagnostics,
+  zOpencodeEventLspUpdated,
+  zOpencodeEventMessagePartDelta,
+  zOpencodeEventPermissionAsked,
+  zOpencodeEventPermissionReplied,
+  zOpencodeEventSessionDiff,
+  zOpencodeEventSessionError,
+  zOpencodeEventInstallationUpdated,
+  zOpencodeEventInstallationUpdateAvailable,
+  zOpencodeEventQuestionAsked,
+  zOpencodeEventQuestionReplied,
+  zOpencodeEventQuestionRejected,
+  zOpencodeEventTodoUpdated,
+  zOpencodeEventSessionStatus,
+  zOpencodeEventSessionIdle,
+  zOpencodeEventSessionCompacted,
+  zOpencodeEventTuiPromptAppend,
+  zOpencodeEventTuiCommandExecute,
+  zOpencodeEventTuiToastShow1,
+  zOpencodeEventTuiSessionSelect,
+  zOpencodeEventMcpToolsChanged,
+  zOpencodeEventMcpBrowserOpenFailed,
+  zOpencodeEventCommandExecuted,
+  zOpencodeEventProjectUpdated,
+  zOpencodeEventVcsBranchUpdated,
+  zOpencodeEventWorkspaceReady,
+  zOpencodeEventWorkspaceFailed,
+  zOpencodeEventWorkspaceStatus,
+  zOpencodeEventWorktreeReady,
+  zOpencodeEventWorktreeFailed,
+  zOpencodeEventPtyCreated,
+  zOpencodeEventPtyUpdated,
+  zOpencodeEventPtyExited,
+  zOpencodeEventPtyDeleted,
+  zOpencodeEventMessageUpdated,
+  zOpencodeEventMessageRemoved,
+  zOpencodeEventMessagePartUpdated,
+  zOpencodeEventMessagePartRemoved,
+  zOpencodeEventSessionCreated,
+  zOpencodeEventSessionUpdated,
+  zOpencodeEventSessionDeleted,
+  zOpencodeEventSessionNextAgentSwitched,
+  zOpencodeEventSessionNextModelSwitched,
+  zOpencodeEventSessionNextPrompted,
+  zOpencodeEventSessionNextSynthetic,
+  zOpencodeEventSessionNextShellStarted,
+  zOpencodeEventSessionNextShellEnded,
+  zOpencodeEventSessionNextStepStarted,
+  zOpencodeEventSessionNextStepEnded,
+  zOpencodeEventSessionNextStepFailed,
+  zOpencodeEventSessionNextTextStarted,
+  zOpencodeEventSessionNextTextDelta,
+  zOpencodeEventSessionNextTextEnded,
+  zOpencodeEventSessionNextReasoningStarted,
+  zOpencodeEventSessionNextReasoningDelta,
+  zOpencodeEventSessionNextReasoningEnded,
+  zOpencodeEventSessionNextToolInputStarted,
+  zOpencodeEventSessionNextToolInputDelta,
+  zOpencodeEventSessionNextToolInputEnded,
+  zOpencodeEventSessionNextToolCalled,
+  zOpencodeEventSessionNextToolProgress,
+  zOpencodeEventSessionNextToolSuccess,
+  zOpencodeEventSessionNextToolFailed,
+  zOpencodeEventSessionNextRetried,
+  zOpencodeEventSessionNextCompactionStarted,
+  zOpencodeEventSessionNextCompactionDelta,
+  zOpencodeEventSessionNextCompactionEnded,
+  zOpencodeEventServerConnected,
+  zOpencodeEventGlobalDisposed,
+])
+
+export const zOpencodeSyncEventMessageUpdated = z.object({
+  aggregateID: z.enum(["sessionID"]),
+  data: z.object({
+    info: zOpencodeMessage,
+    sessionID: z.string(),
+  }),
+  id: z.string(),
+  name: z.enum(["message.updated.1"]),
+  seq: z.number(),
+  type: z.enum(["sync"]),
+})
+
+export const zOpencodeGlobalEvent = z.object({
+  directory: z.string(),
+  payload: z.union([
+    zOpencodeEventServerInstanceDisposed,
+    zOpencodeEventFileEdited,
+    zOpencodeEventFileWatcherUpdated,
+    zOpencodeEventLspClientDiagnostics,
+    zOpencodeEventLspUpdated,
+    zOpencodeEventMessagePartDelta,
+    zOpencodeEventPermissionAsked,
+    zOpencodeEventPermissionReplied,
+    zOpencodeEventSessionDiff,
+    zOpencodeEventSessionError,
+    zOpencodeEventInstallationUpdated,
+    zOpencodeEventInstallationUpdateAvailable,
+    zOpencodeEventQuestionAsked,
+    zOpencodeEventQuestionReplied,
+    zOpencodeEventQuestionRejected,
+    zOpencodeEventTodoUpdated,
+    zOpencodeEventSessionStatus,
+    zOpencodeEventSessionIdle,
+    zOpencodeEventSessionCompacted,
+    zOpencodeEventTuiPromptAppend,
+    zOpencodeEventTuiCommandExecute,
+    zOpencodeEventTuiToastShow,
+    zOpencodeEventTuiSessionSelect,
+    zOpencodeEventMcpToolsChanged,
+    zOpencodeEventMcpBrowserOpenFailed,
+    zOpencodeEventCommandExecuted,
+    zOpencodeEventProjectUpdated,
+    zOpencodeEventVcsBranchUpdated,
+    zOpencodeEventWorkspaceReady,
+    zOpencodeEventWorkspaceFailed,
+    zOpencodeEventWorkspaceStatus,
+    zOpencodeEventWorktreeReady,
+    zOpencodeEventWorktreeFailed,
+    zOpencodeEventPtyCreated,
+    zOpencodeEventPtyUpdated,
+    zOpencodeEventPtyExited,
+    zOpencodeEventPtyDeleted,
+    zOpencodeEventMessageUpdated,
+    zOpencodeEventMessageRemoved,
+    zOpencodeEventMessagePartUpdated,
+    zOpencodeEventMessagePartRemoved,
+    zOpencodeEventSessionCreated,
+    zOpencodeEventSessionUpdated,
+    zOpencodeEventSessionDeleted,
+    zOpencodeEventSessionNextAgentSwitched,
+    zOpencodeEventSessionNextModelSwitched,
+    zOpencodeEventSessionNextPrompted,
+    zOpencodeEventSessionNextSynthetic,
+    zOpencodeEventSessionNextShellStarted,
+    zOpencodeEventSessionNextShellEnded,
+    zOpencodeEventSessionNextStepStarted,
+    zOpencodeEventSessionNextStepEnded,
+    zOpencodeEventSessionNextStepFailed,
+    zOpencodeEventSessionNextTextStarted,
+    zOpencodeEventSessionNextTextDelta,
+    zOpencodeEventSessionNextTextEnded,
+    zOpencodeEventSessionNextReasoningStarted,
+    zOpencodeEventSessionNextReasoningDelta,
+    zOpencodeEventSessionNextReasoningEnded,
+    zOpencodeEventSessionNextToolInputStarted,
+    zOpencodeEventSessionNextToolInputDelta,
+    zOpencodeEventSessionNextToolInputEnded,
+    zOpencodeEventSessionNextToolCalled,
+    zOpencodeEventSessionNextToolProgress,
+    zOpencodeEventSessionNextToolSuccess,
+    zOpencodeEventSessionNextToolFailed,
+    zOpencodeEventSessionNextRetried,
+    zOpencodeEventSessionNextCompactionStarted,
+    zOpencodeEventSessionNextCompactionDelta,
+    zOpencodeEventSessionNextCompactionEnded,
+    zOpencodeEventServerConnected,
+    zOpencodeEventGlobalDisposed,
+    zOpencodeSyncEventMessageUpdated,
+    zOpencodeSyncEventMessageRemoved,
+    zOpencodeSyncEventMessagePartUpdated,
+    zOpencodeSyncEventMessagePartRemoved,
+    zOpencodeSyncEventSessionCreated,
+    zOpencodeSyncEventSessionUpdated,
+    zOpencodeSyncEventSessionDeleted,
+    zOpencodeSyncEventSessionNextAgentSwitched,
+    zOpencodeSyncEventSessionNextModelSwitched,
+    zOpencodeSyncEventSessionNextPrompted,
+    zOpencodeSyncEventSessionNextSynthetic,
+    zOpencodeSyncEventSessionNextShellStarted,
+    zOpencodeSyncEventSessionNextShellEnded,
+    zOpencodeSyncEventSessionNextStepStarted,
+    zOpencodeSyncEventSessionNextStepEnded,
+    zOpencodeSyncEventSessionNextStepFailed,
+    zOpencodeSyncEventSessionNextTextStarted,
+    zOpencodeSyncEventSessionNextTextDelta,
+    zOpencodeSyncEventSessionNextTextEnded,
+    zOpencodeSyncEventSessionNextReasoningStarted,
+    zOpencodeSyncEventSessionNextReasoningDelta,
+    zOpencodeSyncEventSessionNextReasoningEnded,
+    zOpencodeSyncEventSessionNextToolInputStarted,
+    zOpencodeSyncEventSessionNextToolInputDelta,
+    zOpencodeSyncEventSessionNextToolInputEnded,
+    zOpencodeSyncEventSessionNextToolCalled,
+    zOpencodeSyncEventSessionNextToolProgress,
+    zOpencodeSyncEventSessionNextToolSuccess,
+    zOpencodeSyncEventSessionNextToolFailed,
+    zOpencodeSyncEventSessionNextRetried,
+    zOpencodeSyncEventSessionNextCompactionStarted,
+    zOpencodeSyncEventSessionNextCompactionDelta,
+    zOpencodeSyncEventSessionNextCompactionEnded,
+  ]),
+  project: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+export const zOpencodeV2SessionMessagesResponse = z.object({
+  cursor: z.object({
+    next: z.string().optional(),
+    previous: z.string().optional(),
+  }),
+  items: z.array(zOpencodeSessionMessage),
+})
+
+export const zOpencodeV2SessionsResponse = z.object({
+  cursor: z.object({
+    next: z.string().optional(),
+    previous: z.string().optional(),
+  }),
+  items: z.array(zOpencodeSessionInfo),
+})
+
+export const zOpencodeVcsApplyError = z.object({
+  data: z.object({
+    message: z.string(),
+    reason: z.enum(["non-git", "not-clean"]),
+  }),
+  name: z.enum(["VcsApplyError"]),
+})
+
+export const zOpencodeVcsFileDiff = z.object({
+  additions: z.number(),
+  deletions: z.number(),
+  file: z.string(),
+  patch: z.string().optional(),
+  status: z.enum(["added", "deleted", "modified"]).optional(),
+})
+
+export const zOpencodeVcsFileStatus = z.object({
+  additions: z.number(),
+  deletions: z.number(),
+  file: z.string(),
+  status: z.enum(["added", "deleted", "modified"]),
+})
+
+export const zOpencodeVcsInfo = z.object({
+  branch: z.string().optional(),
+  default_branch: z.string().optional(),
+})
+
+export const zOpencodeWellKnownAuth = z.object({
+  key: z.string(),
+  token: z.string(),
+  type: z.enum(["wellknown"]),
+})
+
+export const zOpencodeAuth = z.union([zOpencodeOAuth, zOpencodeApiAuth, zOpencodeWellKnownAuth])
+
+export const zOpencodeWorkspace = z.object({
+  branch: z.union([z.string(), z.unknown()]),
+  directory: z.union([z.string(), z.unknown()]),
+  extra: z.unknown(),
+  id: z.string(),
+  name: z.string(),
+  projectID: z.string(),
+  timeUsed: z.union([
+    z.number(),
+    z.enum(["NaN"]),
+    z.enum(["Infinity"]),
+    z.enum(["-Infinity"]),
+    z.enum(["Infinity", "-Infinity", "NaN"]),
+  ]),
+  type: z.string(),
+})
+
+export const zOpencodeWorkspaceWarpError = z.object({
+  data: z.object({
+    message: z.string(),
+  }),
+  name: z.enum(["WorkspaceWarpError"]),
+})
+
+export const zOpencodeWorktree = z.object({
+  branch: z.string(),
+  directory: z.string(),
+  name: z.string(),
+})
+
+export const zOpencodeWorktreeCreateInput = z.object({
+  name: z.string().optional(),
+  startCommand: z.string().optional(),
+})
+
+export const zOpencodeWorktreeRemoveInput = z.object({
+  directory: z.string(),
+})
+
+export const zOpencodeWorktreeResetInput = z.object({
+  directory: z.string(),
+})
+
+export const zOpencodeeffectHttpApiErrorForbidden = z.object({
+  _tag: z.enum(["Forbidden"]),
+})
+
+export const zOpencodeeffectHttpApiErrorInternalServerError = z.object({
+  _tag: z.enum(["InternalServerError"]),
+})
+
+/**
+ * Lowercase hexadecimal OTLP span ID, or empty for root spans.
+ */
+export const zOptionalSpanId = z
+  .string()
+  .max(16)
+  .regex(/^([0-9a-f]{16})?$/)
+
+export const zProcessObservabilityEvent = z.object({
+  action: zObservabilityAction,
+  agent_name: zAgentName,
+  command_invocation: z.string(),
+  event_time: z.iso.datetime(),
+  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  ingested_at: z.iso.datetime(),
+  parent_process: z.string(),
+  pod_name: z.string(),
+  pod_namespace: z.string(),
+  process: z.string(),
+  source: z.string(),
+})
+
+export const zProcessObservabilityEventAggregated = z.object({
+  action: zObservabilityAction,
+  agent_name: zAgentName,
+  command_invocation: z.string(),
+  last_seen: z.iso.datetime(),
+  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  parent_process: z.string(),
+  process: z.string(),
+  source: z.string(),
+})
+
+export const zListProcessObservabilityResponse = z.object({
+  events: z.array(z.union([zProcessObservabilityEvent, zProcessObservabilityEventAggregated])),
+  next_page_token: z.string(),
+})
+
+export const zPutSecretsResponse = z.object({
+  stored: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+})
+
+/**
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ *
+ */
+export const zSecretHost = z.string().min(1).max(253)
 
 /**
  * Secret key name. Alphanumeric and underscores only.
@@ -375,43 +3459,15 @@ export const zSecretKey = z
   .max(128)
   .regex(/^[A-Za-z0-9_]+$/)
 
-/**
- * Secret value. Max 48 KB.
- */
-export const zSecretValue = z.string().max(49152)
-
-/**
- * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
- *
- */
-export const zSecretHost = z.string().min(1).max(253)
-
-export const zSecretEntry = z.object({
-  key: zSecretKey,
-  value: zSecretValue,
-  hosts: z.array(zSecretHost).min(1).max(100),
+export const zDeleteSecretsRequest = z.object({
+  keys: z.array(zSecretKey).max(100),
 })
 
 export const zSecretListItem = z.object({
-  key: zSecretKey,
-  hosts: z.array(zSecretHost),
   created_at: z.iso.datetime(),
+  hosts: z.array(zSecretHost),
+  key: zSecretKey,
   modified_at: z.iso.datetime(),
-})
-
-export const zPutSecretsRequest = z.object({
-  secrets: z.array(zSecretEntry).max(100),
-})
-
-export const zPutSecretsResponse = z.object({
-  stored: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-})
-
-export const zDeleteSecretsRequest = z.object({
-  keys: z.array(zSecretKey).max(100),
 })
 
 export const zListSecretsResponse = z.object({
@@ -419,48 +3475,218 @@ export const zListSecretsResponse = z.object({
   next_page_token: z.string(),
 })
 
-export const zEnvironment = z.object({
-  name: zEnvironmentName,
-  packages: z.array(z.string().min(1)),
-  allowed_hosts: z.array(z.string().min(1)),
-  created_at: z.iso.datetime(),
-  metadata: z.object({
-    package_count: z
-      .int()
-      .gte(0)
-      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-    allowed_host_count: z
-      .int()
-      .gte(0)
-      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-    referenced_by_agent: z.boolean(),
-  }),
+/**
+ * Secret value. Max 48 KB.
+ */
+export const zSecretValue = z.string().max(49152)
+
+export const zSecretEntry = z.object({
+  hosts: z.array(zSecretHost).min(1).max(100),
+  key: zSecretKey,
+  value: zSecretValue,
 })
 
-export const zListEnvironmentsResponse = z.object({
-  environments: z.array(zEnvironment),
-  next_page_token: z.string(),
-})
-
-export const zCreateEnvironmentRequest = z.object({
-  name: zEnvironmentName,
-  packages: z.array(z.string().min(1)).optional(),
-  allowed_hosts: z.array(z.string().min(1)).optional(),
-})
-
-export const zDeleteEnvironmentRequest = z.object({
-  name: zEnvironmentName,
-})
-
-export const zUpdateEnvironmentRequest = z.object({
-  packages: z.array(z.string().min(1)),
-  allowed_hosts: z.array(z.string().min(1)),
+export const zPutSecretsRequest = z.object({
+  secrets: z.array(zSecretEntry).max(100),
 })
 
 /**
- * Agent name.
+ * Lowercase hexadecimal OTLP span ID.
  */
-export const zAgentNameQuery = zAgentName
+export const zSpanId = z
+  .string()
+  .length(16)
+  .regex(/^[0-9a-f]{16}$/)
+
+export const zSpanPayload = z.object({
+  input_messages: zJsonValue,
+  output_messages: zJsonValue,
+  tool_arguments: zJsonValue,
+  tool_result: zJsonValue,
+})
+
+/**
+ * Lowercase hexadecimal OTLP trace ID.
+ */
+export const zTraceId = z
+  .string()
+  .length(32)
+  .regex(/^[0-9a-f]{32}$/)
+
+export const zSpan = z.object({
+  agent_name: zAgentName,
+  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
+  duration_ms: z.number().gte(0),
+  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  end_time: z.iso.datetime(),
+  error_message: z.string(),
+  error_type: z.string(),
+  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  ingested_at: z.iso.datetime(),
+  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  kind: z.string(),
+  llm_finish_reason: z.string(),
+  model: z.string(),
+  name: z.string(),
+  operation_name: z.string(),
+  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  parent_span_id: zOptionalSpanId,
+  session_id: z.string(),
+  span_class: z.string(),
+  span_id: zSpanId,
+  start_time: z.iso.datetime(),
+  status_code: z.string(),
+  tool_name: z.string(),
+  trace_id: zTraceId,
+})
+
+export const zListSpansResponse = z.object({
+  next_page_token: z.string(),
+  spans: z.array(zSpan),
+})
+
+export const zSpanDetail = zSpan.and(
+  z.object({
+    resource_attributes: zJsonValue,
+    span_attributes: zJsonValue,
+  })
+)
+
+export const zSpanDetailResponse = z.object({
+  payload: zSpanPayload,
+  span: zSpanDetail,
+})
+
+export const zTrace = z.object({
+  agent_name: zAgentName,
+  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
+  duration_ms: z.number().gte(0),
+  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  ended_at: z.iso.datetime(),
+  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  root_span_id: zOptionalSpanId,
+  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  started_at: z.iso.datetime(),
+  status_code: z.string(),
+  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  trace_id: zTraceId,
+  updated_at: z.iso.datetime(),
+})
+
+export const zListTracesResponse = z.object({
+  next_page_token: z.string(),
+  traces: z.array(zTrace),
+})
+
+export const zTraceSession = z.object({
+  agent_name: zAgentName,
+  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
+  duration_ms: z.number().gte(0),
+  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  ended_at: z.iso.datetime(),
+  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  root_span_id: zOptionalSpanId,
+  session_id: z.string(),
+  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  started_at: z.iso.datetime(),
+  status_code: z.string(),
+  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  trace_id: zTraceId,
+  updated_at: z.iso.datetime(),
+})
+
+export const zListTraceSessionsResponse = z.object({
+  next_page_token: z.string(),
+  trace_sessions: z.array(zTraceSession),
+})
+
+export const zUpdateAgentRequest = z.object({
+  env: z.record(z.string(), z.string()).optional(),
+  environmentName: zEnvironmentName.optional(),
+})
+
+export const zUpdateEnvironmentRequest = z.object({
+  allowed_hosts: z.array(z.string().min(1)),
+  packages: z.array(z.string().min(1)),
+})
+
+export const zWatchAgentsEvent = z.object({
+  agents: z.array(zAgent),
+})
+
+export const zWatchAgentsRequest = z.object({
+  agent_names: z.array(zAgentName).optional(),
+})
+
+/**
+ * Optional observability action filter.
+ */
+export const zActionQuery = zObservabilityAction
+
+/**
+ * Optional agent name filters. Repeat the query parameter for multiple agents.
+ */
+export const zAgentNameFilterQuery = z.array(zAgentName)
 
 /**
  * Agent name.
@@ -468,14 +3694,29 @@ export const zAgentNameQuery = zAgentName
 export const zAgentNamePath = zAgentName
 
 /**
+ * Agent name.
+ */
+export const zAgentNameQuery = zAgentName
+
+/**
+ * When true, returns aggregated events with occurrence counts over the time range.
+ */
+export const zAggregatedQuery = z.boolean().default(false)
+
+/**
  * Environment name.
  */
 export const zEnvironmentNamePath = zEnvironmentName
 
 /**
- * Optional agent name filters. Repeat the query parameter for multiple agents.
+ * Inclusive lower bound for event time.
  */
-export const zAgentNameFilterQuery = z.array(zAgentName)
+export const zEventTimeAfterQuery = z.iso.datetime()
+
+/**
+ * Inclusive upper bound for event time.
+ */
+export const zEventTimeBeforeQuery = z.iso.datetime()
 
 /**
  * Maximum number of items to return.
@@ -486,11 +3727,6 @@ export const zLimitQuery = z.int().gte(1).lte(200).default(50)
  * Opaque pagination token from a previous response.
  */
 export const zPageTokenQuery = z.string().min(1)
-
-/**
- * Lowercase hexadecimal OTLP trace ID.
- */
-export const zTraceIdQuery = zTraceId
 
 /**
  * Lowercase hexadecimal OTLP span ID.
@@ -508,24 +3744,23 @@ export const zStartedAfterQuery = z.iso.datetime()
 export const zStartedBeforeQuery = z.iso.datetime()
 
 /**
- * Inclusive lower bound for event time.
+ * Lowercase hexadecimal OTLP trace ID.
  */
-export const zEventTimeAfterQuery = z.iso.datetime()
+export const zTraceIdQuery = zTraceId
+
+export const zCreateAgentBody = zCreateAgentRequest
 
 /**
- * Inclusive upper bound for event time.
+ * Agent resource created.
  */
-export const zEventTimeBeforeQuery = z.iso.datetime()
+export const zCreateAgentResponse = zAgent
+
+export const zDeleteAgentBody = zDeleteAgentRequest
 
 /**
- * Optional observability action filter.
+ * Agent was deleted.
  */
-export const zActionQuery = zObservabilityAction
-
-/**
- * When true, returns aggregated events with occurrence counts over the time range.
- */
-export const zAggregatedQuery = z.boolean().default(false)
+export const zDeleteAgentResponse = z.void()
 
 export const zListAgentsQuery = z.object({
   agent_name: z.array(zAgentName).optional(),
@@ -538,69 +3773,58 @@ export const zListAgentsQuery = z.object({
  */
 export const zListAgentsResponse2 = zListAgentsResponse
 
-export const zListTracesQuery = z.object({
-  agent_name: zAgentName,
+export const zUpdateAgentBody = zUpdateAgentRequest
+
+export const zUpdateAgentPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Agent resource updated.
+ */
+export const zUpdateAgentResponse = zAgent
+
+export const zWatchAgentsBody = zWatchAgentsRequest
+
+/**
+ * Stream of agent status changes.
+ */
+export const zWatchAgentsResponse = zWatchAgentsEvent
+
+export const zCreateEnvironmentBody = zCreateEnvironmentRequest
+
+/**
+ * Environment created.
+ */
+export const zCreateEnvironmentResponse = zEnvironment
+
+export const zDeleteEnvironmentBody = zDeleteEnvironmentRequest
+
+/**
+ * Environment deleted.
+ */
+export const zDeleteEnvironmentResponse = z.void()
+
+export const zListEnvironmentsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
-  started_after: z.iso.datetime().optional(),
-  started_before: z.iso.datetime().optional(),
 })
 
 /**
- * Paginated trace summaries.
+ * Paginated environments.
  */
-export const zListTracesResponse2 = zListTracesResponse
+export const zListEnvironmentsResponse2 = zListEnvironmentsResponse
 
-export const zListTraceSessionsQuery = z.object({
-  agent_name: zAgentName,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  started_after: z.iso.datetime().optional(),
-  started_before: z.iso.datetime().optional(),
+export const zUpdateEnvironmentBody = zUpdateEnvironmentRequest
+
+export const zUpdateEnvironmentPath = z.object({
+  name: zEnvironmentName,
 })
 
 /**
- * Paginated per-session trace summaries.
+ * Environment updated.
  */
-export const zListTraceSessionsResponse2 = zListTraceSessionsResponse
-
-export const zListSpansQuery = z.object({
-  agent_name: zAgentName,
-  trace_id: zTraceId,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated spans for a trace.
- */
-export const zListSpansResponse2 = zListSpansResponse
-
-export const zGetSpanDetailQuery = z.object({
-  agent_name: zAgentName,
-  trace_id: zTraceId,
-  span_id: zSpanId,
-})
-
-/**
- * Span detail with payload and correlated events.
- */
-export const zGetSpanDetailResponse = zSpanDetailResponse
-
-export const zListProcessObservabilityQuery = z.object({
-  agent_name: zAgentName,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  event_time_after: z.iso.datetime().optional(),
-  event_time_before: z.iso.datetime().optional(),
-  action: zObservabilityAction.optional(),
-  aggregated: z.boolean().optional().default(false),
-})
-
-/**
- * Paginated process observability events.
- */
-export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
+export const zUpdateEnvironmentResponse = zEnvironment
 
 export const zListFileObservabilityQuery = z.object({
   agent_name: zAgentName,
@@ -632,48 +3856,2710 @@ export const zListNetworkObservabilityQuery = z.object({
  */
 export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
 
-export const zCreateAgentBody = zCreateAgentRequest
-
-/**
- * Agent resource created.
- */
-export const zCreateAgentResponse = zAgent
-
-export const zDeleteAgentBody = zDeleteAgentRequest
-
-/**
- * Agent was deleted.
- */
-export const zDeleteAgentResponse = z.void()
-
-export const zUpdateAgentBody = zUpdateAgentRequest
-
-export const zUpdateAgentPath = z.object({
-  agentName: zAgentName,
+export const zListProcessObservabilityQuery = z.object({
+  agent_name: zAgentName,
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  event_time_after: z.iso.datetime().optional(),
+  event_time_before: z.iso.datetime().optional(),
+  action: zObservabilityAction.optional(),
+  aggregated: z.boolean().optional().default(false),
 })
 
 /**
- * Agent resource updated.
+ * Paginated process observability events.
  */
-export const zUpdateAgentResponse = zAgent
+export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
 
-export const zWatchAgentsBody = zWatchAgentsRequest
-
-/**
- * Stream of agent status changes.
- */
-export const zWatchAgentsResponse = zWatchAgentsEvent
-
-export const zPutSecretBody = zPutSecretsRequest
-
-export const zPutSecretPath = z.object({
-  agentName: zAgentName,
+export const zGetSpanDetailQuery = z.object({
+  agent_name: zAgentName,
+  trace_id: zTraceId,
+  span_id: zSpanId,
 })
 
 /**
- * Secrets stored.
+ * Span detail with payload and correlated events.
  */
-export const zPutSecretResponse = zPutSecretsResponse
+export const zGetSpanDetailResponse = zSpanDetailResponse
+
+export const zListSpansQuery = z.object({
+  agent_name: zAgentName,
+  trace_id: zTraceId,
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated spans for a trace.
+ */
+export const zListSpansResponse2 = zListSpansResponse
+
+export const zListTracesQuery = z.object({
+  agent_name: zAgentName,
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  started_after: z.iso.datetime().optional(),
+  started_before: z.iso.datetime().optional(),
+})
+
+/**
+ * Paginated trace summaries.
+ */
+export const zListTracesResponse2 = zListTracesResponse
+
+export const zListTraceSessionsQuery = z.object({
+  agent_name: zAgentName,
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  started_after: z.iso.datetime().optional(),
+  started_before: z.iso.datetime().optional(),
+})
+
+/**
+ * Paginated per-session trace summaries.
+ */
+export const zListTraceSessionsResponse2 = zListTraceSessionsResponse
+
+export const zAppAgentsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zAppAgentsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of agents
+ */
+export const zAppAgentsResponse = z.array(zOpencodeAgent)
+
+export const zV2SessionListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zV2SessionListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  limit: z.number().optional(),
+  order: z.enum(["asc", "desc"]).optional(),
+  path: z.string().optional(),
+  roots: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
+  start: z.number().optional(),
+  search: z.string().optional(),
+  cursor: z.string().optional(),
+})
+
+/**
+ * V2SessionsResponse
+ */
+export const zV2SessionListResponse = zOpencodeV2SessionsResponse
+
+export const zV2SessionCompactPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zV2SessionCompactQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * <No Content>
+ */
+export const zV2SessionCompactResponse = z.void()
+
+export const zV2SessionContextPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zV2SessionContextQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Success
+ */
+export const zV2SessionContextResponse = z.array(zOpencodeSessionMessage)
+
+export const zV2SessionMessagesPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zV2SessionMessagesQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  limit: z.number().optional(),
+  order: z.enum(["asc", "desc"]).optional(),
+  cursor: z.string().optional(),
+})
+
+/**
+ * V2SessionMessagesResponse
+ */
+export const zV2SessionMessagesResponse = zOpencodeV2SessionMessagesResponse
+
+export const zV2SessionPromptBody = z.object({
+  delivery: zOpencodeSessionDelivery.optional(),
+  prompt: zOpencodePrompt,
+})
+
+export const zV2SessionPromptPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zV2SessionPromptQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Session.Message
+ */
+export const zV2SessionPromptResponse = zOpencodeSessionMessage
+
+export const zV2SessionWaitPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zV2SessionWaitQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * <No Content>
+ */
+export const zV2SessionWaitResponse = z.void()
+
+export const zAuthRemovePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  providerID: z.string(),
+})
+
+/**
+ * Successfully removed authentication credentials
+ */
+export const zAuthRemoveResponse = z.boolean()
+
+export const zAuthSetBody = zOpencodeAuth
+
+export const zAuthSetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  providerID: z.string(),
+})
+
+/**
+ * Successfully set authentication credentials
+ */
+export const zAuthSetResponse = z.boolean()
+
+export const zCommandListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zCommandListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of commands
+ */
+export const zCommandListResponse = z.array(zOpencodeCommand)
+
+export const zConfigGetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zConfigGetQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Get config info
+ */
+export const zConfigGetResponse = zOpencodeConfig
+
+export const zConfigUpdateBody = zOpencodeConfig
+
+export const zConfigUpdatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zConfigUpdateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully updated config
+ */
+export const zConfigUpdateResponse = zOpencodeConfig
+
+export const zConfigProvidersPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zConfigProvidersQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of providers
+ */
+export const zConfigProvidersResponse = z.object({
+  default: z.record(z.string(), z.string()),
+  providers: z.array(zOpencodeProvider),
+})
+
+export const zEventSubscribePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zEventSubscribeQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Event stream
+ */
+export const zEventSubscribeResponse = zOpencodeEvent
+
+export const zExperimentalConsoleGetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalConsoleGetQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Active Console provider metadata
+ */
+export const zExperimentalConsoleGetResponse = zOpencodeConsoleState
+
+export const zExperimentalConsoleListOrgsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalConsoleListOrgsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Switchable Console orgs
+ */
+export const zExperimentalConsoleListOrgsResponse = z.object({
+  orgs: z.array(
+    z.object({
+      accountEmail: z.string(),
+      accountID: z.string(),
+      accountUrl: z.string(),
+      active: z.boolean(),
+      orgID: z.string(),
+      orgName: z.string(),
+    })
+  ),
+})
+
+export const zExperimentalConsoleSwitchOrgBody = z.object({
+  accountID: z.string(),
+  orgID: z.string(),
+})
+
+export const zExperimentalConsoleSwitchOrgPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalConsoleSwitchOrgQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Switch success
+ */
+export const zExperimentalConsoleSwitchOrgResponse = z.boolean()
+
+export const zExperimentalResourceListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalResourceListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * MCP resources
+ */
+export const zExperimentalResourceListResponse = z.record(z.string(), zOpencodeMcpResource)
+
+export const zExperimentalSessionListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalSessionListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  roots: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
+  start: z.number().optional(),
+  cursor: z.number().optional(),
+  search: z.string().optional(),
+  limit: z.number().optional(),
+  archived: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
+})
+
+/**
+ * List of sessions
+ */
+export const zExperimentalSessionListResponse = z.array(zOpencodeGlobalSession)
+
+export const zToolListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zToolListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  provider: z.string(),
+  model: z.string(),
+})
+
+/**
+ * Tools
+ */
+export const zToolListResponse = zOpencodeToolList
+
+export const zToolIdsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zToolIdsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Tool IDs
+ */
+export const zToolIdsResponse = zOpencodeToolIds
+
+export const zExperimentalWorkspaceListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalWorkspaceListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Workspaces
+ */
+export const zExperimentalWorkspaceListResponse = z.array(zOpencodeWorkspace)
+
+export const zExperimentalWorkspaceCreateBody = z.object({
+  branch: z.union([z.string(), z.unknown()]),
+  extra: z.unknown().optional(),
+  id: z.string().optional(),
+  type: z.string(),
+})
+
+export const zExperimentalWorkspaceCreatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalWorkspaceCreateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Workspace created
+ */
+export const zExperimentalWorkspaceCreateResponse = zOpencodeWorkspace
+
+export const zExperimentalWorkspaceRemovePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  id: z.string().regex(/^wrk.*/),
+})
+
+export const zExperimentalWorkspaceRemoveQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Workspace removed
+ */
+export const zExperimentalWorkspaceRemoveResponse = zOpencodeWorkspace
+
+export const zExperimentalWorkspaceAdapterListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalWorkspaceAdapterListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Workspace adapters
+ */
+export const zExperimentalWorkspaceAdapterListResponse = z.array(
+  z.object({
+    description: z.string(),
+    name: z.string(),
+    type: z.string(),
+  })
+)
+
+export const zExperimentalWorkspaceStatusPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalWorkspaceStatusQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Workspace status
+ */
+export const zExperimentalWorkspaceStatusResponse = z.array(
+  z.object({
+    status: z.enum(["connected", "connecting", "disconnected", "error"]),
+    workspaceID: z.string(),
+  })
+)
+
+export const zExperimentalWorkspaceSyncListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalWorkspaceSyncListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Workspace list synced
+ */
+export const zExperimentalWorkspaceSyncListResponse = z.void()
+
+export const zExperimentalWorkspaceWarpBody = z.object({
+  copyChanges: z.boolean().optional(),
+  id: z.union([z.string(), z.unknown()]),
+  sessionID: z.string(),
+})
+
+export const zExperimentalWorkspaceWarpPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zExperimentalWorkspaceWarpQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Session warped
+ */
+export const zExperimentalWorkspaceWarpResponse = z.void()
+
+export const zWorktreeRemoveBody = zOpencodeWorktreeRemoveInput
+
+export const zWorktreeRemovePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zWorktreeRemoveQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Worktree removed
+ */
+export const zWorktreeRemoveResponse = z.boolean()
+
+export const zWorktreeListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zWorktreeListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of worktree directories
+ */
+export const zWorktreeListResponse = z.array(z.string())
+
+export const zWorktreeCreateBody = zOpencodeWorktreeCreateInput
+
+export const zWorktreeCreatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zWorktreeCreateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Worktree created
+ */
+export const zWorktreeCreateResponse = zOpencodeWorktree
+
+export const zWorktreeResetBody = zOpencodeWorktreeResetInput
+
+export const zWorktreeResetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zWorktreeResetQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Worktree reset
+ */
+export const zWorktreeResetResponse = z.boolean()
+
+export const zFileListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zFileListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  path: z.string(),
+})
+
+/**
+ * Files and directories
+ */
+export const zFileListResponse = z.array(zOpencodeFileNode)
+
+export const zFileReadPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zFileReadQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  path: z.string(),
+})
+
+/**
+ * File content
+ */
+export const zFileReadResponse = zOpencodeFileContent
+
+export const zFileStatusPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zFileStatusQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * File status
+ */
+export const zFileStatusResponse = z.array(zOpencodeFile)
+
+export const zFindTextPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zFindTextQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  pattern: z.string(),
+})
+
+/**
+ * Matches
+ */
+export const zFindTextResponse = z.array(
+  z.object({
+    absolute_offset: z.int().gte(0),
+    line_number: z.int().gte(0),
+    lines: z.object({
+      text: z.string(),
+    }),
+    path: z.object({
+      text: z.string(),
+    }),
+    submatches: z.array(
+      z.object({
+        end: z.int().gte(0),
+        match: z.object({
+          text: z.string(),
+        }),
+        start: z.int().gte(0),
+      })
+    ),
+  })
+)
+
+export const zFindFilesPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zFindFilesQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  query: z.string(),
+  dirs: z.enum(["true", "false"]).optional(),
+  type: z.enum(["file", "directory"]).optional(),
+  limit: z.int().gte(1).lte(200).optional(),
+})
+
+/**
+ * File paths
+ */
+export const zFindFilesResponse = z.array(z.string())
+
+export const zFindSymbolsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zFindSymbolsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  query: z.string(),
+})
+
+/**
+ * Symbols
+ */
+export const zFindSymbolsResponse = z.array(zOpencodeSymbol)
+
+export const zFormatterStatusPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zFormatterStatusQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Formatter status
+ */
+export const zFormatterStatusResponse = z.array(zOpencodeFormatterStatus)
+
+export const zGlobalConfigGetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+/**
+ * Get global config info
+ */
+export const zGlobalConfigGetResponse = zOpencodeConfig
+
+export const zGlobalConfigUpdateBody = zOpencodeConfig
+
+export const zGlobalConfigUpdatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+/**
+ * Successfully updated global config
+ */
+export const zGlobalConfigUpdateResponse = zOpencodeConfig
+
+export const zGlobalDisposePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+/**
+ * Global disposed
+ */
+export const zGlobalDisposeResponse = z.boolean()
+
+export const zGlobalEventPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+/**
+ * Event stream
+ */
+export const zGlobalEventResponse = zOpencodeGlobalEvent
+
+export const zGlobalHealthPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+/**
+ * Health information
+ */
+export const zGlobalHealthResponse = z.object({
+  healthy: z.literal(true),
+  version: z.string(),
+})
+
+export const zGlobalUpgradeBody = z.object({
+  target: z.string().optional(),
+})
+
+export const zGlobalUpgradePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+/**
+ * Upgrade result
+ */
+export const zGlobalUpgradeResponse = z.union([
+  z.object({
+    success: z.literal(true),
+    version: z.string(),
+  }),
+  z.object({
+    error: z.string(),
+    success: z.literal(false),
+  }),
+])
+
+export const zInstanceDisposePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zInstanceDisposeQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Instance disposed
+ */
+export const zInstanceDisposeResponse = z.boolean()
+
+export const zAppLogBody = z.object({
+  extra: z.record(z.string(), z.unknown()).optional(),
+  level: z.enum(["debug", "info", "error", "warn"]),
+  message: z.string(),
+  service: z.string(),
+})
+
+export const zAppLogPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zAppLogQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Log entry written successfully
+ */
+export const zAppLogResponse = z.boolean()
+
+export const zLspStatusPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zLspStatusQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * LSP server status
+ */
+export const zLspStatusResponse = z.array(zOpencodeLspStatus)
+
+export const zMcpStatusPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zMcpStatusQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * MCP server status
+ */
+export const zMcpStatusResponse = z.record(z.string(), zOpencodeMcpStatus)
+
+export const zMcpAddBody = z.object({
+  config: z.union([zOpencodeMcpLocalConfig, zOpencodeMcpRemoteConfig]),
+  name: z.string(),
+})
+
+export const zMcpAddPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zMcpAddQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * MCP server added successfully
+ */
+export const zMcpAddResponse = z.record(z.string(), zOpencodeMcpStatus)
+
+export const zMcpAuthRemovePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  name: z.string(),
+})
+
+export const zMcpAuthRemoveQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * OAuth credentials removed
+ */
+export const zMcpAuthRemoveResponse = z.object({
+  success: z.literal(true),
+})
+
+export const zMcpAuthStartPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  name: z.string(),
+})
+
+export const zMcpAuthStartQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * OAuth flow started
+ */
+export const zMcpAuthStartResponse = z.object({
+  authorizationUrl: z.string(),
+  oauthState: z.string(),
+})
+
+export const zMcpAuthAuthenticatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  name: z.string(),
+})
+
+export const zMcpAuthAuthenticateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * OAuth authentication completed
+ */
+export const zMcpAuthAuthenticateResponse = zOpencodeMcpStatus
+
+export const zMcpAuthCallbackBody = z.object({
+  code: z.string(),
+})
+
+export const zMcpAuthCallbackPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  name: z.string(),
+})
+
+export const zMcpAuthCallbackQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * OAuth authentication completed
+ */
+export const zMcpAuthCallbackResponse = zOpencodeMcpStatus
+
+export const zMcpConnectPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  name: z.string(),
+})
+
+export const zMcpConnectQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * MCP server connected successfully
+ */
+export const zMcpConnectResponse = z.boolean()
+
+export const zMcpDisconnectPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  name: z.string(),
+})
+
+export const zMcpDisconnectQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * MCP server disconnected successfully
+ */
+export const zMcpDisconnectResponse = z.boolean()
+
+export const zPathGetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zPathGetQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Path
+ */
+export const zPathGetResponse = zOpencodePath
+
+export const zPermissionListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zPermissionListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of pending permissions
+ */
+export const zPermissionListResponse = z.array(zOpencodePermissionRequest)
+
+export const zPermissionReplyBody = z.object({
+  message: z.string().optional(),
+  reply: z.enum(["once", "always", "reject"]),
+})
+
+export const zPermissionReplyPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  requestID: z.string().regex(/^per.*/),
+})
+
+export const zPermissionReplyQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Permission processed successfully
+ */
+export const zPermissionReplyResponse = z.boolean()
+
+export const zProjectListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zProjectListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of projects
+ */
+export const zProjectListResponse = z.array(zOpencodeProject)
+
+export const zProjectUpdateBody = z.object({
+  commands: z
+    .object({
+      start: z.string().optional(),
+    })
+    .optional(),
+  icon: z
+    .object({
+      color: z.string().optional(),
+      override: z.string().optional(),
+      url: z.string().optional(),
+    })
+    .optional(),
+  name: z.string().optional(),
+})
+
+export const zProjectUpdatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  projectID: z.string(),
+})
+
+export const zProjectUpdateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Updated project information
+ */
+export const zProjectUpdateResponse = zOpencodeProject
+
+export const zProjectCurrentPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zProjectCurrentQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Current project information
+ */
+export const zProjectCurrentResponse = zOpencodeProject
+
+export const zProjectInitGitPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zProjectInitGitQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Project information after git initialization
+ */
+export const zProjectInitGitResponse = zOpencodeProject
+
+export const zProviderListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zProviderListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of providers
+ */
+export const zProviderListResponse = z.object({
+  all: z.array(zOpencodeProvider),
+  connected: z.array(z.string()),
+  default: z.record(z.string(), z.string()),
+})
+
+export const zProviderOauthAuthorizeBody = z.object({
+  inputs: z.record(z.string(), z.string()).optional(),
+  method: z.number(),
+})
+
+export const zProviderOauthAuthorizePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  providerID: z.string(),
+})
+
+export const zProviderOauthAuthorizeQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Authorization URL and method
+ */
+export const zProviderOauthAuthorizeResponse = zOpencodeProviderAuthAuthorization
+
+export const zProviderOauthCallbackBody = z.object({
+  code: z.string().optional(),
+  method: z.number(),
+})
+
+export const zProviderOauthCallbackPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  providerID: z.string(),
+})
+
+export const zProviderOauthCallbackQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * OAuth callback processed successfully
+ */
+export const zProviderOauthCallbackResponse = z.boolean()
+
+export const zProviderAuthPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zProviderAuthQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Provider auth methods
+ */
+export const zProviderAuthResponse = z.record(z.string(), z.array(zOpencodeProviderAuthMethod))
+
+export const zPtyListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zPtyListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of sessions
+ */
+export const zPtyListResponse = z.array(zOpencodePty)
+
+export const zPtyCreateBody = z.object({
+  args: z.array(z.string()).optional(),
+  command: z.string().optional(),
+  cwd: z.string().optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  title: z.string().optional(),
+})
+
+export const zPtyCreatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zPtyCreateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Created session
+ */
+export const zPtyCreateResponse = zOpencodePty
+
+export const zPtyRemovePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  ptyID: z.string().regex(/^pty.*/),
+})
+
+export const zPtyRemoveQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Session removed
+ */
+export const zPtyRemoveResponse = z.boolean()
+
+export const zPtyGetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  ptyID: z.string().regex(/^pty.*/),
+})
+
+export const zPtyGetQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Session info
+ */
+export const zPtyGetResponse = zOpencodePty
+
+export const zPtyUpdateBody = z.object({
+  size: z
+    .object({
+      cols: z.int().gt(0),
+      rows: z.int().gt(0),
+    })
+    .optional(),
+  title: z.string().optional(),
+})
+
+export const zPtyUpdatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  ptyID: z.string().regex(/^pty.*/),
+})
+
+export const zPtyUpdateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Updated session
+ */
+export const zPtyUpdateResponse = zOpencodePty
+
+export const zPtyConnectPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  ptyID: z.string().regex(/^pty.*/),
+})
+
+export const zPtyConnectQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Connected session
+ */
+export const zPtyConnectResponse = z.boolean()
+
+export const zPtyConnectTokenPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  ptyID: z.string().regex(/^pty.*/),
+})
+
+export const zPtyConnectTokenQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * WebSocket connect token
+ */
+export const zPtyConnectTokenResponse = z.object({
+  expires_in: z.int().gt(0),
+  ticket: z.string(),
+})
+
+export const zPtyShellsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zPtyShellsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of shells
+ */
+export const zPtyShellsResponse = z.array(
+  z.object({
+    acceptable: z.boolean(),
+    name: z.string(),
+    path: z.string(),
+  })
+)
+
+export const zQuestionListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zQuestionListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of pending questions
+ */
+export const zQuestionListResponse = z.array(zOpencodeQuestionRequest)
+
+export const zQuestionRejectPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  requestID: z.string().regex(/^que.*/),
+})
+
+export const zQuestionRejectQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Question rejected successfully
+ */
+export const zQuestionRejectResponse = z.boolean()
+
+export const zQuestionReplyBody = z.object({
+  answers: z.array(zOpencodeQuestionAnswer),
+})
+
+export const zQuestionReplyPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  requestID: z.string().regex(/^que.*/),
+})
+
+export const zQuestionReplyQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Question answered successfully
+ */
+export const zQuestionReplyResponse = z.boolean()
+
+export const zSessionListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zSessionListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  scope: z.enum(["project"]).optional(),
+  path: z.string().optional(),
+  roots: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
+  start: z.number().optional(),
+  search: z.string().optional(),
+  limit: z.number().optional(),
+})
+
+/**
+ * List of sessions
+ */
+export const zSessionListResponse = z.array(zOpencodeSession)
+
+export const zSessionCreateBody = z.object({
+  agent: z.string().optional(),
+  model: z
+    .object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string().optional(),
+    })
+    .optional(),
+  parentID: z.string().optional(),
+  permission: zOpencodePermissionRuleset.optional(),
+  title: z.string().optional(),
+  workspaceID: z.string().optional(),
+})
+
+export const zSessionCreatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zSessionCreateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully created session
+ */
+export const zSessionCreateResponse = zOpencodeSession
+
+export const zSessionDeletePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionDeleteQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully deleted session
+ */
+export const zSessionDeleteResponse = z.boolean()
+
+export const zSessionGetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionGetQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Get session
+ */
+export const zSessionGetResponse = zOpencodeSession
+
+export const zSessionUpdateBody = z.object({
+  permission: zOpencodePermissionRuleset.optional(),
+  time: z
+    .object({
+      archived: z.number().optional(),
+    })
+    .optional(),
+  title: z.string().optional(),
+})
+
+export const zSessionUpdatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionUpdateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully updated session
+ */
+export const zSessionUpdateResponse = zOpencodeSession
+
+export const zSessionAbortPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionAbortQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Aborted session
+ */
+export const zSessionAbortResponse = z.boolean()
+
+export const zSessionChildrenPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionChildrenQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of children
+ */
+export const zSessionChildrenResponse = z.array(zOpencodeSession)
+
+export const zSessionCommandBody = z.object({
+  agent: z.string().optional(),
+  arguments: z.string(),
+  command: z.string(),
+  messageID: z.string().optional(),
+  model: z.string().optional(),
+  parts: z
+    .array(
+      z.object({
+        filename: z.string().optional(),
+        id: z.string().optional(),
+        mime: z.string(),
+        source: zOpencodeFilePartSource.optional(),
+        type: z.enum(["file"]),
+        url: z.string(),
+      })
+    )
+    .optional(),
+  variant: z.string().optional(),
+})
+
+export const zSessionCommandPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionCommandQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Created message
+ */
+export const zSessionCommandResponse = z.object({
+  info: zOpencodeAssistantMessage,
+  parts: z.array(zOpencodePart),
+})
+
+export const zSessionDiffPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionDiffQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  messageID: z
+    .string()
+    .regex(/^msg.*/)
+    .optional(),
+})
+
+/**
+ * Successfully retrieved diff
+ */
+export const zSessionDiffResponse = z.array(zOpencodeSnapshotFileDiff)
+
+export const zSessionForkBody = z.object({
+  messageID: z.string().optional(),
+})
+
+export const zSessionForkPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionForkQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * 200
+ */
+export const zSessionForkResponse = zOpencodeSession
+
+export const zSessionInitBody = z.object({
+  messageID: z.string(),
+  modelID: z.string(),
+  providerID: z.string(),
+})
+
+export const zSessionInitPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionInitQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * 200
+ */
+export const zSessionInitResponse = z.boolean()
+
+export const zSessionMessagesPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionMessagesQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  limit: z.int().gte(0).lte(9007199254740991).optional(),
+  before: z.string().optional(),
+})
+
+/**
+ * List of messages
+ */
+export const zSessionMessagesResponse = z.array(
+  z.object({
+    info: zOpencodeMessage,
+    parts: z.array(zOpencodePart),
+  })
+)
+
+export const zSessionPromptBody = z.object({
+  agent: z.string().optional(),
+  format: zOpencodeOutputFormat.optional(),
+  messageID: z.string().optional(),
+  model: z
+    .object({
+      modelID: z.string(),
+      providerID: z.string(),
+    })
+    .optional(),
+  noReply: z.boolean().optional(),
+  parts: z.array(
+    z.union([
+      zOpencodeTextPartInput,
+      zOpencodeFilePartInput,
+      zOpencodeAgentPartInput,
+      zOpencodeSubtaskPartInput,
+    ])
+  ),
+  system: z.string().optional(),
+  tools: z.record(z.string(), z.boolean()).optional(),
+  variant: z.string().optional(),
+})
+
+export const zSessionPromptPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionPromptQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Created message
+ */
+export const zSessionPromptResponse = z.object({
+  info: zOpencodeAssistantMessage,
+  parts: z.array(zOpencodePart),
+})
+
+export const zSessionDeleteMessagePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+  messageID: z.string().regex(/^msg.*/),
+})
+
+export const zSessionDeleteMessageQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully deleted message
+ */
+export const zSessionDeleteMessageResponse = z.boolean()
+
+export const zSessionMessagePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+  messageID: z.string().regex(/^msg.*/),
+})
+
+export const zSessionMessageQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Message
+ */
+export const zSessionMessageResponse = z.object({
+  info: zOpencodeMessage,
+  parts: z.array(zOpencodePart),
+})
+
+export const zPartDeletePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+  messageID: z.string().regex(/^msg.*/),
+  partID: z.string().regex(/^prt.*/),
+})
+
+export const zPartDeleteQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully deleted part
+ */
+export const zPartDeleteResponse = z.boolean()
+
+export const zPartUpdateBody = zOpencodePart
+
+export const zPartUpdatePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+  messageID: z.string().regex(/^msg.*/),
+  partID: z.string().regex(/^prt.*/),
+})
+
+export const zPartUpdateQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully updated part
+ */
+export const zPartUpdateResponse = zOpencodePart
+
+export const zPermissionRespondBody = z.object({
+  response: z.enum(["once", "always", "reject"]),
+})
+
+export const zPermissionRespondPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+  permissionID: z.string().regex(/^per.*/),
+})
+
+export const zPermissionRespondQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Permission processed successfully
+ */
+export const zPermissionRespondResponse = z.boolean()
+
+export const zSessionPromptAsyncBody = z.object({
+  agent: z.string().optional(),
+  format: zOpencodeOutputFormat.optional(),
+  messageID: z.string().optional(),
+  model: z
+    .object({
+      modelID: z.string(),
+      providerID: z.string(),
+    })
+    .optional(),
+  noReply: z.boolean().optional(),
+  parts: z.array(
+    z.union([
+      zOpencodeTextPartInput,
+      zOpencodeFilePartInput,
+      zOpencodeAgentPartInput,
+      zOpencodeSubtaskPartInput,
+    ])
+  ),
+  system: z.string().optional(),
+  tools: z.record(z.string(), z.boolean()).optional(),
+  variant: z.string().optional(),
+})
+
+export const zSessionPromptAsyncPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionPromptAsyncQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Prompt accepted
+ */
+export const zSessionPromptAsyncResponse = z.void()
+
+export const zSessionRevertBody = z.object({
+  messageID: z.string(),
+  partID: z.string().optional(),
+})
+
+export const zSessionRevertPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionRevertQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Updated session
+ */
+export const zSessionRevertResponse = zOpencodeSession
+
+export const zSessionUnsharePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionUnshareQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully unshared session
+ */
+export const zSessionUnshareResponse = zOpencodeSession
+
+export const zSessionSharePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionShareQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Successfully shared session
+ */
+export const zSessionShareResponse = zOpencodeSession
+
+export const zSessionShellBody = z.object({
+  agent: z.string(),
+  command: z.string(),
+  messageID: z.string().optional(),
+  model: z
+    .object({
+      modelID: z.string(),
+      providerID: z.string(),
+    })
+    .optional(),
+})
+
+export const zSessionShellPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionShellQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Created message
+ */
+export const zSessionShellResponse = z.object({
+  info: zOpencodeMessage,
+  parts: z.array(zOpencodePart),
+})
+
+export const zSessionSummarizeBody = z.object({
+  auto: z.boolean().optional(),
+  modelID: z.string(),
+  providerID: z.string(),
+})
+
+export const zSessionSummarizePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionSummarizeQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Summarized session
+ */
+export const zSessionSummarizeResponse = z.boolean()
+
+export const zSessionTodoPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionTodoQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Todo list
+ */
+export const zSessionTodoResponse = z.array(zOpencodeTodo)
+
+export const zSessionUnrevertPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  sessionID: z.string().regex(/^ses.*/),
+})
+
+export const zSessionUnrevertQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Updated session
+ */
+export const zSessionUnrevertResponse = zOpencodeSession
+
+export const zSessionStatusPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zSessionStatusQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Get session status
+ */
+export const zSessionStatusResponse = z.record(z.string(), zOpencodeSessionStatus)
+
+export const zAppSkillsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zAppSkillsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * List of skills
+ */
+export const zAppSkillsResponse = z.array(
+  z.object({
+    content: z.string(),
+    description: z.string().optional(),
+    location: z.string(),
+    name: z.string(),
+  })
+)
+
+export const zSyncHistoryListBody = z.record(z.string(), z.int().gte(0))
+
+export const zSyncHistoryListPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zSyncHistoryListQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Sync events
+ */
+export const zSyncHistoryListResponse = z.array(
+  z.object({
+    aggregate_id: z.string(),
+    data: z.record(z.string(), z.unknown()),
+    id: z.string(),
+    seq: z.int().gte(0),
+    type: z.string(),
+  })
+)
+
+export const zSyncReplayBody = z.object({
+  directory: z.string(),
+  events: z
+    .array(
+      z.object({
+        aggregateID: z.string(),
+        data: z.record(z.string(), z.unknown()),
+        id: z.string(),
+        seq: z.int().gte(0),
+        type: z.string(),
+      })
+    )
+    .min(1),
+})
+
+export const zSyncReplayPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zSyncReplayQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Replayed sync events
+ */
+export const zSyncReplayResponse = z.object({
+  sessionID: z.string(),
+})
+
+export const zSyncStartPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zSyncStartQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Workspace sync started
+ */
+export const zSyncStartResponse = z.boolean()
+
+export const zSyncStealBody = z.object({
+  sessionID: z.string(),
+})
+
+export const zSyncStealPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zSyncStealQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Session stolen into workspace
+ */
+export const zSyncStealResponse = z.object({
+  sessionID: z.string(),
+})
+
+export const zTuiAppendPromptBody = z.object({
+  text: z.string(),
+})
+
+export const zTuiAppendPromptPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiAppendPromptQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Prompt processed successfully
+ */
+export const zTuiAppendPromptResponse = z.boolean()
+
+export const zTuiClearPromptPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiClearPromptQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Prompt cleared successfully
+ */
+export const zTuiClearPromptResponse = z.boolean()
+
+export const zTuiControlNextPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiControlNextQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Next TUI request
+ */
+export const zTuiControlNextResponse = z.object({
+  body: z.unknown(),
+  path: z.string(),
+})
+
+export const zTuiControlResponseBody = z.unknown()
+
+export const zTuiControlResponsePath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiControlResponseQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Response submitted successfully
+ */
+export const zTuiControlResponseResponse = z.boolean()
+
+export const zTuiExecuteCommandBody = z.object({
+  command: z.string(),
+})
+
+export const zTuiExecuteCommandPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiExecuteCommandQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Command executed successfully
+ */
+export const zTuiExecuteCommandResponse = z.boolean()
+
+export const zTuiOpenHelpPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiOpenHelpQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Help dialog opened successfully
+ */
+export const zTuiOpenHelpResponse = z.boolean()
+
+export const zTuiOpenModelsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiOpenModelsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Model dialog opened successfully
+ */
+export const zTuiOpenModelsResponse = z.boolean()
+
+export const zTuiOpenSessionsPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiOpenSessionsQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Session dialog opened successfully
+ */
+export const zTuiOpenSessionsResponse = z.boolean()
+
+export const zTuiOpenThemesPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiOpenThemesQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Theme dialog opened successfully
+ */
+export const zTuiOpenThemesResponse = z.boolean()
+
+export const zTuiPublishBody = z.union([
+  zOpencodeEventTuiPromptAppend2,
+  zOpencodeEventTuiCommandExecute2,
+  zOpencodeEventTuiToastShow2,
+  zOpencodeEventTuiSessionSelect2,
+])
+
+export const zTuiPublishPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiPublishQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Event published successfully
+ */
+export const zTuiPublishResponse = z.boolean()
+
+export const zTuiSelectSessionBody = z.object({
+  sessionID: z.string(),
+})
+
+export const zTuiSelectSessionPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiSelectSessionQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Session selected successfully
+ */
+export const zTuiSelectSessionResponse = z.boolean()
+
+export const zTuiShowToastBody = z.object({
+  duration: z.int().gt(0).optional(),
+  message: z.string(),
+  title: z.string().optional(),
+  variant: z.enum(["info", "success", "warning", "error"]),
+})
+
+export const zTuiShowToastPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiShowToastQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Toast notification shown successfully
+ */
+export const zTuiShowToastResponse = z.boolean()
+
+export const zTuiSubmitPromptPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zTuiSubmitPromptQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Prompt submitted successfully
+ */
+export const zTuiSubmitPromptResponse = z.boolean()
+
+export const zVcsGetPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zVcsGetQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * VCS info
+ */
+export const zVcsGetResponse = zOpencodeVcsInfo
+
+export const zVcsApplyBody = z.object({
+  patch: z.string(),
+})
+
+export const zVcsApplyPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zVcsApplyQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * VCS patch applied
+ */
+export const zVcsApplyResponse = z.object({
+  applied: z.boolean(),
+})
+
+export const zVcsDiffPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zVcsDiffQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+  mode: z.enum(["git", "branch"]),
+})
+
+/**
+ * VCS diff
+ */
+export const zVcsDiffResponse = z.array(zOpencodeVcsFileDiff)
+
+export const zVcsDiffRawPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zVcsDiffRawQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * Raw VCS diff
+ */
+export const zVcsDiffRawResponse = z.string()
+
+export const zVcsStatusPath = z.object({
+  agentName: z
+    .string()
+    .max(32)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
+export const zVcsStatusQuery = z.object({
+  directory: z.string().optional(),
+  workspace: z.string().optional(),
+})
+
+/**
+ * VCS status
+ */
+export const zVcsStatusResponse = z.array(zOpencodeVcsFileStatus)
 
 export const zDeleteSecretBody = zDeleteSecretsRequest
 
@@ -700,37 +6586,13 @@ export const zListSecretsQuery = z.object({
  */
 export const zListSecretsResponse2 = zListSecretsResponse
 
-export const zListEnvironmentsQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
+export const zPutSecretBody = zPutSecretsRequest
+
+export const zPutSecretPath = z.object({
+  agentName: zAgentName,
 })
 
 /**
- * Paginated environments.
+ * Secrets stored.
  */
-export const zListEnvironmentsResponse2 = zListEnvironmentsResponse
-
-export const zCreateEnvironmentBody = zCreateEnvironmentRequest
-
-/**
- * Environment created.
- */
-export const zCreateEnvironmentResponse = zEnvironment
-
-export const zDeleteEnvironmentBody = zDeleteEnvironmentRequest
-
-/**
- * Environment deleted.
- */
-export const zDeleteEnvironmentResponse = z.void()
-
-export const zUpdateEnvironmentBody = zUpdateEnvironmentRequest
-
-export const zUpdateEnvironmentPath = z.object({
-  name: zEnvironmentName,
-})
-
-/**
- * Environment updated.
- */
-export const zUpdateEnvironmentResponse = zEnvironment
+export const zPutSecretResponse = zPutSecretsResponse

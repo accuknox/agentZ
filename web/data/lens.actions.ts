@@ -76,7 +76,7 @@ export async function getTraceChartAction(
 ): Promise<TraceChartActionResponse> {
   const result = await listTraces({
     query: {
-      session_id: query.session_id,
+      agent_name: query.agent_name,
       started_after: query.started_after,
       started_before: query.started_before,
       limit: chartSourceLimit,
@@ -139,22 +139,32 @@ export async function getSpanDetailAction(
         depth: result.data.span.parent_span_id ? 1 : 0,
       }),
       payload: payloadSections(result.data.payload),
+      resourceAttributes: payloadSection(
+        "resource_attributes",
+        "Resource attributes",
+        result.data.span.resource_attributes
+      ),
+      spanAttributes: payloadSection(
+        "span_attributes",
+        "Span attributes",
+        result.data.span.span_attributes
+      ),
     },
     error: undefined,
   }
 }
 
 export async function getRuntimeTelemetryAction({
-  session_id,
+  agent_name,
   started_after,
   started_before,
 }: {
-  session_id: string
+  agent_name: string
   started_after: string
   started_before: string
 }): Promise<RuntimeTelemetryActionResponse> {
   const query = {
-    session_id,
+    agent_name,
     limit: 25,
     aggregated: false,
     event_time_after: isoDateTimeParam(started_after),
@@ -196,20 +206,20 @@ export async function getRuntimeTelemetryAction({
 }
 
 export async function getRuntimeTelemetryTabAction({
-  session_id,
+  agent_name,
   started_after,
   started_before,
   tab,
   page_token,
 }: {
-  session_id: string
+  agent_name: string
   started_after: string
   started_before: string
   tab: RuntimeTelemetryTab
   page_token?: string
 }): Promise<RuntimeTelemetryTabActionResponse> {
   const query = {
-    session_id,
+    agent_name,
     limit: 25,
     page_token: page_token ?? undefined,
     aggregated: false,
@@ -368,18 +378,18 @@ function computeTelemetryChartFromAggregated(
 }
 
 export async function getProcessTelemetryAction({
-  session_id,
+  agent_name,
   event_time_after,
   event_time_before,
   page_token,
 }: {
-  session_id: string
+  agent_name: string
   event_time_after?: string
   event_time_before?: string
   page_token?: string
 }): Promise<ProcessTelemetryActionResponse> {
   const query = {
-    session_id,
+    agent_name,
     limit: defaultPageSize,
     page_token: page_token ?? undefined,
     aggregated: true,
@@ -409,18 +419,18 @@ export async function getProcessTelemetryAction({
 }
 
 export async function getFileTelemetryAction({
-  session_id,
+  agent_name,
   event_time_after,
   event_time_before,
   page_token,
 }: {
-  session_id: string
+  agent_name: string
   event_time_after?: string
   event_time_before?: string
   page_token?: string
 }): Promise<FileTelemetryActionResponse> {
   const query = {
-    session_id,
+    agent_name,
     limit: defaultPageSize,
     page_token: page_token ?? undefined,
     aggregated: true,
@@ -450,18 +460,18 @@ export async function getFileTelemetryAction({
 }
 
 export async function getNetworkTelemetryAction({
-  session_id,
+  agent_name,
   event_time_after,
   event_time_before,
   page_token,
 }: {
-  session_id: string
+  agent_name: string
   event_time_after?: string
   event_time_before?: string
   page_token?: string
 }): Promise<NetworkTelemetryActionResponse> {
   const query = {
-    session_id,
+    agent_name,
     limit: defaultPageSize,
     page_token: page_token ?? undefined,
     aggregated: true,
@@ -580,8 +590,8 @@ function traceListItem({
   const endedTime = endedAt.isValid() ? endedAt.format("h:mm A") : trace.ended_at
 
   return {
+    agentName: trace.agent_name,
     traceId: trace.trace_id,
-    sessionId: trace.session_id,
     startedAt: trace.started_at,
     endedAt: trace.ended_at,
     startedDate,
@@ -664,6 +674,7 @@ function spanListItem({
 
   return {
     id: span.id,
+    agentName: span.agent_name,
     sessionId: span.session_id,
     traceId: span.trace_id,
     spanId: span.span_id,
@@ -674,16 +685,20 @@ function spanListItem({
     durationMs,
     displayName: displayName(span),
     operationLabel: operationLabel(span),
+    spanClass: span.span_class,
+    kind: span.kind,
+    statusCode: span.status_code,
+    llmFinishReason: span.llm_finish_reason,
     hasError,
     error: span.error_message,
-    timeToFirstToken:
-      span.time_to_first_token_ms > 0 ? formatDuration(span.time_to_first_token_ms) : "",
     spanType: spanType(span),
     depth,
     inputTokens: span.input_tokens,
     cachedInputTokens: span.cached_input_tokens,
+    cachedWriteTokens: span.cached_write_tokens,
     outputTokens: span.output_tokens,
     totalTokens,
+    costUSD: span.cost_usd,
     offsetPercent,
     durationPercent: Math.max(durationPercent, durationMs > 0 ? 0.5 : 0),
   }
@@ -695,7 +710,6 @@ function payloadSections(payload: SpanPayload): SpanDetailPayloadSection[] {
     payloadSection("output_messages", "Output", payload.output_messages),
     payloadSection("tool_arguments", "Tool arguments", payload.tool_arguments),
     payloadSection("tool_result", "Tool result", payload.tool_result),
-    payloadSection("metadata", "Metadata", payload.metadata),
   ]
 }
 

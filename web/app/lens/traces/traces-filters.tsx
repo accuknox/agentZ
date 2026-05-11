@@ -4,7 +4,7 @@ import * as React from "react"
 import { BotIcon, CalendarIcon } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import type { ListAgent } from "@/lib/gateway/client"
+import type { Agent } from "@/lib/gateway/client"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -20,12 +20,12 @@ import { dayjs } from "@/lib/dayjs"
 
 export function TracesFilters({
   agents,
-  selectedSessionID,
+  selectedAgentName,
   from,
   to,
 }: {
-  agents: ListAgent[]
-  selectedSessionID?: string
+  agents: Agent[]
+  selectedAgentName?: string
   from?: string
   to?: string
 }) {
@@ -58,8 +58,8 @@ export function TracesFilters({
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select
-          value={selectedSessionID}
-          onValueChange={(sessionID) => update({ session_id: sessionID })}
+          value={selectedAgentName}
+          onValueChange={(agentName) => update({ agent_name: agentName })}
           disabled={agents.length === 0}
         >
           <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-64">
@@ -68,7 +68,7 @@ export function TracesFilters({
           <SelectContent>
             <SelectGroup>
               {agents.map((agent) => (
-                <SelectItem key={agent.session_id} value={agent.session_id}>
+                <SelectItem key={agent.name} value={agent.name}>
                   <BotIcon className="inline-block" />
                   {agent.name}
                 </SelectItem>

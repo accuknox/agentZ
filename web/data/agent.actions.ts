@@ -5,9 +5,9 @@ import { updateTag } from "next/cache"
 import {
   createAgent,
   deleteAgent,
-  getChatHistory,
+  sessionMessages,
   updateAgent,
-  type GetChatHistoryData,
+  type Error,
 } from "@/lib/gateway/client"
 import type {
   ChatHistoryActionResponse,
@@ -17,12 +17,28 @@ import type {
 import { createAgentRequest, updateAgentRequest, parseAgentForm } from "@/data/utils"
 import { agentsTag } from "@/data/cache"
 
+type ChatHistoryQuery = {
+  agentName: string
+  before?: string
+  limit?: number
+}
+
 export async function getChatHistoryAction(
-  query: GetChatHistoryData["query"]
+  query: ChatHistoryQuery
 ): Promise<ChatHistoryActionResponse> {
-  const result = await getChatHistory({ query, cache: "no-store" })
+  const result = await sessionMessages({
+    path: {
+      agentName: query.agentName,
+      sessionID: query.agentName,
+    },
+    query: {
+      limit: query.limit,
+      before: query.before,
+    },
+    cache: "no-store",
+  })
   if (result.error) {
-    return { data: undefined, error: result.error }
+    return { data: undefined, error: toGatewayError(result.error) }
   }
 
   return { data: result.data, error: undefined }
@@ -47,7 +63,7 @@ export async function createAgentFormAction(
 }
 
 export async function updateAgentFormAction(
-  sessionID: string,
+  agentName: string,
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
@@ -58,7 +74,7 @@ export async function updateAgentFormAction(
 
   const result = await updateAgent({
     body: updateAgentRequest(parsed.data),
-    path: { sessionID },
+    path: { agentName },
   })
   if (result.error) {
     return { error: result.error }
@@ -69,15 +85,37 @@ export async function updateAgentFormAction(
 }
 
 export async function deleteAgentFormAction(
-  sessionID: string,
+  agentName: string,
   _: DeleteAgentFormState,
   _formData: FormData
 ): Promise<DeleteAgentFormState> {
-  const result = await deleteAgent({ body: { session_id: sessionID } })
+  const result = await deleteAgent({ body: { agent_name: agentName } })
   if (result.error) {
     return { error: result.error }
   }
 
   updateTag(agentsTag)
   redirect("/")
+}
+
+function toGatewayError(error: unknown): Error {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "data" in error &&
+    typeof error.data === "object" &&
+    error.data !== null &&
+    "message" in error.data &&
+    typeof error.data.message === "string"
+  ) {
+    return {
+      code: "OPENCODE_ERROR",
+      message: error.data.message,
+    }
+  }
+
+  return {
+    code: "OPENCODE_ERROR",
+    message: "Request failed",
+  }
 }

@@ -7,7 +7,7 @@ import { agentWizardValues } from "@/data/utils"
 export default async function UpdateAgent({ params }: PageProps<"/agent/update/[id]">) {
   const { id } = await params
   const [result, environments] = await Promise.all([
-    listAgentsCachedQuery(true, { limit: 1, session_id: [id] }),
+    listAgentsCachedQuery({ agent_name: [id], limit: 1 }),
     listEnvironmentsCachedQuery({ limit: 50 }),
   ])
 
@@ -44,7 +44,7 @@ export default async function UpdateAgent({ params }: PageProps<"/agent/update/[
         initialHasNextEnvironmentPage={environments.hasNextPage}
         initialNextEnvironmentPageToken={environments.nextPageToken}
         mode="update"
-        sessionID={agent.session_id}
+        agentName={agent.name}
       />
     </div>
   )

@@ -4,56 +4,24 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
-export type Agent = {
-  created_at: string
-  environmentName: EnvironmentName
-  last_activity: string
-  modified_at: string
-  name: AgentName
-  status: AgentStatus
-}
+/**
+ * Lowercase hexadecimal OTLP trace ID.
+ */
+export type TraceId = string
+
+/**
+ * Lowercase hexadecimal OTLP span ID.
+ */
+export type SpanId = string
+
+/**
+ * Lowercase hexadecimal OTLP span ID, or empty for root spans.
+ */
+export type OptionalSpanId = string
+
+export type ObservabilityAction = "Allowed" | "Blocked"
 
 export type AgentName = string
-
-export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
-
-export type CreateAgentRequest = {
-  env?: {
-    [key: string]: string
-  }
-  environmentName: EnvironmentName
-  name: AgentName
-}
-
-export type CreateEnvironmentRequest = {
-  allowed_hosts?: Array<string>
-  name: EnvironmentName
-  packages?: Array<string>
-}
-
-export type DeleteAgentRequest = {
-  agent_name: AgentName
-}
-
-export type DeleteEnvironmentRequest = {
-  name: EnvironmentName
-}
-
-export type DeleteSecretsRequest = {
-  keys: Array<SecretKey>
-}
-
-export type Environment = {
-  allowed_hosts: Array<string>
-  created_at: string
-  metadata: {
-    allowed_host_count: number
-    package_count: number
-    referenced_by_agent: boolean
-  }
-  name: EnvironmentName
-  packages: Array<string>
-}
 
 /**
  * Environment resource name.
@@ -62,9 +30,9 @@ export type EnvironmentName = string
 
 export type Error = {
   code: string
-  details?: JsonValue
-  errors?: Array<FieldError>
   message: string
+  errors?: Array<FieldError>
+  details?: JsonValue
 }
 
 export type FieldError = {
@@ -72,29 +40,243 @@ export type FieldError = {
   message: string
 }
 
-export type FileObservabilityEvent = {
-  action: ObservabilityAction
+export type ListAgentsResponse = {
+  agents: Array<Agent>
+  next_page_token: string
+}
+
+export type Agent = {
+  name: AgentName
+  environmentName: EnvironmentName
+  last_activity: string
+  created_at: string
+  modified_at: string
+  status: AgentStatus
+}
+
+export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
+
+export type CreateAgentRequest = {
+  name: AgentName
+  env?: {
+    [key: string]: string
+  }
+  environmentName: EnvironmentName
+}
+
+export type DeleteAgentRequest = {
   agent_name: AgentName
-  command_invocation: string
-  event_time: string
-  file_path_accessed: string
+}
+
+export type UpdateAgentRequest = {
+  env?: {
+    [key: string]: string
+  }
+  environmentName?: EnvironmentName
+}
+
+export type ListTracesResponse = {
+  traces: Array<Trace>
+  next_page_token: string
+}
+
+export type ListTraceSessionsResponse = {
+  trace_sessions: Array<TraceSession>
+  next_page_token: string
+}
+
+export type Trace = {
+  trace_id: TraceId
+  agent_name: AgentName
+  root_span_id: OptionalSpanId
+  started_at: string
+  ended_at: string
+  duration_ns: number
+  duration_ms: number
+  span_count: number
+  error_count: number
+  tool_count: number
+  model_count: number
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  cached_write_tokens: number
+  cost_usd: number
+  status_code: string
+  updated_at: string
+}
+
+export type TraceSession = {
+  trace_id: TraceId
+  session_id: string
+  agent_name: AgentName
+  root_span_id: OptionalSpanId
+  started_at: string
+  ended_at: string
+  duration_ns: number
+  duration_ms: number
+  span_count: number
+  error_count: number
+  tool_count: number
+  model_count: number
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  cached_write_tokens: number
+  cost_usd: number
+  status_code: string
+  updated_at: string
+}
+
+export type ListSpansResponse = {
+  spans: Array<Span>
+  next_page_token: string
+}
+
+export type Span = {
   id: number
+  agent_name: AgentName
+  session_id: string
+  trace_id: TraceId
+  span_id: SpanId
+  parent_span_id: OptionalSpanId
+  start_time: string
+  end_time: string
+  duration_ns: number
+  duration_ms: number
+  name: string
+  span_class: string
+  operation_name: string
+  kind: string
+  status_code: string
+  error_type: string
+  error_message: string
+  model: string
+  tool_name: string
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  cached_write_tokens: number
+  cost_usd: number
+  llm_finish_reason: string
   ingested_at: string
-  pod_name: string
+}
+
+export type SpanDetail = Span & {
+  resource_attributes: JsonValue
+  span_attributes: JsonValue
+}
+
+export type SpanPayload = {
+  input_messages: JsonValue
+  output_messages: JsonValue
+  tool_arguments: JsonValue
+  tool_result: JsonValue
+}
+
+export type SpanDetailResponse = {
+  span: SpanDetail
+  payload: SpanPayload
+}
+
+export type ListProcessObservabilityResponse = {
+  events: Array<ProcessObservabilityEvent | ProcessObservabilityEventAggregated>
+  next_page_token: string
+}
+
+export type ProcessObservabilityEvent = {
+  id: number
+  agent_name: AgentName
+  event_time: string
+  ingested_at: string
   pod_namespace: string
+  pod_name: string
   process: string
+  parent_process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+}
+
+export type ProcessObservabilityEventAggregated = {
+  agent_name: AgentName
+  last_seen: string
+  process: string
+  parent_process: string
+  command_invocation: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
+}
+
+export type ListFileObservabilityResponse = {
+  events: Array<FileObservabilityEvent | FileObservabilityEventAggregated>
+  next_page_token: string
+}
+
+export type FileObservabilityEvent = {
+  id: number
+  agent_name: AgentName
+  event_time: string
+  ingested_at: string
+  pod_namespace: string
+  pod_name: string
+  file_path_accessed: string
+  process: string
+  command_invocation: string
+  action: ObservabilityAction
   source: string
 }
 
 export type FileObservabilityEventAggregated = {
-  action: ObservabilityAction
   agent_name: AgentName
-  command_invocation: string
-  file_path_accessed: string
   last_seen: string
-  occurrences: number
+  file_path_accessed: string
   process: string
+  command_invocation: string
+  action: ObservabilityAction
   source: string
+  occurrences: number
+}
+
+export type ListNetworkObservabilityResponse = {
+  events: Array<NetworkObservabilityEvent | NetworkObservabilityEventAggregated>
+  next_page_token: string
+}
+
+export type NetworkObservabilityEvent = {
+  id: number
+  agent_name: AgentName
+  event_time: string
+  ingested_at: string
+  pod_namespace: string
+  pod_name: string
+  destination_domain: string
+  destination_ip: string
+  destination_port: number
+  protocol: string
+  action: ObservabilityAction
+  source: string
+}
+
+export type NetworkObservabilityEventAggregated = {
+  agent_name: AgentName
+  last_seen: string
+  destination_domain: string
+  destination_ip: string
+  destination_port: number
+  protocol: string
+  action: ObservabilityAction
+  source: string
+  occurrences: number
+}
+
+export type WatchAgentsRequest = {
+  agent_names?: Array<AgentName>
+}
+
+export type WatchAgentsEvent = {
+  agents: Array<Agent>
 }
 
 export type JsonValue =
@@ -106,3382 +288,33 @@ export type JsonValue =
       [key: string]: JsonValue
     }
 
-export type ListAgentsResponse = {
-  agents: Array<Agent>
-  next_page_token: string
-}
-
-export type ListEnvironmentsResponse = {
-  environments: Array<Environment>
-  next_page_token: string
-}
-
-export type ListFileObservabilityResponse = {
-  events: Array<FileObservabilityEvent | FileObservabilityEventAggregated>
-  next_page_token: string
-}
-
-export type ListNetworkObservabilityResponse = {
-  events: Array<NetworkObservabilityEvent | NetworkObservabilityEventAggregated>
-  next_page_token: string
-}
-
-export type ListProcessObservabilityResponse = {
-  events: Array<ProcessObservabilityEvent | ProcessObservabilityEventAggregated>
-  next_page_token: string
-}
-
-export type ListSecretsResponse = {
-  items: Array<SecretListItem>
-  next_page_token: string
-}
-
-export type ListSpansResponse = {
-  next_page_token: string
-  spans: Array<Span>
-}
-
-export type ListTraceSessionsResponse = {
-  next_page_token: string
-  trace_sessions: Array<TraceSession>
-}
-
-export type ListTracesResponse = {
-  next_page_token: string
-  traces: Array<Trace>
-}
-
-export type NetworkObservabilityEvent = {
-  action: ObservabilityAction
-  agent_name: AgentName
-  destination_domain: string
-  destination_ip: string
-  destination_port: number
-  event_time: string
-  id: number
-  ingested_at: string
-  pod_name: string
-  pod_namespace: string
-  protocol: string
-  source: string
-}
-
-export type NetworkObservabilityEventAggregated = {
-  action: ObservabilityAction
-  agent_name: AgentName
-  destination_domain: string
-  destination_ip: string
-  destination_port: number
-  last_seen: string
-  occurrences: number
-  protocol: string
-  source: string
-}
-
-export type ObservabilityAction = "Allowed" | "Blocked"
-
-export type OpencodeApiError = {
-  data: {
-    isRetryable: boolean
-    message: string
-    metadata?: {
-      [key: string]: string
-    }
-    responseBody?: string
-    responseHeaders?: {
-      [key: string]: string
-    }
-    statusCode?: number
-  }
-  name: "APIError"
-}
-
-export type OpencodeAgent = {
-  color?: string
-  description?: string
-  hidden?: boolean
-  mode: "subagent" | "primary" | "all"
-  model?: {
-    modelID: string
-    providerID: string
-  }
-  name: string
-  native?: boolean
-  options: {
-    [key: string]: unknown
-  }
-  permission: OpencodePermissionRuleset
-  prompt?: string
-  steps?: number
-  temperature?: number
-  topP?: number
-  variant?: string
-}
-
-export type OpencodeAgentConfig = {
-  /**
-   * Hex color code (e.g., #FF5733) or theme color (e.g., primary)
-   */
-  color?: string | "primary" | "secondary" | "accent" | "success" | "warning" | "error" | "info"
-  description?: string
-  disable?: boolean
-  hidden?: boolean
-  maxSteps?: number
-  mode?: "subagent" | "primary" | "all"
-  model?: string
-  options?: {
-    [key: string]: unknown
-  }
-  permission?: OpencodePermissionConfig
-  prompt?: string
-  steps?: number
-  temperature?: number
-  tools?: {
-    [key: string]: boolean
-  }
-  top_p?: number
-  variant?: string
-  [key: string]: unknown
-}
-
-export type OpencodeAgentPart = {
-  id: string
-  messageID: string
-  name: string
-  sessionID: string
-  source?: {
-    end: number
-    start: number
-    value: string
-  }
-  type: "agent"
-}
-
-export type OpencodeAgentPartInput = {
-  id?: string
-  name: string
-  source?: {
-    end: number
-    start: number
-    value: string
-  }
-  type: "agent"
-}
-
-export type OpencodeApiAuth = {
-  key: string
-  metadata?: {
-    [key: string]: string
-  }
-  type: "api"
-}
-
-export type OpencodeAssistantMessage = {
-  agent: string
-  cost: number
-  error?:
-    | OpencodeProviderAuthError
-    | OpencodeUnknownError
-    | OpencodeMessageOutputLengthError
-    | OpencodeMessageAbortedError
-    | OpencodeStructuredOutputError
-    | OpencodeContextOverflowError
-    | OpencodeApiError
-  finish?: string
-  id: string
-  mode: string
-  modelID: string
-  parentID: string
-  path: {
-    cwd: string
-    root: string
-  }
-  providerID: string
-  role: "assistant"
-  sessionID: string
-  structured?: unknown
-  summary?: boolean
-  time: {
-    completed?: number
-    created: number
-  }
-  tokens: {
-    cache: {
-      read: number
-      write: number
-    }
-    input: number
-    output: number
-    reasoning: number
-    total?: number
-  }
-  variant?: string
-}
-
-export type OpencodeAuth = OpencodeOAuth | OpencodeApiAuth | OpencodeWellKnownAuth
-
-export type OpencodeBadRequestError = {
-  data: unknown
-  errors: Array<{
-    [key: string]: unknown
-  }>
-  success: false
-}
-
-export type OpencodeCommand = {
-  agent?: string
-  description?: string
-  hints: Array<string>
-  model?: string
-  name: string
-  source?: "command" | "mcp" | "skill"
-  subtask?: boolean
-  template: string
-}
-
-export type OpencodeCompactionPart = {
-  auto: boolean
-  id: string
-  messageID: string
-  overflow?: boolean
-  sessionID: string
-  tail_start_id?: string
-  type: "compaction"
-}
-
-export type OpencodeConfig = {
-  $schema?: string
-  agent?: {
-    build?: OpencodeAgentConfig
-    compaction?: OpencodeAgentConfig
-    explore?: OpencodeAgentConfig
-    general?: OpencodeAgentConfig
-    plan?: OpencodeAgentConfig
-    scout?: OpencodeAgentConfig
-    summary?: OpencodeAgentConfig
-    title?: OpencodeAgentConfig
-    [key: string]: OpencodeAgentConfig | undefined
-  }
-  autoshare?: boolean
-  /**
-   * Automatically update to the latest version. Set to true to auto-update, false to disable, or 'notify' to show update notifications
-   */
-  autoupdate?: boolean | "notify"
-  command?: {
-    [key: string]: {
-      agent?: string
-      description?: string
-      model?: string
-      subtask?: boolean
-      template: string
-    }
-  }
-  compaction?: {
-    auto?: boolean
-    preserve_recent_tokens?: number
-    prune?: boolean
-    reserved?: number
-    tail_turns?: number
-  }
-  default_agent?: string
-  disabled_providers?: Array<string>
-  enabled_providers?: Array<string>
-  enterprise?: {
-    url?: string
-  }
-  experimental?: {
-    batch_tool?: boolean
-    continue_loop_on_deny?: boolean
-    disable_paste_summary?: boolean
-    mcp_timeout?: number
-    openTelemetry?: boolean
-    primary_tools?: Array<string>
-  }
-  /**
-   * Enable or configure formatters. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.
-   */
-  formatter?:
-    | boolean
-    | {
-        [key: string]: {
-          command?: Array<string>
-          disabled?: boolean
-          environment?: {
-            [key: string]: string
-          }
-          extensions?: Array<string>
-        }
-      }
-  instructions?: Array<string>
-  layout?: OpencodeLayoutConfig
-  logLevel?: OpencodeLogLevel
-  /**
-   * Enable or configure LSP servers. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.
-   */
-  lsp?:
-    | boolean
-    | {
-        [key: string]:
-          | {
-              disabled: true
-            }
-          | {
-              command: Array<string>
-              disabled?: boolean
-              env?: {
-                [key: string]: string
-              }
-              extensions?: Array<string>
-              initialization?: {
-                [key: string]: unknown
-              }
-            }
-      }
-  mcp?: {
-    [key: string]:
-      | OpencodeMcpLocalConfig
-      | OpencodeMcpRemoteConfig
-      | {
-          enabled: boolean
-        }
-  }
-  mode?: {
-    build?: OpencodeAgentConfig
-    plan?: OpencodeAgentConfig
-    [key: string]: OpencodeAgentConfig | undefined
-  }
-  model?: string
-  permission?: OpencodePermissionConfig
-  plugin?: Array<string | [unknown, unknown]>
-  provider?: {
-    [key: string]: OpencodeProviderConfig
-  }
-  reference?: OpencodeReferenceConfig
-  server?: OpencodeServerConfig
-  share?: "manual" | "auto" | "disabled"
-  shell?: string
-  skills?: {
-    paths?: Array<string>
-    urls?: Array<string>
-  }
-  small_model?: string
-  snapshot?: boolean
-  tool_output?: {
-    max_bytes?: number
-    max_lines?: number
-  }
-  tools?: {
-    [key: string]: boolean
-  }
-  username?: string
-  watcher?: {
-    ignore?: Array<string>
-  }
-}
-
-export type OpencodeConsoleState = {
-  activeOrgName?: string
-  consoleManagedProviders: Array<string>
-  switchableOrgCount: number
-}
-
-export type OpencodeContextOverflowError = {
-  data: {
-    message: string
-    responseBody?: string
-  }
-  name: "ContextOverflowError"
-}
-
-export type OpencodeEvent =
-  | OpencodeEventServerInstanceDisposed
-  | OpencodeEventFileEdited
-  | OpencodeEventFileWatcherUpdated
-  | OpencodeEventLspClientDiagnostics
-  | OpencodeEventLspUpdated
-  | OpencodeEventMessagePartDelta
-  | OpencodeEventPermissionAsked
-  | OpencodeEventPermissionReplied
-  | OpencodeEventSessionDiff
-  | OpencodeEventSessionError
-  | OpencodeEventInstallationUpdated
-  | OpencodeEventInstallationUpdateAvailable
-  | OpencodeEventQuestionAsked
-  | OpencodeEventQuestionReplied
-  | OpencodeEventQuestionRejected
-  | OpencodeEventTodoUpdated
-  | OpencodeEventSessionStatus
-  | OpencodeEventSessionIdle
-  | OpencodeEventSessionCompacted
-  | OpencodeEventTuiPromptAppend
-  | OpencodeEventTuiCommandExecute
-  | OpencodeEventTuiToastShow1
-  | OpencodeEventTuiSessionSelect
-  | OpencodeEventMcpToolsChanged
-  | OpencodeEventMcpBrowserOpenFailed
-  | OpencodeEventCommandExecuted
-  | OpencodeEventProjectUpdated
-  | OpencodeEventVcsBranchUpdated
-  | OpencodeEventWorkspaceReady
-  | OpencodeEventWorkspaceFailed
-  | OpencodeEventWorkspaceStatus
-  | OpencodeEventWorktreeReady
-  | OpencodeEventWorktreeFailed
-  | OpencodeEventPtyCreated
-  | OpencodeEventPtyUpdated
-  | OpencodeEventPtyExited
-  | OpencodeEventPtyDeleted
-  | OpencodeEventMessageUpdated
-  | OpencodeEventMessageRemoved
-  | OpencodeEventMessagePartUpdated
-  | OpencodeEventMessagePartRemoved
-  | OpencodeEventSessionCreated
-  | OpencodeEventSessionUpdated
-  | OpencodeEventSessionDeleted
-  | OpencodeEventSessionNextAgentSwitched
-  | OpencodeEventSessionNextModelSwitched
-  | OpencodeEventSessionNextPrompted
-  | OpencodeEventSessionNextSynthetic
-  | OpencodeEventSessionNextShellStarted
-  | OpencodeEventSessionNextShellEnded
-  | OpencodeEventSessionNextStepStarted
-  | OpencodeEventSessionNextStepEnded
-  | OpencodeEventSessionNextStepFailed
-  | OpencodeEventSessionNextTextStarted
-  | OpencodeEventSessionNextTextDelta
-  | OpencodeEventSessionNextTextEnded
-  | OpencodeEventSessionNextReasoningStarted
-  | OpencodeEventSessionNextReasoningDelta
-  | OpencodeEventSessionNextReasoningEnded
-  | OpencodeEventSessionNextToolInputStarted
-  | OpencodeEventSessionNextToolInputDelta
-  | OpencodeEventSessionNextToolInputEnded
-  | OpencodeEventSessionNextToolCalled
-  | OpencodeEventSessionNextToolProgress
-  | OpencodeEventSessionNextToolSuccess
-  | OpencodeEventSessionNextToolFailed
-  | OpencodeEventSessionNextRetried
-  | OpencodeEventSessionNextCompactionStarted
-  | OpencodeEventSessionNextCompactionDelta
-  | OpencodeEventSessionNextCompactionEnded
-  | OpencodeEventServerConnected
-  | OpencodeEventGlobalDisposed
-
-export type OpencodeEventTuiCommandExecute = {
-  id: string
-  properties: {
-    command:
-      | "session.list"
-      | "session.new"
-      | "session.share"
-      | "session.interrupt"
-      | "session.compact"
-      | "session.page.up"
-      | "session.page.down"
-      | "session.line.up"
-      | "session.line.down"
-      | "session.half.page.up"
-      | "session.half.page.down"
-      | "session.first"
-      | "session.last"
-      | "prompt.clear"
-      | "prompt.submit"
-      | "agent.cycle"
-      | string
-  }
-  type: "tui.command.execute"
-}
-
-export type OpencodeEventTuiPromptAppend = {
-  id: string
-  properties: {
-    text: string
-  }
-  type: "tui.prompt.append"
-}
-
-export type OpencodeEventTuiSessionSelect = {
-  id: string
-  properties: {
-    /**
-     * Session ID to navigate to
-     */
-    sessionID: string
-  }
-  type: "tui.session.select"
-}
-
-export type OpencodeEventTuiToastShow = {
-  id: string
-  properties: {
-    duration?: number
-    message: string
-    title?: string
-    variant: "info" | "success" | "warning" | "error"
-  }
-  type: "tui.toast.show"
-}
-
-export type OpencodeEventCommandExecuted = {
-  id: string
-  properties: {
-    arguments: string
-    messageID: string
-    name: string
-    sessionID: string
-  }
-  type: "command.executed"
-}
-
-export type OpencodeEventFileEdited = {
-  id: string
-  properties: {
-    file: string
-  }
-  type: "file.edited"
-}
-
-export type OpencodeEventFileWatcherUpdated = {
-  id: string
-  properties: {
-    event: "add" | "change" | "unlink"
-    file: string
-  }
-  type: "file.watcher.updated"
-}
-
-export type OpencodeEventGlobalDisposed = {
-  id: string
-  properties: {
-    [key: string]: unknown
-  }
-  type: "global.disposed"
-}
-
-export type OpencodeEventInstallationUpdateAvailable = {
-  id: string
-  properties: {
-    version: string
-  }
-  type: "installation.update-available"
-}
-
-export type OpencodeEventInstallationUpdated = {
-  id: string
-  properties: {
-    version: string
-  }
-  type: "installation.updated"
-}
-
-export type OpencodeEventLspClientDiagnostics = {
-  id: string
-  properties: {
-    path: string
-    serverID: string
-  }
-  type: "lsp.client.diagnostics"
-}
-
-export type OpencodeEventLspUpdated = {
-  id: string
-  properties: {
-    [key: string]: unknown
-  }
-  type: "lsp.updated"
-}
-
-export type OpencodeEventMcpBrowserOpenFailed = {
-  id: string
-  properties: {
-    mcpName: string
-    url: string
-  }
-  type: "mcp.browser.open.failed"
-}
-
-export type OpencodeEventMcpToolsChanged = {
-  id: string
-  properties: {
-    server: string
-  }
-  type: "mcp.tools.changed"
-}
-
-export type OpencodeEventMessagePartDelta = {
-  id: string
-  properties: {
-    delta: string
-    field: string
-    messageID: string
-    partID: string
-    sessionID: string
-  }
-  type: "message.part.delta"
-}
-
-export type OpencodeEventMessagePartRemoved = {
-  id: string
-  properties: {
-    messageID: string
-    partID: string
-    sessionID: string
-  }
-  type: "message.part.removed"
-}
-
-export type OpencodeEventMessagePartUpdated = {
-  id: string
-  properties: {
-    part: OpencodePart
-    sessionID: string
-    time: number
-  }
-  type: "message.part.updated"
-}
-
-export type OpencodeEventMessageRemoved = {
-  id: string
-  properties: {
-    messageID: string
-    sessionID: string
-  }
-  type: "message.removed"
-}
-
-export type OpencodeEventMessageUpdated = {
-  id: string
-  properties: {
-    info: OpencodeMessage
-    sessionID: string
-  }
-  type: "message.updated"
-}
-
-export type OpencodeEventPermissionAsked = {
-  id: string
-  properties: OpencodePermissionRequest
-  type: "permission.asked"
-}
-
-export type OpencodeEventPermissionReplied = {
-  id: string
-  properties: {
-    reply: "once" | "always" | "reject"
-    requestID: string
-    sessionID: string
-  }
-  type: "permission.replied"
-}
-
-export type OpencodeEventProjectUpdated = {
-  id: string
-  properties: OpencodeProject
-  type: "project.updated"
-}
-
-export type OpencodeEventPtyCreated = {
-  id: string
-  properties: {
-    info: OpencodePty
-  }
-  type: "pty.created"
-}
-
-export type OpencodeEventPtyDeleted = {
-  id: string
-  properties: {
-    id: string
-  }
-  type: "pty.deleted"
-}
-
-export type OpencodeEventPtyExited = {
-  id: string
-  properties: {
-    exitCode: number
-    id: string
-  }
-  type: "pty.exited"
-}
-
-export type OpencodeEventPtyUpdated = {
-  id: string
-  properties: {
-    info: OpencodePty
-  }
-  type: "pty.updated"
-}
-
-export type OpencodeEventQuestionAsked = {
-  id: string
-  properties: OpencodeQuestionRequest
-  type: "question.asked"
-}
-
-export type OpencodeEventQuestionRejected = {
-  id: string
-  properties: OpencodeQuestionRejected
-  type: "question.rejected"
-}
-
-export type OpencodeEventQuestionReplied = {
-  id: string
-  properties: OpencodeQuestionReplied
-  type: "question.replied"
-}
-
-export type OpencodeEventServerConnected = {
-  id: string
-  properties: {
-    [key: string]: unknown
-  }
-  type: "server.connected"
-}
-
-export type OpencodeEventServerInstanceDisposed = {
-  id: string
-  properties: {
-    directory: string
-  }
-  type: "server.instance.disposed"
-}
-
-export type OpencodeEventSessionCompacted = {
-  id: string
-  properties: {
-    sessionID: string
-  }
-  type: "session.compacted"
-}
-
-export type OpencodeEventSessionCreated = {
-  id: string
-  properties: {
-    info: OpencodeSession
-    sessionID: string
-  }
-  type: "session.created"
-}
-
-export type OpencodeEventSessionDeleted = {
-  id: string
-  properties: {
-    info: OpencodeSession
-    sessionID: string
-  }
-  type: "session.deleted"
-}
-
-export type OpencodeEventSessionDiff = {
-  id: string
-  properties: {
-    diff: Array<OpencodeSnapshotFileDiff>
-    sessionID: string
-  }
-  type: "session.diff"
-}
-
-export type OpencodeEventSessionError = {
-  id: string
-  properties: {
-    error?:
-      | OpencodeProviderAuthError
-      | OpencodeUnknownError
-      | OpencodeMessageOutputLengthError
-      | OpencodeMessageAbortedError
-      | OpencodeStructuredOutputError
-      | OpencodeContextOverflowError
-      | OpencodeApiError
-    sessionID?: string
-  }
-  type: "session.error"
-}
-
-export type OpencodeEventSessionIdle = {
-  id: string
-  properties: {
-    sessionID: string
-  }
-  type: "session.idle"
-}
-
-export type OpencodeEventSessionNextAgentSwitched = {
-  id: string
-  properties: {
-    agent: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.agent.switched"
-}
-
-export type OpencodeEventSessionNextCompactionDelta = {
-  id: string
-  properties: {
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  type: "session.next.compaction.delta"
-}
-
-export type OpencodeEventSessionNextCompactionEnded = {
-  id: string
-  properties: {
-    include?: string
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  type: "session.next.compaction.ended"
-}
-
-export type OpencodeEventSessionNextCompactionStarted = {
-  id: string
-  properties: {
-    reason: "auto" | "manual"
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.compaction.started"
-}
-
-export type OpencodeEventSessionNextModelSwitched = {
-  id: string
-  properties: {
-    model: {
-      id: string
-      providerID: string
-      variant: string
-    }
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.model.switched"
-}
-
-export type OpencodeEventSessionNextPrompted = {
-  id: string
-  properties: {
-    prompt: OpencodePrompt
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.prompted"
-}
-
-export type OpencodeEventSessionNextReasoningDelta = {
-  id: string
-  properties: {
-    delta: string
-    reasoningID: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.reasoning.delta"
-}
-
-export type OpencodeEventSessionNextReasoningEnded = {
-  id: string
-  properties: {
-    reasoningID: string
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  type: "session.next.reasoning.ended"
-}
-
-export type OpencodeEventSessionNextReasoningStarted = {
-  id: string
-  properties: {
-    reasoningID: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.reasoning.started"
-}
-
-export type OpencodeEventSessionNextRetried = {
-  id: string
-  properties: {
-    attempt: number
-    error: OpencodeSessionNextRetryError
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.retried"
-}
-
-export type OpencodeEventSessionNextShellEnded = {
-  id: string
-  properties: {
-    callID: string
-    output: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.shell.ended"
-}
-
-export type OpencodeEventSessionNextShellStarted = {
-  id: string
-  properties: {
-    callID: string
-    command: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.shell.started"
-}
-
-export type OpencodeEventSessionNextStepEnded = {
-  id: string
-  properties: {
-    cost: number
-    finish: string
-    sessionID: string
-    snapshot?: string
-    timestamp: number
-    tokens: {
-      cache: {
-        read: number
-        write: number
-      }
-      input: number
-      output: number
-      reasoning: number
-    }
-  }
-  type: "session.next.step.ended"
-}
-
-export type OpencodeEventSessionNextStepFailed = {
-  id: string
-  properties: {
-    error: OpencodeSessionErrorUnknown
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.step.failed"
-}
-
-export type OpencodeEventSessionNextStepStarted = {
-  id: string
-  properties: {
-    agent: string
-    model: {
-      id: string
-      providerID: string
-      variant: string
-    }
-    sessionID: string
-    snapshot?: string
-    timestamp: number
-  }
-  type: "session.next.step.started"
-}
-
-export type OpencodeEventSessionNextSynthetic = {
-  id: string
-  properties: {
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  type: "session.next.synthetic"
-}
-
-export type OpencodeEventSessionNextTextDelta = {
-  id: string
-  properties: {
-    delta: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.text.delta"
-}
-
-export type OpencodeEventSessionNextTextEnded = {
-  id: string
-  properties: {
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  type: "session.next.text.ended"
-}
-
-export type OpencodeEventSessionNextTextStarted = {
-  id: string
-  properties: {
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.text.started"
-}
-
-export type OpencodeEventSessionNextToolCalled = {
-  id: string
-  properties: {
-    callID: string
-    input: {
-      [key: string]: unknown
-    }
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-    sessionID: string
-    timestamp: number
-    tool: string
-  }
-  type: "session.next.tool.called"
-}
-
-export type OpencodeEventSessionNextToolFailed = {
-  id: string
-  properties: {
-    callID: string
-    error: OpencodeSessionErrorUnknown
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.tool.failed"
-}
-
-export type OpencodeEventSessionNextToolInputDelta = {
-  id: string
-  properties: {
-    callID: string
-    delta: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.tool.input.delta"
-}
-
-export type OpencodeEventSessionNextToolInputEnded = {
-  id: string
-  properties: {
-    callID: string
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  type: "session.next.tool.input.ended"
-}
-
-export type OpencodeEventSessionNextToolInputStarted = {
-  id: string
-  properties: {
-    callID: string
-    name: string
-    sessionID: string
-    timestamp: number
-  }
-  type: "session.next.tool.input.started"
-}
-
-export type OpencodeEventSessionNextToolProgress = {
-  id: string
-  properties: {
-    callID: string
-    content: Array<OpencodeToolTextContent | OpencodeToolFileContent>
-    sessionID: string
-    structured: {
-      [key: string]: unknown
-    }
-    timestamp: number
-  }
-  type: "session.next.tool.progress"
-}
-
-export type OpencodeEventSessionNextToolSuccess = {
-  id: string
-  properties: {
-    callID: string
-    content: Array<OpencodeToolTextContent | OpencodeToolFileContent>
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-    sessionID: string
-    structured: {
-      [key: string]: unknown
-    }
-    timestamp: number
-  }
-  type: "session.next.tool.success"
-}
-
-export type OpencodeEventSessionStatus = {
-  id: string
-  properties: {
-    sessionID: string
-    status: OpencodeSessionStatus
-  }
-  type: "session.status"
-}
-
-export type OpencodeEventSessionUpdated = {
-  id: string
-  properties: {
-    info: OpencodeSession
-    sessionID: string
-  }
-  type: "session.updated"
-}
-
-export type OpencodeEventTodoUpdated = {
-  id: string
-  properties: {
-    sessionID: string
-    todos: Array<OpencodeTodo>
-  }
-  type: "todo.updated"
-}
-
-export type OpencodeEventTuiCommandExecute2 = {
-  properties: {
-    command:
-      | "session.list"
-      | "session.new"
-      | "session.share"
-      | "session.interrupt"
-      | "session.compact"
-      | "session.page.up"
-      | "session.page.down"
-      | "session.line.up"
-      | "session.line.down"
-      | "session.half.page.up"
-      | "session.half.page.down"
-      | "session.first"
-      | "session.last"
-      | "prompt.clear"
-      | "prompt.submit"
-      | "agent.cycle"
-      | string
-  }
-  type: "tui.command.execute"
-}
-
-export type OpencodeEventTuiPromptAppend2 = {
-  properties: {
-    text: string
-  }
-  type: "tui.prompt.append"
-}
-
-export type OpencodeEventTuiSessionSelect2 = {
-  properties: {
-    /**
-     * Session ID to navigate to
-     */
-    sessionID: string
-  }
-  type: "tui.session.select"
-}
-
-export type OpencodeEventTuiToastShow2 = {
-  properties: {
-    duration?: number
-    message: string
-    title?: string
-    variant: "info" | "success" | "warning" | "error"
-  }
-  type: "tui.toast.show"
-}
-
-export type OpencodeEventTuiToastShow1 = {
-  id: string
-  properties: {
-    duration?: number
-    message: string
-    title?: string
-    variant: "info" | "success" | "warning" | "error"
-  }
-  type: "tui.toast.show"
-}
-
-export type OpencodeEventVcsBranchUpdated = {
-  id: string
-  properties: {
-    branch?: string
-  }
-  type: "vcs.branch.updated"
-}
-
-export type OpencodeEventWorkspaceFailed = {
-  id: string
-  properties: {
-    message: string
-  }
-  type: "workspace.failed"
-}
-
-export type OpencodeEventWorkspaceReady = {
-  id: string
-  properties: {
-    name: string
-  }
-  type: "workspace.ready"
-}
-
-export type OpencodeEventWorkspaceStatus = {
-  id: string
-  properties: {
-    status: "connected" | "connecting" | "disconnected" | "error"
-    workspaceID: string
-  }
-  type: "workspace.status"
-}
-
-export type OpencodeEventWorktreeFailed = {
-  id: string
-  properties: {
-    message: string
-  }
-  type: "worktree.failed"
-}
-
-export type OpencodeEventWorktreeReady = {
-  id: string
-  properties: {
-    branch: string
-    name: string
-  }
-  type: "worktree.ready"
-}
-
-export type OpencodeFile = {
-  added: number
-  path: string
-  removed: number
-  status: "added" | "deleted" | "modified"
-}
-
-export type OpencodeFileContent = {
-  content: string
-  diff?: string
-  encoding?: "base64"
-  mimeType?: string
-  patch?: {
-    hunks: Array<{
-      lines: Array<string>
-      newLines: number
-      newStart: number
-      oldLines: number
-      oldStart: number
-    }>
-    index?: string
-    newFileName: string
-    newHeader?: string
-    oldFileName: string
-    oldHeader?: string
-  }
-  type: "text" | "binary"
-}
-
-export type OpencodeFileNode = {
-  absolute: string
-  ignored: boolean
-  name: string
-  path: string
-  type: "file" | "directory"
-}
-
-export type OpencodeFilePart = {
-  filename?: string
-  id: string
-  messageID: string
-  mime: string
-  sessionID: string
-  source?: OpencodeFilePartSource
-  type: "file"
-  url: string
-}
-
-export type OpencodeFilePartInput = {
-  filename?: string
-  id?: string
-  mime: string
-  source?: OpencodeFilePartSource
-  type: "file"
-  url: string
-}
-
-export type OpencodeFilePartSource =
-  | OpencodeFileSource
-  | OpencodeSymbolSource
-  | OpencodeResourceSource
-
-export type OpencodeFilePartSourceText = {
-  end: number
-  start: number
-  value: string
-}
-
-export type OpencodeFileSource = {
-  path: string
-  text: OpencodeFilePartSourceText
-  type: "file"
-}
-
-export type OpencodeFormatterStatus = {
-  enabled: boolean
-  extensions: Array<string>
-  name: string
-}
-
-export type OpencodeGlobalEvent = {
-  directory: string
-  payload:
-    | OpencodeEventServerInstanceDisposed
-    | OpencodeEventFileEdited
-    | OpencodeEventFileWatcherUpdated
-    | OpencodeEventLspClientDiagnostics
-    | OpencodeEventLspUpdated
-    | OpencodeEventMessagePartDelta
-    | OpencodeEventPermissionAsked
-    | OpencodeEventPermissionReplied
-    | OpencodeEventSessionDiff
-    | OpencodeEventSessionError
-    | OpencodeEventInstallationUpdated
-    | OpencodeEventInstallationUpdateAvailable
-    | OpencodeEventQuestionAsked
-    | OpencodeEventQuestionReplied
-    | OpencodeEventQuestionRejected
-    | OpencodeEventTodoUpdated
-    | OpencodeEventSessionStatus
-    | OpencodeEventSessionIdle
-    | OpencodeEventSessionCompacted
-    | OpencodeEventTuiPromptAppend
-    | OpencodeEventTuiCommandExecute
-    | OpencodeEventTuiToastShow
-    | OpencodeEventTuiSessionSelect
-    | OpencodeEventMcpToolsChanged
-    | OpencodeEventMcpBrowserOpenFailed
-    | OpencodeEventCommandExecuted
-    | OpencodeEventProjectUpdated
-    | OpencodeEventVcsBranchUpdated
-    | OpencodeEventWorkspaceReady
-    | OpencodeEventWorkspaceFailed
-    | OpencodeEventWorkspaceStatus
-    | OpencodeEventWorktreeReady
-    | OpencodeEventWorktreeFailed
-    | OpencodeEventPtyCreated
-    | OpencodeEventPtyUpdated
-    | OpencodeEventPtyExited
-    | OpencodeEventPtyDeleted
-    | OpencodeEventMessageUpdated
-    | OpencodeEventMessageRemoved
-    | OpencodeEventMessagePartUpdated
-    | OpencodeEventMessagePartRemoved
-    | OpencodeEventSessionCreated
-    | OpencodeEventSessionUpdated
-    | OpencodeEventSessionDeleted
-    | OpencodeEventSessionNextAgentSwitched
-    | OpencodeEventSessionNextModelSwitched
-    | OpencodeEventSessionNextPrompted
-    | OpencodeEventSessionNextSynthetic
-    | OpencodeEventSessionNextShellStarted
-    | OpencodeEventSessionNextShellEnded
-    | OpencodeEventSessionNextStepStarted
-    | OpencodeEventSessionNextStepEnded
-    | OpencodeEventSessionNextStepFailed
-    | OpencodeEventSessionNextTextStarted
-    | OpencodeEventSessionNextTextDelta
-    | OpencodeEventSessionNextTextEnded
-    | OpencodeEventSessionNextReasoningStarted
-    | OpencodeEventSessionNextReasoningDelta
-    | OpencodeEventSessionNextReasoningEnded
-    | OpencodeEventSessionNextToolInputStarted
-    | OpencodeEventSessionNextToolInputDelta
-    | OpencodeEventSessionNextToolInputEnded
-    | OpencodeEventSessionNextToolCalled
-    | OpencodeEventSessionNextToolProgress
-    | OpencodeEventSessionNextToolSuccess
-    | OpencodeEventSessionNextToolFailed
-    | OpencodeEventSessionNextRetried
-    | OpencodeEventSessionNextCompactionStarted
-    | OpencodeEventSessionNextCompactionDelta
-    | OpencodeEventSessionNextCompactionEnded
-    | OpencodeEventServerConnected
-    | OpencodeEventGlobalDisposed
-    | OpencodeSyncEventMessageUpdated
-    | OpencodeSyncEventMessageRemoved
-    | OpencodeSyncEventMessagePartUpdated
-    | OpencodeSyncEventMessagePartRemoved
-    | OpencodeSyncEventSessionCreated
-    | OpencodeSyncEventSessionUpdated
-    | OpencodeSyncEventSessionDeleted
-    | OpencodeSyncEventSessionNextAgentSwitched
-    | OpencodeSyncEventSessionNextModelSwitched
-    | OpencodeSyncEventSessionNextPrompted
-    | OpencodeSyncEventSessionNextSynthetic
-    | OpencodeSyncEventSessionNextShellStarted
-    | OpencodeSyncEventSessionNextShellEnded
-    | OpencodeSyncEventSessionNextStepStarted
-    | OpencodeSyncEventSessionNextStepEnded
-    | OpencodeSyncEventSessionNextStepFailed
-    | OpencodeSyncEventSessionNextTextStarted
-    | OpencodeSyncEventSessionNextTextDelta
-    | OpencodeSyncEventSessionNextTextEnded
-    | OpencodeSyncEventSessionNextReasoningStarted
-    | OpencodeSyncEventSessionNextReasoningDelta
-    | OpencodeSyncEventSessionNextReasoningEnded
-    | OpencodeSyncEventSessionNextToolInputStarted
-    | OpencodeSyncEventSessionNextToolInputDelta
-    | OpencodeSyncEventSessionNextToolInputEnded
-    | OpencodeSyncEventSessionNextToolCalled
-    | OpencodeSyncEventSessionNextToolProgress
-    | OpencodeSyncEventSessionNextToolSuccess
-    | OpencodeSyncEventSessionNextToolFailed
-    | OpencodeSyncEventSessionNextRetried
-    | OpencodeSyncEventSessionNextCompactionStarted
-    | OpencodeSyncEventSessionNextCompactionDelta
-    | OpencodeSyncEventSessionNextCompactionEnded
-  project?: string
-  workspace?: string
-}
-
-export type OpencodeGlobalSession = {
-  agent?: string
-  directory: string
-  id: string
-  model?: {
-    id: string
-    providerID: string
-    variant?: string
-  }
-  parentID?: string
-  path?: string
-  permission?: OpencodePermissionRuleset
-  project: OpencodeProjectSummary | unknown
-  projectID: string
-  revert?: {
-    diff?: string
-    messageID: string
-    partID?: string
-    snapshot?: string
-  }
-  share?: {
-    url: string
-  }
-  slug: string
-  summary?: {
-    additions: number
-    deletions: number
-    diffs?: Array<OpencodeSnapshotFileDiff>
-    files: number
-  }
-  time: {
-    archived?: number
-    compacting?: number
-    created: number
-    updated: number
-  }
-  title: string
-  version: string
-  workspaceID?: string
-}
-
-export type OpencodeJsonSchema = {
-  [key: string]: unknown
-}
-
-export type OpencodeLspStatus = {
-  id: string
-  name: string
-  root: string
-  status: "connected" | "error"
-}
+/**
+ * Secret key name. Alphanumeric and underscores only.
+ */
+export type SecretKey = string
 
 /**
- * @deprecated Always uses stretch layout.
+ * Secret value. Max 48 KB.
  */
-export type OpencodeLayoutConfig = "auto" | "stretch"
+export type SecretValue = string
 
 /**
- * Log level
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ *
  */
-export type OpencodeLogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
-
-export type OpencodeMcpStatus =
-  | OpencodeMcpStatusConnected
-  | OpencodeMcpStatusDisabled
-  | OpencodeMcpStatusFailed
-  | OpencodeMcpStatusNeedsAuth
-  | OpencodeMcpStatusNeedsClientRegistration
-
-export type OpencodeMcpStatusConnected = {
-  status: "connected"
-}
-
-export type OpencodeMcpStatusDisabled = {
-  status: "disabled"
-}
-
-export type OpencodeMcpStatusFailed = {
-  error: string
-  status: "failed"
-}
-
-export type OpencodeMcpStatusNeedsAuth = {
-  status: "needs_auth"
-}
-
-export type OpencodeMcpStatusNeedsClientRegistration = {
-  error: string
-  status: "needs_client_registration"
-}
-
-export type OpencodeMcpLocalConfig = {
-  /**
-   * Command and arguments to run the MCP server
-   */
-  command: Array<string>
-  enabled?: boolean
-  environment?: {
-    [key: string]: string
-  }
-  timeout?: number
-  /**
-   * Type of MCP server connection
-   */
-  type: "local"
-}
-
-export type OpencodeMcpOAuthConfig = {
-  clientId?: string
-  clientSecret?: string
-  redirectUri?: string
-  scope?: string
-}
-
-export type OpencodeMcpRemoteConfig = {
-  enabled?: boolean
-  headers?: {
-    [key: string]: string
-  }
-  /**
-   * OAuth authentication configuration for the MCP server. Set to false to disable OAuth auto-detection.
-   */
-  oauth?: OpencodeMcpOAuthConfig | false
-  timeout?: number
-  /**
-   * Type of MCP server connection
-   */
-  type: "remote"
-  /**
-   * URL of the remote MCP server
-   */
-  url: string
-}
-
-export type OpencodeMcpResource = {
-  client: string
-  description?: string
-  mimeType?: string
-  name: string
-  uri: string
-}
-
-export type OpencodeMcpUnsupportedOAuthError = {
-  error: string
-}
-
-export type OpencodeMessage = OpencodeUserMessage | OpencodeAssistantMessage
-
-export type OpencodeMessageAbortedError = {
-  data: {
-    message: string
-  }
-  name: "MessageAbortedError"
-}
-
-export type OpencodeMessageOutputLengthError = {
-  data: {
-    [key: string]: unknown
-  }
-  name: "MessageOutputLengthError"
-}
-
-export type OpencodeModel = {
-  api: {
-    id: string
-    npm: string
-    url: string
-  }
-  capabilities: {
-    attachment: boolean
-    input: {
-      audio: boolean
-      image: boolean
-      pdf: boolean
-      text: boolean
-      video: boolean
-    }
-    interleaved:
-      | boolean
-      | {
-          field: "reasoning_content" | "reasoning_details"
-        }
-    output: {
-      audio: boolean
-      image: boolean
-      pdf: boolean
-      text: boolean
-      video: boolean
-    }
-    reasoning: boolean
-    temperature: boolean
-    toolcall: boolean
-  }
-  cost: {
-    cache: {
-      read: number
-      write: number
-    }
-    experimentalOver200K?: {
-      cache: {
-        read: number
-        write: number
-      }
-      input: number
-      output: number
-    }
-    input: number
-    output: number
-  }
-  family?: string
-  headers: {
-    [key: string]: string
-  }
-  id: string
-  limit: {
-    context: number
-    input?: number
-    output: number
-  }
-  name: string
-  options: {
-    [key: string]: unknown
-  }
-  providerID: string
-  release_date: string
-  status: "alpha" | "beta" | "deprecated" | "active"
-  variants?: {
-    [key: string]: {
-      [key: string]: unknown
-    }
-  }
-}
-
-export type OpencodeNotFoundError = {
-  data: {
-    message: string
-  }
-  name: "NotFoundError"
-}
-
-export type OpencodeOAuth = {
-  access: string
-  accountId?: string
-  enterpriseUrl?: string
-  expires: number
-  refresh: string
-  type: "oauth"
-}
-
-export type OpencodeOutputFormat = OpencodeOutputFormatText | OpencodeOutputFormatJsonSchema
-
-export type OpencodeOutputFormatJsonSchema = {
-  retryCount?: number
-  schema: OpencodeJsonSchema
-  type: "json_schema"
-}
-
-export type OpencodeOutputFormatText = {
-  type: "text"
-}
-
-export type OpencodePart =
-  | OpencodeTextPart
-  | OpencodeSubtaskPart
-  | OpencodeReasoningPart
-  | OpencodeFilePart
-  | OpencodeToolPart
-  | OpencodeStepStartPart
-  | OpencodeStepFinishPart
-  | OpencodeSnapshotPart
-  | OpencodePatchPart
-  | OpencodeAgentPart
-  | OpencodeRetryPart
-  | OpencodeCompactionPart
-
-export type OpencodePatchPart = {
-  files: Array<string>
-  hash: string
-  id: string
-  messageID: string
-  sessionID: string
-  type: "patch"
-}
-
-export type OpencodePath = {
-  config: string
-  directory: string
-  home: string
-  state: string
-  worktree: string
-}
-
-export type OpencodePermissionAction = "allow" | "deny" | "ask"
-
-export type OpencodePermissionActionConfig = "ask" | "allow" | "deny"
-
-export type OpencodePermissionConfig =
-  | OpencodePermissionActionConfig
-  | {
-      bash?: OpencodePermissionRuleConfig
-      codesearch?: OpencodePermissionActionConfig
-      doom_loop?: OpencodePermissionActionConfig
-      edit?: OpencodePermissionRuleConfig
-      external_directory?: OpencodePermissionRuleConfig
-      glob?: OpencodePermissionRuleConfig
-      grep?: OpencodePermissionRuleConfig
-      list?: OpencodePermissionRuleConfig
-      lsp?: OpencodePermissionRuleConfig
-      question?: OpencodePermissionActionConfig
-      read?: OpencodePermissionRuleConfig
-      repo_clone?: OpencodePermissionRuleConfig
-      repo_overview?: OpencodePermissionRuleConfig
-      skill?: OpencodePermissionRuleConfig
-      task?: OpencodePermissionRuleConfig
-      todowrite?: OpencodePermissionActionConfig
-      webfetch?: OpencodePermissionActionConfig
-      websearch?: OpencodePermissionActionConfig
-      [key: string]: OpencodePermissionRuleConfig | OpencodePermissionActionConfig | undefined
-    }
-
-export type OpencodePermissionObjectConfig = {
-  [key: string]: OpencodePermissionActionConfig
-}
-
-export type OpencodePermissionRequest = {
-  always: Array<string>
-  id: string
-  metadata: {
-    [key: string]: unknown
-  }
-  patterns: Array<string>
-  permission: string
-  sessionID: string
-  tool?: {
-    callID: string
-    messageID: string
-  }
-}
-
-export type OpencodePermissionRule = {
-  action: OpencodePermissionAction
-  pattern: string
-  permission: string
-}
-
-export type OpencodePermissionRuleConfig =
-  | OpencodePermissionActionConfig
-  | OpencodePermissionObjectConfig
-
-export type OpencodePermissionRuleset = Array<OpencodePermissionRule>
-
-export type OpencodeProject = {
-  commands?: {
-    /**
-     * Startup script to run when creating a new workspace (worktree)
-     */
-    start?: string
-  }
-  icon?: {
-    color?: string
-    override?: string
-    url?: string
-  }
-  id: string
-  name?: string
-  sandboxes: Array<string>
-  time: {
-    created: number
-    initialized?: number
-    updated: number
-  }
-  vcs?: "git"
-  worktree: string
-}
-
-export type OpencodeProjectSummary = {
-  id: string
-  name?: string
-  worktree: string
-}
-
-export type OpencodePrompt = {
-  agents?: Array<OpencodePromptAgentAttachment>
-  files?: Array<OpencodePromptFileAttachment>
-  text: string
-}
-
-export type OpencodePromptAgentAttachment = {
-  name: string
-  source?: OpencodePromptSource
-}
-
-export type OpencodePromptFileAttachment = {
-  description?: string
-  mime: string
-  name?: string
-  source?: OpencodePromptSource
-  uri: string
-}
-
-export type OpencodePromptSource = {
-  end: number
-  start: number
-  text: string
-}
-
-export type OpencodeProvider = {
-  env: Array<string>
-  id: string
-  key?: string
-  models: {
-    [key: string]: OpencodeModel
-  }
-  name: string
-  options: {
-    [key: string]: unknown
-  }
-  source: "env" | "config" | "custom" | "api"
-}
-
-export type OpencodeProviderAuthAuthorization = {
-  instructions: string
-  method: "auto" | "code"
-  url: string
-}
-
-export type OpencodeProviderAuthError = {
-  data: {
-    message: string
-    providerID: string
-  }
-  name: "ProviderAuthError"
-}
-
-export type OpencodeProviderAuthMethod = {
-  label: string
-  prompts?: Array<
-    | {
-        key: string
-        message: string
-        placeholder?: string
-        type: "text"
-        when?: {
-          key: string
-          op: "eq" | "neq"
-          value: string
-        }
-      }
-    | {
-        key: string
-        message: string
-        options: Array<{
-          hint?: string
-          label: string
-          value: string
-        }>
-        type: "select"
-        when?: {
-          key: string
-          op: "eq" | "neq"
-          value: string
-        }
-      }
-  >
-  type: "oauth" | "api"
-}
-
-export type OpencodeProviderConfig = {
-  api?: string
-  blacklist?: Array<string>
-  env?: Array<string>
-  id?: string
-  models?: {
-    [key: string]: {
-      attachment?: boolean
-      cost?: {
-        cache_read?: number
-        cache_write?: number
-        context_over_200k?: {
-          cache_read?: number
-          cache_write?: number
-          input: number
-          output: number
-        }
-        input: number
-        output: number
-      }
-      experimental?: boolean
-      family?: string
-      headers?: {
-        [key: string]: string
-      }
-      id?: string
-      interleaved?:
-        | true
-        | {
-            field: "reasoning_content" | "reasoning_details"
-          }
-      limit?: {
-        context: number
-        input?: number
-        output: number
-      }
-      modalities?: {
-        input: Array<"text" | "audio" | "image" | "video" | "pdf">
-        output: Array<"text" | "audio" | "image" | "video" | "pdf">
-      }
-      name?: string
-      options?: {
-        [key: string]: unknown
-      }
-      provider?: {
-        api?: string
-        npm?: string
-      }
-      reasoning?: boolean
-      release_date?: string
-      status?: "alpha" | "beta" | "deprecated" | "active"
-      temperature?: boolean
-      tool_call?: boolean
-      /**
-       * Variant-specific configuration
-       */
-      variants?: {
-        [key: string]: {
-          disabled?: boolean
-          [key: string]: unknown
-        }
-      }
-    }
-  }
-  name?: string
-  npm?: string
-  options?: {
-    apiKey?: string
-    baseURL?: string
-    chunkTimeout?: number
-    enterpriseUrl?: string
-    setCacheKey?: boolean
-    /**
-     * Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout.
-     */
-    timeout?: number | false
-    [key: string]: unknown
-  }
-  whitelist?: Array<string>
-}
-
-export type OpencodePty = {
-  args: Array<string>
-  command: string
-  cwd: string
-  id: string
-  pid: number
-  status: "running" | "exited"
-  title: string
-}
-
-export type OpencodeQuestionAnswer = Array<string>
-
-export type OpencodeQuestionInfo = {
-  custom?: boolean
-  /**
-   * Very short label (max 30 chars)
-   */
-  header: string
-  multiple?: boolean
-  /**
-   * Available choices
-   */
-  options: Array<OpencodeQuestionOption>
-  /**
-   * Complete question
-   */
-  question: string
-}
-
-export type OpencodeQuestionOption = {
-  /**
-   * Explanation of choice
-   */
-  description: string
-  /**
-   * Display text (1-5 words, concise)
-   */
-  label: string
-}
-
-export type OpencodeQuestionRejected = {
-  requestID: string
-  sessionID: string
-}
-
-export type OpencodeQuestionReplied = {
-  answers: Array<OpencodeQuestionAnswer>
-  requestID: string
-  sessionID: string
-}
-
-export type OpencodeQuestionRequest = {
-  id: string
-  /**
-   * Questions to ask
-   */
-  questions: Array<OpencodeQuestionInfo>
-  sessionID: string
-  tool?: OpencodeQuestionTool
-}
-
-export type OpencodeQuestionTool = {
-  callID: string
-  messageID: string
-}
-
-export type OpencodeRange = {
-  end: {
-    character: number
-    line: number
-  }
-  start: {
-    character: number
-    line: number
-  }
-}
-
-export type OpencodeReasoningPart = {
-  id: string
-  messageID: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  sessionID: string
-  text: string
-  time: {
-    end?: number
-    start: number
-  }
-  type: "reasoning"
-}
-
-export type OpencodeReferenceConfig = {
-  [key: string]: OpencodeReferenceConfigEntry
-}
-
-export type OpencodeReferenceConfigEntry =
-  | string
-  | {
-      branch?: string
-      /**
-       * Git repository URL, host/path reference, or GitHub owner/repo shorthand
-       */
-      repository: string
-    }
-  | {
-      /**
-       * Absolute path, ~/ path, or workspace-relative path to a local reference directory
-       */
-      path: string
-    }
-
-export type OpencodeResourceSource = {
-  clientName: string
-  text: OpencodeFilePartSourceText
-  type: "resource"
-  uri: string
-}
-
-export type OpencodeRetryPart = {
-  attempt: number
-  error: OpencodeApiError
-  id: string
-  messageID: string
-  sessionID: string
-  time: {
-    created: number
-  }
-  type: "retry"
-}
-
-/**
- * Server configuration for opencode serve and web commands
- */
-export type OpencodeServerConfig = {
-  cors?: Array<string>
-  hostname?: string
-  mdns?: boolean
-  mdnsDomain?: string
-  port?: number
-}
-
-export type OpencodeSession = {
-  agent?: string
-  directory: string
-  id: string
-  model?: {
-    id: string
-    providerID: string
-    variant?: string
-  }
-  parentID?: string
-  path?: string
-  permission?: OpencodePermissionRuleset
-  projectID: string
-  revert?: {
-    diff?: string
-    messageID: string
-    partID?: string
-    snapshot?: string
-  }
-  share?: {
-    url: string
-  }
-  slug: string
-  summary?: {
-    additions: number
-    deletions: number
-    diffs?: Array<OpencodeSnapshotFileDiff>
-    files: number
-  }
-  time: {
-    archived?: number
-    compacting?: number
-    created: number
-    updated: number
-  }
-  title: string
-  version: string
-  workspaceID?: string
-}
-
-export type OpencodeSessionDelivery = "immediate" | "deferred"
-
-export type OpencodeSessionErrorUnknown = {
-  message: string
-  type: "unknown"
-}
-
-export type OpencodeSessionInfo = {
-  agent?: string
-  id: string
-  model?: {
-    id: string
-    providerID: string
-    variant: string
-  }
-  parentID?: string
-  path?: string
-  projectID: string
-  time: {
-    archived?: number
-    created: number
-    updated: number
-  }
-  title: string
-  workspaceID?: string
-}
-
-export type OpencodeSessionMessage =
-  | OpencodeSessionMessageAgentSwitched
-  | OpencodeSessionMessageModelSwitched
-  | OpencodeSessionMessageUser
-  | OpencodeSessionMessageSynthetic
-  | OpencodeSessionMessageShell
-  | OpencodeSessionMessageAssistant
-  | OpencodeSessionMessageCompaction
-
-export type OpencodeSessionMessageAgentSwitched = {
-  agent: string
-  id: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  time: {
-    created: number
-  }
-  type: "agent-switched"
-}
-
-export type OpencodeSessionMessageAssistant = {
-  agent: string
-  content: Array<
-    | OpencodeSessionMessageAssistantText
-    | OpencodeSessionMessageAssistantReasoning
-    | OpencodeSessionMessageAssistantTool
-  >
-  cost?: number
-  error?: OpencodeSessionErrorUnknown
-  finish?: string
-  id: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  model: {
-    id: string
-    providerID: string
-    variant: string
-  }
-  snapshot?: {
-    end?: string
-    start?: string
-  }
-  time: {
-    completed?: number
-    created: number
-  }
-  tokens?: {
-    cache: {
-      read: number
-      write: number
-    }
-    input: number
-    output: number
-    reasoning: number
-  }
-  type: "assistant"
-}
-
-export type OpencodeSessionMessageAssistantReasoning = {
-  id: string
-  text: string
-  type: "reasoning"
-}
-
-export type OpencodeSessionMessageAssistantText = {
-  text: string
-  type: "text"
-}
-
-export type OpencodeSessionMessageAssistantTool = {
-  id: string
-  name: string
-  provider?: {
-    executed: boolean
-    metadata?: {
-      [key: string]: unknown
-    }
-  }
-  state:
-    | OpencodeSessionMessageToolStatePending
-    | OpencodeSessionMessageToolStateRunning
-    | OpencodeSessionMessageToolStateCompleted
-    | OpencodeSessionMessageToolStateError
-  time: {
-    completed?: number
-    created: number
-    pruned?: number
-    ran?: number
-  }
-  type: "tool"
-}
-
-export type OpencodeSessionMessageCompaction = {
-  id: string
-  include?: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  reason: "auto" | "manual"
-  summary: string
-  time: {
-    created: number
-  }
-  type: "compaction"
-}
-
-export type OpencodeSessionMessageModelSwitched = {
-  id: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  model: {
-    id: string
-    providerID: string
-    variant: string
-  }
-  time: {
-    created: number
-  }
-  type: "model-switched"
-}
-
-export type OpencodeSessionMessageShell = {
-  callID: string
-  command: string
-  id: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  output: string
-  time: {
-    completed?: number
-    created: number
-  }
-  type: "shell"
-}
-
-export type OpencodeSessionMessageSynthetic = {
-  id: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  sessionID: string
-  text: string
-  time: {
-    created: number
-  }
-  type: "synthetic"
-}
-
-export type OpencodeSessionMessageToolStateCompleted = {
-  attachments?: Array<OpencodePromptFileAttachment>
-  content: Array<OpencodeToolTextContent | OpencodeToolFileContent>
-  input: {
-    [key: string]: unknown
-  }
-  status: "completed"
-  structured: {
-    [key: string]: unknown
-  }
-}
-
-export type OpencodeSessionMessageToolStateError = {
-  content: Array<OpencodeToolTextContent | OpencodeToolFileContent>
-  error: OpencodeSessionErrorUnknown
-  input: {
-    [key: string]: unknown
-  }
-  status: "error"
-  structured: {
-    [key: string]: unknown
-  }
-}
-
-export type OpencodeSessionMessageToolStatePending = {
-  input: string
-  status: "pending"
-}
-
-export type OpencodeSessionMessageToolStateRunning = {
-  content: Array<OpencodeToolTextContent | OpencodeToolFileContent>
-  input: {
-    [key: string]: unknown
-  }
-  status: "running"
-  structured: {
-    [key: string]: unknown
-  }
-}
-
-export type OpencodeSessionMessageUser = {
-  agents?: Array<OpencodePromptAgentAttachment>
-  files?: Array<OpencodePromptFileAttachment>
-  id: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  text: string
-  time: {
-    created: number
-  }
-  type: "user"
-}
-
-export type OpencodeSessionNextRetryError = {
-  isRetryable: boolean
-  message: string
-  metadata?: {
-    [key: string]: string
-  }
-  responseBody?: string
-  responseHeaders?: {
-    [key: string]: string
-  }
-  statusCode?: number
-}
-
-export type OpencodeSessionStatus =
-  | {
-      type: "idle"
-    }
-  | {
-      action?: {
-        label: string
-        link?: string
-        message: string
-        provider: string
-        reason: string
-        title: string
-      }
-      attempt: number
-      message: string
-      next: number
-      type: "retry"
-    }
-  | {
-      type: "busy"
-    }
-
-export type OpencodeSnapshotFileDiff = {
-  additions: number
-  deletions: number
-  file?: string
-  patch?: string
-  status?: "added" | "deleted" | "modified"
-}
-
-export type OpencodeSnapshotPart = {
-  id: string
-  messageID: string
-  sessionID: string
-  snapshot: string
-  type: "snapshot"
-}
-
-export type OpencodeStepFinishPart = {
-  cost: number
-  id: string
-  messageID: string
-  reason: string
-  sessionID: string
-  snapshot?: string
-  tokens: {
-    cache: {
-      read: number
-      write: number
-    }
-    input: number
-    output: number
-    reasoning: number
-    total?: number
-  }
-  type: "step-finish"
-}
-
-export type OpencodeStepStartPart = {
-  id: string
-  messageID: string
-  sessionID: string
-  snapshot?: string
-  type: "step-start"
-}
-
-export type OpencodeStructuredOutputError = {
-  data: {
-    message: string
-    retries: number
-  }
-  name: "StructuredOutputError"
-}
-
-export type OpencodeSubtaskPart = {
-  agent: string
-  command?: string
-  description: string
-  id: string
-  messageID: string
-  model?: {
-    modelID: string
-    providerID: string
-  }
-  prompt: string
-  sessionID: string
-  type: "subtask"
-}
-
-export type OpencodeSubtaskPartInput = {
-  agent: string
-  command?: string
-  description: string
-  id?: string
-  model?: {
-    modelID: string
-    providerID: string
-  }
-  prompt: string
-  type: "subtask"
-}
-
-export type OpencodeSymbol = {
-  kind: number
-  location: {
-    range: OpencodeRange
-    uri: string
-  }
-  name: string
-}
-
-export type OpencodeSymbolSource = {
-  kind: number
-  name: string
-  path: string
-  range: OpencodeRange
-  text: OpencodeFilePartSourceText
-  type: "symbol"
-}
-
-export type OpencodeSyncEventMessagePartRemoved = {
-  aggregateID: "sessionID"
-  data: {
-    messageID: string
-    partID: string
-    sessionID: string
-  }
-  id: string
-  name: "message.part.removed.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventMessagePartUpdated = {
-  aggregateID: "sessionID"
-  data: {
-    part: OpencodePart
-    sessionID: string
-    time: number
-  }
-  id: string
-  name: "message.part.updated.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventMessageRemoved = {
-  aggregateID: "sessionID"
-  data: {
-    messageID: string
-    sessionID: string
-  }
-  id: string
-  name: "message.removed.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventMessageUpdated = {
-  aggregateID: "sessionID"
-  data: {
-    info: OpencodeMessage
-    sessionID: string
-  }
-  id: string
-  name: "message.updated.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionCreated = {
-  aggregateID: "sessionID"
-  data: {
-    info: OpencodeSession
-    sessionID: string
-  }
-  id: string
-  name: "session.created.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionDeleted = {
-  aggregateID: "sessionID"
-  data: {
-    info: OpencodeSession
-    sessionID: string
-  }
-  id: string
-  name: "session.deleted.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextAgentSwitched = {
-  aggregateID: "sessionID"
-  data: {
-    agent: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.agent.switched.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextCompactionDelta = {
-  aggregateID: "sessionID"
-  data: {
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.compaction.delta.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextCompactionEnded = {
-  aggregateID: "sessionID"
-  data: {
-    include?: string
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.compaction.ended.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextCompactionStarted = {
-  aggregateID: "sessionID"
-  data: {
-    reason: "auto" | "manual"
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.compaction.started.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextModelSwitched = {
-  aggregateID: "sessionID"
-  data: {
-    model: {
-      id: string
-      providerID: string
-      variant: string
-    }
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.model.switched.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextPrompted = {
-  aggregateID: "sessionID"
-  data: {
-    prompt: OpencodePrompt
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.prompted.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextReasoningDelta = {
-  aggregateID: "sessionID"
-  data: {
-    delta: string
-    reasoningID: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.reasoning.delta.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextReasoningEnded = {
-  aggregateID: "sessionID"
-  data: {
-    reasoningID: string
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.reasoning.ended.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextReasoningStarted = {
-  aggregateID: "sessionID"
-  data: {
-    reasoningID: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.reasoning.started.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextRetried = {
-  aggregateID: "sessionID"
-  data: {
-    attempt: number
-    error: OpencodeSessionNextRetryError
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.retried.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextShellEnded = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    output: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.shell.ended.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextShellStarted = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    command: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.shell.started.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextStepEnded = {
-  aggregateID: "sessionID"
-  data: {
-    cost: number
-    finish: string
-    sessionID: string
-    snapshot?: string
-    timestamp: number
-    tokens: {
-      cache: {
-        read: number
-        write: number
-      }
-      input: number
-      output: number
-      reasoning: number
-    }
-  }
-  id: string
-  name: "session.next.step.ended.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextStepFailed = {
-  aggregateID: "sessionID"
-  data: {
-    error: OpencodeSessionErrorUnknown
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.step.failed.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextStepStarted = {
-  aggregateID: "sessionID"
-  data: {
-    agent: string
-    model: {
-      id: string
-      providerID: string
-      variant: string
-    }
-    sessionID: string
-    snapshot?: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.step.started.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextSynthetic = {
-  aggregateID: "sessionID"
-  data: {
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.synthetic.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextTextDelta = {
-  aggregateID: "sessionID"
-  data: {
-    delta: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.text.delta.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextTextEnded = {
-  aggregateID: "sessionID"
-  data: {
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.text.ended.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextTextStarted = {
-  aggregateID: "sessionID"
-  data: {
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.text.started.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextToolCalled = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    input: {
-      [key: string]: unknown
-    }
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-    sessionID: string
-    timestamp: number
-    tool: string
-  }
-  id: string
-  name: "session.next.tool.called.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextToolFailed = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    error: OpencodeSessionErrorUnknown
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.tool.failed.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextToolInputDelta = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    delta: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.tool.input.delta.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextToolInputEnded = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    sessionID: string
-    text: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.tool.input.ended.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextToolInputStarted = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    name: string
-    sessionID: string
-    timestamp: number
-  }
-  id: string
-  name: "session.next.tool.input.started.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextToolProgress = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    content: Array<OpencodeToolTextContent | OpencodeToolFileContent>
-    sessionID: string
-    structured: {
-      [key: string]: unknown
-    }
-    timestamp: number
-  }
-  id: string
-  name: "session.next.tool.progress.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionNextToolSuccess = {
-  aggregateID: "sessionID"
-  data: {
-    callID: string
-    content: Array<OpencodeToolTextContent | OpencodeToolFileContent>
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-    sessionID: string
-    structured: {
-      [key: string]: unknown
-    }
-    timestamp: number
-  }
-  id: string
-  name: "session.next.tool.success.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeSyncEventSessionUpdated = {
-  aggregateID: "sessionID"
-  data: {
-    info: {
-      agent?: string | unknown
-      directory?: string | unknown
-      id?: string | unknown
-      model?:
-        | {
-            id: string
-            providerID: string
-            variant?: string
-          }
-        | unknown
-      parentID?: string | unknown
-      path?: string | unknown
-      permission?: OpencodePermissionRuleset | unknown
-      projectID?: string | unknown
-      revert?:
-        | {
-            diff?: string
-            messageID: string
-            partID?: string
-            snapshot?: string
-          }
-        | unknown
-      share?: {
-        url?: string | unknown
-      }
-      slug?: string | unknown
-      summary?:
-        | {
-            additions: number
-            deletions: number
-            diffs?: Array<OpencodeSnapshotFileDiff>
-            files: number
-          }
-        | unknown
-      time?: {
-        archived?: number | unknown
-        compacting?: number | unknown
-        created?: number | unknown
-        updated?: number | unknown
-      }
-      title?: string | unknown
-      version?: string | unknown
-      workspaceID?: string | unknown
-    }
-    sessionID: string
-  }
-  id: string
-  name: "session.updated.1"
-  seq: number
-  type: "sync"
-}
-
-export type OpencodeTextPart = {
-  id: string
-  ignored?: boolean
-  messageID: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  sessionID: string
-  synthetic?: boolean
-  text: string
-  time?: {
-    end?: number
-    start: number
-  }
-  type: "text"
-}
-
-export type OpencodeTextPartInput = {
-  id?: string
-  ignored?: boolean
-  metadata?: {
-    [key: string]: unknown
-  }
-  synthetic?: boolean
-  text: string
-  time?: {
-    end?: number
-    start: number
-  }
-  type: "text"
-}
-
-export type OpencodeTodo = {
-  /**
-   * Brief description of the task
-   */
-  content: string
-  /**
-   * Priority level of the task: high, medium, low
-   */
-  priority: string
-  /**
-   * Current status of the task: pending, in_progress, completed, cancelled
-   */
-  status: string
-}
-
-export type OpencodeToolFileContent = {
-  mime: string
-  name?: string
-  type: "file"
-  uri: string
-}
-
-export type OpencodeToolIds = Array<string>
-
-export type OpencodeToolList = Array<OpencodeToolListItem>
-
-export type OpencodeToolListItem = {
-  description: string
-  id: string
-  parameters: unknown
-}
-
-export type OpencodeToolPart = {
-  callID: string
-  id: string
-  messageID: string
-  metadata?: {
-    [key: string]: unknown
-  }
-  sessionID: string
-  state: OpencodeToolState
-  tool: string
-  type: "tool"
-}
-
-export type OpencodeToolState =
-  | OpencodeToolStatePending
-  | OpencodeToolStateRunning
-  | OpencodeToolStateCompleted
-  | OpencodeToolStateError
-
-export type OpencodeToolStateCompleted = {
-  attachments?: Array<OpencodeFilePart>
-  input: {
-    [key: string]: unknown
-  }
-  metadata: {
-    [key: string]: unknown
-  }
-  output: string
-  status: "completed"
-  time: {
-    compacted?: number
-    end: number
-    start: number
-  }
-  title: string
-}
-
-export type OpencodeToolStateError = {
-  error: string
-  input: {
-    [key: string]: unknown
-  }
-  metadata?: {
-    [key: string]: unknown
-  }
-  status: "error"
-  time: {
-    end: number
-    start: number
-  }
-}
-
-export type OpencodeToolStatePending = {
-  input: {
-    [key: string]: unknown
-  }
-  raw: string
-  status: "pending"
-}
-
-export type OpencodeToolStateRunning = {
-  input: {
-    [key: string]: unknown
-  }
-  metadata?: {
-    [key: string]: unknown
-  }
-  status: "running"
-  time: {
-    start: number
-  }
-  title?: string
-}
-
-export type OpencodeToolTextContent = {
-  text: string
-  type: "text"
-}
-
-export type OpencodeUnknownError = {
-  data: {
-    message: string
-  }
-  name: "UnknownError"
-}
-
-export type OpencodeUserMessage = {
-  agent: string
-  format?: OpencodeOutputFormat
-  id: string
-  model: {
-    modelID: string
-    providerID: string
-    variant?: string
-  }
-  role: "user"
-  sessionID: string
-  summary?: {
-    body?: string
-    diffs: Array<OpencodeSnapshotFileDiff>
-    title?: string
-  }
-  system?: string
-  time: {
-    created: number
-  }
-  tools?: {
-    [key: string]: boolean
-  }
-}
-
-export type OpencodeV2SessionMessagesResponse = {
-  cursor: {
-    next?: string
-    previous?: string
-  }
-  items: Array<OpencodeSessionMessage>
-}
-
-export type OpencodeV2SessionsResponse = {
-  cursor: {
-    next?: string
-    previous?: string
-  }
-  items: Array<OpencodeSessionInfo>
-}
-
-export type OpencodeVcsApplyError = {
-  data: {
-    message: string
-    reason: "non-git" | "not-clean"
-  }
-  name: "VcsApplyError"
-}
-
-export type OpencodeVcsFileDiff = {
-  additions: number
-  deletions: number
-  file: string
-  patch?: string
-  status?: "added" | "deleted" | "modified"
-}
-
-export type OpencodeVcsFileStatus = {
-  additions: number
-  deletions: number
-  file: string
-  status: "added" | "deleted" | "modified"
-}
-
-export type OpencodeVcsInfo = {
-  branch?: string
-  default_branch?: string
-}
-
-export type OpencodeWellKnownAuth = {
-  key: string
-  token: string
-  type: "wellknown"
-}
-
-export type OpencodeWorkspace = {
-  branch: string | unknown
-  directory: string | unknown
-  extra: unknown
-  id: string
-  name: string
-  projectID: string
-  timeUsed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-  type: string
-}
-
-export type OpencodeWorkspaceWarpError = {
-  data: {
-    message: string
-  }
-  name: "WorkspaceWarpError"
-}
-
-export type OpencodeWorktree = {
-  branch: string
-  directory: string
-  name: string
-}
-
-export type OpencodeWorktreeCreateInput = {
-  name?: string
-  /**
-   * Additional startup script to run after the project's start command
-   */
-  startCommand?: string
-}
-
-export type OpencodeWorktreeRemoveInput = {
-  directory: string
-}
-
-export type OpencodeWorktreeResetInput = {
-  directory: string
-}
-
-export type OpencodeeffectHttpApiErrorForbidden = {
-  _tag: "Forbidden"
-}
-
-export type OpencodeeffectHttpApiErrorInternalServerError = {
-  _tag: "InternalServerError"
-}
-
-/**
- * Lowercase hexadecimal OTLP span ID, or empty for root spans.
- */
-export type OptionalSpanId = string
-
-export type ProcessObservabilityEvent = {
-  action: ObservabilityAction
-  agent_name: AgentName
-  command_invocation: string
-  event_time: string
-  id: number
-  ingested_at: string
-  parent_process: string
-  pod_name: string
-  pod_namespace: string
-  process: string
-  source: string
-}
-
-export type ProcessObservabilityEventAggregated = {
-  action: ObservabilityAction
-  agent_name: AgentName
-  command_invocation: string
-  last_seen: string
-  occurrences: number
-  parent_process: string
-  process: string
-  source: string
+export type SecretHost = string
+
+export type SecretEntry = {
+  key: SecretKey
+  value: SecretValue
+  hosts: Array<SecretHost>
+}
+
+export type SecretListItem = {
+  key: SecretKey
+  hosts: Array<SecretHost>
+  created_at: string
+  modified_at: string
 }
 
 export type PutSecretsRequest = {
@@ -3495,168 +328,46 @@ export type PutSecretsResponse = {
   stored: number
 }
 
-export type SecretEntry = {
-  hosts: Array<SecretHost>
-  key: SecretKey
-  value: SecretValue
+export type DeleteSecretsRequest = {
+  keys: Array<SecretKey>
 }
 
-/**
- * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
- *
- */
-export type SecretHost = string
+export type ListSecretsResponse = {
+  items: Array<SecretListItem>
+  next_page_token: string
+}
 
-/**
- * Secret key name. Alphanumeric and underscores only.
- */
-export type SecretKey = string
-
-export type SecretListItem = {
+export type Environment = {
+  name: EnvironmentName
+  packages: Array<string>
+  allowed_hosts: Array<string>
   created_at: string
-  hosts: Array<SecretHost>
-  key: SecretKey
-  modified_at: string
-}
-
-/**
- * Secret value. Max 48 KB.
- */
-export type SecretValue = string
-
-export type Span = {
-  agent_name: AgentName
-  cached_input_tokens: number
-  cached_write_tokens: number
-  cost_usd: number
-  duration_ms: number
-  duration_ns: number
-  end_time: string
-  error_message: string
-  error_type: string
-  id: number
-  ingested_at: string
-  input_tokens: number
-  kind: string
-  llm_finish_reason: string
-  model: string
-  name: string
-  operation_name: string
-  output_tokens: number
-  parent_span_id: OptionalSpanId
-  session_id: string
-  span_class: string
-  span_id: SpanId
-  start_time: string
-  status_code: string
-  tool_name: string
-  trace_id: TraceId
-}
-
-export type SpanDetail = Span & {
-  resource_attributes: JsonValue
-  span_attributes: JsonValue
-}
-
-export type SpanDetailResponse = {
-  payload: SpanPayload
-  span: SpanDetail
-}
-
-/**
- * Lowercase hexadecimal OTLP span ID.
- */
-export type SpanId = string
-
-export type SpanPayload = {
-  input_messages: JsonValue
-  output_messages: JsonValue
-  tool_arguments: JsonValue
-  tool_result: JsonValue
-}
-
-export type Trace = {
-  agent_name: AgentName
-  cached_input_tokens: number
-  cached_write_tokens: number
-  cost_usd: number
-  duration_ms: number
-  duration_ns: number
-  ended_at: string
-  error_count: number
-  input_tokens: number
-  model_count: number
-  output_tokens: number
-  root_span_id: OptionalSpanId
-  span_count: number
-  started_at: string
-  status_code: string
-  tool_count: number
-  trace_id: TraceId
-  updated_at: string
-}
-
-/**
- * Lowercase hexadecimal OTLP trace ID.
- */
-export type TraceId = string
-
-export type TraceSession = {
-  agent_name: AgentName
-  cached_input_tokens: number
-  cached_write_tokens: number
-  cost_usd: number
-  duration_ms: number
-  duration_ns: number
-  ended_at: string
-  error_count: number
-  input_tokens: number
-  model_count: number
-  output_tokens: number
-  root_span_id: OptionalSpanId
-  session_id: string
-  span_count: number
-  started_at: string
-  status_code: string
-  tool_count: number
-  trace_id: TraceId
-  updated_at: string
-}
-
-export type UpdateAgentRequest = {
-  env?: {
-    [key: string]: string
+  metadata: {
+    package_count: number
+    allowed_host_count: number
+    referenced_by_agent: boolean
   }
-  environmentName?: EnvironmentName
+}
+
+export type ListEnvironmentsResponse = {
+  environments: Array<Environment>
+  next_page_token: string
+}
+
+export type CreateEnvironmentRequest = {
+  name: EnvironmentName
+  packages?: Array<string>
+  allowed_hosts?: Array<string>
+}
+
+export type DeleteEnvironmentRequest = {
+  name: EnvironmentName
 }
 
 export type UpdateEnvironmentRequest = {
-  allowed_hosts: Array<string>
   packages: Array<string>
+  allowed_hosts: Array<string>
 }
-
-export type WatchAgentsEvent = {
-  agents: Array<Agent>
-}
-
-export type WatchAgentsRequest = {
-  agent_names?: Array<AgentName>
-}
-
-/**
- * Optional observability action filter.
- */
-export type ActionQuery = ObservabilityAction
-
-/**
- * Optional agent name filters. Repeat the query parameter for multiple agents.
- */
-export type AgentNameFilterQuery = Array<AgentName>
-
-/**
- * Agent name.
- */
-export type AgentNamePath = AgentName
 
 /**
  * Agent name.
@@ -3664,9 +375,9 @@ export type AgentNamePath = AgentName
 export type AgentNameQuery = AgentName
 
 /**
- * When true, returns aggregated events with occurrence counts over the time range.
+ * Agent name.
  */
-export type AggregatedQuery = boolean
+export type AgentNamePath = AgentName
 
 /**
  * Environment name.
@@ -3674,14 +385,9 @@ export type AggregatedQuery = boolean
 export type EnvironmentNamePath = EnvironmentName
 
 /**
- * Inclusive lower bound for event time.
+ * Optional agent name filters. Repeat the query parameter for multiple agents.
  */
-export type EventTimeAfterQuery = string
-
-/**
- * Inclusive upper bound for event time.
- */
-export type EventTimeBeforeQuery = string
+export type AgentNameFilterQuery = Array<AgentName>
 
 /**
  * Maximum number of items to return.
@@ -3692,6 +398,11 @@ export type LimitQuery = number
  * Opaque pagination token from a previous response.
  */
 export type PageTokenQuery = string
+
+/**
+ * Lowercase hexadecimal OTLP trace ID.
+ */
+export type TraceIdQuery = TraceId
 
 /**
  * Lowercase hexadecimal OTLP span ID.
@@ -3709,75 +420,24 @@ export type StartedAfterQuery = string
 export type StartedBeforeQuery = string
 
 /**
- * Lowercase hexadecimal OTLP trace ID.
+ * Inclusive lower bound for event time.
  */
-export type TraceIdQuery = TraceId
+export type EventTimeAfterQuery = string
 
-export type CreateAgentData = {
-  body: CreateAgentRequest
-  path?: never
-  query?: never
-  url: "/api/agent/create"
-}
+/**
+ * Inclusive upper bound for event time.
+ */
+export type EventTimeBeforeQuery = string
 
-export type CreateAgentErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
+/**
+ * Optional observability action filter.
+ */
+export type ActionQuery = ObservabilityAction
 
-export type CreateAgentError = CreateAgentErrors[keyof CreateAgentErrors]
-
-export type CreateAgentResponses = {
-  /**
-   * Agent resource created.
-   */
-  201: Agent
-}
-
-export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses]
-
-export type DeleteAgentData = {
-  body: DeleteAgentRequest
-  path?: never
-  query?: never
-  url: "/api/agent/delete"
-}
-
-export type DeleteAgentErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type DeleteAgentError = DeleteAgentErrors[keyof DeleteAgentErrors]
-
-export type DeleteAgentResponses = {
-  /**
-   * Agent was deleted.
-   */
-  204: void
-}
-
-export type DeleteAgentResponse = DeleteAgentResponses[keyof DeleteAgentResponses]
+/**
+ * When true, returns aggregated events with occurrence counts over the time range.
+ */
+export type AggregatedQuery = boolean
 
 export type ListAgentsData = {
   body?: never
@@ -3821,118 +481,35 @@ export type ListAgentsResponses = {
 
 export type ListAgentsResponse2 = ListAgentsResponses[keyof ListAgentsResponses]
 
-export type UpdateAgentData = {
-  body: UpdateAgentRequest
-  path: {
+export type ListTracesData = {
+  body?: never
+  path?: never
+  query: {
     /**
      * Agent name.
      */
-    agentName: AgentName
+    agent_name: AgentName
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
   }
-  query?: never
-  url: "/api/agent/update/{agentName}"
+  url: "/api/lens/trace/list"
 }
 
-export type UpdateAgentErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type UpdateAgentError = UpdateAgentErrors[keyof UpdateAgentErrors]
-
-export type UpdateAgentResponses = {
-  /**
-   * Agent resource updated.
-   */
-  200: Agent
-}
-
-export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses]
-
-export type WatchAgentsData = {
-  body?: WatchAgentsRequest
-  path?: never
-  query?: never
-  url: "/api/agent/watch"
-}
-
-export type WatchAgentsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type WatchAgentsError = WatchAgentsErrors[keyof WatchAgentsErrors]
-
-export type WatchAgentsResponses = {
-  /**
-   * Stream of agent status changes.
-   */
-  200: WatchAgentsEvent
-}
-
-export type WatchAgentsResponse = WatchAgentsResponses[keyof WatchAgentsResponses]
-
-export type CreateEnvironmentData = {
-  body: CreateEnvironmentRequest
-  path?: never
-  query?: never
-  url: "/api/environment/create"
-}
-
-export type CreateEnvironmentErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type CreateEnvironmentError = CreateEnvironmentErrors[keyof CreateEnvironmentErrors]
-
-export type CreateEnvironmentResponses = {
-  /**
-   * Environment created.
-   */
-  201: Environment
-}
-
-export type CreateEnvironmentResponse = CreateEnvironmentResponses[keyof CreateEnvironmentResponses]
-
-export type DeleteEnvironmentData = {
-  body: DeleteEnvironmentRequest
-  path?: never
-  query?: never
-  url: "/api/environment/delete"
-}
-
-export type DeleteEnvironmentErrors = {
+export type ListTracesErrors = {
   /**
    * Request validation failed.
    */
@@ -3947,21 +524,84 @@ export type DeleteEnvironmentErrors = {
   500: Error
 }
 
-export type DeleteEnvironmentError = DeleteEnvironmentErrors[keyof DeleteEnvironmentErrors]
+export type ListTracesError = ListTracesErrors[keyof ListTracesErrors]
 
-export type DeleteEnvironmentResponses = {
+export type ListTracesResponses = {
   /**
-   * Environment deleted.
+   * Paginated trace summaries.
    */
-  204: void
+  200: ListTracesResponse
 }
 
-export type DeleteEnvironmentResponse = DeleteEnvironmentResponses[keyof DeleteEnvironmentResponses]
+export type ListTracesResponse2 = ListTracesResponses[keyof ListTracesResponses]
 
-export type ListEnvironmentsData = {
+export type ListTraceSessionsData = {
   body?: never
   path?: never
-  query?: {
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
+  }
+  url: "/api/lens/trace/session/list"
+}
+
+export type ListTraceSessionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListTraceSessionsError = ListTraceSessionsErrors[keyof ListTraceSessionsErrors]
+
+export type ListTraceSessionsResponses = {
+  /**
+   * Paginated per-session trace summaries.
+   */
+  200: ListTraceSessionsResponse
+}
+
+export type ListTraceSessionsResponse2 =
+  ListTraceSessionsResponses[keyof ListTraceSessionsResponses]
+
+export type ListSpansData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Lowercase hexadecimal OTLP trace ID.
+     */
+    trace_id: TraceId
     /**
      * Maximum number of items to return.
      */
@@ -3971,44 +611,10 @@ export type ListEnvironmentsData = {
      */
     page_token?: string
   }
-  url: "/api/environment/list"
+  url: "/api/lens/span/list"
 }
 
-export type ListEnvironmentsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListEnvironmentsError = ListEnvironmentsErrors[keyof ListEnvironmentsErrors]
-
-export type ListEnvironmentsResponses = {
-  /**
-   * Paginated environments.
-   */
-  200: ListEnvironmentsResponse
-}
-
-export type ListEnvironmentsResponse2 = ListEnvironmentsResponses[keyof ListEnvironmentsResponses]
-
-export type UpdateEnvironmentData = {
-  body: UpdateEnvironmentRequest
-  path: {
-    /**
-     * Environment name.
-     */
-    name: EnvironmentName
-  }
-  query?: never
-  url: "/api/environment/update/{name}"
-}
-
-export type UpdateEnvironmentErrors = {
+export type ListSpansErrors = {
   /**
    * Request validation failed.
    */
@@ -4023,16 +629,126 @@ export type UpdateEnvironmentErrors = {
   500: Error
 }
 
-export type UpdateEnvironmentError = UpdateEnvironmentErrors[keyof UpdateEnvironmentErrors]
+export type ListSpansError = ListSpansErrors[keyof ListSpansErrors]
 
-export type UpdateEnvironmentResponses = {
+export type ListSpansResponses = {
   /**
-   * Environment updated.
+   * Paginated spans for a trace.
    */
-  200: Environment
+  200: ListSpansResponse
 }
 
-export type UpdateEnvironmentResponse = UpdateEnvironmentResponses[keyof UpdateEnvironmentResponses]
+export type ListSpansResponse2 = ListSpansResponses[keyof ListSpansResponses]
+
+export type GetSpanDetailData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Lowercase hexadecimal OTLP trace ID.
+     */
+    trace_id: TraceId
+    /**
+     * Lowercase hexadecimal OTLP span ID.
+     */
+    span_id: SpanId
+  }
+  url: "/api/lens/span/detail"
+}
+
+export type GetSpanDetailErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetSpanDetailError = GetSpanDetailErrors[keyof GetSpanDetailErrors]
+
+export type GetSpanDetailResponses = {
+  /**
+   * Span detail with payload and correlated events.
+   */
+  200: SpanDetailResponse
+}
+
+export type GetSpanDetailResponse = GetSpanDetailResponses[keyof GetSpanDetailResponses]
+
+export type ListProcessObservabilityData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
+  }
+  url: "/api/lens/observability/process/list"
+}
+
+export type ListProcessObservabilityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListProcessObservabilityError =
+  ListProcessObservabilityErrors[keyof ListProcessObservabilityErrors]
+
+export type ListProcessObservabilityResponses = {
+  /**
+   * Paginated process observability events.
+   */
+  200: ListProcessObservabilityResponse
+}
+
+export type ListProcessObservabilityResponse2 =
+  ListProcessObservabilityResponses[keyof ListProcessObservabilityResponses]
 
 export type ListFileObservabilityData = {
   body?: never
@@ -4162,43 +878,47 @@ export type ListNetworkObservabilityResponses = {
 export type ListNetworkObservabilityResponse2 =
   ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
 
-export type ListProcessObservabilityData = {
-  body?: never
+export type CreateAgentData = {
+  body: CreateAgentRequest
   path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for event time.
-     */
-    event_time_after?: string
-    /**
-     * Inclusive upper bound for event time.
-     */
-    event_time_before?: string
-    /**
-     * Optional observability action filter.
-     */
-    action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
-  }
-  url: "/api/lens/observability/process/list"
+  query?: never
+  url: "/api/agent/create"
 }
 
-export type ListProcessObservabilityErrors = {
+export type CreateAgentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateAgentError = CreateAgentErrors[keyof CreateAgentErrors]
+
+export type CreateAgentResponses = {
+  /**
+   * Agent resource created.
+   */
+  201: Agent
+}
+
+export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses]
+
+export type DeleteAgentData = {
+  body: DeleteAgentRequest
+  path?: never
+  query?: never
+  url: "/api/agent/delete"
+}
+
+export type DeleteAgentErrors = {
   /**
    * Request validation failed.
    */
@@ -4213,40 +933,101 @@ export type ListProcessObservabilityErrors = {
   500: Error
 }
 
-export type ListProcessObservabilityError =
-  ListProcessObservabilityErrors[keyof ListProcessObservabilityErrors]
+export type DeleteAgentError = DeleteAgentErrors[keyof DeleteAgentErrors]
 
-export type ListProcessObservabilityResponses = {
+export type DeleteAgentResponses = {
   /**
-   * Paginated process observability events.
+   * Agent was deleted.
    */
-  200: ListProcessObservabilityResponse
+  204: void
 }
 
-export type ListProcessObservabilityResponse2 =
-  ListProcessObservabilityResponses[keyof ListProcessObservabilityResponses]
+export type DeleteAgentResponse = DeleteAgentResponses[keyof DeleteAgentResponses]
 
-export type GetSpanDetailData = {
-  body?: never
-  path?: never
-  query: {
+export type UpdateAgentData = {
+  body: UpdateAgentRequest
+  path: {
     /**
      * Agent name.
      */
-    agent_name: AgentName
-    /**
-     * Lowercase hexadecimal OTLP trace ID.
-     */
-    trace_id: TraceId
-    /**
-     * Lowercase hexadecimal OTLP span ID.
-     */
-    span_id: SpanId
+    agentName: AgentName
   }
-  url: "/api/lens/span/detail"
+  query?: never
+  url: "/api/agent/update/{agentName}"
 }
 
-export type GetSpanDetailErrors = {
+export type UpdateAgentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateAgentError = UpdateAgentErrors[keyof UpdateAgentErrors]
+
+export type UpdateAgentResponses = {
+  /**
+   * Agent resource updated.
+   */
+  200: Agent
+}
+
+export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses]
+
+export type WatchAgentsData = {
+  body?: WatchAgentsRequest
+  path?: never
+  query?: never
+  url: "/api/agent/watch"
+}
+
+export type WatchAgentsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchAgentsError = WatchAgentsErrors[keyof WatchAgentsErrors]
+
+export type WatchAgentsResponses = {
+  /**
+   * Stream of agent status changes.
+   */
+  200: WatchAgentsEvent
+}
+
+export type WatchAgentsResponse = WatchAgentsResponses[keyof WatchAgentsResponses]
+
+export type PutSecretData = {
+  body: PutSecretsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/secret/{agentName}/put"
+}
+
+export type PutSecretErrors = {
   /**
    * Request validation failed.
    */
@@ -4261,4417 +1042,16 @@ export type GetSpanDetailErrors = {
   500: Error
 }
 
-export type GetSpanDetailError = GetSpanDetailErrors[keyof GetSpanDetailErrors]
+export type PutSecretError = PutSecretErrors[keyof PutSecretErrors]
 
-export type GetSpanDetailResponses = {
+export type PutSecretResponses = {
   /**
-   * Span detail with payload and correlated events.
+   * Secrets stored.
    */
-  200: SpanDetailResponse
+  201: PutSecretsResponse
 }
 
-export type GetSpanDetailResponse = GetSpanDetailResponses[keyof GetSpanDetailResponses]
-
-export type ListSpansData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Lowercase hexadecimal OTLP trace ID.
-     */
-    trace_id: TraceId
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/lens/span/list"
-}
-
-export type ListSpansErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListSpansError = ListSpansErrors[keyof ListSpansErrors]
-
-export type ListSpansResponses = {
-  /**
-   * Paginated spans for a trace.
-   */
-  200: ListSpansResponse
-}
-
-export type ListSpansResponse2 = ListSpansResponses[keyof ListSpansResponses]
-
-export type ListTracesData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for trace start time.
-     */
-    started_after?: string
-    /**
-     * Inclusive upper bound for trace start time.
-     */
-    started_before?: string
-  }
-  url: "/api/lens/trace/list"
-}
-
-export type ListTracesErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListTracesError = ListTracesErrors[keyof ListTracesErrors]
-
-export type ListTracesResponses = {
-  /**
-   * Paginated trace summaries.
-   */
-  200: ListTracesResponse
-}
-
-export type ListTracesResponse2 = ListTracesResponses[keyof ListTracesResponses]
-
-export type ListTraceSessionsData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for trace start time.
-     */
-    started_after?: string
-    /**
-     * Inclusive upper bound for trace start time.
-     */
-    started_before?: string
-  }
-  url: "/api/lens/trace/session/list"
-}
-
-export type ListTraceSessionsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListTraceSessionsError = ListTraceSessionsErrors[keyof ListTraceSessionsErrors]
-
-export type ListTraceSessionsResponses = {
-  /**
-   * Paginated per-session trace summaries.
-   */
-  200: ListTraceSessionsResponse
-}
-
-export type ListTraceSessionsResponse2 =
-  ListTraceSessionsResponses[keyof ListTraceSessionsResponses]
-
-export type AppAgentsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/agent"
-}
-
-export type AppAgentsResponses = {
-  /**
-   * List of agents
-   */
-  200: Array<OpencodeAgent>
-}
-
-export type AppAgentsResponse = AppAgentsResponses[keyof AppAgentsResponses]
-
-export type V2SessionListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-    limit?: number
-    order?: "asc" | "desc"
-    path?: string
-    roots?: boolean | "true" | "false"
-    start?: number
-    search?: string
-    /**
-     * Opaque pagination cursor returned as cursor.previous or cursor.next in the previous response. Do not combine with order or filters.
-     */
-    cursor?: string
-  }
-  url: "/api/opencode/{agentName}/api/session"
-}
-
-export type V2SessionListErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type V2SessionListError = V2SessionListErrors[keyof V2SessionListErrors]
-
-export type V2SessionListResponses = {
-  /**
-   * V2SessionsResponse
-   */
-  200: OpencodeV2SessionsResponse
-}
-
-export type V2SessionListResponse = V2SessionListResponses[keyof V2SessionListResponses]
-
-export type V2SessionCompactData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/api/session/{sessionID}/compact"
-}
-
-export type V2SessionCompactResponses = {
-  /**
-   * <No Content>
-   */
-  204: void
-}
-
-export type V2SessionCompactResponse = V2SessionCompactResponses[keyof V2SessionCompactResponses]
-
-export type V2SessionContextData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/api/session/{sessionID}/context"
-}
-
-export type V2SessionContextResponses = {
-  /**
-   * Success
-   */
-  200: Array<OpencodeSessionMessage>
-}
-
-export type V2SessionContextResponse = V2SessionContextResponses[keyof V2SessionContextResponses]
-
-export type V2SessionMessagesData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-    limit?: number
-    order?: "asc" | "desc"
-    /**
-     * Opaque pagination cursor returned as cursor.previous or cursor.next in the previous response. Do not combine with order.
-     */
-    cursor?: string
-  }
-  url: "/api/opencode/{agentName}/api/session/{sessionID}/message"
-}
-
-export type V2SessionMessagesErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type V2SessionMessagesError = V2SessionMessagesErrors[keyof V2SessionMessagesErrors]
-
-export type V2SessionMessagesResponses = {
-  /**
-   * V2SessionMessagesResponse
-   */
-  200: OpencodeV2SessionMessagesResponse
-}
-
-export type V2SessionMessagesResponse = V2SessionMessagesResponses[keyof V2SessionMessagesResponses]
-
-export type V2SessionPromptData = {
-  body?: {
-    delivery?: OpencodeSessionDelivery
-    prompt: OpencodePrompt
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/api/session/{sessionID}/prompt"
-}
-
-export type V2SessionPromptResponses = {
-  /**
-   * Session.Message
-   */
-  200: OpencodeSessionMessage
-}
-
-export type V2SessionPromptResponse = V2SessionPromptResponses[keyof V2SessionPromptResponses]
-
-export type V2SessionWaitData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/api/session/{sessionID}/wait"
-}
-
-export type V2SessionWaitResponses = {
-  /**
-   * <No Content>
-   */
-  204: void
-}
-
-export type V2SessionWaitResponse = V2SessionWaitResponses[keyof V2SessionWaitResponses]
-
-export type AuthRemoveData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    providerID: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/auth/{providerID}"
-}
-
-export type AuthRemoveErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type AuthRemoveError = AuthRemoveErrors[keyof AuthRemoveErrors]
-
-export type AuthRemoveResponses = {
-  /**
-   * Successfully removed authentication credentials
-   */
-  200: boolean
-}
-
-export type AuthRemoveResponse = AuthRemoveResponses[keyof AuthRemoveResponses]
-
-export type AuthSetData = {
-  body?: OpencodeAuth
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    providerID: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/auth/{providerID}"
-}
-
-export type AuthSetErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type AuthSetError = AuthSetErrors[keyof AuthSetErrors]
-
-export type AuthSetResponses = {
-  /**
-   * Successfully set authentication credentials
-   */
-  200: boolean
-}
-
-export type AuthSetResponse = AuthSetResponses[keyof AuthSetResponses]
-
-export type CommandListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/command"
-}
-
-export type CommandListResponses = {
-  /**
-   * List of commands
-   */
-  200: Array<OpencodeCommand>
-}
-
-export type CommandListResponse = CommandListResponses[keyof CommandListResponses]
-
-export type ConfigGetData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/config"
-}
-
-export type ConfigGetResponses = {
-  /**
-   * Get config info
-   */
-  200: OpencodeConfig
-}
-
-export type ConfigGetResponse = ConfigGetResponses[keyof ConfigGetResponses]
-
-export type ConfigUpdateData = {
-  body?: OpencodeConfig
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/config"
-}
-
-export type ConfigUpdateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type ConfigUpdateError = ConfigUpdateErrors[keyof ConfigUpdateErrors]
-
-export type ConfigUpdateResponses = {
-  /**
-   * Successfully updated config
-   */
-  200: OpencodeConfig
-}
-
-export type ConfigUpdateResponse = ConfigUpdateResponses[keyof ConfigUpdateResponses]
-
-export type ConfigProvidersData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/config/providers"
-}
-
-export type ConfigProvidersResponses = {
-  /**
-   * List of providers
-   */
-  200: {
-    default: {
-      [key: string]: string
-    }
-    providers: Array<OpencodeProvider>
-  }
-}
-
-export type ConfigProvidersResponse = ConfigProvidersResponses[keyof ConfigProvidersResponses]
-
-export type EventSubscribeData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/event"
-}
-
-export type EventSubscribeResponses = {
-  /**
-   * Event stream
-   */
-  200: OpencodeEvent
-}
-
-export type EventSubscribeResponse = EventSubscribeResponses[keyof EventSubscribeResponses]
-
-export type ExperimentalConsoleGetData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/console"
-}
-
-export type ExperimentalConsoleGetErrors = {
-  /**
-   * InternalServerError
-   */
-  500: OpencodeeffectHttpApiErrorInternalServerError
-}
-
-export type ExperimentalConsoleGetError =
-  ExperimentalConsoleGetErrors[keyof ExperimentalConsoleGetErrors]
-
-export type ExperimentalConsoleGetResponses = {
-  /**
-   * Active Console provider metadata
-   */
-  200: OpencodeConsoleState
-}
-
-export type ExperimentalConsoleGetResponse =
-  ExperimentalConsoleGetResponses[keyof ExperimentalConsoleGetResponses]
-
-export type ExperimentalConsoleListOrgsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/console/orgs"
-}
-
-export type ExperimentalConsoleListOrgsErrors = {
-  /**
-   * InternalServerError
-   */
-  500: OpencodeeffectHttpApiErrorInternalServerError
-}
-
-export type ExperimentalConsoleListOrgsError =
-  ExperimentalConsoleListOrgsErrors[keyof ExperimentalConsoleListOrgsErrors]
-
-export type ExperimentalConsoleListOrgsResponses = {
-  /**
-   * Switchable Console orgs
-   */
-  200: {
-    orgs: Array<{
-      accountEmail: string
-      accountID: string
-      accountUrl: string
-      active: boolean
-      orgID: string
-      orgName: string
-    }>
-  }
-}
-
-export type ExperimentalConsoleListOrgsResponse =
-  ExperimentalConsoleListOrgsResponses[keyof ExperimentalConsoleListOrgsResponses]
-
-export type ExperimentalConsoleSwitchOrgData = {
-  body?: {
-    accountID: string
-    orgID: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/console/switch"
-}
-
-export type ExperimentalConsoleSwitchOrgResponses = {
-  /**
-   * Switch success
-   */
-  200: boolean
-}
-
-export type ExperimentalConsoleSwitchOrgResponse =
-  ExperimentalConsoleSwitchOrgResponses[keyof ExperimentalConsoleSwitchOrgResponses]
-
-export type ExperimentalResourceListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/resource"
-}
-
-export type ExperimentalResourceListResponses = {
-  /**
-   * MCP resources
-   */
-  200: {
-    [key: string]: OpencodeMcpResource
-  }
-}
-
-export type ExperimentalResourceListResponse =
-  ExperimentalResourceListResponses[keyof ExperimentalResourceListResponses]
-
-export type ExperimentalSessionListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-    roots?: boolean | "true" | "false"
-    start?: number
-    cursor?: number
-    search?: string
-    limit?: number
-    archived?: boolean | "true" | "false"
-  }
-  url: "/api/opencode/{agentName}/experimental/session"
-}
-
-export type ExperimentalSessionListResponses = {
-  /**
-   * List of sessions
-   */
-  200: Array<OpencodeGlobalSession>
-}
-
-export type ExperimentalSessionListResponse =
-  ExperimentalSessionListResponses[keyof ExperimentalSessionListResponses]
-
-export type ToolListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query: {
-    directory?: string
-    workspace?: string
-    provider: string
-    model: string
-  }
-  url: "/api/opencode/{agentName}/experimental/tool"
-}
-
-export type ToolListErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type ToolListError = ToolListErrors[keyof ToolListErrors]
-
-export type ToolListResponses = {
-  /**
-   * Tools
-   */
-  200: OpencodeToolList
-}
-
-export type ToolListResponse = ToolListResponses[keyof ToolListResponses]
-
-export type ToolIdsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/tool/ids"
-}
-
-export type ToolIdsErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type ToolIdsError = ToolIdsErrors[keyof ToolIdsErrors]
-
-export type ToolIdsResponses = {
-  /**
-   * Tool IDs
-   */
-  200: OpencodeToolIds
-}
-
-export type ToolIdsResponse = ToolIdsResponses[keyof ToolIdsResponses]
-
-export type ExperimentalWorkspaceListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/workspace"
-}
-
-export type ExperimentalWorkspaceListResponses = {
-  /**
-   * Workspaces
-   */
-  200: Array<OpencodeWorkspace>
-}
-
-export type ExperimentalWorkspaceListResponse =
-  ExperimentalWorkspaceListResponses[keyof ExperimentalWorkspaceListResponses]
-
-export type ExperimentalWorkspaceCreateData = {
-  body?: {
-    branch: string | unknown
-    extra?: unknown
-    id?: string
-    type: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/workspace"
-}
-
-export type ExperimentalWorkspaceCreateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type ExperimentalWorkspaceCreateError =
-  ExperimentalWorkspaceCreateErrors[keyof ExperimentalWorkspaceCreateErrors]
-
-export type ExperimentalWorkspaceCreateResponses = {
-  /**
-   * Workspace created
-   */
-  200: OpencodeWorkspace
-}
-
-export type ExperimentalWorkspaceCreateResponse =
-  ExperimentalWorkspaceCreateResponses[keyof ExperimentalWorkspaceCreateResponses]
-
-export type ExperimentalWorkspaceRemoveData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    id: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/workspace/{id}"
-}
-
-export type ExperimentalWorkspaceRemoveErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type ExperimentalWorkspaceRemoveError =
-  ExperimentalWorkspaceRemoveErrors[keyof ExperimentalWorkspaceRemoveErrors]
-
-export type ExperimentalWorkspaceRemoveResponses = {
-  /**
-   * Workspace removed
-   */
-  200: OpencodeWorkspace
-}
-
-export type ExperimentalWorkspaceRemoveResponse =
-  ExperimentalWorkspaceRemoveResponses[keyof ExperimentalWorkspaceRemoveResponses]
-
-export type ExperimentalWorkspaceAdapterListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/workspace/adapter"
-}
-
-export type ExperimentalWorkspaceAdapterListResponses = {
-  /**
-   * Workspace adapters
-   */
-  200: Array<{
-    description: string
-    name: string
-    type: string
-  }>
-}
-
-export type ExperimentalWorkspaceAdapterListResponse =
-  ExperimentalWorkspaceAdapterListResponses[keyof ExperimentalWorkspaceAdapterListResponses]
-
-export type ExperimentalWorkspaceStatusData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/workspace/status"
-}
-
-export type ExperimentalWorkspaceStatusResponses = {
-  /**
-   * Workspace status
-   */
-  200: Array<{
-    status: "connected" | "connecting" | "disconnected" | "error"
-    workspaceID: string
-  }>
-}
-
-export type ExperimentalWorkspaceStatusResponse =
-  ExperimentalWorkspaceStatusResponses[keyof ExperimentalWorkspaceStatusResponses]
-
-export type ExperimentalWorkspaceSyncListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/workspace/sync-list"
-}
-
-export type ExperimentalWorkspaceSyncListResponses = {
-  /**
-   * Workspace list synced
-   */
-  204: void
-}
-
-export type ExperimentalWorkspaceSyncListResponse =
-  ExperimentalWorkspaceSyncListResponses[keyof ExperimentalWorkspaceSyncListResponses]
-
-export type ExperimentalWorkspaceWarpData = {
-  body?: {
-    copyChanges?: boolean
-    id: string | unknown
-    sessionID: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/workspace/warp"
-}
-
-export type ExperimentalWorkspaceWarpErrors = {
-  /**
-   * WorkspaceWarpError | VcsApplyError
-   */
-  400: OpencodeWorkspaceWarpError | OpencodeVcsApplyError
-}
-
-export type ExperimentalWorkspaceWarpError =
-  ExperimentalWorkspaceWarpErrors[keyof ExperimentalWorkspaceWarpErrors]
-
-export type ExperimentalWorkspaceWarpResponses = {
-  /**
-   * Session warped
-   */
-  204: void
-}
-
-export type ExperimentalWorkspaceWarpResponse =
-  ExperimentalWorkspaceWarpResponses[keyof ExperimentalWorkspaceWarpResponses]
-
-export type WorktreeRemoveData = {
-  body?: OpencodeWorktreeRemoveInput
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/worktree"
-}
-
-export type WorktreeRemoveErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type WorktreeRemoveError = WorktreeRemoveErrors[keyof WorktreeRemoveErrors]
-
-export type WorktreeRemoveResponses = {
-  /**
-   * Worktree removed
-   */
-  200: boolean
-}
-
-export type WorktreeRemoveResponse = WorktreeRemoveResponses[keyof WorktreeRemoveResponses]
-
-export type WorktreeListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/worktree"
-}
-
-export type WorktreeListResponses = {
-  /**
-   * List of worktree directories
-   */
-  200: Array<string>
-}
-
-export type WorktreeListResponse = WorktreeListResponses[keyof WorktreeListResponses]
-
-export type WorktreeCreateData = {
-  body?: OpencodeWorktreeCreateInput
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/worktree"
-}
-
-export type WorktreeCreateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type WorktreeCreateError = WorktreeCreateErrors[keyof WorktreeCreateErrors]
-
-export type WorktreeCreateResponses = {
-  /**
-   * Worktree created
-   */
-  200: OpencodeWorktree
-}
-
-export type WorktreeCreateResponse = WorktreeCreateResponses[keyof WorktreeCreateResponses]
-
-export type WorktreeResetData = {
-  body?: OpencodeWorktreeResetInput
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/experimental/worktree/reset"
-}
-
-export type WorktreeResetErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type WorktreeResetError = WorktreeResetErrors[keyof WorktreeResetErrors]
-
-export type WorktreeResetResponses = {
-  /**
-   * Worktree reset
-   */
-  200: boolean
-}
-
-export type WorktreeResetResponse = WorktreeResetResponses[keyof WorktreeResetResponses]
-
-export type FileListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query: {
-    directory?: string
-    workspace?: string
-    path: string
-  }
-  url: "/api/opencode/{agentName}/file"
-}
-
-export type FileListResponses = {
-  /**
-   * Files and directories
-   */
-  200: Array<OpencodeFileNode>
-}
-
-export type FileListResponse = FileListResponses[keyof FileListResponses]
-
-export type FileReadData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query: {
-    directory?: string
-    workspace?: string
-    path: string
-  }
-  url: "/api/opencode/{agentName}/file/content"
-}
-
-export type FileReadResponses = {
-  /**
-   * File content
-   */
-  200: OpencodeFileContent
-}
-
-export type FileReadResponse = FileReadResponses[keyof FileReadResponses]
-
-export type FileStatusData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/file/status"
-}
-
-export type FileStatusResponses = {
-  /**
-   * File status
-   */
-  200: Array<OpencodeFile>
-}
-
-export type FileStatusResponse = FileStatusResponses[keyof FileStatusResponses]
-
-export type FindTextData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query: {
-    directory?: string
-    workspace?: string
-    pattern: string
-  }
-  url: "/api/opencode/{agentName}/find"
-}
-
-export type FindTextResponses = {
-  /**
-   * Matches
-   */
-  200: Array<{
-    absolute_offset: number
-    line_number: number
-    lines: {
-      text: string
-    }
-    path: {
-      text: string
-    }
-    submatches: Array<{
-      end: number
-      match: {
-        text: string
-      }
-      start: number
-    }>
-  }>
-}
-
-export type FindTextResponse = FindTextResponses[keyof FindTextResponses]
-
-export type FindFilesData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query: {
-    directory?: string
-    workspace?: string
-    query: string
-    dirs?: "true" | "false"
-    type?: "file" | "directory"
-    limit?: number
-  }
-  url: "/api/opencode/{agentName}/find/file"
-}
-
-export type FindFilesResponses = {
-  /**
-   * File paths
-   */
-  200: Array<string>
-}
-
-export type FindFilesResponse = FindFilesResponses[keyof FindFilesResponses]
-
-export type FindSymbolsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query: {
-    directory?: string
-    workspace?: string
-    query: string
-  }
-  url: "/api/opencode/{agentName}/find/symbol"
-}
-
-export type FindSymbolsResponses = {
-  /**
-   * Symbols
-   */
-  200: Array<OpencodeSymbol>
-}
-
-export type FindSymbolsResponse = FindSymbolsResponses[keyof FindSymbolsResponses]
-
-export type FormatterStatusData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/formatter"
-}
-
-export type FormatterStatusResponses = {
-  /**
-   * Formatter status
-   */
-  200: Array<OpencodeFormatterStatus>
-}
-
-export type FormatterStatusResponse = FormatterStatusResponses[keyof FormatterStatusResponses]
-
-export type GlobalConfigGetData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/global/config"
-}
-
-export type GlobalConfigGetResponses = {
-  /**
-   * Get global config info
-   */
-  200: OpencodeConfig
-}
-
-export type GlobalConfigGetResponse = GlobalConfigGetResponses[keyof GlobalConfigGetResponses]
-
-export type GlobalConfigUpdateData = {
-  body?: OpencodeConfig
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/global/config"
-}
-
-export type GlobalConfigUpdateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type GlobalConfigUpdateError = GlobalConfigUpdateErrors[keyof GlobalConfigUpdateErrors]
-
-export type GlobalConfigUpdateResponses = {
-  /**
-   * Successfully updated global config
-   */
-  200: OpencodeConfig
-}
-
-export type GlobalConfigUpdateResponse =
-  GlobalConfigUpdateResponses[keyof GlobalConfigUpdateResponses]
-
-export type GlobalDisposeData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/global/dispose"
-}
-
-export type GlobalDisposeResponses = {
-  /**
-   * Global disposed
-   */
-  200: boolean
-}
-
-export type GlobalDisposeResponse = GlobalDisposeResponses[keyof GlobalDisposeResponses]
-
-export type GlobalEventData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/global/event"
-}
-
-export type GlobalEventResponses = {
-  /**
-   * Event stream
-   */
-  200: OpencodeGlobalEvent
-}
-
-export type GlobalEventResponse = GlobalEventResponses[keyof GlobalEventResponses]
-
-export type GlobalHealthData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/global/health"
-}
-
-export type GlobalHealthResponses = {
-  /**
-   * Health information
-   */
-  200: {
-    healthy: true
-    version: string
-  }
-}
-
-export type GlobalHealthResponse = GlobalHealthResponses[keyof GlobalHealthResponses]
-
-export type GlobalUpgradeData = {
-  body?: {
-    target?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: never
-  url: "/api/opencode/{agentName}/global/upgrade"
-}
-
-export type GlobalUpgradeErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type GlobalUpgradeError = GlobalUpgradeErrors[keyof GlobalUpgradeErrors]
-
-export type GlobalUpgradeResponses = {
-  /**
-   * Upgrade result
-   */
-  200:
-    | {
-        success: true
-        version: string
-      }
-    | {
-        error: string
-        success: false
-      }
-}
-
-export type GlobalUpgradeResponse = GlobalUpgradeResponses[keyof GlobalUpgradeResponses]
-
-export type InstanceDisposeData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/instance/dispose"
-}
-
-export type InstanceDisposeResponses = {
-  /**
-   * Instance disposed
-   */
-  200: boolean
-}
-
-export type InstanceDisposeResponse = InstanceDisposeResponses[keyof InstanceDisposeResponses]
-
-export type AppLogData = {
-  body?: {
-    extra?: {
-      [key: string]: unknown
-    }
-    /**
-     * Log level
-     */
-    level: "debug" | "info" | "error" | "warn"
-    /**
-     * Log message
-     */
-    message: string
-    /**
-     * Service name for the log entry
-     */
-    service: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/log"
-}
-
-export type AppLogErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type AppLogError = AppLogErrors[keyof AppLogErrors]
-
-export type AppLogResponses = {
-  /**
-   * Log entry written successfully
-   */
-  200: boolean
-}
-
-export type AppLogResponse = AppLogResponses[keyof AppLogResponses]
-
-export type LspStatusData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/lsp"
-}
-
-export type LspStatusResponses = {
-  /**
-   * LSP server status
-   */
-  200: Array<OpencodeLspStatus>
-}
-
-export type LspStatusResponse = LspStatusResponses[keyof LspStatusResponses]
-
-export type McpStatusData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp"
-}
-
-export type McpStatusResponses = {
-  /**
-   * MCP server status
-   */
-  200: {
-    [key: string]: OpencodeMcpStatus
-  }
-}
-
-export type McpStatusResponse = McpStatusResponses[keyof McpStatusResponses]
-
-export type McpAddData = {
-  body?: {
-    config: OpencodeMcpLocalConfig | OpencodeMcpRemoteConfig
-    name: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp"
-}
-
-export type McpAddErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type McpAddError = McpAddErrors[keyof McpAddErrors]
-
-export type McpAddResponses = {
-  /**
-   * MCP server added successfully
-   */
-  200: {
-    [key: string]: OpencodeMcpStatus
-  }
-}
-
-export type McpAddResponse = McpAddResponses[keyof McpAddResponses]
-
-export type McpAuthRemoveData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    name: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp/{name}/auth"
-}
-
-export type McpAuthRemoveErrors = {
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type McpAuthRemoveError = McpAuthRemoveErrors[keyof McpAuthRemoveErrors]
-
-export type McpAuthRemoveResponses = {
-  /**
-   * OAuth credentials removed
-   */
-  200: {
-    success: true
-  }
-}
-
-export type McpAuthRemoveResponse = McpAuthRemoveResponses[keyof McpAuthRemoveResponses]
-
-export type McpAuthStartData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    name: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp/{name}/auth"
-}
-
-export type McpAuthStartErrors = {
-  /**
-   * McpUnsupportedOAuthError
-   */
-  400: OpencodeMcpUnsupportedOAuthError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type McpAuthStartError = McpAuthStartErrors[keyof McpAuthStartErrors]
-
-export type McpAuthStartResponses = {
-  /**
-   * OAuth flow started
-   */
-  200: {
-    authorizationUrl: string
-    oauthState: string
-  }
-}
-
-export type McpAuthStartResponse = McpAuthStartResponses[keyof McpAuthStartResponses]
-
-export type McpAuthAuthenticateData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    name: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp/{name}/auth/authenticate"
-}
-
-export type McpAuthAuthenticateErrors = {
-  /**
-   * McpUnsupportedOAuthError
-   */
-  400: OpencodeMcpUnsupportedOAuthError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type McpAuthAuthenticateError = McpAuthAuthenticateErrors[keyof McpAuthAuthenticateErrors]
-
-export type McpAuthAuthenticateResponses = {
-  /**
-   * OAuth authentication completed
-   */
-  200: OpencodeMcpStatus
-}
-
-export type McpAuthAuthenticateResponse =
-  McpAuthAuthenticateResponses[keyof McpAuthAuthenticateResponses]
-
-export type McpAuthCallbackData = {
-  body?: {
-    code: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    name: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp/{name}/auth/callback"
-}
-
-export type McpAuthCallbackErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type McpAuthCallbackError = McpAuthCallbackErrors[keyof McpAuthCallbackErrors]
-
-export type McpAuthCallbackResponses = {
-  /**
-   * OAuth authentication completed
-   */
-  200: OpencodeMcpStatus
-}
-
-export type McpAuthCallbackResponse = McpAuthCallbackResponses[keyof McpAuthCallbackResponses]
-
-export type McpConnectData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    name: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp/{name}/connect"
-}
-
-export type McpConnectResponses = {
-  /**
-   * MCP server connected successfully
-   */
-  200: boolean
-}
-
-export type McpConnectResponse = McpConnectResponses[keyof McpConnectResponses]
-
-export type McpDisconnectData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    name: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/mcp/{name}/disconnect"
-}
-
-export type McpDisconnectResponses = {
-  /**
-   * MCP server disconnected successfully
-   */
-  200: boolean
-}
-
-export type McpDisconnectResponse = McpDisconnectResponses[keyof McpDisconnectResponses]
-
-export type PathGetData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/path"
-}
-
-export type PathGetResponses = {
-  /**
-   * Path
-   */
-  200: OpencodePath
-}
-
-export type PathGetResponse = PathGetResponses[keyof PathGetResponses]
-
-export type PermissionListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/permission"
-}
-
-export type PermissionListResponses = {
-  /**
-   * List of pending permissions
-   */
-  200: Array<OpencodePermissionRequest>
-}
-
-export type PermissionListResponse = PermissionListResponses[keyof PermissionListResponses]
-
-export type PermissionReplyData = {
-  body?: {
-    message?: string
-    reply: "once" | "always" | "reject"
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    requestID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/permission/{requestID}/reply"
-}
-
-export type PermissionReplyErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PermissionReplyError = PermissionReplyErrors[keyof PermissionReplyErrors]
-
-export type PermissionReplyResponses = {
-  /**
-   * Permission processed successfully
-   */
-  200: boolean
-}
-
-export type PermissionReplyResponse = PermissionReplyResponses[keyof PermissionReplyResponses]
-
-export type ProjectListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/project"
-}
-
-export type ProjectListResponses = {
-  /**
-   * List of projects
-   */
-  200: Array<OpencodeProject>
-}
-
-export type ProjectListResponse = ProjectListResponses[keyof ProjectListResponses]
-
-export type ProjectUpdateData = {
-  body?: {
-    commands?: {
-      /**
-       * Startup script to run when creating a new workspace (worktree)
-       */
-      start?: string
-    }
-    icon?: {
-      color?: string
-      override?: string
-      url?: string
-    }
-    name?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    projectID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/project/{projectID}"
-}
-
-export type ProjectUpdateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type ProjectUpdateError = ProjectUpdateErrors[keyof ProjectUpdateErrors]
-
-export type ProjectUpdateResponses = {
-  /**
-   * Updated project information
-   */
-  200: OpencodeProject
-}
-
-export type ProjectUpdateResponse = ProjectUpdateResponses[keyof ProjectUpdateResponses]
-
-export type ProjectCurrentData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/project/current"
-}
-
-export type ProjectCurrentResponses = {
-  /**
-   * Current project information
-   */
-  200: OpencodeProject
-}
-
-export type ProjectCurrentResponse = ProjectCurrentResponses[keyof ProjectCurrentResponses]
-
-export type ProjectInitGitData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/project/git/init"
-}
-
-export type ProjectInitGitResponses = {
-  /**
-   * Project information after git initialization
-   */
-  200: OpencodeProject
-}
-
-export type ProjectInitGitResponse = ProjectInitGitResponses[keyof ProjectInitGitResponses]
-
-export type ProviderListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/provider"
-}
-
-export type ProviderListResponses = {
-  /**
-   * List of providers
-   */
-  200: {
-    all: Array<OpencodeProvider>
-    connected: Array<string>
-    default: {
-      [key: string]: string
-    }
-  }
-}
-
-export type ProviderListResponse = ProviderListResponses[keyof ProviderListResponses]
-
-export type ProviderOauthAuthorizeData = {
-  body?: {
-    inputs?: {
-      [key: string]: string
-    }
-    /**
-     * Auth method index
-     */
-    method: number
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    providerID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/provider/{providerID}/oauth/authorize"
-}
-
-export type ProviderOauthAuthorizeErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type ProviderOauthAuthorizeError =
-  ProviderOauthAuthorizeErrors[keyof ProviderOauthAuthorizeErrors]
-
-export type ProviderOauthAuthorizeResponses = {
-  /**
-   * Authorization URL and method
-   */
-  200: OpencodeProviderAuthAuthorization
-}
-
-export type ProviderOauthAuthorizeResponse =
-  ProviderOauthAuthorizeResponses[keyof ProviderOauthAuthorizeResponses]
-
-export type ProviderOauthCallbackData = {
-  body?: {
-    code?: string
-    /**
-     * Auth method index
-     */
-    method: number
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    providerID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/provider/{providerID}/oauth/callback"
-}
-
-export type ProviderOauthCallbackErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type ProviderOauthCallbackError =
-  ProviderOauthCallbackErrors[keyof ProviderOauthCallbackErrors]
-
-export type ProviderOauthCallbackResponses = {
-  /**
-   * OAuth callback processed successfully
-   */
-  200: boolean
-}
-
-export type ProviderOauthCallbackResponse =
-  ProviderOauthCallbackResponses[keyof ProviderOauthCallbackResponses]
-
-export type ProviderAuthData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/provider/auth"
-}
-
-export type ProviderAuthResponses = {
-  /**
-   * Provider auth methods
-   */
-  200: {
-    [key: string]: Array<OpencodeProviderAuthMethod>
-  }
-}
-
-export type ProviderAuthResponse = ProviderAuthResponses[keyof ProviderAuthResponses]
-
-export type PtyListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty"
-}
-
-export type PtyListResponses = {
-  /**
-   * List of sessions
-   */
-  200: Array<OpencodePty>
-}
-
-export type PtyListResponse = PtyListResponses[keyof PtyListResponses]
-
-export type PtyCreateData = {
-  body?: {
-    args?: Array<string>
-    command?: string
-    cwd?: string
-    env?: {
-      [key: string]: string
-    }
-    title?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty"
-}
-
-export type PtyCreateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type PtyCreateError = PtyCreateErrors[keyof PtyCreateErrors]
-
-export type PtyCreateResponses = {
-  /**
-   * Created session
-   */
-  200: OpencodePty
-}
-
-export type PtyCreateResponse = PtyCreateResponses[keyof PtyCreateResponses]
-
-export type PtyRemoveData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    ptyID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty/{ptyID}"
-}
-
-export type PtyRemoveErrors = {
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PtyRemoveError = PtyRemoveErrors[keyof PtyRemoveErrors]
-
-export type PtyRemoveResponses = {
-  /**
-   * Session removed
-   */
-  200: boolean
-}
-
-export type PtyRemoveResponse = PtyRemoveResponses[keyof PtyRemoveResponses]
-
-export type PtyGetData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    ptyID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty/{ptyID}"
-}
-
-export type PtyGetErrors = {
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PtyGetError = PtyGetErrors[keyof PtyGetErrors]
-
-export type PtyGetResponses = {
-  /**
-   * Session info
-   */
-  200: OpencodePty
-}
-
-export type PtyGetResponse = PtyGetResponses[keyof PtyGetResponses]
-
-export type PtyUpdateData = {
-  body?: {
-    size?: {
-      cols: number
-      rows: number
-    }
-    title?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    ptyID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty/{ptyID}"
-}
-
-export type PtyUpdateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type PtyUpdateError = PtyUpdateErrors[keyof PtyUpdateErrors]
-
-export type PtyUpdateResponses = {
-  /**
-   * Updated session
-   */
-  200: OpencodePty
-}
-
-export type PtyUpdateResponse = PtyUpdateResponses[keyof PtyUpdateResponses]
-
-export type PtyConnectData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    ptyID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty/{ptyID}/connect"
-}
-
-export type PtyConnectErrors = {
-  /**
-   * Forbidden
-   */
-  403: OpencodeeffectHttpApiErrorForbidden
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PtyConnectError = PtyConnectErrors[keyof PtyConnectErrors]
-
-export type PtyConnectResponses = {
-  /**
-   * Connected session
-   */
-  200: boolean
-}
-
-export type PtyConnectResponse = PtyConnectResponses[keyof PtyConnectResponses]
-
-export type PtyConnectTokenData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    ptyID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty/{ptyID}/connect-token"
-}
-
-export type PtyConnectTokenErrors = {
-  /**
-   * Forbidden
-   */
-  403: OpencodeeffectHttpApiErrorForbidden
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PtyConnectTokenError = PtyConnectTokenErrors[keyof PtyConnectTokenErrors]
-
-export type PtyConnectTokenResponses = {
-  /**
-   * WebSocket connect token
-   */
-  200: {
-    expires_in: number
-    ticket: string
-  }
-}
-
-export type PtyConnectTokenResponse = PtyConnectTokenResponses[keyof PtyConnectTokenResponses]
-
-export type PtyShellsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/pty/shells"
-}
-
-export type PtyShellsResponses = {
-  /**
-   * List of shells
-   */
-  200: Array<{
-    acceptable: boolean
-    name: string
-    path: string
-  }>
-}
-
-export type PtyShellsResponse = PtyShellsResponses[keyof PtyShellsResponses]
-
-export type QuestionListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/question"
-}
-
-export type QuestionListResponses = {
-  /**
-   * List of pending questions
-   */
-  200: Array<OpencodeQuestionRequest>
-}
-
-export type QuestionListResponse = QuestionListResponses[keyof QuestionListResponses]
-
-export type QuestionRejectData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    requestID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/question/{requestID}/reject"
-}
-
-export type QuestionRejectErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type QuestionRejectError = QuestionRejectErrors[keyof QuestionRejectErrors]
-
-export type QuestionRejectResponses = {
-  /**
-   * Question rejected successfully
-   */
-  200: boolean
-}
-
-export type QuestionRejectResponse = QuestionRejectResponses[keyof QuestionRejectResponses]
-
-export type QuestionReplyData = {
-  body?: {
-    /**
-     * User answers in order of questions (each answer is an array of selected labels)
-     */
-    answers: Array<OpencodeQuestionAnswer>
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    requestID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/question/{requestID}/reply"
-}
-
-export type QuestionReplyErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type QuestionReplyError = QuestionReplyErrors[keyof QuestionReplyErrors]
-
-export type QuestionReplyResponses = {
-  /**
-   * Question answered successfully
-   */
-  200: boolean
-}
-
-export type QuestionReplyResponse = QuestionReplyResponses[keyof QuestionReplyResponses]
-
-export type SessionListData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-    scope?: "project"
-    path?: string
-    roots?: boolean | "true" | "false"
-    start?: number
-    search?: string
-    limit?: number
-  }
-  url: "/api/opencode/{agentName}/session"
-}
-
-export type SessionListResponses = {
-  /**
-   * List of sessions
-   */
-  200: Array<OpencodeSession>
-}
-
-export type SessionListResponse = SessionListResponses[keyof SessionListResponses]
-
-export type SessionCreateData = {
-  body?: {
-    agent?: string
-    model?: {
-      id: string
-      providerID: string
-      variant?: string
-    }
-    parentID?: string
-    permission?: OpencodePermissionRuleset
-    title?: string
-    workspaceID?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session"
-}
-
-export type SessionCreateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type SessionCreateError = SessionCreateErrors[keyof SessionCreateErrors]
-
-export type SessionCreateResponses = {
-  /**
-   * Successfully created session
-   */
-  200: OpencodeSession
-}
-
-export type SessionCreateResponse = SessionCreateResponses[keyof SessionCreateResponses]
-
-export type SessionDeleteData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}"
-}
-
-export type SessionDeleteErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionDeleteError = SessionDeleteErrors[keyof SessionDeleteErrors]
-
-export type SessionDeleteResponses = {
-  /**
-   * Successfully deleted session
-   */
-  200: boolean
-}
-
-export type SessionDeleteResponse = SessionDeleteResponses[keyof SessionDeleteResponses]
-
-export type SessionGetData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}"
-}
-
-export type SessionGetErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionGetError = SessionGetErrors[keyof SessionGetErrors]
-
-export type SessionGetResponses = {
-  /**
-   * Get session
-   */
-  200: OpencodeSession
-}
-
-export type SessionGetResponse = SessionGetResponses[keyof SessionGetResponses]
-
-export type SessionUpdateData = {
-  body?: {
-    permission?: OpencodePermissionRuleset
-    time?: {
-      archived?: number
-    }
-    title?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}"
-}
-
-export type SessionUpdateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionUpdateError = SessionUpdateErrors[keyof SessionUpdateErrors]
-
-export type SessionUpdateResponses = {
-  /**
-   * Successfully updated session
-   */
-  200: OpencodeSession
-}
-
-export type SessionUpdateResponse = SessionUpdateResponses[keyof SessionUpdateResponses]
-
-export type SessionAbortData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/abort"
-}
-
-export type SessionAbortErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionAbortError = SessionAbortErrors[keyof SessionAbortErrors]
-
-export type SessionAbortResponses = {
-  /**
-   * Aborted session
-   */
-  200: boolean
-}
-
-export type SessionAbortResponse = SessionAbortResponses[keyof SessionAbortResponses]
-
-export type SessionChildrenData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/children"
-}
-
-export type SessionChildrenErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionChildrenError = SessionChildrenErrors[keyof SessionChildrenErrors]
-
-export type SessionChildrenResponses = {
-  /**
-   * List of children
-   */
-  200: Array<OpencodeSession>
-}
-
-export type SessionChildrenResponse = SessionChildrenResponses[keyof SessionChildrenResponses]
-
-export type SessionCommandData = {
-  body?: {
-    agent?: string
-    arguments: string
-    command: string
-    messageID?: string
-    model?: string
-    parts?: Array<{
-      filename?: string
-      id?: string
-      mime: string
-      source?: OpencodeFilePartSource
-      type: "file"
-      url: string
-    }>
-    variant?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/command"
-}
-
-export type SessionCommandErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionCommandError = SessionCommandErrors[keyof SessionCommandErrors]
-
-export type SessionCommandResponses = {
-  /**
-   * Created message
-   */
-  200: {
-    info: OpencodeAssistantMessage
-    parts: Array<OpencodePart>
-  }
-}
-
-export type SessionCommandResponse = SessionCommandResponses[keyof SessionCommandResponses]
-
-export type SessionDiffData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-    messageID?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/diff"
-}
-
-export type SessionDiffResponses = {
-  /**
-   * Successfully retrieved diff
-   */
-  200: Array<OpencodeSnapshotFileDiff>
-}
-
-export type SessionDiffResponse = SessionDiffResponses[keyof SessionDiffResponses]
-
-export type SessionForkData = {
-  body?: {
-    messageID?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/fork"
-}
-
-export type SessionForkErrors = {
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionForkError = SessionForkErrors[keyof SessionForkErrors]
-
-export type SessionForkResponses = {
-  /**
-   * 200
-   */
-  200: OpencodeSession
-}
-
-export type SessionForkResponse = SessionForkResponses[keyof SessionForkResponses]
-
-export type SessionInitData = {
-  body?: {
-    messageID: string
-    modelID: string
-    providerID: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/init"
-}
-
-export type SessionInitErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionInitError = SessionInitErrors[keyof SessionInitErrors]
-
-export type SessionInitResponses = {
-  /**
-   * 200
-   */
-  200: boolean
-}
-
-export type SessionInitResponse = SessionInitResponses[keyof SessionInitResponses]
-
-export type SessionMessagesData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-    limit?: number
-    before?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/message"
-}
-
-export type SessionMessagesErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionMessagesError = SessionMessagesErrors[keyof SessionMessagesErrors]
-
-export type SessionMessagesResponses = {
-  /**
-   * List of messages
-   */
-  200: Array<{
-    info: OpencodeMessage
-    parts: Array<OpencodePart>
-  }>
-}
-
-export type SessionMessagesResponse = SessionMessagesResponses[keyof SessionMessagesResponses]
-
-export type SessionPromptData = {
-  body?: {
-    agent?: string
-    format?: OpencodeOutputFormat
-    messageID?: string
-    model?: {
-      modelID: string
-      providerID: string
-    }
-    noReply?: boolean
-    parts: Array<
-      | OpencodeTextPartInput
-      | OpencodeFilePartInput
-      | OpencodeAgentPartInput
-      | OpencodeSubtaskPartInput
-    >
-    system?: string
-    tools?: {
-      [key: string]: boolean
-    }
-    variant?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/message"
-}
-
-export type SessionPromptErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionPromptError = SessionPromptErrors[keyof SessionPromptErrors]
-
-export type SessionPromptResponses = {
-  /**
-   * Created message
-   */
-  200: {
-    info: OpencodeAssistantMessage
-    parts: Array<OpencodePart>
-  }
-}
-
-export type SessionPromptResponse = SessionPromptResponses[keyof SessionPromptResponses]
-
-export type SessionDeleteMessageData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-    messageID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}"
-}
-
-export type SessionDeleteMessageErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionDeleteMessageError = SessionDeleteMessageErrors[keyof SessionDeleteMessageErrors]
-
-export type SessionDeleteMessageResponses = {
-  /**
-   * Successfully deleted message
-   */
-  200: boolean
-}
-
-export type SessionDeleteMessageResponse =
-  SessionDeleteMessageResponses[keyof SessionDeleteMessageResponses]
-
-export type SessionMessageData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-    messageID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}"
-}
-
-export type SessionMessageErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionMessageError = SessionMessageErrors[keyof SessionMessageErrors]
-
-export type SessionMessageResponses = {
-  /**
-   * Message
-   */
-  200: {
-    info: OpencodeMessage
-    parts: Array<OpencodePart>
-  }
-}
-
-export type SessionMessageResponse = SessionMessageResponses[keyof SessionMessageResponses]
-
-export type PartDeleteData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-    messageID: string
-    partID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID}"
-}
-
-export type PartDeleteErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PartDeleteError = PartDeleteErrors[keyof PartDeleteErrors]
-
-export type PartDeleteResponses = {
-  /**
-   * Successfully deleted part
-   */
-  200: boolean
-}
-
-export type PartDeleteResponse = PartDeleteResponses[keyof PartDeleteResponses]
-
-export type PartUpdateData = {
-  body?: OpencodePart
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-    messageID: string
-    partID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID}"
-}
-
-export type PartUpdateErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PartUpdateError = PartUpdateErrors[keyof PartUpdateErrors]
-
-export type PartUpdateResponses = {
-  /**
-   * Successfully updated part
-   */
-  200: OpencodePart
-}
-
-export type PartUpdateResponse = PartUpdateResponses[keyof PartUpdateResponses]
-
-export type PermissionRespondData = {
-  body?: {
-    response: "once" | "always" | "reject"
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-    permissionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID}"
-}
-
-export type PermissionRespondErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type PermissionRespondError = PermissionRespondErrors[keyof PermissionRespondErrors]
-
-export type PermissionRespondResponses = {
-  /**
-   * Permission processed successfully
-   */
-  200: boolean
-}
-
-export type PermissionRespondResponse = PermissionRespondResponses[keyof PermissionRespondResponses]
-
-export type SessionPromptAsyncData = {
-  body?: {
-    agent?: string
-    format?: OpencodeOutputFormat
-    messageID?: string
-    model?: {
-      modelID: string
-      providerID: string
-    }
-    noReply?: boolean
-    parts: Array<
-      | OpencodeTextPartInput
-      | OpencodeFilePartInput
-      | OpencodeAgentPartInput
-      | OpencodeSubtaskPartInput
-    >
-    system?: string
-    tools?: {
-      [key: string]: boolean
-    }
-    variant?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/prompt_async"
-}
-
-export type SessionPromptAsyncErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionPromptAsyncError = SessionPromptAsyncErrors[keyof SessionPromptAsyncErrors]
-
-export type SessionPromptAsyncResponses = {
-  /**
-   * Prompt accepted
-   */
-  204: void
-}
-
-export type SessionPromptAsyncResponse =
-  SessionPromptAsyncResponses[keyof SessionPromptAsyncResponses]
-
-export type SessionRevertData = {
-  body?: {
-    messageID: string
-    partID?: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/revert"
-}
-
-export type SessionRevertErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionRevertError = SessionRevertErrors[keyof SessionRevertErrors]
-
-export type SessionRevertResponses = {
-  /**
-   * Updated session
-   */
-  200: OpencodeSession
-}
-
-export type SessionRevertResponse = SessionRevertResponses[keyof SessionRevertResponses]
-
-export type SessionUnshareData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/share"
-}
-
-export type SessionUnshareErrors = {
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-  /**
-   * InternalServerError
-   */
-  500: OpencodeeffectHttpApiErrorInternalServerError
-}
-
-export type SessionUnshareError = SessionUnshareErrors[keyof SessionUnshareErrors]
-
-export type SessionUnshareResponses = {
-  /**
-   * Successfully unshared session
-   */
-  200: OpencodeSession
-}
-
-export type SessionUnshareResponse = SessionUnshareResponses[keyof SessionUnshareResponses]
-
-export type SessionShareData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/share"
-}
-
-export type SessionShareErrors = {
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-  /**
-   * InternalServerError
-   */
-  500: OpencodeeffectHttpApiErrorInternalServerError
-}
-
-export type SessionShareError = SessionShareErrors[keyof SessionShareErrors]
-
-export type SessionShareResponses = {
-  /**
-   * Successfully shared session
-   */
-  200: OpencodeSession
-}
-
-export type SessionShareResponse = SessionShareResponses[keyof SessionShareResponses]
-
-export type SessionShellData = {
-  body?: {
-    agent: string
-    command: string
-    messageID?: string
-    model?: {
-      modelID: string
-      providerID: string
-    }
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/shell"
-}
-
-export type SessionShellErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionShellError = SessionShellErrors[keyof SessionShellErrors]
-
-export type SessionShellResponses = {
-  /**
-   * Created message
-   */
-  200: {
-    info: OpencodeMessage
-    parts: Array<OpencodePart>
-  }
-}
-
-export type SessionShellResponse = SessionShellResponses[keyof SessionShellResponses]
-
-export type SessionSummarizeData = {
-  body?: {
-    auto?: boolean
-    modelID: string
-    providerID: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/summarize"
-}
-
-export type SessionSummarizeErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionSummarizeError = SessionSummarizeErrors[keyof SessionSummarizeErrors]
-
-export type SessionSummarizeResponses = {
-  /**
-   * Summarized session
-   */
-  200: boolean
-}
-
-export type SessionSummarizeResponse = SessionSummarizeResponses[keyof SessionSummarizeResponses]
-
-export type SessionTodoData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/todo"
-}
-
-export type SessionTodoErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionTodoError = SessionTodoErrors[keyof SessionTodoErrors]
-
-export type SessionTodoResponses = {
-  /**
-   * Todo list
-   */
-  200: Array<OpencodeTodo>
-}
-
-export type SessionTodoResponse = SessionTodoResponses[keyof SessionTodoResponses]
-
-export type SessionUnrevertData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/{sessionID}/unrevert"
-}
-
-export type SessionUnrevertErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * Not found
-   */
-  404: OpencodeNotFoundError
-}
-
-export type SessionUnrevertError = SessionUnrevertErrors[keyof SessionUnrevertErrors]
-
-export type SessionUnrevertResponses = {
-  /**
-   * Updated session
-   */
-  200: OpencodeSession
-}
-
-export type SessionUnrevertResponse = SessionUnrevertResponses[keyof SessionUnrevertResponses]
-
-export type SessionStatusData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/session/status"
-}
-
-export type SessionStatusErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type SessionStatusError = SessionStatusErrors[keyof SessionStatusErrors]
-
-export type SessionStatusResponses = {
-  /**
-   * Get session status
-   */
-  200: {
-    [key: string]: OpencodeSessionStatus
-  }
-}
-
-export type SessionStatusResponse = SessionStatusResponses[keyof SessionStatusResponses]
-
-export type AppSkillsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/skill"
-}
-
-export type AppSkillsResponses = {
-  /**
-   * List of skills
-   */
-  200: Array<{
-    content: string
-    description?: string
-    location: string
-    name: string
-  }>
-}
-
-export type AppSkillsResponse = AppSkillsResponses[keyof AppSkillsResponses]
-
-export type SyncHistoryListData = {
-  body?: {
-    [key: string]: number
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/sync/history"
-}
-
-export type SyncHistoryListErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type SyncHistoryListError = SyncHistoryListErrors[keyof SyncHistoryListErrors]
-
-export type SyncHistoryListResponses = {
-  /**
-   * Sync events
-   */
-  200: Array<{
-    aggregate_id: string
-    data: {
-      [key: string]: unknown
-    }
-    id: string
-    seq: number
-    type: string
-  }>
-}
-
-export type SyncHistoryListResponse = SyncHistoryListResponses[keyof SyncHistoryListResponses]
-
-export type SyncReplayData = {
-  body?: {
-    directory: string
-    events: Array<{
-      aggregateID: string
-      data: {
-        [key: string]: unknown
-      }
-      id: string
-      seq: number
-      type: string
-    }>
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/sync/replay"
-}
-
-export type SyncReplayErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type SyncReplayError = SyncReplayErrors[keyof SyncReplayErrors]
-
-export type SyncReplayResponses = {
-  /**
-   * Replayed sync events
-   */
-  200: {
-    sessionID: string
-  }
-}
-
-export type SyncReplayResponse = SyncReplayResponses[keyof SyncReplayResponses]
-
-export type SyncStartData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/sync/start"
-}
-
-export type SyncStartResponses = {
-  /**
-   * Workspace sync started
-   */
-  200: boolean
-}
-
-export type SyncStartResponse = SyncStartResponses[keyof SyncStartResponses]
-
-export type SyncStealData = {
-  body?: {
-    sessionID: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/sync/steal"
-}
-
-export type SyncStealErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type SyncStealError = SyncStealErrors[keyof SyncStealErrors]
-
-export type SyncStealResponses = {
-  /**
-   * Session stolen into workspace
-   */
-  200: {
-    sessionID: string
-  }
-}
-
-export type SyncStealResponse = SyncStealResponses[keyof SyncStealResponses]
-
-export type TuiAppendPromptData = {
-  body?: {
-    text: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/append-prompt"
-}
-
-export type TuiAppendPromptErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type TuiAppendPromptError = TuiAppendPromptErrors[keyof TuiAppendPromptErrors]
-
-export type TuiAppendPromptResponses = {
-  /**
-   * Prompt processed successfully
-   */
-  200: boolean
-}
-
-export type TuiAppendPromptResponse = TuiAppendPromptResponses[keyof TuiAppendPromptResponses]
-
-export type TuiClearPromptData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/clear-prompt"
-}
-
-export type TuiClearPromptResponses = {
-  /**
-   * Prompt cleared successfully
-   */
-  200: boolean
-}
-
-export type TuiClearPromptResponse = TuiClearPromptResponses[keyof TuiClearPromptResponses]
-
-export type TuiControlNextData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/control/next"
-}
-
-export type TuiControlNextResponses = {
-  /**
-   * Next TUI request
-   */
-  200: {
-    body: unknown
-    path: string
-  }
-}
-
-export type TuiControlNextResponse = TuiControlNextResponses[keyof TuiControlNextResponses]
-
-export type TuiControlResponseData = {
-  body?: unknown
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/control/response"
-}
-
-export type TuiControlResponseResponses = {
-  /**
-   * Response submitted successfully
-   */
-  200: boolean
-}
-
-export type TuiControlResponseResponse =
-  TuiControlResponseResponses[keyof TuiControlResponseResponses]
-
-export type TuiExecuteCommandData = {
-  body?: {
-    command: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/execute-command"
-}
-
-export type TuiExecuteCommandErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type TuiExecuteCommandError = TuiExecuteCommandErrors[keyof TuiExecuteCommandErrors]
-
-export type TuiExecuteCommandResponses = {
-  /**
-   * Command executed successfully
-   */
-  200: boolean
-}
-
-export type TuiExecuteCommandResponse = TuiExecuteCommandResponses[keyof TuiExecuteCommandResponses]
-
-export type TuiOpenHelpData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/open-help"
-}
-
-export type TuiOpenHelpResponses = {
-  /**
-   * Help dialog opened successfully
-   */
-  200: boolean
-}
-
-export type TuiOpenHelpResponse = TuiOpenHelpResponses[keyof TuiOpenHelpResponses]
-
-export type TuiOpenModelsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/open-models"
-}
-
-export type TuiOpenModelsResponses = {
-  /**
-   * Model dialog opened successfully
-   */
-  200: boolean
-}
-
-export type TuiOpenModelsResponse = TuiOpenModelsResponses[keyof TuiOpenModelsResponses]
-
-export type TuiOpenSessionsData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/open-sessions"
-}
-
-export type TuiOpenSessionsResponses = {
-  /**
-   * Session dialog opened successfully
-   */
-  200: boolean
-}
-
-export type TuiOpenSessionsResponse = TuiOpenSessionsResponses[keyof TuiOpenSessionsResponses]
-
-export type TuiOpenThemesData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/open-themes"
-}
-
-export type TuiOpenThemesResponses = {
-  /**
-   * Theme dialog opened successfully
-   */
-  200: boolean
-}
-
-export type TuiOpenThemesResponse = TuiOpenThemesResponses[keyof TuiOpenThemesResponses]
-
-export type TuiPublishData = {
-  body?:
-    | OpencodeEventTuiPromptAppend2
-    | OpencodeEventTuiCommandExecute2
-    | OpencodeEventTuiToastShow2
-    | OpencodeEventTuiSessionSelect2
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/publish"
-}
-
-export type TuiPublishErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-}
-
-export type TuiPublishError = TuiPublishErrors[keyof TuiPublishErrors]
-
-export type TuiPublishResponses = {
-  /**
-   * Event published successfully
-   */
-  200: boolean
-}
-
-export type TuiPublishResponse = TuiPublishResponses[keyof TuiPublishResponses]
-
-export type TuiSelectSessionData = {
-  body?: {
-    /**
-     * Session ID to navigate to
-     */
-    sessionID: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/select-session"
-}
-
-export type TuiSelectSessionErrors = {
-  /**
-   * Bad request
-   */
-  400: OpencodeBadRequestError
-  /**
-   * NotFoundError
-   */
-  404: OpencodeNotFoundError
-}
-
-export type TuiSelectSessionError = TuiSelectSessionErrors[keyof TuiSelectSessionErrors]
-
-export type TuiSelectSessionResponses = {
-  /**
-   * Session selected successfully
-   */
-  200: boolean
-}
-
-export type TuiSelectSessionResponse = TuiSelectSessionResponses[keyof TuiSelectSessionResponses]
-
-export type TuiShowToastData = {
-  body?: {
-    duration?: number
-    message: string
-    title?: string
-    variant: "info" | "success" | "warning" | "error"
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/show-toast"
-}
-
-export type TuiShowToastResponses = {
-  /**
-   * Toast notification shown successfully
-   */
-  200: boolean
-}
-
-export type TuiShowToastResponse = TuiShowToastResponses[keyof TuiShowToastResponses]
-
-export type TuiSubmitPromptData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/tui/submit-prompt"
-}
-
-export type TuiSubmitPromptResponses = {
-  /**
-   * Prompt submitted successfully
-   */
-  200: boolean
-}
-
-export type TuiSubmitPromptResponse = TuiSubmitPromptResponses[keyof TuiSubmitPromptResponses]
-
-export type VcsGetData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/vcs"
-}
-
-export type VcsGetResponses = {
-  /**
-   * VCS info
-   */
-  200: OpencodeVcsInfo
-}
-
-export type VcsGetResponse = VcsGetResponses[keyof VcsGetResponses]
-
-export type VcsApplyData = {
-  body?: {
-    patch: string
-  }
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/vcs/apply"
-}
-
-export type VcsApplyErrors = {
-  /**
-   * VcsApplyError
-   */
-  400: OpencodeVcsApplyError
-}
-
-export type VcsApplyError = VcsApplyErrors[keyof VcsApplyErrors]
-
-export type VcsApplyResponses = {
-  /**
-   * VCS patch applied
-   */
-  200: {
-    applied: boolean
-  }
-}
-
-export type VcsApplyResponse = VcsApplyResponses[keyof VcsApplyResponses]
-
-export type VcsDiffData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query: {
-    directory?: string
-    workspace?: string
-    mode: "git" | "branch"
-  }
-  url: "/api/opencode/{agentName}/vcs/diff"
-}
-
-export type VcsDiffResponses = {
-  /**
-   * VCS diff
-   */
-  200: Array<OpencodeVcsFileDiff>
-}
-
-export type VcsDiffResponse = VcsDiffResponses[keyof VcsDiffResponses]
-
-export type VcsDiffRawData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/vcs/diff/raw"
-}
-
-export type VcsDiffRawResponses = {
-  /**
-   * Raw VCS diff
-   */
-  200: string
-}
-
-export type VcsDiffRawResponse = VcsDiffRawResponses[keyof VcsDiffRawResponses]
-
-export type VcsStatusData = {
-  body?: never
-  path: {
-    /**
-     * ClawArmor agent name.
-     */
-    agentName: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/api/opencode/{agentName}/vcs/status"
-}
-
-export type VcsStatusResponses = {
-  /**
-   * VCS status
-   */
-  200: Array<OpencodeVcsFileStatus>
-}
-
-export type VcsStatusResponse = VcsStatusResponses[keyof VcsStatusResponses]
+export type PutSecretResponse = PutSecretResponses[keyof PutSecretResponses]
 
 export type DeleteSecretData = {
   body: DeleteSecretsRequest
@@ -8758,19 +1138,85 @@ export type ListSecretsResponses = {
 
 export type ListSecretsResponse2 = ListSecretsResponses[keyof ListSecretsResponses]
 
-export type PutSecretData = {
-  body: PutSecretsRequest
-  path: {
+export type ListEnvironmentsData = {
+  body?: never
+  path?: never
+  query?: {
     /**
-     * Agent name.
+     * Maximum number of items to return.
      */
-    agentName: AgentName
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
   }
-  query?: never
-  url: "/api/secret/{agentName}/put"
+  url: "/api/environment/list"
 }
 
-export type PutSecretErrors = {
+export type ListEnvironmentsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListEnvironmentsError = ListEnvironmentsErrors[keyof ListEnvironmentsErrors]
+
+export type ListEnvironmentsResponses = {
+  /**
+   * Paginated environments.
+   */
+  200: ListEnvironmentsResponse
+}
+
+export type ListEnvironmentsResponse2 = ListEnvironmentsResponses[keyof ListEnvironmentsResponses]
+
+export type CreateEnvironmentData = {
+  body: CreateEnvironmentRequest
+  path?: never
+  query?: never
+  url: "/api/environment/create"
+}
+
+export type CreateEnvironmentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateEnvironmentError = CreateEnvironmentErrors[keyof CreateEnvironmentErrors]
+
+export type CreateEnvironmentResponses = {
+  /**
+   * Environment created.
+   */
+  201: Environment
+}
+
+export type CreateEnvironmentResponse = CreateEnvironmentResponses[keyof CreateEnvironmentResponses]
+
+export type DeleteEnvironmentData = {
+  body: DeleteEnvironmentRequest
+  path?: never
+  query?: never
+  url: "/api/environment/delete"
+}
+
+export type DeleteEnvironmentErrors = {
   /**
    * Request validation failed.
    */
@@ -8785,13 +1231,51 @@ export type PutSecretErrors = {
   500: Error
 }
 
-export type PutSecretError = PutSecretErrors[keyof PutSecretErrors]
+export type DeleteEnvironmentError = DeleteEnvironmentErrors[keyof DeleteEnvironmentErrors]
 
-export type PutSecretResponses = {
+export type DeleteEnvironmentResponses = {
   /**
-   * Secrets stored.
+   * Environment deleted.
    */
-  201: PutSecretsResponse
+  204: void
 }
 
-export type PutSecretResponse = PutSecretResponses[keyof PutSecretResponses]
+export type DeleteEnvironmentResponse = DeleteEnvironmentResponses[keyof DeleteEnvironmentResponses]
+
+export type UpdateEnvironmentData = {
+  body: UpdateEnvironmentRequest
+  path: {
+    /**
+     * Environment name.
+     */
+    name: EnvironmentName
+  }
+  query?: never
+  url: "/api/environment/update/{name}"
+}
+
+export type UpdateEnvironmentErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateEnvironmentError = UpdateEnvironmentErrors[keyof UpdateEnvironmentErrors]
+
+export type UpdateEnvironmentResponses = {
+  /**
+   * Environment updated.
+   */
+  200: Environment
+}
+
+export type UpdateEnvironmentResponse = UpdateEnvironmentResponses[keyof UpdateEnvironmentResponses]

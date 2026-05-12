@@ -1,26 +1,4 @@
-import type * as z from "zod"
 import type { Agent, Environment, Error, SessionMessagesResponse } from "@/lib/gateway/client"
-import type {
-  compactionSchema,
-  createAgentFormSchema,
-  identitySchema,
-  modelSchema,
-  toolsSchema,
-} from "@/data/schema"
-
-export type Identity = z.infer<typeof identitySchema>
-export type Compaction = z.infer<typeof compactionSchema>
-export type Model = z.infer<typeof modelSchema>
-export type Tools = z.infer<typeof toolsSchema>
-export type CreateAgentFormValues = z.infer<typeof createAgentFormSchema>
-
-export type AgentWizardValues = {
-  identity: Identity
-  compaction: Compaction
-  model: Model
-  tools: Tools
-}
-
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
       agents: TAgent[]

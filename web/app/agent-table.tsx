@@ -8,7 +8,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import type { Agent } from "@/lib/gateway/client"
+import type { Agent, Environment } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,12 +31,18 @@ const columnClassName: Record<string, string> = {
 
 export function AgentTable({
   agents,
+  environments,
   hasNextPage,
+  initialHasNextEnvironmentPage,
+  initialNextEnvironmentPageToken,
   nextPageToken,
   deleteAgentAction,
 }: {
   agents: Agent[]
+  environments: Environment[]
   hasNextPage: boolean
+  initialHasNextEnvironmentPage: boolean
+  initialNextEnvironmentPageToken: string
   nextPageToken: string
   deleteAgentAction: (
     agentName: string,
@@ -48,7 +54,21 @@ export function AgentTable({
 
   const [sorting, setSorting] = React.useState<SortingState>([])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
-  const columns = React.useMemo(() => createAgentColumns(deleteAgentAction), [deleteAgentAction])
+  const columns = React.useMemo(
+    () =>
+      createAgentColumns(
+        deleteAgentAction,
+        environments,
+        initialHasNextEnvironmentPage,
+        initialNextEnvironmentPageToken
+      ),
+    [
+      deleteAgentAction,
+      environments,
+      initialHasNextEnvironmentPage,
+      initialNextEnvironmentPageToken,
+    ]
+  )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
     data: agents,

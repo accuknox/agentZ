@@ -4,7 +4,8 @@ import Link from "next/link"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
-import type { Agent } from "@/lib/gateway/client"
+import type { Agent, Environment } from "@/lib/gateway/client"
+import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -30,7 +31,12 @@ type DeleteAgentAction = (
   formData: FormData
 ) => Promise<DeleteAgentFormState>
 
-export function createAgentColumns(deleteAgentAction: DeleteAgentAction): ColumnDef<Agent>[] {
+export function createAgentColumns(
+  deleteAgentAction: DeleteAgentAction,
+  environments: Environment[],
+  initialHasNextEnvironmentPage: boolean,
+  initialNextEnvironmentPageToken: string
+): ColumnDef<Agent>[] {
   return [
     {
       accessorKey: "name",
@@ -73,7 +79,15 @@ export function createAgentColumns(deleteAgentAction: DeleteAgentAction): Column
       cell: ({ row }) => {
         const agent = row.original
 
-        return <AgentActions agent={agent} deleteAgentAction={deleteAgentAction} />
+        return (
+          <AgentActions
+            agent={agent}
+            deleteAgentAction={deleteAgentAction}
+            environments={environments}
+            initialHasNextEnvironmentPage={initialHasNextEnvironmentPage}
+            initialNextEnvironmentPageToken={initialNextEnvironmentPageToken}
+          />
+        )
       },
     },
   ]
@@ -82,11 +96,18 @@ export function createAgentColumns(deleteAgentAction: DeleteAgentAction): Column
 function AgentActions({
   agent,
   deleteAgentAction,
+  environments,
+  initialHasNextEnvironmentPage,
+  initialNextEnvironmentPageToken,
 }: {
   agent: Agent
   deleteAgentAction: DeleteAgentAction
+  environments: Environment[]
+  initialHasNextEnvironmentPage: boolean
+  initialNextEnvironmentPageToken: string
 }) {
-  const [open, setOpen] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const [editOpen, setEditOpen] = React.useState(false)
 
   return (
     <div className="flex justify-end">
@@ -101,20 +122,35 @@ function AgentActions({
           <DropdownMenuItem asChild>
             <Link href={`/agents/${agent.name}`}>Chat</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href={`/agent/update/${agent.name}`}>Edit</Link>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              setEditOpen(true)
+            }}
+          >
+            Edit
           </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive" onSelect={() => setOpen(true)}>
+          <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
             <Trash2 />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <AgentDialog
+        mode="update"
+        agentName={agent.name}
+        initialEnvironmentName={agent.environmentName}
+        environments={environments}
+        initialHasNextEnvironmentPage={initialHasNextEnvironmentPage}
+        initialNextEnvironmentPageToken={initialNextEnvironmentPageToken}
+        open={editOpen}
+        onOpenChangeAction={setEditOpen}
+      />
       <DeleteAgentDialog
         agent={agent}
         deleteAgentAction={deleteAgentAction}
-        open={open}
-        setOpen={setOpen}
+        open={deleteOpen}
+        setOpen={setDeleteOpen}
       />
     </div>
   )

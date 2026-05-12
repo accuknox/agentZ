@@ -115,11 +115,12 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
-		Name:         row.AgentName,
-		CreatedAt:    row.CreatedAt,
-		ModifiedAt:   row.UpdatedAt,
-		LastActivity: row.UpdatedAt,
-		Status:       gatewayapi.PROGRESSING,
+		Name:            row.AgentName,
+		EnvironmentName: req.EnvironmentName,
+		CreatedAt:       row.CreatedAt,
+		ModifiedAt:      row.UpdatedAt,
+		LastActivity:    row.UpdatedAt,
+		Status:          gatewayapi.PROGRESSING,
 	})
 }
 
@@ -209,11 +210,12 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		status = statusFromView(view)
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.Agent{
-		Name:         row.AgentName,
-		CreatedAt:    row.CreatedAt,
-		ModifiedAt:   row.UpdatedAt,
-		LastActivity: row.UpdatedAt,
-		Status:       status,
+		Name:            row.AgentName,
+		EnvironmentName: updated.Spec.EnvironmentRef.Name,
+		CreatedAt:       row.CreatedAt,
+		ModifiedAt:      row.UpdatedAt,
+		LastActivity:    row.UpdatedAt,
+		Status:          status,
 	})
 }
 
@@ -421,11 +423,12 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		}
 
 		items = append(items, gatewayapi.Agent{
-			Name:         row.AgentName,
-			LastActivity: row.UpdatedAt,
-			CreatedAt:    row.CreatedAt,
-			ModifiedAt:   row.UpdatedAt,
-			Status:       status,
+			Name:            row.AgentName,
+			EnvironmentName: resolved.Agent.Spec.EnvironmentRef.Name,
+			LastActivity:    row.UpdatedAt,
+			CreatedAt:       row.CreatedAt,
+			ModifiedAt:      row.UpdatedAt,
+			Status:          status,
 		})
 	}
 	return items, next, nil

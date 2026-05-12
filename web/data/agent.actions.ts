@@ -14,7 +14,7 @@ import type {
   CreateAgentFormState,
   DeleteAgentFormState,
 } from "@/data/types"
-import { createAgentRequest, updateAgentRequest, parseAgentForm } from "@/data/utils"
+import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag } from "@/data/cache"
 
 type ChatHistoryQuery = {
@@ -48,12 +48,24 @@ export async function createAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = parseAgentForm(formData)
-  if (parsed.state) {
-    return parsed.state
+  const parsed = createAgentSimpleFormSchema.safeParse({
+    name: formData.get("name"),
+    environmentName: formData.get("environmentName"),
+  })
+  if (!parsed.success) {
+    return {
+      error: {
+        code: "INVALID_FORM",
+        message: "Agent configuration is invalid",
+        errors: parsed.error.issues.map((issue) => ({
+          field: issue.path.map((part) => String(part)).join("."),
+          message: issue.message,
+        })),
+      },
+    }
   }
 
-  const result = await createAgent({ body: createAgentRequest(parsed.data) })
+  const result = await createAgent({ body: parsed.data })
   if (result.error) {
     return { error: result.error }
   }
@@ -67,13 +79,24 @@ export async function updateAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = parseAgentForm(formData)
-  if (parsed.state) {
-    return parsed.state
+  const parsed = updateAgentSimpleFormSchema.safeParse({
+    environmentName: formData.get("environmentName"),
+  })
+  if (!parsed.success) {
+    return {
+      error: {
+        code: "INVALID_FORM",
+        message: "Agent configuration is invalid",
+        errors: parsed.error.issues.map((issue) => ({
+          field: issue.path.map((part) => String(part)).join("."),
+          message: issue.message,
+        })),
+      },
+    }
   }
 
   const result = await updateAgent({
-    body: updateAgentRequest(parsed.data),
+    body: parsed.data,
     path: { agentName },
   })
   if (result.error) {

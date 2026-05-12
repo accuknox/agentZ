@@ -149,6 +149,8 @@ components:
         created_at:
           format: date-time
           type: string
+        environmentName:
+          $ref: '#/components/schemas/EnvironmentName'
         last_activity:
           format: date-time
           type: string
@@ -161,6 +163,7 @@ components:
           $ref: '#/components/schemas/AgentStatus'
       required:
       - name
+      - environmentName
       - last_activity
       - created_at
       - modified_at

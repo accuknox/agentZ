@@ -6,6 +6,7 @@ export type ClientOptions = {
 
 export type Agent = {
   created_at: string
+  environmentName: EnvironmentName
   last_activity: string
   modified_at: string
   name: AgentName

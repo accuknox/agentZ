@@ -10,14 +10,6 @@ export const zAgentName = z
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
 
-export const zAgent = z.object({
-  created_at: z.iso.datetime(),
-  last_activity: z.iso.datetime(),
-  modified_at: z.iso.datetime(),
-  name: zAgentName,
-  status: zAgentStatus,
-})
-
 export const zDeleteAgentRequest = z.object({
   agent_name: zAgentName,
 })
@@ -30,6 +22,15 @@ export const zEnvironmentName = z
   .min(1)
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zAgent = z.object({
+  created_at: z.iso.datetime(),
+  environmentName: zEnvironmentName,
+  last_activity: z.iso.datetime(),
+  modified_at: z.iso.datetime(),
+  name: zAgentName,
+  status: zAgentStatus,
+})
 
 export const zCreateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),

@@ -235,7 +235,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <Conversation>
-        <ConversationContent className="mx-auto w-full lg:w-3/5 lg:px-4">
+        <ConversationContent className="mx-auto w-full lg:w-4/5">
           {isPending ? (
             <div className="flex min-h-48 items-center justify-center">
               <Spinner aria-label="Loading session messages" />
@@ -267,7 +267,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         <ConversationScrollButton />
       </Conversation>
       <div className="grid shrink-0 gap-4 pt-4">
-        <div className="mx-auto w-full px-4 pb-4 lg:w-3/5 lg:px-8">
+        <div className="mx-auto w-full pb-4 lg:w-4/5 lg:px-0 px-4">
           <PromptInput globalDrop multiple onSubmit={handleSubmit}>
             <PromptInputHeader>
               <PromptInputAttachmentsDisplay />

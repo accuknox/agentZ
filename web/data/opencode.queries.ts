@@ -1,6 +1,6 @@
-import type { Session } from "@opencode-ai/sdk"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type { ListAgentSessionActionResponse } from "@/data/types"
+import { sortAgentSessions, toAgentSessionListItem } from "@/lib/opencode/session-list"
 
 // listAgentSessionsQuery returns sidebar-ready OpenCode sessions for one agent.
 export async function listAgentSessionsQuery(
@@ -22,10 +22,7 @@ export async function listAgentSessionsQuery(
     }
 
     return {
-      sessions: sessions
-        .slice()
-        .sort((x, y) => y.time.updated - x.time.updated)
-        .map(toSessionListItem),
+      sessions: sortAgentSessions(sessions.map(toAgentSessionListItem)),
       error: undefined,
     }
   } catch (err) {
@@ -36,13 +33,5 @@ export async function listAgentSessionsQuery(
         message: err instanceof Error ? err.message : "Failed to load sessions",
       },
     }
-  }
-}
-
-function toSessionListItem(session: Session) {
-  return {
-    id: session.id,
-    title: session.title,
-    updatedAt: session.time.updated,
   }
 }

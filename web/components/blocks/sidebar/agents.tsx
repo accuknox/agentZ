@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { use, useCallback, useState, useTransition } from "react"
+import { motion } from "motion/react"
+import { use, useCallback, useEffect, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Dialog,
@@ -41,6 +42,25 @@ import {
 import { deleteAgentSessionAction, listAgentSessionsAction } from "@/data/opencode.actions"
 import type { AgentSessionListItem, ListAgentActionResponse } from "@/data/types"
 import { usePathname, useRouter } from "next/navigation"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import {
+  applySessionLifecycleEvent,
+  isSessionLifecycleEvent,
+  sortAgentSessions,
+} from "@/lib/opencode/session-list"
+import type { Event as OpencodeEvent } from "@opencode-ai/sdk"
+
+const MotionSidebarMenuSubItem = motion.create(SidebarMenuSubItem)
+
+type SessionStreamChunk =
+  | {
+      type: "snapshot"
+      sessions: AgentSessionListItem[]
+    }
+  | {
+      type: "event"
+      event: OpencodeEvent
+    }
 
 export function NavAgentsSkeleton() {
   return (
@@ -71,7 +91,10 @@ export function NavAgentsSkeleton() {
 export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse> }) {
   const list = use(agents)
   const initialAgents = list.agents ?? []
-  const [openAgentName, setOpenAgentName] = useState<string | null>(null)
+  const path = usePathname()
+  const [openAgentName, setOpenAgentName] = useState<string | null>(() => {
+    return agentNameFromPath(path)
+  })
   const query = useQuery(
     queryOptions({
       enabled: Boolean(list.agents),
@@ -104,9 +127,10 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
       }),
       queryKey: ["watchAgents"],
       refetchOnMount: "always",
-      refetchOnReconnect: false,
+      refetchOnReconnect: "always",
       refetchOnWindowFocus: false,
-      retry: false,
+      retry: true,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
       staleTime: Infinity,
     })
   )
@@ -114,7 +138,12 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   const error = list.error ?? toGatewayError(query.error)
   const queryAgents = query.data ?? initialAgents
 
-  const path = usePathname()
+  useEffect(() => {
+    const agentName = agentNameFromPath(path)
+    if (!agentName) return
+
+    setOpenAgentName(agentName)
+  }, [path])
 
   if (error) {
     return (
@@ -158,16 +187,27 @@ function AgentSessionsItem({
   path: string
   setOpenAgentName: React.Dispatch<React.SetStateAction<string | null>>
 }) {
-  const sessionsQueryOptions = agentSessionsQueryOptions(agent.name, isOpen)
-  const query = useQuery(sessionsQueryOptions)
-
+  const query = useLiveAgentSessions(agent.name, isOpen)
   const sessions = query.data ?? []
+  const router = useRouter()
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setOpenAgentName(open ? agent.name : null)
     },
     [agent.name, setOpenAgentName]
   )
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const sessionID = sessionIDFromPath(path, agent.name)
+    if (!sessionID) return
+    if (query.isPending) return
+    if (query.isError) return
+    if (sessions.some((session) => session.id === sessionID)) return
+
+    void router.push(`/agents/${agent.name}/session/new`)
+  }, [agent.name, isOpen, path, query.isError, query.isPending, router, sessions])
 
   return (
     <SidebarMenu>
@@ -212,7 +252,7 @@ function AgentSessionsItem({
                 </SidebarMenuSubItem>
               ) : null}
               {sessions.map((session) => (
-                <SessionItem
+                <AnimatedSessionItem
                   key={session.id}
                   agentName={agent.name}
                   path={path}
@@ -224,6 +264,24 @@ function AgentSessionsItem({
         </SidebarMenuItem>
       </Collapsible>
     </SidebarMenu>
+  )
+}
+
+function AnimatedSessionItem(props: {
+  agentName: string
+  path: string
+  session: AgentSessionListItem
+}) {
+  return (
+    <MotionSidebarMenuSubItem
+      layout="position"
+      transition={{
+        duration: 0.22,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+    >
+      <SessionItem {...props} />
+    </MotionSidebarMenuSubItem>
   )
 }
 
@@ -271,27 +329,25 @@ function SessionItem({
 
   return (
     <>
-      <SidebarMenuSubItem key={session.id}>
-        <SidebarMenuSubButton
-          asChild
-          className="min-w-0 flex-1 data-[active=true]:bg-transparent data-[active=true]:font-normal"
-          isActive={path === href}
-        >
-          <Link className="flex min-w-0 flex-1 items-center" href={href}>
-            <span className="ml-1.5 truncate text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground group-hover/menu-sub-button:text-inherit">
-              {session.title}
-            </span>
-          </Link>
-        </SidebarMenuSubButton>
-        <SidebarMenuAction
-          aria-label={`Delete ${session.title}`}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          showOnHover
-          onClick={() => setOpen(true)}
-        >
-          {isPending ? <Spinner className="size-3" /> : <Trash2 />}
-        </SidebarMenuAction>
-      </SidebarMenuSubItem>
+      <SidebarMenuSubButton
+        asChild
+        className="min-w-0 flex-1 data-[active=true]:bg-transparent data-[active=true]:font-normal"
+        isActive={path === href}
+      >
+        <Link className="flex min-w-0 flex-1 items-center" href={href}>
+          <span className="ml-1.5 truncate text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground group-hover/menu-sub-button:text-inherit">
+            {session.title}
+          </span>
+        </Link>
+      </SidebarMenuSubButton>
+      <SidebarMenuAction
+        aria-label={`Delete ${session.title}`}
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        showOnHover
+        onClick={() => setOpen(true)}
+      >
+        {isPending ? <Spinner className="size-3" /> : <Trash2 />}
+      </SidebarMenuAction>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -338,18 +394,69 @@ function toGatewayError(err: Error | null): GatewayError | undefined {
 function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
   return queryOptions({
     enabled,
-    queryFn: async () => {
-      const result = await listAgentSessionsAction(agentName)
-      if (result.error) {
-        throw new Error(result.error.message)
-      }
+    queryFn: streamedQuery<SessionStreamChunk, AgentSessionListItem[], ["agentSessions", string]>({
+      initialValue: [],
+      reducer: (sessions, chunk) => {
+        if (chunk.type === "snapshot") {
+          return sortAgentSessions(chunk.sessions)
+        }
 
-      return result.sessions
-    },
+        if (!isSessionLifecycleEvent(chunk.event)) {
+          return sessions
+        }
+
+        return applySessionLifecycleEvent(sessions, chunk.event)
+      },
+      streamFn: async function* ({ signal }) {
+        const result = await listAgentSessionsAction(agentName)
+        if (result.error) {
+          throw new Error(result.error.message)
+        }
+
+        yield {
+          type: "snapshot",
+          sessions: result.sessions,
+        }
+
+        const client = createAgentOpencodeClient(agentName)
+        const subscription = await client.event.subscribe({
+          signal,
+        })
+
+        for await (const event of subscription.stream) {
+          yield {
+            type: "event",
+            event,
+          }
+        }
+      },
+      refetchMode: "reset",
+    }),
     queryKey: ["agentSessions", agentName],
-    retry: false,
-    staleTime: 30_000,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    retry: true,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    staleTime: Infinity,
   })
+}
+
+function useLiveAgentSessions(agentName: string, enabled: boolean) {
+  return useQuery(agentSessionsQueryOptions(agentName, enabled))
+}
+
+function agentNameFromPath(path: string) {
+  const match = path.match(/^\/agents\/([^/]+)(?:\/.*)?$/)
+  if (!match) return null
+  return decodeURIComponent(match[1])
+}
+
+function sessionIDFromPath(path: string, agentName: string) {
+  const match = path.match(/^\/agents\/([^/]+)\/([^/]+)$/)
+  if (!match) return
+  if (decodeURIComponent(match[1]) !== agentName) return
+  if (match[2] === "session") return
+  return decodeURIComponent(match[2])
 }
 
 function AgentBadge({ status }: { status: AgentStatus }) {

@@ -83,6 +83,7 @@ func Serve(ctx context.Context, cfg Config) error {
 			kv:        baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 			agentName: cfg.AgentName,
 		},
+		transport: newProxyTransport(),
 	}
 
 	srv := &http.Server{
@@ -139,6 +140,15 @@ func validate(cfg Config) error {
 		return fmt.Errorf("ca key path is required")
 	}
 	return nil
+}
+
+// newProxyTransport builds the upstream transport used after request rewriting.
+func newProxyTransport() http.RoundTripper {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.Proxy = nil
+	tr.DisableCompression = true
+	tr.ForceAttemptHTTP2 = true
+	return tr
 }
 
 func (r resolver) resolve(ctx context.Context, name string) (resolvedSecret, error) {

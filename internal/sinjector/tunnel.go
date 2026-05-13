@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/textproto"
+	"net/url"
 	"strings"
 	"sync"
 )
@@ -78,7 +80,7 @@ func (p *proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	case looksLikeHTTP2(peek):
 		relay(clientBuf, upstream)
 	case looksLikeHTTP(peek):
-		p.handleHTTP(ctx, clientBuf, upstream, host)
+		p.handleHTTP(ctx, clientBuf, host, "http")
 	default:
 		relay(clientBuf, upstream)
 	}
@@ -86,7 +88,7 @@ func (p *proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 // handleTLS terminates TLS from the client with a dynamically-generated
 // certificate, then re-encrypts to the upstream. After decryption, it peeks
-// again to decide between HTTP/1.1 inspection and raw passthrough.
+// again to decide between HTTP inspection and raw passthrough.
 func (p *proxy) handleTLS(ctx context.Context, client net.Conn, upstream net.Conn, host string) {
 	tlsConfig, err := mitmServerConfig(stripPort(host), p.ca, p.certCache)
 	if err != nil {
@@ -119,7 +121,8 @@ func (p *proxy) handleTLS(ctx context.Context, client net.Conn, upstream net.Con
 	tlsClientBuf := &readBufferedConn{Conn: tlsClient, r: tlsBr}
 
 	if looksLikeHTTP(tlsPeek) {
-		p.handleHTTP(ctx, tlsClientBuf, tlsUpstream, host)
+		_ = tlsUpstream.Close()
+		p.handleHTTP(ctx, tlsClientBuf, host, "https")
 		return
 	}
 
@@ -128,11 +131,9 @@ func (p *proxy) handleTLS(ctx context.Context, client net.Conn, upstream net.Con
 
 // handleHTTP parses HTTP/1.1 requests from client, injects secrets into
 // headers, path, and query params, forwards to upstream, then relays the
-// response back. On 101 Switching Protocols or HTTP/2 preface, it falls back
-// to raw bidirectional copy.
-func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Conn, target string) {
+// response back.
+func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, target, scheme string) {
 	clientBr := bufio.NewReader(client)
-	upstreamBr := bufio.NewReader(upstream)
 
 	for {
 		req, err := http.ReadRequest(clientBr)
@@ -144,37 +145,34 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Co
 		}
 
 		req = rewriteRequest(req.WithContext(ctx), p.resolver, target)
-
-		if err := req.Write(upstream); err != nil {
-			slog.DebugContext(ctx, "write request failed", slog.Any("err", err))
+		upstreamReq, err := upstreamRequest(req, target, scheme)
+		if err != nil {
+			slog.DebugContext(ctx, "build upstream request failed", slog.Any("err", err))
 			return
 		}
 
-		resp, err := http.ReadResponse(upstreamBr, req)
+		resp, err := p.transport.RoundTrip(upstreamReq)
 		if err != nil {
-			slog.DebugContext(ctx, "read response failed", slog.Any("err", err))
+			slog.DebugContext(ctx, "round trip failed", slog.Any("err", err))
 			return
 		}
 
 		if resp.StatusCode == http.StatusSwitchingProtocols {
+			writeErr := writeResponse(client, resp, true)
 			_ = resp.Body.Close()
-			resp.Body = nil
-			if err := resp.Write(client); err != nil {
+			if writeErr != nil {
 				return
 			}
-			clientRelay := &readBufferedConn{Conn: client, r: clientBr}
-			upstreamRelay := &readBufferedConn{Conn: upstream, r: upstreamBr}
-			relay(clientRelay, upstreamRelay)
 			return
 		}
 
-		writeErr := writeResponse(client, resp)
+		writeErr := writeResponse(client, resp, false)
 		_ = resp.Body.Close()
 		if writeErr != nil {
 			return
 		}
 
-		if req.Close || resp.Close {
+		if req.Close || resp.Close || upstreamReq.Close {
 			return
 		}
 	}
@@ -183,7 +181,24 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, upstream net.Co
 // writeResponse streams an HTTP/1.1 response to dst without the buffered
 // serialization used by net/http, which can coalesce small chunks and hurt
 // token-by-token streaming behavior.
-func writeResponse(dst net.Conn, resp *http.Response) error {
+func writeResponse(dst net.Conn, resp *http.Response, closeConn bool) error {
+	if err := writeResponseHead(dst, resp, closeConn); err != nil {
+		return err
+	}
+	if resp.Body == nil || !bodyAllowed(resp.StatusCode) {
+		return nil
+	}
+	chunked := resp.ContentLength < 0 && resp.Body != nil &&
+		bodyAllowed(resp.StatusCode)
+	if chunked {
+		return writeChunkedBody(dst, resp.Body)
+	}
+	_, err := io.Copy(dst, resp.Body)
+	return err
+}
+
+// writeResponseHead writes the HTTP/1.1 response line and headers to dst.
+func writeResponseHead(dst net.Conn, resp *http.Response, closeConn bool) error {
 	if _, err := fmt.Fprintf(dst, "HTTP/1.1 %s\r\n", resp.Status); err != nil {
 		return err
 	}
@@ -198,7 +213,7 @@ func writeResponse(dst net.Conn, resp *http.Response) error {
 	if !chunked {
 		header.Del("Transfer-Encoding")
 	}
-	if resp.Close {
+	if resp.Close || closeConn {
 		header.Set("Connection", "close")
 	}
 
@@ -208,14 +223,7 @@ func writeResponse(dst net.Conn, resp *http.Response) error {
 	if _, err := io.WriteString(dst, "\r\n"); err != nil {
 		return err
 	}
-	if resp.Body == nil || !bodyAllowed(resp.StatusCode) {
-		return nil
-	}
-	if chunked {
-		return writeChunkedBody(dst, resp.Body)
-	}
-	_, err := io.Copy(dst, resp.Body)
-	return err
+	return nil
 }
 
 // writeChunkedBody preserves streaming semantics by emitting chunk frames as
@@ -307,4 +315,60 @@ func looksLikeHTTP(peek []byte) bool {
 		}
 	}
 	return false
+}
+
+// upstreamRequest converts an inbound proxy request into a client request
+// suitable for RoundTrip while preserving the rewritten request body.
+func upstreamRequest(req *http.Request, target, scheme string) (*http.Request, error) {
+	out := req.Clone(req.Context())
+	if out.URL == nil {
+		out.URL = &url.URL{}
+	} else {
+		clonedURL := *out.URL
+		out.URL = &clonedURL
+	}
+	out.URL.Scheme = scheme
+	out.URL.Host = target
+	if out.Host == "" {
+		out.Host = target
+	}
+	out.RequestURI = ""
+	out.Close = req.Close
+	out.Header = cloneHeaderWithoutHopByHop(req.Header)
+	return out, nil
+}
+
+// cloneHeaderWithoutHopByHop removes hop-by-hop headers before upstream proxying.
+func cloneHeaderWithoutHopByHop(in http.Header) http.Header {
+	out := in.Clone()
+	for _, key := range hopByHopHeaders(out) {
+		out.Del(key)
+	}
+	out.Del("Proxy-Connection")
+	return out
+}
+
+// hopByHopHeaders returns hop-by-hop headers named directly or via Connection.
+func hopByHopHeaders(header http.Header) []string {
+	keys := []string{
+		"Connection",
+		"Keep-Alive",
+		"Proxy-Authenticate",
+		"Proxy-Authorization",
+		"Te",
+		"Trailer",
+		"Transfer-Encoding",
+		"Upgrade",
+	}
+	connection := header.Values("Connection")
+	for _, value := range connection {
+		for _, item := range strings.Split(value, ",") {
+			item = textproto.TrimString(item)
+			if item == "" {
+				continue
+			}
+			keys = append(keys, item)
+		}
+	}
+	return keys
 }

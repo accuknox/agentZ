@@ -2,47 +2,10 @@
 
 import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
-import {
-  createAgent,
-  deleteAgent,
-  sessionMessages,
-  updateAgent,
-  type Error,
-} from "@/lib/gateway/client"
-import type {
-  ChatHistoryActionResponse,
-  CreateAgentFormState,
-  DeleteAgentFormState,
-} from "@/data/types"
+import { createAgent, deleteAgent, updateAgent } from "@/lib/gateway/client"
+import type { CreateAgentFormState, DeleteAgentFormState } from "@/data/types"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag } from "@/data/cache"
-
-type ChatHistoryQuery = {
-  agentName: string
-  before?: string
-  limit?: number
-}
-
-export async function getChatHistoryAction(
-  query: ChatHistoryQuery
-): Promise<ChatHistoryActionResponse> {
-  const result = await sessionMessages({
-    path: {
-      agentName: query.agentName,
-      sessionID: query.agentName,
-    },
-    query: {
-      limit: query.limit,
-      before: query.before,
-    },
-    cache: "no-store",
-  })
-  if (result.error) {
-    return { data: undefined, error: toGatewayError(result.error) }
-  }
-
-  return { data: result.data, error: undefined }
-}
 
 export async function createAgentFormAction(
   _: CreateAgentFormState,
@@ -119,26 +82,4 @@ export async function deleteAgentFormAction(
 
   updateTag(agentsTag)
   redirect("/")
-}
-
-function toGatewayError(error: unknown): Error {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "data" in error &&
-    typeof error.data === "object" &&
-    error.data !== null &&
-    "message" in error.data &&
-    typeof error.data.message === "string"
-  ) {
-    return {
-      code: "OPENCODE_ERROR",
-      message: error.data.message,
-    }
-  }
-
-  return {
-    code: "OPENCODE_ERROR",
-    message: "Request failed",
-  }
 }

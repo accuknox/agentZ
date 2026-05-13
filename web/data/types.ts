@@ -1,4 +1,5 @@
-import type { Agent, Environment, Error, SessionMessagesResponse } from "@/lib/gateway/client"
+import type { Agent, Environment, Error } from "@/lib/gateway/client"
+
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
       agents: TAgent[]
@@ -13,13 +14,19 @@ export type ListAgentActionResponse<TAgent = Agent> =
       error: Error
     }
 
-export type ChatHistoryActionResponse =
+export type AgentSessionListItem = {
+  id: string
+  title: string
+  updatedAt: number
+}
+
+export type ListAgentSessionActionResponse =
   | {
-      data: SessionMessagesResponse
+      sessions: AgentSessionListItem[]
       error: undefined
     }
   | {
-      data: undefined
+      sessions: undefined
       error: Error
     }
 
@@ -302,4 +309,9 @@ export type PutSecretFormState = {
 
 export type DeleteSecretFormState = {
   error?: Error
+}
+
+export type DeleteSessionFormState = {
+  error?: Error
+  success?: boolean
 }

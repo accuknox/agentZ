@@ -3,317 +3,330 @@
 import {
   Conversation,
   ConversationContent,
-  ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation"
-import { Message, MessageContent } from "@/components/ai-elements/message"
 import {
+  Attachment,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+  type AttachmentData,
+} from "@/components/ai-elements/attachments"
+import {
+  Message,
+  MessageBranch,
+  MessageBranchContent,
+  MessageBranchNext,
+  MessageBranchPage,
+  MessageBranchPrevious,
+  MessageBranchSelector,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message"
+import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
+import {
+  PromptInputActionAddAttachments,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuTrigger,
   PromptInput,
+  PromptInputBody,
+  PromptInputButton,
+  PromptInputFooter,
+  PromptInputHeader,
   PromptInputSubmit,
   PromptInputTextarea,
+  PromptInputTools,
+  usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
-import { Shimmer } from "@/components/ai-elements/shimmer"
 import { Spinner } from "@/components/ui/spinner"
-import type { ChatHistoryActionResponse } from "@/data/types"
-import { sessionPromptMutation } from "@/lib/gateway/client/@tanstack/react-query.gen"
-import { useMutation } from "@tanstack/react-query"
-import type { ReactNode } from "react"
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { useStickToBottomContext } from "use-stick-to-bottom"
-
-import { mergeChatMessages } from "./history"
-import { MessagePart } from "./message-parts"
-import { useChatHistory } from "./use-chat-history"
-import type { ChatMessage } from "./types"
+import { textParts, useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
+import type { Message as OpencodeMessage } from "@opencode-ai/sdk/v2"
+import { CheckIcon } from "lucide-react"
+import { useCallback, useMemo, useState } from "react"
+import {
+  ModelSelector,
+  ModelSelectorContent,
+  ModelSelectorEmpty,
+  ModelSelectorGroup,
+  ModelSelectorInput,
+  ModelSelectorItem,
+  ModelSelectorList,
+  ModelSelectorLogo,
+  ModelSelectorLogoGroup,
+  ModelSelectorName,
+  ModelSelectorTrigger,
+} from "@/components/ai-elements/model-selector"
 
 type ChatProps = {
-  id: string
-  initialHistory: ChatHistoryActionResponse
-  initialHistoryLimit: number
+  agentName: string
+  sessionId?: string
 }
 
-type FetchOlderMessages = () => Promise<void>
+const models = [
+  {
+    chef: "OpenAI",
+    chefSlug: "openai",
+    id: "gpt-4o",
+    name: "GPT-4o",
+    providers: ["openai", "azure"],
+  },
+  {
+    chef: "OpenAI",
+    chefSlug: "openai",
+    id: "gpt-4o-mini",
+    name: "GPT-4o Mini",
+    providers: ["openai", "azure"],
+  },
+  {
+    chef: "Anthropic",
+    chefSlug: "anthropic",
+    id: "claude-opus-4-20250514",
+    name: "Claude 4 Opus",
+    providers: ["anthropic", "azure", "google", "amazon-bedrock"],
+  },
+  {
+    chef: "Anthropic",
+    chefSlug: "anthropic",
+    id: "claude-sonnet-4-20250514",
+    name: "Claude 4 Sonnet",
+    providers: ["anthropic", "azure", "google", "amazon-bedrock"],
+  },
+  {
+    chef: "Google",
+    chefSlug: "google",
+    id: "gemini-2.0-flash-exp",
+    name: "Gemini 2.0 Flash",
+    providers: ["google"],
+  },
+]
 
-export default function Chat({ id, initialHistory, initialHistoryLimit }: ChatProps) {
-  const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
-  const promptRef = useRef<HTMLTextAreaElement>(null)
-  const send = useMutation(sessionPromptMutation())
-  const { error, isPending, mutateAsync } = send
-  const history = useChatHistory({
-    agentName: id,
-    initialData: initialHistory.data,
-    limit: initialHistoryLimit,
-  })
-  const {
-    error: historyError,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    messages: historyMessages,
-    refetch,
-  } = history
-  const historyRequestIDs = useMemo(() => {
-    return new Set(historyMessages.map((message) => message.requestID))
-  }, [historyMessages])
-  const activePendingMessage = pendingMessages.find((message) => {
-    return !historyRequestIDs.has(message.requestID)
-  })
-  const visibleMessages = useMemo(() => {
-    const nextPendingMessages = pendingMessages.filter((message) => {
-      return !historyRequestIDs.has(message.requestID)
-    })
+const chefs = ["OpenAI", "Anthropic", "Google"]
 
-    return mergeChatMessages(historyMessages, nextPendingMessages)
-  }, [historyMessages, historyRequestIDs, pendingMessages])
-  const isWorking = isPending || Boolean(activePendingMessage)
-  const submitStatus = isPending ? "submitted" : "ready"
-  const fetchOlderMessages = useCallback(async () => {
-    if (!hasNextPage || isFetchingNextPage) {
-      return
-    }
+function messageText(
+  message: OpencodeMessage,
+  partsByMessage: Record<string, import("@opencode-ai/sdk/v2").Part[]>,
+  textByPart: Record<string, string>
+) {
+  const parts = partsByMessage[message.id] ?? []
 
-    await fetchNextPage()
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+  return textParts(parts, textByPart)
+    .map((part) => textByPart[part.id] ?? part.text)
+    .join("")
+}
 
-  useEffect(() => {
-    if (isWorking) {
-      return
-    }
+type RenderMessage = {
+  from: OpencodeMessage["role"]
+  key: string
+  versions: {
+    id: string
+    content: string
+  }[]
+}
 
-    promptRef.current?.focus()
-  }, [isWorking, visibleMessages.length])
+function AttachmentItem({
+  attachment,
+  onRemove,
+}: {
+  attachment: AttachmentData
+  onRemove: (id: string) => void
+}) {
+  const handleRemove = useCallback(() => {
+    onRemove(attachment.id)
+  }, [attachment.id, onRemove])
 
-  const handleSubmit = useCallback(
-    async ({ text }: { text: string }) => {
-      const prompt = text.trim()
-      if (!prompt || isWorking) {
-        return
-      }
+  return (
+    <Attachment data={attachment} onRemove={handleRemove}>
+      <AttachmentPreview />
+      <AttachmentRemove />
+    </Attachment>
+  )
+}
 
-      const optimisticID = `pending:${Date.now()}`
-      setPendingMessages((messages) => [
-        ...messages,
-        {
-          id: optimisticID,
-          content: prompt,
-          parts: [{ id: `${optimisticID}:text`, content: prompt, type: "text" }],
-          requestID: optimisticID,
-          role: "user",
-          runID: optimisticID,
-          status: "complete",
-        },
-      ])
+function PromptInputAttachmentsDisplay() {
+  const attachments = usePromptInputAttachments()
 
-      try {
-        await mutateAsync({
-          body: {
-            parts: [{ text: prompt, type: "text" }],
-          },
-          path: {
-            agentName: id,
-            sessionID: id,
-          },
-        })
-
-        setPendingMessages((messages) => {
-          return messages.filter((message) => message.requestID !== optimisticID)
-        })
-        await refetch()
-      } catch (error) {
-        setPendingMessages((messages) => {
-          return messages.filter((message) => message.requestID !== optimisticID)
-        })
-      }
+  const handleRemove = useCallback(
+    (id: string) => {
+      attachments.remove(id)
     },
-    [id, isWorking, mutateAsync, refetch]
+    [attachments]
   )
 
-  return (
-    <div className="flex min-h-0 w-full flex-1 flex-col bg-background">
-      <Conversation className="w-full">
-        <ConversationContent className="w-full gap-3 px-3 pt-0 pb-8 md:px-4">
-          <SubmittedMessageScroller messageID={pendingMessages.at(-1)?.id} />
-          <HistoryPaginationTrigger
-            canLoadMore={Boolean(hasNextPage)}
-            isLoading={isFetchingNextPage}
-            messageCount={visibleMessages.length}
-            onLoadMore={fetchOlderMessages}
-          />
-          {visibleMessages.length === 0 ? (
-            <ConversationEmptyState
-              className="min-h-[40svh]"
-              description="Type below to begin"
-              title="Start a conversation"
-            />
-          ) : (
-            visibleMessages.map((message) => (
-              <Message from={message.role} key={message.id} tone={getMessageTone(message)}>
-                <MessageContent>
-                  {message.parts.map((part) => (
-                    <MessagePart key={part.id} part={part} />
-                  ))}
-                </MessageContent>
-              </Message>
-            ))
-          )}
-          <ConversationScrollButton />
-        </ConversationContent>
-      </Conversation>
-      {historyError || initialHistory.error ? (
-        <TranscriptAlert>{historyError?.message ?? initialHistory.error?.message}</TranscriptAlert>
-      ) : null}
-      <ComposerActivity active={isWorking} />
-      <PromptInput className="relative w-full" onSubmit={handleSubmit}>
-        <PromptInputTextarea
-          autoFocus
-          disabled={isWorking}
-          placeholder={isWorking ? "Working..." : "Message"}
-          ref={promptRef}
-        />
-        <PromptInputSubmit
-          className="absolute right-3 bottom-3"
-          disabled={isWorking}
-          variant="ghost"
-          status={submitStatus}
-        />
-      </PromptInput>
-      {error ? <TranscriptAlert>Request failed</TranscriptAlert> : null}
-    </div>
-  )
-}
-
-function getMessageTone(message: ChatMessage) {
-  if (message.role === "user") {
-    return "user"
-  }
-  if (message.status === "streaming") {
-    return "active"
-  }
-  if (message.status === "error") {
-    return "error"
-  }
-  if (message.status === "interrupted") {
-    return "interrupted"
-  }
-  return "neutral"
-}
-
-function TranscriptAlert({ children }: { children: ReactNode }) {
-  return (
-    <p
-      className="border-l-2 border-chat-error px-2.5 py-3 font-mono text-sm text-destructive"
-      role="alert"
-    >
-      {children}
-    </p>
-  )
-}
-
-function ComposerActivity({ active }: { active: boolean }) {
-  if (!active) {
+  if (attachments.files.length === 0) {
     return null
   }
 
   return (
-    <div className="flex h-6 items-center px-3 font-mono text-sm md:px-4">
-      <Shimmer active={active} className="text-chat-user" duration={1}>
-        ........
-      </Shimmer>
-    </div>
+    <Attachments variant="inline">
+      {attachments.files.map((attachment) => (
+        <AttachmentItem attachment={attachment} key={attachment.id} onRemove={handleRemove} />
+      ))}
+    </Attachments>
   )
 }
 
-function SubmittedMessageScroller({ messageID }: { messageID?: string }) {
-  const { scrollToBottom } = useStickToBottomContext()
-  const lastMessageID = useRef<string | undefined>(undefined)
-
-  useEffect(() => {
-    if (!messageID || lastMessageID.current === messageID) {
-      return
-    }
-
-    lastMessageID.current = messageID
-    void scrollToBottom({
-      animation: "smooth",
-      ignoreEscapes: true,
-    })
-  }, [messageID, scrollToBottom])
-
-  return null
-}
-
-function HistoryPaginationTrigger({
-  canLoadMore,
-  isLoading,
-  messageCount,
-  onLoadMore,
+function ModelItem({
+  isSelected,
+  model,
+  onSelect,
 }: {
-  canLoadMore: boolean
-  isLoading: boolean
-  messageCount: number
-  onLoadMore: FetchOlderMessages
+  isSelected: boolean
+  model: (typeof models)[number]
+  onSelect: (id: string) => void
 }) {
-  const context = useStickToBottomContext()
-  const restoreScrollHeight = useRef<number | null>(null)
-
-  useEffect(() => {
-    const scroll = context.scrollRef.current
-    if (!scroll || !canLoadMore || isLoading) {
-      return
-    }
-
-    if (scroll.scrollHeight < scroll.clientHeight * 2) {
-      restoreScrollHeight.current = scroll.scrollHeight
-      void onLoadMore()
-    }
-  }, [canLoadMore, context.scrollRef, isLoading, messageCount, onLoadMore])
-
-  useEffect(() => {
-    const scroll = context.scrollRef.current
-    if (!scroll || !canLoadMore || isLoading) {
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          restoreScrollHeight.current = scroll.scrollHeight
-          void onLoadMore()
-        }
-      },
-      { root: scroll, rootMargin: "240px 0px 0px 0px" }
-    )
-    const sentinel = context.contentRef.current?.firstElementChild
-    if (sentinel) {
-      observer.observe(sentinel)
-    }
-
-    return () => observer.disconnect()
-  }, [canLoadMore, context.contentRef, context.scrollRef, isLoading, onLoadMore])
-
-  useLayoutEffect(() => {
-    const previousHeight = restoreScrollHeight.current
-    if (previousHeight === null) {
-      return
-    }
-
-    restoreScrollHeight.current = null
-    const frame = window.requestAnimationFrame(() => {
-      const scroll = context.scrollRef.current
-      if (!scroll) {
-        return
-      }
-
-      scroll.scrollTo({ top: scroll.scrollTop + scroll.scrollHeight - previousHeight })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [context.scrollRef, messageCount])
+  const handleSelect = useCallback(() => {
+    onSelect(model.id)
+  }, [model.id, onSelect])
 
   return (
-    <div className="flex h-0 items-center justify-center overflow-visible">
-      {isLoading ? (
-        <Spinner className="animate-in fade-in-0 text-muted-foreground delay-300 duration-150" />
-      ) : null}
+    <ModelSelectorItem onSelect={handleSelect} value={model.id}>
+      <ModelSelectorLogo provider={model.chefSlug} />
+      <ModelSelectorName>{model.name}</ModelSelectorName>
+      <ModelSelectorLogoGroup>
+        {model.providers.map((provider) => (
+          <ModelSelectorLogo key={provider} provider={provider} />
+        ))}
+      </ModelSelectorLogoGroup>
+      {isSelected ? <CheckIcon className="ml-auto size-4" /> : <div className="ml-auto size-4" />}
+    </ModelSelectorItem>
+  )
+}
+
+function ChatInner({ agentName, sessionId }: ChatProps) {
+  const { isPending, messages, partsByMessage, sessionStatus, textByPart } = useOpencodeChat(
+    agentName,
+    sessionId
+  )
+  const [model, setModel] = useState<string>(models[0].id)
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
+
+  const handleSubmit = useCallback((_: PromptInputMessage) => {
+    // Sending real prompts is intentionally deferred to the next slice.
+  }, [])
+
+  const handleModelSelect = useCallback((modelId: string) => {
+    setModel(modelId)
+    setModelSelectorOpen(false)
+  }, [])
+
+  const selectedModel = useMemo(() => {
+    return models.find((item) => item.id === model)
+  }, [model])
+
+  const visibleMessages = messages.filter((message) => {
+    return messageText(message, partsByMessage, textByPart).length > 0
+  })
+  const renderMessages: RenderMessage[] = visibleMessages.map((message) => {
+    return {
+      from: message.role,
+      key: message.id,
+      versions: [
+        {
+          content: messageText(message, partsByMessage, textByPart),
+          id: message.id,
+        },
+      ],
+    }
+  })
+
+  const isBusy = sessionStatus?.type === "busy"
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <Conversation>
+        <ConversationContent className="mx-auto w-full lg:w-3/5 lg:px-4">
+          {isPending ? (
+            <div className="flex min-h-48 items-center justify-center">
+              <Spinner aria-label="Loading session messages" />
+            </div>
+          ) : null}
+          {!isPending
+            ? renderMessages.map(({ versions, ...message }) => (
+                <MessageBranch defaultBranch={0} key={message.key}>
+                  <MessageBranchContent>
+                    {versions.map((version) => (
+                      <Message from={message.from} key={`${message.key}-${version.id}`}>
+                        <MessageContent>
+                          <MessageResponse>{version.content}</MessageResponse>
+                        </MessageContent>
+                      </Message>
+                    ))}
+                  </MessageBranchContent>
+                  {versions.length > 1 ? (
+                    <MessageBranchSelector>
+                      <MessageBranchPrevious />
+                      <MessageBranchPage />
+                      <MessageBranchNext />
+                    </MessageBranchSelector>
+                  ) : null}
+                </MessageBranch>
+              ))
+            : null}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <div className="grid shrink-0 gap-4 pt-4">
+        <div className="mx-auto w-full px-4 pb-4 lg:w-3/5 lg:px-8">
+          <PromptInput globalDrop multiple onSubmit={handleSubmit}>
+            <PromptInputHeader>
+              <PromptInputAttachmentsDisplay />
+            </PromptInputHeader>
+            <PromptInputBody>
+              <PromptInputTextarea />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools>
+                <PromptInputActionMenu>
+                  <PromptInputActionMenuTrigger />
+                  <PromptInputActionMenuContent>
+                    <PromptInputActionAddAttachments />
+                  </PromptInputActionMenuContent>
+                </PromptInputActionMenu>
+                <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
+                  <ModelSelectorTrigger asChild>
+                    <PromptInputButton>
+                      {selectedModel?.chefSlug ? (
+                        <ModelSelectorLogo provider={selectedModel.chefSlug} />
+                      ) : null}
+                      {selectedModel?.name ? (
+                        <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
+                      ) : (
+                        <ModelSelectorName>Model</ModelSelectorName>
+                      )}
+                    </PromptInputButton>
+                  </ModelSelectorTrigger>
+                  <ModelSelectorContent>
+                    <ModelSelectorInput placeholder="Search models..." />
+                    <ModelSelectorList>
+                      <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                      {chefs.map((chef) => (
+                        <ModelSelectorGroup heading={chef} key={chef}>
+                          {models
+                            .filter((item) => item.chef === chef)
+                            .map((item) => (
+                              <ModelItem
+                                isSelected={model === item.id}
+                                key={item.id}
+                                model={item}
+                                onSelect={handleModelSelect}
+                              />
+                            ))}
+                        </ModelSelectorGroup>
+                      ))}
+                    </ModelSelectorList>
+                  </ModelSelectorContent>
+                </ModelSelector>
+              </PromptInputTools>
+              <PromptInputSubmit disabled status={isBusy ? "streaming" : "ready"} />
+            </PromptInputFooter>
+          </PromptInput>
+        </div>
+      </div>
     </div>
   )
+}
+
+export default function Chat(props: ChatProps) {
+  return <ChatInner key={`${props.agentName}:${props.sessionId ?? "new"}`} {...props} />
 }

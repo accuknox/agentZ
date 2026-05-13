@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
@@ -53,11 +52,7 @@ export function createAgentColumns(
       cell: ({ row }) => {
         const agent = row.original
 
-        return (
-          <Link href={`/agents/${agent.name}`} className="font-medium hover:underline">
-            {agent.name}
-          </Link>
-        )
+        return <span className="font-medium">{agent.name}</span>
       },
     },
     {
@@ -119,9 +114,6 @@ function AgentActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href={`/agents/${agent.name}`}>Chat</Link>
-          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault()

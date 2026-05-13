@@ -9,6 +9,7 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarRail,
+  SidebarGroupLabel,
 } from "@/components/ui/sidebar"
 import type { ListAgentActionResponse } from "@/data/types"
 import { NavLens } from "./lens"
@@ -28,14 +29,17 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup className="gap-y-1">
-          <Suspense fallback={<NavAgentsSkeleton />}>
-            <NavAgents agents={agents} />
-          </Suspense>
           <Suspense fallback={null}>
             <NavLens />
           </Suspense>
           <NavSecrets />
           <NavEnvironments />
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Agents</SidebarGroupLabel>
+          <Suspense fallback={<NavAgentsSkeleton />}>
+            <NavAgents agents={agents} />
+          </Suspense>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>

@@ -6,7 +6,7 @@ const esUrl =
   process.env.NIXOS_SEARCH_ES_URL ?? "https://nixos-search-7-1733963800.us-east-1.bonsaisearch.net"
 const esUsername = process.env.NIXOS_SEARCH_ES_USERNAME ?? "aWVSALXpZv"
 const esPassword = process.env.NIXOS_SEARCH_ES_PASSWORD ?? "X8gPHnzL52wFEekuxsfQ9cSh"
-const index = "nixos-48-25.11-26ef669cffa904b6f6832ab57b77892a37c1a671"
+const index = "nixos-48-25.11-8fd9daa3db09ced9700431c5b7ad0e8ba199b575"
 
 export type NixPackageLicense = {
   fullName: string | null

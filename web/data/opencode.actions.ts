@@ -1,8 +1,8 @@
 "use server"
 
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
-import type { DeleteSessionFormState } from "@/data/types"
-import { listAgentSessionsQuery } from "@/data/opencode.queries"
+import type { DeleteSessionFormState, ListAgentProvidersActionResponse } from "@/data/types"
+import { listAgentProvidersQuery, listAgentSessionsQuery } from "@/data/opencode.queries"
 
 // listAgentSessionsAction loads OpenCode sessions for a single agent.
 export async function listAgentSessionsAction(agentName: string) {
@@ -55,4 +55,11 @@ export async function deleteAgentSessionAction(
       success: false,
     }
   }
+}
+
+// listAgentProvidersAction fetches available AI providers and their models for one agent.
+export async function listAgentProvidersAction(
+  agentName: string
+): Promise<ListAgentProvidersActionResponse> {
+  return listAgentProvidersQuery(agentName)
 }

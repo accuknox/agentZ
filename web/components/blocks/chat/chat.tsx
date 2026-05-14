@@ -34,9 +34,11 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { ToolEntries, toolEntries } from "@/components/blocks/chat/tool-parts"
 import { useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
+import { listAgentProvidersAction } from "@/data/opencode.actions"
+import type { ProviderModelItem } from "@/data/types"
 import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk/v2"
 import { CheckIcon } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
+import { startTransition, useActionState, useCallback, useEffect, useMemo, useState } from "react"
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -56,45 +58,7 @@ type ChatProps = {
   sessionId?: string
 }
 
-const models = [
-  {
-    chef: "OpenAI",
-    chefSlug: "openai",
-    id: "gpt-4o",
-    name: "GPT-4o",
-    providers: ["openai", "azure"],
-  },
-  {
-    chef: "OpenAI",
-    chefSlug: "openai",
-    id: "gpt-4o-mini",
-    name: "GPT-4o Mini",
-    providers: ["openai", "azure"],
-  },
-  {
-    chef: "Anthropic",
-    chefSlug: "anthropic",
-    id: "claude-opus-4-20250514",
-    name: "Claude 4 Opus",
-    providers: ["anthropic", "azure", "google", "amazon-bedrock"],
-  },
-  {
-    chef: "Anthropic",
-    chefSlug: "anthropic",
-    id: "claude-sonnet-4-20250514",
-    name: "Claude 4 Sonnet",
-    providers: ["anthropic", "azure", "google", "amazon-bedrock"],
-  },
-  {
-    chef: "Google",
-    chefSlug: "google",
-    id: "gemini-2.0-flash-exp",
-    name: "Gemini 2.0 Flash",
-    providers: ["google"],
-  },
-]
-
-const chefs = ["OpenAI", "Anthropic", "Google"]
+// models and chefs are now loaded dynamically via listAgentProvidersAction.
 
 type RenderEntry =
   | {
@@ -249,7 +213,7 @@ function ModelItem({
   onSelect,
 }: {
   isSelected: boolean
-  model: (typeof models)[number]
+  model: ProviderModelItem
   onSelect: (id: string) => void
 }) {
   const handleSelect = useCallback(() => {
@@ -275,8 +239,34 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     agentName,
     sessionId
   )
-  const [model, setModel] = useState<string>(models[0].id)
+  const [model, setModel] = useState<string>("")
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
+
+  const [providerState, loadProviders, isProvidersLoading] = useActionState(
+    async (
+      _prevState: Awaited<ReturnType<typeof listAgentProvidersAction>> | null,
+      payload: string
+    ) => {
+      return listAgentProvidersAction(payload)
+    },
+    null
+  )
+
+  useEffect(() => {
+    startTransition(() => {
+      loadProviders(agentName)
+    })
+  }, [loadProviders, agentName])
+
+  const models = providerState?.models ?? []
+  const chefs = providerState?.chefs ?? []
+
+  // Set initial model once providers load.
+  useEffect(() => {
+    if (model.length === 0 && models.length > 0) {
+      setModel(models[0].id)
+    }
+  }, [model, models])
 
   const handleSubmit = useCallback((_: PromptInputMessage) => {}, [])
 
@@ -287,7 +277,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
 
   const selectedModel = useMemo(() => {
     return models.find((item) => item.id === model)
-  }, [model])
+  }, [models, model])
 
   const visibleMessages = messages.filter((message) => {
     const parts = partsByMessage[message.id] ?? []

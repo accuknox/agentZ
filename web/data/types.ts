@@ -316,3 +316,23 @@ export type DeleteSessionFormState = {
   error?: Error
   success?: boolean
 }
+
+export type ProviderModelItem = {
+  chef: string
+  chefSlug: string
+  id: string
+  name: string
+  providers: string[]
+}
+
+export type ListAgentProvidersActionResponse =
+  | {
+      models: ProviderModelItem[]
+      chefs: string[]
+      error: undefined
+    }
+  | {
+      models: undefined
+      chefs: undefined
+      error: Error
+    }

@@ -79,6 +79,7 @@ export const getAttachmentLabel = (data: AttachmentData): string => {
 
 const renderAttachmentImage = (url: string, filename: string | undefined, isGrid: boolean) =>
   isGrid ? (
+    // eslint-disable-next-line @next/next/no-img-element -- user-uploaded blob/data URL, not optimizable by Next.js
     <img
       alt={filename || "Image"}
       className="size-full object-cover"
@@ -87,6 +88,7 @@ const renderAttachmentImage = (url: string, filename: string | undefined, isGrid
       width={96}
     />
   ) : (
+    // eslint-disable-next-line @next/next/no-img-element -- user-uploaded blob/data URL, not optimizable by Next.js
     <img
       alt={filename || "Image"}
       className="size-full rounded object-cover"

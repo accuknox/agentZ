@@ -18,6 +18,7 @@ export type AgentSessionListItem = {
   id: string
   title: string
   updatedAt: number
+  parentID?: string
 }
 
 export type ListAgentSessionActionResponse =

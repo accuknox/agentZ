@@ -12,17 +12,9 @@ import {
   Attachments,
   type AttachmentData,
 } from "@/components/ai-elements/attachments"
-import {
-  Message,
-  MessageBranch,
-  MessageBranchContent,
-  MessageBranchNext,
-  MessageBranchPage,
-  MessageBranchPrevious,
-  MessageBranchSelector,
-  MessageContent,
-  MessageResponse,
-} from "@/components/ai-elements/message"
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
+import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
+import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import {
   PromptInputActionAddAttachments,
@@ -40,8 +32,9 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
 import { Spinner } from "@/components/ui/spinner"
-import { textParts, useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
-import type { Message as OpencodeMessage } from "@opencode-ai/sdk/v2"
+import { ToolEntries, toolEntries } from "@/components/blocks/chat/tool-parts"
+import { useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
+import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk/v2"
 import { CheckIcon } from "lucide-react"
 import { useCallback, useMemo, useState } from "react"
 import {
@@ -103,26 +96,110 @@ const models = [
 
 const chefs = ["OpenAI", "Anthropic", "Google"]
 
-function messageText(
-  message: OpencodeMessage,
-  partsByMessage: Record<string, import("@opencode-ai/sdk/v2").Part[]>,
-  textByPart: Record<string, string>
-) {
-  const parts = partsByMessage[message.id] ?? []
+type RenderEntry =
+  | {
+      content: string
+      key: string
+      type: "text"
+    }
+  | {
+      content: string
+      key: string
+      type: "reasoning"
+    }
+  | {
+      key: string
+      toolEntry: ReturnType<typeof toolEntries>[number]
+      type: "tool"
+    }
 
-  return textParts(parts, textByPart)
-    .map((part) => textByPart[part.id] ?? part.text)
-    .join("")
+function renderEntries(parts: Part[], textByPart: Record<string, string>): RenderEntry[] {
+  const entries: RenderEntry[] = []
+  let textBuffer: string[] = []
+  let textKey: string[] = []
+  let toolBuffer: Extract<Part, { type: "tool" }>[] = []
+
+  function flushText() {
+    const content = textBuffer.join("")
+    if (content.trim().length > 0) {
+      entries.push({
+        content,
+        key: textKey.join(":"),
+        type: "text",
+      })
+    }
+    textBuffer = []
+    textKey = []
+  }
+
+  function flushTools() {
+    if (toolBuffer.length === 0) return
+    for (const entry of toolEntries(toolBuffer)) {
+      entries.push({
+        key: entry.key,
+        toolEntry: entry,
+        type: "tool",
+      })
+    }
+    toolBuffer = []
+  }
+
+  for (const part of parts) {
+    if (part.type === "text") {
+      flushTools()
+
+      const content = textByPart[part.id] ?? part.text
+      if (content.length === 0) continue
+
+      textBuffer.push(content)
+      textKey.push(part.id)
+      continue
+    }
+
+    if (part.type === "reasoning") {
+      flushText()
+      flushTools()
+
+      const content = textByPart[part.id] ?? part.text
+      if (content.trim().length === 0) continue
+
+      entries.push({
+        content,
+        key: part.id,
+        type: "reasoning",
+      })
+      continue
+    }
+
+    if (part.type === "tool") {
+      flushText()
+      toolBuffer.push(part)
+      continue
+    }
+
+    flushText()
+    flushTools()
+  }
+
+  flushText()
+  flushTools()
+
+  return entries
 }
 
 type RenderMessage = {
+  entries: RenderEntry[]
   from: OpencodeMessage["role"]
   key: string
-  versions: {
-    id: string
-    content: string
-  }[]
 }
+
+type RenderBlock = {
+  entries: RenderEntry[]
+  from: OpencodeMessage["role"]
+  key: string
+}
+
+type ToolRenderEntry = Extract<RenderEntry, { type: "tool" }>
 
 function AttachmentItem({
   attachment,
@@ -201,9 +278,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   const [model, setModel] = useState<string>(models[0].id)
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
 
-  const handleSubmit = useCallback((_: PromptInputMessage) => {
-    // Sending real prompts is intentionally deferred to the next slice.
-  }, [])
+  const handleSubmit = useCallback((_: PromptInputMessage) => {}, [])
 
   const handleModelSelect = useCallback((modelId: string) => {
     setModel(modelId)
@@ -215,54 +290,153 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   }, [model])
 
   const visibleMessages = messages.filter((message) => {
-    return messageText(message, partsByMessage, textByPart).length > 0
+    const parts = partsByMessage[message.id] ?? []
+    return renderEntries(parts, textByPart).length > 0
   })
   const renderMessages: RenderMessage[] = visibleMessages.map((message) => {
+    const parts = partsByMessage[message.id] ?? []
+    const entries = renderEntries(parts, textByPart)
+
     return {
+      entries,
       from: message.role,
       key: message.id,
-      versions: [
-        {
-          content: messageText(message, partsByMessage, textByPart),
-          id: message.id,
-        },
-      ],
     }
   })
 
   const isBusy = sessionStatus?.type === "busy"
+  const renderBlocks: RenderBlock[] = []
+  let assistantBlock: RenderBlock | undefined
+
+  function flushAssistantBlock() {
+    if (!assistantBlock) {
+      return
+    }
+
+    renderBlocks.push(assistantBlock)
+    assistantBlock = undefined
+  }
+
+  for (const message of renderMessages) {
+    if (message.from === "assistant") {
+      if (!assistantBlock) {
+        assistantBlock = {
+          entries: [...message.entries],
+          from: message.from,
+          key: message.key,
+        }
+        continue
+      }
+
+      assistantBlock.entries.push(...message.entries)
+      assistantBlock.key = `${assistantBlock.key}:${message.key}`
+      continue
+    }
+
+    flushAssistantBlock()
+    renderBlocks.push({
+      entries: message.entries,
+      from: message.from,
+      key: message.key,
+    })
+  }
+
+  flushAssistantBlock()
+
+  function groupEntries(entries: RenderEntry[]) {
+    const result: (
+      | RenderEntry
+      | { type: "tool-group"; entries: ToolRenderEntry[]; key: string }
+    )[] = []
+    let toolGroup: ToolRenderEntry[] = []
+
+    function flushToolGroup() {
+      if (toolGroup.length === 0) return
+      result.push({
+        type: "tool-group",
+        entries: [...toolGroup],
+        key: toolGroup.map((e) => e.key).join(":"),
+      })
+      toolGroup = []
+    }
+
+    for (const entry of entries) {
+      if (entry.type === "tool") {
+        toolGroup.push(entry)
+      } else {
+        flushToolGroup()
+        result.push(entry)
+      }
+    }
+
+    flushToolGroup()
+    return result
+  }
+
+  const lastBlock = renderBlocks.at(-1)
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      {isBusy && (
+        <div aria-hidden="true" data-component="session-progress" data-state="showing">
+          <div data-component="session-progress-bar" />
+        </div>
+      )}
       <Conversation>
-        <ConversationContent className="mx-auto w-full lg:w-4/5">
+        <ConversationContent className="mx-auto w-full px-4 lg:w-4/5 lg:px-0">
           {isPending ? (
             <div className="flex min-h-48 items-center justify-center">
               <Spinner aria-label="Loading session messages" />
             </div>
-          ) : null}
-          {!isPending
-            ? renderMessages.map(({ versions, ...message }) => (
-                <MessageBranch defaultBranch={0} key={message.key}>
-                  <MessageBranchContent>
-                    {versions.map((version) => (
-                      <Message from={message.from} key={`${message.key}-${version.id}`}>
-                        <MessageContent>
-                          <MessageResponse>{version.content}</MessageResponse>
-                        </MessageContent>
-                      </Message>
-                    ))}
-                  </MessageBranchContent>
-                  {versions.length > 1 ? (
-                    <MessageBranchSelector>
-                      <MessageBranchPrevious />
-                      <MessageBranchPage />
-                      <MessageBranchNext />
-                    </MessageBranchSelector>
-                  ) : null}
-                </MessageBranch>
-              ))
-            : null}
+          ) : (
+            <>
+              {renderBlocks.map((block) => {
+                const isLastBlock = lastBlock?.key === block.key
+                const groups = groupEntries(block.entries)
+                const lastGroupIndex = groups.length - 1
+
+                return (
+                  <Message from={block.from} key={block.key}>
+                    <MessageContent>
+                      {groups.map((group, groupIndex) => {
+                        if (group.type === "text") {
+                          return <MessageResponse key={group.key}>{group.content}</MessageResponse>
+                        }
+                        if (group.type === "reasoning") {
+                          const isStreaming =
+                            isBusy &&
+                            block.from === "assistant" &&
+                            isLastBlock &&
+                            groupIndex === lastGroupIndex
+                          return (
+                            <Reasoning isStreaming={isStreaming} key={group.key}>
+                              <ReasoningTrigger />
+                              <ReasoningContent>{group.content}</ReasoningContent>
+                            </Reasoning>
+                          )
+                        }
+                        if (group.type === "tool-group") {
+                          return (
+                            <div className="rounded-md bg-muted p-2 dark:bg-card" key={group.key}>
+                              {group.entries.map((entry) => (
+                                <ToolEntries
+                                  agentName={agentName}
+                                  entry={entry.toolEntry}
+                                  key={entry.key}
+                                />
+                              ))}
+                            </div>
+                          )
+                        }
+                        return null
+                      })}
+                    </MessageContent>
+                  </Message>
+                )
+              })}
+              <AgentWorkingIndicator isWorking={isBusy} />
+            </>
+          )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>

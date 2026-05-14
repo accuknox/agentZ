@@ -49,10 +49,11 @@ export type MessageContentProps = HTMLAttributes<HTMLDivElement>
 export const MessageContent = ({ children, className, ...props }: MessageContentProps) => (
   <div
     className={cn(
-      "is-user:dark flex w-full min-w-0 max-w-full flex-col gap-2 text-sm",
+      "is-user:dark flex w-full min-w-0 max-w-full flex-col text-sm",
       "group-[.is-user]:w-fit",
       "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
       "group-[.is-assistant]:text-foreground",
+      "group-[.is-assistant]:gap-1",
       className
     )}
     {...props}
@@ -281,7 +282,9 @@ export const MessageBranchPage = ({ className, ...props }: MessageBranchPageProp
   )
 }
 
-export type MessageResponseProps = ComponentProps<typeof Streamdown>
+export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
+  plainCodeBlocks?: boolean
+}
 
 const streamdownPlugins = { cjk, code, math, mermaid }
 const codeLanguagePattern = /language-([^\s]+)/
@@ -303,11 +306,31 @@ type MarkdownCodeProps = ComponentProps<"code"> &
     "data-block"?: string
   }
 
-const MarkdownCode = ({ children, className, ...props }: MarkdownCodeProps) => {
+type MarkdownCodeElementProps = MarkdownCodeProps & {
+  plainCodeBlocks?: boolean
+}
+
+const MarkdownCode = ({
+  children,
+  className,
+  plainCodeBlocks = false,
+  ...props
+}: MarkdownCodeProps & { plainCodeBlocks?: boolean }) => {
   const blockCode = typeof children === "string" ? children : Children.toArray(children).join("")
   const trimmedBlockCode = blockCode.replace(/\n+$/u, "")
 
   if (props["data-block"]) {
+    if (plainCodeBlocks) {
+      return (
+        <code
+          className={cn("block whitespace-pre-wrap wrap-break-word font-mono text-sm", className)}
+          {...props}
+        >
+          {trimmedBlockCode}
+        </code>
+      )
+    }
+
     const language = className?.match(codeLanguagePattern)?.[1] ?? "text"
 
     return (
@@ -326,24 +349,44 @@ const MarkdownCode = ({ children, className, ...props }: MarkdownCodeProps) => {
   )
 }
 
-const MarkdownPre: FC<ComponentProps<"pre"> & ExtraProps> = ({ children }) => {
+const MarkdownPre: FC<ComponentProps<"pre"> & ExtraProps & { plainCodeBlocks?: boolean }> = ({
+  children,
+  className,
+  plainCodeBlocks = false,
+  ...props
+}) => {
   if (!isValidElement(children)) {
     return <>{children}</>
   }
 
-  return cloneElement(children as ReactElement<MarkdownCodeProps>, {
+  if (plainCodeBlocks) {
+    return (
+      <pre
+        className={cn("my-2 overflow-auto whitespace-pre-wrap wrap-break-word", className)}
+        {...props}
+      >
+        {cloneElement(children as ReactElement<MarkdownCodeElementProps>, {
+          plainCodeBlocks,
+          "data-block": "true",
+        })}
+      </pre>
+    )
+  }
+
+  return cloneElement(children as ReactElement<MarkdownCodeElementProps>, {
+    plainCodeBlocks,
     "data-block": "true",
   })
 }
 
 const MarkdownUl: FC<ComponentProps<"ul"> & ExtraProps> = ({ children, className, ...props }) => (
-  <ul className={cn("ml-6 list-outside list-disc space-y-2", className)} {...props}>
+  <ul className={cn("ml-6 list-outside list-disc space-y-1", className)} {...props}>
     {children}
   </ul>
 )
 
 const MarkdownOl: FC<ComponentProps<"ol"> & ExtraProps> = ({ children, className, ...props }) => (
-  <ol className={cn("ml-6 list-outside list-decimal space-y-2", className)} {...props}>
+  <ol className={cn("ml-6 list-outside list-decimal space-y-1", className)} {...props}>
     {children}
   </ol>
 )
@@ -359,21 +402,21 @@ const MarkdownParagraph: FC<ComponentProps<"p"> & ExtraProps> = ({
   className,
   ...props
 }) => (
-  <p className={cn("whitespace-pre-line", className)} {...props}>
+  <p className={cn("whitespace-pre-line leading-relaxed", className)} {...props}>
     {children}
   </p>
 )
 
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
+  ({ className, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
     <Streamdown
-      className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+      className={cn("w-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
       components={{
-        code: MarkdownCode,
+        code: (codeProps) => <MarkdownCode {...codeProps} plainCodeBlocks={plainCodeBlocks} />,
         li: MarkdownLi,
         ol: MarkdownOl,
         p: MarkdownParagraph,
-        pre: MarkdownPre,
+        pre: (preProps) => <MarkdownPre {...preProps} plainCodeBlocks={plainCodeBlocks} />,
         ul: MarkdownUl,
       }}
       plugins={{
@@ -383,7 +426,9 @@ export const MessageResponse = memo(
     />
   ),
   (prevProps, nextProps) =>
-    prevProps.children === nextProps.children && nextProps.isAnimating === prevProps.isAnimating
+    prevProps.children === nextProps.children &&
+    nextProps.isAnimating === prevProps.isAnimating &&
+    nextProps.plainCodeBlocks === prevProps.plainCodeBlocks
 )
 
 MessageResponse.displayName = "MessageResponse"

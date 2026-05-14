@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { motion } from "motion/react"
-import { use, useCallback, useEffect, useState, useTransition } from "react"
+import { use, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Dialog,
@@ -95,6 +95,13 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   const [openAgentName, setOpenAgentName] = useState<string | null>(() => {
     return agentNameFromPath(path)
   })
+
+  // Derive from URL during render to avoid setState inside useEffect.
+  const currentAgentName = agentNameFromPath(path)
+  if (currentAgentName && currentAgentName !== openAgentName) {
+    setOpenAgentName(currentAgentName)
+  }
+
   const query = useQuery(
     queryOptions({
       enabled: Boolean(list.agents),
@@ -137,13 +144,6 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
 
   const error = list.error ?? toGatewayError(query.error)
   const queryAgents = query.data ?? initialAgents
-
-  useEffect(() => {
-    const agentName = agentNameFromPath(path)
-    if (!agentName) return
-
-    setOpenAgentName(agentName)
-  }, [path])
 
   if (error) {
     return (
@@ -188,7 +188,8 @@ function AgentSessionsItem({
   setOpenAgentName: React.Dispatch<React.SetStateAction<string | null>>
 }) {
   const query = useLiveAgentSessions(agent.name, isOpen)
-  const sessions = query.data ?? []
+  const sessions = useMemo(() => query.data ?? [], [query.data])
+  const displaySessions = sessions.filter((s) => !s.parentID)
   const router = useRouter()
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -246,12 +247,12 @@ function AgentSessionsItem({
                   <p className="text-sm text-destructive">{query.error.message}</p>
                 </SidebarMenuSubItem>
               ) : null}
-              {!query.isPending && !query.isError && sessions.length === 0 ? (
+              {!query.isPending && !query.isError && displaySessions.length === 0 ? (
                 <SidebarMenuSubItem key="empty">
                   <p className="text-sm text-muted-foreground">No sessions</p>
                 </SidebarMenuSubItem>
               ) : null}
-              {sessions.map((session) => (
+              {displaySessions.map((session) => (
                 <AnimatedSessionItem
                   key={session.id}
                   agentName={agent.name}
@@ -319,7 +320,7 @@ function SessionItem({
         })
 
         if (path === href) {
-          await router.push(`/agents/${agentName}/session/new`)
+          router.push(`/agents/${agentName}/session/new`)
           router.refresh()
         }
       })
@@ -335,7 +336,7 @@ function SessionItem({
         isActive={path === href}
       >
         <Link className="flex min-w-0 flex-1 items-center" href={href}>
-          <span className="ml-1.5 truncate text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground group-hover/menu-sub-button:text-inherit">
+          <span className="truncate text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground group-hover/menu-sub-button:text-inherit">
             {session.title}
           </span>
         </Link>

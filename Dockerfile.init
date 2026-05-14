@@ -1,4 +1,4 @@
-FROM nixos/nix:latest AS nix
+FROM nixos/nix:2.32.8 AS nix
 
 FROM debian:trixie-slim
 

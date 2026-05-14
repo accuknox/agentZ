@@ -103,7 +103,9 @@ export function SecretSheet({
       return
     }
 
-    await action(formData)
+    React.startTransition(() => {
+      action(formData)
+    })
   }
 
   function addHost() {

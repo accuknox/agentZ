@@ -89,7 +89,7 @@ function buildStore(sessionID: string, records: SessionMessageRecord[]) {
     store.part[record.info.id] = record.parts
 
     for (const part of record.parts) {
-      if (part.type !== "text") continue
+      if (part.type !== "text" && part.type !== "reasoning") continue
       store.partTextAccumDelta[part.id] = part.text
     }
   }
@@ -156,7 +156,10 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
       const part = event.properties.part
       const parts = store.part[part.messageID] ?? []
       const next = upsertPart(parts, part)
-      const text = part.type === "text" ? part.text : store.partTextAccumDelta[part.id]
+      const text =
+        part.type === "text" || part.type === "reasoning"
+          ? part.text
+          : store.partTextAccumDelta[part.id]
 
       return {
         ...store,

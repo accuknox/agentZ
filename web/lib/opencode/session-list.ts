@@ -12,6 +12,7 @@ export function toAgentSessionListItem(session: Session): AgentSessionListItem {
     id: session.id,
     title: session.title,
     updatedAt: session.time.updated,
+    parentID: session.parentID,
   }
 }
 

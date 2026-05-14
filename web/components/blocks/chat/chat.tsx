@@ -33,10 +33,11 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { Spinner } from "@/components/ui/spinner"
 import { ToolEntries, toolEntries } from "@/components/blocks/chat/tool-parts"
-import { useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
+import { type LocalChatMessage, useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
+import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
 import { listAgentProvidersAction } from "@/data/opencode.actions"
 import type { ProviderModelItem } from "@/data/types"
-import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk/v2"
+import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk"
 import { CheckIcon } from "lucide-react"
 import { startTransition, useActionState, useCallback, useEffect, useMemo, useState } from "react"
 import {
@@ -152,15 +153,24 @@ function renderEntries(parts: Part[], textByPart: Record<string, string>): Rende
 }
 
 type RenderMessage = {
+  createdAt: number
   entries: RenderEntry[]
   from: OpencodeMessage["role"]
   key: string
 }
 
 type RenderBlock = {
+  createdAt: number
   entries: RenderEntry[]
   from: OpencodeMessage["role"]
   key: string
+}
+
+type LocalRenderBlock = {
+  createdAt: number
+  key: string
+  message: LocalChatMessage
+  type: "local"
 }
 
 type ToolRenderEntry = Extract<RenderEntry, { type: "tool" }>
@@ -225,9 +235,7 @@ function ModelItem({
       <ModelSelectorLogo provider={model.chefSlug} />
       <ModelSelectorName>{model.name}</ModelSelectorName>
       <ModelSelectorLogoGroup>
-        {model.providers.map((provider) => (
-          <ModelSelectorLogo key={provider} provider={provider} />
-        ))}
+        <ModelSelectorLogo key={model.providerID} provider={model.providerID} />
       </ModelSelectorLogoGroup>
       {isSelected ? <CheckIcon className="ml-auto size-4" /> : <div className="ml-auto size-4" />}
     </ModelSelectorItem>
@@ -235,10 +243,16 @@ function ModelItem({
 }
 
 function ChatInner({ agentName, sessionId }: ChatProps) {
-  const { isPending, messages, partsByMessage, sessionStatus, textByPart } = useOpencodeChat(
-    agentName,
-    sessionId
-  )
+  const {
+    historyError,
+    isBusy,
+    isPending,
+    localMessages,
+    messages,
+    partsByMessage,
+    streamError,
+    textByPart,
+  } = useOpencodeChat(agentName, sessionId)
   const [model, setModel] = useState<string>("")
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
 
@@ -258,26 +272,34 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     })
   }, [loadProviders, agentName])
 
-  const models = providerState?.models ?? []
-  const chefs = providerState?.chefs ?? []
+  const models = useMemo(() => providerState?.models ?? [], [providerState?.models])
+  const chefs = useMemo(() => providerState?.chefs ?? [], [providerState?.chefs])
+  const selectedModelID = model || models[0]?.id || ""
 
-  // Set initial model once providers load.
-  useEffect(() => {
-    if (model.length === 0 && models.length > 0) {
-      setModel(models[0].id)
-    }
-  }, [model, models])
+  const selectedModel = useMemo(() => {
+    return models.find((item) => item.id === selectedModelID)
+  }, [models, selectedModelID])
+  const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
+    agentName,
+    sessionId,
+    isBusy
+  )
 
-  const handleSubmit = useCallback((_: PromptInputMessage) => {}, [])
+  const handleSubmit = useCallback(
+    async (message: PromptInputMessage) => {
+      await sendMessage({
+        model: selectedModel,
+        sessionID: sessionId,
+        text: message.text,
+      })
+    },
+    [selectedModel, sendMessage, sessionId]
+  )
 
   const handleModelSelect = useCallback((modelId: string) => {
     setModel(modelId)
     setModelSelectorOpen(false)
   }, [])
-
-  const selectedModel = useMemo(() => {
-    return models.find((item) => item.id === model)
-  }, [models, model])
 
   const visibleMessages = messages.filter((message) => {
     const parts = partsByMessage[message.id] ?? []
@@ -288,14 +310,15 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     const entries = renderEntries(parts, textByPart)
 
     return {
+      createdAt: message.time.created,
       entries,
       from: message.role,
       key: message.id,
     }
   })
+  const lastCreatedAt = renderMessages.at(-1)?.createdAt ?? localMessages.at(-1)?.createdAt ?? 0
 
-  const isBusy = sessionStatus?.type === "busy"
-  const renderBlocks: RenderBlock[] = []
+  const renderBlocks: Array<LocalRenderBlock | RenderBlock> = []
   let assistantBlock: RenderBlock | undefined
 
   function flushAssistantBlock() {
@@ -307,10 +330,48 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     assistantBlock = undefined
   }
 
+  for (const localMessage of localMessages) {
+    renderBlocks.push({
+      createdAt: localMessage.createdAt,
+      key: localMessage.id,
+      message: localMessage,
+      type: "local",
+    })
+  }
+
+  if (historyError) {
+    renderBlocks.push({
+      createdAt: lastCreatedAt + 1,
+      key: "history-error",
+      message: {
+        content: historyError,
+        createdAt: lastCreatedAt + 1,
+        id: "history-error",
+        kind: "system",
+      },
+      type: "local",
+    })
+  }
+
+  if (streamError) {
+    renderBlocks.push({
+      createdAt: lastCreatedAt + 2,
+      key: "stream-error",
+      message: {
+        content: streamError,
+        createdAt: lastCreatedAt + 2,
+        id: "stream-error",
+        kind: "system",
+      },
+      type: "local",
+    })
+  }
+
   for (const message of renderMessages) {
     if (message.from === "assistant") {
       if (!assistantBlock) {
         assistantBlock = {
+          createdAt: message.createdAt,
           entries: [...message.entries],
           from: message.from,
           key: message.key,
@@ -325,6 +386,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
 
     flushAssistantBlock()
     renderBlocks.push({
+      createdAt: message.createdAt,
       entries: message.entries,
       from: message.from,
       key: message.key,
@@ -332,6 +394,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   }
 
   flushAssistantBlock()
+  renderBlocks.sort((x, y) => x.createdAt - y.createdAt)
 
   function groupEntries(entries: RenderEntry[]) {
     const result: (
@@ -381,6 +444,36 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
           ) : (
             <>
               {renderBlocks.map((block) => {
+                if ("message" in block) {
+                  if (block.message.kind === "system") {
+                    return (
+                      <Message
+                        className="mx-auto w-full max-w-full items-center"
+                        from="assistant"
+                        key={block.key}
+                      >
+                        <MessageContent className="w-fit rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive">
+                          <MessageResponse>{block.message.content}</MessageResponse>
+                        </MessageContent>
+                      </Message>
+                    )
+                  }
+
+                  return (
+                    <Message from="user" key={block.key}>
+                      <MessageContent
+                        className={
+                          block.message.status === "failed"
+                            ? "border border-destructive/30 bg-destructive/10 text-destructive"
+                            : undefined
+                        }
+                      >
+                        <MessageResponse>{block.message.text}</MessageResponse>
+                      </MessageContent>
+                    </Message>
+                  )
+                }
+
                 const isLastBlock = lastBlock?.key === block.key
                 const groups = groupEntries(block.entries)
                 const lastGroupIndex = groups.length - 1
@@ -470,7 +563,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                             .filter((item) => item.chef === chef)
                             .map((item) => (
                               <ModelItem
-                                isSelected={model === item.id}
+                                isSelected={selectedModelID === item.id}
                                 key={item.id}
                                 model={item}
                                 onSelect={handleModelSelect}
@@ -482,7 +575,11 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                   </ModelSelectorContent>
                 </ModelSelector>
               </PromptInputTools>
-              <PromptInputSubmit disabled status={isBusy ? "streaming" : "ready"} />
+              <PromptInputSubmit
+                disabled={!selectedModel || !canSubmit}
+                onStop={isBusy ? abortMessage : undefined}
+                status={isBusy ? "streaming" : sendState}
+              />
             </PromptInputFooter>
           </PromptInput>
         </div>

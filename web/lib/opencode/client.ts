@@ -17,10 +17,16 @@ function opencodeBaseURL(agentName: string) {
   return `${gatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`
 }
 
+// getAgentOpencodeBaseURL returns the gateway-backed OpenCode base URL.
+export function getAgentOpencodeBaseURL(agentName: string) {
+  return opencodeBaseURL(agentName)
+}
+
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
-export function createAgentOpencodeClient(agentName: string): OpencodeClient {
+export function createAgentOpencodeClient(agentName: string, directory?: string): OpencodeClient {
   return createOpencodeClient({
     baseUrl: opencodeBaseURL(agentName),
+    ...(directory ? { directory } : {}),
   })
 }
 

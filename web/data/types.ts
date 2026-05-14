@@ -321,8 +321,10 @@ export type ProviderModelItem = {
   chef: string
   chefSlug: string
   id: string
+  modelID: string
   name: string
-  providers: string[]
+  providerID: string
+  variant?: string
 }
 
 export type ListAgentProvidersActionResponse =

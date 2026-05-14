@@ -73,9 +73,10 @@ export async function listAgentProvidersQuery(
         models.push({
           chef: provider.name,
           chefSlug: provider.id,
-          id: model.id,
+          id: `${provider.id}:${model.id}`,
+          modelID: model.id,
           name: model.name,
-          providers: [provider.id],
+          providerID: provider.id,
         })
       }
     }

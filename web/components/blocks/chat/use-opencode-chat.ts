@@ -1,25 +1,13 @@
 "use client"
 
-import {
-  type Event,
-  type Message,
-  type Part,
-  type Session,
-  type SessionStatus,
-  type TextPart,
-} from "@opencode-ai/sdk/v2"
-import { queryOptions, useQuery } from "@tanstack/react-query"
-import { startTransition, useEffectEvent, useEffect, useMemo, useState } from "react"
-import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import type { Event, Message, Part, Session, SessionStatus, TextPart } from "@opencode-ai/sdk"
+import { QueryClient, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import { startTransition, useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
 
 type SessionMessageRecord = {
   info: Message
   parts: Part[]
-}
-
-type SessionTextStream = {
-  active: boolean
-  text: string
 }
 
 type OpencodeChatStore = {
@@ -28,11 +16,30 @@ type OpencodeChatStore = {
   message: Record<string, Message[]>
   session?: Session
   sessionStatus: Record<string, SessionStatus>
-  sessionText: Record<string, SessionTextStream>
 }
 
+export type ChatSystemPrompt = {
+  content: string
+  createdAt: number
+  id: string
+  kind: "system"
+}
+
+export type OptimisticUserMessage = {
+  createdAt: number
+  id: string
+  kind: "optimistic-user"
+  status: "failed" | "pending"
+  text: string
+}
+
+export type LocalChatMessage = ChatSystemPrompt | OptimisticUserMessage
+
 type UseOpencodeChatResult = {
+  historyError?: string
+  isBusy: boolean
   isPending: boolean
+  localMessages: LocalChatMessage[]
   messages: Message[]
   partsByMessage: Record<string, Part[]>
   session?: Session
@@ -43,6 +50,63 @@ type UseOpencodeChatResult = {
 
 const idleSessionStatus: SessionStatus = { type: "idle" }
 
+function deriveSessionIsBusy(
+  messages: Message[],
+  localMessages: LocalChatMessage[],
+  sessionStatus: SessionStatus | undefined,
+  session: Session | undefined
+): boolean {
+  // Pending optimistic user message not yet acknowledged by the server.
+  if (localMessages.some((m) => m.kind === "optimistic-user" && m.status === "pending")) {
+    return true
+  }
+
+  // Session status reported by the server. Catches "busy" during active
+  // processing and "retry" during transient error backoff (SessionStatus
+  // is a three-variant union: idle | busy | retry).
+  if (sessionStatus && sessionStatus.type !== "idle") {
+    return true
+  }
+
+  // Compaction rewrites the message store — metadata is in flux so the
+  // heuristic below would be unreliable. Mirrors the TUI's early return
+  // in sync.tsx.
+  if (session?.time.compacting) {
+    return true
+  }
+
+  // Derive from messages: either waiting for a response (last from user)
+  // or the assistant response hasn't finished streaming yet.
+  const last = messages.at(-1)
+  if (!last) return false
+  if (last.role === "user") return true
+  if (last.role === "assistant" && last.time.completed === undefined) return true
+
+  return false
+}
+
+function sdkErrorMessage(error: { data?: { message?: string } } | undefined, fallback: string) {
+  return error?.data?.message ?? fallback
+}
+
+function sessionErrorMessage(
+  error: Extract<Event, { type: "session.error" }>["properties"]["error"]
+) {
+  if (!error) return "Session error"
+
+  switch (error.name) {
+    case "ProviderAuthError":
+    case "UnknownError":
+    case "MessageAbortedError":
+    case "APIError":
+      return error.data.message
+    case "MessageOutputLengthError":
+      return "Response exceeded the model output limit"
+    default:
+      return "Session error"
+  }
+}
+
 function emptyStore(): OpencodeChatStore {
   return {
     part: {},
@@ -50,8 +114,11 @@ function emptyStore(): OpencodeChatStore {
     message: {},
     session: undefined,
     sessionStatus: {},
-    sessionText: {},
   }
+}
+
+function normalizeText(value: string) {
+  return value.trim().replaceAll(/\s+/g, " ")
 }
 
 function upsertMessage(messages: Message[], next: Message) {
@@ -78,9 +145,13 @@ function upsertPart(parts: Part[], next: Part) {
   })
 }
 
-function buildStore(sessionID: string, records: SessionMessageRecord[]) {
+function buildStore(
+  sessionID: string,
+  session: Session | undefined,
+  records: SessionMessageRecord[]
+) {
   const store = emptyStore()
-
+  store.session = session
   store.message[sessionID] = records
     .map((record) => record.info)
     .sort((x, y) => x.time.created - y.time.created)
@@ -97,26 +168,31 @@ function buildStore(sessionID: string, records: SessionMessageRecord[]) {
   return store
 }
 
-function opencodeErrorMessage(error: { data?: { message?: string } }) {
-  return error.data?.message ?? "Failed to load session messages"
+function sessionMessageText(parts: Part[]) {
+  return parts
+    .filter((part): part is TextPart => part.type === "text")
+    .map((part) => part.text)
+    .join("")
 }
 
 function messageSessionID(event: Event) {
   switch (event.type) {
     case "message.updated":
+      return event.properties.info.sessionID
     case "message.removed":
+      return event.properties.sessionID
     case "message.part.updated":
+      return event.properties.part.sessionID
     case "message.part.removed":
-    case "message.part.delta":
     case "session.status":
     case "session.idle":
+    case "session.error":
+      return event.properties.sessionID
+    case "session.deleted":
+      return event.properties.info.id
     case "session.created":
     case "session.updated":
-    case "session.deleted":
-    case "session.next.text.started":
-    case "session.next.text.delta":
-    case "session.next.text.ended":
-      return event.properties.sessionID
+      return event.properties.info.id
     default:
       return undefined
   }
@@ -125,7 +201,7 @@ function messageSessionID(event: Event) {
 function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
   switch (event.type) {
     case "message.updated": {
-      const sessionID = event.properties.sessionID
+      const sessionID = event.properties.info.sessionID
       const messages = store.message[sessionID] ?? []
 
       return {
@@ -145,9 +221,7 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
         ...store,
         message: {
           ...store.message,
-          [sessionID]: messages.filter((message) => {
-            return message.id !== event.properties.messageID
-          }),
+          [sessionID]: messages.filter((message) => message.id !== event.properties.messageID),
         },
       }
     }
@@ -155,24 +229,27 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
     case "message.part.updated": {
       const part = event.properties.part
       const parts = store.part[part.messageID] ?? []
-      const next = upsertPart(parts, part)
-      const text =
+      const nextParts = upsertPart(parts, part)
+      const current = store.partTextAccumDelta[part.id] ?? ""
+      const nextText =
         part.type === "text" || part.type === "reasoning"
-          ? part.text
-          : store.partTextAccumDelta[part.id]
+          ? event.properties.delta
+            ? current + event.properties.delta
+            : part.text
+          : undefined
 
       return {
         ...store,
         part: {
           ...store.part,
-          [part.messageID]: next,
+          [part.messageID]: nextParts,
         },
         partTextAccumDelta:
-          text === undefined
+          nextText === undefined
             ? store.partTextAccumDelta
             : {
                 ...store.partTextAccumDelta,
-                [part.id]: text,
+                [part.id]: nextText,
               },
       }
     }
@@ -186,28 +263,13 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
         ...store,
         part: {
           ...store.part,
-          [event.properties.messageID]: parts.filter((part) => {
-            return part.id !== event.properties.partID
-          }),
+          [event.properties.messageID]: parts.filter((part) => part.id !== event.properties.partID),
         },
         partTextAccumDelta: nextText,
       }
     }
 
-    case "message.part.delta": {
-      const current = store.partTextAccumDelta[event.properties.partID] ?? ""
-      const text = current + event.properties.delta
-
-      return {
-        ...store,
-        partTextAccumDelta: {
-          ...store.partTextAccumDelta,
-          [event.properties.partID]: text,
-        },
-      }
-    }
-
-    case "session.status": {
+    case "session.status":
       return {
         ...store,
         sessionStatus: {
@@ -215,9 +277,8 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
           [event.properties.sessionID]: event.properties.status,
         },
       }
-    }
 
-    case "session.idle": {
+    case "session.idle":
       return {
         ...store,
         sessionStatus: {
@@ -225,79 +286,187 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
           [event.properties.sessionID]: idleSessionStatus,
         },
       }
-    }
 
     case "session.created":
-    case "session.updated": {
-      const matches = store.session?.id === event.properties.sessionID
-
+    case "session.updated":
       return {
         ...store,
-        session: matches ? event.properties.info : store.session,
+        session:
+          store.session?.id === event.properties.info.id ? event.properties.info : store.session,
       }
-    }
-
-    case "session.next.text.started": {
-      return {
-        ...store,
-        sessionText: {
-          ...store.sessionText,
-          [event.properties.sessionID]: {
-            active: true,
-            text: "",
-          },
-        },
-      }
-    }
-
-    case "session.next.text.delta": {
-      const current = store.sessionText[event.properties.sessionID]
-
-      return {
-        ...store,
-        sessionText: {
-          ...store.sessionText,
-          [event.properties.sessionID]: {
-            active: true,
-            text: (current?.text ?? "") + event.properties.delta,
-          },
-        },
-      }
-    }
-
-    case "session.next.text.ended": {
-      return {
-        ...store,
-        sessionText: {
-          ...store.sessionText,
-          [event.properties.sessionID]: {
-            active: false,
-            text: event.properties.text,
-          },
-        },
-      }
-    }
 
     default:
       return store
   }
 }
 
-function sessionMessagesQueryOptions(agentName: string, sessionID: string) {
+export function chatOverlayQueryKey(agentName: string, sessionID?: string) {
+  return ["opencode", "chatOverlay", agentName, sessionID ?? "new"] as const
+}
+
+export function sessionInfoQueryKey(agentName: string, sessionID: string) {
+  return ["opencode", "sessionInfo", agentName, sessionID] as const
+}
+
+export function sessionMessagesBaseQueryKey(agentName: string, sessionID: string) {
+  return ["opencode", "sessionMessages", agentName, sessionID] as const
+}
+
+function sessionMessagesQueryKey(agentName: string, sessionID: string, directory: string) {
+  return [...sessionMessagesBaseQueryKey(agentName, sessionID), directory] as const
+}
+
+function setOverlayMessages(
+  current: LocalChatMessage[] | undefined,
+  updater: (draft: LocalChatMessage[]) => LocalChatMessage[]
+) {
+  return updater(current ? [...current] : [])
+}
+
+export function appendSystemPrompt(
+  queryClient: QueryClient,
+  agentName: string,
+  sessionID: string | undefined,
+  message: string
+) {
+  queryClient.setQueryData<LocalChatMessage[]>(
+    chatOverlayQueryKey(agentName, sessionID),
+    (current) => {
+      return setOverlayMessages(current, (draft) => {
+        draft.push({
+          content: message,
+          createdAt: Date.now(),
+          id: `sys-${crypto.randomUUID()}`,
+          kind: "system",
+        })
+        return draft
+      })
+    }
+  )
+}
+
+export function upsertOptimisticUserMessage(
+  queryClient: QueryClient,
+  agentName: string,
+  sessionID: string | undefined,
+  message: OptimisticUserMessage
+) {
+  queryClient.setQueryData<LocalChatMessage[]>(
+    chatOverlayQueryKey(agentName, sessionID),
+    (current) => {
+      return setOverlayMessages(current, (draft) => {
+        const index = draft.findIndex(
+          (item) => item.kind === "optimistic-user" && item.id === message.id
+        )
+        if (index >= 0) {
+          draft[index] = message
+          return draft
+        }
+
+        draft.push(message)
+        return draft
+      })
+    }
+  )
+}
+
+export function markOptimisticUserMessageFailed(
+  queryClient: QueryClient,
+  agentName: string,
+  sessionID: string | undefined,
+  messageID: string
+) {
+  queryClient.setQueryData<LocalChatMessage[]>(
+    chatOverlayQueryKey(agentName, sessionID),
+    (current) => {
+      return setOverlayMessages(current, (draft) => {
+        return draft.map((item) => {
+          if (item.kind !== "optimistic-user" || item.id !== messageID) return item
+          return {
+            ...item,
+            status: "failed",
+          }
+        })
+      })
+    }
+  )
+}
+
+export function removeOptimisticUserMessage(
+  queryClient: QueryClient,
+  agentName: string,
+  sessionID: string | undefined,
+  messageID: string
+) {
+  queryClient.setQueryData<LocalChatMessage[]>(
+    chatOverlayQueryKey(agentName, sessionID),
+    (current) => {
+      return setOverlayMessages(current, (draft) => {
+        return draft.filter((item) => item.kind !== "optimistic-user" || item.id !== messageID)
+      })
+    }
+  )
+}
+
+export function migrateChatOverlay(
+  queryClient: QueryClient,
+  agentName: string,
+  fromSessionID: string | undefined,
+  toSessionID: string
+) {
+  const current = queryClient.getQueryData<LocalChatMessage[]>(
+    chatOverlayQueryKey(agentName, fromSessionID)
+  )
+  if (!current || current.length === 0) return
+
+  queryClient.setQueryData<LocalChatMessage[]>(chatOverlayQueryKey(agentName, toSessionID), current)
+  queryClient.removeQueries({
+    queryKey: chatOverlayQueryKey(agentName, fromSessionID),
+    exact: true,
+  })
+}
+
+function sessionInfoQueryOptions(agentName: string, sessionID: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = createAgentOpencodeClientV2(agentName)
-      const result = await client.session.messages({ sessionID })
+      const client = createAgentOpencodeClient(agentName)
+      const result = await client.session.get({
+        path: {
+          id: sessionID,
+        },
+      })
 
-      if (result.error) {
-        throw new Error(opencodeErrorMessage(result.error))
+      if (result.error || !result.data) {
+        throw new Error(sdkErrorMessage(result.error, "Failed to load session"))
       }
 
-      return result.data ?? []
+      return result.data
     },
-    queryKey: ["opencode", "sessionMessages", agentName, sessionID],
+    queryKey: sessionInfoQueryKey(agentName, sessionID),
     retry: false,
-    staleTime: Infinity,
+    staleTime: 60_000,
+  })
+}
+
+function sessionMessagesQueryOptions(agentName: string, sessionID: string, directory: string) {
+  return queryOptions({
+    queryFn: async () => {
+      const client = createAgentOpencodeClient(agentName, directory)
+      const result = await client.session.messages({
+        path: {
+          id: sessionID,
+        },
+      })
+
+      if (result.error || !result.data) {
+        throw new Error(sdkErrorMessage(result.error, "Failed to load session messages"))
+      }
+
+      return result.data
+    },
+    queryKey: sessionMessagesQueryKey(agentName, sessionID, directory),
+    retry: false,
+    staleTime: 5_000,
   })
 }
 
@@ -307,21 +476,41 @@ export function textParts(parts: Part[], textByPart: Record<string, string>): Te
   })
 }
 
+function chatOverlayQueryOptions(agentName: string, sessionID?: string) {
+  return queryOptions({
+    queryFn: async (): Promise<LocalChatMessage[]> => [],
+    queryKey: chatOverlayQueryKey(agentName, sessionID),
+    staleTime: Infinity,
+  })
+}
+
 export function useOpencodeChat(agentName: string, sessionID?: string): UseOpencodeChatResult {
-  const client = useMemo(() => createAgentOpencodeClientV2(agentName), [agentName])
+  const queryClient = useQueryClient()
+  const client = useMemo(() => {
+    return createAgentOpencodeClient(agentName)
+  }, [agentName])
   const [events, setEvents] = useState<Event[]>([])
   const [streamError, setStreamError] = useState<string>()
-  const history = useQuery({
-    ...sessionMessagesQueryOptions(agentName, sessionID ?? ""),
+  const session = useQuery({
+    ...sessionInfoQueryOptions(agentName, sessionID ?? ""),
     enabled: Boolean(sessionID),
   })
+  const history = useQuery({
+    ...sessionMessagesQueryOptions(agentName, sessionID ?? "", session.data?.directory ?? ""),
+    enabled: Boolean(sessionID && session.data?.directory),
+  })
+  const localMessages = useQuery({
+    ...chatOverlayQueryOptions(agentName, sessionID),
+    initialData: [],
+  })
+
   const baseStore = useMemo(() => {
-    if (!sessionID || !history.data) {
+    if (!sessionID) {
       return emptyStore()
     }
 
-    return buildStore(sessionID, history.data)
-  }, [history.data, sessionID])
+    return buildStore(sessionID, session.data, history.data ?? [])
+  }, [history.data, session.data, sessionID])
 
   const store = useMemo(() => {
     return events.reduce((current, event) => applyEvent(current, event), baseStore)
@@ -331,6 +520,15 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     if (!sessionID) return
     if (messageSessionID(event) !== sessionID) return
 
+    if (event.type === "session.error") {
+      appendSystemPrompt(
+        queryClient,
+        agentName,
+        sessionID,
+        sessionErrorMessage(event.properties.error)
+      )
+    }
+
     startTransition(() => {
       setEvents((current) => [...current, event])
       setStreamError(undefined)
@@ -339,23 +537,21 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
   useEffect(() => {
     if (!sessionID) return
-    if (history.isPending) return
-    if (history.isError) return
 
-    const controller = new AbortController()
+    const abortController = new AbortController()
 
     async function consume() {
       try {
-        const result = await client.event.subscribe(undefined, {
-          signal: controller.signal,
+        const result = await client.event.subscribe({
+          signal: abortController.signal,
         })
 
         for await (const event of result.stream) {
-          if (controller.signal.aborted) return
+          if (abortController.signal.aborted) return
           handleEvent(event)
         }
       } catch (error) {
-        if (controller.signal.aborted) return
+        if (abortController.signal.aborted) return
 
         setStreamError(
           error instanceof Error ? error.message : "Failed to subscribe to session events"
@@ -365,25 +561,58 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
     void consume()
 
-    return () => controller.abort()
-  }, [client, history.isError, history.isPending, sessionID])
+    return () => {
+      abortController.abort()
+    }
+  }, [client, sessionID])
 
-  const messages = sessionID ? (store.message[sessionID] ?? []) : []
+  const messages = useMemo(() => {
+    return sessionID ? (store.message[sessionID] ?? []) : []
+  }, [sessionID, store.message])
+  const partsByMessage = store.part
+  const textByPart = store.partTextAccumDelta
   const sessionStatus = sessionID
     ? (store.sessionStatus[sessionID] ?? idleSessionStatus)
     : undefined
 
+  const processedIds = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (!sessionID) return
+
+    for (const localMessage of localMessages.data) {
+      if (localMessage.kind !== "optimistic-user") continue
+      if (processedIds.current.has(localMessage.id)) continue
+
+      const match = messages.find((message) => {
+        if (message.role !== "user") return false
+        const parts = partsByMessage[message.id] ?? []
+        const messageText = normalizeText(sessionMessageText(parts))
+        const optimisticText = normalizeText(localMessage.text)
+
+        return (
+          messageText.length > 0 &&
+          messageText === optimisticText &&
+          Math.abs(message.time.created - localMessage.createdAt) < 60_000
+        )
+      })
+
+      if (!match) continue
+      processedIds.current.add(localMessage.id)
+      removeOptimisticUserMessage(queryClient, agentName, sessionID, localMessage.id)
+    }
+  }, [agentName, localMessages.data, messages, partsByMessage, queryClient, sessionID])
+
   return {
-    isPending: Boolean(sessionID) && history.isPending,
+    historyError: history.error instanceof Error ? history.error.message : undefined,
+    isBusy: deriveSessionIsBusy(messages, localMessages.data, sessionStatus, store.session),
+    isPending: Boolean(sessionID) && (session.isPending || history.isPending),
+    localMessages: localMessages.data,
     messages,
-    partsByMessage: store.part,
+    partsByMessage,
     session: store.session,
     sessionStatus,
-    streamError:
-      streamError ??
-      (history.error
-        ? opencodeErrorMessage(history.error as { data?: { message?: string } })
-        : undefined),
-    textByPart: store.partTextAccumDelta,
+    streamError,
+    textByPart,
   }
 }

@@ -214,6 +214,7 @@
     pointer-events: none;
     opacity: 1;
     transition: opacity 220ms ease-out;
+    z-index: 50;
   }
 
   [data-component="session-progress"][data-state="hiding"] {

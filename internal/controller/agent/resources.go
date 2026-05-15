@@ -299,6 +299,9 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			Selector: &metav1.LabelSelector{
 				MatchLabels: selectorLabels(agt),
 			},
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      podLabels,

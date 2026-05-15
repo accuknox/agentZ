@@ -136,15 +136,36 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Match native scrollbars to the app theme across engines. */
+  html {
+    @apply font-sans;
+    scrollbar-color: var(--border) transparent;
+    scrollbar-width: thin;
+  }
+  *::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border: 3px solid transparent;
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
   body {
     @apply bg-background text-foreground;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
-  }
-  html {
-    @apply font-sans;
   }
 }
 

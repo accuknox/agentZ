@@ -303,16 +303,16 @@ function SessionItem({
   const router = useRouter()
 
   const handleDelete = useCallback(
-    (formData: FormData) => {
+    async (formData: FormData) => {
       setError(null)
-      startTransition(async () => {
-        const state = await deleteAgentSessionAction(agentName, { success: false }, formData)
+      const state = await deleteAgentSessionAction(agentName, { success: false }, formData)
 
-        if (state.error) {
-          setError(new Error(state.error.message))
-          return
-        }
+      if (state.error) {
+        setError(new Error(state.error.message))
+        return
+      }
 
+      startTransition(() => {
         setOpen(false)
 
         void queryClient.invalidateQueries({

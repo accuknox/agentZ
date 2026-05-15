@@ -20,22 +20,26 @@ export function WizardShell<TStep extends WizardStep>({
     <div
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-4",
-        layout === "vertical" && "md:flex-row md:gap-5"
+        layout === "vertical" && "md:flex-row md:gap-5",
+        layout === "horizontal" && "items-center"
       )}
     >
-      <WizardStepNav
-        canVisitStepAction={canVisitStepAction}
-        currentIndex={currentIndex}
-        layout={layout}
-        onStepSelectAction={onStepSelectAction}
-        steps={steps}
-      />
+      <div className={cn(layout === "horizontal" && "flex w-full justify-center")}>
+        <WizardStepNav
+          canVisitStepAction={canVisitStepAction}
+          currentIndex={currentIndex}
+          layout={layout}
+          onStepSelectAction={onStepSelectAction}
+          steps={steps}
+        />
+      </div>
       <WizardPanel direction={direction} panelAdornment={panelAdornment} stepKey={currentStepId}>
         <div
           id={`wizard-panel-${currentStepId}`}
           role="tabpanel"
           aria-labelledby={`wizard-step-${currentStepId}`}
           tabIndex={0}
+          className="min-h-0"
         >
           {children}
         </div>

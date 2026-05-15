@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useEffect, useEffectEvent, useState } from "react"
+import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Plus } from "lucide-react"
@@ -205,7 +205,9 @@ export function AgentDialog({
   const submit = async (formData: FormData) => {
     const valid = await form.trigger()
     if (!valid) return
-    await action(formData)
+    startTransition(() => {
+      action(formData)
+    })
   }
 
   return (

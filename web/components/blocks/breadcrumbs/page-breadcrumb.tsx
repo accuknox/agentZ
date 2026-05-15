@@ -37,7 +37,9 @@ export function PageBreadcrumb({ agents }: { agents: Promise<ListAgentActionResp
             <Fragment key={`${crumb.href ?? crumb.label}-${index}`}>
               <BreadcrumbItem>
                 {current || !crumb.href ? (
-                  <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                  <BreadcrumbPage className={current ? "text-foreground" : undefined}>
+                    {crumb.label}
+                  </BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
                     <Link href={crumb.href}>{crumb.label}</Link>
@@ -61,50 +63,65 @@ function crumbsForSegments(
     return [{ label: "Home" }]
   }
 
+  if (segments[0] === "agents" && segments[1] && segments[2] && segments[3]) {
+    return [
+      { href: "/", label: "Home" },
+      { label: "Agents" },
+      { label: agentName(segments[1]) ?? segments[1] },
+      { label: titleize(segments[2]) },
+      { label: titleize(segments[3]) },
+    ]
+  }
+
   if (segments[0] === "agents" && segments[1]) {
     return [
       { href: "/", label: "Home" },
-      { href: "/", label: "Agents" },
+      { label: "Agents" },
       { label: agentName(segments[1]) ?? segments[1] },
     ]
   }
 
-  if (segments[0] === "runtime-telemetry") {
+  if (segments[0] === "lens" && segments[1] === "runtime-telemetry") {
     if (segments[1]) {
       return [
         { href: "/", label: "Home" },
-        { href: "/lens", label: "Lens" },
+        { label: "Lens" },
         { href: "/lens/runtime-telemetry", label: "Runtime Telemetry" },
-        { label: titleize(segments[1]) },
+        ...(segments[2] ? [{ label: titleize(segments[2]) }] : []),
       ]
     }
-    return [
-      { href: "/", label: "Home" },
-      { href: "/lens", label: "Lens" },
-      { label: "Runtime Telemetry" },
-    ]
+    return [{ href: "/", label: "Home" }, { label: "Lens" }, { label: "Runtime Telemetry" }]
   }
 
-  if (segments[0] === "agent" && segments[1] === "new") {
-    return [{ href: "/", label: "Home" }, { href: "/", label: "Agents" }, { label: "New" }]
+  if (segments[0] === "lens" && segments[1] === "traces") {
+    return [{ href: "/", label: "Home" }, { label: "Lens" }, { label: "Traces" }]
   }
 
-  if (segments[0] === "agent" && segments[1] === "update" && segments[2]) {
-    return [
-      { href: "/", label: "Home" },
-      { href: "/", label: "Agents" },
-      { href: `/agents/${segments[2]}`, label: agentName(segments[2]) ?? segments[2] },
-      { label: "Update" },
-    ]
+  return genericCrumbs(segments)
+}
+
+function genericCrumbs(segments: string[]): Crumb[] {
+  const crumbs: Crumb[] = [{ href: "/", label: "Home" }]
+  const hrefs = new Set([
+    "/",
+    "/environments",
+    "/environments/new",
+    "/lens/runtime-telemetry",
+    "/lens/traces",
+    "/secrets",
+  ])
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    const href = `/${segments.slice(0, i + 1).join("/")}`
+
+    crumbs.push({
+      href: hrefs.has(href) ? href : undefined,
+      label: titleize(segment),
+    })
   }
 
-  return [
-    { href: "/", label: "Home" },
-    ...segments.map((segment, index) => {
-      const href = `/${segments.slice(0, index + 1).join("/")}`
-      return { href, label: titleize(segment) }
-    }),
-  ]
+  return crumbs
 }
 
 function titleize(value: string) {

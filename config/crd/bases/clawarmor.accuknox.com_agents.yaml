@@ -221,6 +221,12 @@ spec:
                 default: IfNotPresent
                 description: ImagePullPolicy defines when Kubernetes pulls the Agent image.
                 type: string
+              instruction:
+                description: Instruction defines additional OpenCode instruction content.
+                type: string
+              model:
+                description: Model sets the default OpenCode model in provider/model form.
+                type: string
               nixStoreSize:
                 anyOf:
                 - type: integer
@@ -229,6 +235,21 @@ spec:
                 description: NixStoreSize sets the size of the agent-specific nix store PVC.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
+              providers:
+                additionalProperties:
+                  description: OpencodeProviderConfig defines non-secret provider settings for OpenCode.
+                  properties:
+                    baseURL:
+                      description: BaseURL overrides the provider base URL.
+                      type: string
+                    env:
+                      description: Env lists environment variable names OpenCode should read for provider auth.
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                description: Providers configures non-secret OpenCode provider settings by provider ID.
+                type: object
               resources:
                 description: Resources defines compute resources allocated to the Agent pod.
                 properties:
@@ -288,6 +309,9 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              smallModel:
+                description: SmallModel sets the small OpenCode model in provider/model form.
+                type: string
               telemetry:
                 description: Telemetry configures agent observability export.
                 properties:

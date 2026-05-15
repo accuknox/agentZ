@@ -17,6 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"net/url"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,6 +76,22 @@ type AgentSpec struct {
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty"`
 
+	// Model sets the default OpenCode model in provider/model form.
+	// +optional
+	Model string `json:"model,omitempty"`
+
+	// SmallModel sets the small OpenCode model in provider/model form.
+	// +optional
+	SmallModel string `json:"smallModel,omitempty"`
+
+	// Instruction defines additional OpenCode instruction content.
+	// +optional
+	Instruction string `json:"instruction,omitempty"`
+
+	// Providers configures non-secret OpenCode provider settings by provider ID.
+	// +optional
+	Providers map[string]OpencodeProviderConfig `json:"providers,omitempty"`
+
 	// Telemetry configures agent observability export.
 	// +optional
 	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
@@ -96,6 +115,30 @@ type TelemetryConfig struct {
 	// TraceEndpoint is the OTLP/gRPC trace endpoint in host:port form.
 	// +optional
 	TraceEndpoint string `json:"traceEndpoint,omitempty"`
+}
+
+// OpencodeProviderConfig defines non-secret provider settings for OpenCode.
+type OpencodeProviderConfig struct {
+	// Env lists environment variable names OpenCode should read for provider auth.
+	// +optional
+	Env []string `json:"env,omitempty"`
+
+	// BaseURL overrides the provider base URL.
+	// +optional
+	BaseURL string `json:"baseURL,omitempty"`
+}
+
+// ParseBaseURL validates the provider base URL when set.
+func (c OpencodeProviderConfig) ParseBaseURL() (*url.URL, error) {
+	if strings.TrimSpace(c.BaseURL) == "" {
+		return nil, nil
+	}
+
+	parsed, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	return parsed, nil
 }
 
 // AgentStatus defines the observed state of Agent.

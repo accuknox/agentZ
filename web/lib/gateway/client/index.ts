@@ -29,6 +29,8 @@ export type {
   AgentNameFilterQuery,
   AgentNamePath,
   AgentNameQuery,
+  AgentOpencodeConfig,
+  AgentOpencodeProviderConfig,
   AgentStatus,
   AggregatedQuery,
   ClientOptions,

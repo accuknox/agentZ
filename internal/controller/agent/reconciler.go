@@ -110,16 +110,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("resolve environment: %w", err)
 	}
 
-	cfgYAML, err := renderConfig(agt)
+	opencodeCfg, instruction, err := renderOpencodeConfig(agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("render config: %w", err)
+		return ctrl.Result{}, fmt.Errorf("render opencode config: %w", err)
 	}
 
-	err = r.reconcileConfigMap(ctx, agt, string(cfgYAML))
+	err = r.reconcileConfigMap(ctx, agt, string(opencodeCfg), instruction)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -196,14 +196,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile egress policy: %w", err)
 	}
 
-	hash, err := configHash(cfgYAML, agt.Spec.Env, envCfg.Packages)
-	if err != nil {
-		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-		if updateErr != nil {
-			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
-		}
-		return ctrl.Result{}, fmt.Errorf("hash config: %w", err)
-	}
+	hash := configHash(opencodeCfg, agt.Spec.Env, envCfg.Packages)
 	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)

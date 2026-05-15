@@ -34,7 +34,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 )
 
-func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, cfg string) error {
+func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, opencodeCfg string, instruction string) error {
 	current := &corev1.ConfigMap{}
 	current.Name = agt.Name
 	current.Namespace = agt.Namespace
@@ -42,8 +42,9 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alp
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
 		current.Labels = resourceLabels(agt)
 		current.Annotations = agt.Annotations
-		current.Data = map[string]string{
-			configKey: cfg,
+		current.Data = map[string]string{opencodeConfigKey: opencodeCfg}
+		if instruction != "" {
+			current.Data[opencodeInstructionKey] = instruction
 		}
 		return ctrl.SetControllerReference(agt, current, r.Scheme)
 	})
@@ -168,6 +169,12 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 
 	var volumeMounts []corev1.VolumeMount
 	var initContainers []corev1.Container
+
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      configVolume,
+		MountPath: opencodeConfigDir,
+		ReadOnly:  true,
+	})
 
 	if r.sinjectorEnabled() {
 		serviceAccountName = agt.Name
@@ -338,23 +345,25 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string) [
 	proxy = "http://" + proxy
 
 	forced := []corev1.EnvVar{
-		{Name: "https_proxy", Value: proxy},
-		{Name: "HTTPS_PROXY", Value: proxy},
-		{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
-		{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
-		{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
-		{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+		{Name: "XDG_CONFIG_HOME", Value: opencodeConfigHome},
 	}
+	if r.sinjectorEnabled() {
+		forced = append(forced,
+			corev1.EnvVar{Name: "https_proxy", Value: proxy},
+			corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
+			corev1.EnvVar{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+		)
+	}
+
 	forcedNames := make(map[string]struct{}, len(forced))
 	for _, item := range forced {
 		forcedNames[item.Name] = struct{}{}
 	}
 
-	var env []corev1.EnvVar
-
-	if r.sinjectorEnabled() {
-		env = append(env, forced...)
-	}
+	env := append([]corev1.EnvVar{}, forced...)
 
 	for _, item := range agt.Spec.Env {
 		if _, ok := forcedNames[item.Name]; ok {

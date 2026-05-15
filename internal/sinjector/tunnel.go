@@ -145,7 +145,7 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, target, scheme 
 		}
 
 		req = rewriteRequest(req.WithContext(ctx), p.resolver, target)
-		upstreamReq, err := upstreamRequest(req, target, scheme)
+		upstreamReq := upstreamRequest(req, target, scheme)
 		if err != nil {
 			slog.DebugContext(ctx, "build upstream request failed", slog.Any("err", err))
 			return
@@ -319,7 +319,7 @@ func looksLikeHTTP(peek []byte) bool {
 
 // upstreamRequest converts an inbound proxy request into a client request
 // suitable for RoundTrip while preserving the rewritten request body.
-func upstreamRequest(req *http.Request, target, scheme string) (*http.Request, error) {
+func upstreamRequest(req *http.Request, target, scheme string) *http.Request {
 	out := req.Clone(req.Context())
 	if out.URL == nil {
 		out.URL = &url.URL{}
@@ -335,7 +335,7 @@ func upstreamRequest(req *http.Request, target, scheme string) (*http.Request, e
 	out.RequestURI = ""
 	out.Close = req.Close
 	out.Header = cloneHeaderWithoutHopByHop(req.Header)
-	return out, nil
+	return out
 }
 
 // cloneHeaderWithoutHopByHop removes hop-by-hop headers before upstream proxying.
@@ -362,7 +362,7 @@ func hopByHopHeaders(header http.Header) []string {
 	}
 	connection := header.Values("Connection")
 	for _, value := range connection {
-		for _, item := range strings.Split(value, ",") {
+		for item := range strings.SplitSeq(value, ",") {
 			item = textproto.TrimString(item)
 			if item == "" {
 				continue

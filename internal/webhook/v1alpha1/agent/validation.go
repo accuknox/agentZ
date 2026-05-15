@@ -18,9 +18,11 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -93,5 +95,102 @@ func validateAgent(agt *clawarmorv1alpha1.Agent) field.ErrorList {
 		))
 	}
 
+	allErrs = append(allErrs, validateAgentOpencodeConfig(agt.Spec, specPath)...)
+
 	return allErrs
+}
+
+func validateAgentOpencodeConfig(spec clawarmorv1alpha1.AgentSpec, path *field.Path) field.ErrorList {
+	var allErrs field.ErrorList
+
+	if spec.Model != "" && !isValidModelRef(spec.Model) {
+		allErrs = append(allErrs, field.Invalid(
+			path.Child("model"),
+			spec.Model,
+			"must be in provider/model form",
+		))
+	}
+	if spec.SmallModel != "" && !isValidModelRef(spec.SmallModel) {
+		allErrs = append(allErrs, field.Invalid(
+			path.Child("smallModel"),
+			spec.SmallModel,
+			"must be in provider/model form",
+		))
+	}
+	if strings.TrimSpace(spec.Instruction) == "" && spec.Instruction != "" {
+		allErrs = append(allErrs, field.Invalid(
+			path.Child("instruction"),
+			spec.Instruction,
+			"instruction must not be empty",
+		))
+	}
+	if len(spec.Instruction) > 4096 {
+		allErrs = append(allErrs, field.Invalid(
+			path.Child("instruction"),
+			spec.Instruction,
+			"instruction must be at most 4096 characters",
+		))
+	}
+
+	for name, provider := range spec.Providers {
+		providerPath := path.Child("providers").Key(name)
+		if strings.TrimSpace(name) == "" {
+			allErrs = append(allErrs, field.Invalid(
+				providerPath,
+				name,
+				"provider name must not be empty",
+			))
+		}
+
+		for i, envName := range provider.Env {
+			if strings.TrimSpace(envName) == "" {
+				allErrs = append(allErrs, field.Invalid(
+					providerPath.Child("env").Index(i),
+					envName,
+					"env var name must not be empty",
+				))
+				continue
+			}
+			if errs := k8svalidation.IsEnvVarName(envName); len(errs) > 0 {
+				allErrs = append(allErrs, field.Invalid(
+					providerPath.Child("env").Index(i),
+					envName,
+					strings.Join(errs, ", "),
+				))
+			}
+		}
+
+		baseURL, err := provider.ParseBaseURL()
+		if err != nil {
+			allErrs = append(allErrs, field.Invalid(
+				providerPath.Child("baseURL"),
+				provider.BaseURL,
+				fmt.Sprintf("parse url: %v", err),
+			))
+			continue
+		}
+		if baseURL == nil {
+			continue
+		}
+		if !baseURL.IsAbs() {
+			allErrs = append(allErrs, field.Invalid(
+				providerPath.Child("baseURL"),
+				provider.BaseURL,
+				"must be an absolute url",
+			))
+		}
+	}
+
+	return allErrs
+}
+
+func isValidModelRef(v string) bool {
+	provider, model, ok := strings.Cut(v, "/")
+	if !ok {
+		return false
+	}
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
+		return false
+	}
+	return !strings.Contains(model, "/")
 }

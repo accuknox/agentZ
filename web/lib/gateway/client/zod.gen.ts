@@ -64,19 +64,33 @@ export const zListAgentsResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zDeleteAgentRequest = z.object({
+  agent_name: zAgentName,
+})
+
+export const zAgentOpencodeProviderConfig = z.object({
+  env: z.array(z.string()).optional(),
+  baseURL: z.string().optional(),
+})
+
+export const zAgentOpencodeConfig = z.object({
+  model: z.string().optional(),
+  smallModel: z.string().optional(),
+  instruction: z.string().max(4096).optional(),
+  providers: z.record(z.string(), zAgentOpencodeProviderConfig).optional(),
+})
+
 export const zCreateAgentRequest = z.object({
   name: zAgentName,
   env: z.record(z.string(), z.string()).optional(),
   environmentName: zEnvironmentName,
-})
-
-export const zDeleteAgentRequest = z.object({
-  agent_name: zAgentName,
+  opencode: zAgentOpencodeConfig.optional(),
 })
 
 export const zUpdateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),
   environmentName: zEnvironmentName.optional(),
+  opencode: zAgentOpencodeConfig.optional(),
 })
 
 export const zTrace = z.object({

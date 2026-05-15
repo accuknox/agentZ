@@ -62,6 +62,7 @@ export type CreateAgentRequest = {
     [key: string]: string
   }
   environmentName: EnvironmentName
+  opencode?: AgentOpencodeConfig
 }
 
 export type DeleteAgentRequest = {
@@ -73,6 +74,21 @@ export type UpdateAgentRequest = {
     [key: string]: string
   }
   environmentName?: EnvironmentName
+  opencode?: AgentOpencodeConfig
+}
+
+export type AgentOpencodeConfig = {
+  model?: string
+  smallModel?: string
+  instruction?: string
+  providers?: {
+    [key: string]: AgentOpencodeProviderConfig
+  }
+}
+
+export type AgentOpencodeProviderConfig = {
+  env?: Array<string>
+  baseURL?: string
 }
 
 export type ListTracesResponse = {

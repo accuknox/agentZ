@@ -790,6 +790,8 @@ components:
             type: string
         environmentName:
           $ref: '#/components/schemas/EnvironmentName'
+        opencode:
+          $ref: '#/components/schemas/AgentOpencodeConfig'
       required: [name, environmentName]
 
     DeleteAgentRequest:
@@ -810,7 +812,36 @@ components:
             type: string
         environmentName:
           $ref: '#/components/schemas/EnvironmentName'
+        opencode:
+          $ref: '#/components/schemas/AgentOpencodeConfig'
       minProperties: 1
+
+    AgentOpencodeConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        model:
+          type: string
+        smallModel:
+          type: string
+        instruction:
+          type: string
+          maxLength: 4096
+        providers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/AgentOpencodeProviderConfig'
+
+    AgentOpencodeProviderConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        env:
+          type: array
+          items:
+            type: string
+        baseURL:
+          type: string
 
     ListTracesResponse:
       type: object

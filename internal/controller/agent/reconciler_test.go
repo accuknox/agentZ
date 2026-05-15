@@ -53,6 +53,15 @@ var _ = Describe("Agent Controller", func() {
 					Enabled:       true,
 					TraceEndpoint: "observer.default.svc.cluster.local:4317",
 				},
+				Model:       "openai/gpt-5",
+				SmallModel:  "openai/gpt-5-mini",
+				Instruction: "Follow repository instructions strictly.",
+				Providers: map[string]clawarmorv1alpha1.OpencodeProviderConfig{
+					"openai": {
+						Env:     []string{"OPENAI_API_KEY"},
+						BaseURL: "https://api.openai.com/v1",
+					},
+				},
 			},
 		})).To(Succeed())
 	})
@@ -75,13 +84,30 @@ var _ = Describe("Agent Controller", func() {
 
 		cm := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, key, cm)).To(Succeed())
-		Expect(cm.Data[configKey]).To(ContainSubstring("traceEndpoint: observer.default.svc.cluster.local:4317"))
+		Expect(cm.Data).To(HaveKey(opencodeConfigKey))
+		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"model": "openai/gpt-5"`))
+		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"small_model": "openai/gpt-5-mini"`))
+		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"instructions": [`))
+		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(opencodeInstructionPath))
+		Expect(cm.Data).To(HaveKeyWithValue(
+			opencodeInstructionKey,
+			"Follow repository instructions strictly.",
+		))
+		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"baseURL": "https://api.openai.com/v1"`))
 
 		dep := &appsv1.Deployment{}
 		Expect(k8sClient.Get(ctx, key, dep)).To(Succeed())
 		container := dep.Spec.Template.Spec.Containers[0]
 		Expect(container.WorkingDir).To(Equal("/home/clawarmor"))
 		Expect(container.Args).To(ContainElement("serve"))
+		Expect(container.Env).To(ContainElement(
+			corev1.EnvVar{Name: "XDG_CONFIG_HOME", Value: opencodeConfigHome},
+		))
+		Expect(container.VolumeMounts).To(ContainElement(corev1.VolumeMount{
+			Name:      configVolume,
+			MountPath: opencodeConfigDir,
+			ReadOnly:  true,
+		}))
 
 		svc := &corev1.Service{}
 		Expect(k8sClient.Get(ctx, key, svc)).To(Succeed())

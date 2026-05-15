@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -481,6 +482,8 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 		}
 	}
 
+	fields = append(fields, validateOpenCodeRequest(req.Opencode)...)
+
 	return name, fields
 }
 
@@ -554,6 +557,7 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 			},
 		},
 	}
+	applyOpencodeRequest(&agt.Spec, req.Opencode)
 	return agt
 }
 
@@ -564,11 +568,14 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 	if req.EnvironmentName != nil {
 		return true
 	}
+	if req.Opencode != nil {
+		return true
+	}
 	return false
 }
 
 func validateUpdateAgentRequest(req gatewayapi.UpdateAgentRequest) []gatewayapi.FieldError {
-	return nil
+	return validateOpenCodeRequest(req.Opencode)
 }
 
 func applyUpdateAgentRequest(agt *clawarmorv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
@@ -580,6 +587,7 @@ func applyUpdateAgentRequest(agt *clawarmorv1alpha1.Agent, req gatewayapi.Update
 			Name: *req.EnvironmentName,
 		}
 	}
+	applyOpencodeRequest(&agt.Spec, req.Opencode)
 }
 
 func envVarsFromMap(items map[string]string) []corev1.EnvVar {
@@ -594,6 +602,133 @@ func envVarsFromMap(items map[string]string) []corev1.EnvVar {
 		env = append(env, corev1.EnvVar{Name: key, Value: items[key]})
 	}
 	return env
+}
+
+func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.FieldError {
+	if cfg == nil {
+		return nil
+	}
+
+	fields := []gatewayapi.FieldError{}
+	if cfg.Model != nil && !isValidModelRef(*cfg.Model) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "opencode.model",
+			Message: "must be in provider/model form",
+		})
+	}
+	if cfg.SmallModel != nil && !isValidModelRef(*cfg.SmallModel) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "opencode.smallModel",
+			Message: "must be in provider/model form",
+		})
+	}
+	if cfg.Instruction != nil {
+		if strings.TrimSpace(*cfg.Instruction) == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "opencode.instruction",
+				Message: "instruction must not be empty",
+			})
+		}
+		if len(*cfg.Instruction) > 4096 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "opencode.instruction",
+				Message: "instruction must be at most 4096 characters",
+			})
+		}
+	}
+	if cfg.Providers == nil {
+		return fields
+	}
+
+	for name, provider := range *cfg.Providers {
+		if strings.TrimSpace(name) == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "opencode.providers",
+				Message: "provider name must not be empty",
+			})
+		}
+		if provider.Env != nil {
+			for i, envName := range *provider.Env {
+				if strings.TrimSpace(envName) == "" {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   fmt.Sprintf("opencode.providers.%s.env.%d", name, i),
+						Message: "env var name must not be empty",
+					})
+					continue
+				}
+				if errs := validation.IsEnvVarName(envName); len(errs) > 0 {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   fmt.Sprintf("opencode.providers.%s.env.%d", name, i),
+						Message: strings.Join(errs, ", "),
+					})
+				}
+			}
+		}
+		if provider.BaseURL == nil || strings.TrimSpace(*provider.BaseURL) == "" {
+			continue
+		}
+		parsed, err := url.Parse(*provider.BaseURL)
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("opencode.providers.%s.baseURL", name),
+				Message: fmt.Sprintf("parse url: %v", err),
+			})
+			continue
+		}
+		if !parsed.IsAbs() {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("opencode.providers.%s.baseURL", name),
+				Message: "must be an absolute url",
+			})
+		}
+	}
+
+	return fields
+}
+
+func applyOpencodeRequest(spec *clawarmorv1alpha1.AgentSpec, cfg *gatewayapi.AgentOpencodeConfig) {
+	if cfg == nil {
+		return
+	}
+
+	if cfg.Model != nil {
+		spec.Model = *cfg.Model
+	}
+	if cfg.SmallModel != nil {
+		spec.SmallModel = *cfg.SmallModel
+	}
+	if cfg.Instruction != nil {
+		spec.Instruction = *cfg.Instruction
+	}
+	if cfg.Providers == nil {
+		return
+	}
+
+	spec.Providers = make(
+		map[string]clawarmorv1alpha1.OpencodeProviderConfig,
+		len(*cfg.Providers),
+	)
+	for name, provider := range *cfg.Providers {
+		item := clawarmorv1alpha1.OpencodeProviderConfig{}
+		if provider.Env != nil && len(*provider.Env) > 0 {
+			item.Env = append([]string{}, (*provider.Env)...)
+		}
+		if provider.BaseURL != nil {
+			item.BaseURL = *provider.BaseURL
+		}
+		spec.Providers[name] = item
+	}
+}
+
+func isValidModelRef(v string) bool {
+	provider, model, ok := strings.Cut(v, "/")
+	if !ok {
+		return false
+	}
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
+		return false
+	}
+	return !strings.Contains(model, "/")
 }
 
 func statusFromView(view *agentStatusView) gatewayapi.AgentStatus {

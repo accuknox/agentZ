@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	"context"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -81,5 +82,36 @@ var _ = Describe("Agent Webhook", func() {
 		_, err := validator.ValidateUpdate(ctx, oldObj, obj)
 
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("accepts valid opencode config", func() {
+		obj.Spec.Model = "openai/gpt-5"
+		obj.Spec.SmallModel = "openai/gpt-5-mini"
+		obj.Spec.Instruction = "Follow repository instructions strictly."
+		obj.Spec.Providers = map[string]clawarmorv1alpha1.OpencodeProviderConfig{
+			"openai": {
+				Env:     []string{"OPENAI_API_KEY"},
+				BaseURL: "https://api.openai.com/v1",
+			},
+		}
+
+		_, err := validator.ValidateCreate(ctx, obj)
+
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("rejects invalid opencode config", func() {
+		obj.Spec.Model = "gpt-5"
+		obj.Spec.Instruction = strings.Repeat("a", 4097)
+		obj.Spec.Providers = map[string]clawarmorv1alpha1.OpencodeProviderConfig{
+			"openai": {
+				Env:     []string{"bad-name"},
+				BaseURL: "/v1",
+			},
+		}
+
+		_, err := validator.ValidateCreate(ctx, obj)
+
+		Expect(err).To(HaveOccurred())
 	})
 })

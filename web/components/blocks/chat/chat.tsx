@@ -553,7 +553,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                   if (block.message.kind === "system") {
                     return (
                       <Message
-                        className="mx-auto w-full max-w-full items-center"
+                        className="is-system-message mx-auto w-full max-w-full items-center"
                         from="assistant"
                         key={block.key}
                       >
@@ -704,7 +704,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                     <Select onValueChange={setReasoningLevel} value={selectedReasoningLevel}>
                       <ReasoningSelectTrigger
                         aria-label="Reasoning level"
-                        className="h-8 min-w-32 gap-1 px-2 text-xs"
+                        className="h-8 min-w-16 gap-1 px-2 text-xs"
                         size="sm"
                         variant="ghost"
                       >

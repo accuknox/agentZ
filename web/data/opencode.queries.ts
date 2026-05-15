@@ -1,29 +1,47 @@
-import { createAgentOpencodeClient, createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { createAgentOpencodeClientV2, getAgentOpencodeBaseURL } from "@/lib/opencode/client"
 import type {
   ListAgentProvidersActionResponse,
   ListAgentSessionActionResponse,
   ProviderModelItem,
 } from "@/data/types"
 import { sortAgentSessions, toAgentSessionListItem } from "@/lib/opencode/session-list"
+import type { Session } from "@opencode-ai/sdk"
 
 // listAgentSessionsQuery returns sidebar-ready OpenCode sessions for one agent.
 export async function listAgentSessionsQuery(
   agentName: string
 ): Promise<ListAgentSessionActionResponse> {
   try {
-    const client = createAgentOpencodeClient(agentName)
-    const result = await client.session.list()
-    const sessions = result.data
+    const response = await fetch(`${getAgentOpencodeBaseURL(agentName)}/session`, {
+      cache: "no-store",
+    })
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => undefined)) as
+        | {
+            name?: string
+            data?: {
+              message?: string
+            }
+          }
+        | undefined
 
-    if (!sessions) {
+      if (payload?.name === "UnknownError") {
+        return {
+          sessions: [],
+          error: undefined,
+        }
+      }
+
       return {
         sessions: undefined,
         error: {
           code: "OPENCODE_SESSION_LIST_ERROR",
-          message: "Failed to load sessions",
+          message: payload?.data?.message ?? "Failed to load sessions",
         },
       }
     }
+
+    const sessions = (await response.json()) as Session[]
 
     return {
       sessions: sortAgentSessions(sessions.map(toAgentSessionListItem)),

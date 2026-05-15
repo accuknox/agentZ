@@ -73,6 +73,7 @@ export async function listAgentProvidersQuery(
         models.push({
           chef: provider.name,
           chefSlug: provider.id,
+          contextLimit: model.limit?.context,
           id: `${provider.id}:${model.id}`,
           modelID: model.id,
           name: model.name,

@@ -320,6 +320,7 @@ export type DeleteSessionFormState = {
 export type ProviderModelItem = {
   chef: string
   chefSlug: string
+  contextLimit?: number
   id: string
   modelID: string
   name: string

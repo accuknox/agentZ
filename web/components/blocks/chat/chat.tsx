@@ -53,6 +53,19 @@ import {
   ModelSelectorName,
   ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector"
+import {
+  Context,
+  ContextCacheUsage,
+  ContextContent,
+  ContextContentBody,
+  ContextContentFooter,
+  ContextContentHeader,
+  ContextInputUsage,
+  ContextOutputUsage,
+  ContextReasoningUsage,
+  ContextTrigger,
+} from "@/components/ai-elements/context"
+import type { LanguageModelUsage } from "ai"
 
 type ChatProps = {
   agentName: string
@@ -175,6 +188,55 @@ type LocalRenderBlock = {
 
 type ToolRenderEntry = Extract<RenderEntry, { type: "tool" }>
 
+type AssistantUsage = {
+  modelId?: string
+  modelName?: string
+  providerID?: string
+  total: number
+  usage: LanguageModelUsage
+  usedTokens: number
+  maxTokens?: number
+}
+
+function getAssistantUsage(
+  messages: OpencodeMessage[],
+  models: ProviderModelItem[]
+): AssistantUsage | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role !== "assistant") continue
+
+    const total =
+      message.tokens.input +
+      message.tokens.output +
+      message.tokens.reasoning +
+      message.tokens.cache.read +
+      message.tokens.cache.write
+
+    if (total <= 0) continue
+
+    const model = models.find((item) => {
+      return item.providerID === message.providerID && item.modelID === message.modelID
+    })
+
+    return {
+      maxTokens: model?.contextLimit,
+      modelId: `${message.providerID}:${message.modelID}`,
+      modelName: model?.name ?? message.modelID,
+      providerID: message.providerID,
+      total,
+      usedTokens: total,
+      usage: {
+        cachedInputTokens: message.tokens.cache.read,
+        inputTokens: message.tokens.input,
+        outputTokens: message.tokens.output,
+        reasoningTokens: message.tokens.reasoning,
+        totalTokens: total,
+      },
+    }
+  }
+}
+
 function AttachmentItem({
   attachment,
   onRemove,
@@ -279,6 +341,9 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   const selectedModel = useMemo(() => {
     return models.find((item) => item.id === selectedModelID)
   }, [models, selectedModelID])
+  const contextUsage = useMemo(() => {
+    return getAssistantUsage(messages, models)
+  }, [messages, models])
   const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
     agentName,
     sessionId,
@@ -540,40 +605,62 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                     <PromptInputActionAddAttachments />
                   </PromptInputActionMenuContent>
                 </PromptInputActionMenu>
-                <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
-                  <ModelSelectorTrigger asChild>
-                    <PromptInputButton>
-                      {selectedModel?.chefSlug ? (
-                        <ModelSelectorLogo provider={selectedModel.chefSlug} />
-                      ) : null}
-                      {selectedModel?.name ? (
-                        <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
-                      ) : (
-                        <ModelSelectorName>Model</ModelSelectorName>
-                      )}
-                    </PromptInputButton>
-                  </ModelSelectorTrigger>
-                  <ModelSelectorContent>
-                    <ModelSelectorInput placeholder="Search models..." />
-                    <ModelSelectorList>
-                      <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                      {chefs.map((chef) => (
-                        <ModelSelectorGroup heading={chef} key={chef}>
-                          {models
-                            .filter((item) => item.chef === chef)
-                            .map((item) => (
-                              <ModelItem
-                                isSelected={selectedModelID === item.id}
-                                key={item.id}
-                                model={item}
-                                onSelect={handleModelSelect}
-                              />
-                            ))}
-                        </ModelSelectorGroup>
-                      ))}
-                    </ModelSelectorList>
-                  </ModelSelectorContent>
-                </ModelSelector>
+                <div className="flex items-center gap-1">
+                  <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
+                    <ModelSelectorTrigger asChild>
+                      <PromptInputButton>
+                        {selectedModel?.chefSlug ? (
+                          <ModelSelectorLogo provider={selectedModel.chefSlug} />
+                        ) : null}
+                        {selectedModel?.name ? (
+                          <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
+                        ) : (
+                          <ModelSelectorName>Model</ModelSelectorName>
+                        )}
+                      </PromptInputButton>
+                    </ModelSelectorTrigger>
+                    <ModelSelectorContent>
+                      <ModelSelectorInput placeholder="Search models..." />
+                      <ModelSelectorList>
+                        <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                        {chefs.map((chef) => (
+                          <ModelSelectorGroup heading={chef} key={chef}>
+                            {models
+                              .filter((item) => item.chef === chef)
+                              .map((item) => (
+                                <ModelItem
+                                  isSelected={selectedModelID === item.id}
+                                  key={item.id}
+                                  model={item}
+                                  onSelect={handleModelSelect}
+                                />
+                              ))}
+                          </ModelSelectorGroup>
+                        ))}
+                      </ModelSelectorList>
+                    </ModelSelectorContent>
+                  </ModelSelector>
+                  {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
+                    <Context
+                      maxTokens={contextUsage.maxTokens}
+                      modelId={contextUsage.modelId}
+                      usage={contextUsage.usage}
+                      usedTokens={contextUsage.usedTokens}
+                    >
+                      <ContextTrigger className="gap-1 px-2" />
+                      <ContextContent>
+                        <ContextContentHeader />
+                        <ContextContentBody className="space-y-2">
+                          <ContextInputUsage />
+                          <ContextOutputUsage />
+                          <ContextReasoningUsage />
+                          <ContextCacheUsage />
+                        </ContextContentBody>
+                        <ContextContentFooter />
+                      </ContextContent>
+                    </Context>
+                  ) : null}
+                </div>
               </PromptInputTools>
               <PromptInputSubmit
                 disabled={!selectedModel || !canSubmit}

@@ -65,6 +65,13 @@ import {
   ContextReasoningUsage,
   ContextTrigger,
 } from "@/components/ai-elements/context"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger as ReasoningSelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { LanguageModelUsage } from "ai"
 
 type ChatProps = {
@@ -72,7 +79,7 @@ type ChatProps = {
   sessionId?: string
 }
 
-// models and chefs are now loaded dynamically via listAgentProvidersAction.
+const DEFAULT_REASONING_LEVEL = "__default__"
 
 type RenderEntry =
   | {
@@ -227,9 +234,18 @@ function getAssistantUsage(
       total,
       usedTokens: total,
       usage: {
-        cachedInputTokens: message.tokens.cache.read,
         inputTokens: message.tokens.input,
+        inputTokenDetails: {
+          cacheReadTokens: message.tokens.cache.read,
+          cacheWriteTokens: message.tokens.cache.write,
+          noCacheTokens: message.tokens.input,
+        },
         outputTokens: message.tokens.output,
+        outputTokenDetails: {
+          reasoningTokens: message.tokens.reasoning,
+          textTokens: message.tokens.output,
+        },
+        cachedInputTokens: message.tokens.cache.read,
         reasoningTokens: message.tokens.reasoning,
         totalTokens: total,
       },
@@ -317,8 +333,9 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   } = useOpencodeChat(agentName, sessionId)
   const [model, setModel] = useState<string>("")
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
+  const [reasoningLevel, setReasoningLevel] = useState<string>(DEFAULT_REASONING_LEVEL)
 
-  const [providerState, loadProviders, isProvidersLoading] = useActionState(
+  const [providerState, loadProviders] = useActionState(
     async (
       _prevState: Awaited<ReturnType<typeof listAgentProvidersAction>> | null,
       payload: string
@@ -341,6 +358,28 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   const selectedModel = useMemo(() => {
     return models.find((item) => item.id === selectedModelID)
   }, [models, selectedModelID])
+  const reasoningVariants = useMemo(() => {
+    return selectedModel?.variants ?? []
+  }, [selectedModel?.variants])
+  const selectedReasoningLevel = useMemo(() => {
+    if (reasoningVariants.length === 0) {
+      return DEFAULT_REASONING_LEVEL
+    }
+
+    if (reasoningLevel !== DEFAULT_REASONING_LEVEL && reasoningVariants.includes(reasoningLevel)) {
+      return reasoningLevel
+    }
+
+    return DEFAULT_REASONING_LEVEL
+  }, [reasoningLevel, reasoningVariants])
+  const selectedReasoningVariant = useMemo(() => {
+    if (selectedReasoningLevel === DEFAULT_REASONING_LEVEL) {
+      return undefined
+    }
+
+    return selectedReasoningLevel
+  }, [selectedReasoningLevel])
+
   const contextUsage = useMemo(() => {
     return getAssistantUsage(messages, models)
   }, [messages, models])
@@ -356,9 +395,10 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         model: selectedModel,
         sessionID: sessionId,
         text: message.text,
+        variant: selectedReasoningVariant,
       })
     },
-    [selectedModel, sendMessage, sessionId]
+    [selectedModel, selectedReasoningVariant, sendMessage, sessionId]
   )
 
   const handleModelSelect = useCallback((modelId: string) => {
@@ -659,6 +699,26 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                         <ContextContentFooter />
                       </ContextContent>
                     </Context>
+                  ) : null}
+                  {reasoningVariants.length > 0 ? (
+                    <Select onValueChange={setReasoningLevel} value={selectedReasoningLevel}>
+                      <ReasoningSelectTrigger
+                        aria-label="Reasoning level"
+                        className="h-8 min-w-32 gap-1 px-2 text-xs"
+                        size="sm"
+                        variant="ghost"
+                      >
+                        <SelectValue placeholder="Reasoning" />
+                      </ReasoningSelectTrigger>
+                      <SelectContent align="end" position="popper" side="top" sideOffset={8}>
+                        <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
+                        {reasoningVariants.map((variant) => (
+                          <SelectItem key={variant} value={variant}>
+                            {variant.length ? variant[0].toUpperCase() + variant.slice(1) : variant}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : null}
                 </div>
               </PromptInputTools>

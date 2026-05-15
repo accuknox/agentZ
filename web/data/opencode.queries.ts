@@ -78,6 +78,7 @@ export async function listAgentProvidersQuery(
           modelID: model.id,
           name: model.name,
           providerID: provider.id,
+          variants: model.variants ? Object.keys(model.variants) : undefined,
         })
       }
     }

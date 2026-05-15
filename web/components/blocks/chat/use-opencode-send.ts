@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { nanoid } from "nanoid"
 import { useCallback, useState } from "react"
 import type { ProviderModelItem } from "@/data/types"
-import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { createAgentOpencodeClient, createAgentOpencodeClientV2 } from "@/lib/opencode/client"
 import {
   appendSystemPrompt,
   markOptimisticUserMessageFailed,
@@ -19,6 +19,7 @@ type SendMessageInput = {
   model?: ProviderModelItem
   sessionID?: string
   text: string
+  variant?: string
 }
 
 type SendMessageResult = {
@@ -76,8 +77,14 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
 
       try {
         if (!resolvedSessionID) {
-          const createClient = createAgentOpencodeClient(agentName)
-          const createResult = await createClient.session.create()
+          const createClient = createAgentOpencodeClientV2(agentName)
+          const createResult = await createClient.session.create({
+            model: {
+              id: input.model.modelID,
+              providerID: input.model.providerID,
+              variant: input.variant,
+            },
+          })
           if (createResult.error || !createResult.data) {
             throw new Error(sdkErrorMessage(createResult.error, "Failed to create session"))
           }
@@ -97,18 +104,15 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
           router.replace(`/agents/${agentName}/${createdSession.id}`)
         }
 
-        const promptClient = createAgentOpencodeClient(agentName)
+        const promptClient = createAgentOpencodeClientV2(agentName)
         const promptResult = await promptClient.session.promptAsync({
-          body: {
-            model: {
-              modelID: input.model.modelID,
-              providerID: input.model.providerID,
-            },
-            parts: [{ text, type: "text" }],
+          model: {
+            modelID: input.model.modelID,
+            providerID: input.model.providerID,
           },
-          path: {
-            id: resolvedSessionID,
-          },
+          parts: [{ text, type: "text" }],
+          sessionID: resolvedSessionID,
+          variant: input.variant,
         })
 
         if (promptResult.error) {

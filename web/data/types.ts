@@ -325,7 +325,7 @@ export type ProviderModelItem = {
   modelID: string
   name: string
   providerID: string
-  variant?: string
+  variants?: string[]
 }
 
 export type ListAgentProvidersActionResponse =

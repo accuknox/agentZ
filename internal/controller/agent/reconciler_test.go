@@ -174,6 +174,43 @@ var _ = Describe("Agent Controller", func() {
 			corev1.EnvVar{Name: "NIX_PROFILES", Value: "/nix/profile"},
 		))
 	})
+
+	It("skips configmap and config mount when no opencode params are defined", func() {
+		agt := &clawarmorv1alpha1.Agent{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name + "-plain",
+				Namespace: namespace,
+			},
+			Spec: clawarmorv1alpha1.AgentSpec{
+				Image: "murtazau/clawarmor-agent:latest",
+			},
+		}
+		plainKey := types.NamespacedName{
+			Name:      agt.Name,
+			Namespace: agt.Namespace,
+		}
+		Expect(k8sClient.Create(ctx, agt)).To(Succeed())
+		defer deleteIfExists(ctx, plainKey, &clawarmorv1alpha1.Agent{})
+		defer deleteIfExists(ctx, plainKey, &appsv1.Deployment{})
+		defer deleteIfExists(ctx, plainKey, &corev1.Service{})
+		defer deleteIfExists(ctx, plainKey, &corev1.ConfigMap{})
+
+		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: plainKey})
+		Expect(err).NotTo(HaveOccurred())
+
+		cm := &corev1.ConfigMap{}
+		err = k8sClient.Get(ctx, plainKey, cm)
+		Expect(err).To(HaveOccurred())
+
+		dep := &appsv1.Deployment{}
+		Expect(k8sClient.Get(ctx, plainKey, dep)).To(Succeed())
+		Expect(dep.Spec.Template.Spec.Volumes).NotTo(ContainElement(
+			HaveField("Name", Equal(configVolume)),
+		))
+		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).NotTo(
+			ContainElement(HaveField("Name", Equal(configVolume))),
+		)
+	})
 })
 
 func deleteIfExists(ctx context.Context, key types.NamespacedName, obj client.Object) {

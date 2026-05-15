@@ -110,13 +110,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("resolve environment: %w", err)
 	}
 
-	opencodeCfg, instruction, err := renderOpencodeConfig(agt)
-	if err != nil {
-		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-		if updateErr != nil {
-			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+	var opencodeCfg []byte
+	var instruction string
+
+	mountConfig := hasOpencodeConfig(agt)
+	if mountConfig {
+		opencodeCfg, instruction, err = renderOpencodeConfig(agt)
+		if err != nil {
+			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+			if updateErr != nil {
+				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+			}
+			return ctrl.Result{}, fmt.Errorf("render opencode config: %w", err)
 		}
-		return ctrl.Result{}, fmt.Errorf("render opencode config: %w", err)
 	}
 
 	err = r.reconcileConfigMap(ctx, agt, string(opencodeCfg), instruction)
@@ -197,7 +203,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	hash := configHash(opencodeCfg, agt.Spec.Env, envCfg.Packages)
-	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages)
+	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, mountConfig)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {

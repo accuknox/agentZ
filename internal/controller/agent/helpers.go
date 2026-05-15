@@ -118,6 +118,19 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	return labels
 }
 
+func hasOpencodeConfig(agt *clawarmorv1alpha1.Agent) bool {
+	if strings.TrimSpace(agt.Spec.Model) != "" {
+		return true
+	}
+	if strings.TrimSpace(agt.Spec.SmallModel) != "" {
+		return true
+	}
+	if strings.TrimSpace(agt.Spec.Instruction) != "" {
+		return true
+	}
+	return len(agt.Spec.Providers) > 0
+}
+
 func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,

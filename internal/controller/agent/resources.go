@@ -35,6 +35,20 @@ import (
 )
 
 func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, opencodeCfg string, instruction string) error {
+	if opencodeCfg == "" {
+		current := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      agt.Name,
+				Namespace: agt.Namespace,
+			},
+		}
+		err := r.Delete(ctx, current)
+		if err != nil && !apierr.IsNotFound(err) {
+			return fmt.Errorf("delete configmap: %w", err)
+		}
+		return nil
+	}
+
 	current := &corev1.ConfigMap{}
 	current.Name = agt.Name
 	current.Namespace = agt.Namespace
@@ -74,8 +88,8 @@ func (r *Reconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha
 	return nil
 }
 
-func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string, packages []string) error {
-	desired := r.buildDeployment(agt, hash, packages)
+func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string, packages []string, mountConfig bool) error {
+	desired := r.buildDeployment(agt, hash, packages, mountConfig)
 	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return fmt.Errorf("set controller reference: %w", err)
 	}
@@ -136,7 +150,7 @@ func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) *corev1.Service 
 	}
 }
 
-func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, packages []string) *appsv1.Deployment {
+func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, packages []string, mountConfig bool) *appsv1.Deployment {
 	image := agt.Spec.Image
 	if image == "" {
 		image = r.Config.AgentDefaultImage
@@ -152,10 +166,14 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	podAnnotations["kubearmor-visibility"] = "process,file"
 
 	replicas := int32(1)
-	automount := false
-	serviceAccountName := ""
-	volumes := []corev1.Volume{
-		{
+	var automount bool
+	var serviceAccountName string
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	var initContainers []corev1.Container
+
+	if mountConfig {
+		volumes = append(volumes, corev1.Volume{
 			Name: configVolume,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -164,17 +182,13 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 					},
 				},
 			},
-		},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      configVolume,
+			MountPath: opencodeConfigDir,
+			ReadOnly:  true,
+		})
 	}
-
-	var volumeMounts []corev1.VolumeMount
-	var initContainers []corev1.Container
-
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      configVolume,
-		MountPath: opencodeConfigDir,
-		ReadOnly:  true,
-	})
 
 	if r.sinjectorEnabled() {
 		serviceAccountName = agt.Name
@@ -312,7 +326,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 								"--hostname=0.0.0.0",
 								"--port=4096",
 							},
-							Env:       r.agentEnv(agt, packages),
+							Env:       r.agentEnv(agt, packages, mountConfig),
 							Resources: agt.Spec.Resources,
 							Ports: []corev1.ContainerPort{
 								{
@@ -338,14 +352,18 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	}
 }
 
-func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string) []corev1.EnvVar {
+func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, mountConfig bool) []corev1.EnvVar {
 	proxy := r.proxyAddress(agt)
 	proxy = strings.TrimPrefix(proxy, "https://")
 	proxy = strings.TrimPrefix(proxy, "http://")
 	proxy = "http://" + proxy
 
-	forced := []corev1.EnvVar{
-		{Name: "XDG_CONFIG_HOME", Value: opencodeConfigHome},
+	var forced []corev1.EnvVar
+	if mountConfig {
+		forced = append(forced, corev1.EnvVar{
+			Name:  "XDG_CONFIG_HOME",
+			Value: opencodeConfigHome,
+		})
 	}
 	if r.sinjectorEnabled() {
 		forced = append(forced,

@@ -9,8 +9,9 @@ import (
 	"strings"
 	"text/template"
 
-	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
 	baoapi "github.com/openbao/openbao/api/v2"
+
+	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 )
 
 //go:embed policies/sinjector-readonly.hcl
@@ -51,25 +52,20 @@ func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvi
 	if addr == "" {
 		return nil, fmt.Errorf("openbao addr is required")
 	}
-	client, err := baoapi.NewClient(&baoapi.Config{Address: addr})
-	if err != nil {
-		return nil, fmt.Errorf("create openbao client: %w", err)
-	}
-
 	role := strings.TrimSpace(cfg.ManagerOpenBaoK8sAuthRole)
 	if role == "" {
 		return nil, fmt.Errorf("manager openbao k8s auth role is required")
 	}
-	auth, err := k8sauth.NewKubernetesAuth(
+
+	client, err := baoclient.NewClient(
+		ctx,
+		addr,
 		role,
-		k8sauth.WithMountPath(cfg.OpenBaoK8sAuthMountPath),
-		k8sauth.WithServiceAccountTokenPath(cfg.ManagerOpenBaoK8sAuthTokenPath),
+		cfg.OpenBaoK8sAuthMountPath,
+		cfg.ManagerOpenBaoK8sAuthTokenPath,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create kubernetes auth: %w", err)
-	}
-	if _, err := client.Auth().Login(ctx, auth); err != nil {
-		return nil, fmt.Errorf("openbao kubernetes auth login: %w", err)
+		return nil, err
 	}
 	return &openBaoProvisioner{client: client}, nil
 }
@@ -88,8 +84,8 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 		"bound_service_account_names":      opts.ServiceAccountName,
 		"bound_service_account_namespaces": opts.Namespace,
 		"policies":                         opts.PolicyName,
-		"token_ttl":                        "1h",
-		"token_max_ttl":                    "1h",
+		"token_period":                     "1h",
+		"token_type":                       "service",
 	})
 	if err != nil {
 		return fmt.Errorf("put openbao kubernetes role: %w", err)

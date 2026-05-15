@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
 	baoapi "github.com/openbao/openbao/api/v2"
+
+	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 )
 
 const (
@@ -55,20 +56,15 @@ func Serve(ctx context.Context, cfg Config) error {
 		return err
 	}
 
-	baoClient, err := baoapi.NewClient(&baoapi.Config{Address: cfg.OpenBaoAddr})
-	if err != nil {
-		return fmt.Errorf("create openbao client: %w", err)
-	}
-	auth, err := k8sauth.NewKubernetesAuth(
+	baoClient, err := baoclient.NewClient(
+		ctx,
+		cfg.OpenBaoAddr,
 		cfg.OpenBaoK8sAuthRole,
-		k8sauth.WithMountPath(cfg.OpenBaoK8sAuthMountPath),
-		k8sauth.WithServiceAccountTokenPath(cfg.OpenBaoK8sAuthTokenPath),
+		cfg.OpenBaoK8sAuthMountPath,
+		cfg.OpenBaoK8sAuthTokenPath,
 	)
 	if err != nil {
-		return fmt.Errorf("create kubernetes auth: %w", err)
-	}
-	if _, err := baoClient.Auth().Login(ctx, auth); err != nil {
-		return fmt.Errorf("openbao kubernetes auth login: %w", err)
+		return err
 	}
 
 	ca, err := tls.LoadX509KeyPair(cfg.CACertPath, cfg.CAKeyPath)

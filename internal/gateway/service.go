@@ -17,7 +17,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
-	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,6 +25,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 )
 
 var (
@@ -158,21 +158,15 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("ping postgres: %w", err)
 	}
 
-	baoClient, err := baoapi.NewClient(&baoapi.Config{Address: cfg.OpenBaoAddr})
-	if err != nil {
-		return fmt.Errorf("create openbao client: %w", err)
-	}
-
-	auth, err := k8sauth.NewKubernetesAuth(
+	baoClient, err := baoclient.NewClient(
+		ctx,
+		cfg.OpenBaoAddr,
 		cfg.OpenBaoK8sAuthRole,
-		k8sauth.WithMountPath(cfg.OpenBaoK8sAuthMountPath),
-		k8sauth.WithServiceAccountTokenPath(cfg.OpenBaoK8sAuthTokenPath),
+		cfg.OpenBaoK8sAuthMountPath,
+		cfg.OpenBaoK8sAuthTokenPath,
 	)
 	if err != nil {
-		return fmt.Errorf("create kubernetes auth: %w", err)
-	}
-	if _, err := baoClient.Auth().Login(ctx, auth); err != nil {
-		return fmt.Errorf("openbao kubernetes auth login: %w", err)
+		return err
 	}
 
 	svc := &Service{

@@ -27,7 +27,7 @@
     "cmdk": "^1.1.1",
     "dayjs": "^1.11.20",
     "ipaddr.js": "^2.4.0",
-    "lucide-react": "^1.14.0",
+    "lucide-react": "^1.16.0",
     "motion": "^12.38.0",
     "nanoid": "^5.1.11",
     "next": "16.2.5",

@@ -65,6 +65,7 @@ import {
   ContextReasoningUsage,
   ContextTrigger,
 } from "@/components/ai-elements/context"
+import { Checkpoint, CheckpointIcon } from "@/components/ai-elements/checkpoint"
 import {
   Select,
   SelectContent,
@@ -96,6 +97,10 @@ type RenderEntry =
       key: string
       toolEntry: ReturnType<typeof toolEntries>[number]
       type: "tool"
+    }
+  | {
+      key: string
+      type: "checkpoint"
     }
 
 function renderEntries(parts: Part[], textByPart: Record<string, string>): RenderEntry[] {
@@ -162,6 +167,17 @@ function renderEntries(parts: Part[], textByPart: Record<string, string>): Rende
       continue
     }
 
+    if (part.type === "compaction") {
+      flushText()
+      flushTools()
+
+      entries.push({
+        key: part.id,
+        type: "checkpoint",
+      })
+      continue
+    }
+
     flushText()
     flushTools()
   }
@@ -194,6 +210,7 @@ type LocalRenderBlock = {
 }
 
 type ToolRenderEntry = Extract<RenderEntry, { type: "tool" }>
+type CheckpointRenderEntry = Extract<RenderEntry, { type: "checkpoint" }>
 
 type AssistantUsage = {
   modelId?: string
@@ -531,6 +548,15 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     return result
   }
 
+  function renderCheckpoint(entry: CheckpointRenderEntry) {
+    return (
+      <Checkpoint className="w-full py-1 text-sm leading-4" key={entry.key}>
+        <CheckpointIcon className="size-3.5" />
+        <span className="whitespace-nowrap">Context compacted</span>
+      </Checkpoint>
+    )
+  }
+
   const lastBlock = renderBlocks.at(-1)
 
   return (
@@ -582,44 +608,58 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                 const isLastBlock = lastBlock?.key === block.key
                 const groups = groupEntries(block.entries)
                 const lastGroupIndex = groups.length - 1
+                const checkpoints = groups.filter(
+                  (group): group is CheckpointRenderEntry => group.type === "checkpoint"
+                )
+                const contentGroups = groups.filter((group) => group.type !== "checkpoint")
 
                 return (
-                  <Message from={block.from} key={block.key}>
-                    <MessageContent>
-                      {groups.map((group, groupIndex) => {
-                        if (group.type === "text") {
-                          return <MessageResponse key={group.key}>{group.content}</MessageResponse>
-                        }
-                        if (group.type === "reasoning") {
-                          const isStreaming =
-                            isBusy &&
-                            block.from === "assistant" &&
-                            isLastBlock &&
-                            groupIndex === lastGroupIndex
-                          return (
-                            <Reasoning isStreaming={isStreaming} key={group.key}>
-                              <ReasoningTrigger />
-                              <ReasoningContent>{group.content}</ReasoningContent>
-                            </Reasoning>
-                          )
-                        }
-                        if (group.type === "tool-group") {
-                          return (
-                            <div className="rounded-md bg-muted p-2 dark:bg-card" key={group.key}>
-                              {group.entries.map((entry) => (
-                                <ToolEntries
-                                  agentName={agentName}
-                                  entry={entry.toolEntry}
-                                  key={entry.key}
-                                />
-                              ))}
-                            </div>
-                          )
-                        }
-                        return null
-                      })}
-                    </MessageContent>
-                  </Message>
+                  <div className="flex flex-col gap-2" key={block.key}>
+                    {checkpoints.map(renderCheckpoint)}
+                    {contentGroups.length > 0 ? (
+                      <Message from={block.from}>
+                        <MessageContent>
+                          {contentGroups.map((group, groupIndex) => {
+                            if (group.type === "text") {
+                              return (
+                                <MessageResponse key={group.key}>{group.content}</MessageResponse>
+                              )
+                            }
+                            if (group.type === "reasoning") {
+                              const isStreaming =
+                                isBusy &&
+                                block.from === "assistant" &&
+                                isLastBlock &&
+                                groupIndex === lastGroupIndex
+                              return (
+                                <Reasoning isStreaming={isStreaming} key={group.key}>
+                                  <ReasoningTrigger />
+                                  <ReasoningContent>{group.content}</ReasoningContent>
+                                </Reasoning>
+                              )
+                            }
+                            if (group.type === "tool-group") {
+                              return (
+                                <div
+                                  className="rounded-md bg-muted p-2 dark:bg-card"
+                                  key={group.key}
+                                >
+                                  {group.entries.map((entry) => (
+                                    <ToolEntries
+                                      agentName={agentName}
+                                      entry={entry.toolEntry}
+                                      key={entry.key}
+                                    />
+                                  ))}
+                                </div>
+                              )
+                            }
+                            return null
+                          })}
+                        </MessageContent>
+                      </Message>
+                    ) : null}
+                  </div>
                 )
               })}
               <AgentWorkingIndicator isWorking={isBusy} />

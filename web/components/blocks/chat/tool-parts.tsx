@@ -91,8 +91,6 @@ type Diagnostic = {
   severity?: number
 }
 
-type ToolStateWithMetadata = Extract<ToolPart["state"], { metadata?: Record<string, unknown> }>
-
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -181,20 +179,8 @@ function toolStateTone(status: ToolPart["state"]["status"]): ToolTone {
 }
 
 function toolMetadata(part: ToolPart) {
-  return "metadata" in part.state && record(part.state.metadata)
-    ? (part.state as ToolStateWithMetadata).metadata
-    : undefined
-}
-
-function statusDotClass(tone: ToolTone) {
-  switch (tone) {
-    case "active":
-      return "bg-chat-active"
-    case "error":
-      return "bg-chat-error"
-    default:
-      return "bg-chat-neutral"
-  }
+  const { metadata } = part.state as { metadata?: unknown }
+  return record(metadata) ? metadata : undefined
 }
 
 function toneClass(tone: ToolTone) {
@@ -208,7 +194,7 @@ function toneClass(tone: ToolTone) {
   }
 }
 
-function webSearchProviderLabel(provider: unknown) {
+function webSearchProviderLabel(provider: string | undefined) {
   if (provider === "parallel") return "Parallel Web Search"
   if (provider === "exa") return "Exa Web Search"
   return "Web Search"
@@ -269,20 +255,42 @@ function diagnosticsByPath(value: unknown, filePath: string | undefined) {
   if (!Array.isArray(entries)) return []
 
   return entries.filter((item): item is Diagnostic => {
-    return record(item) && record(item.range) && record(item.range.start) && record(item.range.end)
+    return (
+      record(item) &&
+      record(item.range) &&
+      record(item.range.start) &&
+      record(item.range.end) &&
+      typeof item.message === "string" &&
+      typeof item.range.start.line === "number" &&
+      typeof item.range.start.character === "number" &&
+      typeof item.range.end.line === "number" &&
+      typeof item.range.end.character === "number"
+    )
   })
 }
 
+function isQuestionInfo(value: unknown): value is QuestionInfo {
+  return record(value) && typeof value.header === "string" && typeof value.question === "string"
+}
+
 function questionInfos(value: unknown) {
-  return Array.isArray(value) ? (value as QuestionInfo[]) : []
+  return Array.isArray(value) ? value.filter(isQuestionInfo) : []
+}
+
+function isQuestionAnswer(value: unknown): value is QuestionAnswer {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
 }
 
 function questionAnswers(value: unknown) {
-  return Array.isArray(value) ? (value as QuestionAnswer[]) : []
+  return Array.isArray(value) ? value.filter(isQuestionAnswer) : []
+}
+
+function isTodo(value: unknown): value is Todo {
+  return record(value) && typeof value.content === "string" && typeof value.status === "string"
 }
 
 function todos(value: unknown) {
-  return Array.isArray(value) ? (value as Todo[]) : []
+  return Array.isArray(value) ? value.filter(isTodo) : []
 }
 
 function shellTranscript(part: ToolPart) {
@@ -316,7 +324,7 @@ function toolTitle(tool: string, metadata?: Record<string, unknown>) {
     case "webfetch":
       return "Webfetch"
     case "websearch":
-      return webSearchProviderLabel(metadata?.provider)
+      return webSearchProviderLabel(stringValue(metadata?.provider))
     case "task":
       return "Task"
     case "bash":

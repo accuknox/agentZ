@@ -39,7 +39,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
-import { deleteAgentSessionAction, listAgentSessionsAction } from "@/data/opencode.actions"
+import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { AgentSessionListItem, ListAgentActionResponse } from "@/data/types"
 import { usePathname, useRouter } from "next/navigation"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -47,6 +47,7 @@ import {
   applySessionLifecycleEvent,
   isSessionLifecycleEvent,
   sortAgentSessions,
+  toAgentSessionListItem,
 } from "@/lib/opencode/session-list"
 import type { Event as OpencodeEvent } from "@opencode-ai/sdk"
 
@@ -92,15 +93,9 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   const list = use(agents)
   const initialAgents = list.agents ?? []
   const path = usePathname()
-  const [openAgentName, setOpenAgentName] = useState<string | null>(() => {
-    return agentNameFromPath(path)
-  })
-
-  // Derive from URL during render to avoid setState inside useEffect.
   const currentAgentName = agentNameFromPath(path)
-  if (currentAgentName && currentAgentName !== openAgentName) {
-    setOpenAgentName(currentAgentName)
-  }
+  const [manualOpenAgentName, setManualOpenAgentName] = useState<string | null>(null)
+  const openAgentName = currentAgentName ?? manualOpenAgentName
 
   const query = useQuery(
     queryOptions({
@@ -165,7 +160,7 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
           agent={agent}
           isOpen={openAgentName === agent.name}
           path={path}
-          setOpenAgentName={setOpenAgentName}
+          setOpenAgentName={setManualOpenAgentName}
         />
       ))}
     </>
@@ -232,7 +227,7 @@ function AgentSessionsItem({
             <SidebarMenuSub>
               {query.isPending ? (
                 <SidebarMenuSubItem key="loading">
-                  <div className="space-y-1">
+                  <div className="flex flex-col gap-1">
                     <SidebarMenuSkeleton />
                     <SidebarMenuSkeleton />
                   </div>
@@ -405,17 +400,17 @@ function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
         return applySessionLifecycleEvent(sessions, chunk.event)
       },
       streamFn: async function* ({ signal }) {
-        const result = await listAgentSessionsAction(agentName)
-        if (result.error) {
-          throw new Error(result.error.message)
+        const client = createAgentOpencodeClient(agentName)
+        const listResult = await client.session.list()
+        if (!listResult.data) {
+          throw new Error("Failed to load sessions")
         }
 
         yield {
           type: "snapshot",
-          sessions: result.sessions,
+          sessions: sortAgentSessions(listResult.data.map(toAgentSessionListItem)),
         }
 
-        const client = createAgentOpencodeClient(agentName)
         const subscription = await client.event.subscribe({
           signal,
         })

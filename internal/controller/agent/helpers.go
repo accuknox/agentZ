@@ -51,10 +51,7 @@ const (
 	opencodeConfigSchema    = "https://opencode.ai/config.json"
 )
 
-var (
-	errImageEmpty  = errors.New("agent image must not be empty")
-	errPortInvalid = errors.New("server.address must include a valid port")
-)
+var errImageEmpty = errors.New("agent image must not be empty")
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {

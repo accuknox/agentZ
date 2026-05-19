@@ -93,14 +93,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
 	}
 
-	if err != nil {
-		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-		if updateErr != nil {
-			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
-		}
-		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
-	}
-
 	envCfg, err := r.resolveEnvironment(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
@@ -459,7 +451,7 @@ func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.Namespaced
 
 		agt.Status.ObservedGeneration = gen
 		reason := clawarmorv1alpha1.ReasonReconcileFailed
-		if errors.Is(recErr, errImageEmpty) || errors.Is(recErr, errPortInvalid) {
+		if errors.Is(recErr, errImageEmpty) {
 			reason = clawarmorv1alpha1.ReasonConfigInvalid
 		}
 		agt.Status.SetCondition(metav1.Condition{

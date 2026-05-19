@@ -40,15 +40,14 @@ import { Spinner } from "@/components/ui/spinner"
 import { ToolEntries, toolEntries } from "@/components/blocks/chat/tool-parts"
 import { type LocalChatMessage, useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
 import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
-import { listAgentProvidersAction } from "@/data/opencode.actions"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk"
 import type { PermissionRequest, QuestionAnswer, QuestionRequest } from "@opencode-ai/sdk/v2"
-import { useMutation } from "@tanstack/react-query"
+import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import { CheckIcon } from "lucide-react"
-import { startTransition, useActionState, useCallback, useMemo, useState, useEffect } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -859,29 +858,55 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     string | undefined
   >()
   const [reasoningLevel, setReasoningLevel] = useState<string>(DEFAULT_REASONING_LEVEL)
-  const opencodeClient = useMemo(() => {
-    return createAgentOpencodeClientV2(agentName)
-  }, [agentName])
+  const opencodeClient = useMemo(() => createAgentOpencodeClientV2(agentName), [agentName])
   const permissionAlwaysConfirm = permissionAlwaysConfirmRequestID === permissionRequest?.id
 
-  const [providerState, loadProviders] = useActionState(
-    async (
-      _prevState: Awaited<ReturnType<typeof listAgentProvidersAction>> | null,
-      payload: string
-    ) => {
-      return listAgentProvidersAction(payload)
-    },
-    null
+  const providers = useQuery(
+    queryOptions({
+      queryKey: ["opencode", "providers", agentName],
+      queryFn: async () => {
+        const result = await createAgentOpencodeClientV2(agentName).config.providers()
+        if (result.error || !result.data) {
+          const errorMessage =
+            result.error &&
+            typeof result.error === "object" &&
+            "data" in result.error &&
+            typeof result.error.data === "object" &&
+            result.error.data !== null &&
+            "message" in result.error.data &&
+            typeof result.error.data.message === "string"
+              ? result.error.data.message
+              : "Failed to load providers"
+          throw new Error(errorMessage)
+        }
+
+        const models: ProviderModelItem[] = []
+        for (const provider of result.data.providers) {
+          for (const model of Object.values(provider.models)) {
+            models.push({
+              chef: provider.name,
+              chefSlug: provider.id,
+              contextLimit: model.limit?.context,
+              id: `${provider.id}:${model.id}`,
+              modelID: model.id,
+              name: model.name,
+              providerID: provider.id,
+              variants: model.variants ? Object.keys(model.variants) : undefined,
+            })
+          }
+        }
+
+        return {
+          chefs: [...new Set(models.map((item) => item.chef))],
+          models,
+        }
+      },
+      staleTime: 60_000,
+    })
   )
 
-  useEffect(() => {
-    startTransition(() => {
-      loadProviders(agentName)
-    })
-  }, [loadProviders, agentName])
-
-  const models = useMemo(() => providerState?.models ?? [], [providerState?.models])
-  const chefs = useMemo(() => providerState?.chefs ?? [], [providerState?.chefs])
+  const models = useMemo(() => providers.data?.models ?? [], [providers.data?.models])
+  const chefs = useMemo(() => providers.data?.chefs ?? [], [providers.data?.chefs])
   const selectedModelID = model || models[0]?.id || ""
 
   const selectedModel = useMemo(() => {

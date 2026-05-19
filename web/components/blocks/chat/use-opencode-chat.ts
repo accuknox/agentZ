@@ -124,24 +124,6 @@ function sessionErrorMessage(
   }
 }
 
-function emptyStore(): OpencodeChatStore {
-  return {
-    part: {},
-    partTextAccumDelta: {},
-    message: {},
-    session: undefined,
-    sessionStatus: {},
-  }
-}
-
-function emptyHitlStore(): HitlStore {
-  return {
-    permissions: {},
-    questions: {},
-    sessions: [],
-  }
-}
-
 function normalizeText(value: string) {
   return value.trim().replaceAll(/\s+/g, " ")
 }
@@ -175,8 +157,13 @@ function buildStore(
   session: Session | undefined,
   records: SessionMessageRecord[]
 ) {
-  const store = emptyStore()
-  store.session = session
+  const store: OpencodeChatStore = {
+    part: {},
+    partTextAccumDelta: {},
+    message: {},
+    session,
+    sessionStatus: {},
+  }
   store.message[sessionID] = records
     .map((record) => record.info)
     .sort((x, y) => x.time.created - y.time.created)
@@ -495,17 +482,6 @@ export function sessionMessagesBaseQueryKey(agentName: string, sessionID: string
   return ["opencode", "sessionMessages", agentName, sessionID] as const
 }
 
-function sessionMessagesQueryKey(agentName: string, sessionID: string, directory: string) {
-  return [...sessionMessagesBaseQueryKey(agentName, sessionID), directory] as const
-}
-
-function setOverlayMessages(
-  current: LocalChatMessage[] | undefined,
-  updater: (draft: LocalChatMessage[]) => LocalChatMessage[]
-) {
-  return updater(current ? [...current] : [])
-}
-
 export function appendSystemPrompt(
   queryClient: QueryClient,
   agentName: string,
@@ -515,15 +491,14 @@ export function appendSystemPrompt(
   queryClient.setQueryData<LocalChatMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
     (current) => {
-      return setOverlayMessages(current, (draft) => {
-        draft.push({
-          content: message,
-          createdAt: Date.now(),
-          id: `sys-${crypto.randomUUID()}`,
-          kind: "system",
-        })
-        return draft
+      const draft = current ? [...current] : []
+      draft.push({
+        content: message,
+        createdAt: Date.now(),
+        id: `sys-${crypto.randomUUID()}`,
+        kind: "system",
       })
+      return draft
     }
   )
 }
@@ -537,18 +512,17 @@ export function upsertOptimisticUserMessage(
   queryClient.setQueryData<LocalChatMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
     (current) => {
-      return setOverlayMessages(current, (draft) => {
-        const index = draft.findIndex(
-          (item) => item.kind === "optimistic-user" && item.id === message.id
-        )
-        if (index >= 0) {
-          draft[index] = message
-          return draft
-        }
-
-        draft.push(message)
+      const draft = current ? [...current] : []
+      const index = draft.findIndex(
+        (item) => item.kind === "optimistic-user" && item.id === message.id
+      )
+      if (index >= 0) {
+        draft[index] = message
         return draft
-      })
+      }
+
+      draft.push(message)
+      return draft
     }
   )
 }
@@ -562,14 +536,13 @@ export function markOptimisticUserMessageFailed(
   queryClient.setQueryData<LocalChatMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
     (current) => {
-      return setOverlayMessages(current, (draft) => {
-        return draft.map((item) => {
-          if (item.kind !== "optimistic-user" || item.id !== messageID) return item
-          return {
-            ...item,
-            status: "failed",
-          }
-        })
+      const draft = current ? [...current] : []
+      return draft.map((item) => {
+        if (item.kind !== "optimistic-user" || item.id !== messageID) return item
+        return {
+          ...item,
+          status: "failed",
+        }
       })
     }
   )
@@ -584,9 +557,8 @@ export function removeOptimisticUserMessage(
   queryClient.setQueryData<LocalChatMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
     (current) => {
-      return setOverlayMessages(current, (draft) => {
-        return draft.filter((item) => item.kind !== "optimistic-user" || item.id !== messageID)
-      })
+      const draft = current ? [...current] : []
+      return draft.filter((item) => item.kind !== "optimistic-user" || item.id !== messageID)
     }
   )
 }
@@ -647,7 +619,7 @@ function sessionMessagesQueryOptions(agentName: string, sessionID: string, direc
 
       return result.data
     },
-    queryKey: sessionMessagesQueryKey(agentName, sessionID, directory),
+    queryKey: [...sessionMessagesBaseQueryKey(agentName, sessionID), directory] as const,
     retry: false,
     staleTime: 5_000,
   })
@@ -696,20 +668,6 @@ function sessionTreeQueryOptions(agentName: string, directory: string) {
   })
 }
 
-export function textParts(parts: Part[], textByPart: Record<string, string>): TextPart[] {
-  return parts.filter((part): part is TextPart => {
-    return part.type === "text" && (textByPart[part.id] ?? part.text).length > 0
-  })
-}
-
-function chatOverlayQueryOptions(agentName: string, sessionID?: string) {
-  return queryOptions({
-    queryFn: async (): Promise<LocalChatMessage[]> => [],
-    queryKey: chatOverlayQueryKey(agentName, sessionID),
-    staleTime: Infinity,
-  })
-}
-
 export function useOpencodeChat(agentName: string, sessionID?: string): UseOpencodeChatResult {
   const queryClient = useQueryClient()
   const client = useMemo(() => {
@@ -734,13 +692,23 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     enabled: Boolean(session.data?.directory),
   })
   const localMessages = useQuery({
-    ...chatOverlayQueryOptions(agentName, sessionID),
+    ...queryOptions({
+      queryFn: async (): Promise<LocalChatMessage[]> => [],
+      queryKey: chatOverlayQueryKey(agentName, sessionID),
+      staleTime: Infinity,
+    }),
     initialData: [],
   })
 
   const baseStore = useMemo(() => {
     if (!sessionID) {
-      return emptyStore()
+      return {
+        part: {},
+        partTextAccumDelta: {},
+        message: {},
+        session: undefined,
+        sessionStatus: {},
+      }
     }
 
     return buildStore(sessionID, session.data, history.data ?? [])
@@ -750,7 +718,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     return events.reduce((current, event) => applyEvent(current, event), baseStore)
   }, [baseStore, events])
   const hitlStore = useMemo(() => {
-    const base = hitl.data ?? emptyHitlStore()
+    const base = hitl.data ?? { permissions: {}, questions: {}, sessions: [] }
     return hitlEvents.reduce((current, event) => applyHitlEvent(current, event), base)
   }, [hitl.data, hitlEvents])
 

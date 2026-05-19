@@ -29,7 +29,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
 import { listEnvironmentsAction } from "@/data/environment.actions"
-import { createAgentSimpleFormSchema } from "@/data/schema"
+import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import type { Environment } from "@/lib/gateway/client"
 
 type Mode = "create" | "update"
@@ -47,7 +47,7 @@ type AgentDialogProps = {
 }
 
 type AgentSimpleForm = {
-  name: string
+  name?: string
   environmentName: string
 }
 
@@ -194,7 +194,9 @@ export function AgentDialog({
       : createAgentFormAction
   const [state, action, isPending] = useActionState(formAction, {})
   const form = useForm<AgentSimpleForm>({
-    resolver: zodResolver(createAgentSimpleFormSchema),
+    resolver: zodResolver(
+      mode === "update" ? updateAgentSimpleFormSchema : createAgentSimpleFormSchema
+    ),
     defaultValues: {
       name: agentName ?? "",
       environmentName:

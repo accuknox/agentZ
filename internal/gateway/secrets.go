@@ -33,6 +33,11 @@ type normalizedSecretEntry struct {
 	hosts []string
 }
 
+type secretKeyMetadata struct {
+	createdAt time.Time
+	updatedAt time.Time
+}
+
 // PutSecret handles POST /api/secret/{agentName}/put.
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	name, ok := validAgentName(w, r, agentName, "agentName")
@@ -175,6 +180,54 @@ func normalizeSecretEntries(raw []gatewayapi.SecretEntry) ([]normalizedSecretEnt
 		})
 	}
 	return entries, fields
+}
+
+func stringSlice(raw any) []string {
+	switch items := raw.(type) {
+	case []string:
+		return append([]string{}, items...)
+	case []any:
+		out := make([]string, 0, len(items))
+		for _, item := range items {
+			s, ok := item.(string)
+			if !ok || s == "" {
+				continue
+			}
+			out = append(out, s)
+		}
+		return out
+	default:
+		return []string{}
+	}
+}
+
+func stringMap(raw any) map[string]any {
+	items, ok := raw.(map[string]any)
+	if !ok {
+		return map[string]any{}
+	}
+	return items
+}
+
+func parseSecretKeyMetadata(raw any) secretKeyMetadata {
+	info := stringMap(raw)
+	meta := secretKeyMetadata{}
+
+	createdAt, ok := info["created_time"].(string)
+	if ok && createdAt != "" {
+		if parsed, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
+			meta.createdAt = parsed
+		}
+	}
+
+	updatedAt, ok := info["updated_time"].(string)
+	if ok && updatedAt != "" {
+		if parsed, err := time.Parse(time.RFC3339Nano, updatedAt); err == nil {
+			meta.updatedAt = parsed
+		}
+	}
+
+	return meta
 }
 
 // DeleteSecret handles POST /api/secret/{agentName}/delete.
@@ -406,15 +459,8 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	rawKeys, _ := secret.Data["keys"].([]any)
-	keys := make([]string, 0, len(rawKeys))
-	for _, k := range rawKeys {
-		if s, ok := k.(string); ok {
-			keys = append(keys, s)
-		}
-	}
-
-	rawKeyInfo, _ := secret.Data["key_info"].(map[string]any)
+	keys := stringSlice(secret.Data["keys"])
+	rawKeyInfo := stringMap(secret.Data["key_info"])
 
 	items := make([]gatewayapi.SecretListItem, 0, len(keys))
 	for _, key := range keys {
@@ -427,18 +473,9 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 			Key:   key,
 			Hosts: hosts,
 		}
-		if info, ok := rawKeyInfo[key].(map[string]any); ok {
-			if ct, ok := info["created_time"].(string); ok && ct != "" {
-				if t, err := time.Parse(time.RFC3339Nano, ct); err == nil {
-					item.CreatedAt = t
-				}
-			}
-			if ut, ok := info["updated_time"].(string); ok && ut != "" {
-				if t, err := time.Parse(time.RFC3339Nano, ut); err == nil {
-					item.ModifiedAt = t
-				}
-			}
-		}
+		meta := parseSecretKeyMetadata(rawKeyInfo[key])
+		item.CreatedAt = meta.createdAt
+		item.ModifiedAt = meta.updatedAt
 		items = append(items, item)
 	}
 
@@ -502,19 +539,8 @@ func (s *Service) readSecretHosts(ctx context.Context, agentName, key string) ([
 }
 
 func secretDataHosts(raw any) ([]string, error) {
-	hosts := []string{}
-	switch items := raw.(type) {
-	case []any:
-		for _, item := range items {
-			host, ok := item.(string)
-			if !ok {
-				return nil, fmt.Errorf("secret hosts are invalid")
-			}
-			hosts = append(hosts, host)
-		}
-	case []string:
-		hosts = append(hosts, items...)
-	default:
+	hosts := stringSlice(raw)
+	if len(hosts) == 0 {
 		return nil, fmt.Errorf("secret hosts are invalid")
 	}
 	return sinjector.NormalizeSecretHosts(hosts)
@@ -536,18 +562,7 @@ func (s *Service) agentSecretKeys(ctx context.Context, agentName string) ([]stri
 			return keys, nil
 		}
 
-		rawKeys, _ := secret.Data["keys"].([]any)
-		if len(rawKeys) == 0 {
-			return keys, nil
-		}
-
-		page := make([]string, 0, len(rawKeys))
-		for _, raw := range rawKeys {
-			key, ok := raw.(string)
-			if ok && key != "" {
-				page = append(page, key)
-			}
-		}
+		page := stringSlice(secret.Data["keys"])
 		if len(page) == 0 {
 			return keys, nil
 		}

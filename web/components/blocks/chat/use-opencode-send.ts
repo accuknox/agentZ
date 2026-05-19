@@ -27,21 +27,8 @@ type SendMessageResult = {
   sessionID: string
 }
 
-type SessionRecord = {
-  directory?: string
-  id: string
-}
-
 function sdkErrorMessage(error: { data?: { message?: string } } | undefined, fallback: string) {
   return error?.data?.message ?? fallback
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.length > 0) {
-    return error.message
-  }
-
-  return fallback
 }
 
 export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: boolean) {
@@ -89,19 +76,15 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
             throw new Error(sdkErrorMessage(createResult.error, "Failed to create session"))
           }
 
-          const createdSession: SessionRecord = {
-            directory: createResult.data.directory,
-            id: createResult.data.id,
-          }
-          newSessionDirectory = createdSession.directory
-          resolvedSessionID = createdSession.id
-          setPendingSessionID(createdSession.id)
+          newSessionDirectory = createResult.data.directory
+          resolvedSessionID = createResult.data.id
+          setPendingSessionID(createResult.data.id)
           queryClient.setQueryData(
-            sessionInfoQueryKey(agentName, createdSession.id),
+            sessionInfoQueryKey(agentName, createResult.data.id),
             createResult.data
           )
-          migrateChatOverlay(queryClient, agentName, "new", createdSession.id)
-          router.replace(`/agents/${agentName}/${createdSession.id}`)
+          migrateChatOverlay(queryClient, agentName, "new", createResult.data.id)
+          router.replace(`/agents/${agentName}/${createResult.data.id}`)
         }
 
         const promptClient = createAgentOpencodeClientV2(agentName)
@@ -130,7 +113,9 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
           queryClient,
           agentName,
           nextSessionKey,
-          getErrorMessage(error, "Failed to send message")
+          error instanceof Error && error.message.length > 0
+            ? error.message
+            : "Failed to send message"
         )
         throw error instanceof Error ? error : new Error("Failed to send message")
       }
@@ -162,7 +147,9 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
         queryClient,
         agentName,
         input.sessionID,
-        getErrorMessage(error, "Failed to stop the active run")
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : "Failed to stop the active run"
       )
     },
   })

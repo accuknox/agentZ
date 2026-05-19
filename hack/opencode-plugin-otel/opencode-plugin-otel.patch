@@ -1,0 +1,1655 @@
+diff --git a/src/handlers/message.ts b/src/handlers/message.ts
+index cbd6916..a2893ab 100644
+--- a/src/handlers/message.ts
++++ b/src/handlers/message.ts
+@@ -1,6 +1,11 @@
+ import { SeverityNumber } from "@opentelemetry/api-logs"
+-import { SpanStatusCode, SpanKind, context, trace } from "@opentelemetry/api"
+-import type { AssistantMessage, EventMessageUpdated, EventMessagePartUpdated, ToolPart } from "@opencode-ai/sdk"
++import { ROOT_CONTEXT, SpanStatusCode, SpanKind, trace } from "@opentelemetry/api"
++import type {
++  AssistantMessage,
++  EventMessageUpdated,
++  EventMessagePartUpdated,
++  ToolPart,
++} from "@opencode-ai/sdk"
+ import {
+   AGENT_NAME,
+   INPUT_MIME_TYPE,
+@@ -27,7 +32,14 @@ import {
+   TOOL_NAME,
+   TOOL_PARAMETERS,
+ } from "@arizeai/openinference-semantic-conventions"
+-import { errorSummary, setBoundedMap, accumulateSessionTotals, isMetricEnabled, isTraceEnabled } from "../util.ts"
++import {
++  errorSummary,
++  setBoundedMap,
++  accumulateSessionTotals,
++  isMetricEnabled,
++  isTraceEnabled,
++  resolveSessionTraceContext,
++} from "../util.ts"
+ import type { HandlerContext } from "../types.ts"
+ 
+ const OPENINFERENCE_SPAN_KIND = SemanticConventions.OPENINFERENCE_SPAN_KIND
+@@ -58,37 +70,99 @@ export function handleMessageUpdated(e: EventMessageUpdated, ctx: HandlerContext
+   const duration = assistant.time.completed - assistant.time.created
+   const agent = ctx.sessionTotals.get(sessionID)?.agent ?? "unknown"
+ 
+-  const totalTokens = assistant.tokens.input + assistant.tokens.output + assistant.tokens.reasoning
+-    + assistant.tokens.cache.read + assistant.tokens.cache.write
++  const totalTokens =
++    assistant.tokens.input +
++    assistant.tokens.output +
++    assistant.tokens.reasoning +
++    assistant.tokens.cache.read +
++    assistant.tokens.cache.write
+ 
+   if (isMetricEnabled("token.usage", ctx)) {
+     const { tokenCounter } = ctx.instruments
+-    tokenCounter.add(assistant.tokens.input, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent, type: "input" })
+-    tokenCounter.add(assistant.tokens.output, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent, type: "output" })
+-    tokenCounter.add(assistant.tokens.reasoning, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent, type: "reasoning" })
+-    tokenCounter.add(assistant.tokens.cache.read, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent, type: "cacheRead" })
+-    tokenCounter.add(assistant.tokens.cache.write, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent, type: "cacheCreation" })
++    tokenCounter.add(assistant.tokens.input, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      agent,
++      type: "input",
++    })
++    tokenCounter.add(assistant.tokens.output, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      agent,
++      type: "output",
++    })
++    tokenCounter.add(assistant.tokens.reasoning, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      agent,
++      type: "reasoning",
++    })
++    tokenCounter.add(assistant.tokens.cache.read, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      agent,
++      type: "cacheRead",
++    })
++    tokenCounter.add(assistant.tokens.cache.write, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      agent,
++      type: "cacheCreation",
++    })
+   }
+ 
+   if (isMetricEnabled("cost.usage", ctx)) {
+-    ctx.instruments.costCounter.add(assistant.cost, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent })
++    ctx.instruments.costCounter.add(assistant.cost, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      agent,
++    })
+   }
+ 
+   if (isMetricEnabled("cache.count", ctx)) {
+     if (assistant.tokens.cache.read > 0) {
+-      ctx.instruments.cacheCounter.add(1, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent, type: "cacheRead" })
++      ctx.instruments.cacheCounter.add(1, {
++        ...ctx.commonAttrs,
++        "session.id": sessionID,
++        model: modelID,
++        agent,
++        type: "cacheRead",
++      })
+     }
+     if (assistant.tokens.cache.write > 0) {
+-      ctx.instruments.cacheCounter.add(1, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent, type: "cacheCreation" })
++      ctx.instruments.cacheCounter.add(1, {
++        ...ctx.commonAttrs,
++        "session.id": sessionID,
++        model: modelID,
++        agent,
++        type: "cacheCreation",
++      })
+     }
+   }
+ 
+   if (isMetricEnabled("message.count", ctx)) {
+-    ctx.instruments.messageCounter.add(1, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, agent })
++    ctx.instruments.messageCounter.add(1, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      agent,
++    })
+   }
+ 
+   if (isMetricEnabled("model.usage", ctx)) {
+-    ctx.instruments.modelUsageCounter.add(1, { ...ctx.commonAttrs, "session.id": sessionID, model: modelID, provider: providerID, agent })
++    ctx.instruments.modelUsageCounter.add(1, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      model: modelID,
++      provider: providerID,
++      agent,
++    })
+   }
+ 
+   accumulateSessionTotals(sessionID, totalTokens, assistant.cost, ctx)
+@@ -129,7 +203,10 @@ export function handleMessageUpdated(e: EventMessageUpdated, ctx: HandlerContext
+       duration_ms: duration,
+     })
+     if (assistant.error) {
+-      msgSpan.setStatus({ code: SpanStatusCode.ERROR, message: errorSummary(assistant.error) })
++      msgSpan.setStatus({
++        code: SpanStatusCode.ERROR,
++        message: errorSummary(assistant.error),
++      })
+     } else {
+       msgSpan.setStatus({ code: SpanStatusCode.OK })
+     }
+@@ -256,9 +333,6 @@ export function handleMessagePartUpdated(e: EventMessagePartUpdated, ctx: Handle
+       const toolSpan = isTraceEnabled("tool", ctx)
+         ? (() => {
+             const sessionSpan = ctx.sessionSpans.get(toolPart.sessionID)
+-            const parentCtx = sessionSpan
+-              ? trace.setSpan(context.active(), sessionSpan)
+-              : context.active()
+             return ctx.tracer.startSpan(
+               `${ctx.tracePrefix}tool.${toolPart.tool}`,
+               {
+@@ -275,7 +349,9 @@ export function handleMessagePartUpdated(e: EventMessagePartUpdated, ctx: Handle
+                   ...ctx.commonAttrs,
+                 },
+               },
+-              parentCtx,
++              resolveSessionTraceContext(toolPart.sessionID, ctx) ??
++                ctx.parentContext ??
++                ROOT_CONTEXT,
+             )
+           })()
+         : undefined
+@@ -285,7 +361,11 @@ export function handleMessagePartUpdated(e: EventMessagePartUpdated, ctx: Handle
+         startMs: toolPart.state.time.start,
+         span: toolSpan,
+       })
+-      ctx.log("debug", "otel: tool span started", { sessionID: toolPart.sessionID, tool: toolPart.tool, key })
++      ctx.log("debug", "otel: tool span started", {
++        sessionID: toolPart.sessionID,
++        tool: toolPart.tool,
++        key,
++      })
+       return
+     }
+ 
+@@ -309,30 +389,30 @@ export function handleMessagePartUpdated(e: EventMessagePartUpdated, ctx: Handle
+     }
+ 
+     if (isTraceEnabled("tool", ctx)) {
+-      const toolSpan = pending?.span ?? (() => {
+-        const sessionSpan = ctx.sessionSpans.get(toolPart.sessionID)
+-        const parentCtx = sessionSpan
+-          ? trace.setSpan(context.active(), sessionSpan)
+-          : context.active()
+-        return ctx.tracer.startSpan(
+-          `${ctx.tracePrefix}tool.${toolPart.tool}`,
+-          {
+-            startTime: start,
+-            kind: SpanKind.INTERNAL,
+-            attributes: {
+-              [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
+-              [SESSION_ID]: toolPart.sessionID,
+-              [TOOL_ID]: toolPart.callID,
+-              [TOOL_NAME]: toolPart.tool,
+-              [TOOL_PARAMETERS]: JSON.stringify(toolPart.state.input),
+-              [INPUT_VALUE]: JSON.stringify(toolPart.state.input),
+-              [INPUT_MIME_TYPE]: MimeType.JSON,
+-              ...ctx.commonAttrs,
++      const toolSpan =
++        pending?.span ??
++        (() => {
++          return ctx.tracer.startSpan(
++            `${ctx.tracePrefix}tool.${toolPart.tool}`,
++            {
++              startTime: start,
++              kind: SpanKind.INTERNAL,
++              attributes: {
++                [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
++                [SESSION_ID]: toolPart.sessionID,
++                [TOOL_ID]: toolPart.callID,
++                [TOOL_NAME]: toolPart.tool,
++                [TOOL_PARAMETERS]: JSON.stringify(toolPart.state.input),
++                [INPUT_VALUE]: JSON.stringify(toolPart.state.input),
++                [INPUT_MIME_TYPE]: MimeType.JSON,
++                ...ctx.commonAttrs,
++              },
+             },
+-          },
+-          parentCtx,
+-        )
+-      })()
++            resolveSessionTraceContext(toolPart.sessionID, ctx) ??
++              ctx.parentContext ??
++              ROOT_CONTEXT,
++          )
++        })()
+       toolSpan.setAttribute("tool.success", success)
+       if (success) {
+         const output = (toolPart.state as { output: string }).output
+@@ -355,7 +435,12 @@ export function handleMessagePartUpdated(e: EventMessagePartUpdated, ctx: Handle
+     }
+ 
+     const sizeAttr = success
+-      ? { tool_result_size_bytes: Buffer.byteLength((toolPart.state as { output: string }).output, "utf8") }
++      ? {
++          tool_result_size_bytes: Buffer.byteLength(
++            (toolPart.state as { output: string }).output,
++            "utf8",
++          ),
++        }
+       : { error: (toolPart.state as { error: string }).error }
+ 
+     ctx.logger.emit({
+@@ -407,11 +492,6 @@ export function startMessageSpan(
+   if (!isTraceEnabled("llm", ctx)) return
+   const msgKey = `${sessionID}:${messageID}`
+   if (ctx.messageSpans.has(msgKey)) return
+-  const sessionSpan = ctx.sessionSpans.get(sessionID)
+-  const parentCtx = sessionSpan
+-    ? trace.setSpan(context.active(), sessionSpan)
+-    : context.active()
+-
+   const msgSpan = ctx.tracer.startSpan(
+     `${ctx.tracePrefix}llm`,
+     {
+@@ -428,13 +508,15 @@ export function startMessageSpan(
+           ? {
+               [INPUT_VALUE]: ctx.sessionInputs.get(sessionID)!,
+               [INPUT_MIME_TYPE]: MimeType.TEXT,
+-              [LLM_INPUT_MESSAGES]: JSON.stringify([{ role: "user", content: ctx.sessionInputs.get(sessionID)! }]),
++              [LLM_INPUT_MESSAGES]: JSON.stringify([
++                { role: "user", content: ctx.sessionInputs.get(sessionID)! },
++              ]),
+             }
+           : {}),
+         ...ctx.commonAttrs,
+       },
+     },
+-    parentCtx,
++    resolveSessionTraceContext(sessionID, ctx) ?? ctx.parentContext ?? ROOT_CONTEXT,
+   )
+   setBoundedMap(ctx.messageSpans, msgKey, msgSpan)
+ }
+diff --git a/src/handlers/session.ts b/src/handlers/session.ts
+index d5409c4..4b0a863 100644
+--- a/src/handlers/session.ts
++++ b/src/handlers/session.ts
+@@ -1,31 +1,107 @@
+ import { SeverityNumber } from "@opentelemetry/api-logs"
+-import { SpanStatusCode, context, trace } from "@opentelemetry/api"
+-import type { EventSessionCreated, EventSessionIdle, EventSessionError, EventSessionStatus } from "@opencode-ai/sdk"
+-import { AGENT_NAME, OpenInferenceSpanKind, SemanticConventions, SESSION_ID } from "@arizeai/openinference-semantic-conventions"
+-import { errorSummary, setBoundedMap, isMetricEnabled, isTraceEnabled } from "../util.ts"
++import { ROOT_CONTEXT, SpanStatusCode } from "@opentelemetry/api"
++import type {
++  EventSessionCreated,
++  EventSessionIdle,
++  EventSessionError,
++  EventSessionStatus,
++} from "@opencode-ai/sdk"
++import {
++  AGENT_NAME,
++  INPUT_MIME_TYPE,
++  INPUT_VALUE,
++  LLM_INPUT_MESSAGES,
++  MimeType,
++  OpenInferenceSpanKind,
++  SemanticConventions,
++  SESSION_ID,
++} from "@arizeai/openinference-semantic-conventions"
++import {
++  errorSummary,
++  setBoundedMap,
++  isMetricEnabled,
++  isTraceEnabled,
++  resolveSessionTraceContext,
++} from "../util.ts"
+ import type { HandlerContext } from "../types.ts"
+ 
+ const OPENINFERENCE_SPAN_KIND = SemanticConventions.OPENINFERENCE_SPAN_KIND
+ 
++export function handleRunStarted(
++  sessionID: string,
++  agent: string,
++  promptText: string,
++  model: string,
++  startTime: number,
++  ctx: HandlerContext,
++) {
++  if (!isTraceEnabled("session", ctx)) return
++  const existing = ctx.runSpans.get(sessionID)
++  if (existing) {
++    existing.setAttributes({
++      [AGENT_NAME]: agent,
++      ...(promptText
++        ? {
++            [INPUT_VALUE]: promptText,
++            [INPUT_MIME_TYPE]: MimeType.TEXT,
++            [LLM_INPUT_MESSAGES]: JSON.stringify([{ role: "user", content: promptText }]),
++          }
++        : {}),
++      model,
++    })
++    return
++  }
++  const runSpan = ctx.tracer.startSpan(`${ctx.tracePrefix}session`, {
++    startTime,
++    attributes: {
++      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
++      [SESSION_ID]: sessionID,
++      [AGENT_NAME]: agent,
++      "session.is_subagent": false,
++      ...(promptText
++        ? {
++            [INPUT_VALUE]: promptText,
++            [INPUT_MIME_TYPE]: MimeType.TEXT,
++            [LLM_INPUT_MESSAGES]: JSON.stringify([{ role: "user", content: promptText }]),
++          }
++        : {}),
++      model,
++      ...ctx.commonAttrs,
++    },
++  })
++  setBoundedMap(ctx.runSpans, sessionID, runSpan)
++  setBoundedMap(ctx.runSpanContexts, sessionID, runSpan.spanContext())
++  setBoundedMap(ctx.sessionRunRoots, sessionID, sessionID)
++}
++
+ /** Increments the session counter, records start time, starts the root session span, and emits a `session.created` log event. */
+ export function handleSessionCreated(e: EventSessionCreated, ctx: HandlerContext) {
+   const { id: sessionID, time, parentID } = e.properties.info
+   const createdAt = time.created
+   const isSubagent = !!parentID
+   if (isMetricEnabled("session.count", ctx)) {
+-    ctx.instruments.sessionCounter.add(1, { ...ctx.commonAttrs, "session.id": sessionID, is_subagent: isSubagent })
++    ctx.instruments.sessionCounter.add(1, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++      is_subagent: isSubagent,
++    })
+   }
+-  setBoundedMap(ctx.sessionTotals, sessionID, { startMs: createdAt, tokens: 0, cost: 0, messages: 0, agent: "unknown" })
++  setBoundedMap(ctx.sessionTotals, sessionID, {
++    startMs: createdAt,
++    tokens: 0,
++    cost: 0,
++    messages: 0,
++    agent: "unknown",
++  })
+ 
+   // WARNING: disabling "session" traces while "llm" or "tool" traces remain enabled
+   // will cause those child spans to be emitted as unlinked root spans with no parent.
+   // There is no session span to parent them to. If you need a connected trace hierarchy,
+   // either enable all three trace types or disable all of them together.
+-  if (isTraceEnabled("session", ctx)) {
+-    const parentSpan = parentID ? ctx.sessionSpans.get(parentID) : undefined
+-    const spanCtx = parentSpan
+-      ? trace.setSpan(context.active(), parentSpan)
+-      : context.active()
++  if (isTraceEnabled("session", ctx) && parentID) {
++    const parentRunRoot = ctx.sessionRunRoots.get(parentID)
++    if (parentRunRoot) setBoundedMap(ctx.sessionRunRoots, sessionID, parentRunRoot)
++    const spanCtx = resolveSessionTraceContext(parentID, ctx)
+ 
+     const sessionSpan = ctx.tracer.startSpan(
+       `${ctx.tracePrefix}session`,
+@@ -39,9 +115,16 @@ export function handleSessionCreated(e: EventSessionCreated, ctx: HandlerContext
+           ...ctx.commonAttrs,
+         },
+       },
+-      spanCtx,
++      spanCtx ?? ctx.parentContext ?? ROOT_CONTEXT,
+     )
+     setBoundedMap(ctx.sessionSpans, sessionID, sessionSpan)
++    setBoundedMap(ctx.sessionSpanContexts, sessionID, sessionSpan.spanContext())
++    if (parentID && !spanCtx) {
++      void ctx.log("warn", "otel: missing parent session trace context; starting new root trace", {
++        sessionID,
++        parentID,
++      })
++    }
+   }
+ 
+   ctx.logger.emit({
+@@ -50,9 +133,18 @@ export function handleSessionCreated(e: EventSessionCreated, ctx: HandlerContext
+     timestamp: createdAt,
+     observedTimestamp: Date.now(),
+     body: "session.created",
+-    attributes: { "event.name": "session.created", "session.id": sessionID, is_subagent: isSubagent, ...ctx.commonAttrs },
++    attributes: {
++      "event.name": "session.created",
++      "session.id": sessionID,
++      is_subagent: isSubagent,
++      ...ctx.commonAttrs,
++    },
++  })
++  return ctx.log("info", "otel: session.created", {
++    sessionID,
++    createdAt,
++    isSubagent,
+   })
+-  return ctx.log("info", "otel: session.created", { sessionID, createdAt, isSubagent })
+ }
+ 
+ function sweepSession(sessionID: string, ctx: HandlerContext) {
+@@ -61,7 +153,10 @@ function sweepSession(sessionID: string, ctx: HandlerContext) {
+   }
+   for (const [key, span] of ctx.pendingToolSpans) {
+     if (span.sessionID === sessionID) {
+-      span.span?.setStatus({ code: SpanStatusCode.ERROR, message: "session ended before tool completed" })
++      span.span?.setStatus({
++        code: SpanStatusCode.ERROR,
++        message: "session ended before tool completed",
++      })
+       span.span?.end()
+       ctx.pendingToolSpans.delete(key)
+     }
+@@ -70,7 +165,10 @@ function sweepSession(sessionID: string, ctx: HandlerContext) {
+   const msgPrefix = `${sessionID}:`
+   for (const [key, span] of ctx.messageSpans) {
+     if (key.startsWith(msgPrefix)) {
+-      span.setStatus({ code: SpanStatusCode.ERROR, message: "session ended before message completed" })
++      span.setStatus({
++        code: SpanStatusCode.ERROR,
++        message: "session ended before message completed",
++      })
+       span.end()
+       ctx.messageSpans.delete(key)
+     }
+@@ -117,6 +215,21 @@ export function handleSessionIdle(e: EventSessionIdle, ctx: HandlerContext) {
+     sessionSpan.end()
+     ctx.sessionSpans.delete(sessionID)
+   }
++  ctx.sessionSpanContexts.delete(sessionID)
++  const runSpan = ctx.runSpans.get(sessionID)
++  if (runSpan) {
++    if (totals) {
++      runSpan.setAttributes({
++        [AGENT_NAME]: totals.agent,
++        "session.total_tokens": totals.tokens,
++        "session.total_cost_usd": totals.cost,
++        "session.total_messages": totals.messages,
++      })
++    }
++    runSpan.setStatus({ code: SpanStatusCode.OK })
++    runSpan.end()
++    ctx.runSpans.delete(sessionID)
++  }
+ 
+   ctx.logger.emit({
+     severityNumber: SeverityNumber.INFO,
+@@ -135,7 +248,14 @@ export function handleSessionIdle(e: EventSessionIdle, ctx: HandlerContext) {
+   })
+   ctx.log("debug", "otel: session.idle", {
+     sessionID,
+-    ...(totals ? { duration_ms, total_tokens: totals.tokens, total_cost_usd: totals.cost, total_messages: totals.messages } : {}),
++    ...(totals
++      ? {
++          duration_ms,
++          total_tokens: totals.tokens,
++          total_cost_usd: totals.cost,
++          total_messages: totals.messages,
++        }
++      : {}),
+   })
+ }
+ 
+@@ -144,19 +264,28 @@ export function handleSessionError(e: EventSessionError, ctx: HandlerContext) {
+   const rawID = e.properties.sessionID
+   const sessionID = rawID ?? "unknown"
+   const error = errorSummary(e.properties.error)
++  const totals = rawID ? ctx.sessionTotals.get(rawID) : undefined
+   if (rawID) ctx.sessionTotals.delete(rawID)
+   sweepSession(sessionID, ctx)
+ 
+   if (rawID) {
+     const sessionSpan = ctx.sessionSpans.get(rawID)
+     if (sessionSpan) {
+-      const totals = ctx.sessionTotals.get(rawID)
+       if (totals) sessionSpan.setAttribute(AGENT_NAME, totals.agent)
+       sessionSpan.setStatus({ code: SpanStatusCode.ERROR, message: error })
+       sessionSpan.setAttribute("error", error)
+       sessionSpan.end()
+       ctx.sessionSpans.delete(rawID)
+     }
++    ctx.sessionSpanContexts.delete(rawID)
++    const runSpan = ctx.runSpans.get(rawID)
++    if (runSpan) {
++      if (totals) runSpan.setAttribute(AGENT_NAME, totals.agent)
++      runSpan.setStatus({ code: SpanStatusCode.ERROR, message: error })
++      runSpan.setAttribute("error", error)
++      runSpan.end()
++      ctx.runSpans.delete(rawID)
++    }
+   }
+ 
+   ctx.logger.emit({
+@@ -181,7 +310,14 @@ export function handleSessionStatus(e: EventSessionStatus, ctx: HandlerContext)
+   const { sessionID, status } = e.properties
+   const { attempt, message: retryMessage } = status
+   if (isMetricEnabled("retry.count", ctx)) {
+-    ctx.instruments.retryCounter.add(1, { ...ctx.commonAttrs, "session.id": sessionID })
+-    ctx.log("debug", "otel: retry counter incremented", { sessionID, attempt, retryMessage })
++    ctx.instruments.retryCounter.add(1, {
++      ...ctx.commonAttrs,
++      "session.id": sessionID,
++    })
++    ctx.log("debug", "otel: retry counter incremented", {
++      sessionID,
++      attempt,
++      retryMessage,
++    })
+   }
+ }
+diff --git a/src/index.ts b/src/index.ts
+index f643160..f899279 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,8 +1,14 @@
+ import type { Plugin } from "@opencode-ai/plugin"
+ import { SeverityNumber } from "@opentelemetry/api-logs"
+ import { logs } from "@opentelemetry/api-logs"
+-import { trace } from "@opentelemetry/api"
+-import { AGENT_NAME } from "@arizeai/openinference-semantic-conventions"
++import { context, trace } from "@opentelemetry/api"
++import {
++  AGENT_NAME,
++  INPUT_MIME_TYPE,
++  INPUT_VALUE,
++  LLM_INPUT_MESSAGES,
++  MimeType,
++} from "@arizeai/openinference-semantic-conventions"
+ import pkg from "../package.json" with { type: "json" }
+ import type {
+   EventSessionCreated,
+@@ -20,8 +26,19 @@ import { LEVELS, type Level, type HandlerContext } from "./types.ts"
+ import { loadConfig, resolveHelperPath, resolveLogLevel } from "./config.ts"
+ import { probeEndpoint } from "./probe.ts"
+ import { setupOtel, createInstruments } from "./otel.ts"
+-import { handleSessionCreated, handleSessionIdle, handleSessionError, handleSessionStatus } from "./handlers/session.ts"
+-import { handleMessageUpdated, handleMessagePartUpdated, startMessageSpan } from "./handlers/message.ts"
++import { setBoundedMap } from "./util.ts"
++import {
++  handleSessionCreated,
++  handleSessionIdle,
++  handleSessionError,
++  handleSessionStatus,
++  handleRunStarted,
++} from "./handlers/session.ts"
++import {
++  handleMessageUpdated,
++  handleMessagePartUpdated,
++  startMessageSpan,
++} from "./handlers/message.ts"
+ import { handlePermissionUpdated, handlePermissionReplied } from "./handlers/permission.ts"
+ import { handleSessionDiff, handleCommandExecuted } from "./handlers/activity.ts"
+ 
+@@ -39,7 +56,9 @@ export const OtelPlugin: Plugin = async ({ project, client, directory, worktree
+ 
+   const log: HandlerContext["log"] = async (level, message, extra) => {
+     if (LEVELS[level] < LEVELS[minLevel]) return
+-    await client.app.log({ body: { service: "opencode-plugin-otel", level, message, extra } })
++    await client.app.log({
++      body: { service: "opencode-plugin-otel", level, message, extra },
++    })
+   }
+ 
+   if (!config.enabled) {
+@@ -65,7 +84,10 @@ export const OtelPlugin: Plugin = async ({ project, client, directory, worktree
+ 
+   const probe = await probeEndpoint(config.endpoint)
+   if (probe.ok) {
+-    await log("info", "OTLP endpoint reachable", { endpoint: config.endpoint, ms: probe.ms })
++    await log("info", "OTLP endpoint reachable", {
++      endpoint: config.endpoint,
++      ms: probe.ms,
++    })
+   } else {
+     await log("warn", "OTLP endpoint unreachable — exports may fail", {
+       endpoint: config.endpoint,
+@@ -90,7 +112,11 @@ export const OtelPlugin: Plugin = async ({ project, client, directory, worktree
+   const pendingToolSpans = new Map()
+   const pendingPermissions = new Map()
+   const sessionTotals = new Map()
++  const runSpans = new Map()
++  const runSpanContexts = new Map()
++  const sessionRunRoots = new Map()
+   const sessionSpans = new Map()
++  const sessionSpanContexts = new Map()
+   const messageSpans = new Map()
+   const sessionInputs = new Map()
+   const messageOutputs = new Map()
+@@ -117,24 +143,48 @@ export const OtelPlugin: Plugin = async ({ project, client, directory, worktree
+     disabledTraces,
+     tracer,
+     tracePrefix: config.metricPrefix,
++    runSpans,
++    runSpanContexts,
++    sessionRunRoots,
+     sessionSpans,
++    sessionSpanContexts,
+     messageSpans,
+     sessionInputs,
+     messageOutputs,
+   }
+ 
++  const withParentContext = (): HandlerContext => ({
++    ...ctx,
++    parentContext: context.active(),
++  })
++
+   async function shutdown() {
+-    await Promise.allSettled([meterProvider.shutdown(), loggerProvider.shutdown(), tracerProvider.shutdown()])
++    await Promise.allSettled([
++      meterProvider.shutdown(),
++      loggerProvider.shutdown(),
++      tracerProvider.shutdown(),
++    ])
+   }
+ 
+-  process.on("SIGTERM", () => { shutdown().then(() => process.exit(0)).catch(() => process.exit(1)) })
+-  process.on("SIGINT",  () => { shutdown().then(() => process.exit(0)).catch(() => process.exit(1)) })
+-  process.on("beforeExit", () => { shutdown().catch(() => {}) })
++  process.on("SIGTERM", () => {
++    shutdown()
++      .then(() => process.exit(0))
++      .catch(() => process.exit(1))
++  })
++  process.on("SIGINT", () => {
++    shutdown()
++      .then(() => process.exit(0))
++      .catch(() => process.exit(1))
++  })
++  process.on("beforeExit", () => {
++    shutdown().catch(() => {})
++  })
+ 
+-  const safe = <T extends unknown[]>(
+-    name: string,
+-    fn: (...args: T) => Promise<void> | void,
+-  ): ((...args: T) => Promise<void>) =>
++  const safe =
++    <T extends unknown[]>(
++      name: string,
++      fn: (...args: T) => Promise<void> | void,
++    ): ((...args: T) => Promise<void>) =>
+     async (...args: T) => {
+       try {
+         await fn(...args)
+@@ -160,71 +210,95 @@ export const OtelPlugin: Plugin = async ({ project, client, directory, worktree
+     },
+ 
+     "chat.message": safe("chat.message", async (input, output) => {
++      const handlerCtx = withParentContext()
++      const startTime = Date.now()
+       const agent = input.agent ?? "unknown"
+-      const totals = sessionTotals.get(input.sessionID)
+-      if (totals) totals.agent = agent
+-      const sessionSpan = sessionSpans.get(input.sessionID)
+-      if (sessionSpan) sessionSpan.setAttribute(AGENT_NAME, agent)
+-      const promptText = output.parts.map((part) => {
+-        switch (part.type) {
+-          case "text":
+-            return part.text
+-          case "file":
+-            return part.filename ?? part.url
+-          case "agent":
+-            return part.name
+-          case "subtask":
+-            return part.description
+-          default:
+-            return ""
+-        }
+-      }).filter(Boolean).join("\n")
++      setBoundedMap(sessionTotals, input.sessionID, {
++        startMs: startTime,
++        tokens: 0,
++        cost: 0,
++        messages: 0,
++        agent,
++      })
++      const promptText = output.parts
++        .map((part) => {
++          switch (part.type) {
++            case "text":
++              return part.text
++            case "file":
++              return part.filename ?? part.url
++            case "agent":
++              return part.name
++            case "subtask":
++              return part.description
++            default:
++              return ""
++          }
++        })
++        .filter(Boolean)
++        .join("\n")
+       sessionInputs.set(input.sessionID, promptText)
++      const model = input.model ? `${input.model.providerID}/${input.model.modelID}` : "unknown"
++      const sessionSpan = sessionSpans.get(input.sessionID)
++      if (sessionSpan) {
++        sessionSpan.setAttributes({
++          [AGENT_NAME]: agent,
++          ...(promptText
++            ? {
++                [INPUT_VALUE]: promptText,
++                [INPUT_MIME_TYPE]: MimeType.TEXT,
++                [LLM_INPUT_MESSAGES]: JSON.stringify([{ role: "user", content: promptText }]),
++              }
++            : {}),
++          model,
++        })
++      } else {
++        handleRunStarted(input.sessionID, agent, promptText, model, startTime, handlerCtx)
++      }
+       const promptLength = promptText.length
+       logger.emit({
+         severityNumber: SeverityNumber.INFO,
+         severityText: "INFO",
+-        timestamp: Date.now(),
+-        observedTimestamp: Date.now(),
++        timestamp: startTime,
++        observedTimestamp: startTime,
+         body: "user_prompt",
+         attributes: {
+           "event.name": "user_prompt",
+           "session.id": input.sessionID,
+           agent,
+           prompt_length: promptLength,
+-          model: input.model
+-            ? `${input.model.providerID}/${input.model.modelID}`
+-            : "unknown",
++          model,
+           ...commonAttrs,
+         },
+       })
+     }),
+ 
+     event: safe("event", async ({ event }) => {
++      const handlerCtx = withParentContext()
+       switch (event.type) {
+         case "session.created":
+-          await handleSessionCreated(event as EventSessionCreated, ctx)
++          await handleSessionCreated(event as EventSessionCreated, handlerCtx)
+           break
+         case "session.idle":
+-          handleSessionIdle(event as EventSessionIdle, ctx)
++          handleSessionIdle(event as EventSessionIdle, handlerCtx)
+           break
+         case "session.error":
+-          handleSessionError(event as EventSessionError, ctx)
++          handleSessionError(event as EventSessionError, handlerCtx)
+           break
+         case "session.status":
+-          handleSessionStatus(event as EventSessionStatus, ctx)
++          handleSessionStatus(event as EventSessionStatus, handlerCtx)
+           break
+         case "session.diff":
+-          handleSessionDiff(event as EventSessionDiff, ctx)
++          handleSessionDiff(event as EventSessionDiff, handlerCtx)
+           break
+         case "command.executed":
+-          handleCommandExecuted(event as EventCommandExecuted, ctx)
++          handleCommandExecuted(event as EventCommandExecuted, handlerCtx)
+           break
+         case "permission.updated":
+-          handlePermissionUpdated(event as EventPermissionUpdated, ctx)
++          handlePermissionUpdated(event as EventPermissionUpdated, handlerCtx)
+           break
+         case "permission.replied":
+-          handlePermissionReplied(event as EventPermissionReplied, ctx)
++          handlePermissionReplied(event as EventPermissionReplied, handlerCtx)
+           break
+         case "message.updated": {
+           const msgEvt = event as EventMessageUpdated
+@@ -236,14 +310,14 @@ export const OtelPlugin: Plugin = async ({ project, client, directory, worktree
+               info.modelID ?? "unknown",
+               info.providerID ?? "unknown",
+               info.time?.created ?? Date.now(),
+-              ctx,
++              handlerCtx,
+             )
+           }
+-          await handleMessageUpdated(msgEvt, ctx)
++          await handleMessageUpdated(msgEvt, handlerCtx)
+           break
+         }
+         case "message.part.updated":
+-          await handleMessagePartUpdated(event as EventMessagePartUpdated, ctx)
++          await handleMessagePartUpdated(event as EventMessagePartUpdated, handlerCtx)
+           break
+       }
+     }),
+diff --git a/src/types.ts b/src/types.ts
+index 0132998..a11df5a 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -1,4 +1,4 @@
+-import type { Counter, Histogram, Span, Tracer } from "@opentelemetry/api"
++import type { Context, Counter, Histogram, Span, SpanContext, Tracer } from "@opentelemetry/api"
+ import type { Logger as OtelLogger } from "@opentelemetry/api-logs"
+ 
+ /** Numeric priority map for log levels; higher value = higher severity. */
+@@ -66,6 +66,7 @@ export type SessionTotals = {
+ export type HandlerContext = {
+   logger: OtelLogger
+   log: PluginLogger
++  parentContext?: Context
+   instruments: Instruments
+   commonAttrs: CommonAttrs
+   pendingToolSpans: Map<string, PendingToolSpan>
+@@ -75,7 +76,11 @@ export type HandlerContext = {
+   disabledTraces: Set<string>
+   tracer: Tracer
+   tracePrefix: string
++  runSpans: Map<string, Span>
++  runSpanContexts: Map<string, SpanContext>
++  sessionRunRoots: Map<string, string>
+   sessionSpans: Map<string, Span>
++  sessionSpanContexts: Map<string, SpanContext>
+   messageSpans: Map<string, Span>
+   sessionInputs: Map<string, string>
+   messageOutputs: Map<string, string>
+diff --git a/src/util.ts b/src/util.ts
+index 32548bc..8014673 100644
+--- a/src/util.ts
++++ b/src/util.ts
+@@ -1,3 +1,4 @@
++import { ROOT_CONTEXT, trace } from "@opentelemetry/api"
+ import { MAX_PENDING } from "./types.ts"
+ import type { HandlerContext } from "./types.ts"
+ 
+@@ -22,6 +23,17 @@ export function setBoundedMap<K, V>(map: Map<K, V>, key: K, value: V) {
+   map.set(key, value)
+ }
+ 
++export function resolveSessionTraceContext(sessionID: string, ctx: HandlerContext) {
++  const parentContext = ctx.parentContext ?? ROOT_CONTEXT
++  const sessionSpan = ctx.sessionSpans.get(sessionID)
++  if (sessionSpan) return trace.setSpan(parentContext, sessionSpan)
++  const spanContext = ctx.sessionSpanContexts.get(sessionID)
++  if (spanContext) return trace.setSpanContext(parentContext, spanContext)
++  const runRootID = ctx.sessionRunRoots.get(sessionID)
++  const runSpanContext = runRootID ? ctx.runSpanContexts.get(runRootID) : undefined
++  return runSpanContext ? trace.setSpanContext(parentContext, runSpanContext) : undefined
++}
++
+ /**
+  * Returns `true` if the metric name (without prefix) is not in the disabled set.
+  * The `name` should be the suffix after the metric prefix, e.g. `"session.count"`.
+diff --git a/tests/handlers/spans.test.ts b/tests/handlers/spans.test.ts
+index cf0aa1a..06c12fd 100644
+--- a/tests/handlers/spans.test.ts
++++ b/tests/handlers/spans.test.ts
+@@ -1,7 +1,6 @@
+ import { describe, test, expect } from "bun:test"
+ import { SpanStatusCode } from "@opentelemetry/api"
+ import {
+-  AGENT_NAME,
+   LLM_MODEL_NAME,
+   LLM_PROVIDER,
+   LLM_SYSTEM,
+@@ -12,13 +11,21 @@ import {
+   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+   OpenInferenceSpanKind,
+   SemanticConventions,
+-  SESSION_ID,
+   TOOL_NAME,
+ } from "@arizeai/openinference-semantic-conventions"
+ import type { Span } from "@opentelemetry/api"
+-import { handleSessionCreated, handleSessionIdle, handleSessionError } from "../../src/handlers/session.ts"
+-import { handleMessageUpdated, handleMessagePartUpdated, startMessageSpan } from "../../src/handlers/message.ts"
+-import { makeCtx, makeTracer, type SpySpan } from "../helpers.ts"
++import {
++  handleSessionCreated,
++  handleSessionIdle,
++  handleSessionError,
++  handleRunStarted,
++} from "../../src/handlers/session.ts"
++import {
++  handleMessageUpdated,
++  handleMessagePartUpdated,
++  startMessageSpan,
++} from "../../src/handlers/message.ts"
++import { makeCtx, makeTracer } from "../helpers.ts"
+ import type {
+   EventSessionCreated,
+   EventSessionIdle,
+@@ -29,15 +36,30 @@ import type {
+ 
+ const OPENINFERENCE_SPAN_KIND = SemanticConventions.OPENINFERENCE_SPAN_KIND
+ 
+-function makeSessionCreated(sessionID: string, createdAt = 1000, parentID?: string): EventSessionCreated {
++function makeSessionCreated(
++  sessionID: string,
++  createdAt = 1000,
++  parentID?: string,
++): EventSessionCreated {
+   return {
+     type: "session.created",
+-    properties: { info: { id: sessionID, projectID: "proj_test", directory: "/tmp", parentID, time: { created: createdAt } } },
++    properties: {
++      info: {
++        id: sessionID,
++        projectID: "proj_test",
++        directory: "/tmp",
++        parentID,
++        time: { created: createdAt },
++      },
++    },
+   } as unknown as EventSessionCreated
+ }
+ 
+ function makeSessionIdle(sessionID: string): EventSessionIdle {
+-  return { type: "session.idle", properties: { sessionID } } as EventSessionIdle
++  return {
++    type: "session.idle",
++    properties: { sessionID },
++  } as EventSessionIdle
+ }
+ 
+ function makeSessionError(sessionID?: string, error?: { name: string }): EventSessionError {
+@@ -53,7 +75,12 @@ function makeAssistantMessageUpdated(overrides: {
+   modelID?: string
+   providerID?: string
+   cost?: number
+-  tokens?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }
++  tokens?: {
++    input: number
++    output: number
++    reasoning: number
++    cache: { read: number; write: number }
++  }
+   time?: { created: number; completed?: number }
+   error?: { name: string }
+ }): EventMessageUpdated {
+@@ -67,7 +94,12 @@ function makeAssistantMessageUpdated(overrides: {
+         modelID: overrides.modelID ?? "claude-3-5-sonnet",
+         providerID: overrides.providerID ?? "anthropic",
+         cost: overrides.cost ?? 0.01,
+-        tokens: overrides.tokens ?? { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } },
++        tokens: overrides.tokens ?? {
++          input: 100,
++          output: 50,
++          reasoning: 0,
++          cache: { read: 0, write: 0 },
++        },
+         time: overrides.time ?? { created: 1000, completed: 2000 },
+         error: overrides.error,
+       },
+@@ -77,7 +109,14 @@ function makeAssistantMessageUpdated(overrides: {
+ 
+ function makeToolPartUpdated(
+   status: "running" | "completed" | "error",
+-  overrides: { sessionID?: string; callID?: string; tool?: string; startMs?: number; endMs?: number; output?: string } = {},
++  overrides: {
++    sessionID?: string
++    callID?: string
++    tool?: string
++    startMs?: number
++    endMs?: number
++    output?: string
++  } = {},
+ ): EventMessagePartUpdated {
+   const sessionID = overrides.sessionID ?? "ses_1"
+   const callID = overrides.callID ?? "call_1"
+@@ -87,53 +126,38 @@ function makeToolPartUpdated(
+     status === "running"
+       ? { status: "running", time: { start } }
+       : status === "completed"
+-        ? { status: "completed", time: { start, end }, output: overrides.output ?? "ok" }
++        ? {
++            status: "completed",
++            time: { start, end },
++            output: overrides.output ?? "ok",
++          }
+         : { status: "error", time: { start, end }, error: "fail" }
+   return {
+     type: "message.part.updated",
+-    properties: { part: { type: "tool", sessionID, callID, tool: overrides.tool ?? "bash", state } },
++    properties: {
++      part: {
++        type: "tool",
++        sessionID,
++        callID,
++        tool: overrides.tool ?? "bash",
++        state,
++      },
++    },
+   } as unknown as EventMessagePartUpdated
+ }
+ 
+ describe("session spans", () => {
+-  test("starts a session span on session.created", () => {
++  test("does not start a top-level session span on session.created", () => {
+     const { ctx, tracer } = makeCtx()
+     handleSessionCreated(makeSessionCreated("ses_1", 5000), ctx)
+-    expect(tracer.spans).toHaveLength(1)
+-    expect(tracer.spans[0]!.name).toBe("opencode.session")
+-    expect(tracer.spans[0]!.startTime).toBe(5000)
+-    expect(ctx.sessionSpans.has("ses_1")).toBe(true)
+-  })
+-
+-  test("session span carries session.id attribute", () => {
+-    const { ctx, tracer } = makeCtx()
+-    handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+-    expect(tracer.spans[0]!.attributes["session.id"]).toBe("ses_1")
+-    expect(tracer.spans[0]!.attributes[SESSION_ID]).toBe("ses_1")
+-  })
+-
+-  test("session span is tagged as an OpenInference agent span", () => {
+-    const { ctx, tracer } = makeCtx()
+-    handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+-    expect(tracer.spans[0]!.attributes[OPENINFERENCE_SPAN_KIND]).toBe(OpenInferenceSpanKind.AGENT)
+-    expect(tracer.spans[0]!.attributes[AGENT_NAME]).toBe("unknown")
+-  })
+-
+-  test("session span carries is_subagent=false for root session", () => {
+-    const { ctx, tracer } = makeCtx()
+-    handleSessionCreated(makeSessionCreated("ses_root"), ctx)
+-    expect(tracer.spans[0]!.attributes["session.is_subagent"]).toBe(false)
+-  })
+-
+-  test("session span carries is_subagent=true for subagent session", () => {
+-    const { ctx, tracer } = makeCtx()
+-    handleSessionCreated(makeSessionCreated("ses_child", 1000, "ses_parent"), ctx)
+-    expect(tracer.spans[0]!.attributes["session.is_subagent"]).toBe(true)
++    expect(tracer.spans).toHaveLength(0)
++    expect(ctx.sessionSpans.has("ses_1")).toBe(false)
+   })
+ 
+   test("ends session span with OK status on session.idle", () => {
+     const { ctx, tracer } = makeCtx()
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionIdle(makeSessionIdle("ses_1"), ctx)
+     const span = tracer.spans[0]!
+     expect(span.ended).toBe(true)
+@@ -144,7 +168,14 @@ describe("session spans", () => {
+   test("sets session total attributes before ending on idle", () => {
+     const { ctx, tracer } = makeCtx()
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+-    ctx.sessionTotals.set("ses_1", { startMs: Date.now() - 100, tokens: 250, cost: 0.05, messages: 3, agent: "build" })
++    handleRunStarted("ses_1", "build", "prompt", "anthropic/claude", 1000, ctx)
++    ctx.sessionTotals.set("ses_1", {
++      startMs: Date.now() - 100,
++      tokens: 250,
++      cost: 0.05,
++      messages: 3,
++      agent: "build",
++    })
+     handleSessionIdle(makeSessionIdle("ses_1"), ctx)
+     const span = tracer.spans[0]!
+     expect(span.attributes["session.total_tokens"]).toBe(250)
+@@ -155,6 +186,7 @@ describe("session spans", () => {
+   test("ends session span with ERROR status on session.error", () => {
+     const { ctx, tracer } = makeCtx()
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionError(makeSessionError("ses_1", { name: "NetworkError" }), ctx)
+     const span = tracer.spans[0]!
+     expect(span.ended).toBe(true)
+@@ -165,6 +197,7 @@ describe("session spans", () => {
+   test("error message is propagated to session span status", () => {
+     const { ctx, tracer } = makeCtx()
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionError(makeSessionError("ses_1", { name: "TimeoutError" }), ctx)
+     expect(tracer.spans[0]!.status.message).toBe("TimeoutError")
+   })
+@@ -178,25 +211,55 @@ describe("session spans", () => {
+   test("session.error with undefined sessionID does not end any span", () => {
+     const { ctx, tracer } = makeCtx()
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionError(makeSessionError(undefined, { name: "UnknownError" }), ctx)
+-    expect(ctx.sessionSpans.has("ses_1")).toBe(true)
++    expect(ctx.runSpans.has("ses_1")).toBe(true)
+     expect(tracer.spans[0]!.ended).toBe(false)
+   })
+ 
+   test("subagent span — parent session span is in sessionSpans before child is created", () => {
+     const { ctx, tracer } = makeCtx()
++    handleRunStarted("ses_parent", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionCreated(makeSessionCreated("ses_parent"), ctx)
+     handleSessionCreated(makeSessionCreated("ses_child", 2000, "ses_parent"), ctx)
+     expect(tracer.spans).toHaveLength(2)
+     expect(tracer.spans[1]!.name).toBe("opencode.session")
+-    expect(tracer.spans[1]!.parentSpan).toBe(tracer.spans[0])
++    expect(tracer.spans[1]!.parentSpan).toBeUndefined()
++    expect(tracer.spans[1]!.parentSpanContext?.spanId).toBe(tracer.spans[0]!.spanContext().spanId)
+   })
+ 
+   test("subagent span — no error when parent session span is absent", () => {
+     const { ctx, tracer } = makeCtx()
+-    expect(() => handleSessionCreated(makeSessionCreated("ses_child", 1000, "ses_missing_parent"), ctx)).not.toThrow()
++    expect(() =>
++      handleSessionCreated(makeSessionCreated("ses_child", 1000, "ses_missing_parent"), ctx),
++    ).not.toThrow()
+     expect(tracer.spans).toHaveLength(1)
+   })
++
++  test("subagent span stays in parent trace after parent session span has ended", () => {
++    const { ctx, tracer } = makeCtx()
++    handleRunStarted("ses_parent", "agent", "prompt", "anthropic/claude", 1000, ctx)
++    handleSessionCreated(makeSessionCreated("ses_parent"), ctx)
++    const parentSpan = tracer.spans[0]!
++    handleSessionIdle(makeSessionIdle("ses_parent"), ctx)
++    handleSessionCreated(makeSessionCreated("ses_child", 2000, "ses_parent"), ctx)
++    const childSpan = tracer.spans[1]!
++    expect(childSpan.parentSpan).toBeUndefined()
++    expect(childSpan.parentSpanContext?.spanId).toBe(parentSpan.spanContext().spanId)
++    expect(childSpan.spanContext().traceId).toBe(parentSpan.spanContext().traceId)
++  })
++
++  test("starting a new run on the same session creates a new trace", () => {
++    const { ctx, tracer } = makeCtx()
++    handleSessionCreated(makeSessionCreated("ses_1"), ctx)
++    handleRunStarted("ses_1", "agent", "prompt 1", "anthropic/claude", 1000, ctx)
++    const firstTraceId = tracer.spans[0]!.spanContext().traceId
++    handleSessionIdle(makeSessionIdle("ses_1"), ctx)
++    handleSessionCreated(makeSessionCreated("ses_1", 2000), ctx)
++    handleRunStarted("ses_1", "agent", "prompt 2", "anthropic/claude", 3000, ctx)
++    const secondTraceId = tracer.spans[1]!.spanContext().traceId
++    expect(secondTraceId).not.toBe(firstTraceId)
++  })
+ })
+ 
+ describe("tool spans", () => {
+@@ -269,20 +332,53 @@ describe("tool spans", () => {
+ 
+   test("tool span is parented to session span when available", () => {
+     const { ctx, tracer } = makeCtx()
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+     handleMessagePartUpdated(makeToolPartUpdated("running", { sessionID: "ses_1" }), ctx)
+-    expect(tracer.spans).toHaveLength(2)
+-    expect(tracer.spans[1]!.name).toBe("opencode.tool.bash")
+-    expect(tracer.spans[1]!.parentSpan).toBe(tracer.spans[0])
++    expect(tracer.spans.at(-1)!.name).toBe("opencode.tool.bash")
++    expect(tracer.spans.at(-1)!.parentSpan).toBeUndefined()
++    expect(tracer.spans.at(-1)!.parentSpanContext?.spanId).toBe(
++      tracer.spans[0]!.spanContext().spanId,
++    )
+   })
+ 
+   test("out-of-order tool span is parented to session span when available", () => {
+     const { ctx, tracer } = makeCtx()
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+-    handleMessagePartUpdated(makeToolPartUpdated("completed", { sessionID: "ses_1", startMs: 500, endMs: 1500 }), ctx)
+-    expect(tracer.spans).toHaveLength(2)
+-    expect(tracer.spans[1]!.name).toBe("opencode.tool.bash")
+-    expect(tracer.spans[1]!.parentSpan).toBe(tracer.spans[0])
++    handleMessagePartUpdated(
++      makeToolPartUpdated("completed", {
++        sessionID: "ses_1",
++        startMs: 500,
++        endMs: 1500,
++      }),
++      ctx,
++    )
++    expect(tracer.spans.at(-1)!.name).toBe("opencode.tool.bash")
++    expect(tracer.spans.at(-1)!.parentSpan).toBeUndefined()
++    expect(tracer.spans.at(-1)!.parentSpanContext?.spanId).toBe(
++      tracer.spans[0]!.spanContext().spanId,
++    )
++  })
++
++  test("out-of-order tool span keeps session trace after live session span has ended", () => {
++    const { ctx, tracer } = makeCtx()
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
++    handleSessionCreated(makeSessionCreated("ses_1"), ctx)
++    const runSpan = tracer.spans[0]!
++    handleSessionIdle(makeSessionIdle("ses_1"), ctx)
++    handleMessagePartUpdated(
++      makeToolPartUpdated("completed", {
++        sessionID: "ses_1",
++        startMs: 500,
++        endMs: 1500,
++      }),
++      ctx,
++    )
++    const toolSpan = tracer.spans[1]!
++    expect(toolSpan.parentSpan).toBeUndefined()
++    expect(toolSpan.parentSpanContext?.spanId).toBe(runSpan.spanContext().spanId)
++    expect(toolSpan.spanContext().traceId).toBe(runSpan.spanContext().traceId)
+   })
+ })
+ 
+@@ -314,7 +410,13 @@ describe("message (LLM) spans", () => {
+   test("handleMessageUpdated ends message span on completion", () => {
+     const { ctx, tracer } = makeCtx()
+     startMessageSpan("ses_1", "msg_1", "claude-3-5-sonnet", "anthropic", 1000, ctx)
+-    handleMessageUpdated(makeAssistantMessageUpdated({ id: "msg_1", time: { created: 1000, completed: 2000 } }), ctx)
++    handleMessageUpdated(
++      makeAssistantMessageUpdated({
++        id: "msg_1",
++        time: { created: 1000, completed: 2000 },
++      }),
++      ctx,
++    )
+     const span = tracer.spans[0]!
+     expect(span.ended).toBe(true)
+     expect(span.endTime).toBe(2000)
+@@ -331,7 +433,13 @@ describe("message (LLM) spans", () => {
+   test("handleMessageUpdated sets ERROR status on api error", () => {
+     const { ctx, tracer } = makeCtx()
+     startMessageSpan("ses_1", "msg_1", "claude-3-5-sonnet", "anthropic", 1000, ctx)
+-    handleMessageUpdated(makeAssistantMessageUpdated({ id: "msg_1", error: { name: "RateLimitError" } }), ctx)
++    handleMessageUpdated(
++      makeAssistantMessageUpdated({
++        id: "msg_1",
++        error: { name: "RateLimitError" },
++      }),
++      ctx,
++    )
+     expect(tracer.spans[0]!.status.code).toBe(SpanStatusCode.ERROR)
+     expect(tracer.spans[0]!.status.message).toBe("RateLimitError")
+   })
+@@ -342,7 +450,12 @@ describe("message (LLM) spans", () => {
+     handleMessageUpdated(
+       makeAssistantMessageUpdated({
+         id: "msg_1",
+-        tokens: { input: 200, output: 80, reasoning: 10, cache: { read: 30, write: 5 } },
++        tokens: {
++          input: 200,
++          output: 80,
++          reasoning: 10,
++          cache: { read: 30, write: 5 },
++        },
+       }),
+       ctx,
+     )
+@@ -365,11 +478,27 @@ describe("message (LLM) spans", () => {
+ 
+   test("message span is parented to session span when available", () => {
+     const { ctx, tracer } = makeCtx()
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+     startMessageSpan("ses_1", "msg_1", "claude", "anthropic", 1000, ctx)
+-    expect(tracer.spans).toHaveLength(2)
+-    expect(tracer.spans[1]!.name).toBe("opencode.llm")
+-    expect(tracer.spans[1]!.parentSpan).toBe(tracer.spans[0])
++    expect(tracer.spans.at(-1)!.name).toBe("opencode.llm")
++    expect(tracer.spans.at(-1)!.parentSpan).toBeUndefined()
++    expect(tracer.spans.at(-1)!.parentSpanContext?.spanId).toBe(
++      tracer.spans[0]!.spanContext().spanId,
++    )
++  })
++
++  test("message span keeps session trace after live session span has ended", () => {
++    const { ctx, tracer } = makeCtx()
++    handleRunStarted("ses_1", "agent", "prompt", "anthropic/claude", 1000, ctx)
++    handleSessionCreated(makeSessionCreated("ses_1"), ctx)
++    const runSpan = tracer.spans[0]!
++    handleSessionIdle(makeSessionIdle("ses_1"), ctx)
++    startMessageSpan("ses_1", "msg_1", "claude", "anthropic", 1000, ctx)
++    const msgSpan = tracer.spans[1]!
++    expect(msgSpan.parentSpan).toBeUndefined()
++    expect(msgSpan.parentSpanContext?.spanId).toBe(runSpan.spanContext().spanId)
++    expect(msgSpan.spanContext().traceId).toBe(runSpan.spanContext().traceId)
+   })
+ })
+ 
+@@ -381,7 +510,7 @@ describe("orphaned span cleanup", () => {
+     expect(ctx.pendingToolSpans.size).toBe(1)
+     handleSessionIdle(makeSessionIdle("ses_1"), ctx)
+     expect(ctx.pendingToolSpans.size).toBe(0)
+-    const toolSpan = tracer.spans.find(s => s.name.startsWith("opencode.tool"))!
++    const toolSpan = tracer.spans.find((s) => s.name.startsWith("opencode.tool"))!
+     expect(toolSpan.ended).toBe(true)
+     expect(toolSpan.status.code).toBe(SpanStatusCode.ERROR)
+   })
+@@ -390,7 +519,12 @@ describe("orphaned span cleanup", () => {
+     const { ctx } = makeCtx()
+     const t = makeTracer()
+     const span = t.startSpan("tool") as unknown as Span
+-    ctx.pendingToolSpans.set("ses_other:call_1", { tool: "bash", sessionID: "ses_other", startMs: 0, span })
++    ctx.pendingToolSpans.set("ses_other:call_1", {
++      tool: "bash",
++      sessionID: "ses_other",
++      startMs: 0,
++      span,
++    })
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+     handleSessionIdle(makeSessionIdle("ses_1"), ctx)
+     expect(ctx.pendingToolSpans.has("ses_other:call_1")).toBe(true)
+@@ -402,7 +536,7 @@ describe("orphaned span cleanup", () => {
+     handleMessagePartUpdated(makeToolPartUpdated("running", { sessionID: "ses_1" }), ctx)
+     handleSessionError(makeSessionError("ses_1"), ctx)
+     expect(ctx.pendingToolSpans.size).toBe(0)
+-    const toolSpan = tracer.spans.find(s => s.name.startsWith("opencode.tool"))!
++    const toolSpan = tracer.spans.find((s) => s.name.startsWith("opencode.tool"))!
+     expect(toolSpan.ended).toBe(true)
+     expect(toolSpan.status.code).toBe(SpanStatusCode.ERROR)
+   })
+@@ -413,7 +547,7 @@ describe("orphaned span cleanup", () => {
+     startMessageSpan("ses_1", "msg_orphan", "claude", "anthropic", 1000, ctx)
+     handleSessionIdle(makeSessionIdle("ses_1"), ctx)
+     expect(ctx.messageSpans.has("ses_1:msg_orphan")).toBe(false)
+-    const msgSpan = tracer.spans.find(s => s.name === "opencode.llm")!
++    const msgSpan = tracer.spans.find((s) => s.name === "opencode.llm")!
+     expect(msgSpan.ended).toBe(true)
+     expect(msgSpan.status.code).toBe(SpanStatusCode.ERROR)
+   })
+@@ -424,7 +558,7 @@ describe("orphaned span cleanup", () => {
+     startMessageSpan("ses_1", "msg_orphan", "claude", "anthropic", 1000, ctx)
+     handleSessionError(makeSessionError("ses_1"), ctx)
+     expect(ctx.messageSpans.has("ses_1:msg_orphan")).toBe(false)
+-    const msgSpan = tracer.spans.find(s => s.name === "opencode.llm")!
++    const msgSpan = tracer.spans.find((s) => s.name === "opencode.llm")!
+     expect(msgSpan.ended).toBe(true)
+     expect(msgSpan.status.code).toBe(SpanStatusCode.ERROR)
+   })
+@@ -447,7 +581,7 @@ describe("OPENCODE_DISABLE_TRACES=session", () => {
+   test("session.created log record still emitted", () => {
+     const { ctx, logger } = makeCtx("proj_test", [], ["session"])
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+-    expect(logger.records.find(r => r.body === "session.created")).toBeDefined()
++    expect(logger.records.find((r) => r.body === "session.created")).toBeDefined()
+   })
+ 
+   test("session.idle does not throw when no session span exists", () => {
+@@ -494,19 +628,20 @@ describe("OPENCODE_DISABLE_TRACES=llm", () => {
+   test("api_request log record still emitted", () => {
+     const { ctx, logger } = makeCtx("proj_test", [], ["llm"])
+     handleMessageUpdated(makeAssistantMessageUpdated({ id: "msg_1" }), ctx)
+-    expect(logger.records.find(r => r.body === "api_request")).toBeDefined()
++    expect(logger.records.find((r) => r.body === "api_request")).toBeDefined()
+   })
+ 
+   test("handleMessageUpdated does not throw when no message span exists", () => {
+     const { ctx } = makeCtx("proj_test", [], ["llm"])
+-    expect(() => handleMessageUpdated(makeAssistantMessageUpdated({ id: "msg_1" }), ctx)).not.toThrow()
++    expect(() =>
++      handleMessageUpdated(makeAssistantMessageUpdated({ id: "msg_1" }), ctx),
++    ).not.toThrow()
+   })
+ 
+-  test("session spans still created when only llm disabled", () => {
++  test("session.created does not start a span when session tracing remains run-anchored and only llm is disabled", () => {
+     const { ctx, tracer } = makeCtx("proj_test", [], ["llm"])
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+-    expect(tracer.spans).toHaveLength(1)
+-    expect(tracer.spans[0]!.name).toBe("opencode.session")
++    expect(tracer.spans).toHaveLength(0)
+   })
+ })
+ 
+@@ -537,7 +672,7 @@ describe("OPENCODE_DISABLE_TRACES=tool", () => {
+     const { ctx, logger } = makeCtx("proj_test", [], ["tool"])
+     handleMessagePartUpdated(makeToolPartUpdated("running"), ctx)
+     handleMessagePartUpdated(makeToolPartUpdated("completed"), ctx)
+-    expect(logger.records.find(r => r.body === "tool_result")).toBeDefined()
++    expect(logger.records.find((r) => r.body === "tool_result")).toBeDefined()
+   })
+ 
+   test("no tool span created for out-of-order completed event", () => {
+@@ -546,10 +681,9 @@ describe("OPENCODE_DISABLE_TRACES=tool", () => {
+     expect(tracer.spans).toHaveLength(0)
+   })
+ 
+-  test("session spans still created when only tool disabled", () => {
++  test("session.created does not start a span when session tracing remains run-anchored and only tool is disabled", () => {
+     const { ctx, tracer } = makeCtx("proj_test", [], ["tool"])
+     handleSessionCreated(makeSessionCreated("ses_1"), ctx)
+-    expect(tracer.spans).toHaveLength(1)
+-    expect(tracer.spans[0]!.name).toBe("opencode.session")
++    expect(tracer.spans).toHaveLength(0)
+   })
+ })
+diff --git a/tests/helpers.ts b/tests/helpers.ts
+index 6170963..4576ae9 100644
+--- a/tests/helpers.ts
++++ b/tests/helpers.ts
+@@ -1,6 +1,16 @@
+ import type { HandlerContext, Instruments } from "../src/types.ts"
+ import type { Logger as OtelLogger, LogRecord } from "@opentelemetry/api-logs"
+-import type { Counter, Histogram, Span, SpanOptions, Tracer, Context, SpanContext, SpanStatus, Attributes } from "@opentelemetry/api"
++import type {
++  Counter,
++  Histogram,
++  Span,
++  SpanOptions,
++  Tracer,
++  Context,
++  SpanContext,
++  SpanStatus,
++  Attributes,
++} from "@opentelemetry/api"
+ import { SpanStatusCode, trace } from "@opentelemetry/api"
+ 
+ export type SpyCounter = {
+@@ -19,7 +29,11 @@ export type SpyLogger = {
+ }
+ 
+ export type SpyPluginLog = {
+-  calls: Array<{ level: string; message: string; extra?: Record<string, unknown> }>
++  calls: Array<{
++    level: string
++    message: string
++    extra?: Record<string, unknown>
++  }>
+   fn: HandlerContext["log"]
+ }
+ 
+@@ -31,6 +45,8 @@ export type SpySpan = {
+   status: SpanStatus
+   attributes: Record<string, unknown>
+   parentSpan: SpySpan | undefined
++  parentSpanContext: SpanContext | undefined
++  ctx: SpanContext
+   setStatus(status: SpanStatus): SpySpan
+   setAttribute(key: string, value: unknown): SpySpan
+   setAttributes(attrs: Attributes): SpySpan
+@@ -48,29 +64,68 @@ export type SpyTracer = {
+ }
+ 
+ function makeCounter(): SpyCounter {
+-  const spy: SpyCounter = { calls: [], add(v, a = {}) { spy.calls.push({ value: v, attrs: a }) } }
++  const spy: SpyCounter = {
++    calls: [],
++    add(v, a = {}) {
++      spy.calls.push({ value: v, attrs: a })
++    },
++  }
+   return spy
+ }
+ 
+ function makeHistogram(): SpyHistogram {
+-  const spy: SpyHistogram = { calls: [], record(v, a = {}) { spy.calls.push({ value: v, attrs: a }) } }
++  const spy: SpyHistogram = {
++    calls: [],
++    record(v, a = {}) {
++      spy.calls.push({ value: v, attrs: a })
++    },
++  }
+   return spy
+ }
+ 
+ function makeLogger(): SpyLogger {
+-  const spy: SpyLogger = { records: [], emit(r) { spy.records.push(r) } }
++  const spy: SpyLogger = {
++    records: [],
++    emit(r) {
++      spy.records.push(r)
++    },
++  }
+   return spy
+ }
+ 
+ function makePluginLog(): SpyPluginLog {
+   const spy: SpyPluginLog = {
+     calls: [],
+-    fn: async (level, message, extra) => { spy.calls.push({ level, message, extra }) },
++    fn: async (level, message, extra) => {
++      spy.calls.push({ level, message, extra })
++    },
+   }
+   return spy
+ }
+ 
+-function makeSpan(name: string, startTime?: number, parentSpan?: SpySpan): SpySpan {
++let nextTraceId = 1n
++let nextSpanId = 1n
++
++function toHex(value: bigint, width: number) {
++  return value.toString(16).padStart(width, "0")
++}
++
++function makeSpan(
++  name: string,
++  startTime?: number,
++  parentSpan?: SpySpan,
++  parentSpanContext?: SpanContext,
++): SpySpan {
++  const inheritedTraceId = parentSpan
++    ? parentSpan.ctx.traceId
++    : parentSpanContext
++      ? parentSpanContext.traceId
++      : toHex(nextTraceId++, 32)
++  const ctx = {
++    traceId: inheritedTraceId,
++    spanId: toHex(nextSpanId++, 16),
++    traceFlags: 1,
++  } satisfies SpanContext
+   const span: SpySpan = {
+     name,
+     startTime,
+@@ -79,15 +134,40 @@ function makeSpan(name: string, startTime?: number, parentSpan?: SpySpan): SpySp
+     status: { code: SpanStatusCode.UNSET },
+     attributes: {},
+     parentSpan,
+-    setStatus(s) { span.status = s; return span },
+-    setAttribute(k, v) { span.attributes[k] = v; return span },
+-    setAttributes(attrs) { Object.assign(span.attributes, attrs); return span },
+-    end(t) { span.ended = true; span.endTime = t },
+-    isRecording() { return !span.ended },
+-    spanContext() { return { traceId: "00000000000000000000000000000001", spanId: "0000000000000001", traceFlags: 1 } },
+-    addEvent() { return span },
+-    recordException() { return span },
+-    updateName(n) { span.name = n; return span },
++    parentSpanContext,
++    ctx,
++    setStatus(s) {
++      span.status = s
++      return span
++    },
++    setAttribute(k, v) {
++      span.attributes[k] = v
++      return span
++    },
++    setAttributes(attrs) {
++      Object.assign(span.attributes, attrs)
++      return span
++    },
++    end(t) {
++      span.ended = true
++      span.endTime = t
++    },
++    isRecording() {
++      return !span.ended
++    },
++    spanContext() {
++      return span.ctx
++    },
++    addEvent() {
++      return span
++    },
++    recordException() {
++      return span
++    },
++    updateName(n) {
++      span.name = n
++      return span
++    },
+   }
+   return span
+ }
+@@ -96,11 +176,15 @@ export function makeTracer(): SpyTracer {
+   const tracer: SpyTracer = {
+     spans: [],
+     startSpan(name, options, ctx) {
+-      const parentFromCtx = ctx ? trace.getSpan(ctx) as SpySpan | undefined : undefined
++      const rawParent = ctx ? trace.getSpan(ctx) : undefined
++      const parentFromCtx =
++        rawParent && "ctx" in rawParent ? (rawParent as unknown as SpySpan) : undefined
++      const parentSpanContext = ctx ? (trace.getSpanContext(ctx) ?? undefined) : undefined
+       const span = makeSpan(
+         name,
+         typeof options?.startTime === "number" ? options.startTime : undefined,
+         parentFromCtx,
++        parentSpanContext,
+       )
+       if (options?.attributes) Object.assign(span.attributes, options.attributes)
+       tracer.spans.push(span)
+@@ -137,7 +221,11 @@ export type MockContext = {
+   tracer: SpyTracer
+ }
+ 
+-export function makeCtx(projectID = "proj_test", disabledMetrics: string[] = [], disabledTraces: string[] = []): MockContext {
++export function makeCtx(
++  projectID = "proj_test",
++  disabledMetrics: string[] = [],
++  disabledTraces: string[] = [],
++): MockContext {
+   const session = makeCounter()
+   const token = makeCounter()
+   const cost = makeCounter()
+@@ -185,7 +273,11 @@ export function makeCtx(projectID = "proj_test", disabledMetrics: string[] = [],
+     disabledTraces: new Set(disabledTraces),
+     tracer: tracer as unknown as Tracer,
+     tracePrefix: "opencode.",
++    runSpans: new Map(),
++    runSpanContexts: new Map(),
++    sessionRunRoots: new Map(),
+     sessionSpans: new Map(),
++    sessionSpanContexts: new Map(),
+     messageSpans: new Map(),
+     sessionInputs: new Map(),
+     messageOutputs: new Map(),
+@@ -193,8 +285,22 @@ export function makeCtx(projectID = "proj_test", disabledMetrics: string[] = [],
+ 
+   return {
+     ctx,
+-    counters: { session, token, cost, lines, commit, cache, message, modelUsage, retry, subtask },
+-    histograms: { tool: toolHistogram, sessionDuration: sessionDurationHistogram },
++    counters: {
++      session,
++      token,
++      cost,
++      lines,
++      commit,
++      cache,
++      message,
++      modelUsage,
++      retry,
++      subtask,
++    },
++    histograms: {
++      tool: toolHistogram,
++      sessionDuration: sessionDurationHistogram,
++    },
+     gauges: { sessionToken: sessionTokenGauge, sessionCost: sessionCostGauge },
+     logger,
+     pluginLog,

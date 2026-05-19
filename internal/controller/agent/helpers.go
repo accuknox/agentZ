@@ -39,7 +39,7 @@ const (
 	nixAgentVolume          = "nix-agent"
 	nixAgentMount           = "/mnt/nix"
 	nixLinkVolume           = "nix-link"
-	nixLinkMount            = "/nix"
+	nixLinkMount            = "/tmp/nix-link"
 	nixLinkStage            = "/tmp/nix-link"
 	nixInitImage            = "murtazau/clawarmor-init:latest"
 	nixPkgEnv               = "NIX_PACKAGES"

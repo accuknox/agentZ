@@ -101,8 +101,27 @@ var _ = Describe("Agent Controller", func() {
 		Expect(container.WorkingDir).To(Equal("/home/clawarmor"))
 		Expect(container.Args).To(ContainElement("serve"))
 		Expect(container.Env).To(ContainElement(
-			corev1.EnvVar{Name: "XDG_CONFIG_HOME", Value: opencodeConfigHome},
+			corev1.EnvVar{
+				Name:  "OPENCODE_CONFIG",
+				Value: opencodeConfigDir + "/" + opencodeConfigKey,
+			},
 		))
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{
+			Name:  "OPENCODE_ENABLE_TELEMETRY",
+			Value: "1",
+		}))
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{
+			Name:  "OPENCODE_OTLP_PROTOCOL",
+			Value: "grpc",
+		}))
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{
+			Name:  "OPENCODE_OTLP_ENDPOINT",
+			Value: "http://observer.default.svc.cluster.local:4317",
+		}))
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{
+			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
+			Value: "clawarmor.agent_name=" + name,
+		}))
 		Expect(container.VolumeMounts).To(ContainElement(corev1.VolumeMount{
 			Name:      configVolume,
 			MountPath: opencodeConfigDir,
@@ -171,7 +190,7 @@ var _ = Describe("Agent Controller", func() {
 			corev1.EnvVar{Name: nixPkgEnv, Value: "python3,ripgrep"},
 		))
 		Expect(dep.Spec.Template.Spec.Containers[0].Env).To(ContainElement(
-			corev1.EnvVar{Name: "NIX_PROFILES", Value: "/nix/profile"},
+			corev1.EnvVar{Name: "NIX_PROFILES", Value: nixLinkMount + "/profile"},
 		))
 	})
 
@@ -210,6 +229,34 @@ var _ = Describe("Agent Controller", func() {
 		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).NotTo(
 			ContainElement(HaveField("Name", Equal(configVolume))),
 		)
+	})
+
+	It("adds no_proxy for the telemetry endpoint when sinjector is enabled", func() {
+		reconciler.Config.SinjectorImage = "murtazau/clawarmor-sinjector:latest"
+		reconciler.Config.AgentCABundlePath = "/etc/clawarmor/sinjector-ca/ca.crt"
+
+		agt := &clawarmorv1alpha1.Agent{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name + "-proxy",
+				Namespace: namespace,
+			},
+			Spec: clawarmorv1alpha1.AgentSpec{
+				Telemetry: clawarmorv1alpha1.TelemetryConfig{
+					Enabled:       true,
+					TraceEndpoint: "172.18.0.1:4317",
+				},
+			},
+		}
+
+		env := reconciler.agentEnv(agt, nil, false)
+		Expect(env).To(ContainElement(corev1.EnvVar{
+			Name:  "NO_PROXY",
+			Value: "127.0.0.1,::1,localhost,.cluster.local,.svc,172.18.0.1",
+		}))
+		Expect(env).To(ContainElement(corev1.EnvVar{
+			Name:  "no_proxy",
+			Value: "127.0.0.1,::1,localhost,.cluster.local,.svc,172.18.0.1",
+		}))
 	})
 })
 

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net/url"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -362,20 +363,52 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	proxy = "http://" + proxy
 
 	var forced []corev1.EnvVar
+	noProxy := []string{
+		"127.0.0.1",
+		"::1",
+		"localhost",
+		".cluster.local",
+		".svc",
+	}
 	if mountConfig {
 		forced = append(forced, corev1.EnvVar{
-			Name:  "XDG_CONFIG_HOME",
-			Value: opencodeConfigHome,
+			Name:  "OPENCODE_CONFIG",
+			Value: opencodeConfigDir + "/" + opencodeConfigKey,
 		})
 	}
+	if agt.Spec.Telemetry.Enabled {
+		endpointHost := telemetryEndpointHost(agt.Spec.Telemetry.TraceEndpoint)
+		if endpointHost != "" {
+			noProxy = append(noProxy, endpointHost)
+		}
+	}
 	if r.sinjectorEnabled() {
+		noProxyValue := strings.Join(noProxy, ",")
 		forced = append(forced,
 			corev1.EnvVar{Name: "https_proxy", Value: proxy},
 			corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
+			corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
+			corev1.EnvVar{Name: "NO_PROXY", Value: noProxyValue},
 			corev1.EnvVar{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
 			corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
 			corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
 			corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+		)
+	}
+	if agt.Spec.Telemetry.Enabled {
+		endpoint := strings.TrimPrefix(agt.Spec.Telemetry.TraceEndpoint, "https://")
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+		forced = append(forced,
+			corev1.EnvVar{Name: "OPENCODE_ENABLE_TELEMETRY", Value: "1"},
+			corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
+			corev1.EnvVar{
+				Name:  "OPENCODE_OTLP_ENDPOINT",
+				Value: "http://" + endpoint,
+			},
+			corev1.EnvVar{
+				Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
+				Value: "clawarmor.agent_name=" + agt.Name,
+			},
 		)
 	}
 
@@ -397,54 +430,29 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		env = append(env,
 			corev1.EnvVar{
 				Name:  "NIX_PROFILES",
-				Value: "/nix/profile",
+				Value: nixLinkMount + "/profile",
 			},
 			corev1.EnvVar{
 				Name:  "PATH",
-				Value: "/nix/profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+				Value: nixLinkMount + "/profile/bin:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin",
 			},
 		)
 	}
 
-	env = upsertTelemetryResourceAttrs(env, agt.Name)
 	return env
 }
 
-func upsertTelemetryResourceAttrs(env []corev1.EnvVar, agentName string) []corev1.EnvVar {
-	key := "OPENCODE_RESOURCE_ATTRIBUTES"
-	attrKey := "clawarmor.agent_name"
-	for i := range env {
-		if env[i].Name != key {
-			continue
-		}
-		env[i].Value = mergeResourceAttrs(env[i].Value, attrKey, agentName)
-		return env
+func telemetryEndpointHost(endpoint string) string {
+	if strings.TrimSpace(endpoint) == "" {
+		return ""
 	}
-	return append(env, corev1.EnvVar{
-		Name:  key,
-		Value: attrKey + "=" + agentName,
-	})
-}
-
-func mergeResourceAttrs(raw, key, value string) string {
-	items := strings.Split(raw, ",")
-	out := make([]string, 0, len(items)+1)
-	replaced := false
-	for _, item := range items {
-		item = strings.TrimSpace(item)
-		if item == "" {
-			continue
-		}
-		k, _, ok := strings.Cut(item, "=")
-		if ok && strings.TrimSpace(k) == key {
-			out = append(out, key+"="+value)
-			replaced = true
-			continue
-		}
-		out = append(out, item)
+	raw := endpoint
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
 	}
-	if !replaced {
-		out = append(out, key+"="+value)
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
 	}
-	return strings.Join(out, ",")
+	return parsed.Hostname()
 }

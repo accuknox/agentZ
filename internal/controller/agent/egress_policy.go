@@ -94,6 +94,7 @@ func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ci
 		return nil, err
 	}
 	hosts = append(hosts, extraHosts...)
+	hosts = uniqueHosts(hosts)
 	if len(hosts) == 0 {
 		return nil, nil
 	}
@@ -121,6 +122,19 @@ func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ci
 		})
 	}
 	return egress, nil
+}
+
+func uniqueHosts(hosts []envutil.Host) []envutil.Host {
+	seen := make(map[envutil.Host]struct{}, len(hosts))
+	out := make([]envutil.Host, 0, len(hosts))
+	for _, host := range hosts {
+		if _, ok := seen[host]; ok {
+			continue
+		}
+		seen[host] = struct{}{}
+		out = append(out, host)
+	}
+	return out
 }
 
 func dnsEgressRule() ciliumapi.EgressRule {

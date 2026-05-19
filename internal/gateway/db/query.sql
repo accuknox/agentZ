@@ -19,6 +19,16 @@ WHERE agent_name = $1;
 DELETE FROM agents
 WHERE agent_name = $1;
 
+-- name: GatewayDeleteSessionTraces :execrows
+DELETE FROM observer_traces ot
+WHERE ot.agent_name = sqlc.arg(agent_name)
+  AND ot.trace_id IN (
+    SELECT ots.trace_id
+    FROM observer_trace_sessions ots
+    WHERE ots.agent_name = sqlc.arg(agent_name)
+      AND ots.session_id = sqlc.arg(session_id)
+  );
+
 -- name: GatewayListAgents :many
 SELECT agent_name, created_at, updated_at
 FROM agents

@@ -12,6 +12,7 @@ type Querier interface {
 	GatewayAgentExists(ctx context.Context, agentName string) (bool, error)
 	GatewayCreateAgent(ctx context.Context, agentName string) (Agent, error)
 	GatewayDeleteAgent(ctx context.Context, agentName string) (int64, error)
+	GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDeleteSessionTracesParams) (int64, error)
 	GatewayGetAgent(ctx context.Context, agentName string) (Agent, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)
 	GatewayListAgents(ctx context.Context, arg GatewayListAgentsParams) ([]Agent, error)

@@ -1,14 +1,18 @@
 package gateway
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+
+	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 )
 
 const (
@@ -23,9 +27,20 @@ var opencodeProxyBodyLimitedMethods = map[string]struct{}{
 	http.MethodDelete: {},
 }
 
+var opencodeSessionDeleteSegments = pathSegments("/api/opencode/{agentName}/session/{sessionID}")
+
 type opencodeRoute struct {
 	Method   string
 	Segments []string
+}
+
+type opencodeSessionDeleteTarget struct {
+	agentName string
+	sessionID string
+}
+
+type sessionTraceStore interface {
+	GatewayDeleteSessionTraces(ctx context.Context, arg gatewaydb.GatewayDeleteSessionTracesParams) (int64, error)
 }
 
 // handleOpenCodeProxy resolves and proxies supported OpenCode requests.
@@ -106,18 +121,8 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			preq.SetXForwarded()
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 		},
-		ModifyResponse: func(resp *http.Response) error {
-			// gateway owns CORS policy for browser clients. Strip upstream CORS
-			// headers so chi/cors writes a single value.
-			resp.Header.Del("Access-Control-Allow-Credentials")
-			resp.Header.Del("Access-Control-Allow-Headers")
-			resp.Header.Del("Access-Control-Allow-Methods")
-			resp.Header.Del("Access-Control-Allow-Origin")
-			resp.Header.Del("Access-Control-Expose-Headers")
-			resp.Header.Del("Access-Control-Max-Age")
-			return nil
-		},
-		FlushInterval: -1,
+		ModifyResponse: s.openCodeModifyResponse(r.Context(), route, r.URL.Path, agentName),
+		FlushInterval:  -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
 				writeError(rw, req, newAPIError(
@@ -126,6 +131,11 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 					"request body exceeds the maximum allowed size",
 					proxyErr,
 				))
+				return
+			}
+
+			if apiErr, ok := errors.AsType[*apiError](proxyErr); ok {
+				writeError(rw, req, apiErr)
 				return
 			}
 
@@ -139,6 +149,79 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxy.ServeHTTP(w, r)
+}
+
+// openCodeModifyResponse applies gateway-owned response cleanup and optional
+// observer trace deletion after successful upstream session deletion.
+func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRoute, path string, agentName string) func(*http.Response) error {
+	target, hasSessionDelete := matchOpencodeSessionDelete(route, path, agentName)
+	return func(resp *http.Response) error {
+		stripOpenCodeCORSHeaders(resp)
+
+		if !hasSessionDelete {
+			return nil
+		}
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			return nil
+		}
+		if err := deleteSessionTraces(ctx, s.queries, target); err != nil {
+			return newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"request failed",
+				err,
+			)
+		}
+		return nil
+	}
+}
+
+// stripOpenCodeCORSHeaders removes upstream CORS headers so the gateway writes
+// a single browser-facing policy.
+func stripOpenCodeCORSHeaders(resp *http.Response) {
+	resp.Header.Del("Access-Control-Allow-Credentials")
+	resp.Header.Del("Access-Control-Allow-Headers")
+	resp.Header.Del("Access-Control-Allow-Methods")
+	resp.Header.Del("Access-Control-Allow-Origin")
+	resp.Header.Del("Access-Control-Expose-Headers")
+	resp.Header.Del("Access-Control-Max-Age")
+}
+
+// matchOpencodeSessionDelete returns the observer cleanup target for the exact
+// OpenCode session delete route.
+func matchOpencodeSessionDelete(route *opencodeRoute, path string, agentName string) (opencodeSessionDeleteTarget, bool) {
+	if route == nil {
+		return opencodeSessionDeleteTarget{}, false
+	}
+	if route.Method != http.MethodDelete {
+		return opencodeSessionDeleteTarget{}, false
+	}
+	if !slices.Equal(route.Segments, opencodeSessionDeleteSegments) {
+		return opencodeSessionDeleteTarget{}, false
+	}
+
+	segments := pathSegments(path)
+	if len(segments) != len(opencodeSessionDeleteSegments) {
+		return opencodeSessionDeleteTarget{}, false
+	}
+
+	return opencodeSessionDeleteTarget{
+		agentName: agentName,
+		sessionID: segments[len(segments)-1],
+	}, true
+}
+
+// deleteSessionTraces removes observer traces linked to one session. Cascading
+// foreign keys delete the dependent session summaries and span records.
+func deleteSessionTraces(ctx context.Context, store sessionTraceStore, target opencodeSessionDeleteTarget) error {
+	_, err := store.GatewayDeleteSessionTraces(ctx, gatewaydb.GatewayDeleteSessionTracesParams{
+		AgentName: target.agentName,
+		SessionID: target.sessionID,
+	})
+	if err != nil {
+		return fmt.Errorf("delete session traces: %w", err)
+	}
+	return nil
 }
 
 func matchOpenCodeRoute(method, path string) (*opencodeRoute, bool) {

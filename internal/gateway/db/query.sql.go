@@ -53,6 +53,30 @@ func (q *Queries) GatewayDeleteAgent(ctx context.Context, agentName string) (int
 	return result.RowsAffected(), nil
 }
 
+const gatewayDeleteSessionTraces = `-- name: GatewayDeleteSessionTraces :execrows
+DELETE FROM observer_traces ot
+WHERE ot.agent_name = $1
+  AND ot.trace_id IN (
+    SELECT ots.trace_id
+    FROM observer_trace_sessions ots
+    WHERE ots.agent_name = $1
+      AND ots.session_id = $2
+  )
+`
+
+type GatewayDeleteSessionTracesParams struct {
+	AgentName string `json:"agent_name"`
+	SessionID string `json:"session_id"`
+}
+
+func (q *Queries) GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDeleteSessionTracesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteSessionTraces, arg.AgentName, arg.SessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayGetAgent = `-- name: GatewayGetAgent :one
 SELECT agent_name, created_at, updated_at
 FROM agents

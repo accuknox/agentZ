@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"strconv"
 	"strings"
@@ -428,9 +429,7 @@ func floatAttr(attrs map[string]any, key string) float64 {
 
 func cloneMap(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }
 

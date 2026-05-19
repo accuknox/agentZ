@@ -63,6 +63,10 @@ import {
 // Helpers
 // ============================================================================
 
+type PromptInputFile = FileUIPart & {
+  size?: number
+}
+
 const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
   try {
     const response = await fetch(url)
@@ -161,7 +165,7 @@ const captureScreenshot = async (): Promise<File | null> => {
 // ============================================================================
 
 export interface AttachmentsContext {
-  files: (FileUIPart & { id: string })[]
+  files: (PromptInputFile & { id: string })[]
   add: (files: File[] | FileList) => void
   remove: (id: string) => void
   clear: () => void
@@ -227,7 +231,7 @@ export const PromptInputProvider = ({
   const clearInput = useCallback(() => setTextInput(""), [])
 
   // ----- attachments state (global when wrapped)
-  const [attachmentFiles, setAttachmentFiles] = useState<(FileUIPart & { id: string })[]>([])
+  const [attachmentFiles, setAttachmentFiles] = useState<(PromptInputFile & { id: string })[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   // oxlint-disable-next-line eslint(no-empty-function)
   const openRef = useRef<() => void>(() => {})
@@ -244,6 +248,7 @@ export const PromptInputProvider = ({
         filename: file.name,
         id: nanoid(),
         mediaType: file.type,
+        size: file.size,
         type: "file" as const,
         url: URL.createObjectURL(file),
       })),
@@ -449,7 +454,7 @@ export const PromptInputActionAddScreenshot = ({
 
 export interface PromptInputMessage {
   text: string
-  files: FileUIPart[]
+  files: PromptInputFile[]
 }
 
 export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
@@ -490,8 +495,9 @@ export const PromptInput = ({
   const formRef = useRef<HTMLFormElement | null>(null)
 
   // ----- Local attachments (only used when no provider)
-  const [items, setItems] = useState<(FileUIPart & { id: string })[]>([])
+  const [items, setItems] = useState<(PromptInputFile & { id: string })[]>([])
   const files = usingProvider ? controller.attachments.files : items
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
 
   // ----- Local referenced sources (always local to PromptInput)
   const [referencedSources, setReferencedSources] = useState<
@@ -563,12 +569,13 @@ export const PromptInput = ({
             message: "Too many files. Some were not added.",
           })
         }
-        const next: (FileUIPart & { id: string })[] = []
+        const next: (PromptInputFile & { id: string })[] = []
         for (const file of capped) {
           next.push({
             filename: file.name,
             id: nanoid(),
             mediaType: file.type,
+            size: file.size,
             type: "file",
             url: URL.createObjectURL(file),
           })
@@ -657,6 +664,19 @@ export const PromptInput = ({
     clearReferencedSources()
   }, [clearAttachments, clearReferencedSources])
 
+  const showDragState = useCallback((event: DragEvent) => {
+    if (!event.dataTransfer?.types?.includes("Files")) {
+      return false
+    }
+
+    setIsDraggingFiles(true)
+    return true
+  }, [])
+
+  const hideDragState = useCallback(() => {
+    setIsDraggingFiles(false)
+  }, [])
+
   // Let provider know about our hidden file input so external menus can call openFileDialog()
   useEffect(() => {
     if (!usingProvider) {
@@ -685,25 +705,36 @@ export const PromptInput = ({
     }
 
     const onDragOver = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
-        e.preventDefault()
+      if (!showDragState(e)) return
+      e.preventDefault()
+    }
+    const onDragEnter = (e: DragEvent) => {
+      showDragState(e)
+    }
+    const onDragLeave = (e: DragEvent) => {
+      if (e.currentTarget === e.target) {
+        hideDragState()
       }
     }
     const onDrop = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
-        e.preventDefault()
-      }
+      if (!showDragState(e)) return
+      e.preventDefault()
+      hideDragState()
       if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
         add(e.dataTransfer.files)
       }
     }
+    form.addEventListener("dragenter", onDragEnter)
     form.addEventListener("dragover", onDragOver)
+    form.addEventListener("dragleave", onDragLeave)
     form.addEventListener("drop", onDrop)
     return () => {
+      form.removeEventListener("dragenter", onDragEnter)
       form.removeEventListener("dragover", onDragOver)
+      form.removeEventListener("dragleave", onDragLeave)
       form.removeEventListener("drop", onDrop)
     }
-  }, [add, globalDrop])
+  }, [add, globalDrop, hideDragState, showDragState])
 
   useEffect(() => {
     if (!globalDrop) {
@@ -711,25 +742,36 @@ export const PromptInput = ({
     }
 
     const onDragOver = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
-        e.preventDefault()
+      if (!showDragState(e)) return
+      e.preventDefault()
+    }
+    const onDragEnter = (e: DragEvent) => {
+      showDragState(e)
+    }
+    const onDragLeave = (e: DragEvent) => {
+      if (e.relatedTarget === null) {
+        hideDragState()
       }
     }
     const onDrop = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
-        e.preventDefault()
-      }
+      if (!showDragState(e)) return
+      e.preventDefault()
+      hideDragState()
       if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
         add(e.dataTransfer.files)
       }
     }
+    document.addEventListener("dragenter", onDragEnter)
     document.addEventListener("dragover", onDragOver)
+    document.addEventListener("dragleave", onDragLeave)
     document.addEventListener("drop", onDrop)
     return () => {
+      document.removeEventListener("dragenter", onDragEnter)
       document.removeEventListener("dragover", onDragOver)
+      document.removeEventListener("dragleave", onDragLeave)
       document.removeEventListener("drop", onDrop)
     }
-  }, [add, globalDrop])
+  }, [add, globalDrop, hideDragState, showDragState])
 
   useEffect(
     () => () => {
@@ -802,7 +844,7 @@ export const PromptInput = ({
 
       try {
         // Convert blob URLs to data URLs asynchronously
-        const convertedFiles: FileUIPart[] = await Promise.all(
+        const convertedFiles: PromptInputFile[] = await Promise.all(
           files.map(async ({ id: _id, ...item }) => {
             if (item.url?.startsWith("blob:")) {
               const dataUrl = await convertBlobUrlToDataUrl(item.url)
@@ -857,7 +899,19 @@ export const PromptInput = ({
         type="file"
       />
       <form className={cn("w-full", className)} onSubmit={handleSubmit} ref={formRef} {...props}>
-        <InputGroup className="overflow-hidden">{children}</InputGroup>
+        <InputGroup
+          className={cn(
+            "overflow-hidden",
+            isDraggingFiles && "border-primary ring-3 ring-primary/20"
+          )}
+        >
+          {children}
+          {isDraggingFiles ? (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-background/90 text-sm font-medium text-primary backdrop-blur-sm">
+              Drop files to attach
+            </div>
+          ) : null}
+        </InputGroup>
       </form>
     </>
   )

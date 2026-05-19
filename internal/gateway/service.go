@@ -28,13 +28,11 @@ import (
 	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 )
 
+const labelManagedBy = "app.kubernetes.io/managed-by"
+
 var (
 	errAgentNotFound = errors.New("agent not found")
 	errBadRequest    = errors.New("bad request")
-)
-
-const (
-	labelManagedBy = "app.kubernetes.io/managed-by"
 )
 
 // Config describes how to start the gateway.

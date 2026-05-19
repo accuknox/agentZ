@@ -17,10 +17,6 @@ import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import {
-  PromptInputActionAddAttachments,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger,
   PromptInput,
   PromptInputBody,
   PromptInputButton,
@@ -38,6 +34,12 @@ import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Spinner } from "@/components/ui/spinner"
 import { ToolEntries, toolEntries } from "@/components/blocks/chat/tool-parts"
+import {
+  attachmentDataFromPart,
+  chatAttachmentConfig,
+  chatAttachmentErrorMessage,
+  messageHasRenderableContent,
+} from "@/components/blocks/chat/attachments"
 import { type LocalChatMessage, useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
 import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
 import type { ProviderModelItem } from "@/data/types"
@@ -46,8 +48,9 @@ import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk"
 import type { PermissionRequest, QuestionAnswer, QuestionRequest } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, PaperclipIcon } from "lucide-react"
 import { useCallback, useMemo, useState } from "react"
+import { toast } from "sonner"
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -199,6 +202,7 @@ function renderEntries(parts: Part[], textByPart: Record<string, string>): Rende
 }
 
 type RenderMessage = {
+  attachments: AttachmentData[]
   createdAt: number
   entries: RenderEntry[]
   from: OpencodeMessage["role"]
@@ -206,6 +210,7 @@ type RenderMessage = {
 }
 
 type RenderBlock = {
+  attachments: AttachmentData[]
   createdAt: number
   entries: RenderEntry[]
   from: OpencodeMessage["role"]
@@ -446,6 +451,20 @@ function PromptInputAttachmentsDisplay() {
         <AttachmentItem attachment={attachment} key={attachment.id} onRemove={handleRemove} />
       ))}
     </Attachments>
+  )
+}
+
+function PromptInputAttachmentButton() {
+  const attachments = usePromptInputAttachments()
+
+  return (
+    <PromptInputButton
+      aria-label="Add attachment"
+      onClick={attachments.openFileDialog}
+      tooltip="Add attachment"
+    >
+      <PaperclipIcon className="size-4" />
+    </PromptInputButton>
   )
 }
 
@@ -997,7 +1016,13 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
+      if (!messageHasRenderableContent(message.text, message.files)) {
+        toast.error("Message cannot be empty")
+        return
+      }
+
       await sendMessage({
+        files: message.files,
         model: selectedModel,
         sessionID: sessionId,
         text: message.text,
@@ -1030,20 +1055,29 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     setModelSelectorOpen(false)
   }, [])
 
-  const visibleMessages = messages.filter((message) => {
-    const parts = partsByMessage[message.id] ?? []
-    return renderEntries(parts, textByPart).length > 0
-  })
-  const renderMessages: RenderMessage[] = visibleMessages.map((message) => {
+  const renderMessages: RenderMessage[] = messages.map((message) => {
     const parts = partsByMessage[message.id] ?? []
     const entries = renderEntries(parts, textByPart)
+    const attachments = parts
+      .filter((part): part is Extract<Part, { type: "file" }> => part.type === "file")
+      .map(attachmentDataFromPart)
 
     return {
+      attachments,
       createdAt: message.time.created,
       entries,
       from: message.role,
       key: message.id,
     }
+  })
+  const visibleMessages = renderMessages.filter((message) => {
+    return messageHasRenderableContent(
+      message.entries
+        .filter((entry) => entry.type === "text" || entry.type === "reasoning")
+        .map((entry) => entry.content)
+        .join(""),
+      message.attachments
+    )
   })
   const lastCreatedAt = renderMessages.at(-1)?.createdAt ?? localMessages.at(-1)?.createdAt ?? 0
 
@@ -1096,10 +1130,11 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     })
   }
 
-  for (const message of renderMessages) {
+  for (const message of visibleMessages) {
     if (message.from === "assistant") {
       if (!assistantBlock) {
         assistantBlock = {
+          attachments: [],
           createdAt: message.createdAt,
           entries: [...message.entries],
           from: message.from,
@@ -1115,6 +1150,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
 
     flushAssistantBlock()
     renderBlocks.push({
+      attachments: message.attachments,
       createdAt: message.createdAt,
       entries: message.entries,
       from: message.from,
@@ -1202,13 +1238,25 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                     return (
                       <Message from="user" key={block.key}>
                         <MessageContent
-                          className={
+                          className={cn(
                             block.message.status === "failed"
                               ? "border border-destructive/30 bg-destructive/10 text-destructive"
-                              : undefined
-                          }
+                              : undefined,
+                            block.message.attachments.length > 0 ? "space-y-3" : undefined
+                          )}
                         >
-                          <MessageResponse>{block.message.text}</MessageResponse>
+                          {block.message.attachments.length > 0 ? (
+                            <Attachments variant="inline">
+                              {block.message.attachments.map((attachment) => (
+                                <Attachment data={attachment} key={attachment.id}>
+                                  <AttachmentPreview />
+                                </Attachment>
+                              ))}
+                            </Attachments>
+                          ) : null}
+                          {block.message.text.length > 0 ? (
+                            <MessageResponse>{block.message.text}</MessageResponse>
+                          ) : null}
                         </MessageContent>
                       </Message>
                     )
@@ -1225,9 +1273,20 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                   return (
                     <div className="flex flex-col gap-2" key={block.key}>
                       {checkpoints.map(renderCheckpoint)}
-                      {contentGroups.length > 0 ? (
+                      {block.attachments.length > 0 || contentGroups.length > 0 ? (
                         <Message from={block.from}>
-                          <MessageContent>
+                          <MessageContent
+                            className={block.attachments.length > 0 ? "space-y-3" : undefined}
+                          >
+                            {block.attachments.length > 0 ? (
+                              <Attachments variant="inline">
+                                {block.attachments.map((attachment) => (
+                                  <Attachment data={attachment} key={attachment.id}>
+                                    <AttachmentPreview />
+                                  </Attachment>
+                                ))}
+                              </Attachments>
+                            ) : null}
                             {contentGroups.map((group, groupIndex) => {
                               if (group.type === "text") {
                                 return (
@@ -1303,7 +1362,17 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       </Conversation>
       <div className="grid shrink-0 gap-4 pt-4">
         <div className="mx-auto w-full pb-4 lg:w-4/5 lg:px-0 px-4">
-          <PromptInput globalDrop multiple onSubmit={handleSubmit}>
+          <PromptInput
+            accept={chatAttachmentConfig.accept}
+            globalDrop
+            maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
+            maxFiles={chatAttachmentConfig.maxFileCount}
+            multiple
+            onError={(error) => {
+              toast.error(error.message || chatAttachmentErrorMessage(error.code))
+            }}
+            onSubmit={handleSubmit}
+          >
             <PromptInputHeader>
               <PromptInputAttachmentsDisplay />
             </PromptInputHeader>
@@ -1312,12 +1381,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
             </PromptInputBody>
             <PromptInputFooter>
               <PromptInputTools>
-                <PromptInputActionMenu>
-                  <PromptInputActionMenuTrigger />
-                  <PromptInputActionMenuContent>
-                    <PromptInputActionAddAttachments />
-                  </PromptInputActionMenuContent>
-                </PromptInputActionMenu>
+                <PromptInputAttachmentButton />
                 <div className="flex items-center gap-1">
                   <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
                     <ModelSelectorTrigger asChild>

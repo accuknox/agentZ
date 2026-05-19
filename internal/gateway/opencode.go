@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -10,7 +11,17 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const opencodePrefix = "/api/opencode"
+const (
+	opencodePrefix              = "/api/opencode"
+	opencodeProxyBodyLimitBytes = 16 * 1024 * 1024
+)
+
+var opencodeProxyBodyLimitedMethods = map[string]struct{}{
+	http.MethodPatch:  {},
+	http.MethodPost:   {},
+	http.MethodPut:    {},
+	http.MethodDelete: {},
+}
 
 type opencodeRoute struct {
 	Method   string
@@ -72,6 +83,19 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if opencodeProxyBodyLimitEnabled(r.Method) {
+		if r.ContentLength > opencodeProxyBodyLimitBytes {
+			writeError(w, r, newAPIError(
+				http.StatusRequestEntityTooLarge,
+				"request_too_large",
+				"request body exceeds the maximum allowed size",
+				nil,
+			))
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
+	}
+
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(preq *httputil.ProxyRequest) {
 			preq.Out.URL.Scheme = target.Scheme
@@ -95,6 +119,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		},
 		FlushInterval: -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
+			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
+				writeError(rw, req, newAPIError(
+					http.StatusRequestEntityTooLarge,
+					"request_too_large",
+					"request body exceeds the maximum allowed size",
+					proxyErr,
+				))
+				return
+			}
+
 			writeError(rw, req, newAPIError(
 				http.StatusBadGateway,
 				"proxy_error",
@@ -193,4 +227,11 @@ func segmentsMatch(pattern, actual []string) bool {
 
 func isPathParam(segment string) bool {
 	return strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}")
+}
+
+// opencodeProxyBodyLimitEnabled reports whether the request method should be
+// subject to attachment-aware body limits before proxying upstream.
+func opencodeProxyBodyLimitEnabled(method string) bool {
+	_, ok := opencodeProxyBodyLimitedMethods[method]
+	return ok
 }

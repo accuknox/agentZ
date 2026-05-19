@@ -1,5 +1,6 @@
 "use client"
 
+import type { AttachmentData } from "@/components/ai-elements/attachments"
 import type { Event, Message, Part, SessionStatus, TextPart } from "@opencode-ai/sdk"
 import type {
   Event as EventV2,
@@ -39,6 +40,7 @@ export type ChatSystemPrompt = {
 }
 
 export type OptimisticUserMessage = {
+  attachments: AttachmentData[]
   createdAt: number
   id: string
   kind: "optimistic-user"

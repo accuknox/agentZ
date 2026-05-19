@@ -4,8 +4,14 @@ import { useRouter } from "next/navigation"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { nanoid } from "nanoid"
 import { useCallback, useState } from "react"
+import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient, createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import {
+  attachmentDataFromPart,
+  messageHasRenderableContent,
+  opencodePartsFromMessage,
+} from "@/components/blocks/chat/attachments"
 import {
   appendSystemPrompt,
   markOptimisticUserMessageFailed,
@@ -16,6 +22,7 @@ import {
 } from "@/components/blocks/chat/use-opencode-chat"
 
 type SendMessageInput = {
+  files: PromptInputMessage["files"]
   model?: ProviderModelItem
   sessionID?: string
   text: string
@@ -39,7 +46,18 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
   const sendMutation = useMutation<SendMessageResult, Error, SendMessageInput>({
     mutationFn: async (input) => {
       const text = input.text.trim()
-      if (text.length === 0) {
+      const message = {
+        files: input.files,
+        text,
+      } satisfies PromptInputMessage
+      const parts = opencodePartsFromMessage(message)
+      const optimisticAttachments = parts
+        .filter(
+          (part): part is Extract<(typeof parts)[number], { type: "file" }> => part.type === "file"
+        )
+        .map(attachmentDataFromPart)
+
+      if (!messageHasRenderableContent(text, optimisticAttachments)) {
         throw new Error("Message cannot be empty")
       }
       if (!input.model) {
@@ -56,6 +74,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
         id: optimisticID,
         kind: "optimistic-user",
         status: "pending",
+        attachments: optimisticAttachments,
         text,
       })
 
@@ -93,7 +112,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
             modelID: input.model.modelID,
             providerID: input.model.providerID,
           },
-          parts: [{ text, type: "text" }],
+          parts,
           sessionID: resolvedSessionID,
           variant: input.variant,
         })

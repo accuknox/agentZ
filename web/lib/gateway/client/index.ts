@@ -153,6 +153,7 @@ export type {
   SecretKey,
   SecretListItem,
   SecretValue,
+  SessionIdQuery,
   Span,
   SpanDetail,
   SpanDetailResponse,

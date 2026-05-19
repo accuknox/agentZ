@@ -47,6 +47,7 @@ import { TelemetryTableSkeleton } from "@/app/lens/runtime-telemetry/telemetry-t
 import {
   TelemetryTable as SharedTelemetryTable,
   ActionBadge as SharedActionBadge,
+  TruncateCell,
   type TelemetryTableColumn,
 } from "@/app/lens/runtime-telemetry/telemetry-table"
 import {
@@ -303,7 +304,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
   if (!data) {
     return (
       <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-        No agents
+        No traces
       </div>
     )
   }
@@ -1067,14 +1068,14 @@ const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
   {
     key: "process",
     header: "Process",
-    className: "min-w-36",
-    render: (event) => <span className={telemetryMonoClass}>{event.primary}</span>,
+    className: "min-w-36 max-w-64",
+    render: (event) => <TruncateCell value={event.primary} />,
   },
   {
     key: "command",
     header: "Command",
-    className: "min-w-80",
-    render: (event) => <span className={telemetryWideMonoClass}>{event.secondary}</span>,
+    className: "min-w-80 max-w-112",
+    render: (event) => <TruncateCell value={event.secondary} />,
   },
   {
     key: "action",
@@ -1125,14 +1126,14 @@ const fileTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = 
   {
     key: "file",
     header: "File Path Accessed",
-    className: "min-w-80",
-    render: (event) => <span className={telemetryWideMonoClass}>{event.primary}</span>,
+    className: "min-w-80 max-w-112",
+    render: (event) => <TruncateCell value={event.primary} />,
   },
   {
     key: "process",
     header: "Process",
-    className: "min-w-72",
-    render: (event) => <span className={telemetryWideMonoClass}>{event.secondary}</span>,
+    className: "min-w-72 max-w-112",
+    render: (event) => <TruncateCell value={event.secondary} />,
   },
   {
     key: "action",
@@ -1255,8 +1256,7 @@ function TelemetryTimestamp({ value }: { value: string }) {
   return <span className="text-sm">{value}</span>
 }
 
-const telemetryMonoClass = "max-w-[16rem] whitespace-normal break-all font-mono text-xs"
-const telemetryWideMonoClass = "max-w-[28rem] whitespace-normal break-all font-mono text-xs"
+const telemetryMonoClass = "font-mono text-xs"
 
 function networkDestinationDomain(event: RuntimeTelemetryEventItem) {
   const domain = /^(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/

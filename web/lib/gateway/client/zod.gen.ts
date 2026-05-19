@@ -513,6 +513,11 @@ export const zTraceIdQuery = zTraceId
 export const zSpanIdQuery = zSpanId
 
 /**
+ * Optional root session ID.
+ */
+export const zSessionIdQuery = z.string().min(1)
+
+/**
  * Inclusive lower bound for trace start time.
  */
 export const zStartedAfterQuery = z.iso.datetime()
@@ -568,6 +573,7 @@ export const zListTracesResponse2 = zListTracesResponse
 
 export const zListTraceSessionsQuery = z.object({
   agent_name: zAgentName,
+  session_id: z.string().min(1).optional(),
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
   started_after: z.iso.datetime().optional(),

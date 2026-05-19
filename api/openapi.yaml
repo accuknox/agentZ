@@ -86,6 +86,14 @@ components:
       schema:
         minLength: 1
         type: string
+    SessionIDQuery:
+      description: Optional root session ID.
+      in: query
+      name: session_id
+      required: false
+      schema:
+        minLength: 1
+        type: string
     SpanIDQuery:
       description: Lowercase hexadecimal OTLP span ID.
       in: query
@@ -9638,6 +9646,7 @@ paths:
       operationId: listTraceSessions
       parameters:
       - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/SessionIDQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/StartedAfterQuery'

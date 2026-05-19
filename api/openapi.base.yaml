@@ -70,6 +70,7 @@ paths:
       tags: [lens]
       parameters:
       - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/SessionIDQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/StartedAfterQuery'
@@ -582,6 +583,15 @@ components:
       description: Lowercase hexadecimal OTLP span ID.
       schema:
         $ref: '#/components/schemas/SpanID'
+
+    SessionIDQuery:
+      name: session_id
+      in: query
+      required: false
+      description: Optional root session ID.
+      schema:
+        type: string
+        minLength: 1
 
     StartedAfterQuery:
       name: started_after

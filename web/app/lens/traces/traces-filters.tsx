@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { BotIcon, CalendarIcon } from "lucide-react"
+import { BotIcon, CalendarIcon, MessageSquareQuote } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { Agent } from "@/lib/gateway/client"
+import type { TraceSessionFilterItem } from "@/data/types"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -20,12 +21,16 @@ import { dayjs } from "@/lib/dayjs"
 
 export function TracesFilters({
   agents,
+  sessions,
   selectedAgentName,
+  selectedSessionId,
   from,
   to,
 }: {
   agents: Agent[]
+  sessions: TraceSessionFilterItem[]
   selectedAgentName?: string
+  selectedSessionId?: string
   from?: string
   to?: string
 }) {
@@ -59,7 +64,7 @@ export function TracesFilters({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select
           value={selectedAgentName}
-          onValueChange={(agentName) => update({ agent_name: agentName })}
+          onValueChange={(agentName) => update({ agent_name: agentName, session_id: undefined })}
           disabled={agents.length === 0}
         >
           <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-64">
@@ -71,6 +76,25 @@ export function TracesFilters({
                 <SelectItem key={agent.name} value={agent.name}>
                   <BotIcon className="inline-block" />
                   {agent.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectedSessionId}
+          onValueChange={(sessionID) => update({ session_id: sessionID })}
+          disabled={sessions.length === 0}
+        >
+          <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-72">
+            <SelectValue placeholder="Session" className="truncate" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {sessions.map((session) => (
+                <SelectItem key={session.sessionId} value={session.sessionId}>
+                  <MessageSquareQuote className="inline-block" />
+                  <span className="block min-w-0 flex-1 truncate">{session.title}</span>
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -122,7 +146,11 @@ function DateRangeControl({
               return
             }
 
-            update({ from: formatParamDate(range.from), to: formatParamDate(range.to) })
+            update({
+              from: formatParamDate(range.from),
+              to: formatParamDate(range.to),
+              session_id: undefined,
+            })
           }}
         />
       </PopoverContent>

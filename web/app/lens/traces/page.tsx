@@ -1,7 +1,11 @@
 import { Suspense } from "react"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { getTraceChartAction, listTracesAction } from "@/data/lens.actions"
-import type { ListAgentActionResponse } from "@/data/types"
+import {
+  getTraceChartAction,
+  listTraceSessionFilterAction,
+  listTraceSessionsAction,
+} from "@/data/lens.actions"
+import type { ListAgentActionResponse, TraceSessionFilterItem } from "@/data/types"
 import { TracesChart } from "@/app/lens/traces/traces-chart"
 import { TracesChartSkeleton } from "@/app/lens/traces/traces-chart-skeleton"
 import { TracesFilters } from "@/app/lens/traces/traces-filters"
@@ -16,10 +20,41 @@ import { TracesTable } from "@/app/lens/traces/traces-table"
 
 type TracesSearchParams = {
   agent_name?: string | string[]
+  session_id?: string | string[]
   from?: string | string[]
   to?: string | string[]
   page_token?: string | string[]
   limit?: string | string[]
+}
+
+type TraceScopeSuccess = {
+  agents: NonNullable<ListAgentActionResponse["agents"]>
+  sessions: TraceSessionFilterItem[]
+  selectedAgentName?: string
+  selectedSessionId?: string
+  error: undefined
+}
+
+type TraceScopeFailure = {
+  agents: undefined
+  sessions: undefined
+  selectedAgentName?: undefined
+  selectedSessionId?: undefined
+  error: NonNullable<ListAgentActionResponse["error"]>
+}
+
+type TraceScope = TraceScopeSuccess | TraceScopeFailure
+
+function traceScopeFailure(
+  error: NonNullable<ListAgentActionResponse["error"]>
+): TraceScopeFailure {
+  return {
+    agents: undefined,
+    sessions: undefined,
+    selectedAgentName: undefined,
+    selectedSessionId: undefined,
+    error,
+  }
 }
 
 export default async function TracesPage({
@@ -35,30 +70,31 @@ export default async function TracesPage({
   const pageToken = firstSearchParam(params.page_token)
   const limit = parseLimitParam(firstSearchParam(params.limit))
   const agentName = firstSearchParam(params.agent_name)
+  const sessionID = firstSearchParam(params.session_id)
+  const traceScope = getTraceScope({
+    agents,
+    agentName,
+    sessionID,
+    range,
+  })
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<TracesFiltersSkeleton />}>
-        <Filters agents={agents} agentName={agentName} from={range.from} to={range.to} />
+        <Filters traceScope={traceScope} from={range.from} to={range.to} />
       </Suspense>
       <Suspense
-        key={`chart-${agentName ?? "default"}-${range.startedAfter}-${range.startedBefore}`}
+        key={`chart-${agentName ?? "default"}-${sessionID ?? "default"}-${range.startedAfter}-${range.startedBefore}`}
         fallback={<TracesChartSkeleton />}
       >
-        <Chart agents={agents} agentName={agentName} range={range} />
+        <Chart traceScope={traceScope} range={range} />
       </Suspense>
       <Suspense
-        key={`table-${agentName ?? "default"}-${range.startedAfter}-${range.startedBefore}-${pageToken ?? ""}-${limit}`}
+        key={`table-${agentName ?? "default"}-${sessionID ?? "default"}-${range.startedAfter}-${range.startedBefore}-${pageToken ?? ""}-${limit}`}
         fallback={<TracesSkeleton />}
       >
-        <Traces
-          agents={agents}
-          agentName={agentName}
-          range={range}
-          pageToken={pageToken}
-          limit={limit}
-        />
+        <Traces traceScope={traceScope} range={range} pageToken={pageToken} limit={limit} />
       </Suspense>
     </main>
   )
@@ -75,47 +111,50 @@ function PageHeader() {
 }
 
 async function Filters({
-  agents,
-  agentName,
+  traceScope,
   from,
   to,
 }: {
-  agents: Promise<ListAgentActionResponse>
-  agentName?: string
+  traceScope: Promise<TraceScope>
   from?: string
   to?: string
 }) {
-  const result = await agents
-  if (result.error) {
-    return <ErrorPanel message={result.error.message} />
+  const scope = await traceScope
+  if (scope.error) {
+    return <ErrorPanel message={scope.error.message} />
   }
 
-  const selected = agentName ?? result.agents[0]?.name
-
-  return <TracesFilters agents={result.agents} selectedAgentName={selected} from={from} to={to} />
+  return (
+    <TracesFilters
+      agents={scope.agents}
+      sessions={scope.sessions}
+      selectedAgentName={scope.selectedAgentName}
+      selectedSessionId={scope.selectedSessionId}
+      from={from}
+      to={to}
+    />
+  )
 }
 
 async function Chart({
-  agents,
-  agentName,
+  traceScope,
   range,
 }: {
-  agents: Promise<ListAgentActionResponse>
-  agentName?: string
+  traceScope: Promise<TraceScope>
   range: TraceDateRange
 }) {
-  const agentsResult = await agents
-  if (agentsResult.error) {
+  const scope = await traceScope
+  if (scope.error) {
     return null
   }
 
-  const selected = agentName ?? agentsResult.agents[0]?.name
-  if (!selected) {
+  if (!scope.selectedAgentName) {
     return null
   }
 
   const result = await getTraceChartAction({
-    agent_name: selected,
+    agent_name: scope.selectedAgentName,
+    session_id: scope.selectedSessionId,
     started_after: range.startedAfter,
     started_before: range.startedBefore,
   })
@@ -127,30 +166,28 @@ async function Chart({
 }
 
 async function Traces({
-  agents,
-  agentName,
+  traceScope,
   range,
   pageToken,
   limit,
 }: {
-  agents: Promise<ListAgentActionResponse>
-  agentName?: string
+  traceScope: Promise<TraceScope>
   range: TraceDateRange
   pageToken?: string
   limit: number
 }) {
-  const agentsResult = await agents
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
+  const scope = await traceScope
+  if (scope.error) {
+    return <ErrorPanel message={scope.error.message} />
   }
 
-  const selected = agentName ?? agentsResult.agents[0]?.name
-  if (!selected) {
+  if (!scope.selectedAgentName || !scope.selectedSessionId) {
     return <TracesTable data={undefined} error={undefined} />
   }
 
-  const result = await listTracesAction({
-    agent_name: selected,
+  const result = await listTraceSessionsAction({
+    agent_name: scope.selectedAgentName,
+    session_id: scope.selectedSessionId,
     limit,
     page_token: pageToken,
     started_after: range.startedAfter,
@@ -166,4 +203,55 @@ function TracesFiltersSkeleton() {
 
 function ErrorPanel({ message }: { message: string }) {
   return <div className="rounded-md bg-destructive/5 p-4 text-sm text-destructive">{message}</div>
+}
+
+async function getTraceScope({
+  agents,
+  agentName,
+  sessionID,
+  range,
+}: {
+  agents: Promise<ListAgentActionResponse>
+  agentName?: string
+  sessionID?: string
+  range: TraceDateRange
+}): Promise<TraceScope> {
+  const agentResult = await agents
+  if (agentResult.error) {
+    return traceScopeFailure(agentResult.error)
+  }
+
+  const selectedAgentName = agentResult.agents.some((agent) => agent.name === agentName)
+    ? agentName
+    : agentResult.agents[0]?.name
+  if (!selectedAgentName) {
+    return {
+      agents: agentResult.agents,
+      sessions: [],
+      selectedAgentName: undefined,
+      selectedSessionId: undefined,
+      error: undefined,
+    }
+  }
+
+  const sessionResult = await listTraceSessionFilterAction({
+    agent_name: selectedAgentName,
+    started_after: range.startedAfter,
+    started_before: range.startedBefore,
+  })
+  if (sessionResult.error) {
+    return traceScopeFailure(sessionResult.error)
+  }
+
+  const selectedSessionId = sessionResult.data.some((session) => session.sessionId === sessionID)
+    ? sessionID
+    : sessionResult.data[0]?.sessionId
+
+  return {
+    agents: agentResult.agents,
+    sessions: sessionResult.data,
+    selectedAgentName,
+    selectedSessionId,
+    error: undefined,
+  }
 }

@@ -33,6 +33,7 @@ export type ListAgentSessionActionResponse =
 
 export type TraceListItem = {
   agentName: string
+  sessionId: string
   traceId: string
   startedAt: string
   endedAt: string
@@ -60,6 +61,21 @@ export type ListTracesActionData = {
   hasNextPage: boolean
   limit: number
 }
+
+export type TraceSessionFilterItem = {
+  sessionId: string
+  title: string
+}
+
+export type TraceSessionFilterActionResponse =
+  | {
+      data: TraceSessionFilterItem[]
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
 
 export type RuntimeTelemetryEventItem = {
   id: number

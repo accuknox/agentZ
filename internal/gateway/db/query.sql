@@ -90,6 +90,10 @@ SELECT
   updated_at
 FROM observer_trace_sessions
 WHERE agent_name = sqlc.arg(agent_name)
+  AND (
+    sqlc.narg(session_id)::text IS NULL
+    OR session_id = sqlc.narg(session_id)::text
+  )
   AND started_at >= sqlc.arg(started_after)
   AND started_at <= sqlc.arg(started_before)
   AND (

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
@@ -111,8 +112,17 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, para
 		return
 	}
 
+	var sessionID pgtype.Text
+	if params.SessionId != nil {
+		sessionID = pgtype.Text{
+			String: *params.SessionId,
+			Valid:  true,
+		}
+	}
+
 	rows, err := s.queries.GatewayListTraceSessions(r.Context(), gatewaydb.GatewayListTraceSessionsParams{
 		AgentName:       agentName,
+		SessionID:       sessionID,
 		StartedAfter:    startedAfter,
 		StartedBefore:   startedBefore,
 		CursorSet:       cursorSet,

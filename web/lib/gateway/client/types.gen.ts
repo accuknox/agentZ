@@ -426,6 +426,11 @@ export type TraceIdQuery = TraceId
 export type SpanIdQuery = SpanId
 
 /**
+ * Optional root session ID.
+ */
+export type SessionIdQuery = string
+
+/**
  * Inclusive lower bound for trace start time.
  */
 export type StartedAfterQuery = string
@@ -559,6 +564,10 @@ export type ListTraceSessionsData = {
      * Agent name.
      */
     agent_name: AgentName
+    /**
+     * Optional root session ID.
+     */
+    session_id?: string
     /**
      * Maximum number of items to return.
      */

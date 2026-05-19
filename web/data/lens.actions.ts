@@ -6,6 +6,7 @@ import {
   listNetworkObservability,
   listProcessObservability,
   listSpans,
+  listTraceSessions,
   listTraces,
   type ProcessObservabilityEventAggregated,
   type FileObservabilityEventAggregated,
@@ -16,6 +17,7 @@ import {
   type GetSpanDetailData,
   type JsonValue,
   type ListSpansData,
+  type ListTraceSessionsData,
   type ListTracesData,
   type Span,
   type SpanPayload,
@@ -41,8 +43,11 @@ import type {
   TraceChartActionResponse,
   TraceChartPoint,
   TraceListItem,
+  TraceSessionFilterActionResponse,
+  TraceSessionFilterItem,
 } from "@/data/types"
 import { dayjs } from "@/lib/dayjs"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
 
 const maxChartPoints = 25
 const chartSourceLimit = 100
@@ -51,18 +56,34 @@ type AggregatedTelemetryEvent = {
   last_seen: string
   occurrences: number
 }
+type TraceSummary = Pick<
+  Trace,
+  | "trace_id"
+  | "agent_name"
+  | "started_at"
+  | "ended_at"
+  | "duration_ns"
+  | "span_count"
+  | "error_count"
+  | "tool_count"
+  | "model_count"
+  | "input_tokens"
+  | "output_tokens"
+> & {
+  session_id?: string
+}
 
-export async function listTracesAction(
-  query: ListTracesData["query"]
+export async function listTraceSessionsAction(
+  query: ListTraceSessionsData["query"]
 ): Promise<ListTracesActionResponse> {
-  const result = await listTraces({ query, cache: "no-store" })
+  const result = await listTraceSessions({ query, cache: "no-store" })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
 
   return {
     data: {
-      traces: traceListItems(result.data.traces),
+      traces: traceListItems(result.data.trace_sessions),
       nextPageToken: result.data.next_page_token,
       hasNextPage: result.data.next_page_token.length > 0,
       limit: query.limit ?? 25,
@@ -72,8 +93,37 @@ export async function listTracesAction(
 }
 
 export async function getTraceChartAction(
-  query: ListTracesData["query"]
+  query: ListTracesData["query"] & {
+    session_id?: string
+  }
 ): Promise<TraceChartActionResponse> {
+  if (query.session_id) {
+    const result = await listTraceSessions({
+      query: {
+        agent_name: query.agent_name,
+        session_id: query.session_id,
+        started_after: query.started_after,
+        started_before: query.started_before,
+        limit: chartSourceLimit,
+      },
+      cache: "no-store",
+    })
+    if (result.error) {
+      return { data: undefined, error: result.error }
+    }
+
+    const points = traceChartPoints(result.data.trace_sessions)
+
+    return {
+      data: {
+        points,
+        total: result.data.trace_sessions.length,
+        granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
+      },
+      error: undefined,
+    }
+  }
+
   const result = await listTraces({
     query: {
       agent_name: query.agent_name,
@@ -97,6 +147,63 @@ export async function getTraceChartAction(
     },
     error: undefined,
   }
+}
+
+export async function listTraceSessionFilterAction({
+  agent_name,
+  started_after,
+  started_before,
+}: Pick<
+  ListTraceSessionsData["query"],
+  "agent_name" | "started_after" | "started_before"
+>): Promise<TraceSessionFilterActionResponse> {
+  const client = createAgentOpencodeClient(agent_name)
+  const sessionListResult = await client.session.list()
+  const sessionTitles = new Map<string, string>()
+  if (sessionListResult.data) {
+    for (const session of sessionListResult.data) {
+      sessionTitles.set(session.id, session.title)
+    }
+  }
+
+  const sessions: TraceSessionFilterItem[] = []
+  const seen = new Set<string>()
+  let pageToken: string | undefined
+
+  for (;;) {
+    const result = await listTraceSessions({
+      query: {
+        agent_name,
+        started_after,
+        started_before,
+        limit: 100,
+        page_token: pageToken,
+      },
+      cache: "no-store",
+    })
+    if (result.error) {
+      return { data: undefined, error: result.error }
+    }
+
+    for (const session of result.data.trace_sessions) {
+      if (seen.has(session.session_id)) {
+        continue
+      }
+
+      seen.add(session.session_id)
+      sessions.push({
+        sessionId: session.session_id,
+        title: sessionTitles.get(session.session_id) ?? session.session_id,
+      })
+    }
+
+    pageToken = result.data.next_page_token || undefined
+    if (!pageToken) {
+      break
+    }
+  }
+
+  return { data: sessions, error: undefined }
 }
 
 export async function listSpansAction(
@@ -513,7 +620,7 @@ function formatEventTime(eventTime: string): string {
   return parsed.format("MMM D, YYYY, h:mm A")
 }
 
-function traceChartPoints(traces: Trace[]): TraceChartPoint[] {
+function traceChartPoints(traces: readonly TraceSummary[]): TraceChartPoint[] {
   if (traces.length === 0) {
     return []
   }
@@ -548,7 +655,7 @@ function chartPointLabel(startedAfter: DayjsDate, startedBefore: DayjsDate) {
   return `${startedAfter.format("MMM D")} - ${startedBefore.format("MMM D")}`
 }
 
-function traceListItems(traces: Trace[]): TraceListItem[] {
+function traceListItems(traces: readonly TraceSummary[]): TraceListItem[] {
   const durations = traces.map((trace) => trace.duration_ns / 1_000_000)
   const totalDurationMs = durations.reduce((total, durationMs) => total + durationMs, 0)
   let cumulativeDurationMs = 0
@@ -572,7 +679,7 @@ function traceListItem({
   cumulativeDurationPercent,
   waterfallDelayMs,
 }: {
-  trace: Trace
+  trace: TraceSummary
   cumulativeDurationMs: number
   cumulativeDurationPercent: number
   waterfallDelayMs: number
@@ -591,6 +698,7 @@ function traceListItem({
 
   return {
     agentName: trace.agent_name,
+    sessionId: trace.session_id ?? "",
     traceId: trace.trace_id,
     startedAt: trace.started_at,
     endedAt: trace.ended_at,

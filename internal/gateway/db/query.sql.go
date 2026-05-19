@@ -8,6 +8,8 @@ package gatewaydb
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const gatewayAgentExists = `-- name: GatewayAgentExists :one
@@ -963,39 +965,45 @@ SELECT
   updated_at
 FROM observer_trace_sessions
 WHERE agent_name = $1
-  AND started_at >= $2
-  AND started_at <= $3
   AND (
-    NOT $4::bool
-    OR started_at < $5
+    $2::text IS NULL
+    OR session_id = $2::text
+  )
+  AND started_at >= $3
+  AND started_at <= $4
+  AND (
+    NOT $5::bool
+    OR started_at < $6
     OR (
-      started_at = $5
-      AND trace_id < $6
+      started_at = $6
+      AND trace_id < $7
     )
     OR (
-      started_at = $5
-      AND trace_id = $6
-      AND session_id < $7
+      started_at = $6
+      AND trace_id = $7
+      AND session_id < $8
     )
   )
 ORDER BY started_at DESC, trace_id DESC, session_id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type GatewayListTraceSessionsParams struct {
-	AgentName       string    `json:"agent_name"`
-	StartedAfter    time.Time `json:"started_after"`
-	StartedBefore   time.Time `json:"started_before"`
-	CursorSet       bool      `json:"cursor_set"`
-	CursorStartedAt time.Time `json:"cursor_started_at"`
-	CursorTraceID   []byte    `json:"cursor_trace_id"`
-	CursorSessionID string    `json:"cursor_session_id"`
-	PageSize        int32     `json:"page_size"`
+	AgentName       string      `json:"agent_name"`
+	SessionID       pgtype.Text `json:"session_id"`
+	StartedAfter    time.Time   `json:"started_after"`
+	StartedBefore   time.Time   `json:"started_before"`
+	CursorSet       bool        `json:"cursor_set"`
+	CursorStartedAt time.Time   `json:"cursor_started_at"`
+	CursorTraceID   []byte      `json:"cursor_trace_id"`
+	CursorSessionID string      `json:"cursor_session_id"`
+	PageSize        int32       `json:"page_size"`
 }
 
 func (q *Queries) GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]ObserverTraceSession, error) {
 	rows, err := q.db.Query(ctx, gatewayListTraceSessions,
 		arg.AgentName,
+		arg.SessionID,
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.CursorSet,

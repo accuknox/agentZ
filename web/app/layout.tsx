@@ -51,7 +51,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 </Suspense>
               </div>
             </header>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+              {children}
+            </div>
           </SidebarInset>
         </Providers>
       </body>

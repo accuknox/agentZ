@@ -1,9 +1,15 @@
 "use client"
 
 import type { Event, Message, Part, Session, SessionStatus, TextPart } from "@opencode-ai/sdk"
+import type {
+  Event as EventV2,
+  PermissionRequest,
+  QuestionRequest,
+  Session as SessionV2,
+} from "@opencode-ai/sdk/v2"
 import { QueryClient, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
 import { startTransition, useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
-import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { createAgentOpencodeClient, createAgentOpencodeClientV2 } from "@/lib/opencode/client"
 
 type SessionMessageRecord = {
   info: Message
@@ -16,6 +22,12 @@ type OpencodeChatStore = {
   message: Record<string, Message[]>
   session?: Session
   sessionStatus: Record<string, SessionStatus>
+}
+
+type HitlStore = {
+  permissions: Record<string, PermissionRequest[]>
+  questions: Record<string, QuestionRequest[]>
+  sessions: SessionV2[]
 }
 
 export type ChatSystemPrompt = {
@@ -36,12 +48,17 @@ export type OptimisticUserMessage = {
 export type LocalChatMessage = ChatSystemPrompt | OptimisticUserMessage
 
 type UseOpencodeChatResult = {
+  blocked: boolean
   historyError?: string
   isBusy: boolean
   isPending: boolean
   localMessages: LocalChatMessage[]
   messages: Message[]
   partsByMessage: Record<string, Part[]>
+  permissionRequest?: PermissionRequest
+  permissions: PermissionRequest[]
+  questions: QuestionRequest[]
+  questionRequest?: QuestionRequest
   session?: Session
   sessionStatus?: SessionStatus
   streamError?: string
@@ -114,6 +131,14 @@ function emptyStore(): OpencodeChatStore {
     message: {},
     session: undefined,
     sessionStatus: {},
+  }
+}
+
+function emptyHitlStore(): HitlStore {
+  return {
+    permissions: {},
+    questions: {},
+    sessions: [],
   }
 }
 
@@ -196,6 +221,72 @@ function messageSessionID(event: Event) {
     default:
       return undefined
   }
+}
+
+function upsertRequest<T extends { id: string }>(items: T[], next: T) {
+  const index = items.findIndex((item) => item.id === next.id)
+  if (index < 0) {
+    return [...items, next]
+  }
+
+  return items.map((item) => {
+    if (item.id === next.id) return next
+    return item
+  })
+}
+
+function removeRequest<T extends { id: string }>(items: T[], requestID: string) {
+  return items.filter((item) => item.id !== requestID)
+}
+
+function buildRequestMap<T extends { sessionID: string }>(items: T[]) {
+  const result: Record<string, T[]> = {}
+
+  for (const item of items) {
+    const existing = result[item.sessionID] ?? []
+    result[item.sessionID] = [...existing, item]
+  }
+
+  return result
+}
+
+function visibleSessionIDs(sessions: SessionV2[], sessionID: string) {
+  const childMap = sessions.reduce((acc, item) => {
+    if (!item.parentID) return acc
+    const list = acc.get(item.parentID) ?? []
+    list.push(item.id)
+    acc.set(item.parentID, list)
+    return acc
+  }, new Map<string, string[]>())
+
+  const result = [sessionID]
+  const seen = new Set(result)
+
+  for (const id of result) {
+    const children = childMap.get(id) ?? []
+    for (const childID of children) {
+      if (seen.has(childID)) continue
+      seen.add(childID)
+      result.push(childID)
+    }
+  }
+
+  return result
+}
+
+function firstVisibleRequest<T extends { sessionID: string }>(
+  requests: Record<string, T[]>,
+  sessions: SessionV2[],
+  sessionID?: string
+) {
+  if (!sessionID) return undefined
+
+  for (const id of visibleSessionIDs(sessions, sessionID)) {
+    const request = requests[id]?.[0]
+    if (request) return request
+  }
+
+  return undefined
 }
 
 function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
@@ -293,6 +384,98 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
         ...store,
         session:
           store.session?.id === event.properties.info.id ? event.properties.info : store.session,
+      }
+
+    default:
+      return store
+  }
+}
+
+function applyHitlEvent(store: HitlStore, event: EventV2): HitlStore {
+  switch (event.type) {
+    case "permission.asked": {
+      const sessionID = event.properties.sessionID
+      const current = store.permissions[sessionID] ?? []
+
+      return {
+        ...store,
+        permissions: {
+          ...store.permissions,
+          [sessionID]: upsertRequest(current, event.properties),
+        },
+      }
+    }
+
+    case "permission.replied": {
+      const sessionID = event.properties.sessionID
+      const current = store.permissions[sessionID] ?? []
+
+      return {
+        ...store,
+        permissions: {
+          ...store.permissions,
+          [sessionID]: removeRequest(current, event.properties.requestID),
+        },
+      }
+    }
+
+    case "question.asked": {
+      const sessionID = event.properties.sessionID
+      const current = store.questions[sessionID] ?? []
+
+      return {
+        ...store,
+        questions: {
+          ...store.questions,
+          [sessionID]: upsertRequest(current, event.properties),
+        },
+      }
+    }
+
+    case "question.replied":
+    case "question.rejected": {
+      const sessionID = event.properties.sessionID
+      const current = store.questions[sessionID] ?? []
+
+      return {
+        ...store,
+        questions: {
+          ...store.questions,
+          [sessionID]: removeRequest(current, event.properties.requestID),
+        },
+      }
+    }
+
+    case "session.created": {
+      const info = event.properties.info
+      const current = store.sessions.filter((item) => item.id !== info.id)
+      return {
+        ...store,
+        sessions: [...current, info],
+      }
+    }
+
+    case "session.updated": {
+      const info = event.properties.info
+      return {
+        ...store,
+        sessions: store.sessions.map((item) => {
+          if (item.id === info.id) return info
+          return item
+        }),
+      }
+    }
+
+    case "session.deleted":
+      return {
+        ...store,
+        permissions: Object.fromEntries(
+          Object.entries(store.permissions).filter(([id]) => id !== event.properties.info.id)
+        ),
+        questions: Object.fromEntries(
+          Object.entries(store.questions).filter(([id]) => id !== event.properties.info.id)
+        ),
+        sessions: store.sessions.filter((item) => item.id !== event.properties.info.id),
       }
 
     default:
@@ -470,6 +653,49 @@ function sessionMessagesQueryOptions(agentName: string, sessionID: string, direc
   })
 }
 
+function sessionTreeQueryOptions(agentName: string, directory: string) {
+  return queryOptions({
+    queryFn: async () => {
+      const client = createAgentOpencodeClientV2(agentName)
+      const [sessionResult, questionResult, permissionResult] = await Promise.all([
+        client.session.list({
+          directory,
+          limit: 1000,
+        }),
+        client.question.list({
+          directory,
+        }),
+        client.permission.list({
+          directory,
+        }),
+      ])
+
+      if (sessionResult.error) {
+        throw new Error(sdkErrorMessage(sessionResult.error, "Failed to load sessions"))
+      }
+
+      if (questionResult.error) {
+        throw new Error(sdkErrorMessage(questionResult.error, "Failed to load pending questions"))
+      }
+
+      if (permissionResult.error) {
+        throw new Error(
+          sdkErrorMessage(permissionResult.error, "Failed to load pending permissions")
+        )
+      }
+
+      return {
+        permissions: buildRequestMap(permissionResult.data ?? []),
+        questions: buildRequestMap(questionResult.data ?? []),
+        sessions: sessionResult.data ?? [],
+      } satisfies HitlStore
+    },
+    queryKey: ["opencode", "chatHitl", agentName, directory],
+    retry: false,
+    staleTime: 5_000,
+  })
+}
+
 export function textParts(parts: Part[], textByPart: Record<string, string>): TextPart[] {
   return parts.filter((part): part is TextPart => {
     return part.type === "text" && (textByPart[part.id] ?? part.text).length > 0
@@ -489,7 +715,11 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   const client = useMemo(() => {
     return createAgentOpencodeClient(agentName)
   }, [agentName])
+  const clientV2 = useMemo(() => {
+    return createAgentOpencodeClientV2(agentName)
+  }, [agentName])
   const [events, setEvents] = useState<Event[]>([])
+  const [hitlEvents, setHitlEvents] = useState<EventV2[]>([])
   const [streamError, setStreamError] = useState<string>()
   const session = useQuery({
     ...sessionInfoQueryOptions(agentName, sessionID ?? ""),
@@ -498,6 +728,10 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   const history = useQuery({
     ...sessionMessagesQueryOptions(agentName, sessionID ?? "", session.data?.directory ?? ""),
     enabled: Boolean(sessionID && session.data?.directory),
+  })
+  const hitl = useQuery({
+    ...sessionTreeQueryOptions(agentName, session.data?.directory ?? ""),
+    enabled: Boolean(session.data?.directory),
   })
   const localMessages = useQuery({
     ...chatOverlayQueryOptions(agentName, sessionID),
@@ -515,6 +749,10 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   const store = useMemo(() => {
     return events.reduce((current, event) => applyEvent(current, event), baseStore)
   }, [baseStore, events])
+  const hitlStore = useMemo(() => {
+    const base = hitl.data ?? emptyHitlStore()
+    return hitlEvents.reduce((current, event) => applyHitlEvent(current, event), base)
+  }, [hitl.data, hitlEvents])
 
   const handleEvent = useEffectEvent((event: Event) => {
     if (!sessionID) return
@@ -532,6 +770,29 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     startTransition(() => {
       setEvents((current) => [...current, event])
       setStreamError(undefined)
+    })
+  })
+
+  const handleHitlEvent = useEffectEvent((event: EventV2) => {
+    if (!sessionID) return
+
+    switch (event.type) {
+      case "permission.asked":
+      case "permission.replied":
+      case "question.asked":
+      case "question.replied":
+      case "question.rejected":
+        break
+      case "session.created":
+      case "session.updated":
+      case "session.deleted":
+        break
+      default:
+        return
+    }
+
+    startTransition(() => {
+      setHitlEvents((current) => [...current, event])
     })
   })
 
@@ -566,11 +827,63 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     }
   }, [client, sessionID])
 
+  useEffect(() => {
+    if (!sessionID) return
+
+    const abortController = new AbortController()
+
+    async function consume() {
+      try {
+        const result = await clientV2.event.subscribe(undefined, {
+          signal: abortController.signal,
+        })
+
+        for await (const event of result.stream) {
+          if (abortController.signal.aborted) return
+          handleHitlEvent(event)
+        }
+      } catch (error) {
+        if (abortController.signal.aborted) return
+
+        setStreamError(
+          error instanceof Error ? error.message : "Failed to subscribe to session events"
+        )
+      }
+    }
+
+    void consume()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [clientV2, sessionID])
+
   const messages = useMemo(() => {
     return sessionID ? (store.message[sessionID] ?? []) : []
   }, [sessionID, store.message])
   const partsByMessage = store.part
   const textByPart = store.partTextAccumDelta
+  const permissionRequest = firstVisibleRequest(
+    hitlStore.permissions,
+    hitlStore.sessions,
+    sessionID
+  )
+  const questionRequest =
+    permissionRequest === undefined
+      ? firstVisibleRequest(hitlStore.questions, hitlStore.sessions, sessionID)
+      : undefined
+  const permissions = useMemo(() => {
+    if (!sessionID) return []
+    return visibleSessionIDs(hitlStore.sessions, sessionID).flatMap(
+      (id) => hitlStore.permissions[id] ?? []
+    )
+  }, [hitlStore.permissions, hitlStore.sessions, sessionID])
+  const questions = useMemo(() => {
+    if (!sessionID) return []
+    return visibleSessionIDs(hitlStore.sessions, sessionID).flatMap(
+      (id) => hitlStore.questions[id] ?? []
+    )
+  }, [hitlStore.questions, hitlStore.sessions, sessionID])
   const sessionStatus = sessionID
     ? (store.sessionStatus[sessionID] ?? idleSessionStatus)
     : undefined
@@ -604,12 +917,17 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   }, [agentName, localMessages.data, messages, partsByMessage, queryClient, sessionID])
 
   return {
+    blocked: permissionRequest !== undefined || questionRequest !== undefined,
     historyError: history.error instanceof Error ? history.error.message : undefined,
     isBusy: deriveSessionIsBusy(messages, localMessages.data, sessionStatus, store.session),
     isPending: Boolean(sessionID) && (session.isPending || history.isPending),
     localMessages: localMessages.data,
     messages,
     partsByMessage,
+    permissionRequest,
+    permissions,
+    questions,
+    questionRequest,
     session: store.session,
     sessionStatus,
     streamError,

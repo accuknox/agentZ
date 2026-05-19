@@ -154,11 +154,7 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   }
 
   if (queryAgents.length === 0) {
-    return (
-      <SidebarMenuSubItem key="empty">
-        <p className="text-sm text-muted-foreground">No sessions</p>
-      </SidebarMenuSubItem>
-    )
+    return <></>
   }
 
   return (

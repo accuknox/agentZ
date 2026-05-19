@@ -1,6 +1,6 @@
 "use client"
 
-import type { Event, Message, Part, Session, SessionStatus, TextPart } from "@opencode-ai/sdk"
+import type { Event, Message, Part, SessionStatus, TextPart } from "@opencode-ai/sdk"
 import type {
   Event as EventV2,
   PermissionRequest,
@@ -20,7 +20,8 @@ type OpencodeChatStore = {
   part: Record<string, Part[]>
   partTextAccumDelta: Record<string, string>
   message: Record<string, Message[]>
-  session?: Session
+  session?: SessionV2
+  sessionCost: number
   sessionStatus: Record<string, SessionStatus>
 }
 
@@ -59,7 +60,8 @@ type UseOpencodeChatResult = {
   permissions: PermissionRequest[]
   questions: QuestionRequest[]
   questionRequest?: QuestionRequest
-  session?: Session
+  session?: SessionV2
+  sessionCost: number
   sessionStatus?: SessionStatus
   streamError?: string
   textByPart: Record<string, string>
@@ -95,11 +97,18 @@ function pruneStore(store: OpencodeChatStore): OpencodeChatStore {
   }
 }
 
+function sessionCostFromMessages(messages: Message[]) {
+  return messages.reduce((total, message) => {
+    if (message.role !== "assistant") return total
+    return total + message.cost
+  }, 0)
+}
+
 function deriveSessionIsBusy(
   messages: Message[],
   localMessages: LocalChatMessage[],
   sessionStatus: SessionStatus | undefined,
-  session: Session | undefined
+  session: SessionV2 | undefined
 ): boolean {
   // Pending optimistic user message not yet acknowledged by the server.
   if (localMessages.some((m) => m.kind === "optimistic-user" && m.status === "pending")) {
@@ -182,7 +191,7 @@ function upsertPart(parts: Part[], next: Part) {
 
 function buildStore(
   sessionID: string,
-  session: Session | undefined,
+  session: SessionV2 | undefined,
   records: SessionMessageRecord[]
 ) {
   const store: OpencodeChatStore = {
@@ -190,12 +199,14 @@ function buildStore(
     partTextAccumDelta: {},
     message: {},
     session,
+    sessionCost: 0,
     sessionStatus: {},
   }
   const visibleRecords = records.slice(-MAX_CHAT_MESSAGES)
   store.message[sessionID] = visibleRecords
     .map((record) => record.info)
     .sort((x, y) => x.time.created - y.time.created)
+  store.sessionCost = sessionCostFromMessages(store.message[sessionID] ?? [])
 
   for (const record of visibleRecords) {
     store.part[record.info.id] = record.parts
@@ -398,8 +409,36 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
     case "session.updated":
       return {
         ...store,
+        session: store.session,
+      }
+
+    default:
+      return store
+  }
+}
+
+function applySessionEvent(store: OpencodeChatStore, event: EventV2): OpencodeChatStore {
+  switch (event.type) {
+    case "session.created":
+    case "session.updated":
+      return {
+        ...store,
         session:
           store.session?.id === event.properties.info.id ? event.properties.info : store.session,
+      }
+
+    case "session.deleted":
+      return {
+        ...store,
+        session: store.session?.id === event.properties.info.id ? undefined : store.session,
+      }
+
+    case "session.next.step.ended":
+      if (store.session?.id !== event.properties.sessionID) return store
+
+      return {
+        ...store,
+        sessionCost: store.sessionCost + event.properties.cost,
       }
 
     default:
@@ -613,11 +652,9 @@ export function migrateChatOverlay(
 function sessionInfoQueryOptions(agentName: string, sessionID: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = createAgentOpencodeClient(agentName)
+      const client = createAgentOpencodeClientV2(agentName)
       const result = await client.session.get({
-        path: {
-          id: sessionID,
-        },
+        sessionID,
       })
 
       if (result.error || !result.data) {
@@ -739,6 +776,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         partTextAccumDelta: {},
         message: {},
         session: undefined,
+        sessionCost: 0,
         sessionStatus: {},
       }
     }
@@ -800,12 +838,22 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
       case "session.created":
       case "session.updated":
       case "session.deleted":
+      case "session.next.step.ended":
         break
       default:
         return
     }
 
     startTransition(() => {
+      setLiveStore((current) => {
+        const nextKey = baseStoreKey
+        const currentStore = current?.key === nextKey ? current.store : baseStore
+
+        return {
+          key: nextKey,
+          store: applySessionEvent(currentStore, event),
+        }
+      })
       setHitlEvents((current) => [...current, event])
     })
   })
@@ -943,6 +991,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     questions,
     questionRequest,
     session: store.session,
+    sessionCost: store.sessionCost,
     sessionStatus,
     streamError,
     textByPart,

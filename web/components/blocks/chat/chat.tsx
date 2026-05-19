@@ -850,6 +850,8 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     permissionRequest,
     partsByMessage,
     questionRequest,
+    session,
+    sessionCost,
     streamError,
     textByPart,
   } = useOpencodeChat(agentName, sessionId)
@@ -1354,7 +1356,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                   {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
                     <Context
                       maxTokens={contextUsage.maxTokens}
-                      modelId={contextUsage.modelId}
+                      totalCostUSD={sessionCost}
                       usage={contextUsage.usage}
                       usedTokens={contextUsage.usedTokens}
                     >

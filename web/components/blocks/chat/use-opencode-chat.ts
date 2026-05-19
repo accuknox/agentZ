@@ -66,6 +66,34 @@ type UseOpencodeChatResult = {
 }
 
 const idleSessionStatus: SessionStatus = { type: "idle" }
+const MAX_CHAT_MESSAGES = 25
+
+function pruneStore(store: OpencodeChatStore): OpencodeChatStore {
+  const nextMessage = Object.fromEntries(
+    Object.entries(store.message).map(([sessionID, messages]) => {
+      return [sessionID, messages.slice(-MAX_CHAT_MESSAGES)]
+    })
+  )
+  const visibleMessageIDs = new Set(
+    Object.values(nextMessage).flatMap((messages) => messages.map((message) => message.id))
+  )
+  const nextPart = Object.fromEntries(
+    Object.entries(store.part).filter(([messageID]) => visibleMessageIDs.has(messageID))
+  )
+  const visiblePartIDs = new Set(
+    Object.values(nextPart).flatMap((parts) => parts.map((part) => part.id))
+  )
+  const nextText = Object.fromEntries(
+    Object.entries(store.partTextAccumDelta).filter(([partID]) => visiblePartIDs.has(partID))
+  )
+
+  return {
+    ...store,
+    message: nextMessage,
+    part: nextPart,
+    partTextAccumDelta: nextText,
+  }
+}
 
 function deriveSessionIsBusy(
   messages: Message[],
@@ -164,11 +192,12 @@ function buildStore(
     session,
     sessionStatus: {},
   }
-  store.message[sessionID] = records
+  const visibleRecords = records.slice(-MAX_CHAT_MESSAGES)
+  store.message[sessionID] = visibleRecords
     .map((record) => record.info)
     .sort((x, y) => x.time.created - y.time.created)
 
-  for (const record of records) {
+  for (const record of visibleRecords) {
     store.part[record.info.id] = record.parts
 
     for (const part of record.parts) {
@@ -177,7 +206,7 @@ function buildStore(
     }
   }
 
-  return store
+  return pruneStore(store)
 }
 
 function sessionMessageText(parts: Part[]) {
@@ -282,26 +311,26 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
       const sessionID = event.properties.info.sessionID
       const messages = store.message[sessionID] ?? []
 
-      return {
+      return pruneStore({
         ...store,
         message: {
           ...store.message,
           [sessionID]: upsertMessage(messages, event.properties.info),
         },
-      }
+      })
     }
 
     case "message.removed": {
       const sessionID = event.properties.sessionID
       const messages = store.message[sessionID] ?? []
 
-      return {
+      return pruneStore({
         ...store,
         message: {
           ...store.message,
           [sessionID]: messages.filter((message) => message.id !== event.properties.messageID),
         },
-      }
+      })
     }
 
     case "message.part.updated": {
@@ -316,7 +345,7 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
             : part.text
           : undefined
 
-      return {
+      return pruneStore({
         ...store,
         part: {
           ...store.part,
@@ -329,7 +358,7 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
                 ...store.partTextAccumDelta,
                 [part.id]: nextText,
               },
-      }
+      })
     }
 
     case "message.part.removed": {
@@ -337,14 +366,14 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
       const nextText = { ...store.partTextAccumDelta }
       delete nextText[event.properties.partID]
 
-      return {
+      return pruneStore({
         ...store,
         part: {
           ...store.part,
           [event.properties.messageID]: parts.filter((part) => part.id !== event.properties.partID),
         },
         partTextAccumDelta: nextText,
-      }
+      })
     }
 
     case "session.status":
@@ -498,7 +527,7 @@ export function appendSystemPrompt(
         id: `sys-${crypto.randomUUID()}`,
         kind: "system",
       })
-      return draft
+      return draft.slice(-MAX_CHAT_MESSAGES)
     }
   )
 }
@@ -522,7 +551,7 @@ export function upsertOptimisticUserMessage(
       }
 
       draft.push(message)
-      return draft
+      return draft.slice(-MAX_CHAT_MESSAGES)
     }
   )
 }
@@ -676,7 +705,10 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   const clientV2 = useMemo(() => {
     return createAgentOpencodeClientV2(agentName)
   }, [agentName])
-  const [events, setEvents] = useState<Event[]>([])
+  const [liveStore, setLiveStore] = useState<{
+    key: string
+    store: OpencodeChatStore
+  }>()
   const [hitlEvents, setHitlEvents] = useState<EventV2[]>([])
   const [streamError, setStreamError] = useState<string>()
   const session = useQuery({
@@ -713,10 +745,16 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
     return buildStore(sessionID, session.data, history.data ?? [])
   }, [history.data, session.data, sessionID])
+  const baseStoreKey = useMemo(() => {
+    const sessionKey = sessionID ?? "new"
+    const historyCount = history.data?.length ?? 0
+    const lastMessageID = history.data?.at(-1)?.info.id ?? "none"
+    const sessionUpdatedAt = session.data?.time.updated ?? 0
 
-  const store = useMemo(() => {
-    return events.reduce((current, event) => applyEvent(current, event), baseStore)
-  }, [baseStore, events])
+    return `${sessionKey}:${sessionUpdatedAt}:${historyCount}:${lastMessageID}`
+  }, [history.data, session.data?.time.updated, sessionID])
+  const store = liveStore?.key === baseStoreKey ? liveStore.store : baseStore
+
   const hitlStore = useMemo(() => {
     const base = hitl.data ?? { permissions: {}, questions: {}, sessions: [] }
     return hitlEvents.reduce((current, event) => applyHitlEvent(current, event), base)
@@ -736,7 +774,15 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     }
 
     startTransition(() => {
-      setEvents((current) => [...current, event])
+      setLiveStore((current) => {
+        const nextKey = baseStoreKey
+        const currentStore = current?.key === nextKey ? current.store : baseStore
+
+        return {
+          key: nextKey,
+          store: applyEvent(currentStore, event),
+        }
+      })
       setStreamError(undefined)
     })
   })

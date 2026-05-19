@@ -90,6 +90,7 @@ type ChatProps = {
 
 const DEFAULT_REASONING_LEVEL = "__default__"
 const CUSTOM_ANSWER_KEY = "__custom__"
+const MAX_RENDER_BLOCKS = 25
 
 type RenderEntry =
   | {
@@ -1121,6 +1122,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
 
   flushAssistantBlock()
   renderBlocks.sort((x, y) => x.createdAt - y.createdAt)
+  const visibleRenderBlocks = renderBlocks.slice(-MAX_RENDER_BLOCKS)
 
   function groupEntries(entries: RenderEntry[]) {
     const result: (
@@ -1161,7 +1163,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     )
   }
 
-  const lastBlock = renderBlocks.at(-1)
+  const lastBlock = visibleRenderBlocks.at(-1)
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1179,7 +1181,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
           ) : (
             <>
               <div className="mx-auto flex w-full flex-col gap-4 lg:w-4/5">
-                {renderBlocks.map((block) => {
+                {visibleRenderBlocks.map((block) => {
                   if ("message" in block) {
                     if (block.message.kind === "system") {
                       return (

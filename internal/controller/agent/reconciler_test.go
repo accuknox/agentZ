@@ -82,6 +82,12 @@ var _ = Describe("Agent Controller", func() {
 		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
 		Expect(err).NotTo(HaveOccurred())
 
+		pvc := &corev1.PersistentVolumeClaim{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      name + "-nix",
+			Namespace: namespace,
+		}, pvc)).To(Succeed())
+
 		cm := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, key, cm)).To(Succeed())
 		Expect(cm.Data).To(HaveKey(opencodeConfigKey))
@@ -97,6 +103,14 @@ var _ = Describe("Agent Controller", func() {
 
 		dep := &appsv1.Deployment{}
 		Expect(k8sClient.Get(ctx, key, dep)).To(Succeed())
+		Expect(dep.Spec.Template.Spec.InitContainers).To(HaveLen(1))
+		Expect(dep.Spec.Template.Spec.InitContainers[0].VolumeMounts).To(
+			ContainElement(corev1.VolumeMount{
+				Name:      nixAgentVolume,
+				MountPath: nixVolumeRootMount,
+			}),
+		)
+
 		container := dep.Spec.Template.Spec.Containers[0]
 		Expect(container.WorkingDir).To(Equal("/home/clawarmor"))
 		Expect(container.Args).To(ContainElement("serve"))
@@ -126,6 +140,11 @@ var _ = Describe("Agent Controller", func() {
 			Name:      configVolume,
 			MountPath: opencodeConfigDir,
 			ReadOnly:  true,
+		}))
+		Expect(container.VolumeMounts).To(ContainElement(corev1.VolumeMount{
+			Name:      nixAgentVolume,
+			MountPath: "/home/clawarmor",
+			SubPath:   nixHomeSubPath,
 		}))
 
 		svc := &corev1.Service{}
@@ -185,10 +204,29 @@ var _ = Describe("Agent Controller", func() {
 
 		dep := &appsv1.Deployment{}
 		Expect(k8sClient.Get(ctx, key, dep)).To(Succeed())
-		Expect(dep.Spec.Template.Spec.InitContainers).To(HaveLen(1))
-		Expect(dep.Spec.Template.Spec.InitContainers[0].Env).To(ContainElement(
+		Expect(dep.Spec.Template.Spec.InitContainers).To(HaveLen(2))
+		Expect(dep.Spec.Template.Spec.InitContainers[1].SecurityContext.Capabilities).NotTo(BeNil())
+		Expect(dep.Spec.Template.Spec.InitContainers[1].SecurityContext.Capabilities.Add).To(
+			ContainElement(corev1.Capability("DAC_OVERRIDE")),
+		)
+		Expect(dep.Spec.Template.Spec.InitContainers[1].Env).To(ContainElement(
 			corev1.EnvVar{Name: nixPkgEnv, Value: "python3,ripgrep"},
 		))
+		Expect(dep.Spec.Template.Spec.InitContainers[1].VolumeMounts).To(
+			ContainElement(corev1.VolumeMount{
+				Name:      nixAgentVolume,
+				MountPath: nixAgentMount,
+				SubPath:   nixStoreSubPath,
+			}),
+		)
+		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(
+			ContainElement(corev1.VolumeMount{
+				Name:      nixAgentVolume,
+				MountPath: nixAgentMount,
+				SubPath:   nixStoreSubPath,
+				ReadOnly:  true,
+			}),
+		)
 		Expect(dep.Spec.Template.Spec.Containers[0].Env).To(ContainElement(
 			corev1.EnvVar{Name: "NIX_PROFILES", Value: nixLinkMount + "/profile"},
 		))
@@ -213,6 +251,10 @@ var _ = Describe("Agent Controller", func() {
 		defer deleteIfExists(ctx, plainKey, &appsv1.Deployment{})
 		defer deleteIfExists(ctx, plainKey, &corev1.Service{})
 		defer deleteIfExists(ctx, plainKey, &corev1.ConfigMap{})
+		defer deleteIfExists(ctx, types.NamespacedName{
+			Name:      agt.Name + "-nix",
+			Namespace: namespace,
+		}, &corev1.PersistentVolumeClaim{})
 
 		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: plainKey})
 		Expect(err).NotTo(HaveOccurred())
@@ -223,11 +265,23 @@ var _ = Describe("Agent Controller", func() {
 
 		dep := &appsv1.Deployment{}
 		Expect(k8sClient.Get(ctx, plainKey, dep)).To(Succeed())
+		pvc := &corev1.PersistentVolumeClaim{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      agt.Name + "-nix",
+			Namespace: namespace,
+		}, pvc)).To(Succeed())
 		Expect(dep.Spec.Template.Spec.Volumes).NotTo(ContainElement(
 			HaveField("Name", Equal(configVolume)),
 		))
 		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).NotTo(
 			ContainElement(HaveField("Name", Equal(configVolume))),
+		)
+		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(
+			ContainElement(corev1.VolumeMount{
+				Name:      nixAgentVolume,
+				MountPath: "/home/clawarmor",
+				SubPath:   nixHomeSubPath,
+			}),
 		)
 	})
 

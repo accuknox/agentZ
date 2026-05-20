@@ -135,7 +135,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
-	err = r.reconcileNixPVCs(ctx, agt, envCfg.Packages)
+	err = r.reconcileNixPVCs(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -286,11 +286,7 @@ func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object
 	return requests
 }
 
-func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha1.Agent, packages []string) error {
-	if len(packages) == 0 {
-		return nil
-	}
-
+func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
 	agentPVC := &corev1.PersistentVolumeClaim{}
 	agentPVC.Name = agt.Name + "-nix"
 	agentPVC.Namespace = agt.Namespace

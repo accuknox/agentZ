@@ -172,6 +172,49 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 	var initContainers []corev1.Container
+	claimName := agt.Name + "-nix"
+
+	agentInitImage := r.Config.AgentInitImage
+	if agentInitImage == "" {
+		agentInitImage = nixInitImage
+	}
+
+	volumes = append(volumes, corev1.Volume{
+		Name: nixAgentVolume,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: claimName,
+			},
+		},
+	})
+	initContainers = append(initContainers, corev1.Container{
+		Name:            homeInitName,
+		Image:           agentInitImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Command: []string{
+			"/bin/bash",
+			"-lc",
+			"mkdir -p /pvc/home /pvc/nix",
+		},
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: new(false),
+			RunAsUser:                new(int64(1000)),
+			RunAsGroup:               new(int64(1000)),
+			RunAsNonRoot:             new(true),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{{
+			Name:      nixAgentVolume,
+			MountPath: nixVolumeRootMount,
+		}},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      nixAgentVolume,
+		MountPath: "/home/clawarmor",
+		SubPath:   nixHomeSubPath,
+	})
 
 	if mountConfig {
 		volumes = append(volumes, corev1.Volume{
@@ -216,14 +259,6 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	if len(packages) > 0 {
 		volumes = append(volumes,
 			corev1.Volume{
-				Name: nixAgentVolume,
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: agt.Name + "-nix",
-					},
-				},
-			},
-			corev1.Volume{
 				Name: nixLinkVolume,
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
@@ -231,7 +266,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			},
 		)
 		initVolumeMounts := []corev1.VolumeMount{
-			{Name: nixAgentVolume, MountPath: nixAgentMount},
+			{Name: nixAgentVolume, MountPath: nixAgentMount, SubPath: nixStoreSubPath},
 			{Name: nixLinkVolume, MountPath: nixLinkStage},
 		}
 		initEnv := []corev1.EnvVar{
@@ -255,21 +290,19 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			)
 		}
 
-		initImage := r.Config.AgentInitImage
-		if initImage == "" {
-			initImage = nixInitImage
-		}
 		initContainers = append(initContainers, corev1.Container{
 			Name:            "nix-init",
-			Image:           initImage,
+			Image:           agentInitImage,
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Env:             initEnv,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: new(false),
 				RunAsUser:                new(int64(0)),
+				RunAsGroup:               new(int64(0)),
 				RunAsNonRoot:             new(false),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
+					Add:  []corev1.Capability{"DAC_OVERRIDE"},
 				},
 			},
 			VolumeMounts: initVolumeMounts,
@@ -279,6 +312,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			corev1.VolumeMount{
 				Name:      nixAgentVolume,
 				MountPath: nixAgentMount,
+				SubPath:   nixStoreSubPath,
 				ReadOnly:  true,
 			},
 			corev1.VolumeMount{
@@ -313,6 +347,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 					AutomountServiceAccountToken: &automount,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(true),
+						FSGroup:      new(int64(1000)),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
@@ -342,6 +377,8 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: new(false),
 								ReadOnlyRootFilesystem:   new(false),
+								RunAsUser:                new(int64(1000)),
+								RunAsGroup:               new(int64(1000)),
 								RunAsNonRoot:             new(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},

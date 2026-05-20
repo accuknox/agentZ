@@ -71,12 +71,9 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowed
 	if err != nil {
 		return nil, err
 	}
+
 	if r.sinjectorEnabled() {
-		port, err := sinjectorPort(agt)
-		if err != nil {
-			return nil, err
-		}
-		egress = append(egress, sinjectorEgressRule(agt, port))
+		egress = append(egress, sinjectorEgressRule(agt))
 	}
 
 	return &ciliumapi.Rule{
@@ -97,6 +94,7 @@ func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ci
 		return nil, err
 	}
 	hosts = append(hosts, extraHosts...)
+	hosts = uniqueHosts(hosts)
 	if len(hosts) == 0 {
 		return nil, nil
 	}
@@ -124,6 +122,19 @@ func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ci
 		})
 	}
 	return egress, nil
+}
+
+func uniqueHosts(hosts []envutil.Host) []envutil.Host {
+	seen := make(map[envutil.Host]struct{}, len(hosts))
+	out := make([]envutil.Host, 0, len(hosts))
+	for _, host := range hosts {
+		if _, ok := seen[host]; ok {
+			continue
+		}
+		seen[host] = struct{}{}
+		out = append(out, host)
+	}
+	return out
 }
 
 func dnsEgressRule() ciliumapi.EgressRule {
@@ -157,7 +168,7 @@ func dnsEgressRule() ciliumapi.EgressRule {
 	}
 }
 
-func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent, port int32) ciliumapi.EgressRule {
+func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent) ciliumapi.EgressRule {
 	return ciliumapi.EgressRule{
 		EgressCommonRule: ciliumapi.EgressCommonRule{
 			ToEndpoints: []ciliumapi.EndpointSelector{
@@ -178,7 +189,7 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent, port int32) ciliumapi.Egr
 		ToPorts: ciliumapi.PortRules{{
 			Ports: []ciliumapi.PortProtocol{
 				{
-					Port:     fmt.Sprintf("%d", port),
+					Port:     "4096",
 					Protocol: ciliumapi.ProtoTCP,
 				},
 			},
@@ -188,9 +199,6 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent, port int32) ciliumapi.Egr
 
 func automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
 	var hosts []envutil.Host
-	if agt.Spec.Session.Enabled {
-		hosts = append(hosts, hostForEndpoint(agt.Spec.Session.Target)...)
-	}
 	if agt.Spec.Telemetry.Enabled {
 		hosts = append(hosts, hostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)...)
 	}

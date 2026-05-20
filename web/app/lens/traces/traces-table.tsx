@@ -47,6 +47,7 @@ import { TelemetryTableSkeleton } from "@/app/lens/runtime-telemetry/telemetry-t
 import {
   TelemetryTable as SharedTelemetryTable,
   ActionBadge as SharedActionBadge,
+  TruncateCell,
   type TelemetryTableColumn,
 } from "@/app/lens/runtime-telemetry/telemetry-table"
 import {
@@ -117,9 +118,9 @@ const columns: ColumnDef<TraceListItem>[] = [
 
       return (
         <div className="flex flex-wrap gap-1.5">
-          <MetricBadge icon={Route} value={trace.spanCount} singular="step" />
-          <MetricBadge icon={Wrench} value={trace.toolCount} singular="tool call" />
-          <MetricBadge icon={Brain} value={trace.modelCount} singular="model call" />
+          <MetricBadge icon={Route} value={trace.spanCount} singular="span" />
+          <MetricBadge icon={Wrench} value={trace.toolCount} singular="tool span" />
+          <MetricBadge icon={Brain} value={trace.modelCount} singular="llm span" />
           <MetricBadge
             icon={CircleAlert}
             value={trace.errorCount}
@@ -200,12 +201,12 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
       void (async () => {
         const [spanResult, telemetryResult] = await Promise.all([
           listSpansAction({
-            session_id: trace.sessionId,
+            agent_name: trace.agentName,
             trace_id: trace.traceId,
-            limit: 100,
+            limit: 50,
           }),
           getRuntimeTelemetryAction({
-            session_id: trace.sessionId,
+            agent_name: trace.agentName,
             started_after: trace.startedAt,
             started_before: trace.endedAt,
           }),
@@ -230,7 +231,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
     startTelemetryTransition(() => {
       void (async () => {
         const result = await getRuntimeTelemetryTabAction({
-          session_id: selectedTrace.sessionId,
+          agent_name: selectedTrace.agentName,
           started_after: selectedTrace.startedAt,
           started_before: selectedTrace.endedAt,
           tab: nextTab,
@@ -265,9 +266,9 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
     startSpansTransition(() => {
       void (async () => {
         const result = await listSpansAction({
-          session_id: selectedTrace.sessionId,
+          agent_name: selectedTrace.agentName,
           trace_id: selectedTrace.traceId,
-          limit: 100,
+          limit: 50,
           page_token: nextPageToken,
         })
         setSpans(result.data)
@@ -303,7 +304,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
   if (!data) {
     return (
       <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-        No agents
+        No traces
       </div>
     )
   }
@@ -445,7 +446,10 @@ function TraceInspector({
   onTabChange: (tab: TraceInspectorTab) => void
 }) {
   return (
-    <SheetContent className="data-[side=right]:w-full data-[side=right]:max-w-full gap-0 overflow-y-auto overflow-x-hidden border-l bg-background p-0 text-sm shadow-2xl sm:max-w-none! md:w-[89vw]! lg:w-[84vw]! lg:overflow-hidden [&_svg]:size-4">
+    <SheetContent
+      aria-describedby={undefined}
+      className="data-[side=right]:w-full data-[side=right]:max-w-full gap-0 overflow-y-auto overflow-x-hidden border-l bg-background p-0 text-sm shadow-2xl sm:max-w-none! md:w-[89vw]! lg:w-[84vw]! lg:overflow-hidden [&_svg]:size-4"
+    >
       <SheetHeader>
         <SheetTitle className="truncate font-mono text-md">
           {trace?.traceId ? `Trace ID: ${trace?.traceId}` : "Trace inspector"}
@@ -537,7 +541,7 @@ function SpansInspectorContent({
 
     startDetailTransition(async () => {
       const result = await getSpanDetailAction({
-        session_id: selectedSpan.sessionId,
+        agent_name: selectedSpan.agentName,
         trace_id: selectedSpan.traceId,
         span_id: selectedSpan.spanId,
       })
@@ -590,7 +594,7 @@ function SpansInspectorContent({
               </Button>
             </div>
           </div>
-          <div className="max-h-72 overflow-auto py-2 lg:h-[calc(100vh-134px)] lg:max-h-none">
+          <div className="max-h-72 overflow-auto py-2 pb-5 lg:h-[calc(100vh-134px)] lg:max-h-none lg:pb-8">
             {data.spans.length > 0 ? (
               data.spans.map((span) => (
                 <SpanTreeRow
@@ -637,15 +641,15 @@ function SpanTreeRow({
     <button
       type="button"
       className={cn(
-        "relative flex w-full flex-col border-l-4 border-transparent py-1.5 pr-4 text-left hover:bg-chart-2/7 lg:pr-5",
-        selected && "border-chart-2 bg-chart-2/8"
+        "relative flex w-full flex-col border-l-4 border-transparent py-2 pr-4 text-left hover:bg-muted/35 lg:pr-5",
+        selected && "border-primary/55 bg-muted/55"
       )}
       style={{ paddingLeft: indent }}
       onClick={onClick}
     >
       <div className="flex min-w-0 items-center gap-2">
         <span
-          className={cn("flex size-4 shrink-0 items-center justify-center", spanColorClass(span))}
+          className={cn("flex size-4 shrink-0 items-center justify-center text-muted-foreground")}
         >
           <SpanKindIcon span={span} />
         </span>
@@ -718,7 +722,6 @@ function SpanDetailViewer({
             <Clock />
             {span?.duration ?? trace?.duration}
           </span>
-          {span?.timeToFirstToken ? <span>TTFT {span.timeToFirstToken}</span> : null}
           {span ? <span>{formatCompactNumber(span.totalTokens)} tokens</span> : null}
         </div>
         {span && span.spanType !== "agent" ? <InspectorTokenMeter span={span} /> : null}
@@ -755,7 +758,7 @@ function SpanJSONSections({
           title="Trace"
           rows={[
             ["trace.id", trace?.traceId ?? ""],
-            ["session.id", trace?.sessionId ?? ""],
+            ["agent.name", trace?.agentName ?? ""],
             ["duration", trace?.duration ?? ""],
             ["spans", String(trace?.spanCount ?? 0)],
             ["tools", String(trace?.toolCount ?? 0)],
@@ -772,31 +775,43 @@ function SpanJSONSections({
   const output = payload.find((section) => section.key === "output_messages")
   const toolArguments = payload.find((section) => section.key === "tool_arguments")
   const toolResult = payload.find((section) => section.key === "tool_result")
-  const metadata = payload.find((section) => section.key === "metadata")
 
   return (
     <div className="flex flex-col gap-5">
       {span.error ? (
         <JSONTextPanel title="Error" code={JSON.stringify({ error: span.error }, null, 2)} />
       ) : null}
-      <JSONTextPanel title="Input" code={input?.json ?? ""} />
-      <JSONTextPanel title="Output" code={output?.json ?? ""} />
+      {input && !input.empty ? <JSONTextPanel title="Input" code={input.json} /> : null}
+      {output && !output.empty ? <JSONTextPanel title="Output" code={output.json} /> : null}
       {toolArguments && !toolArguments.empty ? (
         <JSONTextPanel title="Tool arguments" code={toolArguments.json} />
       ) : null}
       {toolResult && !toolResult.empty ? (
         <JSONTextPanel title="Tool result" code={toolResult.json} />
       ) : null}
-      <JSONTextPanel title="Metadata" code={metadata?.json ?? "{}"} />
+      {detail?.resourceAttributes && !detail.resourceAttributes.empty ? (
+        <JSONTextPanel title="Resource attributes" code={detail.resourceAttributes.json} />
+      ) : null}
+      {detail?.spanAttributes && !detail.spanAttributes.empty ? (
+        <JSONTextPanel title="Span attributes" code={detail.spanAttributes.json} />
+      ) : null}
       <JSONPanel
         title="Usage"
         rows={[
+          ["agent.name", span.agentName],
+          ["session.id", span.sessionId],
           ["span.id", span.spanId],
           ["parent.id", span.parentSpanId || "root"],
+          ["span.class", span.spanClass],
+          ["kind", span.kind],
+          ["status_code", span.statusCode],
           ["operation", span.operationLabel],
+          ["llm_finish_reason", span.llmFinishReason || ""],
           ["input_tokens", String(span.inputTokens)],
           ["cached_input_tokens", String(span.cachedInputTokens)],
+          ["cached_write_tokens", String(span.cachedWriteTokens)],
           ["output_tokens", String(span.outputTokens)],
+          ["cost_usd", String(span.costUSD)],
         ]}
       />
     </div>
@@ -816,12 +831,12 @@ function JSONTextPanel({ title, code }: { title: string; code: string }) {
           <div className="text-sm font-medium">{title}</div>
         )}
       </div>
-      <div className="max-h-100 overflow-auto">
+      <div className="max-h-100 overflow-auto rounded-md">
         <CodeBlock
           code={code}
           language="json"
           showLineNumbers={true}
-          className="border-0 bg-muted/30"
+          className="border-0 bg-muted/20"
         />
       </div>
     </section>
@@ -1033,22 +1048,6 @@ function RuntimeTelemetrySkeleton({
   )
 }
 
-function spanColorClass(span: SpanListItem) {
-  if (span.spanType === "model") {
-    return "text-chart-1"
-  }
-
-  if (span.spanType === "tool") {
-    return "text-chart-4"
-  }
-
-  if (span.spanType === "agent") {
-    return "text-primary"
-  }
-
-  return "text-chart-2"
-}
-
 function spanTimelineClass(span: SpanListItem) {
   if (span.spanType === "model") {
     return "bg-chart-1"
@@ -1069,14 +1068,14 @@ const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
   {
     key: "process",
     header: "Process",
-    className: "min-w-36",
-    render: (event) => <span className={telemetryMonoClass}>{event.primary}</span>,
+    className: "min-w-36 max-w-64",
+    render: (event) => <TruncateCell value={event.primary} />,
   },
   {
     key: "command",
     header: "Command",
-    className: "min-w-80",
-    render: (event) => <span className={telemetryWideMonoClass}>{event.secondary}</span>,
+    className: "min-w-80 max-w-112",
+    render: (event) => <TruncateCell value={event.secondary} />,
   },
   {
     key: "action",
@@ -1127,14 +1126,14 @@ const fileTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = 
   {
     key: "file",
     header: "File Path Accessed",
-    className: "min-w-80",
-    render: (event) => <span className={telemetryWideMonoClass}>{event.primary}</span>,
+    className: "min-w-80 max-w-112",
+    render: (event) => <TruncateCell value={event.primary} />,
   },
   {
     key: "process",
     header: "Process",
-    className: "min-w-72",
-    render: (event) => <span className={telemetryWideMonoClass}>{event.secondary}</span>,
+    className: "min-w-72 max-w-112",
+    render: (event) => <TruncateCell value={event.secondary} />,
   },
   {
     key: "action",
@@ -1257,8 +1256,7 @@ function TelemetryTimestamp({ value }: { value: string }) {
   return <span className="text-sm">{value}</span>
 }
 
-const telemetryMonoClass = "max-w-[16rem] whitespace-normal break-all font-mono text-xs"
-const telemetryWideMonoClass = "max-w-[28rem] whitespace-normal break-all font-mono text-xs"
+const telemetryMonoClass = "font-mono text-xs"
 
 function networkDestinationDomain(event: RuntimeTelemetryEventItem) {
   const domain = /^(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/

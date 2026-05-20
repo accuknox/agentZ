@@ -26,19 +26,19 @@ import type { DeleteSecretFormState, PutSecretFormState } from "@/data/types"
 import { SecretSheet } from "./secret-sheet"
 
 type DeleteSecretAction = (
-  sessionID: string,
+  agentName: string,
   state: DeleteSecretFormState,
   formData: FormData
 ) => Promise<DeleteSecretFormState>
 
 type PutSecretAction = (
-  sessionID: string,
+  agentName: string,
   state: PutSecretFormState,
   formData: FormData
 ) => Promise<PutSecretFormState>
 
 export function createSecretColumns(
-  sessionID: string,
+  agentName: string,
   deleteSecretAction: DeleteSecretAction,
   putSecretAction: PutSecretAction
 ): ColumnDef<SecretListItem>[] {
@@ -106,7 +106,7 @@ export function createSecretColumns(
 
         return (
           <SecretActions
-            sessionID={sessionID}
+            agentName={agentName}
             item={item}
             deleteSecretAction={deleteSecretAction}
             putSecretAction={putSecretAction}
@@ -118,12 +118,12 @@ export function createSecretColumns(
 }
 
 function SecretActions({
-  sessionID,
+  agentName,
   item,
   deleteSecretAction,
   putSecretAction,
 }: {
-  sessionID: string
+  agentName: string
   item: SecretListItem
   deleteSecretAction: DeleteSecretAction
   putSecretAction: PutSecretAction
@@ -152,7 +152,7 @@ function SecretActions({
         </DropdownMenuContent>
       </DropdownMenu>
       <SecretSheet
-        sessionID={sessionID}
+        agentName={agentName}
         mode="update"
         secretKey={item.key}
         hosts={item.hosts}
@@ -161,7 +161,7 @@ function SecretActions({
         onOpenChangeAction={setEditOpen}
       />
       <DeleteSecretDialog
-        sessionID={sessionID}
+        agentName={agentName}
         item={item}
         deleteSecretAction={deleteSecretAction}
         open={deleteOpen}
@@ -172,20 +172,20 @@ function SecretActions({
 }
 
 function DeleteSecretDialog({
-  sessionID,
+  agentName,
   item,
   deleteSecretAction,
   open,
   setOpen,
 }: {
-  sessionID: string
+  agentName: string
   item: SecretListItem
   deleteSecretAction: DeleteSecretAction
   open: boolean
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const [state, action, pending] = React.useActionState(
-    deleteSecretAction.bind(null, sessionID),
+    deleteSecretAction.bind(null, agentName),
     {}
   )
 

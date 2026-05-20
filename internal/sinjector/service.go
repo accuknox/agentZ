@@ -13,13 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	k8sauth "github.com/openbao/openbao/api/auth/kubernetes/v2"
 	baoapi "github.com/openbao/openbao/api/v2"
+
+	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 )
 
 const (
 	// DefaultListenAddr is the default SIP listen address.
-	DefaultListenAddr  = "0.0.0.0:8080"
+	DefaultListenAddr  = "0.0.0.0:4096"
 	defaultHeaderBytes = 1 << 20
 	defaultReadTimeout = 10 * time.Second
 	defaultIdleTimeout = 60 * time.Second
@@ -35,7 +36,7 @@ type Config struct {
 	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
 	OpenBaoK8sAuthTokenPath string
-	SessionID               string
+	AgentName               string
 	CACertPath              string
 	CAKeyPath               string
 	Verbose                 bool
@@ -43,7 +44,7 @@ type Config struct {
 
 type resolver struct {
 	kv        *baoapi.KVv2
-	sessionID string
+	agentName string
 }
 
 // Serve starts the secret injection proxy and blocks until shutdown.
@@ -55,20 +56,15 @@ func Serve(ctx context.Context, cfg Config) error {
 		return err
 	}
 
-	baoClient, err := baoapi.NewClient(&baoapi.Config{Address: cfg.OpenBaoAddr})
-	if err != nil {
-		return fmt.Errorf("create openbao client: %w", err)
-	}
-	auth, err := k8sauth.NewKubernetesAuth(
+	baoClient, err := baoclient.NewClient(
+		ctx,
+		cfg.OpenBaoAddr,
 		cfg.OpenBaoK8sAuthRole,
-		k8sauth.WithMountPath(cfg.OpenBaoK8sAuthMountPath),
-		k8sauth.WithServiceAccountTokenPath(cfg.OpenBaoK8sAuthTokenPath),
+		cfg.OpenBaoK8sAuthMountPath,
+		cfg.OpenBaoK8sAuthTokenPath,
 	)
 	if err != nil {
-		return fmt.Errorf("create kubernetes auth: %w", err)
-	}
-	if _, err := baoClient.Auth().Login(ctx, auth); err != nil {
-		return fmt.Errorf("openbao kubernetes auth login: %w", err)
+		return err
 	}
 
 	ca, err := tls.LoadX509KeyPair(cfg.CACertPath, cfg.CAKeyPath)
@@ -81,8 +77,9 @@ func Serve(ctx context.Context, cfg Config) error {
 		certCache: newCertStore(1024),
 		resolver: resolver{
 			kv:        baoClient.KVv2(cfg.OpenBaoSecretMountPath),
-			sessionID: cfg.SessionID,
+			agentName: cfg.AgentName,
 		},
+		transport: newProxyTransport(),
 	}
 
 	srv := &http.Server{
@@ -97,7 +94,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	go func() {
 		slog.InfoContext(ctx, "starting secret injection proxy",
 			slog.String("addr", cfg.Addr),
-			slog.String("session_id", cfg.SessionID),
+			slog.String("agent_name", cfg.AgentName),
 		)
 		errCh <- srv.ListenAndServe()
 	}()
@@ -129,8 +126,8 @@ func validate(cfg Config) error {
 	if strings.TrimSpace(cfg.OpenBaoK8sAuthRole) == "" {
 		return fmt.Errorf("openbao k8s auth role is required")
 	}
-	if strings.TrimSpace(cfg.SessionID) == "" {
-		return fmt.Errorf("session id is required")
+	if strings.TrimSpace(cfg.AgentName) == "" {
+		return fmt.Errorf("agent name is required")
 	}
 	if strings.TrimSpace(cfg.CACertPath) == "" {
 		return fmt.Errorf("ca cert path is required")
@@ -141,8 +138,17 @@ func validate(cfg Config) error {
 	return nil
 }
 
+// newProxyTransport builds the upstream transport used after request rewriting.
+func newProxyTransport() http.RoundTripper {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.Proxy = nil
+	tr.DisableCompression = true
+	tr.ForceAttemptHTTP2 = true
+	return tr
+}
+
 func (r resolver) resolve(ctx context.Context, name string) (resolvedSecret, error) {
-	secret, err := r.kv.Get(ctx, fmt.Sprintf("%s/%s", r.sessionID, name))
+	secret, err := r.kv.Get(ctx, fmt.Sprintf("%s/%s", r.agentName, name))
 	if err != nil {
 		return resolvedSecret{}, fmt.Errorf("read openbao secret %q: %w", name, err)
 	}

@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 export type TelemetryTableColumn<T> = {
@@ -170,5 +171,24 @@ export function ActionBadge({ action }: { action: string }) {
     >
       {action}
     </span>
+  )
+}
+
+export function TruncateCell({ value, className }: { value: string; className?: string }) {
+  if (!value) {
+    return <span className={cn("font-mono text-xs", className)} />
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={cn("block max-w-full min-w-0 truncate font-mono text-xs", className)}>
+            {value}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-120 break-all font-mono text-xs">{value}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }

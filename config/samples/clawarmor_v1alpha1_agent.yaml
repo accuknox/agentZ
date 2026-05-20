@@ -9,104 +9,13 @@ spec:
   image: murtazau/clawarmor-agent:latest
   imagePullPolicy: Never
   environmentRef:
-    name: environment-sample
+    name: cluster-debugger
   env:
   - name: OPENAI_API_KEY
     valueFrom:
       secretKeyRef:
         name: openai-api-key
         key: OPENAI_API_KEY
-
-  server:
-    address: 0.0.0.0:8080
-    gracefulShutdownTimeout: 15s
-
-  instruction: ""
-  systemPrompt: ""
-  compaction:
-    mode: summary
-    enabled: true
-    thresholdRatio: 0.9
-    historyToolResultRatio: 0.008
-    keepRecentRequests: 2
-    oversizedToolResultRatio: 0.065
-  maxHistoryRuns: 50
-
-  model:
-    name: gpt-5.4-nano
-    # baseURL: "http://100.92.36.14:11434/v1/"
-    contextWindow: 200000
-    temperature: 0.2
-    maxTokens: 0
-    stream: true
-
-  memory:
-    enabled: true
-    limit: 0
-    tools:
-      search: true
-      load: true
-      add: true
-      update: true
-      delete: true
-      clear: false
-
-  session:
-    enabled: true
-    target: 172.18.0.1:8081
-    insecure: true
-    timeoutMs: 5000
-    id: 51047bae-702a-4115-bcde-95fff10593bb
-    summary:
-      enabled: true
-      mode: auto
-      eventThreshold: 20
-      tokenThreshold: 0
-      idleThreshold: 0s
-      maxWords: 200
-      approxRunesPerToken: 0
-
   telemetry:
     enabled: true
     traceEndpoint: 172.18.0.1:4317
-
-  tools:
-    hostExec:
-      enabled: true
-      baseDir: /home/clawarmor
-      baseEnv: {}
-
-    webFetch:
-      enabled: true
-      timeoutMs: 30000
-      maxContentLength: 0
-      maxTotalContentLength: 0
-
-    file:
-      enabled: false
-      baseDir: /home/clawarmor
-
-    arxiv:
-      enabled: true
-      baseURL: ""
-      pageSize: 10
-      delayMs: 0
-      numRetries: 2
-
-    openAPI: []
-    # - enabled: true
-    #   name: petstore
-    #   specFile: ./openapi/petstore.yaml
-    #   specUrl: ""
-
-    mcp: []
-    # - enabled: true
-    #   name: playwright
-    #   transport: stdio
-    #   serverUrl: ""
-    #   command: npx
-    #   args: ["@playwright/mcp@latest"]
-    #   headers: {}
-    #   timeoutMs: 30000
-    #   reconnect: true
-    #   reconnectMaxAttempts: 3

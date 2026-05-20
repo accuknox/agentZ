@@ -1,0 +1,747 @@
+package gateway
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"slices"
+	"strings"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/util/retry"
+
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
+	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+)
+
+// ListAgents handles GET /api/agent/list.
+func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListAgentsParams) {
+	limit := 50
+	if params.Limit != nil {
+		limit = int(*params.Limit)
+	}
+	if limit < 1 || limit > 200 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
+		return
+	}
+
+	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
+
+	agentNames := []string{}
+	if params.AgentName != nil {
+		agentNames = make([]string, 0, len(*params.AgentName))
+		for _, name := range *params.AgentName {
+			agentName, ok := validAgentName(w, r, name, "agent_name")
+			if !ok {
+				return
+			}
+			agentNames = append(agentNames, agentName)
+		}
+	}
+
+	items, next, err := s.listAgentItems(r.Context(), agentNames, limit, offset)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, gatewayapi.ListAgentsResponse{
+		Agents:        items,
+		NextPageToken: next,
+	})
+}
+
+// CreateAgent handles POST /api/agent/create.
+//
+//nolint:gocyclo
+func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.CreateAgentRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	name, fields := validateCreateAgentRequest(req)
+	envFields, err := s.validateAgentEnvironmentName(r.Context(), req.EnvironmentName)
+	fields = append(fields, envFields...)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	row, err := s.queries.GatewayCreateAgent(r.Context(), name)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("create agent", err))
+		return
+	}
+
+	agt := s.agentFromCreateRequest(req, name)
+	_, err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Create(
+		r.Context(),
+		agt,
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		if _, deleteErr := s.queries.GatewayDeleteAgent(r.Context(), name); deleteErr != nil {
+			err = fmt.Errorf("create agent: %w; rollback record: %v", err, deleteErr)
+		}
+		writeError(w, r, mapKubeHTTPError("create agent", err))
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
+		Name:            row.AgentName,
+		EnvironmentName: req.EnvironmentName,
+		CreatedAt:       row.CreatedAt,
+		ModifiedAt:      row.UpdatedAt,
+		LastActivity:    row.UpdatedAt,
+		Status:          gatewayapi.PROGRESSING,
+	})
+}
+
+// UpdateAgent handles POST /api/agent/update/{agentName}.
+func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	var req gatewayapi.UpdateAgentRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	name, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
+		return
+	}
+	if fields := validateUpdateAgentRequest(req); len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+	if req.EnvironmentName != nil {
+		envFields, err := s.validateAgentEnvironmentName(r.Context(), *req.EnvironmentName)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		if len(envFields) > 0 {
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				envFields...,
+			))
+			return
+		}
+	}
+	if !updateAgentRequestHasChanges(req) {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: "must include at least one mutable field",
+			},
+		))
+		return
+	}
+
+	row, err := s.queries.GatewayGetAgent(r.Context(), name)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("get agent", err))
+		return
+	}
+
+	var updated *clawarmorv1alpha1.Agent
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		agt, getErr := s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Get(
+			r.Context(),
+			row.AgentName,
+			metav1.GetOptions{},
+		)
+		if getErr != nil {
+			return getErr
+		}
+		applyUpdateAgentRequest(agt, req)
+		updated, getErr = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Update(
+			r.Context(),
+			agt,
+			metav1.UpdateOptions{},
+		)
+		return getErr
+	})
+	if err != nil {
+		writeError(w, r, mapKubeHTTPError("update agent", err))
+		return
+	}
+
+	status := gatewayapi.PROGRESSING
+	if view := statusFromAgent(updated); view != nil {
+		status = statusFromView(view)
+	}
+	writeJSON(w, http.StatusOK, gatewayapi.Agent{
+		Name:            row.AgentName,
+		EnvironmentName: updated.Spec.EnvironmentRef.Name,
+		CreatedAt:       row.CreatedAt,
+		ModifiedAt:      row.UpdatedAt,
+		LastActivity:    row.UpdatedAt,
+		Status:          status,
+	})
+}
+
+// DeleteAgent handles POST /api/agent/delete.
+func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.DeleteAgentRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	agentName, ok := validAgentName(w, r, req.AgentName, "agent_name")
+	if !ok {
+		return
+	}
+
+	row, err := s.queries.GatewayGetAgent(r.Context(), agentName)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("get agent", err))
+		return
+	}
+	err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Delete(
+		r.Context(),
+		row.AgentName,
+		metav1.DeleteOptions{},
+	)
+	if err != nil && !apierrors.IsNotFound(err) {
+		writeError(w, r, mapKubeHTTPError("delete agent", err))
+		return
+	}
+
+	if err := s.deleteAgentSecrets(r.Context(), agentName); err != nil {
+		writeError(w, r, mapOpenBaoError(err))
+		return
+	}
+
+	rows, err := s.queries.GatewayDeleteAgent(r.Context(), agentName)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("delete agent", err))
+		return
+	}
+	if rows == 0 {
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// WatchAgents handles POST /api/agent/watch.
+func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.WatchAgentsRequest
+	if r.Body != nil {
+		if !decodeJSONBody(w, r, &req, true) {
+			return
+		}
+	}
+
+	agentNames := []string{}
+	if req.AgentNames != nil {
+		agentNames = make([]string, 0, len(*req.AgentNames))
+		for _, name := range *req.AgentNames {
+			agentName, ok := validAgentName(w, r, name, "agent_names")
+			if !ok {
+				return
+			}
+			agentNames = append(agentNames, agentName)
+		}
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, r, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"streaming is unavailable",
+			nil,
+		))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	prev := make(map[string]gatewayapi.Agent)
+	send := func(event string, items []gatewayapi.Agent) bool {
+		if len(items) == 0 {
+			return true
+		}
+		raw, err := json.Marshal(gatewayapi.WatchAgentsEvent{Agents: items})
+		if err != nil {
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+		if event != "" {
+			if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+				return false
+			}
+		}
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	events, cancel := s.resolver.watchAgents()
+	defer cancel()
+
+	writeChanges := func() bool {
+		items, _, err := s.listAgentItems(r.Context(), agentNames, 200, 0)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return false
+			}
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+
+		changed := make([]gatewayapi.Agent, 0, len(items))
+		for _, item := range items {
+			if !sameAgent(prev[item.Name], item) {
+				prev[item.Name] = item
+				changed = append(changed, item)
+			}
+		}
+		return send("", changed)
+	}
+
+	if !writeChanges() {
+		return
+	}
+
+	ticker := time.NewTicker(statusPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-s.ctx.Done():
+			return
+		case evt, ok := <-events:
+			if !ok {
+				return
+			}
+			if evt.Type == agentWatchEventDeleted {
+				item, ok := deletedAgentEventItem(evt.Agent, prev, agentNames)
+				if ok && !send("DELETE", []gatewayapi.Agent{item}) {
+					return
+				}
+				continue
+			}
+			if !writeChanges() {
+				return
+			}
+		case <-ticker.C:
+			if !writeChanges() {
+				return
+			}
+		}
+	}
+}
+
+func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit int, offset int) ([]gatewayapi.Agent, string, error) {
+	var rows []gatewaydb.Agent
+	var err error
+	if len(agentNames) > 0 {
+		rows, err = s.queries.GatewayListAgentsByName(ctx, gatewaydb.GatewayListAgentsByNameParams{
+			Column1: agentNames,
+			Limit:   int32(limit + 1),
+			Offset:  int32(offset),
+		})
+	} else {
+		rows, err = s.queries.GatewayListAgents(ctx, gatewaydb.GatewayListAgentsParams{
+			Limit:  int32(limit + 1),
+			Offset: int32(offset),
+		})
+	}
+	if err != nil {
+		return nil, "", err
+	}
+
+	items := make([]gatewayapi.Agent, 0, limit)
+	var next string
+	for _, row := range rows {
+		if len(items) == limit {
+			next = encodeOffsetToken(offset + limit)
+			continue
+		}
+
+		status := gatewayapi.UNSPECIFIED
+		resolved, resolveErr := s.resolver.resolveAgent(ctx, row.AgentName)
+		if resolveErr == nil {
+			view := statusFromAgent(resolved.Agent)
+			status = statusFromView(view)
+		} else if !errors.Is(resolveErr, errAgentNotFound) {
+			return nil, "", resolveErr
+		}
+
+		items = append(items, gatewayapi.Agent{
+			Name:            row.AgentName,
+			EnvironmentName: resolved.Agent.Spec.EnvironmentRef.Name,
+			LastActivity:    row.UpdatedAt,
+			CreatedAt:       row.CreatedAt,
+			ModifiedAt:      row.UpdatedAt,
+			Status:          status,
+		})
+	}
+	return items, next, nil
+}
+
+func sameAgent(a, b gatewayapi.Agent) bool {
+	return a.Name == b.Name &&
+		a.LastActivity.Equal(b.LastActivity) &&
+		a.CreatedAt.Equal(b.CreatedAt) &&
+		a.ModifiedAt.Equal(b.ModifiedAt) &&
+		a.Status == b.Status
+}
+
+func deletedAgentEventItem(agt *clawarmorv1alpha1.Agent, prev map[string]gatewayapi.Agent, agentNames []string) (gatewayapi.Agent, bool) {
+	if agt == nil {
+		return gatewayapi.Agent{}, false
+	}
+	if len(agentNames) > 0 && !slices.Contains(agentNames, agt.Name) {
+		return gatewayapi.Agent{}, false
+	}
+
+	item, ok := prev[agt.Name]
+	delete(prev, agt.Name)
+	if !ok {
+		return gatewayapi.Agent{}, false
+	}
+
+	item.Status = gatewayapi.DELETED
+	return item, true
+}
+
+//nolint:gocyclo
+func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []gatewayapi.FieldError) {
+	fields := []gatewayapi.FieldError{}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "required"})
+	}
+	if len(name) > 32 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "name", Message: "must be at most 32 characters",
+		})
+	}
+	if name != "" {
+		if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field: "name", Message: "must be a valid DNS label",
+			})
+		}
+	}
+
+	fields = append(fields, validateOpenCodeRequest(req.Opencode)...)
+
+	return name, fields
+}
+
+func validateAgentEnvironmentNameField(fields []gatewayapi.FieldError, name string) []gatewayapi.FieldError {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return append(fields, gatewayapi.FieldError{
+			Field: "environmentName", Message: "required",
+		})
+	}
+	if len(name) > 32 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "environmentName", Message: "must be at most 32 characters",
+		})
+	}
+	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "environmentName", Message: "must be a valid DNS label",
+		})
+	}
+	return fields
+}
+
+func (s *Service) validateAgentEnvironmentName(ctx context.Context, name gatewayapi.EnvironmentName) ([]gatewayapi.FieldError, error) {
+	fields := validateAgentEnvironmentNameField(nil, name)
+	if len(fields) > 0 {
+		return fields, nil
+	}
+
+	var env clawarmorv1alpha1.Environment
+	key := types.NamespacedName{Namespace: s.cfg.Namespace, Name: name}
+	if err := s.k8sClient.Get(ctx, key, &env); err != nil {
+		if apierrors.IsNotFound(err) {
+			return []gatewayapi.FieldError{{
+				Field:   "environmentName",
+				Message: "environment not found",
+			}}, nil
+		}
+		return nil, fmt.Errorf("get environment %q: %w", name, err)
+	}
+	return nil, nil
+}
+
+func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name string) *clawarmorv1alpha1.Agent {
+	env := []corev1.EnvVar{}
+	if req.Env != nil {
+		env = envVarsFromMap(*req.Env)
+	}
+
+	agt := &clawarmorv1alpha1.Agent{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clawarmorv1alpha1.GroupVersion.String(),
+			Kind:       "Agent",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: s.cfg.Namespace,
+			Labels: map[string]string{
+				labelManagedBy: "clawarmor-agent-gateway",
+			},
+		},
+		Spec: clawarmorv1alpha1.AgentSpec{
+			Image: s.cfg.AgentImage,
+			Env:   env,
+			Telemetry: clawarmorv1alpha1.TelemetryConfig{
+				Enabled:       true,
+				TraceEndpoint: s.cfg.AgentTraceEndpoint,
+			},
+			EnvironmentRef: &corev1.LocalObjectReference{
+				Name: req.EnvironmentName,
+			},
+		},
+	}
+	applyOpencodeRequest(&agt.Spec, req.Opencode)
+	return agt
+}
+
+func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
+	if req.Env != nil {
+		return true
+	}
+	if req.EnvironmentName != nil {
+		return true
+	}
+	if req.Opencode != nil {
+		return true
+	}
+	return false
+}
+
+func validateUpdateAgentRequest(req gatewayapi.UpdateAgentRequest) []gatewayapi.FieldError {
+	return validateOpenCodeRequest(req.Opencode)
+}
+
+func applyUpdateAgentRequest(agt *clawarmorv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
+	if req.Env != nil {
+		agt.Spec.Env = envVarsFromMap(*req.Env)
+	}
+	if req.EnvironmentName != nil {
+		agt.Spec.EnvironmentRef = &corev1.LocalObjectReference{
+			Name: *req.EnvironmentName,
+		}
+	}
+	applyOpencodeRequest(&agt.Spec, req.Opencode)
+}
+
+func envVarsFromMap(items map[string]string) []corev1.EnvVar {
+	keys := make([]string, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	env := make([]corev1.EnvVar, 0, len(keys))
+	for _, key := range keys {
+		env = append(env, corev1.EnvVar{Name: key, Value: items[key]})
+	}
+	return env
+}
+
+func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.FieldError {
+	if cfg == nil {
+		return nil
+	}
+
+	fields := []gatewayapi.FieldError{}
+	if cfg.Model != nil && !isValidModelRef(*cfg.Model) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "opencode.model",
+			Message: "must be in provider/model form",
+		})
+	}
+	if cfg.SmallModel != nil && !isValidModelRef(*cfg.SmallModel) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "opencode.smallModel",
+			Message: "must be in provider/model form",
+		})
+	}
+	if cfg.Instruction != nil {
+		if strings.TrimSpace(*cfg.Instruction) == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "opencode.instruction",
+				Message: "instruction must not be empty",
+			})
+		}
+		if len(*cfg.Instruction) > 4096 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "opencode.instruction",
+				Message: "instruction must be at most 4096 characters",
+			})
+		}
+	}
+	if cfg.Providers == nil {
+		return fields
+	}
+
+	for name, provider := range *cfg.Providers {
+		if strings.TrimSpace(name) == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "opencode.providers",
+				Message: "provider name must not be empty",
+			})
+		}
+		if provider.Env != nil {
+			for i, envName := range *provider.Env {
+				if strings.TrimSpace(envName) == "" {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   fmt.Sprintf("opencode.providers.%s.env.%d", name, i),
+						Message: "env var name must not be empty",
+					})
+					continue
+				}
+				if errs := validation.IsEnvVarName(envName); len(errs) > 0 {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   fmt.Sprintf("opencode.providers.%s.env.%d", name, i),
+						Message: strings.Join(errs, ", "),
+					})
+				}
+			}
+		}
+		if provider.BaseURL == nil || strings.TrimSpace(*provider.BaseURL) == "" {
+			continue
+		}
+		parsed, err := url.Parse(*provider.BaseURL)
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("opencode.providers.%s.baseURL", name),
+				Message: fmt.Sprintf("parse url: %v", err),
+			})
+			continue
+		}
+		if !parsed.IsAbs() {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("opencode.providers.%s.baseURL", name),
+				Message: "must be an absolute url",
+			})
+		}
+	}
+
+	return fields
+}
+
+func applyOpencodeRequest(spec *clawarmorv1alpha1.AgentSpec, cfg *gatewayapi.AgentOpencodeConfig) {
+	if cfg == nil {
+		return
+	}
+
+	if cfg.Model != nil {
+		spec.Model = *cfg.Model
+	}
+	if cfg.SmallModel != nil {
+		spec.SmallModel = *cfg.SmallModel
+	}
+	if cfg.Instruction != nil {
+		spec.Instruction = *cfg.Instruction
+	}
+	if cfg.Providers == nil {
+		return
+	}
+
+	spec.Providers = make(
+		map[string]clawarmorv1alpha1.OpencodeProviderConfig,
+		len(*cfg.Providers),
+	)
+	for name, provider := range *cfg.Providers {
+		item := clawarmorv1alpha1.OpencodeProviderConfig{}
+		if provider.Env != nil && len(*provider.Env) > 0 {
+			item.Env = append([]string{}, (*provider.Env)...)
+		}
+		if provider.BaseURL != nil {
+			item.BaseURL = *provider.BaseURL
+		}
+		spec.Providers[name] = item
+	}
+}
+
+func isValidModelRef(v string) bool {
+	provider, model, ok := strings.Cut(v, "/")
+	if !ok {
+		return false
+	}
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
+		return false
+	}
+	return !strings.Contains(model, "/")
+}
+
+func statusFromView(view *agentStatusView) gatewayapi.AgentStatus {
+	switch view.Phase {
+	case agentPhaseReady:
+		return gatewayapi.IDLE
+	case agentPhaseProgressing:
+		return gatewayapi.PROGRESSING
+	case agentPhaseDegraded:
+		return gatewayapi.DEGRADED
+	case agentPhaseNotFound:
+		return gatewayapi.UNSPECIFIED
+	default:
+		return gatewayapi.UNSPECIFIED
+	}
+}

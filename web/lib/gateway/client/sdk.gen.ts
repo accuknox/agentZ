@@ -5,9 +5,6 @@ import * as z from "zod"
 import type { Client, Options as Options2, TDataShape } from "./client"
 import { client } from "./client.gen"
 import type {
-  CompactSessionData,
-  CompactSessionErrors,
-  CompactSessionResponses,
   CreateAgentData,
   CreateAgentErrors,
   CreateAgentResponses,
@@ -23,15 +20,9 @@ import type {
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
-  GetChatHistoryData,
-  GetChatHistoryErrors,
-  GetChatHistoryResponses,
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
-  InterruptSessionData,
-  InterruptSessionErrors,
-  InterruptSessionResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
@@ -55,17 +46,13 @@ import type {
   ListSpansResponses,
   ListTracesData,
   ListTracesErrors,
+  ListTraceSessionsData,
+  ListTraceSessionsErrors,
+  ListTraceSessionsResponses,
   ListTracesResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
-  SendMessageData,
-  SendMessageErrors,
-  SendMessageResponses,
-  SubscribeSessionData,
-  SubscribeSessionErrors,
-  SubscribeSessionResponse,
-  SubscribeSessionResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
@@ -78,16 +65,13 @@ import type {
   WatchAgentsResponses,
 } from "./types.gen"
 import {
-  zCompactSessionBody,
   zCreateAgentBody,
   zCreateEnvironmentBody,
   zDeleteAgentBody,
   zDeleteEnvironmentBody,
   zDeleteSecretBody,
   zDeleteSecretPath,
-  zGetChatHistoryQuery,
   zGetSpanDetailQuery,
-  zInterruptSessionBody,
   zListAgentsQuery,
   zListEnvironmentsQuery,
   zListFileObservabilityQuery,
@@ -96,11 +80,10 @@ import {
   zListSecretsPath,
   zListSecretsQuery,
   zListSpansQuery,
+  zListTraceSessionsQuery,
   zListTracesQuery,
   zPutSecretBody,
   zPutSecretPath,
-  zSendMessageBody,
-  zSubscribeSessionBody,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateEnvironmentBody,
@@ -127,25 +110,6 @@ export type Options<
 }
 
 /**
- * Get paginated session event history.
- */
-export const getChatHistory = <ThrowOnError extends boolean = false>(
-  options: Options<GetChatHistoryData, ThrowOnError>
-) =>
-  (options.client ?? client).get<GetChatHistoryResponses, GetChatHistoryErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: z.never().optional(),
-          query: zGetChatHistoryQuery,
-        })
-        .parseAsync(data),
-    url: "/api/chat-history",
-    ...options,
-  })
-
-/**
  * List paginated agent summaries.
  */
 export const listAgents = <ThrowOnError extends boolean = false>(
@@ -160,7 +124,7 @@ export const listAgents = <ThrowOnError extends boolean = false>(
           query: zListAgentsQuery.optional(),
         })
         .parseAsync(data),
-    url: "/api/list-agents",
+    url: "/api/agent/list",
     ...options,
   })
 
@@ -179,9 +143,30 @@ export const listTraces = <ThrowOnError extends boolean = false>(
           query: zListTracesQuery,
         })
         .parseAsync(data),
-    url: "/api/list-traces",
+    url: "/api/lens/trace/list",
     ...options,
   })
+
+/**
+ * List paginated per-session trace summaries.
+ */
+export const listTraceSessions = <ThrowOnError extends boolean = false>(
+  options: Options<ListTraceSessionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListTraceSessionsResponses, ListTraceSessionsErrors, ThrowOnError>(
+    {
+      requestValidator: async (data) =>
+        await z
+          .object({
+            body: z.never().optional(),
+            path: z.never().optional(),
+            query: zListTraceSessionsQuery,
+          })
+          .parseAsync(data),
+      url: "/api/lens/trace/session/list",
+      ...options,
+    }
+  )
 
 /**
  * List paginated spans for a trace.
@@ -198,7 +183,7 @@ export const listSpans = <ThrowOnError extends boolean = false>(
           query: zListSpansQuery,
         })
         .parseAsync(data),
-    url: "/api/list-spans",
+    url: "/api/lens/span/list",
     ...options,
   })
 
@@ -217,7 +202,7 @@ export const getSpanDetail = <ThrowOnError extends boolean = false>(
           query: zGetSpanDetailQuery,
         })
         .parseAsync(data),
-    url: "/api/get-span-detail",
+    url: "/api/lens/span/detail",
     ...options,
   })
 
@@ -240,7 +225,7 @@ export const listProcessObservability = <ThrowOnError extends boolean = false>(
           query: zListProcessObservabilityQuery,
         })
         .parseAsync(data),
-    url: "/api/list-process-observability",
+    url: "/api/lens/observability/process/list",
     ...options,
   })
 
@@ -263,7 +248,7 @@ export const listFileObservability = <ThrowOnError extends boolean = false>(
           query: zListFileObservabilityQuery,
         })
         .parseAsync(data),
-    url: "/api/list-file-observability",
+    url: "/api/lens/observability/file/list",
     ...options,
   })
 
@@ -286,14 +271,14 @@ export const listNetworkObservability = <ThrowOnError extends boolean = false>(
           query: zListNetworkObservabilityQuery,
         })
         .parseAsync(data),
-    url: "/api/list-network-observability",
+    url: "/api/lens/observability/network/list",
     ...options,
   })
 
 /**
- * Create a session-backed Agent.
+ * Create an Agent resource.
  *
- * Creates a session row and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
+ * Creates an agent record and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
  *
  */
 export const createAgent = <ThrowOnError extends boolean = false>(
@@ -308,7 +293,7 @@ export const createAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/create-agent",
+    url: "/api/agent/create",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -317,7 +302,7 @@ export const createAgent = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Delete a session-backed Agent.
+ * Delete an Agent resource.
  */
 export const deleteAgent = <ThrowOnError extends boolean = false>(
   options: Options<DeleteAgentData, ThrowOnError>
@@ -331,7 +316,7 @@ export const deleteAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/delete-agent",
+    url: "/api/agent/delete",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -340,9 +325,9 @@ export const deleteAgent = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Update a session-backed Agent.
+ * Update an Agent resource.
  *
- * Updates mutable Agent configuration for an existing session. The session ID in the path identifies the Agent; Agent name is immutable and is not accepted in the request body.
+ * Updates mutable Agent fields for an existing Agent. The agent name in the path identifies the Agent and is immutable.
  *
  */
 export const updateAgent = <ThrowOnError extends boolean = false>(
@@ -357,106 +342,7 @@ export const updateAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/update-agent/{sessionID}",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Send a user prompt to a session agent.
- */
-export const sendMessage = <ThrowOnError extends boolean = false>(
-  options: Options<SendMessageData, ThrowOnError>
-) =>
-  (options.client ?? client).post<SendMessageResponses, SendMessageErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: zSendMessageBody,
-          path: z.never().optional(),
-          query: z.never().optional(),
-        })
-        .parseAsync(data),
-    url: "/api/send-message",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Subscribe to live events for a session.
- *
- * Returns an SSE stream. Each event data payload is a JSON object matching SessionStreamEvent.
- *
- */
-export const subscribeSession = <ThrowOnError extends boolean = false>(
-  options: Options<SubscribeSessionData, ThrowOnError, SubscribeSessionResponse>
-) =>
-  (options.client ?? client).sse.post<
-    SubscribeSessionResponses,
-    SubscribeSessionErrors,
-    ThrowOnError
-  >({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: zSubscribeSessionBody,
-          path: z.never().optional(),
-          query: z.never().optional(),
-        })
-        .parseAsync(data),
-    url: "/api/subscribe-session",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Interrupt the active run for a session.
- */
-export const interruptSession = <ThrowOnError extends boolean = false>(
-  options: Options<InterruptSessionData, ThrowOnError>
-) =>
-  (options.client ?? client).post<InterruptSessionResponses, InterruptSessionErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: zInterruptSessionBody,
-          path: z.never().optional(),
-          query: z.never().optional(),
-        })
-        .parseAsync(data),
-    url: "/api/interrupt-session",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Compact the current session history.
- */
-export const compactSession = <ThrowOnError extends boolean = false>(
-  options: Options<CompactSessionData, ThrowOnError>
-) =>
-  (options.client ?? client).post<CompactSessionResponses, CompactSessionErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: zCompactSessionBody,
-          path: z.never().optional(),
-          query: z.never().optional(),
-        })
-        .parseAsync(data),
-    url: "/api/compact-session",
+    url: "/api/agent/update/{agentName}",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -467,7 +353,7 @@ export const compactSession = <ThrowOnError extends boolean = false>(
 /**
  * Watch agent status changes.
  *
- * Returns an SSE stream. Each event data payload is a JSON object matching WatchAgentsEvent. If session_ids is omitted or empty, all known agents are watched.
+ * Returns an SSE stream. Each event data payload is a JSON object matching WatchAgentsEvent. If agent_names is omitted or empty, all known agents are watched.
  *
  */
 export const watchAgents = <ThrowOnError extends boolean = false>(
@@ -482,7 +368,7 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/watch-agents",
+    url: "/api/agent/watch",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -491,9 +377,9 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Store or overwrite secrets for a session.
+ * Store or overwrite secrets for an agent.
  *
- * Creates or overwrites key-value secrets under the session. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges.
+ * Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges.
  *
  */
 export const putSecret = <ThrowOnError extends boolean = false>(
@@ -508,7 +394,7 @@ export const putSecret = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/secret/{sessionID}/put",
+    url: "/api/secret/{agentName}/put",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -517,9 +403,9 @@ export const putSecret = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Delete secrets for a session.
+ * Delete secrets for an agent.
  *
- * Deletes the specified secret keys for the session. Missing keys are ignored.
+ * Deletes the specified secret keys for the agent. Missing keys are ignored.
  *
  */
 export const deleteSecret = <ThrowOnError extends boolean = false>(
@@ -534,7 +420,7 @@ export const deleteSecret = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
-    url: "/api/secret/{sessionID}/delete",
+    url: "/api/secret/{agentName}/delete",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -543,7 +429,7 @@ export const deleteSecret = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List secret keys for a session.
+ * List secret keys for an agent.
  *
  * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
  *
@@ -560,7 +446,7 @@ export const listSecrets = <ThrowOnError extends boolean = false>(
           query: zListSecretsQuery.optional(),
         })
         .parseAsync(data),
-    url: "/api/secret/{sessionID}/list",
+    url: "/api/secret/{agentName}/list",
     ...options,
   })
 

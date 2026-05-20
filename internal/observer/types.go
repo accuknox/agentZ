@@ -2,8 +2,6 @@ package observer
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -25,7 +23,7 @@ type event struct {
 }
 
 type processEvent struct {
-	sessionID         uuid.UUID
+	agentName         string
 	eventTime         time.Time
 	podNamespace      string
 	podName           string
@@ -37,7 +35,7 @@ type processEvent struct {
 }
 
 type fileEvent struct {
-	sessionID         uuid.UUID
+	agentName         string
 	eventTime         time.Time
 	podNamespace      string
 	podName           string
@@ -49,7 +47,7 @@ type fileEvent struct {
 }
 
 type networkEvent struct {
-	sessionID         uuid.UUID
+	agentName         string
 	eventTime         time.Time
 	podNamespace      string
 	podName           string
@@ -62,30 +60,32 @@ type networkEvent struct {
 }
 
 type traceSpanEvent struct {
-	sessionID          uuid.UUID
+	agentName          string
+	sessionID          string
 	traceID            []byte
 	spanID             []byte
 	parentSpanID       []byte
 	startTime          time.Time
 	endTime            time.Time
 	durationNS         int64
+	durationMS         float64
 	name               string
+	spanClass          string
 	operationName      string
 	kind               string
 	statusCode         string
 	errorType          string
 	errorMessage       string
-	conversationID     string
-	runID              string
-	requestID          string
 	model              string
 	toolName           string
 	inputTokens        int64
 	outputTokens       int64
 	cachedInputTokens  int64
-	timeToFirstTokenMS float64
-	podNamespace       string
-	podName            string
+	cachedWriteTokens  int64
+	costUSD            float64
+	llmFinishReason    string
+	resourceAttributes []byte
+	spanAttributes     []byte
 	payload            traceSpanPayload
 }
 
@@ -94,7 +94,6 @@ type traceSpanPayload struct {
 	outputMessages []byte
 	toolArguments  []byte
 	toolResult     []byte
-	metadata       []byte
 }
 
 type batch struct {

@@ -20,10 +20,6 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
-    - description: Agent session identifier
-      jsonPath: .spec.session.id
-      name: Session
-      type: string
     - description: Service exposing the Agent API
       jsonPath: .status.serviceName
       name: Service
@@ -57,53 +53,6 @@ spec:
           spec:
             description: spec defines the desired state of Agent.
             properties:
-              compaction:
-                description: Compaction configures prompt rebuilding and tool-result trimming.
-                properties:
-                  enabled:
-                    description: |-
-                      Enabled lets the runtime rebuild large prompts through summaries before
-                      the main model call.
-                    type: boolean
-                  historyToolResultRatio:
-                    default: 0.008
-                    description: |-
-                      HistoryToolResultRatio replaces older tool results above this context
-                      window fraction with compact placeholders during request construction.
-                    maximum: 1
-                    minimum: 0
-                    type: number
-                  keepRecentRequests:
-                    default: 2
-                    description: |-
-                      KeepRecentRequests preserves the latest completed requests in full when
-                      historical tool-result compaction is enabled.
-                    minimum: 0
-                    type: integer
-                  mode:
-                    default: summary
-                    description: Mode selects summary-backed compaction or raw-history truncation.
-                    enum:
-                    - summary
-                    - truncate
-                    type: string
-                  oversizedToolResultRatio:
-                    default: 0.065
-                    description: |-
-                      OversizedToolResultRatio truncates any tool result above this context
-                      window fraction with head and tail preservation.
-                    maximum: 0.1
-                    minimum: 0.05
-                    type: number
-                  thresholdRatio:
-                    default: 0.9
-                    description: |-
-                      ThresholdRatio is the model context-window fraction that makes pre-turn
-                      summary-backed compaction eligible.
-                    maximum: 0.95
-                    minimum: 0.2
-                    type: number
-                type: object
               env:
                 description: Env defines environment variables injected into the Agent pod.
                 items:
@@ -273,86 +222,11 @@ spec:
                 description: ImagePullPolicy defines when Kubernetes pulls the Agent image.
                 type: string
               instruction:
-                description: Instruction is the main behavioral guidance appended to the prompt.
+                description: Instruction defines additional OpenCode instruction content.
                 type: string
-              maxHistoryRuns:
-                default: 50
-                description: MaxHistoryRuns caps raw history in truncate compaction mode.
-                minimum: 0
-                type: integer
-              memory:
-                description: Memory configures in-process memory and memory tools.
-                properties:
-                  enabled:
-                    description: Enabled turns on in-process memory.
-                    type: boolean
-                  limit:
-                    description: Limit caps retained memory entries.
-                    minimum: 0
-                    type: integer
-                  tools:
-                    description: Tools controls memory tool exposure.
-                    properties:
-                      add:
-                        description: Add exposes memory creation.
-                        type: boolean
-                      clear:
-                        description: Clear exposes memory clearing.
-                        type: boolean
-                      delete:
-                        description: Delete exposes memory deletion.
-                        type: boolean
-                      load:
-                        description: Load exposes memory loading.
-                        type: boolean
-                      search:
-                        description: Search exposes memory search.
-                        type: boolean
-                      update:
-                        description: Update exposes memory updates.
-                        type: boolean
-                    type: object
-                type: object
               model:
-                description: Model defines the primary chat model.
-                properties:
-                  baseURL:
-                    description: BaseURL is an optional OpenAI-compatible provider URL.
-                    type: string
-                  contextWindow:
-                    description: ContextWindow is an explicit model context window.
-                    minimum: 0
-                    type: integer
-                  maxTokens:
-                    description: MaxTokens caps model output tokens.
-                    minimum: 0
-                    type: integer
-                  name:
-                    description: Name is the primary model identifier.
-                    type: string
-                  stream:
-                    description: Stream enables streamed model responses.
-                    type: boolean
-                  temperature:
-                    default: 0.2
-                    description: Temperature configures model sampling.
-                    maximum: 1
-                    minimum: 0
-                    type: number
-                  thinkingEnabled:
-                    description: |-
-                      ThinkingEnabled requests native thinking mode for providers that expose
-                      it through OpenAI-compatible APIs.
-                    type: boolean
-                  thinkingTokens:
-                    description: |-
-                      ThinkingTokens requests the provider's thinking token budget when
-                      thinking mode is enabled.
-                    minimum: 0
-                    type: integer
-                required:
-                - name
-                type: object
+                description: Model sets the default OpenCode model in provider/model form.
+                type: string
               nixStoreSize:
                 anyOf:
                 - type: integer
@@ -361,6 +235,21 @@ spec:
                 description: NixStoreSize sets the size of the agent-specific nix store PVC.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
+              providers:
+                additionalProperties:
+                  description: OpencodeProviderConfig defines non-secret provider settings for OpenCode.
+                  properties:
+                    baseURL:
+                      description: BaseURL overrides the provider base URL.
+                      type: string
+                    env:
+                      description: Env lists environment variable names OpenCode should read for provider auth.
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                description: Providers configures non-secret OpenCode provider settings by provider ID.
+                type: object
               resources:
                 description: Resources defines compute resources allocated to the Agent pod.
                 properties:
@@ -420,99 +309,8 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
-              server:
-                description: Server defines the agent gRPC server settings.
-                properties:
-                  address:
-                    description: Address is the TCP listen address for the agent server.
-                    type: string
-                  gracefulShutdownTimeout:
-                    description: GracefulShutdownTimeout is the maximum graceful shutdown period.
-                    type: string
-                required:
-                - address
-                type: object
-              session:
-                description: Session configures persisted session behavior.
-                properties:
-                  enabled:
-                    description: Enabled uses the external gRPC session service when true.
-                    type: boolean
-                  id:
-                    description: ID is the immutable UUIDv4 session identifier.
-                    type: string
-                  insecure:
-                    description: Insecure uses insecure gRPC transport.
-                    type: boolean
-                  summary:
-                    description: Summary defines session summarization behavior.
-                    properties:
-                      approxRunesPerToken:
-                        description: ApproxRunesPerToken hints token estimation.
-                        minimum: 0
-                        type: number
-                      enabled:
-                        description: Enabled turns session summary generation on or off.
-                        type: boolean
-                      eventThreshold:
-                        description: EventThreshold summarizes after this many events in manual mode.
-                        minimum: 0
-                        type: integer
-                      idleThreshold:
-                        description: IdleThreshold summarizes after this idle duration in manual mode.
-                        type: string
-                      maxWords:
-                        description: MaxWords is best-effort guidance for summary length.
-                        minimum: 0
-                        type: integer
-                      mode:
-                        description: Mode selects auto or manual summary thresholds.
-                        enum:
-                        - auto
-                        - manual
-                        type: string
-                      tokenThreshold:
-                        description: TokenThreshold summarizes after this many tokens in manual mode.
-                        minimum: 0
-                        type: integer
-                    type: object
-                  target:
-                    description: Target is the external session service gRPC target.
-                    type: string
-                  timeoutMs:
-                    description: TimeoutMs is the external session RPC timeout in milliseconds.
-                    minimum: 0
-                    type: integer
-                required:
-                - id
-                type: object
-              summaryModel:
-                description: SummaryModel defines the model used for session summarization.
-                properties:
-                  baseURL:
-                    description: BaseURL is an optional OpenAI-compatible provider URL.
-                    type: string
-                  contextWindow:
-                    description: ContextWindow is an explicit summarizer model context window.
-                    minimum: 0
-                    type: integer
-                  maxTokens:
-                    description: MaxTokens caps summarization output tokens.
-                    minimum: 0
-                    type: integer
-                  name:
-                    description: Name is the summarization model identifier.
-                    type: string
-                  temperature:
-                    default: 0.2
-                    description: Temperature configures summarization sampling.
-                    maximum: 1
-                    minimum: 0
-                    type: number
-                type: object
-              systemPrompt:
-                description: SystemPrompt defines hard rules and role framing for every turn.
-                maxLength: 4096
+              smallModel:
+                description: SmallModel sets the small OpenCode model in provider/model form.
                 type: string
               telemetry:
                 description: Telemetry configures agent observability export.
@@ -524,146 +322,6 @@ spec:
                     description: TraceEndpoint is the OTLP/gRPC trace endpoint in host:port form.
                     type: string
                 type: object
-              tools:
-                description: Tools configures optional runtime tools.
-                properties:
-                  arxiv:
-                    description: Arxiv configures arXiv search tools.
-                    properties:
-                      baseURL:
-                        description: BaseURL is the arXiv API base URL.
-                        type: string
-                      delayMs:
-                        description: DelayMS delays arXiv retry/page requests.
-                        minimum: 0
-                        type: integer
-                      enabled:
-                        default: false
-                        description: Enabled turns arXiv search on.
-                        type: boolean
-                      numRetries:
-                        description: NumRetries caps arXiv retries.
-                        minimum: 0
-                        type: integer
-                      pageSize:
-                        description: PageSize controls arXiv result page size.
-                        minimum: 0
-                        type: integer
-                    type: object
-                  file:
-                    description: File configures filesystem tools.
-                    properties:
-                      baseDir:
-                        description: BaseDir is the filesystem root exposed to file tools.
-                        type: string
-                      enabled:
-                        default: false
-                        description: Enabled turns file tools on.
-                        type: boolean
-                    type: object
-                  hostExec:
-                    description: HostExec configures host command execution tools.
-                    properties:
-                      baseDir:
-                        description: BaseDir is the working-directory root for commands.
-                        type: string
-                      baseEnv:
-                        additionalProperties:
-                          type: string
-                        description: BaseEnv is extra environment for commands.
-                        type: object
-                      enabled:
-                        default: true
-                        description: Enabled turns host execution tools on.
-                        type: boolean
-                    type: object
-                  mcp:
-                    description: MCP configures MCP toolsets.
-                    items:
-                      description: MCPConfig defines one MCP toolset connection.
-                      properties:
-                        args:
-                          description: Args are local MCP server command arguments.
-                          items:
-                            type: string
-                          type: array
-                        command:
-                          description: Command is the local MCP server command.
-                          type: string
-                        enabled:
-                          description: Enabled turns this MCP connection on.
-                          type: boolean
-                        headers:
-                          additionalProperties:
-                            type: string
-                          description: Headers are remote MCP request headers.
-                          type: object
-                        name:
-                          description: Name is the MCP toolset name.
-                          type: string
-                        reconnect:
-                          description: Reconnect enables MCP reconnect attempts.
-                          type: boolean
-                        reconnectMaxAttempts:
-                          description: ReconnectMaxAttempt caps MCP reconnect attempts.
-                          minimum: 0
-                          type: integer
-                        serverUrl:
-                          description: ServerURL is the remote MCP server URL.
-                          type: string
-                        timeoutMs:
-                          description: TimeoutMs is the MCP request timeout.
-                          minimum: 0
-                          type: integer
-                        transport:
-                          description: Transport selects the MCP transport.
-                          type: string
-                      type: object
-                    type: array
-                  openAPI:
-                    description: OpenAPI configures OpenAPI-backed toolsets.
-                    items:
-                      description: OpenAPIConfig defines one OpenAPI-backed toolset entry.
-                      properties:
-                        enabled:
-                          description: Enabled turns this OpenAPI toolset on.
-                          type: boolean
-                        name:
-                          description: Name is the toolset name.
-                          type: string
-                        specFile:
-                          description: SpecFile is a local OpenAPI specification path.
-                          type: string
-                        specUrl:
-                          description: SpecURL is a remote OpenAPI specification URL.
-                          type: string
-                      type: object
-                    type: array
-                  webFetch:
-                    description: WebFetch configures HTTP fetch tools.
-                    properties:
-                      enabled:
-                        default: true
-                        description: Enabled turns web fetch tools on.
-                        type: boolean
-                      maxContentLength:
-                        description: MaxContentLength caps one fetched response.
-                        minimum: 0
-                        type: integer
-                      maxTotalContentLength:
-                        description: MaxTotalContentLength caps all fetched responses per tool call.
-                        minimum: 0
-                        type: integer
-                      timeoutMs:
-                        description: TimeoutMs is the per-request fetch timeout.
-                        minimum: 0
-                        type: integer
-                    type: object
-                type: object
-            required:
-            - model
-            - server
-            - session
             type: object
           status:
             description: status defines the observed state of Agent.
@@ -727,16 +385,10 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              configMapName:
-                description: ConfigMapName is the ConfigMap mounted into the Agent pod.
-                type: string
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.
                 format: int64
                 type: integer
-              observedSessionID:
-                description: ObservedSessionID is the session id applied by the controller.
-                type: string
               serviceName:
                 description: ServiceName is the service exposing the Agent API.
                 type: string

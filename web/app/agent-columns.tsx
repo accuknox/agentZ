@@ -1,10 +1,10 @@
 "use client"
 
-import Link from "next/link"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
-import type { ListAgent } from "@/lib/gateway/client"
+import type { Agent, Environment } from "@/lib/gateway/client"
+import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -25,12 +25,17 @@ import { Spinner } from "@/components/ui/spinner"
 import type { DeleteAgentFormState } from "@/data/types"
 
 type DeleteAgentAction = (
-  sessionID: string,
+  agentName: string,
   state: DeleteAgentFormState,
   formData: FormData
 ) => Promise<DeleteAgentFormState>
 
-export function createAgentColumns(deleteAgentAction: DeleteAgentAction): ColumnDef<ListAgent>[] {
+export function createAgentColumns(
+  deleteAgentAction: DeleteAgentAction,
+  environments: Environment[],
+  initialHasNextEnvironmentPage: boolean,
+  initialNextEnvironmentPageToken: string
+): ColumnDef<Agent>[] {
   return [
     {
       accessorKey: "name",
@@ -47,32 +52,8 @@ export function createAgentColumns(deleteAgentAction: DeleteAgentAction): Column
       cell: ({ row }) => {
         const agent = row.original
 
-        return (
-          <Link href={`/agent/${agent.session_id}`} className="font-medium hover:underline">
-            {agent.name}
-          </Link>
-        )
+        return <span className="font-medium">{agent.name}</span>
       },
-    },
-    {
-      accessorFn: (agent) => agent.configuration.model.primary.name,
-      id: "primaryModel",
-      header: "Primary Model",
-    },
-    {
-      accessorFn: (agent) => agent.configuration.model.primary.contextWindow,
-      id: "contextWindow",
-      header: "Context Window",
-      cell: ({ row }) => {
-        const contextWindow = row.getValue<number>("contextWindow")
-
-        return formatNumber(contextWindow)
-      },
-    },
-    {
-      accessorFn: (agent) => agent.configuration.model.summary?.name ?? "Unknown",
-      id: "summaryModel",
-      header: "Summary Model",
     },
     {
       accessorKey: "created_at",
@@ -93,7 +74,15 @@ export function createAgentColumns(deleteAgentAction: DeleteAgentAction): Column
       cell: ({ row }) => {
         const agent = row.original
 
-        return <AgentActions agent={agent} deleteAgentAction={deleteAgentAction} />
+        return (
+          <AgentActions
+            agent={agent}
+            deleteAgentAction={deleteAgentAction}
+            environments={environments}
+            initialHasNextEnvironmentPage={initialHasNextEnvironmentPage}
+            initialNextEnvironmentPageToken={initialNextEnvironmentPageToken}
+          />
+        )
       },
     },
   ]
@@ -102,11 +91,18 @@ export function createAgentColumns(deleteAgentAction: DeleteAgentAction): Column
 function AgentActions({
   agent,
   deleteAgentAction,
+  environments,
+  initialHasNextEnvironmentPage,
+  initialNextEnvironmentPageToken,
 }: {
-  agent: ListAgent
+  agent: Agent
   deleteAgentAction: DeleteAgentAction
+  environments: Environment[]
+  initialHasNextEnvironmentPage: boolean
+  initialNextEnvironmentPageToken: string
 }) {
-  const [open, setOpen] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const [editOpen, setEditOpen] = React.useState(false)
 
   return (
     <div className="flex justify-end">
@@ -118,23 +114,35 @@ function AgentActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href={`/agent/${agent.session_id}`}>Chat</Link>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              setEditOpen(true)
+            }}
+          >
+            Edit
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href={`/agent/update/${agent.session_id}`}>Edit</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive" onSelect={() => setOpen(true)}>
+          <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
             <Trash2 />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <AgentDialog
+        mode="update"
+        agentName={agent.name}
+        initialEnvironmentName={agent.environmentName}
+        environments={environments}
+        initialHasNextEnvironmentPage={initialHasNextEnvironmentPage}
+        initialNextEnvironmentPageToken={initialNextEnvironmentPageToken}
+        open={editOpen}
+        onOpenChangeAction={setEditOpen}
+      />
       <DeleteAgentDialog
         agent={agent}
         deleteAgentAction={deleteAgentAction}
-        open={open}
-        setOpen={setOpen}
+        open={deleteOpen}
+        setOpen={setDeleteOpen}
       />
     </div>
   )
@@ -146,13 +154,13 @@ function DeleteAgentDialog({
   open,
   setOpen,
 }: {
-  agent: ListAgent
+  agent: Agent
   deleteAgentAction: DeleteAgentAction
   open: boolean
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const [state, action, pending] = React.useActionState(
-    deleteAgentAction.bind(null, agent.session_id),
+    deleteAgentAction.bind(null, agent.name),
     {}
   )
 
@@ -208,12 +216,4 @@ function formatDate(value?: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date)
-}
-
-function formatNumber(value?: number) {
-  if (value === undefined) {
-    return "Unknown"
-  }
-
-  return new Intl.NumberFormat("en").format(value)
 }

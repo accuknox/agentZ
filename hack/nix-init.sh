@@ -25,12 +25,16 @@ build_packages() {
 
 PACKAGES=$(build_packages)
 
-nix profile add --profile /tmp/prof $PACKAGES
+nix profile add --profile /tmp/prof \
+    --override-flake nixpkgs github:NixOS/nixpkgs/549bd84d6279f9852cae6225e372cc67fb91a4c1 \
+    $PACKAGES
 
 mkdir -p /mnt/nix
 rm -rf /mnt/nix/nix /mnt/nix/profile 2>/dev/null || true
 nix copy --to /mnt/nix --no-check-sigs $(nix path-info --recursive /tmp/prof)
-nix profile add --profile /mnt/nix/profile $PACKAGES
+nix profile add --profile /mnt/nix/profile \
+    --override-flake nixpkgs github:NixOS/nixpkgs/549bd84d6279f9852cae6225e372cc67fb91a4c1 \
+    $PACKAGES
 
 if [[ -n "${NIX_SHARED_PVC:-}" ]]; then
     nix copy --to file:///nix-shared --no-check-sigs $(nix path-info --recursive /tmp/prof) 2>/dev/null || true

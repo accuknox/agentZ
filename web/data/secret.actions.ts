@@ -5,17 +5,17 @@ import { redirect } from "next/navigation"
 import { deleteSecret, listSecrets, putSecret } from "@/lib/gateway/client"
 import type { Error } from "@/lib/gateway/client"
 import { zSecretKey } from "@/lib/gateway/client/zod.gen"
-import { secretsTag, sessionSecretsTag } from "@/data/cache"
+import { agentSecretsTag, secretsTag } from "@/data/cache"
 import { secretHostsInputSchema, secretValueSchema } from "./schema"
 import type { DeleteSecretFormState, PutSecretFormState } from "./types"
 
-async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> {
+async function fetchAllSecretKeys(agentName: string): Promise<string[] | Error> {
   const keys: string[] = []
   let pageToken: string | undefined
 
   while (true) {
     const result = await listSecrets({
-      path: { sessionID },
+      path: { agentName },
       query: { limit: 200, page_token: pageToken },
       cache: "no-store",
     })
@@ -40,7 +40,7 @@ async function fetchAllSecretKeys(sessionID: string): Promise<string[] | Error> 
 }
 
 export async function putSecretFormAction(
-  sessionID: string,
+  agentName: string,
   _: PutSecretFormState,
   formData: FormData
 ): Promise<PutSecretFormState> {
@@ -92,7 +92,7 @@ export async function putSecretFormAction(
   }
 
   if (mode !== "update") {
-    const existingKeys = await fetchAllSecretKeys(sessionID)
+    const existingKeys = await fetchAllSecretKeys(agentName)
     if (Array.isArray(existingKeys)) {
       const normalizedKey = parsedKey.data.toLowerCase()
       const duplicate = existingKeys.find((k) => k.toLowerCase() === normalizedKey)
@@ -114,7 +114,7 @@ export async function putSecretFormAction(
   }
 
   const result = await putSecret({
-    path: { sessionID },
+    path: { agentName },
     body: {
       secrets: [{ key: parsedKey.data, value: parsedValue.data, hosts: parsedHosts.data }],
     },
@@ -125,12 +125,12 @@ export async function putSecretFormAction(
   }
 
   updateTag(secretsTag)
-  updateTag(sessionSecretsTag(sessionID))
-  redirect(`/secrets?session_id=${encodeURIComponent(sessionID)}`)
+  updateTag(agentSecretsTag(agentName))
+  redirect(`/secrets?agent_name=${encodeURIComponent(agentName)}`)
 }
 
 export async function deleteSecretFormAction(
-  sessionID: string,
+  agentName: string,
   _: DeleteSecretFormState,
   formData: FormData
 ): Promise<DeleteSecretFormState> {
@@ -151,7 +151,7 @@ export async function deleteSecretFormAction(
   }
 
   const result = await deleteSecret({
-    path: { sessionID },
+    path: { agentName },
     body: {
       keys: [parsedKey.data],
     },
@@ -162,6 +162,6 @@ export async function deleteSecretFormAction(
   }
 
   updateTag(secretsTag)
-  updateTag(sessionSecretsTag(sessionID))
-  redirect(`/secrets?session_id=${encodeURIComponent(sessionID)}`)
+  updateTag(agentSecretsTag(agentName))
+  redirect(`/secrets?agent_name=${encodeURIComponent(agentName)}`)
 }

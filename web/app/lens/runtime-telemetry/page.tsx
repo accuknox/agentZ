@@ -1,18 +1,27 @@
-import { redirect } from "next/navigation"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { getProcessTelemetryAction } from "@/data/lens.actions"
+import type { ProcessTelemetryActionData } from "@/data/types"
+import { ProcessTelemetryTable } from "@/app/lens/runtime-telemetry/process-telemetry-table"
+import {
+  RuntimeTelemetryPage as RuntimeTelemetryPageContent,
+  type TelemetryPageConfig,
+} from "@/app/lens/runtime-telemetry/runtime-telemetry-page"
 
-export default async function RuntimeTelemetryPage() {
-  const result = await listAgentsCachedQuery(true)
-  const agents = result.agents ?? []
-  const firstAgent = agents[0]
-
-  if (!firstAgent) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-0 p-0">
-        <p className="text-muted-foreground">No agents available</p>
-      </main>
-    )
+export default function RuntimeTelemetryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    agent_name?: string | string[]
+    from?: string | string[]
+    to?: string | string[]
+    telemetry_page_token?: string | string[]
+  }>
+}) {
+  const config: TelemetryPageConfig<ProcessTelemetryActionData> = {
+    value: "process",
+    headers: ["Process", "Command", "Action", "Occurrences", "Last Seen"],
+    loadAction: getProcessTelemetryAction,
+    renderTable: (data) => <ProcessTelemetryTable data={data} />,
   }
 
-  redirect(`/lens/runtime-telemetry/process?session_id=${firstAgent.session_id}`)
+  return <RuntimeTelemetryPageContent searchParams={searchParams} config={config} />
 }

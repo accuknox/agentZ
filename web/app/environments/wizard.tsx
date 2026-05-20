@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { defineStepper } from "@stepperize/react"
 import { Box, Globe2, PackageSearch as PackageSearchIcon, Plus, X } from "lucide-react"
 import * as React from "react"
-import { useActionState, useState } from "react"
+import { startTransition, useActionState, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { WizardShell } from "@/components/blocks/wizard"
 import { Button } from "@/components/ui/button"
@@ -277,7 +277,9 @@ function AllowedHostsStep({
       return
     }
 
-    await action(formData)
+    startTransition(() => {
+      action(formData)
+    })
   }
 
   return (

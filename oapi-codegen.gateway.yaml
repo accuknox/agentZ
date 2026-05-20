@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/refs/heads/main/configuration-schema.json
 package: gatewayapi
-output: internal/agent/gateway/openapi/gateway.gen.go
+output: internal/gateway/openapi/gateway.gen.go
 generate:
   models: true
   chi-server: true
@@ -10,4 +10,3 @@ compatibility:
   apply-chi-middleware-first-to-last: true
 output-options:
   response-type-suffix: Resp
-  skip-prune: true

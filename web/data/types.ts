@@ -1,31 +1,4 @@
-import type * as z from "zod"
-import type {
-  Agent,
-  ChatHistoryResponse,
-  Environment,
-  Error,
-  ListAgent,
-} from "@/lib/gateway/client"
-import type {
-  compactionSchema,
-  createAgentFormSchema,
-  identitySchema,
-  modelSchema,
-  toolsSchema,
-} from "@/data/schema"
-
-export type Identity = z.infer<typeof identitySchema>
-export type Compaction = z.infer<typeof compactionSchema>
-export type Model = z.infer<typeof modelSchema>
-export type Tools = z.infer<typeof toolsSchema>
-export type CreateAgentFormValues = z.infer<typeof createAgentFormSchema>
-
-export type AgentWizardValues = {
-  identity: Identity
-  compaction: Compaction
-  model: Model
-  tools: Tools
-}
+import type { Agent, Environment, Error } from "@/lib/gateway/client"
 
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
@@ -41,21 +14,27 @@ export type ListAgentActionResponse<TAgent = Agent> =
       error: Error
     }
 
-export type ListAgentWithConfigActionResponse = ListAgentActionResponse<ListAgent>
+export type AgentSessionListItem = {
+  id: string
+  title: string
+  updatedAt: number
+  parentID?: string
+}
 
-export type ChatHistoryActionResponse =
+export type ListAgentSessionActionResponse =
   | {
-      data: ChatHistoryResponse
+      sessions: AgentSessionListItem[]
       error: undefined
     }
   | {
-      data: undefined
+      sessions: undefined
       error: Error
     }
 
 export type TraceListItem = {
-  traceId: string
+  agentName: string
   sessionId: string
+  traceId: string
   startedAt: string
   endedAt: string
   startedDate: string
@@ -82,6 +61,21 @@ export type ListTracesActionData = {
   hasNextPage: boolean
   limit: number
 }
+
+export type TraceSessionFilterItem = {
+  sessionId: string
+  title: string
+}
+
+export type TraceSessionFilterActionResponse =
+  | {
+      data: TraceSessionFilterItem[]
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
 
 export type RuntimeTelemetryEventItem = {
   id: number
@@ -226,6 +220,7 @@ export type TraceChartActionResponse =
 
 export type SpanListItem = {
   id: number
+  agentName: string
   sessionId: string
   traceId: string
   spanId: string
@@ -236,15 +231,20 @@ export type SpanListItem = {
   durationMs: number
   displayName: string
   operationLabel: string
+  spanClass: string
+  kind: string
+  statusCode: string
+  llmFinishReason: string
   hasError: boolean
   error: string
-  timeToFirstToken: string
   spanType: "agent" | "model" | "tool" | "span"
   depth: number
   inputTokens: number
   cachedInputTokens: number
+  cachedWriteTokens: number
   outputTokens: number
   totalTokens: number
+  costUSD: number
   offsetPercent: number
   durationPercent: number
 }
@@ -276,6 +276,8 @@ export type SpanDetailPayloadSection = {
 export type SpanDetailActionData = {
   span: SpanListItem
   payload: SpanDetailPayloadSection[]
+  resourceAttributes: SpanDetailPayloadSection
+  spanAttributes: SpanDetailPayloadSection
 }
 
 export type SpanDetailActionResponse =
@@ -325,3 +327,31 @@ export type PutSecretFormState = {
 export type DeleteSecretFormState = {
   error?: Error
 }
+
+export type DeleteSessionFormState = {
+  error?: Error
+  success?: boolean
+}
+
+export type ProviderModelItem = {
+  chef: string
+  chefSlug: string
+  contextLimit?: number
+  id: string
+  modelID: string
+  name: string
+  providerID: string
+  variants?: string[]
+}
+
+export type ListAgentProvidersActionResponse =
+  | {
+      models: ProviderModelItem[]
+      chefs: string[]
+      error: undefined
+    }
+  | {
+      models: undefined
+      chefs: undefined
+      error: Error
+    }

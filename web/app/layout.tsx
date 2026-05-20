@@ -35,7 +35,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       className={cn("h-full", "antialiased", "font-sans", roboto.variable, oxanium.variable)}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex h-svh flex-col overflow-hidden">
         <Providers>
           <AppSidebar agents={agents} />
           <SidebarInset>
@@ -51,7 +51,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 </Suspense>
               </div>
             </header>
-            {children}
+            <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+              {children}
+            </div>
           </SidebarInset>
         </Providers>
       </body>

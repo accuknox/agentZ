@@ -3,8 +3,6 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-PROTO_FILES := internal/session/proto/session.proto internal/agent/proto/agent.proto
-
 # Image URL to render into Kubernetes manifests.
 IMAGE ?= murtazau/clawarmor:latest
 AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
@@ -12,16 +10,16 @@ AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
 .PHONY: all
 all: generate lint build
 
-# Generate sql and protobuf stubs and code containing DeepCopy, DeepCopyInto,
-# and DeepCopyObject method implementations and WebhookConfiguration,
-# ClusterRole and CustomResourceDefinition objects.
+# Generate sql stubs, code containing DeepCopy, DeepCopyInto, and DeepCopyObject
+# method implementations and WebhookConfiguration, ClusterRole and
+# CustomResourceDefinition objects.
 .PHONY: generate
 generate:
 	sqlc generate
-	oapi-codegen -config oapi-codegen.gateway.yaml api/openapi.yaml
-	buf generate
+	go run ./hack/generate_opencode_gateway.go
+	oapi-codegen --include-tags agents,lens,secrets,environments -config oapi-codegen.gateway.yaml api/openapi.yaml
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
-	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=true webhook \
+	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./api/...;./internal/controller/...;./internal/webhook/..." \
 		output:crd:artifacts:config=config/crd/bases
 
@@ -41,8 +39,6 @@ test: $(LOCALBIN)
 lint:
 	go vet ./...
 	"$(GOLANGCI_LINT)" run
-	buf lint
-	protoc --lint_out=sort_imports:. $(PROTO_FILES)
 	yamllint .
 
 # Build clawarmor binary.
@@ -54,11 +50,10 @@ build:
 .PHONY: run-gateway
 run-gateway:
 	kubectl -n default create token default --duration=24h > /tmp/sa-token
-	go run ./cmd/clawarmor agent gateway \
-		--target-override=localhost:8080 \
+	go run ./cmd/clawarmor gateway serve \
+		--target-override=localhost:4096 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
 		--agent-image=$(AGENT_IMAGE) \
-		--agent-session-target=172.18.0.1:8081 \
 		--agent-trace-endpoint=172.18.0.1:4317 \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
@@ -82,11 +77,6 @@ run-manager:
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=clawarmor-nix-store
-
-# Run session service
-.PHONY: run-session-service
-run-session-service:
-	go run ./cmd/clawarmor session serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
 
 # Run observer
 .PHONY: run-observer

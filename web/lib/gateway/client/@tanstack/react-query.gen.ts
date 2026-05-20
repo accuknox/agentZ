@@ -4,15 +4,12 @@ import { queryOptions, type UseMutationOptions } from "@tanstack/react-query"
 
 import { client } from "../client.gen"
 import {
-  compactSession,
   createAgent,
   createEnvironment,
   deleteAgent,
   deleteEnvironment,
   deleteSecret,
-  getChatHistory,
   getSpanDetail,
-  interruptSession,
   listAgents,
   listEnvironments,
   listFileObservability,
@@ -21,16 +18,13 @@ import {
   listSecrets,
   listSpans,
   listTraces,
+  listTraceSessions,
   type Options,
   putSecret,
-  sendMessage,
   updateAgent,
   updateEnvironment,
 } from "../sdk.gen"
 import type {
-  CompactSessionData,
-  CompactSessionError,
-  CompactSessionResponse2,
   CreateAgentData,
   CreateAgentError,
   CreateAgentResponse,
@@ -46,15 +40,9 @@ import type {
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
-  GetChatHistoryData,
-  GetChatHistoryError,
-  GetChatHistoryResponse,
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
-  InterruptSessionData,
-  InterruptSessionError,
-  InterruptSessionResponse2,
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
@@ -78,13 +66,13 @@ import type {
   ListSpansResponse2,
   ListTracesData,
   ListTracesError,
+  ListTraceSessionsData,
+  ListTraceSessionsError,
+  ListTraceSessionsResponse2,
   ListTracesResponse2,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
-  SendMessageData,
-  SendMessageError,
-  SendMessageResponse2,
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
@@ -131,31 +119,6 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
-
-export const getChatHistoryQueryKey = (options: Options<GetChatHistoryData>) =>
-  createQueryKey("getChatHistory", options)
-
-/**
- * Get paginated session event history.
- */
-export const getChatHistoryOptions = (options: Options<GetChatHistoryData>) =>
-  queryOptions<
-    GetChatHistoryResponse,
-    GetChatHistoryError,
-    GetChatHistoryResponse,
-    ReturnType<typeof getChatHistoryQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await getChatHistory({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: getChatHistoryQueryKey(options),
-  })
 
 export const listAgentsQueryKey = (options?: Options<ListAgentsData>) =>
   createQueryKey("listAgents", options)
@@ -205,6 +168,31 @@ export const listTracesOptions = (options: Options<ListTracesData>) =>
       return data
     },
     queryKey: listTracesQueryKey(options),
+  })
+
+export const listTraceSessionsQueryKey = (options: Options<ListTraceSessionsData>) =>
+  createQueryKey("listTraceSessions", options)
+
+/**
+ * List paginated per-session trace summaries.
+ */
+export const listTraceSessionsOptions = (options: Options<ListTraceSessionsData>) =>
+  queryOptions<
+    ListTraceSessionsResponse2,
+    ListTraceSessionsError,
+    ListTraceSessionsResponse2,
+    ReturnType<typeof listTraceSessionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listTraceSessions({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listTraceSessionsQueryKey(options),
   })
 
 export const listSpansQueryKey = (options: Options<ListSpansData>) =>
@@ -333,9 +321,9 @@ export const listNetworkObservabilityOptions = (options: Options<ListNetworkObse
   })
 
 /**
- * Create a session-backed Agent.
+ * Create an Agent resource.
  *
- * Creates a session row and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
+ * Creates an agent record and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
  *
  */
 export const createAgentMutation = (
@@ -359,7 +347,7 @@ export const createAgentMutation = (
 }
 
 /**
- * Delete a session-backed Agent.
+ * Delete an Agent resource.
  */
 export const deleteAgentMutation = (
   options?: Partial<Options<DeleteAgentData>>
@@ -382,9 +370,9 @@ export const deleteAgentMutation = (
 }
 
 /**
- * Update a session-backed Agent.
+ * Update an Agent resource.
  *
- * Updates mutable Agent configuration for an existing session. The session ID in the path identifies the Agent; Agent name is immutable and is not accepted in the request body.
+ * Updates mutable Agent fields for an existing Agent. The agent name in the path identifies the Agent and is immutable.
  *
  */
 export const updateAgentMutation = (
@@ -408,86 +396,9 @@ export const updateAgentMutation = (
 }
 
 /**
- * Send a user prompt to a session agent.
- */
-export const sendMessageMutation = (
-  options?: Partial<Options<SendMessageData>>
-): UseMutationOptions<SendMessageResponse2, SendMessageError, Options<SendMessageData>> => {
-  const mutationOptions: UseMutationOptions<
-    SendMessageResponse2,
-    SendMessageError,
-    Options<SendMessageData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await sendMessage({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Interrupt the active run for a session.
- */
-export const interruptSessionMutation = (
-  options?: Partial<Options<InterruptSessionData>>
-): UseMutationOptions<
-  InterruptSessionResponse2,
-  InterruptSessionError,
-  Options<InterruptSessionData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    InterruptSessionResponse2,
-    InterruptSessionError,
-    Options<InterruptSessionData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await interruptSession({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Compact the current session history.
- */
-export const compactSessionMutation = (
-  options?: Partial<Options<CompactSessionData>>
-): UseMutationOptions<
-  CompactSessionResponse2,
-  CompactSessionError,
-  Options<CompactSessionData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    CompactSessionResponse2,
-    CompactSessionError,
-    Options<CompactSessionData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await compactSession({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Store or overwrite secrets for a session.
+ * Store or overwrite secrets for an agent.
  *
- * Creates or overwrites key-value secrets under the session. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges.
+ * Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges.
  *
  */
 export const putSecretMutation = (
@@ -511,9 +422,9 @@ export const putSecretMutation = (
 }
 
 /**
- * Delete secrets for a session.
+ * Delete secrets for an agent.
  *
- * Deletes the specified secret keys for the session. Missing keys are ignored.
+ * Deletes the specified secret keys for the agent. Missing keys are ignored.
  *
  */
 export const deleteSecretMutation = (
@@ -540,7 +451,7 @@ export const listSecretsQueryKey = (options: Options<ListSecretsData>) =>
   createQueryKey("listSecrets", options)
 
 /**
- * List secret keys for a session.
+ * List secret keys for an agent.
  *
  * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
  *

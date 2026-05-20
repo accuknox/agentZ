@@ -7,7 +7,6 @@ import (
 	"time"
 
 	flowpb "github.com/cilium/cilium/api/v1/flow"
-	"github.com/google/uuid"
 )
 
 const (
@@ -21,13 +20,13 @@ const (
 )
 
 type managedSource struct {
-	sessionID uuid.UUID
+	agentName string
 	namespace string
 	podName   string
 }
 
 type dnsCacheKey struct {
-	sessionID uuid.UUID
+	agentName string
 	podName   string
 	ip        string
 }
@@ -46,8 +45,8 @@ func newDNSCache() *dnsCache {
 	return &dnsCache{items: map[dnsCacheKey]dnsCacheEntry{}}
 }
 
-func (c *dnsCache) put(sessionID uuid.UUID, podName, ip, domain string, now time.Time, ttl uint32) {
-	if sessionID == uuid.Nil || podName == "" || ip == "" || domain == "" {
+func (c *dnsCache) put(agentName, podName, ip, domain string, now time.Time, ttl uint32) {
+	if agentName == "" || podName == "" || ip == "" || domain == "" {
 		return
 	}
 
@@ -61,18 +60,18 @@ func (c *dnsCache) put(sessionID uuid.UUID, podName, ip, domain string, now time
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.items[dnsCacheKey{sessionID: sessionID, podName: podName, ip: ip}] = dnsCacheEntry{
+	c.items[dnsCacheKey{agentName: agentName, podName: podName, ip: ip}] = dnsCacheEntry{
 		domain:   domain,
 		deadline: now.Add(d),
 	}
 }
 
-func (c *dnsCache) get(sessionID uuid.UUID, podName, ip string, now time.Time) string {
-	if sessionID == uuid.Nil || podName == "" || ip == "" {
+func (c *dnsCache) get(agentName, podName, ip string, now time.Time) string {
+	if agentName == "" || podName == "" || ip == "" {
 		return ""
 	}
 
-	key := dnsCacheKey{sessionID: sessionID, podName: podName, ip: ip}
+	key := dnsCacheKey{agentName: agentName, podName: podName, ip: ip}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -121,13 +120,13 @@ func normalizeFlow(ctx context.Context, item *flowpb.Flow, namespace string, r *
 
 	dstIP := strings.TrimSpace(item.GetIP().GetDestination())
 	domain := normalizeDestinationDomain(
-		cache.get(src.sessionID, src.podName, dstIP, ts),
+		cache.get(src.agentName, src.podName, dstIP, ts),
 		item.GetDestinationNames(),
 		r.resolveDestinationDomain(ctx, dstIP),
 	)
 
 	return event{network: &networkEvent{
-		sessionID:         src.sessionID,
+		agentName:         src.agentName,
 		eventTime:         ts,
 		podNamespace:      src.namespace,
 		podName:           src.podName,
@@ -155,7 +154,7 @@ func observeDNSFlow(item *flowpb.Flow, src managedSource, cache *dnsCache, now t
 		if ip == "" {
 			continue
 		}
-		cache.put(src.sessionID, src.podName, ip, domain, now, dns.GetTtl())
+		cache.put(src.agentName, src.podName, ip, domain, now, dns.GetTtl())
 	}
 }
 
@@ -165,12 +164,12 @@ func resolveManagedSource(ctx context.Context, r *resolver, src *flowpb.Endpoint
 	}
 
 	labels := normalizeHubbleLabels(src.GetLabels())
-	sessionID, ok := r.resolveNetwork(ctx, src.GetNamespace(), labels, src.GetPodName())
+	agentName, ok := r.resolveNetwork(ctx, src.GetNamespace(), labels, src.GetPodName())
 	if !ok {
 		return managedSource{}, false
 	}
 	return managedSource{
-		sessionID: sessionID,
+		agentName: agentName,
 		namespace: src.GetNamespace(),
 		podName:   src.GetPodName(),
 	}, true

@@ -5,7 +5,6 @@ import { updateTag } from "next/cache"
 import {
   createEnvironment,
   deleteEnvironment,
-  listAgents,
   listEnvironments,
   updateEnvironment,
   type Error,
@@ -86,22 +85,32 @@ export async function deleteEnvironmentFormAction(
   _: DeleteEnvironmentFormState,
   _formData: FormData
 ): Promise<DeleteEnvironmentFormState> {
-  const agentsResult = await listAgents({
-    query: { limit: 200 },
-    cache: "no-store",
-  })
-  if (agentsResult.error) {
-    return { error: agentsResult.error }
-  }
-  const referencingAgent = agentsResult.data.agents.find(
-    (agent) => agent.status !== "DELETED" && agent.configuration.environmentName === name
-  )
-  if (referencingAgent) {
-    return {
-      error: {
-        code: "ENVIRONMENT_REFERENCED",
-        message: `Environment is referenced by agent ${referencingAgent.name}`,
-      },
+  let pageToken = ""
+  for (;;) {
+    const listResult = await listEnvironments({
+      query: { limit: 200, page_token: pageToken || undefined },
+      cache: "no-store",
+    })
+    if (listResult.error) {
+      return { error: listResult.error }
+    }
+
+    const environment = listResult.data.environments.find((env) => env.name === name)
+    if (environment) {
+      if (environment.metadata.referenced_by_agent) {
+        return {
+          error: {
+            code: "ENVIRONMENT_REFERENCED",
+            message: "Environment is referenced by one or more agents",
+          },
+        }
+      }
+      break
+    }
+
+    pageToken = listResult.data.next_page_token
+    if (pageToken.length === 0) {
+      break
     }
   }
 

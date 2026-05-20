@@ -93,15 +93,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
 	}
 
-	_, err = serverPort(agt.Spec.Server.Address)
-	if err != nil {
-		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-		if updateErr != nil {
-			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
-		}
-		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
-	}
-
 	envCfg, err := r.resolveEnvironment(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
@@ -111,16 +102,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("resolve environment: %w", err)
 	}
 
-	cfgYAML, err := renderConfig(agt)
-	if err != nil {
-		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-		if updateErr != nil {
-			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+	var opencodeCfg []byte
+	var instruction string
+
+	mountConfig := hasOpencodeConfig(agt)
+	if mountConfig {
+		opencodeCfg, instruction, err = renderOpencodeConfig(agt)
+		if err != nil {
+			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+			if updateErr != nil {
+				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+			}
+			return ctrl.Result{}, fmt.Errorf("render opencode config: %w", err)
 		}
-		return ctrl.Result{}, fmt.Errorf("render config: %w", err)
 	}
 
-	err = r.reconcileConfigMap(ctx, agt, string(cfgYAML))
+	err = r.reconcileConfigMap(ctx, agt, string(opencodeCfg), instruction)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -138,7 +135,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
-	err = r.reconcileNixPVCs(ctx, agt, envCfg.Packages)
+	err = r.reconcileNixPVCs(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -197,15 +194,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile egress policy: %w", err)
 	}
 
-	hash, err := configHash(cfgYAML, agt.Spec.Env, envCfg.Packages)
-	if err != nil {
-		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-		if updateErr != nil {
-			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
-		}
-		return ctrl.Result{}, fmt.Errorf("hash config: %w", err)
-	}
-	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages)
+	hash := configHash(opencodeCfg, agt.Spec.Env, envCfg.Packages)
+	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, mountConfig)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -296,11 +286,7 @@ func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object
 	return requests
 }
 
-func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha1.Agent, packages []string) error {
-	if len(packages) == 0 {
-		return nil
-	}
-
+func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
 	agentPVC := &corev1.PersistentVolumeClaim{}
 	agentPVC.Name = agt.Name + "-nix"
 	agentPVC.Namespace = agt.Namespace
@@ -329,15 +315,11 @@ func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *clawarmorv1alpha
 }
 
 func (r *Reconciler) proxyAddress(agt *clawarmorv1alpha1.Agent) string {
-	port, err := sinjectorPort(agt)
-	if err != nil {
-		port = 8080
-	}
 	return fmt.Sprintf(
 		"http://%s.%s.svc.cluster.local:%d",
 		sinjectorName(agt),
 		agt.Namespace,
-		port,
+		4096,
 	)
 }
 
@@ -367,11 +349,6 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.Namespaced
 			return fmt.Errorf("get deployment: %w", depErr)
 		}
 
-		port, portErr := serverPort(agt.Spec.Server.Address)
-		if portErr != nil {
-			port = 0
-		}
-
 		agt.Status.ServiceName = ""
 		agt.Status.URL = ""
 		if svcErr == nil {
@@ -380,14 +357,9 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.Namespaced
 				"http://%s.%s.svc.cluster.local:%d",
 				svc.Name,
 				svc.Namespace,
-				port,
+				4096,
 			)
 		}
-		agt.Status.ConfigMapName = ""
-		if cmErr == nil {
-			agt.Status.ConfigMapName = cm.Name
-		}
-		agt.Status.ObservedSessionID = agt.Spec.Session.ID
 		agt.Status.ObservedGeneration = agt.Generation
 
 		if dep.Name == "" {
@@ -473,10 +445,9 @@ func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.Namespaced
 			return client.IgnoreNotFound(err)
 		}
 
-		agt.Status.ObservedSessionID = agt.Spec.Session.ID
 		agt.Status.ObservedGeneration = gen
 		reason := clawarmorv1alpha1.ReasonReconcileFailed
-		if errors.Is(recErr, errImageEmpty) || errors.Is(recErr, errPortInvalid) {
+		if errors.Is(recErr, errImageEmpty) {
 			reason = clawarmorv1alpha1.ReasonConfigInvalid
 		}
 		agt.Status.SetCondition(metav1.Condition{

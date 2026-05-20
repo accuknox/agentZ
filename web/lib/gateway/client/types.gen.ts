@@ -5,26 +5,6 @@ export type ClientOptions = {
 }
 
 /**
- * ClawArmor session UUID.
- */
-export type SessionId = string
-
-/**
- * ClawArmor session UUID.
- */
-export type SessionIdInput = string
-
-/**
- * Agent run UUID.
- */
-export type RunId = string
-
-/**
- * Agent request UUID.
- */
-export type RequestId = string
-
-/**
  * Lowercase hexadecimal OTLP trace ID.
  */
 export type TraceId = string
@@ -60,57 +40,21 @@ export type FieldError = {
   message: string
 }
 
-export type ChatHistoryResponse = {
-  session_id: SessionId
-  events: Array<StoredSessionEvent>
-  next_page_token: string
-}
-
-export type StoredSessionEvent = {
-  seq: number
-  event_id: string
-  event_ts: string
-  payload: TrpcAgentEventPayload
-}
-
 export type ListAgentsResponse = {
-  agents: Array<ListAgent>
+  agents: Array<Agent>
   next_page_token: string
-}
-
-export type ListAgent = Agent & {
-  configuration: AgentConfiguration
 }
 
 export type Agent = {
   name: AgentName
-  session_id: SessionId
+  environmentName: EnvironmentName
   last_activity: string
   created_at: string
   modified_at: string
   status: AgentStatus
 }
 
-export type AgentConfiguration = {
-  env?: {
-    [key: string]: string
-  }
-  environmentName?: EnvironmentName
-  systemPrompt?: string
-  compaction?: CreateAgentCompaction
-  maxHistoryRuns?: number
-  model: CreateAgentModel
-  tools?: CreateAgentTools
-}
-
-export type AgentStatus =
-  | "UNSPECIFIED"
-  | "PROGRESSING"
-  | "DEGRADED"
-  | "DELETED"
-  | "IDLE"
-  | "WORKING"
-  | "WAITING_FOR_HUMAN_INTERACTION"
+export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
 
 export type CreateAgentRequest = {
   name: AgentName
@@ -118,118 +62,33 @@ export type CreateAgentRequest = {
     [key: string]: string
   }
   environmentName: EnvironmentName
-  systemPrompt?: string
-  compaction?: CreateAgentCompaction
-  maxHistoryRuns?: number
-  model: CreateAgentModel
-  tools?: CreateAgentTools
+  opencode?: AgentOpencodeConfig
 }
 
 export type DeleteAgentRequest = {
-  session_id: SessionIdInput
+  agent_name: AgentName
 }
 
 export type UpdateAgentRequest = {
   env?: {
     [key: string]: string
   }
-  environmentName: EnvironmentName
-  systemPrompt?: string
-  compaction?: UpdateAgentCompaction
-  maxHistoryRuns?: number
-  model?: UpdateAgentModel
-  tools?: UpdateAgentTools
+  environmentName?: EnvironmentName
+  opencode?: AgentOpencodeConfig
 }
 
-export type CreateAgentCompaction = {
-  mode?: CompactionMode
-  thresholdRatio?: number
-  historyToolResultRatio?: number
-  keepRecentRequests?: number
-  oversizedToolResultRatio?: number
+export type AgentOpencodeConfig = {
+  model?: string
+  smallModel?: string
+  instruction?: string
+  providers?: {
+    [key: string]: AgentOpencodeProviderConfig
+  }
 }
 
-export type UpdateAgentCompaction = {
-  mode?: CompactionMode
-  thresholdRatio?: number
-  historyToolResultRatio?: number
-  keepRecentRequests?: number
-  oversizedToolResultRatio?: number
-}
-
-export type CompactionMode = "summary" | "truncate"
-
-export type CreateAgentModel = {
-  primary: CreateAgentModelConfig
-  summary?: CreateAgentModelConfig
-}
-
-export type UpdateAgentModel = {
-  primary?: UpdateAgentModelConfig
-  summary?: UpdateAgentModelConfig
-}
-
-export type CreateAgentModelConfig = {
-  name: string
-  contextWindow: number
-  temperature?: number
-}
-
-export type UpdateAgentModelConfig = {
-  name?: string
-  contextWindow?: number
-  temperature?: number
-}
-
-export type CreateAgentTools = {
-  hostExec?: CreateAgentEnabledByDefaultTool
-  webFetch?: CreateAgentEnabledByDefaultTool
-  file?: CreateAgentDisabledByDefaultTool
-  arxiv?: CreateAgentDisabledByDefaultTool
-}
-
-export type UpdateAgentTools = {
-  hostExec?: UpdateAgentTool
-  webFetch?: UpdateAgentTool
-  file?: UpdateAgentTool
-  arxiv?: UpdateAgentTool
-}
-
-export type UpdateAgentTool = {
-  enabled?: boolean
-}
-
-export type CreateAgentEnabledByDefaultTool = {
-  enabled?: boolean
-}
-
-export type CreateAgentDisabledByDefaultTool = {
-  enabled?: boolean
-}
-
-export type SendMessageRequest = {
-  session_id: SessionIdInput
-  prompt: string
-}
-
-export type SendMessageResponse = {
-  session_id: SessionId
-  run_id: RunId
-  request_id: RequestId
-}
-
-export type SubscribeSessionRequest = SessionActionRequest
-
-export type SessionActionRequest = {
-  session_id: SessionIdInput
-}
-
-export type InterruptSessionResponse = {
-  interrupted: boolean
-}
-
-export type CompactSessionResponse = {
-  message: string
+export type AgentOpencodeProviderConfig = {
+  env?: Array<string>
+  baseURL?: string
 }
 
 export type ListTracesResponse = {
@@ -237,22 +96,50 @@ export type ListTracesResponse = {
   next_page_token: string
 }
 
+export type ListTraceSessionsResponse = {
+  trace_sessions: Array<TraceSession>
+  next_page_token: string
+}
+
 export type Trace = {
   trace_id: TraceId
-  session_id: SessionId
+  agent_name: AgentName
   root_span_id: OptionalSpanId
   started_at: string
   ended_at: string
   duration_ns: number
+  duration_ms: number
   span_count: number
   error_count: number
   tool_count: number
   model_count: number
-  run_id: string
-  request_id: string
-  conversation_id: string
   input_tokens: number
   output_tokens: number
+  cached_input_tokens: number
+  cached_write_tokens: number
+  cost_usd: number
+  status_code: string
+  updated_at: string
+}
+
+export type TraceSession = {
+  trace_id: TraceId
+  session_id: string
+  agent_name: AgentName
+  root_span_id: OptionalSpanId
+  started_at: string
+  ended_at: string
+  duration_ns: number
+  duration_ms: number
+  span_count: number
+  error_count: number
+  tool_count: number
+  model_count: number
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  cached_write_tokens: number
+  cost_usd: number
   status_code: string
   updated_at: string
 }
@@ -264,31 +151,36 @@ export type ListSpansResponse = {
 
 export type Span = {
   id: number
-  session_id: SessionId
+  agent_name: AgentName
+  session_id: string
   trace_id: TraceId
   span_id: SpanId
   parent_span_id: OptionalSpanId
   start_time: string
   end_time: string
   duration_ns: number
+  duration_ms: number
   name: string
+  span_class: string
   operation_name: string
   kind: string
   status_code: string
   error_type: string
   error_message: string
-  conversation_id: string
-  run_id: string
-  request_id: string
   model: string
   tool_name: string
   input_tokens: number
   output_tokens: number
   cached_input_tokens: number
-  time_to_first_token_ms: number
-  pod_namespace: string
-  pod_name: string
+  cached_write_tokens: number
+  cost_usd: number
+  llm_finish_reason: string
   ingested_at: string
+}
+
+export type SpanDetail = Span & {
+  resource_attributes: JsonValue
+  span_attributes: JsonValue
 }
 
 export type SpanPayload = {
@@ -296,11 +188,10 @@ export type SpanPayload = {
   output_messages: JsonValue
   tool_arguments: JsonValue
   tool_result: JsonValue
-  metadata: JsonValue
 }
 
 export type SpanDetailResponse = {
-  span: Span
+  span: SpanDetail
   payload: SpanPayload
 }
 
@@ -311,7 +202,7 @@ export type ListProcessObservabilityResponse = {
 
 export type ProcessObservabilityEvent = {
   id: number
-  session_id: SessionId
+  agent_name: AgentName
   event_time: string
   ingested_at: string
   pod_namespace: string
@@ -324,7 +215,7 @@ export type ProcessObservabilityEvent = {
 }
 
 export type ProcessObservabilityEventAggregated = {
-  session_id: SessionId
+  agent_name: AgentName
   last_seen: string
   process: string
   parent_process: string
@@ -341,7 +232,7 @@ export type ListFileObservabilityResponse = {
 
 export type FileObservabilityEvent = {
   id: number
-  session_id: SessionId
+  agent_name: AgentName
   event_time: string
   ingested_at: string
   pod_namespace: string
@@ -354,7 +245,7 @@ export type FileObservabilityEvent = {
 }
 
 export type FileObservabilityEventAggregated = {
-  session_id: SessionId
+  agent_name: AgentName
   last_seen: string
   file_path_accessed: string
   process: string
@@ -371,7 +262,7 @@ export type ListNetworkObservabilityResponse = {
 
 export type NetworkObservabilityEvent = {
   id: number
-  session_id: SessionId
+  agent_name: AgentName
   event_time: string
   ingested_at: string
   pod_namespace: string
@@ -385,7 +276,7 @@ export type NetworkObservabilityEvent = {
 }
 
 export type NetworkObservabilityEventAggregated = {
-  session_id: SessionId
+  agent_name: AgentName
   last_seen: string
   destination_domain: string
   destination_ip: string
@@ -397,296 +288,11 @@ export type NetworkObservabilityEventAggregated = {
 }
 
 export type WatchAgentsRequest = {
-  session_ids?: Array<SessionIdInput>
+  agent_names?: Array<AgentName>
 }
 
 export type WatchAgentsEvent = {
   agents: Array<Agent>
-}
-
-export type SessionStreamEvent =
-  | ({
-      type: "EVENT_TYPE_UNSPECIFIED"
-    } & SessionStreamUnspecifiedEvent)
-  | ({
-      type: "EVENT_TYPE_RUN_STARTED"
-    } & SessionRunStartedEvent)
-  | ({
-      type: "EVENT_TYPE_ASSISTANT_DELTA"
-    } & SessionAssistantDeltaEvent)
-  | ({
-      type: "EVENT_TYPE_ASSISTANT_MESSAGE"
-    } & SessionAssistantMessageEvent)
-  | ({
-      type: "EVENT_TYPE_TOOL_CALL"
-    } & SessionToolCallEvent)
-  | ({
-      type: "EVENT_TYPE_TOOL_RESULT"
-    } & SessionToolResultEvent)
-  | ({
-      type: "EVENT_TYPE_RUN_COMPLETED"
-    } & SessionRunCompletedEvent)
-  | ({
-      type: "EVENT_TYPE_RUN_INTERRUPTED"
-    } & SessionRunInterruptedEvent)
-  | ({
-      type: "EVENT_TYPE_RUN_ERROR"
-    } & SessionRunErrorEvent)
-
-export type SessionStreamBase = {
-  sequence: number
-  session_id: SessionId
-  run_id: RunId
-  request_id: RequestId
-  type: SessionStreamEventType
-}
-
-export type SessionStreamEventType =
-  | "EVENT_TYPE_UNSPECIFIED"
-  | "EVENT_TYPE_RUN_STARTED"
-  | "EVENT_TYPE_ASSISTANT_DELTA"
-  | "EVENT_TYPE_ASSISTANT_MESSAGE"
-  | "EVENT_TYPE_TOOL_CALL"
-  | "EVENT_TYPE_TOOL_RESULT"
-  | "EVENT_TYPE_RUN_COMPLETED"
-  | "EVENT_TYPE_RUN_INTERRUPTED"
-  | "EVENT_TYPE_RUN_ERROR"
-
-export type SessionStreamUnspecifiedEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_UNSPECIFIED"
-}
-
-export type SessionRunStartedEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_RUN_STARTED"
-  /**
-   * The prompt that started the run.
-   */
-  content: string
-}
-
-export type SessionAssistantDeltaEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_ASSISTANT_DELTA"
-  content?: string
-  reasoning_content?: string
-}
-
-export type SessionAssistantMessageEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_ASSISTANT_MESSAGE"
-  content: string
-  reasoning_content?: string
-}
-
-export type SessionToolCallEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_TOOL_CALL"
-  tool_name: string
-  /**
-   * JSON-encoded tool arguments.
-   */
-  tool_payload: string
-}
-
-export type SessionToolResultEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_TOOL_RESULT"
-  tool_name: string
-  tool_payload: string
-}
-
-export type SessionRunCompletedEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_RUN_COMPLETED"
-}
-
-export type SessionRunInterruptedEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_RUN_INTERRUPTED"
-  content?: string
-}
-
-export type SessionRunErrorEvent = SessionStreamBase & {
-  type: "EVENT_TYPE_RUN_ERROR"
-  error: string
-}
-
-export type TrpcAgentEventPayload = {
-  requestID?: string
-  invocationId: string
-  parentInvocationId?: string
-  author: string
-  id: string
-  timestamp: string
-  branch?: string
-  tag?: string
-  requiresCompletion?: boolean
-  longRunningToolIDs?: {
-    [key: string]: {
-      [key: string]: never
-    }
-  }
-  stateDelta?: {
-    [key: string]: string
-  }
-  extensions?: {
-    [key: string]: JsonValue
-  }
-  actions?: EventActions
-  filterKey?: string
-  version?: number
-  object?: ModelObjectType
-  created?: number
-  model?: string
-  choices?: Array<Choice>
-  usage?: Usage
-  system_fingerprint?: string | null
-  error?: ModelResponseError
-  done?: boolean
-  is_partial?: boolean
-}
-
-export type EventActions = {
-  skipSummarization?: boolean
-}
-
-export type ModelObjectType =
-  | "error"
-  | "tool.response"
-  | "preprocessing.basic"
-  | "preprocessing.content"
-  | "preprocessing.identity"
-  | "preprocessing.instruction"
-  | "preprocessing.planning"
-  | "postprocessing.planning"
-  | "postprocessing.code_execution"
-  | "agent.transfer"
-  | "runner.completion"
-  | "state.update"
-  | "chat.completion.chunk"
-  | "chat.completion"
-
-export type Choice = {
-  index: number
-  message?: ModelMessage
-  delta?: ModelMessage
-  finish_reason?: string | null
-}
-
-export type ModelMessage = {
-  role: MessageRole
-  content?: string
-  content_parts?: Array<ContentPart>
-  tool_id?: string
-  tool_name?: string
-  tool_calls?: Array<ToolCall>
-  reasoning_content?: string
-}
-
-export type MessageRole = "system" | "user" | "assistant" | "tool"
-
-export type ContentPart =
-  | ({
-      type: "text"
-    } & TextContentPart)
-  | ({
-      type: "image"
-    } & ImageContentPart)
-  | ({
-      type: "audio"
-    } & AudioContentPart)
-  | ({
-      type: "file"
-    } & FileContentPart)
-
-export type TextContentPart = {
-  type: "text"
-  text: string
-}
-
-export type ImageContentPart = {
-  type: "image"
-  image: Image
-}
-
-export type AudioContentPart = {
-  type: "audio"
-  audio: Audio
-}
-
-export type FileContentPart = {
-  type: "file"
-  file: File
-}
-
-export type Image = {
-  url?: string
-  data?: string
-  detail?: ImageDetail
-  format?: "png" | "jpg" | "jpeg" | "webp" | "gif"
-}
-
-export type ImageDetail = "low" | "high" | "auto"
-
-export type Audio = {
-  data: string
-  format: "wav" | "mp3"
-}
-
-export type File = {
-  filename?: string
-  data?: string
-  file_id?: string
-  /**
-   * MIME type for file data.
-   */
-  format?: string
-}
-
-export type ToolCall = {
-  type: "function"
-  function?: FunctionDefinitionParam
-  id?: string
-  index?: number | null
-  extra_fields?: {
-    [key: string]: JsonValue
-  }
-}
-
-export type FunctionDefinitionParam = {
-  name: string
-  strict?: boolean
-  description?: string
-  /**
-   * JSON-encoded function arguments.
-   */
-  arguments?: string
-}
-
-export type Usage = {
-  prompt_tokens: number
-  completion_tokens: number
-  total_tokens: number
-  prompt_tokens_details: PromptTokensDetails
-  timing_info?: TimingInfo
-}
-
-export type PromptTokensDetails = {
-  cached_tokens: number
-  cache_creation_tokens?: number
-  cache_read_tokens?: number
-}
-
-export type TimingInfo = {
-  /**
-   * Go time.Duration encoded as nanoseconds.
-   */
-  time_to_first_token?: number
-  /**
-   * Go time.Duration encoded as nanoseconds.
-   */
-  reasoning_duration?: number
-}
-
-export type ModelResponseError = {
-  message: string
-  type: "stream_error" | "api_error" | "flow_error" | "run_error"
-  param?: string | null
-  code?: string | null
 }
 
 export type JsonValue =
@@ -780,14 +386,14 @@ export type UpdateEnvironmentRequest = {
 }
 
 /**
- * Session UUID.
+ * Agent name.
  */
-export type SessionIdQuery = SessionId
+export type AgentNameQuery = AgentName
 
 /**
- * Session UUID.
+ * Agent name.
  */
-export type SessionIdPath = SessionId
+export type AgentNamePath = AgentName
 
 /**
  * Environment name.
@@ -795,9 +401,9 @@ export type SessionIdPath = SessionId
 export type EnvironmentNamePath = EnvironmentName
 
 /**
- * Optional session UUID filters. Repeat the query parameter for multiple sessions.
+ * Optional agent name filters. Repeat the query parameter for multiple agents.
  */
-export type SessionIdFilterQuery = Array<SessionId>
+export type AgentNameFilterQuery = Array<AgentName>
 
 /**
  * Maximum number of items to return.
@@ -818,6 +424,11 @@ export type TraceIdQuery = TraceId
  * Lowercase hexadecimal OTLP span ID.
  */
 export type SpanIdQuery = SpanId
+
+/**
+ * Optional root session ID.
+ */
+export type SessionIdQuery = string
 
 /**
  * Inclusive lower bound for trace start time.
@@ -849,60 +460,14 @@ export type ActionQuery = ObservabilityAction
  */
 export type AggregatedQuery = boolean
 
-export type GetChatHistoryData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Session UUID.
-     */
-    session_id: SessionId
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/chat-history"
-}
-
-export type GetChatHistoryErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type GetChatHistoryError = GetChatHistoryErrors[keyof GetChatHistoryErrors]
-
-export type GetChatHistoryResponses = {
-  /**
-   * Paginated chat history for the session.
-   */
-  200: ChatHistoryResponse
-}
-
-export type GetChatHistoryResponse = GetChatHistoryResponses[keyof GetChatHistoryResponses]
-
 export type ListAgentsData = {
   body?: never
   path?: never
   query?: {
     /**
-     * Optional session UUID filters. Repeat the query parameter for multiple sessions.
+     * Optional agent name filters. Repeat the query parameter for multiple agents.
      */
-    session_id?: Array<SessionId>
+    agent_name?: Array<AgentName>
     /**
      * Maximum number of items to return.
      */
@@ -912,7 +477,7 @@ export type ListAgentsData = {
      */
     page_token?: string
   }
-  url: "/api/list-agents"
+  url: "/api/agent/list"
 }
 
 export type ListAgentsErrors = {
@@ -942,9 +507,9 @@ export type ListTracesData = {
   path?: never
   query: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    session_id: SessionId
+    agent_name: AgentName
     /**
      * Maximum number of items to return.
      */
@@ -962,7 +527,7 @@ export type ListTracesData = {
      */
     started_before?: string
   }
-  url: "/api/list-traces"
+  url: "/api/lens/trace/list"
 }
 
 export type ListTracesErrors = {
@@ -991,14 +556,73 @@ export type ListTracesResponses = {
 
 export type ListTracesResponse2 = ListTracesResponses[keyof ListTracesResponses]
 
+export type ListTraceSessionsData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Optional root session ID.
+     */
+    session_id?: string
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
+  }
+  url: "/api/lens/trace/session/list"
+}
+
+export type ListTraceSessionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListTraceSessionsError = ListTraceSessionsErrors[keyof ListTraceSessionsErrors]
+
+export type ListTraceSessionsResponses = {
+  /**
+   * Paginated per-session trace summaries.
+   */
+  200: ListTraceSessionsResponse
+}
+
+export type ListTraceSessionsResponse2 =
+  ListTraceSessionsResponses[keyof ListTraceSessionsResponses]
+
 export type ListSpansData = {
   body?: never
   path?: never
   query: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    session_id: SessionId
+    agent_name: AgentName
     /**
      * Lowercase hexadecimal OTLP trace ID.
      */
@@ -1012,7 +636,7 @@ export type ListSpansData = {
      */
     page_token?: string
   }
-  url: "/api/list-spans"
+  url: "/api/lens/span/list"
 }
 
 export type ListSpansErrors = {
@@ -1046,9 +670,9 @@ export type GetSpanDetailData = {
   path?: never
   query: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    session_id: SessionId
+    agent_name: AgentName
     /**
      * Lowercase hexadecimal OTLP trace ID.
      */
@@ -1058,7 +682,7 @@ export type GetSpanDetailData = {
      */
     span_id: SpanId
   }
-  url: "/api/get-span-detail"
+  url: "/api/lens/span/detail"
 }
 
 export type GetSpanDetailErrors = {
@@ -1092,9 +716,9 @@ export type ListProcessObservabilityData = {
   path?: never
   query: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    session_id: SessionId
+    agent_name: AgentName
     /**
      * Maximum number of items to return.
      */
@@ -1120,7 +744,7 @@ export type ListProcessObservabilityData = {
      */
     aggregated?: boolean
   }
-  url: "/api/list-process-observability"
+  url: "/api/lens/observability/process/list"
 }
 
 export type ListProcessObservabilityErrors = {
@@ -1156,9 +780,9 @@ export type ListFileObservabilityData = {
   path?: never
   query: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    session_id: SessionId
+    agent_name: AgentName
     /**
      * Maximum number of items to return.
      */
@@ -1184,7 +808,7 @@ export type ListFileObservabilityData = {
      */
     aggregated?: boolean
   }
-  url: "/api/list-file-observability"
+  url: "/api/lens/observability/file/list"
 }
 
 export type ListFileObservabilityErrors = {
@@ -1220,9 +844,9 @@ export type ListNetworkObservabilityData = {
   path?: never
   query: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    session_id: SessionId
+    agent_name: AgentName
     /**
      * Maximum number of items to return.
      */
@@ -1248,7 +872,7 @@ export type ListNetworkObservabilityData = {
      */
     aggregated?: boolean
   }
-  url: "/api/list-network-observability"
+  url: "/api/lens/observability/network/list"
 }
 
 export type ListNetworkObservabilityErrors = {
@@ -1283,7 +907,7 @@ export type CreateAgentData = {
   body: CreateAgentRequest
   path?: never
   query?: never
-  url: "/api/create-agent"
+  url: "/api/agent/create"
 }
 
 export type CreateAgentErrors = {
@@ -1292,7 +916,7 @@ export type CreateAgentErrors = {
    */
   400: Error
   /**
-   * Request conflicts with current session state.
+   * Request conflicts with current agent state.
    */
   409: Error
   /**
@@ -1316,7 +940,7 @@ export type DeleteAgentData = {
   body: DeleteAgentRequest
   path?: never
   query?: never
-  url: "/api/delete-agent"
+  url: "/api/agent/delete"
 }
 
 export type DeleteAgentErrors = {
@@ -1338,7 +962,7 @@ export type DeleteAgentError = DeleteAgentErrors[keyof DeleteAgentErrors]
 
 export type DeleteAgentResponses = {
   /**
-   * Agent and session were deleted.
+   * Agent was deleted.
    */
   204: void
 }
@@ -1349,12 +973,12 @@ export type UpdateAgentData = {
   body: UpdateAgentRequest
   path: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    sessionID: SessionId
+    agentName: AgentName
   }
   query?: never
-  url: "/api/update-agent/{sessionID}"
+  url: "/api/agent/update/{agentName}"
 }
 
 export type UpdateAgentErrors = {
@@ -1367,7 +991,7 @@ export type UpdateAgentErrors = {
    */
   404: Error
   /**
-   * Request conflicts with current session state.
+   * Request conflicts with current agent state.
    */
   409: Error
   /**
@@ -1387,167 +1011,11 @@ export type UpdateAgentResponses = {
 
 export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses]
 
-export type SendMessageData = {
-  body: SendMessageRequest
-  path?: never
-  query?: never
-  url: "/api/send-message"
-}
-
-export type SendMessageErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current session state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-  /**
-   * A required backend is unavailable.
-   */
-  503: Error
-}
-
-export type SendMessageError = SendMessageErrors[keyof SendMessageErrors]
-
-export type SendMessageResponses = {
-  /**
-   * Message accepted and run started.
-   */
-  200: SendMessageResponse
-}
-
-export type SendMessageResponse2 = SendMessageResponses[keyof SendMessageResponses]
-
-export type SubscribeSessionData = {
-  body: SessionActionRequest
-  path?: never
-  query?: never
-  url: "/api/subscribe-session"
-}
-
-export type SubscribeSessionErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-  /**
-   * A required backend is unavailable.
-   */
-  503: Error
-}
-
-export type SubscribeSessionError = SubscribeSessionErrors[keyof SubscribeSessionErrors]
-
-export type SubscribeSessionResponses = {
-  /**
-   * Stream of session run events.
-   */
-  200: SessionStreamEvent
-}
-
-export type SubscribeSessionResponse = SubscribeSessionResponses[keyof SubscribeSessionResponses]
-
-export type InterruptSessionData = {
-  body: SessionActionRequest
-  path?: never
-  query?: never
-  url: "/api/interrupt-session"
-}
-
-export type InterruptSessionErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-  /**
-   * A required backend is unavailable.
-   */
-  503: Error
-}
-
-export type InterruptSessionError = InterruptSessionErrors[keyof InterruptSessionErrors]
-
-export type InterruptSessionResponses = {
-  /**
-   * Interrupt result.
-   */
-  200: InterruptSessionResponse
-}
-
-export type InterruptSessionResponse2 = InterruptSessionResponses[keyof InterruptSessionResponses]
-
-export type CompactSessionData = {
-  body: SessionActionRequest
-  path?: never
-  query?: never
-  url: "/api/compact-session"
-}
-
-export type CompactSessionErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * The session is not in the required state.
-   */
-  412: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-  /**
-   * A required backend is unavailable.
-   */
-  503: Error
-}
-
-export type CompactSessionError = CompactSessionErrors[keyof CompactSessionErrors]
-
-export type CompactSessionResponses = {
-  /**
-   * Compaction result.
-   */
-  200: CompactSessionResponse
-}
-
-export type CompactSessionResponse2 = CompactSessionResponses[keyof CompactSessionResponses]
-
 export type WatchAgentsData = {
   body?: WatchAgentsRequest
   path?: never
   query?: never
-  url: "/api/watch-agents"
+  url: "/api/agent/watch"
 }
 
 export type WatchAgentsErrors = {
@@ -1576,12 +1044,12 @@ export type PutSecretData = {
   body: PutSecretsRequest
   path: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    sessionID: SessionId
+    agentName: AgentName
   }
   query?: never
-  url: "/api/secret/{sessionID}/put"
+  url: "/api/secret/{agentName}/put"
 }
 
 export type PutSecretErrors = {
@@ -1614,12 +1082,12 @@ export type DeleteSecretData = {
   body: DeleteSecretsRequest
   path: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    sessionID: SessionId
+    agentName: AgentName
   }
   query?: never
-  url: "/api/secret/{sessionID}/delete"
+  url: "/api/secret/{agentName}/delete"
 }
 
 export type DeleteSecretErrors = {
@@ -1652,9 +1120,9 @@ export type ListSecretsData = {
   body?: never
   path: {
     /**
-     * Session UUID.
+     * Agent name.
      */
-    sessionID: SessionId
+    agentName: AgentName
   }
   query?: {
     /**
@@ -1666,7 +1134,7 @@ export type ListSecretsData = {
      */
     page_token?: string
   }
-  url: "/api/secret/{sessionID}/list"
+  url: "/api/secret/{agentName}/list"
 }
 
 export type ListSecretsErrors = {
@@ -1746,7 +1214,7 @@ export type CreateEnvironmentErrors = {
    */
   400: Error
   /**
-   * Request conflicts with current session state.
+   * Request conflicts with current agent state.
    */
   409: Error
   /**

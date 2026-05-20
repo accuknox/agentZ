@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,7 +29,7 @@ const (
 type resolver struct {
 	client ctrlclient.Client
 	mu     sync.RWMutex
-	cache  map[string]uuid.UUID
+	cache  map[string]string
 	svcs   serviceCache
 }
 
@@ -62,13 +61,13 @@ func newResolver() (*resolver, error) {
 
 	return &resolver{
 		client: c,
-		cache:  map[string]uuid.UUID{},
+		cache:  map[string]string{},
 	}, nil
 }
 
-func (r *resolver) resolve(ctx context.Context, namespace string, labels map[string]string, ownerName, podName string) (uuid.UUID, bool) {
+func (r *resolver) resolve(ctx context.Context, namespace string, labels map[string]string, ownerName, podName string) (string, bool) {
 	if labels[labelAppName] != appNameAgent || labels[labelManaged] != "true" {
-		return uuid.Nil, false
+		return "", false
 	}
 
 	agentName := labels[labelAgentName]
@@ -79,15 +78,15 @@ func (r *resolver) resolve(ctx context.Context, namespace string, labels map[str
 		agentName = podName
 	}
 	if agentName == "" {
-		return uuid.Nil, false
+		return "", false
 	}
 
 	return r.resolveAgent(ctx, namespace, agentName)
 }
 
-func (r *resolver) resolveNetwork(ctx context.Context, namespace string, labels map[string]string, podName string) (uuid.UUID, bool) {
+func (r *resolver) resolveNetwork(ctx context.Context, namespace string, labels map[string]string, podName string) (string, bool) {
 	if labels[labelManaged] != "true" {
-		return uuid.Nil, false
+		return "", false
 	}
 
 	var agentName string
@@ -101,23 +100,23 @@ func (r *resolver) resolveNetwork(ctx context.Context, namespace string, labels 
 	case appNameSinjector:
 		agentName = labels[labelSinjectorName]
 	default:
-		return uuid.Nil, false
+		return "", false
 	}
 
 	if agentName == "" {
-		return uuid.Nil, false
+		return "", false
 	}
 
 	return r.resolveAgent(ctx, namespace, agentName)
 }
 
-func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string) (uuid.UUID, bool) {
+func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string) (string, bool) {
 	key := namespace + "/" + agentName
 	r.mu.RLock()
-	id, ok := r.cache[key]
+	name, ok := r.cache[key]
 	r.mu.RUnlock()
 	if ok {
-		return id, true
+		return name, true
 	}
 
 	agt := &clawarmorv1alpha1.Agent{}
@@ -126,18 +125,13 @@ func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string
 		Name:      agentName,
 	}, agt)
 	if err != nil {
-		return uuid.Nil, false
-	}
-
-	id, err = uuid.Parse(agt.Spec.Session.ID)
-	if err != nil {
-		return uuid.Nil, false
+		return "", false
 	}
 
 	r.mu.Lock()
-	r.cache[key] = id
+	r.cache[key] = agt.Name
 	r.mu.Unlock()
-	return id, true
+	return agt.Name, true
 }
 
 func (r *resolver) resolveDestinationDomain(ctx context.Context, ip string) string {

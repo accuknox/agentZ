@@ -14,6 +14,7 @@ type Querier interface {
 	ListFileEventsBetween(ctx context.Context, arg ListFileEventsBetweenParams) ([]ObserverFileEvent, error)
 	ListNetworkEventsBetween(ctx context.Context, arg ListNetworkEventsBetweenParams) ([]ObserverNetworkEvent, error)
 	ListProcessEventsBetween(ctx context.Context, arg ListProcessEventsBetweenParams) ([]ObserverProcessEvent, error)
+	RefreshTraceSessionSummary(ctx context.Context, arg []RefreshTraceSessionSummaryParams) *RefreshTraceSessionSummaryBatchResults
 	RefreshTraceSummary(ctx context.Context, traceID [][]byte) *RefreshTraceSummaryBatchResults
 }
 

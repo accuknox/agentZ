@@ -18,44 +18,43 @@ package agent
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
-	"math"
-	"net"
-	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
-	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 )
 
 const (
-	configKey            = "config.yaml"
-	configMountPath      = agentconfig.DefaultHomeDir + "/config.yaml"
-	configVolume         = "config"
-	nixAgentVolume       = "nix-agent"
-	nixAgentMount        = "/mnt/nix"
-	nixLinkVolume        = "nix-link"
-	nixLinkMount         = "/nix"
-	nixLinkStage         = "/tmp/nix-link"
-	nixInitImage         = "murtazau/clawarmor-nix-init:latest"
-	nixPkgEnv            = "NIX_PACKAGES"
-	sinjectorNameSuffix  = "-sinjector"
-	sinjectorCAVolume    = "sinjector-ca"
-	sinjectorCAMountPath = "/etc/clawarmor/sinjector-ca"
-	sinjectorFinalizer   = "clawarmor.accuknox.com/sinjector"
-	egressPolicySuffix   = "-egress"
+	opencodeConfigKey       = "opencode.json"
+	opencodeInstructionKey  = "instruction.md"
+	configVolume            = "config"
+	opencodeConfigDir       = "/etc/clawarmor/opencode"
+	opencodeInstructionPath = "/etc/clawarmor/opencode/instruction.md"
+	nixAgentVolume          = "nix-agent"
+	nixAgentMount           = "/mnt/nix"
+	nixHomeSubPath          = "home"
+	nixStoreSubPath         = "nix"
+	nixVolumeRootMount      = "/pvc"
+	nixLinkVolume           = "nix-link"
+	nixLinkMount            = "/tmp/nix-link"
+	nixLinkStage            = "/tmp/nix-link"
+	nixInitImage            = "murtazau/clawarmor-init:latest"
+	homeInitName            = "home-init"
+	nixPkgEnv               = "NIX_PACKAGES"
+	sinjectorNameSuffix     = "-sinjector"
+	sinjectorCAVolume       = "sinjector-ca"
+	sinjectorCAMountPath    = "/etc/clawarmor/sinjector-ca"
+	sinjectorFinalizer      = "clawarmor.accuknox.com/sinjector"
+	egressPolicySuffix      = "-egress"
+	opencodeConfigSchema    = "https://opencode.ai/config.json"
 )
 
-var (
-	errImageEmpty  = errors.New("agent image must not be empty")
-	errPortInvalid = errors.New("server.address must include a valid port")
-)
+var errImageEmpty = errors.New("agent image must not be empty")
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
@@ -112,10 +111,6 @@ func egressPolicyName(agt *clawarmorv1alpha1.Agent) string {
 	return agt.Name + egressPolicySuffix
 }
 
-func sinjectorPort(agt *clawarmorv1alpha1.Agent) (int32, error) {
-	return serverPort(agt.Spec.Server.Address)
-}
-
 func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	labels := make(map[string]string, len(agt.Labels)+4)
 	maps.Copy(labels, agt.Labels)
@@ -123,48 +118,85 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	return labels
 }
 
-func renderConfig(agt *clawarmorv1alpha1.Agent) ([]byte, error) {
-	cfg := *agt.Spec.DeepCopy()
-	cfg.Env = nil
-	cfg.Server.GracefulShutdownTimeout = metav1.Duration{}
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("marshal yaml: %w", err)
+func hasOpencodeConfig(agt *clawarmorv1alpha1.Agent) bool {
+	if strings.TrimSpace(agt.Spec.Model) != "" {
+		return true
 	}
-	return data, nil
+	if strings.TrimSpace(agt.Spec.SmallModel) != "" {
+		return true
+	}
+	if strings.TrimSpace(agt.Spec.Instruction) != "" {
+		return true
+	}
+	return len(agt.Spec.Providers) > 0
 }
 
-func configHash(cfgYAML []byte, env []corev1.EnvVar, packages []string) (string, error) {
-	envYAML, err := yaml.Marshal(env)
-	if err != nil {
-		return "", fmt.Errorf("marshal env yaml: %w", err)
+func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) {
+	cfg := opencodeConfigFile{
+		Schema: opencodeConfigSchema,
 	}
-	packageYAML, err := yaml.Marshal(packages)
-	if err != nil {
-		return "", fmt.Errorf("marshal package yaml: %w", err)
+	if agt.Spec.Model != "" {
+		cfg.Model = agt.Spec.Model
 	}
-	hashInput := append(cfgYAML, envYAML...)
-	hashInput = append(hashInput, packageYAML...)
+	if agt.Spec.SmallModel != "" {
+		cfg.SmallModel = agt.Spec.SmallModel
+	}
+	instruction := strings.TrimSpace(agt.Spec.Instruction)
+	if instruction != "" {
+		cfg.Instructions = []string{opencodeInstructionPath}
+	}
+	if len(agt.Spec.Providers) > 0 {
+		cfg.Provider = make(map[string]opencodeProviderFile, len(agt.Spec.Providers))
+		for name, provider := range agt.Spec.Providers {
+			item := opencodeProviderFile{}
+			if len(provider.Env) > 0 {
+				item.Env = append([]string{}, provider.Env...)
+			}
+			if strings.TrimSpace(provider.BaseURL) != "" {
+				item.Options = &opencodeProviderOptionsFile{
+					BaseURL: provider.BaseURL,
+				}
+			}
+			cfg.Provider[name] = item
+		}
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return nil, "", fmt.Errorf("marshal opencode json: %w", err)
+	}
+	return append(data, '\n'), instruction, nil
+}
+
+type opencodeConfigFile struct {
+	Schema       string                          `json:"$schema"`
+	Model        string                          `json:"model,omitempty"`
+	SmallModel   string                          `json:"small_model,omitempty"`
+	Instructions []string                        `json:"instructions,omitempty"`
+	Provider     map[string]opencodeProviderFile `json:"provider,omitempty"`
+}
+
+type opencodeProviderFile struct {
+	Env     []string                     `json:"env,omitempty"`
+	Options *opencodeProviderOptionsFile `json:"options,omitempty"`
+}
+
+type opencodeProviderOptionsFile struct {
+	BaseURL string `json:"baseURL,omitempty"`
+}
+
+type configHashInput struct {
+	Config   json.RawMessage `json:"config"`
+	Env      []corev1.EnvVar `json:"env"`
+	Packages []string        `json:"packages"`
+}
+
+func configHash(opencodeCfg []byte, env []corev1.EnvVar, packages []string) string {
+	hashInput, _ := json.Marshal(configHashInput{
+		Config:   opencodeCfg,
+		Env:      env,
+		Packages: packages,
+	})
 	sum := sha256.Sum256(hashInput)
-	return fmt.Sprintf("%x", sum), nil
-}
-
-func serverPort(addr string) (int32, error) {
-	_, rawPort, err := net.SplitHostPort(strings.TrimSpace(addr))
-	if err != nil {
-		return 0, errPortInvalid
-	}
-	port, err := strconv.ParseInt(rawPort, 10, 32)
-	if err != nil || port <= 0 || port > 65535 {
-		return 0, errPortInvalid
-	}
-	return int32(port), nil
-}
-
-func gracePeriod(agt *clawarmorv1alpha1.Agent) int64 {
-	timeout := agt.Spec.Server.GracefulShutdownTimeout.Duration
-	if timeout > 0 {
-		return int64(math.Ceil(timeout.Seconds()))
-	}
-	return 0
+	return fmt.Sprintf("%x", sum)
 }

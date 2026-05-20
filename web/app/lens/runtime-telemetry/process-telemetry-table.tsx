@@ -4,6 +4,7 @@ import type { ProcessTelemetryActionData, ProcessTelemetryRow } from "@/data/typ
 import {
   TelemetryTable,
   ActionBadge,
+  TruncateCell,
   type TelemetryTableColumn,
 } from "@/app/lens/runtime-telemetry/telemetry-table"
 import { useTelemetryPagination } from "@/app/lens/runtime-telemetry/use-telemetry-pagination"
@@ -12,18 +13,14 @@ const columns: TelemetryTableColumn<ProcessTelemetryRow>[] = [
   {
     key: "process",
     header: "Process",
-    className: "min-w-36",
-    render: (row) => <span className="font-mono text-xs">{row.process}</span>,
+    className: "min-w-36 max-w-64",
+    render: (row) => <TruncateCell value={row.process} />,
   },
   {
     key: "command",
     header: "Command",
-    className: "min-w-80",
-    render: (row) => (
-      <span className="max-w-[28rem] whitespace-normal break-all font-mono text-xs">
-        {row.command}
-      </span>
-    ),
+    className: "min-w-80 max-w-112",
+    render: (row) => <TruncateCell value={row.command} />,
   },
   { key: "action", header: "Action", render: (row) => <ActionBadge action={row.action} /> },
   {

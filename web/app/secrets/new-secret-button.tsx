@@ -7,12 +7,12 @@ import { SecretSheet } from "./secret-sheet"
 import type { PutSecretFormState } from "@/data/types"
 
 export function NewSecretButton({
-  sessionID,
+  agentName,
   putSecretAction,
 }: {
-  sessionID: string
+  agentName: string
   putSecretAction: (
-    sessionID: string,
+    agentName: string,
     state: PutSecretFormState,
     formData: FormData
   ) => Promise<PutSecretFormState>
@@ -26,7 +26,7 @@ export function NewSecretButton({
         New secret
       </Button>
       <SecretSheet
-        sessionID={sessionID}
+        agentName={agentName}
         mode="create"
         putSecretAction={putSecretAction}
         open={open}

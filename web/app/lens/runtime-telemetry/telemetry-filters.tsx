@@ -20,12 +20,12 @@ import { dayjs } from "@/lib/dayjs"
 
 interface TelemetryFiltersProps {
   agents: Agent[]
-  selectedSessionID?: string
+  selectedAgentName?: string
   from?: string
   to?: string
 }
 
-export function TelemetryFilters({ agents, selectedSessionID, from, to }: TelemetryFiltersProps) {
+export function TelemetryFilters({ agents, selectedAgentName, from, to }: TelemetryFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -54,8 +54,8 @@ export function TelemetryFilters({ agents, selectedSessionID, from, to }: Teleme
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select
-          value={selectedSessionID}
-          onValueChange={(sessionID) => update({ session_id: sessionID })}
+          value={selectedAgentName}
+          onValueChange={(agentName) => update({ agent_name: agentName })}
           disabled={agents.length === 0}
         >
           <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-64">
@@ -64,7 +64,7 @@ export function TelemetryFilters({ agents, selectedSessionID, from, to }: Teleme
           <SelectContent>
             <SelectGroup>
               {agents.map((agent) => (
-                <SelectItem key={agent.session_id} value={agent.session_id}>
+                <SelectItem key={agent.name} value={agent.name}>
                   <BotIcon className="inline-block" />
                   {agent.name}
                 </SelectItem>

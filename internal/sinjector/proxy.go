@@ -12,6 +12,7 @@ type proxy struct {
 	ca        *tls.Certificate
 	certCache *certStore
 	resolver  secretResolver
+	transport http.RoundTripper
 }
 
 // ServeHTTP implements http.Handler. Only CONNECT is accepted; everything else

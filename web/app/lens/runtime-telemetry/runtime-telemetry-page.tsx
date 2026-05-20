@@ -1,6 +1,5 @@
 import { Suspense } from "react"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { selectedSessionID } from "@/data/agent.utils"
 import type { Error } from "@/lib/gateway/client"
 import type {
   FileTelemetryActionResponse,
@@ -17,10 +16,10 @@ import {
 } from "@/app/lens/runtime-telemetry/search-params"
 import { TelemetryTableSkeleton } from "@/app/lens/runtime-telemetry/telemetry-table-skeleton"
 import { TelemetryTabs } from "@/app/lens/runtime-telemetry/telemetry-tabs"
-import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 
 type TelemetrySearchParams = {
-  session_id?: string | string[]
+  agent_name?: string | string[]
   from?: string | string[]
   to?: string | string[]
   telemetry_page_token?: string | string[]
@@ -42,7 +41,7 @@ type TelemetryPageResponse<TData extends TelemetryPageData> =
 export type TelemetryPageConfig<TData extends TelemetryPageData> = {
   headers: string[]
   loadAction: (args: {
-    session_id: string
+    agent_name: string
     event_time_after: string
     event_time_before: string
     page_token?: string
@@ -58,38 +57,36 @@ export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
   config: TelemetryPageConfig<TData>
 }) {
   const search = await searchParams
-  const sessionIdFromUrl = firstSearchParam(search.session_id)
+  const agentNameFromUrl = firstSearchParam(search.agent_name)
   const from = firstSearchParam(search.from)
   const to = firstSearchParam(search.to)
   const pageToken = firstSearchParam(search.telemetry_page_token)
   const range = telemetryDateRange(from, to)
 
-  const agentsResult = await listAgentsCachedQuery(true)
+  const agentsResult = await listAgentsCachedQuery()
   const agents = agentsResult.agents ?? []
-  const sessionID = selectedSessionID(agentsResult, sessionIdFromUrl)
+  const agentName = agentNameFromUrl ?? agents[0]?.name
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters agents={agents} selectedSessionID={sessionID} from={range.from} to={range.to} />
+        <Filters agents={agents} selectedAgentName={agentName} from={range.from} to={range.to} />
       </Suspense>
       <Tabs value={config.value} className="flex flex-1 flex-col">
         <div className="border-b px-6">
-          <TabsList variant="line" className="h-10 gap-4">
-            <TelemetryTabs />
-          </TabsList>
+          <TelemetryTabs />
         </div>
         <div className="flex flex-1 flex-col">
           <TabsContent value={config.value} className="m-0 flex flex-1 flex-col">
-            {!sessionID ? (
+            {!agentName ? (
               <EmptyState message="No agents available" />
             ) : (
               <TelemetryContent
                 config={config}
                 pageToken={pageToken}
                 range={range}
-                sessionID={sessionID}
+                agentName={agentName}
               />
             )}
           </TabsContent>
@@ -113,26 +110,26 @@ async function TelemetryContent<TData extends TelemetryPageData>({
   config,
   pageToken,
   range,
-  sessionID,
+  agentName,
 }: {
   config: TelemetryPageConfig<TData>
   pageToken?: string
   range: TelemetryDateRange
-  sessionID: string
+  agentName: string
 }) {
   return (
     <>
       <Suspense
-        key={`chart-${config.value}-${sessionID}-${range.eventTimeAfter}-${range.eventTimeBefore}`}
+        key={`chart-${config.value}-${agentName}-${range.eventTimeAfter}-${range.eventTimeBefore}`}
         fallback={<TelemetryChartSkeleton />}
       >
-        <Chart config={config} sessionID={sessionID} range={range} />
+        <Chart config={config} agentName={agentName} range={range} />
       </Suspense>
       <Suspense
-        key={`table-${config.value}-${sessionID}-${range.eventTimeAfter}-${range.eventTimeBefore}-${pageToken ?? ""}`}
+        key={`table-${config.value}-${agentName}-${range.eventTimeAfter}-${range.eventTimeBefore}-${pageToken ?? ""}`}
         fallback={<TelemetryTableSkeleton headers={config.headers} />}
       >
-        <Table config={config} sessionID={sessionID} range={range} pageToken={pageToken} />
+        <Table config={config} agentName={agentName} range={range} pageToken={pageToken} />
       </Suspense>
     </>
   )
@@ -140,15 +137,15 @@ async function TelemetryContent<TData extends TelemetryPageData>({
 
 async function Chart<TData extends TelemetryPageData>({
   config,
-  sessionID,
+  agentName,
   range,
 }: {
   config: TelemetryPageConfig<TData>
-  sessionID: string
+  agentName: string
   range: TelemetryDateRange
 }) {
   const result = await config.loadAction({
-    session_id: sessionID,
+    agent_name: agentName,
     event_time_after: range.eventTimeAfter,
     event_time_before: range.eventTimeBefore,
   })
@@ -162,17 +159,17 @@ async function Chart<TData extends TelemetryPageData>({
 
 async function Table<TData extends TelemetryPageData>({
   config,
-  sessionID,
+  agentName,
   range,
   pageToken,
 }: {
   config: TelemetryPageConfig<TData>
-  sessionID: string
+  agentName: string
   range: TelemetryDateRange
   pageToken?: string
 }) {
   const result = await config.loadAction({
-    session_id: sessionID,
+    agent_name: agentName,
     event_time_after: range.eventTimeAfter,
     event_time_before: range.eventTimeBefore,
     page_token: pageToken,
@@ -187,12 +184,12 @@ async function Table<TData extends TelemetryPageData>({
 
 function Filters({
   agents,
-  selectedSessionID,
+  selectedAgentName,
   from,
   to,
 }: {
   agents: Awaited<ReturnType<typeof listAgentsCachedQuery>>["agents"]
-  selectedSessionID?: string
+  selectedAgentName?: string
   from?: string
   to?: string
 }) {
@@ -201,7 +198,7 @@ function Filters({
   }
 
   return (
-    <TelemetryFilters agents={agents} selectedSessionID={selectedSessionID} from={from} to={to} />
+    <TelemetryFilters agents={agents} selectedAgentName={selectedAgentName} from={from} to={to} />
   )
 }
 

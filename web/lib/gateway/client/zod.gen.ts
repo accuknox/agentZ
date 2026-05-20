@@ -3,26 +3,6 @@
 import * as z from "zod"
 
 /**
- * ClawArmor session UUID.
- */
-export const zSessionId = z.uuid()
-
-/**
- * ClawArmor session UUID.
- */
-export const zSessionIdInput = z.uuid().min(1)
-
-/**
- * Agent run UUID.
- */
-export const zRunId = z.uuid()
-
-/**
- * Agent request UUID.
- */
-export const zRequestId = z.uuid()
-
-/**
  * Lowercase hexadecimal OTLP trace ID.
  */
 export const zTraceId = z
@@ -68,201 +48,61 @@ export const zFieldError = z.object({
   message: z.string().min(1),
 })
 
-export const zAgentStatus = z.enum([
-  "UNSPECIFIED",
-  "PROGRESSING",
-  "DEGRADED",
-  "DELETED",
-  "IDLE",
-  "WORKING",
-  "WAITING_FOR_HUMAN_INTERACTION",
-])
+export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
 
 export const zAgent = z.object({
   name: zAgentName,
-  session_id: zSessionId,
+  environmentName: zEnvironmentName,
   last_activity: z.iso.datetime(),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
   status: zAgentStatus,
 })
 
-export const zDeleteAgentRequest = z.object({
-  session_id: zSessionIdInput,
-})
-
-export const zCompactionMode = z.enum(["summary", "truncate"]).default("summary")
-
-export const zCreateAgentCompaction = z.object({
-  mode: zCompactionMode.optional(),
-  thresholdRatio: z.number().gte(0.2).lte(0.95).optional().default(0.9),
-  historyToolResultRatio: z.number().gte(0).lte(1).optional().default(0.008),
-  keepRecentRequests: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional()
-    .default(2),
-  oversizedToolResultRatio: z.number().gte(0.05).lte(0.1).optional().default(0.065),
-})
-
-export const zUpdateAgentCompaction = z.object({
-  mode: zCompactionMode.optional(),
-  thresholdRatio: z.number().gte(0.2).lte(0.95).optional(),
-  historyToolResultRatio: z.number().gte(0).lte(1).optional(),
-  keepRecentRequests: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional(),
-  oversizedToolResultRatio: z.number().gte(0.05).lte(0.1).optional(),
-})
-
-export const zCreateAgentModelConfig = z.object({
-  name: z.string().min(1),
-  contextWindow: z
-    .int()
-    .gte(1)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-  temperature: z.number().gte(0).lte(1).optional().default(0.2),
-})
-
-export const zCreateAgentModel = z.object({
-  primary: zCreateAgentModelConfig,
-  summary: zCreateAgentModelConfig.optional(),
-})
-
-export const zUpdateAgentModelConfig = z.object({
-  name: z.string().min(1).optional(),
-  contextWindow: z
-    .int()
-    .gte(1)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional(),
-  temperature: z.number().gte(0).lte(1).optional(),
-})
-
-export const zUpdateAgentModel = z.object({
-  primary: zUpdateAgentModelConfig.optional(),
-  summary: zUpdateAgentModelConfig.optional(),
-})
-
-export const zUpdateAgentTool = z.object({
-  enabled: z.boolean().optional(),
-})
-
-export const zUpdateAgentTools = z.object({
-  hostExec: zUpdateAgentTool.optional(),
-  webFetch: zUpdateAgentTool.optional(),
-  file: zUpdateAgentTool.optional(),
-  arxiv: zUpdateAgentTool.optional(),
-})
-
-export const zUpdateAgentRequest = z.object({
-  env: z.record(z.string(), z.string()).optional(),
-  environmentName: zEnvironmentName,
-  systemPrompt: z.string().max(4096).optional(),
-  compaction: zUpdateAgentCompaction.optional(),
-  maxHistoryRuns: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional(),
-  model: zUpdateAgentModel.optional(),
-  tools: zUpdateAgentTools.optional(),
-})
-
-export const zCreateAgentEnabledByDefaultTool = z.object({
-  enabled: z.boolean().optional().default(true),
-})
-
-export const zCreateAgentDisabledByDefaultTool = z.object({
-  enabled: z.boolean().optional().default(false),
-})
-
-export const zCreateAgentTools = z.object({
-  hostExec: zCreateAgentEnabledByDefaultTool.optional(),
-  webFetch: zCreateAgentEnabledByDefaultTool.optional(),
-  file: zCreateAgentDisabledByDefaultTool.optional(),
-  arxiv: zCreateAgentDisabledByDefaultTool.optional(),
-})
-
-export const zAgentConfiguration = z.object({
-  env: z.record(z.string(), z.string()).optional(),
-  environmentName: zEnvironmentName.optional(),
-  systemPrompt: z.string().max(4096).optional(),
-  compaction: zCreateAgentCompaction.optional(),
-  maxHistoryRuns: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional()
-    .default(50),
-  model: zCreateAgentModel,
-  tools: zCreateAgentTools.optional(),
-})
-
-export const zListAgent = zAgent.and(
-  z.object({
-    configuration: zAgentConfiguration,
-  })
-)
-
 export const zListAgentsResponse = z.object({
-  agents: z.array(zListAgent),
+  agents: z.array(zAgent),
   next_page_token: z.string(),
+})
+
+export const zDeleteAgentRequest = z.object({
+  agent_name: zAgentName,
+})
+
+export const zAgentOpencodeProviderConfig = z.object({
+  env: z.array(z.string()).optional(),
+  baseURL: z.string().optional(),
+})
+
+export const zAgentOpencodeConfig = z.object({
+  model: z.string().optional(),
+  smallModel: z.string().optional(),
+  instruction: z.string().max(4096).optional(),
+  providers: z.record(z.string(), zAgentOpencodeProviderConfig).optional(),
 })
 
 export const zCreateAgentRequest = z.object({
   name: zAgentName,
   env: z.record(z.string(), z.string()).optional(),
   environmentName: zEnvironmentName,
-  systemPrompt: z.string().max(4096).optional(),
-  compaction: zCreateAgentCompaction.optional(),
-  maxHistoryRuns: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional()
-    .default(50),
-  model: zCreateAgentModel,
-  tools: zCreateAgentTools.optional(),
+  opencode: zAgentOpencodeConfig.optional(),
 })
 
-export const zSendMessageRequest = z.object({
-  session_id: zSessionIdInput,
-  prompt: z.string().min(1),
-})
-
-export const zSendMessageResponse = z.object({
-  session_id: zSessionId,
-  run_id: zRunId,
-  request_id: zRequestId,
-})
-
-export const zSessionActionRequest = z.object({
-  session_id: zSessionIdInput,
-})
-
-export const zSubscribeSessionRequest = zSessionActionRequest
-
-export const zInterruptSessionResponse = z.object({
-  interrupted: z.boolean(),
-})
-
-export const zCompactSessionResponse = z.object({
-  message: z.string(),
+export const zUpdateAgentRequest = z.object({
+  env: z.record(z.string(), z.string()).optional(),
+  environmentName: zEnvironmentName.optional(),
+  opencode: zAgentOpencodeConfig.optional(),
 })
 
 export const zTrace = z.object({
   trace_id: zTraceId,
-  session_id: zSessionId,
+  agent_name: zAgentName,
   root_span_id: zOptionalSpanId,
   started_at: z.iso.datetime(),
   ended_at: z.iso.datetime(),
   duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
+  duration_ms: z.number().gte(0),
   span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
@@ -275,15 +115,19 @@ export const zTrace = z.object({
   model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  run_id: z.string(),
-  request_id: z.string(),
-  conversation_id: z.string(),
   input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
   output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
+  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
   status_code: z.string(),
   updated_at: z.iso.datetime(),
 })
@@ -293,11 +137,57 @@ export const zListTracesResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zTraceSession = z.object({
+  trace_id: zTraceId,
+  session_id: z.string(),
+  agent_name: zAgentName,
+  root_span_id: zOptionalSpanId,
+  started_at: z.iso.datetime(),
+  ended_at: z.iso.datetime(),
+  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  duration_ms: z.number().gte(0),
+  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
+  status_code: z.string(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zListTraceSessionsResponse = z.object({
+  trace_sessions: z.array(zTraceSession),
+  next_page_token: z.string(),
+})
+
 export const zSpan = z.object({
   id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  session_id: zSessionId,
+  agent_name: zAgentName,
+  session_id: z.string(),
   trace_id: zTraceId,
   span_id: zSpanId,
   parent_span_id: zOptionalSpanId,
@@ -306,15 +196,14 @@ export const zSpan = z.object({
   duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
+  duration_ms: z.number().gte(0),
   name: z.string(),
+  span_class: z.string(),
   operation_name: z.string(),
   kind: z.string(),
   status_code: z.string(),
   error_type: z.string(),
   error_message: z.string(),
-  conversation_id: z.string(),
-  run_id: z.string(),
-  request_id: z.string(),
   model: z.string(),
   tool_name: z.string(),
   input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
@@ -326,9 +215,11 @@ export const zSpan = z.object({
   cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  time_to_first_token_ms: z.number().gte(0),
-  pod_namespace: z.string(),
-  pod_name: z.string(),
+  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  cost_usd: z.number().gte(0),
+  llm_finish_reason: z.string(),
   ingested_at: z.iso.datetime(),
 })
 
@@ -341,7 +232,7 @@ export const zProcessObservabilityEvent = z.object({
   id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  session_id: zSessionId,
+  agent_name: zAgentName,
   event_time: z.iso.datetime(),
   ingested_at: z.iso.datetime(),
   pod_namespace: z.string(),
@@ -354,7 +245,7 @@ export const zProcessObservabilityEvent = z.object({
 })
 
 export const zProcessObservabilityEventAggregated = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   last_seen: z.iso.datetime(),
   process: z.string(),
   parent_process: z.string(),
@@ -375,7 +266,7 @@ export const zFileObservabilityEvent = z.object({
   id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  session_id: zSessionId,
+  agent_name: zAgentName,
   event_time: z.iso.datetime(),
   ingested_at: z.iso.datetime(),
   pod_namespace: z.string(),
@@ -388,7 +279,7 @@ export const zFileObservabilityEvent = z.object({
 })
 
 export const zFileObservabilityEventAggregated = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   last_seen: z.iso.datetime(),
   file_path_accessed: z.string(),
   process: z.string(),
@@ -409,7 +300,7 @@ export const zNetworkObservabilityEvent = z.object({
   id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  session_id: zSessionId,
+  agent_name: zAgentName,
   event_time: z.iso.datetime(),
   ingested_at: z.iso.datetime(),
   pod_namespace: z.string(),
@@ -425,7 +316,7 @@ export const zNetworkObservabilityEvent = z.object({
 })
 
 export const zNetworkObservabilityEventAggregated = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   last_seen: z.iso.datetime(),
   destination_domain: z.string(),
   destination_ip: z.string(),
@@ -446,282 +337,11 @@ export const zListNetworkObservabilityResponse = z.object({
 })
 
 export const zWatchAgentsRequest = z.object({
-  session_ids: z.array(zSessionIdInput).optional(),
+  agent_names: z.array(zAgentName).optional(),
 })
 
 export const zWatchAgentsEvent = z.object({
   agents: z.array(zAgent),
-})
-
-export const zSessionStreamEventType = z.enum([
-  "EVENT_TYPE_UNSPECIFIED",
-  "EVENT_TYPE_RUN_STARTED",
-  "EVENT_TYPE_ASSISTANT_DELTA",
-  "EVENT_TYPE_ASSISTANT_MESSAGE",
-  "EVENT_TYPE_TOOL_CALL",
-  "EVENT_TYPE_TOOL_RESULT",
-  "EVENT_TYPE_RUN_COMPLETED",
-  "EVENT_TYPE_RUN_INTERRUPTED",
-  "EVENT_TYPE_RUN_ERROR",
-])
-
-export const zSessionStreamBase = z.object({
-  sequence: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  session_id: zSessionId,
-  run_id: zRunId,
-  request_id: zRequestId,
-  type: zSessionStreamEventType,
-})
-
-export const zSessionStreamUnspecifiedEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_UNSPECIFIED"]),
-  })
-)
-
-export const zSessionRunStartedEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_RUN_STARTED"]),
-    content: z.string(),
-  })
-)
-
-export const zSessionAssistantDeltaEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_ASSISTANT_DELTA"]),
-    content: z.string().optional(),
-    reasoning_content: z.string().optional(),
-  })
-)
-
-export const zSessionAssistantMessageEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_ASSISTANT_MESSAGE"]),
-    content: z.string(),
-    reasoning_content: z.string().optional(),
-  })
-)
-
-export const zSessionToolCallEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_TOOL_CALL"]),
-    tool_name: z.string(),
-    tool_payload: z.string(),
-  })
-)
-
-export const zSessionToolResultEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_TOOL_RESULT"]),
-    tool_name: z.string(),
-    tool_payload: z.string(),
-  })
-)
-
-export const zSessionRunCompletedEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_RUN_COMPLETED"]),
-  })
-)
-
-export const zSessionRunInterruptedEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_RUN_INTERRUPTED"]),
-    content: z.string().optional(),
-  })
-)
-
-export const zSessionRunErrorEvent = zSessionStreamBase.and(
-  z.object({
-    type: z.enum(["EVENT_TYPE_RUN_ERROR"]),
-    error: z.string().min(1),
-  })
-)
-
-export const zSessionStreamEvent = z.union([
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_UNSPECIFIED"),
-    })
-    .and(zSessionStreamUnspecifiedEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_RUN_STARTED"),
-    })
-    .and(zSessionRunStartedEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_ASSISTANT_DELTA"),
-    })
-    .and(zSessionAssistantDeltaEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_ASSISTANT_MESSAGE"),
-    })
-    .and(zSessionAssistantMessageEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_TOOL_CALL"),
-    })
-    .and(zSessionToolCallEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_TOOL_RESULT"),
-    })
-    .and(zSessionToolResultEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_RUN_COMPLETED"),
-    })
-    .and(zSessionRunCompletedEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_RUN_INTERRUPTED"),
-    })
-    .and(zSessionRunInterruptedEvent),
-  z
-    .object({
-      type: z.literal("EVENT_TYPE_RUN_ERROR"),
-    })
-    .and(zSessionRunErrorEvent),
-])
-
-export const zEventActions = z.object({
-  skipSummarization: z.boolean().optional(),
-})
-
-export const zModelObjectType = z.enum([
-  "error",
-  "tool.response",
-  "preprocessing.basic",
-  "preprocessing.content",
-  "preprocessing.identity",
-  "preprocessing.instruction",
-  "preprocessing.planning",
-  "postprocessing.planning",
-  "postprocessing.code_execution",
-  "agent.transfer",
-  "runner.completion",
-  "state.update",
-  "chat.completion.chunk",
-  "chat.completion",
-])
-
-export const zMessageRole = z.enum(["system", "user", "assistant", "tool"])
-
-export const zTextContentPart = z.object({
-  type: z.enum(["text"]),
-  text: z.string(),
-})
-
-export const zImageDetail = z.enum(["low", "high", "auto"])
-
-export const zImage = z.object({
-  url: z.url().optional(),
-  data: z.string().optional(),
-  detail: zImageDetail.optional(),
-  format: z.enum(["png", "jpg", "jpeg", "webp", "gif"]).optional(),
-})
-
-export const zImageContentPart = z.object({
-  type: z.enum(["image"]),
-  image: zImage,
-})
-
-export const zAudio = z.object({
-  data: z.string(),
-  format: z.enum(["wav", "mp3"]),
-})
-
-export const zAudioContentPart = z.object({
-  type: z.enum(["audio"]),
-  audio: zAudio,
-})
-
-export const zFile = z.object({
-  filename: z.string().optional(),
-  data: z.string().optional(),
-  file_id: z.string().optional(),
-  format: z.string().optional(),
-})
-
-export const zFileContentPart = z.object({
-  type: z.enum(["file"]),
-  file: zFile,
-})
-
-export const zContentPart = z.discriminatedUnion("type", [
-  zTextContentPart.extend({ type: z.literal("text") }),
-  zImageContentPart.extend({ type: z.literal("image") }),
-  zAudioContentPart.extend({ type: z.literal("audio") }),
-  zFileContentPart.extend({ type: z.literal("file") }),
-])
-
-export const zFunctionDefinitionParam = z.object({
-  name: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
-  strict: z.boolean().optional(),
-  description: z.string().optional(),
-  arguments: z.string().optional(),
-})
-
-export const zPromptTokensDetails = z.object({
-  cached_tokens: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-  cache_creation_tokens: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional(),
-  cache_read_tokens: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional(),
-})
-
-export const zTimingInfo = z.object({
-  time_to_first_token: z.coerce
-    .bigint()
-    .gte(BigInt(0))
-    .max(BigInt("9223372036854775807"), {
-      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-    })
-    .optional(),
-  reasoning_duration: z.coerce
-    .bigint()
-    .gte(BigInt(0))
-    .max(BigInt("9223372036854775807"), {
-      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-    })
-    .optional(),
-})
-
-export const zUsage = z.object({
-  prompt_tokens: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-  completion_tokens: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-  total_tokens: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-  prompt_tokens_details: zPromptTokensDetails,
-  timing_info: zTimingInfo.optional(),
-})
-
-export const zModelResponseError = z.object({
-  message: z.string(),
-  type: z.enum(["stream_error", "api_error", "flow_error", "run_error"]),
-  param: z.string().nullish(),
-  code: z.string().nullish(),
 })
 
 export const zJsonValue = z.union([
@@ -742,101 +362,23 @@ export const zError = z.object({
   details: zJsonValue.optional(),
 })
 
+export const zSpanDetail = zSpan.and(
+  z.object({
+    resource_attributes: zJsonValue,
+    span_attributes: zJsonValue,
+  })
+)
+
 export const zSpanPayload = z.object({
   input_messages: zJsonValue,
   output_messages: zJsonValue,
   tool_arguments: zJsonValue,
   tool_result: zJsonValue,
-  metadata: zJsonValue,
 })
 
 export const zSpanDetailResponse = z.object({
-  span: zSpan,
+  span: zSpanDetail,
   payload: zSpanPayload,
-})
-
-export const zToolCall = z.object({
-  type: z.enum(["function"]),
-  function: zFunctionDefinitionParam.optional(),
-  id: z.string().optional(),
-  index: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .nullish(),
-  extra_fields: z.record(z.string(), zJsonValue).optional(),
-})
-
-export const zModelMessage = z.object({
-  role: zMessageRole,
-  content: z.string().optional(),
-  content_parts: z.array(zContentPart).optional(),
-  tool_id: z.string().optional(),
-  tool_name: z.string().optional(),
-  tool_calls: z.array(zToolCall).optional(),
-  reasoning_content: z.string().optional(),
-})
-
-export const zChoice = z.object({
-  index: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
-  message: zModelMessage.optional(),
-  delta: zModelMessage.optional(),
-  finish_reason: z.string().nullish(),
-})
-
-export const zTrpcAgentEventPayload = z.object({
-  requestID: z.string().optional(),
-  invocationId: z.string(),
-  parentInvocationId: z.string().optional(),
-  author: z.string(),
-  id: z.string(),
-  timestamp: z.iso.datetime(),
-  branch: z.string().optional(),
-  tag: z.string().optional(),
-  requiresCompletion: z.boolean().optional(),
-  longRunningToolIDs: z.record(z.string(), z.record(z.string(), z.never())).optional(),
-  stateDelta: z.record(z.string(), z.string()).optional(),
-  extensions: z.record(z.string(), zJsonValue).optional(),
-  actions: zEventActions.optional(),
-  filterKey: z.string().optional(),
-  version: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" })
-    .optional(),
-  object: zModelObjectType.optional(),
-  created: z.coerce
-    .bigint()
-    .gte(BigInt(0))
-    .max(BigInt("9223372036854775807"), {
-      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-    })
-    .optional(),
-  model: z.string().optional(),
-  choices: z.array(zChoice).optional(),
-  usage: zUsage.optional(),
-  system_fingerprint: z.string().nullish(),
-  error: zModelResponseError.optional(),
-  done: z.boolean().optional(),
-  is_partial: z.boolean().optional(),
-})
-
-export const zStoredSessionEvent = z.object({
-  seq: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  event_id: z.string().min(1),
-  event_ts: z.iso.datetime(),
-  payload: zTrpcAgentEventPayload,
-})
-
-export const zChatHistoryResponse = z.object({
-  session_id: zSessionId,
-  events: z.array(zStoredSessionEvent),
-  next_page_token: z.string(),
 })
 
 /**
@@ -931,14 +473,14 @@ export const zUpdateEnvironmentRequest = z.object({
 })
 
 /**
- * Session UUID.
+ * Agent name.
  */
-export const zSessionIdQuery = zSessionId
+export const zAgentNameQuery = zAgentName
 
 /**
- * Session UUID.
+ * Agent name.
  */
-export const zSessionIdPath = zSessionId
+export const zAgentNamePath = zAgentName
 
 /**
  * Environment name.
@@ -946,9 +488,9 @@ export const zSessionIdPath = zSessionId
 export const zEnvironmentNamePath = zEnvironmentName
 
 /**
- * Optional session UUID filters. Repeat the query parameter for multiple sessions.
+ * Optional agent name filters. Repeat the query parameter for multiple agents.
  */
-export const zSessionIdFilterQuery = z.array(zSessionId)
+export const zAgentNameFilterQuery = z.array(zAgentName)
 
 /**
  * Maximum number of items to return.
@@ -969,6 +511,11 @@ export const zTraceIdQuery = zTraceId
  * Lowercase hexadecimal OTLP span ID.
  */
 export const zSpanIdQuery = zSpanId
+
+/**
+ * Optional root session ID.
+ */
+export const zSessionIdQuery = z.string().min(1)
 
 /**
  * Inclusive lower bound for trace start time.
@@ -1000,19 +547,8 @@ export const zActionQuery = zObservabilityAction
  */
 export const zAggregatedQuery = z.boolean().default(false)
 
-export const zGetChatHistoryQuery = z.object({
-  session_id: zSessionId,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated chat history for the session.
- */
-export const zGetChatHistoryResponse = zChatHistoryResponse
-
 export const zListAgentsQuery = z.object({
-  session_id: z.array(zSessionId).optional(),
+  agent_name: z.array(zAgentName).optional(),
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
 })
@@ -1023,7 +559,7 @@ export const zListAgentsQuery = z.object({
 export const zListAgentsResponse2 = zListAgentsResponse
 
 export const zListTracesQuery = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
   started_after: z.iso.datetime().optional(),
@@ -1035,8 +571,22 @@ export const zListTracesQuery = z.object({
  */
 export const zListTracesResponse2 = zListTracesResponse
 
+export const zListTraceSessionsQuery = z.object({
+  agent_name: zAgentName,
+  session_id: z.string().min(1).optional(),
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  started_after: z.iso.datetime().optional(),
+  started_before: z.iso.datetime().optional(),
+})
+
+/**
+ * Paginated per-session trace summaries.
+ */
+export const zListTraceSessionsResponse2 = zListTraceSessionsResponse
+
 export const zListSpansQuery = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   trace_id: zTraceId,
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
@@ -1048,7 +598,7 @@ export const zListSpansQuery = z.object({
 export const zListSpansResponse2 = zListSpansResponse
 
 export const zGetSpanDetailQuery = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   trace_id: zTraceId,
   span_id: zSpanId,
 })
@@ -1059,7 +609,7 @@ export const zGetSpanDetailQuery = z.object({
 export const zGetSpanDetailResponse = zSpanDetailResponse
 
 export const zListProcessObservabilityQuery = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
   event_time_after: z.iso.datetime().optional(),
@@ -1074,7 +624,7 @@ export const zListProcessObservabilityQuery = z.object({
 export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
 
 export const zListFileObservabilityQuery = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
   event_time_after: z.iso.datetime().optional(),
@@ -1089,7 +639,7 @@ export const zListFileObservabilityQuery = z.object({
 export const zListFileObservabilityResponse2 = zListFileObservabilityResponse
 
 export const zListNetworkObservabilityQuery = z.object({
-  session_id: zSessionId,
+  agent_name: zAgentName,
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
   event_time_after: z.iso.datetime().optional(),
@@ -1113,48 +663,20 @@ export const zCreateAgentResponse = zAgent
 export const zDeleteAgentBody = zDeleteAgentRequest
 
 /**
- * Agent and session were deleted.
+ * Agent was deleted.
  */
 export const zDeleteAgentResponse = z.void()
 
 export const zUpdateAgentBody = zUpdateAgentRequest
 
 export const zUpdateAgentPath = z.object({
-  sessionID: zSessionId,
+  agentName: zAgentName,
 })
 
 /**
  * Agent resource updated.
  */
 export const zUpdateAgentResponse = zAgent
-
-export const zSendMessageBody = zSendMessageRequest
-
-/**
- * Message accepted and run started.
- */
-export const zSendMessageResponse2 = zSendMessageResponse
-
-export const zSubscribeSessionBody = zSessionActionRequest
-
-/**
- * Stream of session run events.
- */
-export const zSubscribeSessionResponse = zSessionStreamEvent
-
-export const zInterruptSessionBody = zSessionActionRequest
-
-/**
- * Interrupt result.
- */
-export const zInterruptSessionResponse2 = zInterruptSessionResponse
-
-export const zCompactSessionBody = zSessionActionRequest
-
-/**
- * Compaction result.
- */
-export const zCompactSessionResponse2 = zCompactSessionResponse
 
 export const zWatchAgentsBody = zWatchAgentsRequest
 
@@ -1166,7 +688,7 @@ export const zWatchAgentsResponse = zWatchAgentsEvent
 export const zPutSecretBody = zPutSecretsRequest
 
 export const zPutSecretPath = z.object({
-  sessionID: zSessionId,
+  agentName: zAgentName,
 })
 
 /**
@@ -1177,7 +699,7 @@ export const zPutSecretResponse = zPutSecretsResponse
 export const zDeleteSecretBody = zDeleteSecretsRequest
 
 export const zDeleteSecretPath = z.object({
-  sessionID: zSessionId,
+  agentName: zAgentName,
 })
 
 /**
@@ -1186,7 +708,7 @@ export const zDeleteSecretPath = z.object({
 export const zDeleteSecretResponse = z.void()
 
 export const zListSecretsPath = z.object({
-  sessionID: zSessionId,
+  agentName: zAgentName,
 })
 
 export const zListSecretsQuery = z.object({

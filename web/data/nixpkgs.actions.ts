@@ -6,7 +6,7 @@ const esUrl =
   process.env.NIXOS_SEARCH_ES_URL ?? "https://nixos-search-7-1733963800.us-east-1.bonsaisearch.net"
 const esUsername = process.env.NIXOS_SEARCH_ES_USERNAME ?? "aWVSALXpZv"
 const esPassword = process.env.NIXOS_SEARCH_ES_PASSWORD ?? "X8gPHnzL52wFEekuxsfQ9cSh"
-const index = "nixos-48-25.11-26ef669cffa904b6f6832ab57b77892a37c1a671"
+const index = "nixos-48-25.11-d7a713c0b7e47c908258e71cba7a2d77cc8d71d5"
 
 export type NixPackageLicense = {
   fullName: string | null
@@ -33,6 +33,10 @@ export type NixPackage = {
 export type SearchNixPackagesResponse =
   | { packages: NixPackage[]; error: undefined }
   | { packages: undefined; error: Error }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 
 function dashUnderscoreVariants(word: string): string[] {
   return [word.replace(/_/g, "-"), word.replace(/-/g, "_"), word]
@@ -127,19 +131,32 @@ function buildSearchBody(query: string, from = 0, size = 20): Record<string, unk
 }
 
 function parseMaintainer(raw: unknown): NixPackageMaintainer {
-  const r = raw as Record<string, unknown>
+  if (!isRecord(raw)) {
+    return {
+      name: null,
+      email: null,
+      github: null,
+    }
+  }
+
   return {
-    name: typeof r.name === "string" ? r.name : null,
-    email: typeof r.email === "string" ? r.email : null,
-    github: typeof r.github === "string" ? r.github : null,
+    name: typeof raw.name === "string" ? raw.name : null,
+    email: typeof raw.email === "string" ? raw.email : null,
+    github: typeof raw.github === "string" ? raw.github : null,
   }
 }
 
 function parseLicense(raw: unknown): NixPackageLicense {
-  const r = raw as Record<string, unknown>
+  if (!isRecord(raw)) {
+    return {
+      fullName: null,
+      url: null,
+    }
+  }
+
   return {
-    fullName: typeof r.fullName === "string" ? r.fullName : null,
-    url: typeof r.url === "string" ? r.url : null,
+    fullName: typeof raw.fullName === "string" ? raw.fullName : null,
+    url: typeof raw.url === "string" ? raw.url : null,
   }
 }
 
@@ -151,19 +168,34 @@ function parseHomepage(raw: unknown): string[] {
 }
 
 function parsePackage(source: unknown): NixPackage {
-  const s = source as Record<string, unknown>
+  if (!isRecord(source)) {
+    return {
+      package_attr_name: "",
+      package_pname: "",
+      package_pversion: "",
+      package_description: null,
+      package_programs: [],
+      package_license: [],
+      package_homepage: [],
+      package_maintainers: [],
+    }
+  }
+
   return {
-    package_attr_name: String(s.package_attr_name ?? ""),
-    package_pname: String(s.package_pname ?? ""),
-    package_pversion: String(s.package_pversion ?? ""),
-    package_description: s.package_description != null ? String(s.package_description) : null,
-    package_programs: Array.isArray(s.package_programs)
-      ? s.package_programs.filter((p): p is string => typeof p === "string")
+    package_attr_name: String(source.package_attr_name ?? ""),
+    package_pname: String(source.package_pname ?? ""),
+    package_pversion: String(source.package_pversion ?? ""),
+    package_description:
+      source.package_description != null ? String(source.package_description) : null,
+    package_programs: Array.isArray(source.package_programs)
+      ? source.package_programs.filter((p): p is string => typeof p === "string")
       : [],
-    package_license: Array.isArray(s.package_license) ? s.package_license.map(parseLicense) : [],
-    package_homepage: parseHomepage(s.package_homepage),
-    package_maintainers: Array.isArray(s.package_maintainers)
-      ? s.package_maintainers.map(parseMaintainer)
+    package_license: Array.isArray(source.package_license)
+      ? source.package_license.map(parseLicense)
+      : [],
+    package_homepage: parseHomepage(source.package_homepage),
+    package_maintainers: Array.isArray(source.package_maintainers)
+      ? source.package_maintainers.map(parseMaintainer)
       : [],
   }
 }
@@ -197,16 +229,13 @@ export async function searchNixPackagesAction(
       }
     }
 
-    const json = (await res.json()) as {
-      hits?: {
-        hits?: Array<{
-          _source?: unknown
-        }>
-      }
-    }
-
-    const hits = json.hits?.hits ?? []
-    const packages = hits.map((h) => parsePackage(h._source))
+    const json = await res.json()
+    const hits =
+      isRecord(json) && isRecord(json.hits) && Array.isArray(json.hits.hits) ? json.hits.hits : []
+    const packages = hits.flatMap((hit) => {
+      if (!isRecord(hit)) return []
+      return [parsePackage(hit._source)]
+    })
 
     return { packages, error: undefined }
   } catch (err) {

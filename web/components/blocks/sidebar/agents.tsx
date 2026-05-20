@@ -1,7 +1,21 @@
 "use client"
 
+import Link from "next/link"
+import { motion } from "motion/react"
+import { use, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import {
+  SidebarMenuAction,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -9,9 +23,8 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarMenuAction,
 } from "@/components/ui/sidebar"
-import { BotIcon, ChevronRightIcon, Plus } from "lucide-react"
+import { BotIcon, ChevronRightIcon, Plus, Trash2 } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import {
   watchAgents,
@@ -24,11 +37,31 @@ import {
   experimental_streamedQuery as streamedQuery,
   queryOptions,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query"
-import { use } from "react"
-import type { ListAgentActionResponse } from "@/data/types"
-import { usePathname } from "next/navigation"
-import Link from "next/link"
+import { deleteAgentSessionAction } from "@/data/opencode.actions"
+import type { AgentSessionListItem, ListAgentActionResponse } from "@/data/types"
+import { usePathname, useRouter } from "next/navigation"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import {
+  applySessionLifecycleEvent,
+  isSessionLifecycleEvent,
+  sortAgentSessions,
+  toAgentSessionListItem,
+} from "@/lib/opencode/session-list"
+import type { Event as OpencodeEvent } from "@opencode-ai/sdk"
+
+const MotionSidebarMenuSubItem = motion.create(SidebarMenuSubItem)
+
+type SessionStreamChunk =
+  | {
+      type: "snapshot"
+      sessions: AgentSessionListItem[]
+    }
+  | {
+      type: "event"
+      event: OpencodeEvent
+    }
 
 export function NavAgentsSkeleton() {
   return (
@@ -44,7 +77,7 @@ export function NavAgentsSkeleton() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <SidebarMenuSub>
-              <SidebarMenuSubItem>
+              <SidebarMenuSubItem key="skeleton">
                 <SidebarMenuSkeleton />
                 <SidebarMenuSkeleton />
               </SidebarMenuSubItem>
@@ -59,6 +92,11 @@ export function NavAgentsSkeleton() {
 export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse> }) {
   const list = use(agents)
   const initialAgents = list.agents ?? []
+  const path = usePathname()
+  const currentAgentName = agentNameFromPath(path)
+  const [manualOpenAgentName, setManualOpenAgentName] = useState<string | null>(null)
+  const openAgentName = currentAgentName ?? manualOpenAgentName
+
   const query = useQuery(
     queryOptions({
       enabled: Boolean(list.agents),
@@ -67,18 +105,18 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
         initialValue: initialAgents,
         refetchMode: "reset",
         reducer: (agents, event) => {
-          const byID = new Map(agents.map((agent) => [agent.session_id, agent]))
+          const byName = new Map(agents.map((agent) => [agent.name, agent]))
 
           for (const agent of event.agents) {
             if (agent.status === "DELETED") {
-              byID.delete(agent.session_id)
+              byName.delete(agent.name)
               continue
             }
 
-            byID.set(agent.session_id, agent)
+            byName.set(agent.name, agent)
           }
 
-          return Array.from(byID.values()).sort((x, y) => {
+          return Array.from(byName.values()).sort((x, y) => {
             return (
               Date.parse(y.modified_at) - Date.parse(x.modified_at) || x.name.localeCompare(y.name)
             )
@@ -91,9 +129,10 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
       }),
       queryKey: ["watchAgents"],
       refetchOnMount: "always",
-      refetchOnReconnect: false,
+      refetchOnReconnect: "always",
       refetchOnWindowFocus: false,
-      retry: false,
+      retry: true,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
       staleTime: Infinity,
     })
   )
@@ -101,50 +140,236 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   const error = list.error ?? toGatewayError(query.error)
   const queryAgents = query.data ?? initialAgents
 
-  const path = usePathname()
+  if (error) {
+    return (
+      <SidebarMenuSubItem key="error">
+        <p className="text-sm text-destructive">{error.message}</p>
+      </SidebarMenuSubItem>
+    )
+  }
+
+  if (queryAgents.length === 0) {
+    return <></>
+  }
+
+  return (
+    <>
+      {queryAgents.map((agent) => (
+        <AgentSessionsItem
+          key={agent.name}
+          agent={agent}
+          isOpen={openAgentName === agent.name}
+          path={path}
+          setOpenAgentName={setManualOpenAgentName}
+        />
+      ))}
+    </>
+  )
+}
+
+function AgentSessionsItem({
+  agent,
+  isOpen,
+  path,
+  setOpenAgentName,
+}: {
+  agent: Agent
+  isOpen: boolean
+  path: string
+  setOpenAgentName: React.Dispatch<React.SetStateAction<string | null>>
+}) {
+  const query = useLiveAgentSessions(agent.name, isOpen)
+  const sessions = useMemo(() => query.data ?? [], [query.data])
+  const displaySessions = sessions.filter((s) => !s.parentID)
+  const router = useRouter()
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setOpenAgentName(open ? agent.name : null)
+    },
+    [agent.name, setOpenAgentName]
+  )
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const sessionID = sessionIDFromPath(path, agent.name)
+    if (!sessionID) return
+    if (query.isPending) return
+    if (query.isError) return
+    if (sessions.some((session) => session.id === sessionID)) return
+
+    void router.push(`/agents/${agent.name}/session/new`)
+  }, [agent.name, isOpen, path, query.isError, query.isPending, router, sessions])
 
   return (
     <SidebarMenu>
       <Collapsible
         asChild
-        defaultOpen={path === "/" || path.startsWith("/agent")}
         className="group/collapsible"
+        open={isOpen}
+        onOpenChange={handleOpenChange}
       >
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>
             <SidebarMenuButton tooltip="Agents">
-              <BotIcon />
-              <span>Agents</span>
+              <AgentBadge status={agent.status} />
+              <span>{agent.name}</span>
               <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
             </SidebarMenuButton>
           </CollapsibleTrigger>
           <SidebarMenuAction>
-            <Link href="/agent/new">
+            <Link href={`/agents/${agent.name}/session/new`}>
               <Plus size={16} />
-              <span className="sr-only">New Agent</span>
+              <span className="sr-only">New Session</span>
             </Link>
           </SidebarMenuAction>
           <CollapsibleContent>
             <SidebarMenuSub>
-              {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
-              {!error && queryAgents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No agents</p>
-              ) : null}
-              {queryAgents.map((agent) => (
-                <SidebarMenuSubItem key={agent.session_id}>
-                  <SidebarMenuSubButton asChild>
-                    <Link href={`/agents/${agent.session_id}`}>
-                      <AgentBadge status={agent.status} />
-                      <span className="ml-1.5 truncate">{agent.name}</span>
-                    </Link>
-                  </SidebarMenuSubButton>
+              {query.isPending ? (
+                <SidebarMenuSubItem key="loading">
+                  <div className="flex flex-col gap-1">
+                    <SidebarMenuSkeleton />
+                    <SidebarMenuSkeleton />
+                  </div>
                 </SidebarMenuSubItem>
+              ) : null}
+              {query.isError ? (
+                <SidebarMenuSubItem key="error">
+                  <p className="text-sm text-destructive">{query.error.message}</p>
+                </SidebarMenuSubItem>
+              ) : null}
+              {!query.isPending && !query.isError && displaySessions.length === 0 ? (
+                <SidebarMenuSubItem key="empty">
+                  <p className="text-sm text-muted-foreground">No sessions</p>
+                </SidebarMenuSubItem>
+              ) : null}
+              {displaySessions.map((session) => (
+                <AnimatedSessionItem
+                  key={session.id}
+                  agentName={agent.name}
+                  path={path}
+                  session={session}
+                />
               ))}
             </SidebarMenuSub>
           </CollapsibleContent>
         </SidebarMenuItem>
       </Collapsible>
     </SidebarMenu>
+  )
+}
+
+function AnimatedSessionItem(props: {
+  agentName: string
+  path: string
+  session: AgentSessionListItem
+}) {
+  return (
+    <MotionSidebarMenuSubItem
+      layout="position"
+      transition={{
+        duration: 0.22,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+    >
+      <SessionItem {...props} />
+    </MotionSidebarMenuSubItem>
+  )
+}
+
+function SessionItem({
+  agentName,
+  path,
+  session,
+}: {
+  agentName: string
+  path: string
+  session: AgentSessionListItem
+}) {
+  const href = `/agents/${agentName}/${session.id}`
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const queryClient = useQueryClient()
+  const router = useRouter()
+
+  const handleDelete = useCallback(
+    async (formData: FormData) => {
+      setError(null)
+      const state = await deleteAgentSessionAction(agentName, { success: false }, formData)
+
+      if (state.error) {
+        setError(new Error(state.error.message))
+        return
+      }
+
+      startTransition(() => {
+        setOpen(false)
+
+        void queryClient.invalidateQueries({
+          queryKey: agentSessionsQueryOptions(agentName, true).queryKey,
+        })
+
+        if (path === href) {
+          router.push(`/agents/${agentName}/session/new`)
+          router.refresh()
+        }
+      })
+    },
+    [agentName, href, path, queryClient, router]
+  )
+
+  return (
+    <>
+      <SidebarMenuSubButton
+        asChild
+        className="min-w-0 flex-1 data-[active=true]:bg-transparent data-[active=true]:font-normal"
+        isActive={path === href}
+      >
+        <Link className="flex min-w-0 flex-1 items-center" href={href}>
+          <span className="truncate text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground group-hover/menu-sub-button:text-inherit">
+            {session.title}
+          </span>
+        </Link>
+      </SidebarMenuSubButton>
+      <SidebarMenuAction
+        aria-label={`Delete ${session.title}`}
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        showOnHover
+        onClick={() => setOpen(true)}
+      >
+        {isPending ? <Spinner className="size-3" /> : <Trash2 />}
+      </SidebarMenuAction>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete session?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete <span className="font-medium">{session.title}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          {error ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {error.message}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isPending}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <form action={handleDelete}>
+              <input type="hidden" name="sessionID" value={session.id} />
+              <Button type="submit" variant="destructive" disabled={isPending}>
+                {isPending ? <Spinner /> : <Trash2 />}
+                Delete
+              </Button>
+            </form>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -158,18 +383,80 @@ function toGatewayError(err: Error | null): GatewayError | undefined {
   }
 }
 
+function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
+  return queryOptions({
+    enabled,
+    queryFn: streamedQuery<SessionStreamChunk, AgentSessionListItem[], ["agentSessions", string]>({
+      initialValue: [],
+      reducer: (sessions, chunk) => {
+        if (chunk.type === "snapshot") {
+          return sortAgentSessions(chunk.sessions)
+        }
+
+        if (!isSessionLifecycleEvent(chunk.event)) {
+          return sessions
+        }
+
+        return applySessionLifecycleEvent(sessions, chunk.event)
+      },
+      streamFn: async function* ({ signal }) {
+        const client = createAgentOpencodeClient(agentName)
+        const listResult = await client.session.list()
+        if (!listResult.data) {
+          throw new Error("Failed to load sessions")
+        }
+
+        yield {
+          type: "snapshot",
+          sessions: sortAgentSessions(listResult.data.map(toAgentSessionListItem)),
+        }
+
+        const subscription = await client.event.subscribe({
+          signal,
+        })
+
+        for await (const event of subscription.stream) {
+          yield {
+            type: "event",
+            event,
+          }
+        }
+      },
+      refetchMode: "reset",
+    }),
+    queryKey: ["agentSessions", agentName],
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    retry: true,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    staleTime: Infinity,
+  })
+}
+
+function useLiveAgentSessions(agentName: string, enabled: boolean) {
+  return useQuery(agentSessionsQueryOptions(agentName, enabled))
+}
+
+function agentNameFromPath(path: string) {
+  const match = path.match(/^\/agents\/([^/]+)(?:\/.*)?$/)
+  if (!match) return null
+  return decodeURIComponent(match[1])
+}
+
+function sessionIDFromPath(path: string, agentName: string) {
+  const match = path.match(/^\/agents\/([^/]+)\/([^/]+)$/)
+  if (!match) return
+  if (decodeURIComponent(match[1]) !== agentName) return
+  if (match[2] === "session") return
+  return decodeURIComponent(match[2])
+}
+
 function AgentBadge({ status }: { status: AgentStatus }) {
   switch (status) {
     case "PROGRESSING":
       return (
         <span className="shrink-0 text-chat-interrupted">
           <Spinner aria-label="Provisioning" className="size-3" />
-        </span>
-      )
-    case "WORKING":
-      return (
-        <span className="shrink-0 text-chat-user">
-          <Spinner aria-label="Working" className="size-3" />
         </span>
       )
     case "DEGRADED":
@@ -179,30 +466,8 @@ function AgentBadge({ status }: { status: AgentStatus }) {
         </span>
       )
     case "IDLE":
-      return (
-        <span
-          aria-label="Idle"
-          role="status"
-          className="size-1.5 shrink-0 rounded-full bg-chat-active"
-        />
-      )
-    case "WAITING_FOR_HUMAN_INTERACTION":
-      return (
-        <span
-          aria-label="Waiting"
-          role="status"
-          className="relative size-1.5 shrink-0 rounded-full bg-foreground"
-        >
-          <span className="absolute inset-0 animate-ping rounded-full bg-foreground" />
-        </span>
-      )
+      return <BotIcon aria-label="Idle" role="status" className="text-chat-active" />
     default:
-      return (
-        <span
-          aria-label="Unknown"
-          role="status"
-          className="size-1.5 shrink-0 rounded-full bg-destructive"
-        />
-      )
+      return <BotIcon aria-label="Unknown" role="status" className="text-destructive" />
   }
 }

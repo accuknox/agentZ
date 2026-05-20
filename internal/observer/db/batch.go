@@ -10,7 +10,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -20,6 +19,7 @@ var (
 
 const insertTraceSpan = `-- name: InsertTraceSpan :batchexec
 INSERT INTO observer_trace_spans(
+  agent_name,
   session_id,
   trace_id,
   span_id,
@@ -27,23 +27,24 @@ INSERT INTO observer_trace_spans(
   start_time,
   end_time,
   duration_ns,
+  duration_ms,
   name,
+  span_class,
   operation_name,
   kind,
   status_code,
   error_type,
   error_message,
-  conversation_id,
-  run_id,
-  request_id,
   model,
   tool_name,
   input_tokens,
   output_tokens,
   cached_input_tokens,
-  time_to_first_token_ms,
-  pod_namespace,
-  pod_name
+  cached_write_tokens,
+  cost_usd,
+  llm_finish_reason,
+  resource_attributes,
+  span_attributes
 ) VALUES (
   $1,
   $2,
@@ -68,7 +69,9 @@ INSERT INTO observer_trace_spans(
   $21,
   $22,
   $23,
-  $24
+  $24,
+  $25,
+  $26
 )
 ON CONFLICT(trace_id, span_id, start_time) DO NOTHING
 `
@@ -80,36 +83,39 @@ type InsertTraceSpanBatchResults struct {
 }
 
 type InsertTraceSpanParams struct {
-	SessionID          uuid.UUID `json:"session_id"`
+	AgentName          string    `json:"agent_name"`
+	SessionID          string    `json:"session_id"`
 	TraceID            []byte    `json:"trace_id"`
 	SpanID             []byte    `json:"span_id"`
 	ParentSpanID       []byte    `json:"parent_span_id"`
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
+	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
+	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`
 	Kind               string    `json:"kind"`
 	StatusCode         string    `json:"status_code"`
 	ErrorType          string    `json:"error_type"`
 	ErrorMessage       string    `json:"error_message"`
-	ConversationID     string    `json:"conversation_id"`
-	RunID              string    `json:"run_id"`
-	RequestID          string    `json:"request_id"`
 	Model              string    `json:"model"`
 	ToolName           string    `json:"tool_name"`
 	InputTokens        int64     `json:"input_tokens"`
 	OutputTokens       int64     `json:"output_tokens"`
 	CachedInputTokens  int64     `json:"cached_input_tokens"`
-	TimeToFirstTokenMs float64   `json:"time_to_first_token_ms"`
-	PodNamespace       string    `json:"pod_namespace"`
-	PodName            string    `json:"pod_name"`
+	CachedWriteTokens  int64     `json:"cached_write_tokens"`
+	CostUsd            float64   `json:"cost_usd"`
+	LlmFinishReason    string    `json:"llm_finish_reason"`
+	ResourceAttributes []byte    `json:"resource_attributes"`
+	SpanAttributes     []byte    `json:"span_attributes"`
 }
 
 func (q *Queries) InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanParams) *InsertTraceSpanBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
+			a.AgentName,
 			a.SessionID,
 			a.TraceID,
 			a.SpanID,
@@ -117,23 +123,24 @@ func (q *Queries) InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanPara
 			a.StartTime,
 			a.EndTime,
 			a.DurationNs,
+			a.DurationMs,
 			a.Name,
+			a.SpanClass,
 			a.OperationName,
 			a.Kind,
 			a.StatusCode,
 			a.ErrorType,
 			a.ErrorMessage,
-			a.ConversationID,
-			a.RunID,
-			a.RequestID,
 			a.Model,
 			a.ToolName,
 			a.InputTokens,
 			a.OutputTokens,
 			a.CachedInputTokens,
-			a.TimeToFirstTokenMs,
-			a.PodNamespace,
-			a.PodName,
+			a.CachedWriteTokens,
+			a.CostUsd,
+			a.LlmFinishReason,
+			a.ResourceAttributes,
+			a.SpanAttributes,
 		}
 		batch.Queue(insertTraceSpan, vals...)
 	}
@@ -170,8 +177,7 @@ INSERT INTO observer_trace_span_payloads(
   input_messages,
   output_messages,
   tool_arguments,
-  tool_result,
-  metadata
+  tool_result
 ) VALUES (
   $1,
   $2,
@@ -179,8 +185,7 @@ INSERT INTO observer_trace_span_payloads(
   $4,
   $5,
   $6,
-  $7,
-  $8
+  $7
 )
 ON CONFLICT(trace_id, span_id, start_time) DO NOTHING
 `
@@ -199,7 +204,6 @@ type InsertTraceSpanPayloadParams struct {
 	OutputMessages []byte    `json:"output_messages"`
 	ToolArguments  []byte    `json:"tool_arguments"`
 	ToolResult     []byte    `json:"tool_result"`
-	Metadata       []byte    `json:"metadata"`
 }
 
 func (q *Queries) InsertTraceSpanPayload(ctx context.Context, arg []InsertTraceSpanPayloadParams) *InsertTraceSpanPayloadBatchResults {
@@ -213,7 +217,6 @@ func (q *Queries) InsertTraceSpanPayload(ctx context.Context, arg []InsertTraceS
 			a.OutputMessages,
 			a.ToolArguments,
 			a.ToolResult,
-			a.Metadata,
 		}
 		batch.Queue(insertTraceSpanPayload, vals...)
 	}
@@ -242,28 +245,31 @@ func (b *InsertTraceSpanPayloadBatchResults) Close() error {
 	return b.br.Close()
 }
 
-const refreshTraceSummary = `-- name: RefreshTraceSummary :batchexec
-INSERT INTO observer_traces(
+const refreshTraceSessionSummary = `-- name: RefreshTraceSessionSummary :batchexec
+INSERT INTO observer_trace_sessions(
   trace_id,
   session_id,
+  agent_name,
   root_span_id,
   started_at,
   ended_at,
   duration_ns,
+  duration_ms,
   span_count,
   error_count,
   tool_count,
   model_count,
-  run_id,
-  request_id,
-  conversation_id,
   input_tokens,
   output_tokens,
+  cached_input_tokens,
+  cached_write_tokens,
+  cost_usd,
   status_code,
   updated_at
 ) SELECT
   observer_trace_spans.trace_id,
-  (ARRAY_AGG(session_id ORDER BY start_time ASC))[1],
+  $1,
+  (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
   COALESCE(
     (ARRAY_AGG(span_id ORDER BY
       CASE WHEN parent_span_id = ''::BYTEA THEN 0 ELSE 1 END,
@@ -277,28 +283,162 @@ INSERT INTO observer_traces(
     0,
     (EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000000000)::BIGINT
   ),
+  GREATEST(
+    0,
+    EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000
+  ),
   COUNT(*)::BIGINT,
   COUNT(*) FILTER (
     WHERE status_code = 'ERROR' OR error_type != '' OR error_message != ''
   )::BIGINT,
   COUNT(*) FILTER (
-    WHERE operation_name = 'execute_tool' OR tool_name != ''
+    WHERE span_class = 'tool'
   )::BIGINT,
   COUNT(*) FILTER (
-    WHERE operation_name = 'chat'
+    WHERE span_class = 'llm'
   )::BIGINT,
-  COALESCE((ARRAY_AGG(NULLIF(run_id, '') ORDER BY start_time ASC)
-    FILTER (WHERE run_id != ''))[1], ''),
-  COALESCE((ARRAY_AGG(NULLIF(request_id, '') ORDER BY start_time ASC)
-    FILTER (WHERE request_id != ''))[1], ''),
-  COALESCE((ARRAY_AGG(NULLIF(conversation_id, '') ORDER BY start_time ASC)
-    FILTER (WHERE conversation_id != ''))[1], ''),
-  COALESCE(SUM(input_tokens) FILTER (WHERE operation_name = 'chat'), 0)::BIGINT,
-  COALESCE(SUM(output_tokens) FILTER (WHERE operation_name = 'chat'), 0)::BIGINT,
+  COALESCE(SUM(input_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(output_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(cached_input_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(cached_write_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(cost_usd) FILTER (WHERE span_class = 'llm'), 0)::DOUBLE PRECISION,
   CASE
     WHEN COUNT(*) FILTER (
       WHERE status_code = 'ERROR' OR error_type != '' OR error_message != ''
     ) > 0 THEN 'ERROR'
+    WHEN COUNT(*) FILTER (WHERE status_code = 'OK') > 0 THEN 'OK'
+    ELSE ''
+  END,
+  now()
+FROM observer_trace_spans
+WHERE observer_trace_spans.trace_id = $2
+  AND observer_trace_spans.session_id = $1
+GROUP BY observer_trace_spans.trace_id
+ON CONFLICT(trace_id, session_id) DO UPDATE SET
+  agent_name = EXCLUDED.agent_name,
+  root_span_id = EXCLUDED.root_span_id,
+  started_at = EXCLUDED.started_at,
+  ended_at = EXCLUDED.ended_at,
+  duration_ns = EXCLUDED.duration_ns,
+  duration_ms = EXCLUDED.duration_ms,
+  span_count = EXCLUDED.span_count,
+  error_count = EXCLUDED.error_count,
+  tool_count = EXCLUDED.tool_count,
+  model_count = EXCLUDED.model_count,
+  input_tokens = EXCLUDED.input_tokens,
+  output_tokens = EXCLUDED.output_tokens,
+  cached_input_tokens = EXCLUDED.cached_input_tokens,
+  cached_write_tokens = EXCLUDED.cached_write_tokens,
+  cost_usd = EXCLUDED.cost_usd,
+  status_code = EXCLUDED.status_code,
+  updated_at = now()
+`
+
+type RefreshTraceSessionSummaryBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type RefreshTraceSessionSummaryParams struct {
+	SessionID string `json:"session_id"`
+	TraceID   []byte `json:"trace_id"`
+}
+
+func (q *Queries) RefreshTraceSessionSummary(ctx context.Context, arg []RefreshTraceSessionSummaryParams) *RefreshTraceSessionSummaryBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.SessionID,
+			a.TraceID,
+		}
+		batch.Queue(refreshTraceSessionSummary, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &RefreshTraceSessionSummaryBatchResults{br, len(arg), false}
+}
+
+func (b *RefreshTraceSessionSummaryBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *RefreshTraceSessionSummaryBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const refreshTraceSummary = `-- name: RefreshTraceSummary :batchexec
+INSERT INTO observer_traces(
+  trace_id,
+  agent_name,
+  root_span_id,
+  started_at,
+  ended_at,
+  duration_ns,
+  duration_ms,
+  span_count,
+  error_count,
+  tool_count,
+  model_count,
+  input_tokens,
+  output_tokens,
+  cached_input_tokens,
+  cached_write_tokens,
+  cost_usd,
+  status_code,
+  updated_at
+) SELECT
+  observer_trace_spans.trace_id,
+  (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
+  COALESCE(
+    (ARRAY_AGG(span_id ORDER BY
+      CASE WHEN parent_span_id = ''::BYTEA THEN 0 ELSE 1 END,
+      start_time ASC
+    ))[1],
+    ''::BYTEA
+  ),
+  MIN(start_time),
+  MAX(end_time),
+  GREATEST(
+    0,
+    (EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000000000)::BIGINT
+  ),
+  GREATEST(
+    0,
+    EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000
+  ),
+  COUNT(*)::BIGINT,
+  COUNT(*) FILTER (
+    WHERE status_code = 'ERROR' OR error_type != '' OR error_message != ''
+  )::BIGINT,
+  COUNT(*) FILTER (
+    WHERE span_class = 'tool'
+  )::BIGINT,
+  COUNT(*) FILTER (
+    WHERE span_class = 'llm'
+  )::BIGINT,
+  COALESCE(SUM(input_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(output_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(cached_input_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(cached_write_tokens) FILTER (WHERE span_class = 'llm'), 0)::BIGINT,
+  COALESCE(SUM(cost_usd) FILTER (WHERE span_class = 'llm'), 0)::DOUBLE PRECISION,
+  CASE
+    WHEN COUNT(*) FILTER (
+      WHERE status_code = 'ERROR' OR error_type != '' OR error_message != ''
+    ) > 0 THEN 'ERROR'
+    WHEN COUNT(*) FILTER (WHERE status_code = 'OK') > 0 THEN 'OK'
     ELSE ''
   END,
   now()
@@ -306,20 +446,21 @@ FROM observer_trace_spans
 WHERE observer_trace_spans.trace_id = $1
 GROUP BY observer_trace_spans.trace_id
 ON CONFLICT(trace_id) DO UPDATE SET
-  session_id = EXCLUDED.session_id,
+  agent_name = EXCLUDED.agent_name,
   root_span_id = EXCLUDED.root_span_id,
   started_at = EXCLUDED.started_at,
   ended_at = EXCLUDED.ended_at,
   duration_ns = EXCLUDED.duration_ns,
+  duration_ms = EXCLUDED.duration_ms,
   span_count = EXCLUDED.span_count,
   error_count = EXCLUDED.error_count,
   tool_count = EXCLUDED.tool_count,
   model_count = EXCLUDED.model_count,
-  run_id = EXCLUDED.run_id,
-  request_id = EXCLUDED.request_id,
-  conversation_id = EXCLUDED.conversation_id,
   input_tokens = EXCLUDED.input_tokens,
   output_tokens = EXCLUDED.output_tokens,
+  cached_input_tokens = EXCLUDED.cached_input_tokens,
+  cached_write_tokens = EXCLUDED.cached_write_tokens,
+  cost_usd = EXCLUDED.cost_usd,
   status_code = EXCLUDED.status_code,
   updated_at = now()
 `

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net/url"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,10 +33,23 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
-	agentconfig "github.com/accuknox/clawarmor/internal/agent/config"
 )
 
-func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, cfg string) error {
+func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, opencodeCfg string, instruction string) error {
+	if opencodeCfg == "" {
+		current := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      agt.Name,
+				Namespace: agt.Namespace,
+			},
+		}
+		err := r.Delete(ctx, current)
+		if err != nil && !apierr.IsNotFound(err) {
+			return fmt.Errorf("delete configmap: %w", err)
+		}
+		return nil
+	}
+
 	current := &corev1.ConfigMap{}
 	current.Name = agt.Name
 	current.Namespace = agt.Namespace
@@ -43,8 +57,9 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alp
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
 		current.Labels = resourceLabels(agt)
 		current.Annotations = agt.Annotations
-		current.Data = map[string]string{
-			configKey: cfg,
+		current.Data = map[string]string{opencodeConfigKey: opencodeCfg}
+		if instruction != "" {
+			current.Data[opencodeInstructionKey] = instruction
 		}
 		return ctrl.SetControllerReference(agt, current, r.Scheme)
 	})
@@ -55,15 +70,12 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alp
 }
 
 func (r *Reconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
-	desired, err := r.buildService(agt)
-	if err != nil {
-		return err
-	}
+	desired := r.buildService(agt)
 	current := &corev1.Service{}
 	current.Name = desired.Name
 	current.Namespace = desired.Namespace
 
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
 		current.Labels = desired.Labels
 		current.Annotations = desired.Annotations
 		current.Spec.Ports = desired.Spec.Ports
@@ -77,18 +89,14 @@ func (r *Reconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha
 	return nil
 }
 
-func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string, packages []string) error {
-	desired, err := r.buildDeployment(agt, hash, packages)
-	if err != nil {
-		return err
-	}
-	err = ctrl.SetControllerReference(agt, desired, r.Scheme)
-	if err != nil {
+func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string, packages []string, mountConfig bool) error {
+	desired := r.buildDeployment(agt, hash, packages, mountConfig)
+	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return fmt.Errorf("set controller reference: %w", err)
 	}
 
 	current := &appsv1.Deployment{}
-	err = r.Get(ctx, client.ObjectKeyFromObject(desired), current)
+	err := r.Get(ctx, client.ObjectKeyFromObject(desired), current)
 	if err != nil {
 		if apierr.IsNotFound(err) {
 			err = r.Create(ctx, desired)
@@ -120,12 +128,7 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1al
 	return nil
 }
 
-func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) (*corev1.Service, error) {
-	port, err := serverPort(agt.Spec.Server.Address)
-	if err != nil {
-		return nil, err
-	}
-
+func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        agt.Name,
@@ -138,22 +141,17 @@ func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) (*corev1.Service
 			Selector: selectorLabels(agt),
 			Ports: []corev1.ServicePort{
 				{
-					Name:       "grpc",
-					Port:       port,
-					TargetPort: intstr.FromInt32(port),
+					Name:       "http",
+					Port:       4096,
+					TargetPort: intstr.FromInt32(4096),
 					Protocol:   corev1.ProtocolTCP,
 				},
 			},
 		},
-	}, nil
+	}
 }
 
-func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, packages []string) (*appsv1.Deployment, error) {
-	port, err := serverPort(agt.Spec.Server.Address)
-	if err != nil {
-		return nil, err
-	}
-
+func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, packages []string, mountConfig bool) *appsv1.Deployment {
 	image := agt.Spec.Image
 	if image == "" {
 		image = r.Config.AgentDefaultImage
@@ -169,11 +167,57 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	podAnnotations["kubearmor-visibility"] = "process,file"
 
 	replicas := int32(1)
-	grace := gracePeriod(agt)
-	automount := false
-	serviceAccountName := ""
-	volumes := []corev1.Volume{
-		{
+	var automount bool
+	var serviceAccountName string
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	var initContainers []corev1.Container
+	claimName := agt.Name + "-nix"
+
+	agentInitImage := r.Config.AgentInitImage
+	if agentInitImage == "" {
+		agentInitImage = nixInitImage
+	}
+
+	volumes = append(volumes, corev1.Volume{
+		Name: nixAgentVolume,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: claimName,
+			},
+		},
+	})
+	initContainers = append(initContainers, corev1.Container{
+		Name:            homeInitName,
+		Image:           agentInitImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Command: []string{
+			"/bin/bash",
+			"-lc",
+			"mkdir -p /pvc/home /pvc/nix",
+		},
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: new(false),
+			RunAsUser:                new(int64(1000)),
+			RunAsGroup:               new(int64(1000)),
+			RunAsNonRoot:             new(true),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{{
+			Name:      nixAgentVolume,
+			MountPath: nixVolumeRootMount,
+		}},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      nixAgentVolume,
+		MountPath: "/home/clawarmor",
+		SubPath:   nixHomeSubPath,
+	})
+
+	if mountConfig {
+		volumes = append(volumes, corev1.Volume{
 			Name: configVolume,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -182,17 +226,14 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 					},
 				},
 			},
-		},
-	}
-	volumeMounts := []corev1.VolumeMount{
-		{
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      configVolume,
-			MountPath: configMountPath,
-			SubPath:   configKey,
+			MountPath: opencodeConfigDir,
 			ReadOnly:  true,
-		},
+		})
 	}
-	var initContainers []corev1.Container
+
 	if r.sinjectorEnabled() {
 		serviceAccountName = agt.Name
 		bundleKey := r.Config.SinjectorCASecretBundleKey
@@ -214,16 +255,9 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			ReadOnly:  true,
 		})
 	}
+
 	if len(packages) > 0 {
 		volumes = append(volumes,
-			corev1.Volume{
-				Name: nixAgentVolume,
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: agt.Name + "-nix",
-					},
-				},
-			},
 			corev1.Volume{
 				Name: nixLinkVolume,
 				VolumeSource: corev1.VolumeSource{
@@ -232,7 +266,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			},
 		)
 		initVolumeMounts := []corev1.VolumeMount{
-			{Name: nixAgentVolume, MountPath: nixAgentMount},
+			{Name: nixAgentVolume, MountPath: nixAgentMount, SubPath: nixStoreSubPath},
 			{Name: nixLinkVolume, MountPath: nixLinkStage},
 		}
 		initEnv := []corev1.EnvVar{
@@ -256,21 +290,19 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			)
 		}
 
-		initImage := r.Config.AgentInitImage
-		if initImage == "" {
-			initImage = nixInitImage
-		}
 		initContainers = append(initContainers, corev1.Container{
 			Name:            "nix-init",
-			Image:           initImage,
+			Image:           agentInitImage,
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Env:             initEnv,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: new(false),
 				RunAsUser:                new(int64(0)),
+				RunAsGroup:               new(int64(0)),
 				RunAsNonRoot:             new(false),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
+					Add:  []corev1.Capability{"DAC_OVERRIDE"},
 				},
 			},
 			VolumeMounts: initVolumeMounts,
@@ -280,6 +312,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			corev1.VolumeMount{
 				Name:      nixAgentVolume,
 				MountPath: nixAgentMount,
+				SubPath:   nixStoreSubPath,
 				ReadOnly:  true,
 			},
 			corev1.VolumeMount{
@@ -301,17 +334,20 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			Selector: &metav1.LabelSelector{
 				MatchLabels: selectorLabels(agt),
 			},
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      podLabels,
 					Annotations: podAnnotations,
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName:            serviceAccountName,
-					AutomountServiceAccountToken:  &automount,
-					TerminationGracePeriodSeconds: &grace,
+					ServiceAccountName:           serviceAccountName,
+					AutomountServiceAccountToken: &automount,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(true),
+						FSGroup:      new(int64(1000)),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
@@ -323,25 +359,26 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 							Name:            "agent",
 							Image:           image,
 							ImagePullPolicy: agt.Spec.ImagePullPolicy,
-							WorkingDir:      agentconfig.DefaultHomeDir,
+							WorkingDir:      "/home/clawarmor",
 							Args: []string{
-								"agent",
 								"serve",
-								"--config",
-								configMountPath,
+								"--hostname=0.0.0.0",
+								"--port=4096",
 							},
-							Env:       r.agentEnv(agt, packages),
+							Env:       r.agentEnv(agt, packages, mountConfig),
 							Resources: agt.Spec.Resources,
 							Ports: []corev1.ContainerPort{
 								{
-									Name:          "grpc",
-									ContainerPort: port,
+									Name:          "http",
+									ContainerPort: 4096,
 									Protocol:      corev1.ProtocolTCP,
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: new(false),
-								ReadOnlyRootFilesystem:   new(true),
+								ReadOnlyRootFilesystem:   new(false),
+								RunAsUser:                new(int64(1000)),
+								RunAsGroup:               new(int64(1000)),
 								RunAsNonRoot:             new(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},
@@ -353,57 +390,106 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 				},
 			},
 		},
-	}, nil
+	}
 }
 
-func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string) []corev1.EnvVar {
-	var env []corev1.EnvVar
-	if !r.sinjectorEnabled() {
-		env = make([]corev1.EnvVar, len(agt.Spec.Env))
-		copy(env, agt.Spec.Env)
-	} else {
-		proxy := r.proxyAddress(agt)
-		proxy = strings.TrimPrefix(proxy, "https://")
-		proxy = strings.TrimPrefix(proxy, "http://")
-		proxy = "http://" + proxy
-		forced := map[string]string{
-			"https_proxy":         proxy,
-			"HTTPS_PROXY":         proxy,
-			"SSL_CERT_FILE":       r.Config.AgentCABundlePath,
-			"REQUESTS_CA_BUNDLE":  r.Config.AgentCABundlePath,
-			"CURL_CA_BUNDLE":      r.Config.AgentCABundlePath,
-			"NODE_EXTRA_CA_CERTS": r.Config.AgentCABundlePath,
-		}
-		env = make([]corev1.EnvVar, 0, len(agt.Spec.Env)+len(forced))
-		for _, item := range agt.Spec.Env {
-			if _, ok := forced[item.Name]; ok {
-				continue
-			}
-			env = append(env, item)
-		}
-		keys := []string{
-			"https_proxy",
-			"HTTPS_PROXY",
-			"SSL_CERT_FILE",
-			"REQUESTS_CA_BUNDLE",
-			"CURL_CA_BUNDLE",
-			"NODE_EXTRA_CA_CERTS",
-		}
-		for _, key := range keys {
-			env = append(env, corev1.EnvVar{Name: key, Value: forced[key]})
+func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, mountConfig bool) []corev1.EnvVar {
+	proxy := r.proxyAddress(agt)
+	proxy = strings.TrimPrefix(proxy, "https://")
+	proxy = strings.TrimPrefix(proxy, "http://")
+	proxy = "http://" + proxy
+
+	var forced []corev1.EnvVar
+	noProxy := []string{
+		"127.0.0.1",
+		"::1",
+		"localhost",
+		".cluster.local",
+		".svc",
+	}
+	if mountConfig {
+		forced = append(forced, corev1.EnvVar{
+			Name:  "OPENCODE_CONFIG",
+			Value: opencodeConfigDir + "/" + opencodeConfigKey,
+		})
+	}
+	if agt.Spec.Telemetry.Enabled {
+		endpointHost := telemetryEndpointHost(agt.Spec.Telemetry.TraceEndpoint)
+		if endpointHost != "" {
+			noProxy = append(noProxy, endpointHost)
 		}
 	}
+	if r.sinjectorEnabled() {
+		noProxyValue := strings.Join(noProxy, ",")
+		forced = append(forced,
+			corev1.EnvVar{Name: "https_proxy", Value: proxy},
+			corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
+			corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
+			corev1.EnvVar{Name: "NO_PROXY", Value: noProxyValue},
+			corev1.EnvVar{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+		)
+	}
+	if agt.Spec.Telemetry.Enabled {
+		endpoint := strings.TrimPrefix(agt.Spec.Telemetry.TraceEndpoint, "https://")
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+		forced = append(forced,
+			corev1.EnvVar{Name: "OPENCODE_ENABLE_TELEMETRY", Value: "1"},
+			corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
+			corev1.EnvVar{
+				Name:  "OPENCODE_OTLP_ENDPOINT",
+				Value: "http://" + endpoint,
+			},
+			corev1.EnvVar{
+				Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
+				Value: "clawarmor.agent_name=" + agt.Name,
+			},
+		)
+	}
+
+	forcedNames := make(map[string]struct{}, len(forced))
+	for _, item := range forced {
+		forcedNames[item.Name] = struct{}{}
+	}
+
+	env := append([]corev1.EnvVar{}, forced...)
+
+	for _, item := range agt.Spec.Env {
+		if _, ok := forcedNames[item.Name]; ok {
+			continue
+		}
+		env = append(env, item)
+	}
+
 	if len(packages) > 0 {
 		env = append(env,
 			corev1.EnvVar{
 				Name:  "NIX_PROFILES",
-				Value: "/nix/profile",
+				Value: nixLinkMount + "/profile",
 			},
 			corev1.EnvVar{
 				Name:  "PATH",
-				Value: "/nix/profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+				Value: nixLinkMount + "/profile/bin:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin",
 			},
 		)
 	}
+
 	return env
+}
+
+func telemetryEndpointHost(endpoint string) string {
+	if strings.TrimSpace(endpoint) == "" {
+		return ""
+	}
+	raw := endpoint
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return parsed.Hostname()
 }

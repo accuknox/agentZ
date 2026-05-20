@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"strconv"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
@@ -55,7 +54,7 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alp
 			ServiceAccountName: sipName,
 			RoleName:           sinjectorName(agt),
 			PolicyName:         sinjectorName(agt),
-			SessionID:          agt.Spec.Session.ID,
+			AgentName:          agt.Name,
 		})
 		if err != nil {
 			return err
@@ -84,7 +83,6 @@ func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *clawarmorv1alpha
 		ServiceAccountName: sinjectorName(agt),
 		RoleName:           sinjectorName(agt),
 		PolicyName:         sinjectorName(agt),
-		SessionID:          agt.Spec.Session.ID,
 	})
 }
 
@@ -134,19 +132,15 @@ func (r *Reconciler) reconcileSinjectorService(ctx context.Context, agt *clawarm
 	current := &corev1.Service{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
-	port, err := sinjectorPort(agt)
-	if err != nil {
-		return err
-	}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
 		current.Labels = sinjectorLabels(agt)
 		current.Annotations = agt.Annotations
 		current.Spec.Type = corev1.ServiceTypeClusterIP
 		current.Spec.Selector = sinjectorSelectorLabels(agt)
 		current.Spec.Ports = []corev1.ServicePort{{
 			Name:       "http",
-			Port:       port,
-			TargetPort: intstr.FromInt32(port),
+			Port:       4096,
+			TargetPort: intstr.FromInt32(4096),
 			Protocol:   corev1.ProtocolTCP,
 		}}
 		return ctrl.SetControllerReference(agt, current, r.Scheme)
@@ -158,17 +152,13 @@ func (r *Reconciler) reconcileSinjectorService(ctx context.Context, agt *clawarm
 }
 
 func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
-	desired, err := r.buildSinjectorDeployment(agt)
-	if err != nil {
-		return err
-	}
-	err = ctrl.SetControllerReference(agt, desired, r.Scheme)
-	if err != nil {
+	desired := r.buildSinjectorDeployment(agt)
+	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return fmt.Errorf("set controller reference: %w", err)
 	}
 
 	current := &appsv1.Deployment{}
-	err = r.Get(ctx, client.ObjectKeyFromObject(desired), current)
+	err := r.Get(ctx, client.ObjectKeyFromObject(desired), current)
 	if err != nil {
 		if apierr.IsNotFound(err) {
 			if err := r.Create(ctx, desired); err != nil {
@@ -195,10 +185,6 @@ func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *claw
 }
 
 func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
-	port, err := sinjectorPort(agt)
-	if err != nil {
-		return err
-	}
 	egress, err := egressRulesForHosts(allowedHosts, automaticEgressHosts(agt))
 	if err != nil {
 		return err
@@ -245,7 +231,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 				},
 				ToPorts: ciliumapi.PortRules{{
 					Ports: []ciliumapi.PortProtocol{{
-						Port:     strconv.FormatInt(int64(port), 10),
+						Port:     "4096",
 						Protocol: ciliumapi.ProtoTCP,
 					}},
 				}},
@@ -297,11 +283,7 @@ func openBaoEgressRule() ciliumapi.EgressRule {
 	}
 }
 
-func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*appsv1.Deployment, error) {
-	port, err := sinjectorPort(agt)
-	if err != nil {
-		return nil, err
-	}
+func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *appsv1.Deployment {
 	image := r.Config.SinjectorImage
 	if image == "" {
 		image = r.Config.AgentDefaultImage
@@ -319,13 +301,12 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*ap
 	args := []string{
 		"sinjector",
 		"serve",
-		"--addr", agt.Spec.Server.Address,
+		"--agent-name", agt.Name,
 		"--openbao-addr", r.Config.OpenBaoAddr,
 		"--openbao-secret-mount-path", r.Config.OpenBaoSecretMountPath,
 		"--openbao-k8s-auth-role", sinjectorName(agt),
 		"--openbao-k8s-auth-mount-path", r.Config.OpenBaoK8sAuthMountPath,
 		"--openbao-k8s-auth-token-path", r.Config.SinjectorOpenBaoK8sAuthTokenPath,
-		"--session-id", agt.Spec.Session.ID,
 		"--ca-cert-path", certPath,
 		"--ca-key-path", keyPath,
 	}
@@ -376,7 +357,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*ap
 						Args:            args,
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
-							ContainerPort: port,
+							ContainerPort: 4096,
 							Protocol:      corev1.ProtocolTCP,
 						}},
 						SecurityContext: &corev1.SecurityContext{
@@ -396,7 +377,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) (*ap
 				},
 			},
 		},
-	}, nil
+	}
 }
 
 func (r *Reconciler) sinjectorReady(ctx context.Context, agt *clawarmorv1alpha1.Agent) (bool, error) {

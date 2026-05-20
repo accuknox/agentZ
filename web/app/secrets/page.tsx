@@ -2,7 +2,6 @@ import { Suspense } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { selectedSessionID } from "@/data/agent.utils"
 import { deleteSecretFormAction, putSecretFormAction } from "@/data/secret.actions"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
 import type { ListAgentActionResponse } from "@/data/types"
@@ -13,7 +12,7 @@ import { SecretTable } from "./secret-table"
 
 type SearchParams = {
   page_token?: string | string[]
-  session_id?: string | string[]
+  agent_name?: string | string[]
 }
 
 export default async function SecretsPage({
@@ -24,7 +23,7 @@ export default async function SecretsPage({
   const params = await searchParams
   const agents = listAgentsCachedQuery()
   const pageToken = firstSearchParam(params.page_token)
-  const sessionID = firstSearchParam(params.session_id)
+  const agentName = firstSearchParam(params.agent_name)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -44,15 +43,15 @@ export default async function SecretsPage({
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters agents={agents} sessionID={sessionID} />
+        <Filters agents={agents} agentName={agentName} />
       </Suspense>
       <Suspense
-        key={`table-${sessionID ?? "default"}-${pageToken ?? ""}`}
+        key={`table-${agentName ?? "default"}-${pageToken ?? ""}`}
         fallback={<TableSkeleton />}
       >
         <Secrets
           agents={agents}
-          sessionID={sessionID}
+          agentName={agentName}
           pageToken={pageToken}
           deleteSecretAction={deleteSecretFormAction}
           putSecretAction={putSecretFormAction}
@@ -79,17 +78,15 @@ async function NewSecretButtonShell({
     )
   }
 
-  return (
-    <NewSecretButton sessionID={result.agents[0].session_id} putSecretAction={putSecretAction} />
-  )
+  return <NewSecretButton agentName={result.agents[0].name} putSecretAction={putSecretAction} />
 }
 
 async function Filters({
   agents,
-  sessionID,
+  agentName,
 }: {
   agents: Promise<ListAgentActionResponse>
-  sessionID?: string
+  agentName?: string
 }) {
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
@@ -99,31 +96,30 @@ async function Filters({
   return (
     <SecretsFilters
       agents={result.agents}
-      selectedSessionID={selectedSessionID(result, sessionID)}
+      selectedAgentName={agentName ?? result.agents[0]?.name}
     />
   )
 }
 
 async function Secrets({
   agents,
-  sessionID,
+  agentName,
   pageToken,
   deleteSecretAction,
   putSecretAction,
 }: {
   agents: Promise<ListAgentActionResponse>
-  sessionID?: string
+  agentName?: string
   pageToken?: string
   deleteSecretAction: typeof deleteSecretFormAction
   putSecretAction: typeof putSecretFormAction
 }) {
   const agentsResult = await agents
-  const selected = selectedSessionID(agentsResult, sessionID)
-
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />
   }
 
+  const selected = agentName ?? agentsResult.agents[0]?.name
   if (!selected) {
     return <EmptyState message="No agents available" />
   }
@@ -139,7 +135,7 @@ async function Secrets({
 
   return (
     <SecretTable
-      sessionID={selected}
+      agentName={selected}
       secrets={result.items}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}

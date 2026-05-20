@@ -26,15 +26,6 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 )
 
-const (
-	DefaultCompactionThresholdRatio           = 0.9
-	DefaultCompactionHistoryToolResultRatio   = 0.008
-	DefaultCompactionKeepRecentRequests       = 2
-	DefaultCompactionOversizedToolResultRatio = 0.065
-	DefaultMaxHistoryRuns                     = 50
-	DefaultTemperature                        = 0.2
-)
-
 // +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-agent,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=agents,verbs=create;update,versions=v1alpha1,name=magent-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Defaulter sets default values for Agent resources.
@@ -58,50 +49,6 @@ func (d *Defaulter) Default(_ context.Context, agt *clawarmorv1alpha1.Agent) err
 	}
 	if agt.Spec.ImagePullPolicy == "" {
 		agt.Spec.ImagePullPolicy = corev1.PullIfNotPresent
-	}
-	if agt.Spec.Compaction.Mode == "" {
-		agt.Spec.Compaction.Mode = clawarmorv1alpha1.CompactionModeSummary
-	}
-	if agt.Spec.Compaction.Enabled == nil {
-		enabled := true
-		agt.Spec.Compaction.Enabled = &enabled
-	}
-	if agt.Spec.Compaction.ThresholdRatio == 0 {
-		agt.Spec.Compaction.ThresholdRatio = DefaultCompactionThresholdRatio
-	}
-	if agt.Spec.Compaction.HistoryToolResultRatio == 0 {
-		agt.Spec.Compaction.HistoryToolResultRatio = DefaultCompactionHistoryToolResultRatio
-	}
-	if agt.Spec.Compaction.KeepRecentRequests == 0 {
-		agt.Spec.Compaction.KeepRecentRequests = DefaultCompactionKeepRecentRequests
-	}
-	if agt.Spec.Compaction.OversizedToolResultRatio == 0 {
-		agt.Spec.Compaction.OversizedToolResultRatio = DefaultCompactionOversizedToolResultRatio
-	}
-	if agt.Spec.MaxHistoryRuns == 0 {
-		agt.Spec.MaxHistoryRuns = DefaultMaxHistoryRuns
-	}
-	if agt.Spec.Model.Temperature == 0 {
-		agt.Spec.Model.Temperature = DefaultTemperature
-	}
-	if agt.Spec.SummaryModel.Temperature == 0 {
-		agt.Spec.SummaryModel.Temperature = DefaultTemperature
-	}
-	if agt.Spec.Tools.HostExec.Enabled == nil {
-		enabled := true
-		agt.Spec.Tools.HostExec.Enabled = &enabled
-	}
-	if agt.Spec.Tools.WebFetch.Enabled == nil {
-		enabled := true
-		agt.Spec.Tools.WebFetch.Enabled = &enabled
-	}
-	if agt.Spec.Tools.File.Enabled == nil {
-		enabled := false
-		agt.Spec.Tools.File.Enabled = &enabled
-	}
-	if agt.Spec.Tools.Arxiv.Enabled == nil {
-		enabled := false
-		agt.Spec.Tools.Arxiv.Enabled = &enabled
 	}
 	if agt.Spec.NixStoreSize.IsZero() {
 		agt.Spec.NixStoreSize = resource.MustParse("5Gi")

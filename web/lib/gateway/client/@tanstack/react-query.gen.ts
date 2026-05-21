@@ -6,6 +6,7 @@ import { client } from "../client.gen"
 import {
   createAgent,
   createEnvironment,
+  createWorkflow,
   deleteAgent,
   deleteEnvironment,
   deleteSecret,
@@ -31,6 +32,9 @@ import type {
   CreateEnvironmentData,
   CreateEnvironmentError,
   CreateEnvironmentResponse,
+  CreateWorkflowData,
+  CreateWorkflowError,
+  CreateWorkflowResponse,
   DeleteAgentData,
   DeleteAgentError,
   DeleteAgentResponse,
@@ -359,6 +363,32 @@ export const deleteAgentMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await deleteAgent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Create a workflow definition.
+ *
+ * Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
+ *
+ */
+export const createWorkflowMutation = (
+  options?: Partial<Options<CreateWorkflowData>>
+): UseMutationOptions<CreateWorkflowResponse, CreateWorkflowError, Options<CreateWorkflowData>> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowResponse,
+    CreateWorkflowError,
+    Options<CreateWorkflowData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflow({
         ...options,
         ...fnOptions,
         throwOnError: true,

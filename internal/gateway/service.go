@@ -55,6 +55,7 @@ type Service struct {
 	ctx       context.Context
 	resolver  *resolver
 	queries   gatewaydb.Querier
+	db        *pgxpool.Pool
 	cfg       Config
 	bao       *baoapi.Client
 	baoKV     *baoapi.KVv2
@@ -171,6 +172,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		ctx:       ctx,
 		resolver:  resolver,
 		queries:   gatewaydb.New(db),
+		db:        db,
 		cfg:       cfg,
 		bao:       baoClient,
 		baoKV:     baoClient.KVv2(cfg.OpenBaoSecretMountPath),

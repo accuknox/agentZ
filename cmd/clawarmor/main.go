@@ -62,6 +62,7 @@ var (
 	enableHTTP2                                      bool
 	tlsOpts                                          []func(*tls.Config)
 	agentImage                                       string
+	gatewayURL                                       string
 	nixStorePVC                                      string
 	agentInitImage                                   string
 	sinjectorImage                                   string
@@ -127,7 +128,6 @@ var cmd = &cli.Command{
 		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,
 		subcommands.SinjectorCmd,
-		subcommands.WorkflowCmd,
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		level := c.String("log-level")
@@ -205,6 +205,15 @@ var managerCmd = &cli.Command{
 			Name:        "agent-image",
 			Usage:       "Default container image for Agent pods",
 			Destination: &agentImage,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "gateway-url",
+			Usage:       "Gateway base URL exposed to Agent workflow tools",
+			Value:       "http://localhost:8090",
+			Destination: &gatewayURL,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -486,6 +495,7 @@ var managerCmd = &cli.Command{
 
 		runtimeConfig := agent.RuntimeConfig{
 			AgentDefaultImage:                agentImage,
+			GatewayURL:                       gatewayURL,
 			SharedNixPVC:                     nixStorePVC,
 			AgentInitImage:                   agentInitImage,
 			SinjectorImage:                   sinjectorImage,

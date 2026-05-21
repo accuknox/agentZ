@@ -49,14 +49,14 @@ sql:
           slice: true
           type: byte
 - engine: postgresql
-  queries: internal/workflow/db/query.sql
+  queries: internal/gateway/workflow/db/query.sql
   schema:
   - internal/session/db/schema.sql
-  - internal/workflow/db/schema.sql
+  - internal/gateway/workflow/db/schema.sql
   gen:
     go:
       package: workflowdb
-      out: internal/workflow/db
+      out: internal/gateway/workflow/db
       sql_package: pgx/v5
       emit_json_tags: true
       emit_interface: true

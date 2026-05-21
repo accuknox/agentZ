@@ -23,6 +23,23 @@ build_packages() {
     done
 }
 
+link_runtime_store() {
+    local runtime_store
+
+    runtime_store="${NIX_RUNTIME_STORE:-/runtime-nix-store}"
+
+    mkdir -p "$runtime_store"
+
+    # Package binaries and their ELF interpreters use absolute /nix/store paths.
+    # The agent image's own store is seeded separately into the shared runtime
+    # store volume, and we add symlinks for the package closures copied to the PVC.
+    shopt -s nullglob
+    for path in /mnt/nix/nix/store/*; do
+        ln -sfn "$path" "$runtime_store/$(basename "$path")"
+    done
+    shopt -u nullglob
+}
+
 PACKAGES=$(build_packages)
 
 nix profile add --profile /tmp/prof \
@@ -42,3 +59,4 @@ fi
 
 ln -sf /mnt/nix/nix/store /tmp/nix-link/store
 ln -sf /mnt/nix/profile /tmp/nix-link/profile
+link_runtime_store

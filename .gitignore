@@ -27,3 +27,4 @@ go.work
 .codex
 .ref
 clawarmor.yaml
+node_modules

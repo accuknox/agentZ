@@ -185,7 +185,7 @@ func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *claw
 }
 
 func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
-	egress, err := egressRulesForHosts(allowedHosts, automaticEgressHosts(agt))
+	egress, err := egressRulesForHosts(allowedHosts, r.automaticEgressHosts(agt))
 	if err != nil {
 		return err
 	}

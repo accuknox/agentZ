@@ -28,6 +28,16 @@ export type AgentName = string
  */
 export type EnvironmentName = string
 
+/**
+ * Workflow name scoped to one agent.
+ */
+export type WorkflowName = string
+
+/**
+ * Stable workflow node identifier.
+ */
+export type WorkflowNodeName = string
+
 export type Error = {
   code: string
   message: string
@@ -63,6 +73,43 @@ export type CreateAgentRequest = {
   }
   environmentName: EnvironmentName
   opencode?: AgentOpencodeConfig
+}
+
+export type CreateWorkflowRequest = {
+  agent_name: AgentName
+  workflow_name: WorkflowName
+  title: string
+  summary: string
+  nodes: Array<WorkflowNode>
+  edges: Array<WorkflowEdge>
+}
+
+export type Workflow = {
+  agent_name: AgentName
+  workflow_name: WorkflowName
+  title: string
+  summary: string
+  nodes: Array<WorkflowNode>
+  edges: Array<WorkflowEdge>
+  created_at: string
+  updated_at: string
+}
+
+export type WorkflowNode = {
+  name: WorkflowNodeName
+  instructions: string
+  goal: string
+  expected_output: string
+  done_criteria: string
+  preferred_tools: Array<string>
+}
+
+export type WorkflowEdge = {
+  source: WorkflowNodeName
+  target: WorkflowNodeName
+  branch_label: string
+  condition_summary: string
+  cel_expression: string
 }
 
 export type DeleteAgentRequest = {
@@ -968,6 +1015,43 @@ export type DeleteAgentResponses = {
 }
 
 export type DeleteAgentResponse = DeleteAgentResponses[keyof DeleteAgentResponses]
+
+export type CreateWorkflowData = {
+  body: CreateWorkflowRequest
+  path?: never
+  query?: never
+  url: "/api/workflows"
+}
+
+export type CreateWorkflowErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateWorkflowError = CreateWorkflowErrors[keyof CreateWorkflowErrors]
+
+export type CreateWorkflowResponses = {
+  /**
+   * Workflow created.
+   */
+  201: Workflow
+}
+
+export type CreateWorkflowResponse = CreateWorkflowResponses[keyof CreateWorkflowResponses]
 
 export type UpdateAgentData = {
   body: UpdateAgentRequest

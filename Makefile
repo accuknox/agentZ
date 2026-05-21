@@ -17,8 +17,8 @@ all: generate lint build
 generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
-	oapi-codegen --include-tags agents,lens,secrets,environments -config oapi-codegen.gateway.yaml api/openapi.yaml
-	oapi-codegen --include-tags workflows -config oapi-codegen.workflow.yaml api/openapi.yaml
+	cd web && bun openapi-ts --file ../opencode/config/openapi-ts.config.mjs
+	oapi-codegen --include-tags agents,lens,secrets,environments,workflows -config oapi-codegen.gateway.yaml api/openapi.yaml
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./api/...;./internal/controller/...;./internal/webhook/..." \
@@ -52,6 +52,7 @@ build:
 run-gateway:
 	kubectl -n default create token default --duration=24h > /tmp/sa-token
 	go run ./cmd/clawarmor gateway serve \
+		--addr 0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
 		--agent-image=$(AGENT_IMAGE) \
@@ -77,17 +78,13 @@ run-manager:
 		--manager-openbao-k8s-auth-role=clawarmor-manager \
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector \
-		--nix-store-pvc=clawarmor-nix-store
+		--nix-store-pvc=clawarmor-nix-store \
+		--gateway-url=http://172.18.0.1:8090
 
 # Run observer
 .PHONY: run-observer
 run-observer:
 	go run ./cmd/clawarmor observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
-
-# Run workflow service
-.PHONY: run-workflow-service
-run-workflow-service:
-	go run ./cmd/clawarmor workflow serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
 
 # Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer

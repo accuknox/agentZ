@@ -19,8 +19,8 @@ package agent
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/netip"
+	"net/url"
 	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -67,7 +67,7 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1
 }
 
 func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowedHosts []string) (*ciliumapi.Rule, error) {
-	egress, err := egressRulesForHosts(allowedHosts, automaticEgressHosts(agt))
+	egress, err := egressRulesForHosts(allowedHosts, r.automaticEgressHosts(agt))
 	if err != nil {
 		return nil, err
 	}
@@ -197,11 +197,12 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent) ciliumapi.EgressRule {
 	}
 }
 
-func automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
+func (r *Reconciler) automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
 	var hosts []envutil.Host
 	if agt.Spec.Telemetry.Enabled {
 		hosts = append(hosts, hostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)...)
 	}
+	hosts = append(hosts, hostForEndpoint(r.Config.GatewayURL)...)
 	// TODO: move away from init-container to an init Job
 	hosts = append(hosts, []envutil.Host{
 		{Kind: envutil.HostKindWildcard, Value: "*.nixos.org"},
@@ -212,15 +213,8 @@ func automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
 }
 
 func hostForEndpoint(endpoint string) []envutil.Host {
-	host := strings.TrimSpace(endpoint)
+	host := endpointHost(endpoint)
 	if host == "" {
-		return []envutil.Host{}
-	}
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
-	host = strings.Trim(host, "[]")
-	if host == "" || host == "localhost" {
 		return []envutil.Host{}
 	}
 	if addr, err := netip.ParseAddr(host); err == nil {
@@ -238,4 +232,24 @@ func hostForEndpoint(endpoint string) []envutil.Host {
 		return []envutil.Host{}
 	}
 	return []envutil.Host{parsed}
+}
+
+func endpointHost(endpoint string) string {
+	raw := strings.TrimSpace(endpoint)
+	if raw == "" {
+		return ""
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	host := parsed.Hostname()
+	host = strings.Trim(host, "[]")
+	if host == "" || host == "localhost" {
+		return ""
+	}
+	return host
 }

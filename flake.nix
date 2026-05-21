@@ -9,16 +9,56 @@
       (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          opencodePluginOtel = pkgs.callPackage ./hack/opencode-plugin-otel/default.nix { };
+          opencodePluginOtel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
+          opencodeConfigNodeModules = pkgs.stdenvNoCC.mkDerivation {
+            pname = "clawarmor-opencode-config-node_modules";
+            version = "1.0.0";
+            src = ./opencode/config;
+
+            nativeBuildInputs = [ pkgs.bun ];
+            dontConfigure = true;
+
+            buildPhase = ''
+              runHook preBuild
+
+              export HOME="$TMPDIR"
+              export BUN_INSTALL_CACHE_DIR="$(mktemp -d)"
+              bun install --frozen-lockfile --ignore-scripts
+
+              runHook postBuild
+            '';
+
+            installPhase = ''
+              runHook preInstall
+              mkdir -p "$out"
+              cp -R node_modules "$out/"
+              runHook postInstall
+            '';
+
+            dontFixup = true;
+            outputHashMode = "recursive";
+            outputHashAlgo = "sha256";
+            outputHash = "sha256-cnB0gd6R675ZxcXs/kCM/8uc4g4LI0M4F5+8fVNt9Q4=";
+          };
           opencodeXdgConfigRoot = pkgs.runCommand "clawarmor-xdg-config" { } ''
             mkdir -p "$out/opencode/plugins/opencode-plugin-otel"
-            cp -R ${opencodePluginOtel}/. \
-              "$out/opencode/plugins/opencode-plugin-otel/"
+            cp -R ${opencodePluginOtel}/. "$out/opencode/plugins/opencode-plugin-otel/"
+            mkdir -p "$out/opencode/tools" "$out/opencode/lib/gateway"
+            cp -R ${opencodeConfigNodeModules}/node_modules "$out/opencode/"
+            cp -R ${./opencode/config/lib/gateway}/. "$out/opencode/lib/gateway/"
+            cp ${./opencode/config/bun.lock} "$out/opencode/bun.lock"
+            cp ${./opencode/config/package.json} "$out/opencode/package.json"
+            cp ${./opencode/config/openapi-ts.config.mjs} "$out/opencode/openapi-ts.config.mjs"
+            cp ${./opencode/config/tsconfig.json} "$out/opencode/tsconfig.json"
+            cp ${./opencode/config/tools/create_workflow.ts} "$out/opencode/tools/create_workflow.ts"
 
             cat > "$out/opencode/opencode.json" <<'EOF'
             {
               "$schema": "https://opencode.ai/config.json",
-              "plugin": ["./plugins/opencode-plugin-otel"]
+              "plugin": ["./plugins/opencode-plugin-otel"],
+              "tools": {
+                "create_workflow": false
+              }
             }
             EOF
           '';

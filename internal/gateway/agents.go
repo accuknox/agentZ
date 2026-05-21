@@ -415,17 +415,19 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		}
 
 		status := gatewayapi.UNSPECIFIED
+		environmentName := gatewayapi.EnvironmentName("")
 		resolved, resolveErr := s.resolver.resolveAgent(ctx, row.AgentName)
-		if resolveErr == nil {
-			view := statusFromAgent(resolved.Agent)
-			status = statusFromView(view)
-		} else if !errors.Is(resolveErr, errAgentNotFound) {
+		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
+		}
+		if resolved != nil && resolved.Agent != nil {
+			status = statusFromView(statusFromAgent(resolved.Agent))
+			environmentName = resolved.Agent.Spec.EnvironmentRef.Name
 		}
 
 		items = append(items, gatewayapi.Agent{
 			Name:            row.AgentName,
-			EnvironmentName: resolved.Agent.Spec.EnvironmentRef.Name,
+			EnvironmentName: environmentName,
 			LastActivity:    row.UpdatedAt,
 			CreatedAt:       row.CreatedAt,
 			ModifiedAt:      row.UpdatedAt,

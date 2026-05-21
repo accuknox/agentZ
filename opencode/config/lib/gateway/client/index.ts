@@ -22,7 +22,7 @@ export {
   updateAgent,
   updateEnvironment,
   watchAgents,
-} from "./sdk.gen"
+} from "./sdk.gen";
 export type {
   ActionQuery,
   Agent,
@@ -197,4 +197,4 @@ export type {
   WorkflowName,
   WorkflowNode,
   WorkflowNodeName,
-} from "./types.gen"
+} from "./types.gen";

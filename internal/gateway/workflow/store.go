@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	workflowdb "github.com/accuknox/clawarmor/internal/workflow/db"
-	workflowapi "github.com/accuknox/clawarmor/internal/workflow/openapi"
 	"github.com/jackc/pgx/v5/pgxpool"
-)
 
-type dbStore struct {
-	pool *pgxpool.Pool
-}
+	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	workflowdb "github.com/accuknox/clawarmor/internal/gateway/workflow/db"
+)
 
 type storedNode struct {
 	NodeName       string `json:"node_name"`
@@ -38,15 +35,16 @@ type storedEdge struct {
 	CelExpression    string `json:"cel_expression"`
 }
 
-func (s *dbStore) createWorkflow(ctx context.Context, req workflowapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
-	tx, err := s.pool.Begin(ctx)
+// Create stores a workflow and its graph.
+func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
+	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	q := workflowdb.New(tx)
-	row, err := q.WorkflowCreate(ctx, workflowdb.WorkflowCreateParams{
+	queries := workflowdb.New(tx)
+	row, err := queries.WorkflowCreate(ctx, workflowdb.WorkflowCreateParams{
 		AgentName:    req.AgentName,
 		WorkflowName: req.WorkflowName,
 		Title:        req.Title,
@@ -61,7 +59,7 @@ func (s *dbStore) createWorkflow(ctx context.Context, req workflowapi.CreateWork
 		return workflowdb.Workflow{}, err
 	}
 
-	err = q.WorkflowCreateNodes(ctx, workflowdb.WorkflowCreateNodesParams{
+	err = queries.WorkflowCreateNodes(ctx, workflowdb.WorkflowCreateNodesParams{
 		AgentName:    req.AgentName,
 		WorkflowName: req.WorkflowName,
 		Nodes:        nodesJSON,
@@ -71,7 +69,7 @@ func (s *dbStore) createWorkflow(ctx context.Context, req workflowapi.CreateWork
 	}
 
 	if len(preferredToolsJSON) > 0 && string(preferredToolsJSON) != "[]" {
-		err = q.WorkflowCreatePreferredTools(ctx, workflowdb.WorkflowCreatePreferredToolsParams{
+		err := queries.WorkflowCreatePreferredTools(ctx, workflowdb.WorkflowCreatePreferredToolsParams{
 			AgentName:      req.AgentName,
 			WorkflowName:   req.WorkflowName,
 			PreferredTools: preferredToolsJSON,
@@ -87,7 +85,7 @@ func (s *dbStore) createWorkflow(ctx context.Context, req workflowapi.CreateWork
 	}
 
 	if len(req.Edges) > 0 {
-		err = q.WorkflowCreateEdges(ctx, workflowdb.WorkflowCreateEdgesParams{
+		err := queries.WorkflowCreateEdges(ctx, workflowdb.WorkflowCreateEdgesParams{
 			AgentName:    req.AgentName,
 			WorkflowName: req.WorkflowName,
 			Edges:        edgesJSON,
@@ -100,26 +98,28 @@ func (s *dbStore) createWorkflow(ctx context.Context, req workflowapi.CreateWork
 	if err := tx.Commit(ctx); err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("commit tx: %w", err)
 	}
+
 	return row, nil
 }
 
-func marshalNodes(nodes []workflowapi.WorkflowNode) ([]byte, []byte, error) {
+func marshalNodes(nodes []gatewayapi.WorkflowNode) ([]byte, []byte, error) {
 	storedNodes := make([]storedNode, 0, len(nodes))
-	preferredTools := []storedPreferredTool{}
-	for idx, node := range nodes {
-		ordinal := int32(idx)
+	preferredTools := make([]storedPreferredTool, 0)
+
+	for nodeIndex, node := range nodes {
 		storedNodes = append(storedNodes, storedNode{
 			NodeName:       node.Name,
-			Ordinal:        ordinal,
+			Ordinal:        int32(nodeIndex),
 			Instructions:   node.Instructions,
 			Goal:           node.Goal,
 			ExpectedOutput: node.ExpectedOutput,
 			DoneCriteria:   node.DoneCriteria,
 		})
-		for toolIdx, tool := range node.PreferredTools {
+
+		for toolIndex, tool := range node.PreferredTools {
 			preferredTools = append(preferredTools, storedPreferredTool{
 				NodeName: node.Name,
-				Ordinal:  int32(toolIdx),
+				Ordinal:  int32(toolIndex),
 				ToolName: tool,
 			})
 		}
@@ -129,20 +129,23 @@ func marshalNodes(nodes []workflowapi.WorkflowNode) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal workflow nodes: %w", err)
 	}
+
 	preferredToolsJSON, err := json.Marshal(preferredTools)
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal preferred tools: %w", err)
 	}
+
 	return nodesJSON, preferredToolsJSON, nil
 }
 
-func marshalEdges(edges []workflowapi.WorkflowEdge) ([]byte, error) {
+func marshalEdges(edges []gatewayapi.WorkflowEdge) ([]byte, error) {
 	storedEdges := make([]storedEdge, 0, len(edges))
-	for idx, edge := range edges {
+
+	for edgeIndex, edge := range edges {
 		storedEdges = append(storedEdges, storedEdge{
 			SourceNodeName:   edge.Source,
 			TargetNodeName:   edge.Target,
-			Ordinal:          int32(idx),
+			Ordinal:          int32(edgeIndex),
 			BranchLabel:      edge.BranchLabel,
 			ConditionSummary: edge.ConditionSummary,
 			CelExpression:    edge.CelExpression,
@@ -153,5 +156,6 @@ func marshalEdges(edges []workflowapi.WorkflowEdge) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal workflow edges: %w", err)
 	}
+
 	return edgesJSON, nil
 }

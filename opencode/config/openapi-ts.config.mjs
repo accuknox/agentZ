@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url";
+import { fileURLToPath } from "node:url"
 
 /** @type {import('@hey-api/openapi-ts').UserConfig} */
 const config = {
@@ -24,6 +24,6 @@ const config = {
       baseUrl: "http://localhost",
     },
   ],
-};
+}
 
-export default config;
+export default config

@@ -1,11 +1,7 @@
-import { tool } from "@opencode-ai/plugin";
+import { tool } from "@opencode-ai/plugin"
 
-import {
-  createWorkflow,
-  type CreateWorkflowRequest,
-  type GatewayError,
-} from "../lib/gateway";
-import { zError } from "../lib/gateway";
+import { createWorkflow, type CreateWorkflowRequest, type GatewayError } from "../lib/gateway"
+import { zError } from "../lib/gateway"
 
 const createWorkflowArgs = {
   workflow_name: tool.schema
@@ -14,7 +10,7 @@ const createWorkflowArgs = {
     .max(32)
     .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
     .describe(
-      "Stable DNS-label workflow identifier scoped to this agent, for example triage-review.",
+      "Stable DNS-label workflow identifier scoped to this agent, for example triage-review."
     ),
   title: tool.schema
     .string()
@@ -25,9 +21,7 @@ const createWorkflowArgs = {
     .string()
     .min(1)
     .max(4096)
-    .describe(
-      "High-level summary of the overall workflow, its trigger, and intended end state.",
-    ),
+    .describe("High-level summary of the overall workflow, its trigger, and intended end state."),
   nodes: tool.schema
     .array(
       tool.schema.object({
@@ -40,14 +34,12 @@ const createWorkflowArgs = {
         goal: tool.schema.string().min(1).max(2048),
         expected_output: tool.schema.string().min(1).max(2048),
         done_criteria: tool.schema.string().min(1).max(2048),
-        preferred_tools: tool.schema.array(
-          tool.schema.string().min(1).max(128),
-        ),
-      }),
+        preferred_tools: tool.schema.array(tool.schema.string().min(1).max(128)),
+      })
     )
     .min(1)
     .describe(
-      "All workflow nodes. Each node must define concrete instructions, goal, expected_output, done_criteria, and preferred_tools.",
+      "All workflow nodes. Each node must define concrete instructions, goal, expected_output, done_criteria, and preferred_tools."
     ),
   edges: tool.schema
     .array(
@@ -65,12 +57,12 @@ const createWorkflowArgs = {
         branch_label: tool.schema.string().max(256),
         condition_summary: tool.schema.string().max(1024),
         cel_expression: tool.schema.string().max(2048),
-      }),
+      })
     )
     .describe(
-      "Directed edges between nodes. Use branch_label for branch names. For conditional branches, condition_summary and cel_expression must both be set.",
+      "Directed edges between nodes. Use branch_label for branch names. For conditional branches, condition_summary and cel_expression must both be set."
     ),
-};
+}
 
 const description = `
 Create a persisted ClawArmor workflow DAG for the current agent.
@@ -119,23 +111,21 @@ Create a workflow for repository triage.
   - reproduce -> clarify with branch_label "needs-info", condition_summary "The issue cannot be reproduced with current information", cel_expression 'steps.reproduce.status == "needs_info"'.
 
 Successful calls save the workflow for the current agent.
-`.trim();
+`.trim()
 
-type CreateWorkflowToolInput = Omit<CreateWorkflowRequest, "agent_name">;
+type CreateWorkflowToolInput = Omit<CreateWorkflowRequest, "agent_name">
 
 export default tool({
   description,
   args: createWorkflowArgs,
   async execute(args: CreateWorkflowToolInput, context) {
-    const agentName = agentNameFromResourceAttributes(
-      process.env.OPENCODE_RESOURCE_ATTRIBUTES,
-    );
+    const agentName = agentNameFromResourceAttributes(process.env.OPENCODE_RESOURCE_ATTRIBUTES)
     if (!agentName) {
       context.metadata({
         title: "Workflow creation unavailable",
         metadata: { reason: "missing_agent_name" },
-      });
-      return "Could not derive clawarmor.agent_name from OPENCODE_RESOURCE_ATTRIBUTES. Configure the agent runtime to inject that resource attribute before using create_workflow.";
+      })
+      return "Could not derive clawarmor.agent_name from OPENCODE_RESOURCE_ATTRIBUTES. Configure the agent runtime to inject that resource attribute before using create_workflow."
     }
 
     context.metadata({
@@ -144,17 +134,17 @@ export default tool({
         agent_name: agentName,
         workflow_name: args.workflow_name,
       },
-    });
+    })
 
     const body = {
       agent_name: agentName,
       ...args,
-    } satisfies CreateWorkflowRequest;
+    } satisfies CreateWorkflowRequest
 
     const result = await createWorkflow({
       body,
       throwOnError: false,
-    });
+    })
     if (result.data) {
       context.metadata({
         title: `Workflow ${result.data.workflow_name} created`,
@@ -164,17 +154,17 @@ export default tool({
           node_count: result.data.nodes.length,
           edge_count: result.data.edges.length,
         },
-      });
-      return `Created workflow ${result.data.workflow_name} for agent ${result.data.agent_name} with ${result.data.nodes.length} nodes and ${result.data.edges.length} edges.`;
+      })
+      return `Created workflow ${result.data.workflow_name} for agent ${result.data.agent_name} with ${result.data.nodes.length} nodes and ${result.data.edges.length} edges.`
     }
 
-    const error = zError.safeParse(result.error);
+    const error = zError.safeParse(result.error)
     if (!error.success) {
       context.metadata({
         title: "Workflow creation failed",
         metadata: { agent_name: agentName, reason: "unexpected_error" },
-      });
-      return `Workflow creation failed for agent ${agentName}, and the service returned an unexpected error shape.`;
+      })
+      return `Workflow creation failed for agent ${agentName}, and the service returned an unexpected error shape.`
     }
 
     context.metadata({
@@ -184,31 +174,31 @@ export default tool({
         code: error.data.code,
         errors: error.data.errors ?? [],
       },
-    });
-    return workflowErrorOutput(error.data);
+    })
+    return workflowErrorOutput(error.data)
   },
-});
+})
 
 function agentNameFromResourceAttributes(input: string | undefined) {
   if (!input) {
-    return "";
+    return ""
   }
 
   for (const item of input.split(",")) {
-    const [key, value] = item.split("=", 2);
+    const [key, value] = item.split("=", 2)
     if (key?.trim() !== "clawarmor.agent_name") {
-      continue;
+      continue
     }
-    return value?.trim() ?? "";
+    return value?.trim() ?? ""
   }
 
-  return "";
+  return ""
 }
 
 function workflowErrorOutput(error: GatewayError) {
-  const lines = [`${error.code}: ${error.message}`];
+  const lines = [`${error.code}: ${error.message}`]
   for (const field of error.errors ?? []) {
-    lines.push(`${field.field}: ${field.message}`);
+    lines.push(`${field.field}: ${field.message}`)
   }
-  return lines.join("\n");
+  return lines.join("\n")
 }

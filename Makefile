@@ -17,7 +17,6 @@ all: generate lint build
 generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
-	cd web && bun openapi-ts --file ../opencode/config/openapi-ts.config.mjs
 	oapi-codegen --include-tags agents,lens,secrets,environments,workflows -config oapi-codegen.gateway.yaml api/openapi.yaml
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \

@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/refs/heads/main/configuration-schema.json
+package: workflowapi
+output: internal/workflow/openapi/workflow.gen.go
+generate:
+  models: true
+  chi-server: true
+  client: true
+  embedded-spec: true
+compatibility:
+  apply-chi-middleware-first-to-last: true
+output-options:
+  response-type-suffix: Resp

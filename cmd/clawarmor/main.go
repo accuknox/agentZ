@@ -127,6 +127,7 @@ var cmd = &cli.Command{
 		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,
 		subcommands.SinjectorCmd,
+		subcommands.WorkflowCmd,
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		level := c.String("log-level")

@@ -250,6 +250,38 @@ components:
       required:
       - name
       type: object
+    CreateWorkflowRequest:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        edges:
+          items:
+            $ref: '#/components/schemas/WorkflowEdge'
+          type: array
+        nodes:
+          items:
+            $ref: '#/components/schemas/WorkflowNode'
+          minItems: 1
+          type: array
+        summary:
+          maxLength: 4096
+          minLength: 1
+          type: string
+        title:
+          maxLength: 256
+          minLength: 1
+          type: string
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - agent_name
+      - workflow_name
+      - title
+      - summary
+      - nodes
+      - edges
+      type: object
     DeleteAgentRequest:
       additionalProperties: false
       properties:
@@ -9261,6 +9293,111 @@ components:
           type: array
           uniqueItems: true
       type: object
+    Workflow:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        created_at:
+          format: date-time
+          type: string
+        edges:
+          items:
+            $ref: '#/components/schemas/WorkflowEdge'
+          type: array
+        nodes:
+          items:
+            $ref: '#/components/schemas/WorkflowNode'
+          type: array
+        summary:
+          type: string
+        title:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - agent_name
+      - workflow_name
+      - title
+      - summary
+      - nodes
+      - edges
+      - created_at
+      - updated_at
+      type: object
+    WorkflowEdge:
+      additionalProperties: false
+      properties:
+        branch_label:
+          maxLength: 256
+          type: string
+        cel_expression:
+          maxLength: 2048
+          type: string
+        condition_summary:
+          maxLength: 1024
+          type: string
+        source:
+          $ref: '#/components/schemas/WorkflowNodeName'
+        target:
+          $ref: '#/components/schemas/WorkflowNodeName'
+      required:
+      - source
+      - target
+      - branch_label
+      - condition_summary
+      - cel_expression
+      type: object
+    WorkflowName:
+      description: Workflow name scoped to one agent.
+      maxLength: 32
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    WorkflowNode:
+      additionalProperties: false
+      properties:
+        done_criteria:
+          maxLength: 2048
+          minLength: 1
+          type: string
+        expected_output:
+          maxLength: 2048
+          minLength: 1
+          type: string
+        goal:
+          maxLength: 2048
+          minLength: 1
+          type: string
+        instructions:
+          maxLength: 16384
+          minLength: 1
+          type: string
+        name:
+          $ref: '#/components/schemas/WorkflowNodeName'
+        preferred_tools:
+          items:
+            maxLength: 128
+            minLength: 1
+            type: string
+          type: array
+      required:
+      - name
+      - instructions
+      - goal
+      - expected_output
+      - done_criteria
+      - preferred_tools
+      type: object
+    WorkflowNodeName:
+      description: Stable workflow node identifier.
+      maxLength: 64
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
   securitySchemes: {}
 info:
   description: HTTP API for ClawArmor agents, lens, secrets, and environments.
@@ -17311,6 +17448,35 @@ paths:
       summary: Store or overwrite secrets for an agent.
       tags:
       - secrets
+  /api/workflows:
+    post:
+      description: |
+        Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
+      operationId: createWorkflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+          description: Workflow created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create a workflow definition.
+      tags:
+      - workflows
 servers:
 - description: Current origin
   url: /
@@ -17323,6 +17489,8 @@ tags:
   name: secrets
 - description: Environment resource management APIs.
   name: environments
+- description: Workflow definition management APIs.
+  name: workflows
 - description: Control plane routes.
   name: control
 - description: Global server routes.

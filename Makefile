@@ -18,6 +18,7 @@ generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
 	oapi-codegen --include-tags agents,lens,secrets,environments -config oapi-codegen.gateway.yaml api/openapi.yaml
+	oapi-codegen --include-tags workflows -config oapi-codegen.workflow.yaml api/openapi.yaml
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./api/...;./internal/controller/...;./internal/webhook/..." \
@@ -82,6 +83,11 @@ run-manager:
 .PHONY: run-observer
 run-observer:
 	go run ./cmd/clawarmor observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
+
+# Run workflow service
+.PHONY: run-workflow-service
+run-workflow-service:
+	go run ./cmd/clawarmor workflow serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
 
 # Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer

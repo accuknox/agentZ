@@ -15,6 +15,8 @@ tags:
   description: Session secret management APIs.
 - name: environments
   description: Environment resource management APIs.
+- name: workflows
+  description: Workflow definition management APIs.
 
 paths:
   /api/agent/list:
@@ -264,6 +266,37 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workflows:
+    post:
+      operationId: createWorkflow
+      summary: Create a workflow definition.
+      description: >
+        Creates a normalized workflow DAG for a single agent. The workflow
+        definition is stored as metadata, nodes, and edges, and later retrieval
+        can derive a markdown execution playbook from the structured graph.
+      tags: [workflows]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
+      responses:
+        '201':
+          description: Workflow created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -710,6 +743,20 @@ components:
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
       description: Environment resource name.
 
+    WorkflowName:
+      type: string
+      minLength: 1
+      maxLength: 32
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+      description: Workflow name scoped to one agent.
+
+    WorkflowNodeName:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+      description: Stable workflow node identifier.
+
     Error:
       type: object
       additionalProperties: false
@@ -803,6 +850,135 @@ components:
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
       required: [name, environmentName]
+
+    CreateWorkflowRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        nodes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/WorkflowNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowEdge'
+      required:
+      - agent_name
+      - workflow_name
+      - title
+      - summary
+      - nodes
+      - edges
+
+    Workflow:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+        title:
+          type: string
+        summary:
+          type: string
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowEdge'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - agent_name
+      - workflow_name
+      - title
+      - summary
+      - nodes
+      - edges
+      - created_at
+      - updated_at
+
+    WorkflowNode:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/WorkflowNodeName'
+        instructions:
+          type: string
+          minLength: 1
+          maxLength: 16384
+        goal:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        expected_output:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        done_criteria:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        preferred_tools:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+      required:
+      - name
+      - instructions
+      - goal
+      - expected_output
+      - done_criteria
+      - preferred_tools
+
+    WorkflowEdge:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          $ref: '#/components/schemas/WorkflowNodeName'
+        target:
+          $ref: '#/components/schemas/WorkflowNodeName'
+        branch_label:
+          type: string
+          maxLength: 256
+        condition_summary:
+          type: string
+          maxLength: 1024
+        cel_expression:
+          type: string
+          maxLength: 2048
+      required:
+      - source
+      - target
+      - branch_label
+      - condition_summary
+      - cel_expression
 
     DeleteAgentRequest:
       type: object

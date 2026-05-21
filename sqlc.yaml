@@ -48,3 +48,25 @@ sql:
         go_type:
           slice: true
           type: byte
+- engine: postgresql
+  queries: internal/workflow/db/query.sql
+  schema:
+  - internal/session/db/schema.sql
+  - internal/workflow/db/schema.sql
+  gen:
+    go:
+      package: workflowdb
+      out: internal/workflow/db
+      sql_package: pgx/v5
+      emit_json_tags: true
+      emit_interface: true
+      emit_empty_slices: true
+      overrides:
+      - db_type: timestamptz
+        go_type:
+          import: time
+          type: Time
+      - db_type: jsonb
+        go_type:
+          slice: true
+          type: byte

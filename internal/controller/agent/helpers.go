@@ -35,7 +35,8 @@ const (
 	configVolume            = "config"
 	opencodeConfigDir       = "/etc/clawarmor/opencode"
 	opencodeInstructionPath = "/etc/clawarmor/opencode/instruction.md"
-	workflowToolName        = "create_workflow"
+	createWorkflowToolName  = "create_workflow"
+	getWorkflowToolName     = "get_workflow"
 	nixAgentVolume          = "nix-agent"
 	nixRuntimeStoreVolume   = "nix-runtime-store"
 	nixAgentMount           = "/mnt/nix"
@@ -153,7 +154,8 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) 
 		}
 	}
 	cfg.Tools = map[string]bool{
-		workflowToolName: true,
+		createWorkflowToolName: true,
+		getWorkflowToolName:    true,
 	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")

@@ -46,18 +46,22 @@
             mkdir -p "$out/opencode/tools" "$out/opencode/lib/gateway"
             cp -R ${opencodeConfigNodeModules}/node_modules "$out/opencode/"
             cp -R ${./opencode/config/lib/gateway}/. "$out/opencode/lib/gateway/"
+            cp ${./opencode/config/lib/workflow.ts} "$out/opencode/lib/workflow.ts"
             cp ${./opencode/config/bun.lock} "$out/opencode/bun.lock"
             cp ${./opencode/config/package.json} "$out/opencode/package.json"
             cp ${./opencode/config/openapi-ts.config.mjs} "$out/opencode/openapi-ts.config.mjs"
             cp ${./opencode/config/tsconfig.json} "$out/opencode/tsconfig.json"
+            cp ${./opencode/config/tools/get_workflow.ts} "$out/opencode/tools/get_workflow.ts"
             cp ${./opencode/config/tools/create_workflow.ts} "$out/opencode/tools/create_workflow.ts"
+            cp ${./opencode/config/plugins/workflow-context.ts} "$out/opencode/plugins/workflow-context.ts"
 
             cat > "$out/opencode/opencode.json" <<'EOF'
             {
               "$schema": "https://opencode.ai/config.json",
               "plugin": ["./plugins/opencode-plugin-otel"],
               "tools": {
-                "create_workflow": false
+                "create_workflow": false,
+                "get_workflow": false
               }
             }
             EOF

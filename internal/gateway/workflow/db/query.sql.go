@@ -7,6 +7,7 @@ package workflowdb
 
 import (
 	"context"
+	"time"
 )
 
 const workflowCreate = `-- name: WorkflowCreate :one
@@ -169,4 +170,231 @@ type WorkflowCreatePreferredToolsParams struct {
 func (q *Queries) WorkflowCreatePreferredTools(ctx context.Context, arg WorkflowCreatePreferredToolsParams) error {
 	_, err := q.db.Exec(ctx, workflowCreatePreferredTools, arg.AgentName, arg.WorkflowName, arg.PreferredTools)
 	return err
+}
+
+const workflowGet = `-- name: WorkflowGet :one
+SELECT
+  agent_name,
+  workflow_name,
+  title,
+  summary,
+  created_at,
+  updated_at
+FROM workflows
+WHERE agent_name = $1
+  AND workflow_name = $2
+`
+
+type WorkflowGetParams struct {
+	AgentName    string `json:"agent_name"`
+	WorkflowName string `json:"workflow_name"`
+}
+
+func (q *Queries) WorkflowGet(ctx context.Context, arg WorkflowGetParams) (Workflow, error) {
+	row := q.db.QueryRow(ctx, workflowGet, arg.AgentName, arg.WorkflowName)
+	var i Workflow
+	err := row.Scan(
+		&i.AgentName,
+		&i.WorkflowName,
+		&i.Title,
+		&i.Summary,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const workflowListEdges = `-- name: WorkflowListEdges :many
+SELECT
+  id,
+  agent_name,
+  workflow_name,
+  source_node_name,
+  target_node_name,
+  ordinal,
+  branch_label,
+  condition_summary,
+  cel_expression,
+  created_at
+FROM workflow_edges
+WHERE agent_name = $1
+  AND workflow_name = $2
+ORDER BY ordinal ASC, id ASC
+`
+
+type WorkflowListEdgesParams struct {
+	AgentName    string `json:"agent_name"`
+	WorkflowName string `json:"workflow_name"`
+}
+
+func (q *Queries) WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesParams) ([]WorkflowEdge, error) {
+	rows, err := q.db.Query(ctx, workflowListEdges, arg.AgentName, arg.WorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkflowEdge{}
+	for rows.Next() {
+		var i WorkflowEdge
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentName,
+			&i.WorkflowName,
+			&i.SourceNodeName,
+			&i.TargetNodeName,
+			&i.Ordinal,
+			&i.BranchLabel,
+			&i.ConditionSummary,
+			&i.CelExpression,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const workflowListNodes = `-- name: WorkflowListNodes :many
+SELECT
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  instructions,
+  goal,
+  expected_output,
+  done_criteria,
+  created_at,
+  updated_at
+FROM workflow_nodes
+WHERE agent_name = $1
+  AND workflow_name = $2
+ORDER BY ordinal ASC, node_name ASC
+`
+
+type WorkflowListNodesParams struct {
+	AgentName    string `json:"agent_name"`
+	WorkflowName string `json:"workflow_name"`
+}
+
+func (q *Queries) WorkflowListNodes(ctx context.Context, arg WorkflowListNodesParams) ([]WorkflowNode, error) {
+	rows, err := q.db.Query(ctx, workflowListNodes, arg.AgentName, arg.WorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkflowNode{}
+	for rows.Next() {
+		var i WorkflowNode
+		if err := rows.Scan(
+			&i.AgentName,
+			&i.WorkflowName,
+			&i.NodeName,
+			&i.Ordinal,
+			&i.Instructions,
+			&i.Goal,
+			&i.ExpectedOutput,
+			&i.DoneCriteria,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const workflowListPreferredTools = `-- name: WorkflowListPreferredTools :many
+SELECT
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  tool_name
+FROM workflow_node_preferred_tools
+WHERE agent_name = $1
+  AND workflow_name = $2
+ORDER BY node_name ASC, ordinal ASC
+`
+
+type WorkflowListPreferredToolsParams struct {
+	AgentName    string `json:"agent_name"`
+	WorkflowName string `json:"workflow_name"`
+}
+
+func (q *Queries) WorkflowListPreferredTools(ctx context.Context, arg WorkflowListPreferredToolsParams) ([]WorkflowNodePreferredTool, error) {
+	rows, err := q.db.Query(ctx, workflowListPreferredTools, arg.AgentName, arg.WorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkflowNodePreferredTool{}
+	for rows.Next() {
+		var i WorkflowNodePreferredTool
+		if err := rows.Scan(
+			&i.AgentName,
+			&i.WorkflowName,
+			&i.NodeName,
+			&i.Ordinal,
+			&i.ToolName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const workflowListSummaries = `-- name: WorkflowListSummaries :many
+SELECT
+  workflow_name,
+  title,
+  summary,
+  updated_at
+FROM workflows
+WHERE agent_name = $1
+ORDER BY updated_at DESC, workflow_name ASC
+`
+
+type WorkflowListSummariesRow struct {
+	WorkflowName string    `json:"workflow_name"`
+	Title        string    `json:"title"`
+	Summary      string    `json:"summary"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (q *Queries) WorkflowListSummaries(ctx context.Context, agentName string) ([]WorkflowListSummariesRow, error) {
+	rows, err := q.db.Query(ctx, workflowListSummaries, agentName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkflowListSummariesRow{}
+	for rows.Next() {
+		var i WorkflowListSummariesRow
+		if err := rows.Scan(
+			&i.WorkflowName,
+			&i.Title,
+			&i.Summary,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -3,13 +3,18 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	workflowdb "github.com/accuknox/clawarmor/internal/gateway/workflow/db"
 )
+
+var ErrWorkflowNotFound = errors.New("workflow not found")
 
 type storedNode struct {
 	NodeName       string `json:"node_name"`
@@ -33,6 +38,26 @@ type storedEdge struct {
 	BranchLabel      string `json:"branch_label"`
 	ConditionSummary string `json:"condition_summary"`
 	CelExpression    string `json:"cel_expression"`
+}
+
+// ListSummaries returns workflow metadata for one agent without loading nodes or edges.
+func ListSummaries(ctx context.Context, pool *pgxpool.Pool, agentName string) ([]gatewayapi.WorkflowSummary, error) {
+	rows, err := workflowdb.New(pool).WorkflowListSummaries(ctx, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("list workflow summaries: %w", err)
+	}
+
+	summaries := make([]gatewayapi.WorkflowSummary, 0, len(rows))
+	for _, row := range rows {
+		summaries = append(summaries, gatewayapi.WorkflowSummary{
+			WorkflowName: row.WorkflowName,
+			Title:        row.Title,
+			Summary:      row.Summary,
+			UpdatedAt:    row.UpdatedAt,
+		})
+	}
+
+	return summaries, nil
 }
 
 // Create stores a workflow and its graph.
@@ -100,6 +125,93 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 	}
 
 	return row, nil
+}
+
+// Get reconstructs a stored workflow graph from normalized workflow tables.
+func Get(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowName string) (gatewayapi.Workflow, error) {
+	queries := workflowdb.New(pool)
+
+	row, err := queries.WorkflowGet(ctx, workflowdb.WorkflowGetParams{
+		AgentName:    agentName,
+		WorkflowName: workflowName,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return gatewayapi.Workflow{}, ErrWorkflowNotFound
+		}
+		return gatewayapi.Workflow{}, fmt.Errorf("get workflow: %w", err)
+	}
+
+	nodeRows, err := queries.WorkflowListNodes(ctx, workflowdb.WorkflowListNodesParams{
+		AgentName:    agentName,
+		WorkflowName: workflowName,
+	})
+	if err != nil {
+		return gatewayapi.Workflow{}, fmt.Errorf("list workflow nodes: %w", err)
+	}
+
+	toolRows, err := queries.WorkflowListPreferredTools(ctx, workflowdb.WorkflowListPreferredToolsParams{
+		AgentName:    agentName,
+		WorkflowName: workflowName,
+	})
+	if err != nil {
+		return gatewayapi.Workflow{}, fmt.Errorf("list preferred tools: %w", err)
+	}
+
+	edgeRows, err := queries.WorkflowListEdges(ctx, workflowdb.WorkflowListEdgesParams{
+		AgentName:    agentName,
+		WorkflowName: workflowName,
+	})
+	if err != nil {
+		return gatewayapi.Workflow{}, fmt.Errorf("list workflow edges: %w", err)
+	}
+
+	preferredToolsByNode := map[string][]string{}
+	for _, toolRow := range toolRows {
+		preferredToolsByNode[toolRow.NodeName] = append(
+			preferredToolsByNode[toolRow.NodeName],
+			toolRow.ToolName,
+		)
+	}
+
+	nodes := make([]gatewayapi.WorkflowNode, 0, len(nodeRows))
+	for _, nodeRow := range nodeRows {
+		var preferredTools []string
+		if tools := preferredToolsByNode[nodeRow.NodeName]; tools != nil {
+			preferredTools = slices.Clone(tools)
+		}
+
+		nodes = append(nodes, gatewayapi.WorkflowNode{
+			Name:           nodeRow.NodeName,
+			Instructions:   nodeRow.Instructions,
+			Goal:           nodeRow.Goal,
+			ExpectedOutput: nodeRow.ExpectedOutput,
+			DoneCriteria:   nodeRow.DoneCriteria,
+			PreferredTools: preferredTools,
+		})
+	}
+
+	edges := make([]gatewayapi.WorkflowEdge, 0, len(edgeRows))
+	for _, edgeRow := range edgeRows {
+		edges = append(edges, gatewayapi.WorkflowEdge{
+			Source:           edgeRow.SourceNodeName,
+			Target:           edgeRow.TargetNodeName,
+			BranchLabel:      edgeRow.BranchLabel,
+			ConditionSummary: edgeRow.ConditionSummary,
+			CelExpression:    edgeRow.CelExpression,
+		})
+	}
+
+	return gatewayapi.Workflow{
+		AgentName:    row.AgentName,
+		WorkflowName: row.WorkflowName,
+		Title:        row.Title,
+		Summary:      row.Summary,
+		Nodes:        nodes,
+		Edges:        edges,
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}, nil
 }
 
 func marshalNodes(nodes []gatewayapi.WorkflowNode) ([]byte, []byte, error) {

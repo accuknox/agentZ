@@ -26,6 +26,9 @@ import type {
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
+  GetWorkflowData,
+  GetWorkflowErrors,
+  GetWorkflowResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
@@ -53,6 +56,9 @@ import type {
   ListTraceSessionsErrors,
   ListTraceSessionsResponses,
   ListTracesResponses,
+  ListWorkflowSummariesData,
+  ListWorkflowSummariesErrors,
+  ListWorkflowSummariesResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -76,6 +82,7 @@ import {
   zDeleteSecretBody,
   zDeleteSecretPath,
   zGetSpanDetailQuery,
+  zGetWorkflowPath,
   zListAgentsQuery,
   zListEnvironmentsQuery,
   zListFileObservabilityQuery,
@@ -86,6 +93,7 @@ import {
   zListSpansQuery,
   zListTraceSessionsQuery,
   zListTracesQuery,
+  zListWorkflowSummariesPath,
   zPutSecretBody,
   zPutSecretPath,
   zUpdateAgentBody,
@@ -352,6 +360,54 @@ export const createWorkflow = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Get a workflow definition.
+ *
+ * Retrieves a persisted workflow DAG for a single agent. The response preserves the normalized workflow structure so clients can derive a detailed execution playbook from the graph.
+ *
+ */
+export const getWorkflow = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkflowData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetWorkflowResponses, GetWorkflowErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetWorkflowPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflows/{agentName}/{workflowName}",
+    ...options,
+  })
+
+/**
+ * List workflow summaries.
+ *
+ * Lists saved workflow metadata for a single agent without loading the full workflow graph.
+ *
+ */
+export const listWorkflowSummaries = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowSummariesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkflowSummariesResponses,
+    ListWorkflowSummariesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkflowSummariesPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-summaries/{agentName}",
+    ...options,
   })
 
 /**

@@ -95,6 +95,13 @@ export type Workflow = {
   updated_at: string
 }
 
+export type WorkflowSummary = {
+  workflow_name: WorkflowName
+  title: string
+  summary: string
+  updated_at: string
+}
+
 export type WorkflowNode = {
   name: WorkflowNodeName
   instructions: string
@@ -1052,6 +1059,84 @@ export type CreateWorkflowResponses = {
 }
 
 export type CreateWorkflowResponse = CreateWorkflowResponses[keyof CreateWorkflowResponses]
+
+export type GetWorkflowData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflows/{agentName}/{workflowName}"
+}
+
+export type GetWorkflowErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetWorkflowError = GetWorkflowErrors[keyof GetWorkflowErrors]
+
+export type GetWorkflowResponses = {
+  /**
+   * Workflow definition.
+   */
+  200: Workflow
+}
+
+export type GetWorkflowResponse = GetWorkflowResponses[keyof GetWorkflowResponses]
+
+export type ListWorkflowSummariesData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/workflow-summaries/{agentName}"
+}
+
+export type ListWorkflowSummariesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkflowSummariesError =
+  ListWorkflowSummariesErrors[keyof ListWorkflowSummariesErrors]
+
+export type ListWorkflowSummariesResponses = {
+  /**
+   * Workflow summaries for one agent.
+   */
+  200: Array<WorkflowSummary>
+}
+
+export type ListWorkflowSummariesResponse =
+  ListWorkflowSummariesResponses[keyof ListWorkflowSummariesResponses]
 
 export type UpdateAgentData = {
   body: UpdateAgentRequest

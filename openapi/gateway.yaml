@@ -9398,6 +9398,24 @@ components:
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
       type: string
+    WorkflowSummary:
+      additionalProperties: false
+      properties:
+        summary:
+          type: string
+        title:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - workflow_name
+      - title
+      - summary
+      - updated_at
+      type: object
   securitySchemes: {}
 info:
   description: HTTP API for ClawArmor agents, lens, secrets, and environments.
@@ -17448,6 +17466,29 @@ paths:
       summary: Store or overwrite secrets for an agent.
       tags:
       - secrets
+  /api/workflow-summaries/{agentName}:
+    get:
+      description: |
+        Lists saved workflow metadata for a single agent without loading the full workflow graph.
+      operationId: listWorkflowSummaries
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/WorkflowSummary'
+                type: array
+          description: Workflow summaries for one agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow summaries.
+      tags:
+      - workflows
   /api/workflows:
     post:
       description: |
@@ -17475,6 +17516,35 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create a workflow definition.
+      tags:
+      - workflows
+  /api/workflows/{agentName}/{workflowName}:
+    get:
+      description: |
+        Retrieves a persisted workflow DAG for a single agent. The response preserves the normalized workflow structure so clients can derive a detailed execution playbook from the graph.
+      operationId: getWorkflow
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+          description: Workflow definition.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get a workflow definition.
       tags:
       - workflows
 servers:

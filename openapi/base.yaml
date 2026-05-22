@@ -300,6 +300,61 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/workflows/{agentName}/{workflowName}:
+    get:
+      operationId: getWorkflow
+      summary: Get a workflow definition.
+      description: >
+        Retrieves a persisted workflow DAG for a single agent. The response
+        preserves the normalized workflow structure so clients can derive a
+        detailed execution playbook from the graph.
+      tags: [workflows]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: workflowName
+        in: path
+        required: true
+        description: Workflow name scoped to one agent.
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      responses:
+        '200':
+          description: Workflow definition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workflow-summaries/{agentName}:
+    get:
+      operationId: listWorkflowSummaries
+      summary: List workflow summaries.
+      description: >
+        Lists saved workflow metadata for a single agent without loading the
+        full workflow graph.
+      tags: [workflows]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        '200':
+          description: Workflow summaries for one agent.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkflowSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/agent/update/{agentName}:
     post:
       operationId: updateAgent
@@ -918,6 +973,25 @@ components:
       - nodes
       - edges
       - created_at
+      - updated_at
+
+    WorkflowSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+        title:
+          type: string
+        summary:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - workflow_name
+      - title
+      - summary
       - updated_at
 
     WorkflowNode:

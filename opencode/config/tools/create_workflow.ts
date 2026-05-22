@@ -1,7 +1,8 @@
 import { tool } from "@opencode-ai/plugin"
 
-import { createWorkflow, type CreateWorkflowRequest, type GatewayError } from "../lib/gateway"
+import { createWorkflow, type CreateWorkflowRequest } from "../lib/gateway"
 import { zError } from "../lib/gateway"
+import { agentNameFromResourceAttributes, workflowErrorOutput } from "../lib/workflow"
 
 const createWorkflowArgs = {
   workflow_name: tool.schema
@@ -178,27 +179,3 @@ export default tool({
     return workflowErrorOutput(error.data)
   },
 })
-
-function agentNameFromResourceAttributes(input: string | undefined) {
-  if (!input) {
-    return ""
-  }
-
-  for (const item of input.split(",")) {
-    const [key, value] = item.split("=", 2)
-    if (key?.trim() !== "clawarmor.agent_name") {
-      continue
-    }
-    return value?.trim() ?? ""
-  }
-
-  return ""
-}
-
-function workflowErrorOutput(error: GatewayError) {
-  const lines = [`${error.code}: ${error.message}`]
-  for (const field of error.errors ?? []) {
-    lines.push(`${field.field}: ${field.message}`)
-  }
-  return lines.join("\n")
-}

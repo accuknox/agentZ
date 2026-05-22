@@ -14,5 +14,15 @@ client.setConfig({
   baseUrl: gatewayBaseUrl(),
 })
 
-export { createWorkflow, type CreateWorkflowRequest, type Error as GatewayError } from "./client"
+export {
+  createWorkflow,
+  getWorkflow,
+  listWorkflowSummaries,
+  type CreateWorkflowRequest,
+  type Error as GatewayError,
+  type Workflow,
+  type WorkflowEdge,
+  type WorkflowNode,
+  type WorkflowSummary,
+} from "./client"
 export { zError } from "./client/zod.gen"

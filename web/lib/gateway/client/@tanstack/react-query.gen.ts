@@ -11,6 +11,7 @@ import {
   deleteEnvironment,
   deleteSecret,
   getSpanDetail,
+  getWorkflow,
   listAgents,
   listEnvironments,
   listFileObservability,
@@ -20,6 +21,7 @@ import {
   listSpans,
   listTraces,
   listTraceSessions,
+  listWorkflowSummaries,
   type Options,
   putSecret,
   updateAgent,
@@ -47,6 +49,9 @@ import type {
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
+  GetWorkflowData,
+  GetWorkflowError,
+  GetWorkflowResponse,
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
@@ -74,6 +79,9 @@ import type {
   ListTraceSessionsError,
   ListTraceSessionsResponse2,
   ListTracesResponse2,
+  ListWorkflowSummariesData,
+  ListWorkflowSummariesError,
+  ListWorkflowSummariesResponse,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
@@ -398,6 +406,62 @@ export const createWorkflowMutation = (
   }
   return mutationOptions
 }
+
+export const getWorkflowQueryKey = (options: Options<GetWorkflowData>) =>
+  createQueryKey("getWorkflow", options)
+
+/**
+ * Get a workflow definition.
+ *
+ * Retrieves a persisted workflow DAG for a single agent. The response preserves the normalized workflow structure so clients can derive a detailed execution playbook from the graph.
+ *
+ */
+export const getWorkflowOptions = (options: Options<GetWorkflowData>) =>
+  queryOptions<
+    GetWorkflowResponse,
+    GetWorkflowError,
+    GetWorkflowResponse,
+    ReturnType<typeof getWorkflowQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkflow({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkflowQueryKey(options),
+  })
+
+export const listWorkflowSummariesQueryKey = (options: Options<ListWorkflowSummariesData>) =>
+  createQueryKey("listWorkflowSummaries", options)
+
+/**
+ * List workflow summaries.
+ *
+ * Lists saved workflow metadata for a single agent without loading the full workflow graph.
+ *
+ */
+export const listWorkflowSummariesOptions = (options: Options<ListWorkflowSummariesData>) =>
+  queryOptions<
+    ListWorkflowSummariesResponse,
+    ListWorkflowSummariesError,
+    ListWorkflowSummariesResponse,
+    ReturnType<typeof listWorkflowSummariesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowSummaries({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowSummariesQueryKey(options),
+  })
 
 /**
  * Update an Agent resource.

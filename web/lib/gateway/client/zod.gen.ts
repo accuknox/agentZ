@@ -82,6 +82,13 @@ export const zListAgentsResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zWorkflowSummary = z.object({
+  workflow_name: zWorkflowName,
+  title: z.string(),
+  summary: z.string(),
+  updated_at: z.iso.datetime(),
+})
+
 export const zWorkflowNode = z.object({
   name: zWorkflowNodeName,
   instructions: z.string().min(1).max(16384),
@@ -728,6 +735,25 @@ export const zCreateWorkflowBody = zCreateWorkflowRequest
  * Workflow created.
  */
 export const zCreateWorkflowResponse = zWorkflow
+
+export const zGetWorkflowPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+})
+
+/**
+ * Workflow definition.
+ */
+export const zGetWorkflowResponse = zWorkflow
+
+export const zListWorkflowSummariesPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Workflow summaries for one agent.
+ */
+export const zListWorkflowSummariesResponse = z.array(zWorkflowSummary)
 
 export const zUpdateAgentBody = zUpdateAgentRequest
 

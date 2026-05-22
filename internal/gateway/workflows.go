@@ -10,6 +10,32 @@ import (
 	workflowstore "github.com/accuknox/clawarmor/internal/gateway/workflow"
 )
 
+// GetWorkflow handles GET /api/workflows/{agentName}/{workflowName}.
+func (s *Service) GetWorkflow(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
+	agtName = strings.TrimSpace(agtName)
+	workflowName = strings.TrimSpace(workflowName)
+
+	fields := workflowstore.ValidateLookupRequest(agtName, workflowName)
+	if len(fields) > 0 {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			nil,
+			fields...,
+		))
+		return
+	}
+
+	workflow, err := workflowstore.Get(r.Context(), s.db, agtName, workflowName)
+	if err != nil {
+		apiutil.WriteError(w, r, workflowstore.MapGetError(err))
+		return
+	}
+
+	apiutil.WriteJSON(w, http.StatusOK, workflow)
+}
+
 // CreateWorkflow handles POST /api/workflows.
 func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 	var req gatewayapi.CreateWorkflowRequest
@@ -84,3 +110,33 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 }
 
 var _ gatewayapi.ServerInterface = (*Service)(nil)
+
+// ListWorkflowSummaries handles GET /api/workflow-summaries/{agentName}.
+func (s *Service) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
+	agtName = strings.TrimSpace(agtName)
+
+	fields := workflowstore.ValidateListRequest(agtName)
+	if len(fields) > 0 {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			nil,
+			fields...,
+		))
+		return
+	}
+
+	summaries, err := workflowstore.ListSummaries(r.Context(), s.db, agtName)
+	if err != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"request failed",
+			err,
+		))
+		return
+	}
+
+	apiutil.WriteJSON(w, http.StatusOK, summaries)
+}

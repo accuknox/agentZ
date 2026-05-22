@@ -22,6 +22,36 @@ var (
 	conditionEnvErr            error
 )
 
+func ValidateLookupRequest(agentName string, workflowName string) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, 2)
+
+	if !isDNSLabel(agentName, 32) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "agentName",
+			Message: "must be a valid DNS label",
+		})
+	}
+	if !isDNSLabel(workflowName, 32) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "workflowName",
+			Message: "must be a valid DNS label",
+		})
+	}
+
+	return fields
+}
+
+func ValidateListRequest(agentName string) []gatewayapi.FieldError {
+	if isDNSLabel(agentName, 32) {
+		return nil
+	}
+
+	return []gatewayapi.FieldError{{
+		Field:   "agentName",
+		Message: "must be a valid DNS label",
+	}}
+}
+
 //nolint:gocyclo
 func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.FieldError, error) {
 	fields := make([]gatewayapi.FieldError, 0)
@@ -346,6 +376,15 @@ func MapCreateError(err error) *apiutil.APIError {
 			"request validation failed",
 			fmt.Errorf("workflow validation setup: %w", err),
 		)
+	}
+
+	return apiutil.NewError(500, "internal_error", "request failed", err)
+}
+
+// MapGetError translates workflow read failures to API errors.
+func MapGetError(err error) *apiutil.APIError {
+	if errors.Is(err, ErrWorkflowNotFound) {
+		return apiutil.NewError(404, "not_found", "workflow not found", err)
 	}
 
 	return apiutil.NewError(500, "internal_error", "request failed", err)

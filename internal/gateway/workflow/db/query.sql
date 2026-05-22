@@ -96,3 +96,71 @@ FROM jsonb_to_recordset(sqlc.arg(edges)::jsonb) AS e(
   condition_summary text,
   cel_expression text
 );
+
+-- name: WorkflowGet :one
+SELECT
+  agent_name,
+  workflow_name,
+  title,
+  summary,
+  created_at,
+  updated_at
+FROM workflows
+WHERE agent_name = sqlc.arg(agent_name)
+  AND workflow_name = sqlc.arg(workflow_name);
+
+-- name: WorkflowListSummaries :many
+SELECT
+  workflow_name,
+  title,
+  summary,
+  updated_at
+FROM workflows
+WHERE agent_name = sqlc.arg(agent_name)
+ORDER BY updated_at DESC, workflow_name ASC;
+
+-- name: WorkflowListNodes :many
+SELECT
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  instructions,
+  goal,
+  expected_output,
+  done_criteria,
+  created_at,
+  updated_at
+FROM workflow_nodes
+WHERE agent_name = sqlc.arg(agent_name)
+  AND workflow_name = sqlc.arg(workflow_name)
+ORDER BY ordinal ASC, node_name ASC;
+
+-- name: WorkflowListPreferredTools :many
+SELECT
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  tool_name
+FROM workflow_node_preferred_tools
+WHERE agent_name = sqlc.arg(agent_name)
+  AND workflow_name = sqlc.arg(workflow_name)
+ORDER BY node_name ASC, ordinal ASC;
+
+-- name: WorkflowListEdges :many
+SELECT
+  id,
+  agent_name,
+  workflow_name,
+  source_node_name,
+  target_node_name,
+  ordinal,
+  branch_label,
+  condition_summary,
+  cel_expression,
+  created_at
+FROM workflow_edges
+WHERE agent_name = sqlc.arg(agent_name)
+  AND workflow_name = sqlc.arg(workflow_name)
+ORDER BY ordinal ASC, id ASC;

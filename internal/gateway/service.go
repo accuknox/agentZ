@@ -22,10 +22,10 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	baoclient "github.com/accuknox/clawarmor/internal/openbao"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 const labelManagedBy = "app.kubernetes.io/managed-by"

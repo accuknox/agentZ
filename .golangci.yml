@@ -39,6 +39,7 @@ linters:
     - builtin$
     - examples$
     - web
+    - opencode
 formatters:
   enable:
   - gofmt

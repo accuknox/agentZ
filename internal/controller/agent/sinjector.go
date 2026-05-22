@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {

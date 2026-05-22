@@ -41,12 +41,12 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
 	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -408,7 +408,7 @@ var managerCmd = &cli.Command{
 
 		webhookServer := webhook.NewServer(webhookServerOptions)
 
-		// metrics endpoint is enabled in 'config/default/kustomization.yaml'.
+		// metrics endpoint is enabled in 'deploy/kustomize/default/kustomization.yaml'.
 		// The Metrics options configure the server.
 		//
 		// More info:
@@ -424,7 +424,7 @@ var managerCmd = &cli.Command{
 			// filterProvider is used to protect the metrics endpoint with
 			// authn/authz. These configurations ensure that only authorized
 			// users and service accounts can access the metrics endpoint. The
-			// RBAC are configured in 'config/rbac/kustomization.yaml'.
+			// RBAC are configured in 'deploy/kustomize/rbac/kustomization.yaml'.
 			//
 			// More info:
 			// https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/metrics/filters#WithAuthenticationAndAuthorization
@@ -436,12 +436,6 @@ var managerCmd = &cli.Command{
 		// server. While convenient for development and testing, this setup is
 		// not recommended for production.
 		//
-		// TODO(user): If you enable certManager, uncomment the following lines:
-		// - [METRICS-WITH-CERTS] at config/default/kustomization.yaml to
-		//   generate and use certificates managed by cert-manager for the metrics
-		//   server.
-		// - [PROMETHEUS-WITH-CERTS] at config/prometheus/kustomization.yaml for
-		//   TLS certification.
 		if len(metricsCertPath) > 0 {
 			setupLog.Info(
 				"Initializing metrics certificate watcher using provided certificates",
@@ -469,11 +463,8 @@ var managerCmd = &cli.Command{
 			// leader transitions as the new leader don't have to wait
 			// LeaseDuration time first.
 			//
-			// In the default scaffold provided, the program ends immediately
-			// after the manager stops, so would be fine to enable this option.
-			// However, if you are doing or is intended to do any operation such
-			// as perform cleanups after the manager stops then its usage might
-			// be unsafe.
+			// This process exits when the manager stops, so opting into release-on-cancel
+			// is safe if faster voluntary leader handoff becomes important.
 			// LeaderElectionReleaseOnCancel: true,
 		}
 

@@ -21,8 +21,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	"github.com/accuknox/clawarmor/internal/envutil"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-environment,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=envs,verbs=create;update,versions=v1alpha1,name=menvironment-v1alpha1.kb.io,admissionReviewVersions=v1

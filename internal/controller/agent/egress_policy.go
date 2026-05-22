@@ -31,8 +31,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	"github.com/accuknox/clawarmor/internal/envutil"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {

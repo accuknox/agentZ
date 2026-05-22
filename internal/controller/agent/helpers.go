@@ -26,7 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 const (

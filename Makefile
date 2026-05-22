@@ -17,11 +17,13 @@ all: generate lint build
 generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
-	oapi-codegen --include-tags agents,lens,secrets,environments,workflows -config oapi-codegen.gateway.yaml api/openapi.yaml
-	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
+	oapi-codegen --include-tags agents,lens,secrets,environments,workflows -config oapi-codegen.gateway.yaml openapi/gateway.yaml
+	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
-		paths="./api/...;./internal/controller/...;./internal/webhook/..." \
-		output:crd:artifacts:config=config/crd/bases
+		paths="./pkg/apis/...;./internal/controller/...;./internal/webhook/..." \
+		output:rbac:artifacts:config=deploy/kustomize/rbac \
+		output:webhook:artifacts:config=deploy/kustomize/webhook \
+		output:crd:artifacts:config=deploy/kustomize/crd/bases
 
 # Run go fmt against code.
 .PHONY: fmt
@@ -92,9 +94,9 @@ build-installer: generate
 	tmp="$$(mktemp -d)"; \
 	out="$(abspath dist/install.yaml)"; \
 	trap 'rm -rf "$$tmp"' EXIT; \
-	cp -R config "$$tmp/config"; \
-	cd "$$tmp/config/manager" && "$(KUSTOMIZE)" edit set image controller=${IMAGE}; \
-	"$(KUSTOMIZE)" build "$$tmp/config/default" > "$$out"
+	cp -R deploy "$$tmp/deploy"; \
+	cd "$$tmp/deploy/kustomize/manager" && "$(KUSTOMIZE)" edit set image controller=${IMAGE}; \
+	"$(KUSTOMIZE)" build "$$tmp/deploy/kustomize/default" > "$$out"
 
 ifndef ignore-not-found
   ignore-not-found = false
@@ -103,28 +105,28 @@ endif
 # Install CRDs into the K8s cluster specified in ~/.kube/config.
 .PHONY: install
 install: generate
-	@out="$$( "$(KUSTOMIZE)" build config/crd 2>/dev/null || true )"; \
+	@out="$$( "$(KUSTOMIZE)" build deploy/kustomize/crd 2>/dev/null || true )"; \
 	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" apply -f -; else echo "No CRDs to install; skipping."; fi
 
 # Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with
 # ignore-not-found=true to ignore resource not found errors during deletion.
 .PHONY: uninstall
 uninstall: generate
-	@out="$$( "$(KUSTOMIZE)" build config/crd 2>/dev/null || true )"; \
+	@out="$$( "$(KUSTOMIZE)" build deploy/kustomize/crd 2>/dev/null || true )"; \
 	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" delete --ignore-not-found=$(ignore-not-found) -f -; else echo "No CRDs to delete; skipping."; fi
 
 # Deploy controller to the K8s cluster specified in ~/.kube/config.
 .PHONY: deploy
 deploy: generate
-	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMAGE}
-	"$(KUSTOMIZE)" build config/default | "$(KUBECTL)" apply -f -
+	cd deploy/kustomize/manager && "$(KUSTOMIZE)" edit set image controller=${IMAGE}
+	"$(KUSTOMIZE)" build deploy/kustomize/default | "$(KUBECTL)" apply -f -
 
 # Undeploy controller from the K8s cluster specified in ~/.kube/config. Call
 # with ignore-not-found=true to ignore resource not found errors during
 # deletion.
 .PHONY: undeploy
 undeploy:
-	"$(KUSTOMIZE)" build config/default | "$(KUBECTL)" delete --ignore-not-found=$(ignore-not-found) -f -
+	"$(KUSTOMIZE)" build deploy/kustomize/default | "$(KUBECTL)" delete --ignore-not-found=$(ignore-not-found) -f -
 
 # Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin

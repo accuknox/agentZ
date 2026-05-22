@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // Reconciler reconciles an Agent object.

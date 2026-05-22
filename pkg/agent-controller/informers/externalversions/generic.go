@@ -20,7 +20,7 @@ package externalversions
 import (
 	fmt "fmt"
 
-	v1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	v1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -51,9 +51,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=api, Version=v1alpha1
+	// Group=clawarmor, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("agents"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Api().V1alpha1().Agents().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Agents().Informer()}, nil
 
 	}
 

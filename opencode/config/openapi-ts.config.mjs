@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url"
 
 /** @type {import('@hey-api/openapi-ts').UserConfig} */
 const config = {
-  input: fileURLToPath(new URL("../../api/openapi.base.yaml", import.meta.url)),
+  input: fileURLToPath(new URL("../../openapi/base.yaml", import.meta.url)),
   output: {
     path: fileURLToPath(new URL("./lib/gateway/client", import.meta.url)),
     postProcess: ["prettier"],

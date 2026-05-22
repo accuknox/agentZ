@@ -10,9 +10,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	"github.com/accuknox/clawarmor/internal/envutil"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // ListEnvironments handles GET /api/environment/list.
@@ -108,7 +108,7 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 
 	env := &clawarmorv1alpha1.Environment{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.GroupVersion.String(),
+			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "Environment",
 		},
 		ObjectMeta: metav1.ObjectMeta{

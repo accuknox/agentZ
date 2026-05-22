@@ -18,9 +18,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // ListAgents handles GET /api/agent/list.
@@ -102,7 +102,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agt := s.agentFromCreateRequest(req, name)
-	_, err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Create(
+	_, err = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Create(
 		r.Context(),
 		agt,
 		metav1.CreateOptions{},
@@ -185,7 +185,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 
 	var updated *clawarmorv1alpha1.Agent
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, getErr := s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Get(
+		agt, getErr := s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Get(
 			r.Context(),
 			row.AgentName,
 			metav1.GetOptions{},
@@ -194,7 +194,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return getErr
 		}
 		applyUpdateAgentRequest(agt, req)
-		updated, getErr = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Update(
+		updated, getErr = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Update(
 			r.Context(),
 			agt,
 			metav1.UpdateOptions{},
@@ -237,7 +237,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, mapGatewayStoreError("get agent", err))
 		return
 	}
-	err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Delete(
+	err = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Delete(
 		r.Context(),
 		row.AgentName,
 		metav1.DeleteOptions{},
@@ -537,7 +537,7 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 
 	agt := &clawarmorv1alpha1.Agent{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.GroupVersion.String(),
+			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "Agent",
 		},
 		ObjectMeta: metav1.ObjectMeta{

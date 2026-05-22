@@ -1,6 +1,6 @@
 /** @type {import('@hey-api/openapi-ts').UserConfig} */
 const config = {
-  input: "../api/openapi.base.yaml",
+  input: "../openapi/base.yaml",
   output: {
     path: "lib/gateway/client",
     postProcess: ["eslint", "prettier"],

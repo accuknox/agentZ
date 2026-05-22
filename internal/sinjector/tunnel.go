@@ -146,10 +146,6 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, target, scheme 
 
 		req = rewriteRequest(req.WithContext(ctx), p.resolver, target)
 		upstreamReq := upstreamRequest(req, target, scheme)
-		if err != nil {
-			slog.DebugContext(ctx, "build upstream request failed", slog.Any("err", err))
-			return
-		}
 
 		resp, err := p.transport.RoundTrip(upstreamReq)
 		if err != nil {

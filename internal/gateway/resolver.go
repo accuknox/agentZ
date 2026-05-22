@@ -11,10 +11,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	clientset "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned"
 	informers "github.com/accuknox/clawarmor/pkg/agent-controller/informers/externalversions"
-	listersv1alpha1 "github.com/accuknox/clawarmor/pkg/agent-controller/listers/api/v1alpha1"
+	listersv1alpha1 "github.com/accuknox/clawarmor/pkg/agent-controller/listers/clawarmor/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 type resolvedAgent struct {
@@ -65,7 +65,7 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 		30*time.Second,
 		informers.WithNamespace(namespace),
 	)
-	agentInformer := factory.Api().V1alpha1().Agents()
+	agentInformer := factory.Clawarmor().V1alpha1().Agents()
 	informer := agentInformer.Informer()
 	lister := agentInformer.Lister()
 

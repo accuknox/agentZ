@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "@bprogress/next/app"
 import { motion } from "motion/react"
 import { use, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -41,7 +42,7 @@ import {
 } from "@tanstack/react-query"
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { AgentSessionListItem, ListAgentActionResponse } from "@/data/types"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import {
   applySessionLifecycleEvent,

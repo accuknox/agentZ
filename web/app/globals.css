@@ -170,11 +170,6 @@
 }
 
 @layer components {
-  .navigation-progress [data-slot="progress-indicator"] {
-    animation: navigation-progress 3.5s cubic-bezier(0.33, 1, 0.68, 1) forwards;
-    background-color: var(--destructive);
-  }
-
   .trace-waterfall-progress [data-slot="progress-indicator"] {
     animation: trace-waterfall 700ms ease-out var(--waterfall-delay, 0ms) both;
   }
@@ -182,15 +177,6 @@
   .span-progress {
     animation: span-progress 650ms cubic-bezier(0.33, 1, 0.68, 1) both;
     transform-origin: left center;
-  }
-}
-
-@keyframes navigation-progress {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(-30%);
   }
 }
 

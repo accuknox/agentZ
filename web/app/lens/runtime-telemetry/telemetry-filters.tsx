@@ -3,7 +3,8 @@
 import * as React from "react"
 import { BotIcon, CalendarIcon } from "lucide-react"
 import type { DateRange } from "react-day-picker"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "@bprogress/next/app"
+import { usePathname, useSearchParams } from "next/navigation"
 import type { Agent } from "@/lib/gateway/client"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -43,7 +44,8 @@ export function TelemetryFilters({ agents, selectedAgentName, from, to }: Teleme
     }
 
     startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`)
+      const query = params.toString()
+      router.replace(query === "" ? pathname : `${pathname}?${query}`)
     })
   }
 

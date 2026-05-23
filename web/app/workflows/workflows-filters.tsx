@@ -1,9 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useProgress } from "@bprogress/next"
 import { Controller, useForm } from "react-hook-form"
 import { BotIcon, Workflow } from "lucide-react"
 import type { Agent, WorkflowSummary } from "@/lib/gateway/client"
+import { workflowFiltersFormSchema, type WorkflowFiltersFormValues } from "@/data/workflow.schema"
 import {
   Select,
   SelectContent,
@@ -21,11 +24,6 @@ type WorkflowsFiltersProps = {
   action: (formData: FormData) => void | Promise<void>
 }
 
-type WorkflowFiltersForm = {
-  agent_name: string
-  workflow_name: string
-}
-
 export function WorkflowsFilters({
   agents,
   selectedAgentName,
@@ -34,14 +32,25 @@ export function WorkflowsFilters({
   action,
 }: WorkflowsFiltersProps) {
   const [pending, startTransition] = React.useTransition()
-  const form = useForm<WorkflowFiltersForm>({
+  const progress = useProgress()
+  const form = useForm<WorkflowFiltersFormValues>({
+    resolver: zodResolver(workflowFiltersFormSchema),
     defaultValues: {
       agent_name: selectedAgentName ?? "",
       workflow_name: selectedWorkflowName ?? "",
     },
   })
 
-  function submitSelection(values: WorkflowFiltersForm) {
+  React.useEffect(() => {
+    if (pending) {
+      progress.start(undefined, 100)
+      return
+    }
+
+    progress.stop()
+  }, [pending, progress])
+
+  function submitSelection(values: WorkflowFiltersFormValues) {
     const formData = new FormData()
     formData.set("agent_name", values.agent_name)
     if (values.workflow_name) {
@@ -66,7 +75,7 @@ export function WorkflowsFilters({
                 const nextValues = {
                   agent_name: nextAgentName,
                   workflow_name: "",
-                } satisfies WorkflowFiltersForm
+                } satisfies WorkflowFiltersFormValues
                 form.reset(nextValues)
                 submitSelection(nextValues)
               }}
@@ -98,7 +107,7 @@ export function WorkflowsFilters({
                 const nextValues = {
                   agent_name: form.getValues("agent_name"),
                   workflow_name: nextWorkflowName,
-                } satisfies WorkflowFiltersForm
+                } satisfies WorkflowFiltersFormValues
                 form.setValue("workflow_name", nextWorkflowName, {
                   shouldDirty: false,
                   shouldTouch: false,

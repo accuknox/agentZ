@@ -151,57 +151,17 @@ export async function getTraceChartAction(
 
 export async function listTraceSessionFilterAction({
   agent_name,
-  started_after,
-  started_before,
-}: Pick<
-  ListTraceSessionsData["query"],
-  "agent_name" | "started_after" | "started_before"
->): Promise<TraceSessionFilterActionResponse> {
+}: Pick<ListTraceSessionsData["query"], "agent_name">): Promise<TraceSessionFilterActionResponse> {
   const client = createAgentOpencodeClient(agent_name)
   const sessionListResult = await client.session.list()
-  const sessionTitles = new Map<string, string>()
-  if (sessionListResult.data) {
-    for (const session of sessionListResult.data) {
-      sessionTitles.set(session.id, session.title)
-    }
+  if (!sessionListResult.data) {
+    return { data: [], error: undefined }
   }
 
-  const sessions: TraceSessionFilterItem[] = []
-  const seen = new Set<string>()
-  let pageToken: string | undefined
-
-  for (;;) {
-    const result = await listTraceSessions({
-      query: {
-        agent_name,
-        started_after,
-        started_before,
-        limit: 100,
-        page_token: pageToken,
-      },
-      cache: "no-store",
-    })
-    if (result.error) {
-      return { data: undefined, error: result.error }
-    }
-
-    for (const session of result.data.trace_sessions) {
-      if (seen.has(session.session_id)) {
-        continue
-      }
-
-      seen.add(session.session_id)
-      sessions.push({
-        sessionId: session.session_id,
-        title: sessionTitles.get(session.session_id) ?? session.session_id,
-      })
-    }
-
-    pageToken = result.data.next_page_token || undefined
-    if (!pageToken) {
-      break
-    }
-  }
+  const sessions: TraceSessionFilterItem[] = sessionListResult.data.map((session) => ({
+    sessionId: session.id,
+    title: session.title || session.id,
+  }))
 
   return { data: sessions, error: undefined }
 }

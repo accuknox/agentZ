@@ -20,10 +20,7 @@ export default async function SecretsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
   const agents = listAgentsCachedQuery()
-  const pageToken = firstSearchParam(params.page_token)
-  const agentName = firstSearchParam(params.agent_name)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -43,16 +40,12 @@ export default async function SecretsPage({
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters agents={agents} agentName={agentName} />
+        <Filters searchParams={searchParams} agents={agents} />
       </Suspense>
-      <Suspense
-        key={`table-${agentName ?? "default"}-${pageToken ?? ""}`}
-        fallback={<TableSkeleton />}
-      >
+      <Suspense fallback={<TableSkeleton />}>
         <Secrets
+          searchParams={searchParams}
           agents={agents}
-          agentName={agentName}
-          pageToken={pageToken}
           deleteSecretAction={deleteSecretFormAction}
           putSecretAction={putSecretFormAction}
         />
@@ -82,12 +75,14 @@ async function NewSecretButtonShell({
 }
 
 async function Filters({
+  searchParams,
   agents,
-  agentName,
 }: {
+  searchParams: Promise<SearchParams>
   agents: Promise<ListAgentActionResponse>
-  agentName?: string
 }) {
+  const params = await searchParams
+  const agentName = firstSearchParam(params.agent_name)
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return <FiltersSkeleton />
@@ -102,18 +97,19 @@ async function Filters({
 }
 
 async function Secrets({
+  searchParams,
   agents,
-  agentName,
-  pageToken,
   deleteSecretAction,
   putSecretAction,
 }: {
+  searchParams: Promise<SearchParams>
   agents: Promise<ListAgentActionResponse>
-  agentName?: string
-  pageToken?: string
   deleteSecretAction: typeof deleteSecretFormAction
   putSecretAction: typeof putSecretFormAction
 }) {
+  const params = await searchParams
+  const agentName = firstSearchParam(params.agent_name)
+  const pageToken = firstSearchParam(params.page_token)
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

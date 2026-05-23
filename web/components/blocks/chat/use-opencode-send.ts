@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter } from "@bprogress/next/app"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { nanoid } from "nanoid"
 import { useCallback, useState } from "react"

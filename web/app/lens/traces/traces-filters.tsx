@@ -3,7 +3,8 @@
 import * as React from "react"
 import { BotIcon, CalendarIcon, MessageSquareQuote } from "lucide-react"
 import type { DateRange } from "react-day-picker"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "@bprogress/next/app"
+import { usePathname, useSearchParams } from "next/navigation"
 import type { Agent } from "@/lib/gateway/client"
 import type { TraceSessionFilterItem } from "@/data/types"
 import { Button } from "@/components/ui/button"
@@ -52,7 +53,8 @@ export function TracesFilters({
     }
 
     startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`)
+      const query = params.toString()
+      router.replace(query === "" ? pathname : `${pathname}?${query}`)
     })
   }
 

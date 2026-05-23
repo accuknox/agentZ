@@ -22,12 +22,14 @@ export function telemetryDateRange(from?: string, to?: string): TelemetryDateRan
 
   const now = dayjs()
   const yesterday = now.subtract(24, "hour")
+  const defaultFrom = yesterday.startOf("day")
+  const defaultTo = now.endOf("day")
 
   return {
-    from: yesterday.format("YYYY-MM-DD"),
-    to: now.format("YYYY-MM-DD"),
-    eventTimeAfter: yesterday.toISOString(),
-    eventTimeBefore: now.toISOString(),
+    from: defaultFrom.format("YYYY-MM-DD"),
+    to: defaultTo.format("YYYY-MM-DD"),
+    eventTimeAfter: defaultFrom.toISOString(),
+    eventTimeBefore: defaultTo.toISOString(),
   }
 }
 

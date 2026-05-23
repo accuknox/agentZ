@@ -29,9 +29,6 @@ export default async function WorkflowsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
-  const agentName = firstSearchParam(params.agent_name)
-  const workflowName = firstSearchParam(params.workflow_name)
   const agents = listAgentsCachedQuery()
 
   return (
@@ -42,35 +39,25 @@ export default async function WorkflowsPage({
         </div>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters
-          agents={agents}
-          selectedAgentName={agentName}
-          selectedWorkflowName={workflowName}
-        />
+        <Filters searchParams={searchParams} agents={agents} />
       </Suspense>
-      <Suspense
-        key={`workflow-${agentName ?? "default"}-${workflowName ?? "default"}`}
-        fallback={<CanvasSkeleton />}
-      >
-        <WorkflowContent
-          agents={agents}
-          selectedAgentName={agentName}
-          selectedWorkflowName={workflowName}
-        />
+      <Suspense fallback={<CanvasSkeleton />}>
+        <WorkflowContent searchParams={searchParams} agents={agents} />
       </Suspense>
     </main>
   )
 }
 
 async function Filters({
+  searchParams,
   agents,
-  selectedAgentName,
-  selectedWorkflowName,
 }: {
+  searchParams: Promise<SearchParams>
   agents: ReturnType<typeof listAgentsCachedQuery>
-  selectedAgentName?: string
-  selectedWorkflowName?: string
 }) {
+  const params = await searchParams
+  const selectedAgentName = firstSearchParam(params.agent_name)
+  const selectedWorkflowName = firstSearchParam(params.workflow_name)
   const agentsResult = await agents
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
     return <FiltersSkeleton />
@@ -96,14 +83,15 @@ async function Filters({
 }
 
 async function WorkflowContent({
+  searchParams,
   agents,
-  selectedAgentName,
-  selectedWorkflowName,
 }: {
+  searchParams: Promise<SearchParams>
   agents: ReturnType<typeof listAgentsCachedQuery>
-  selectedAgentName?: string
-  selectedWorkflowName?: string
 }) {
+  const params = await searchParams
+  const selectedAgentName = firstSearchParam(params.agent_name)
+  const selectedWorkflowName = firstSearchParam(params.workflow_name)
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

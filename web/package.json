@@ -11,6 +11,7 @@
     "gen:openapi-client": "openapi-ts"
   },
   "dependencies": {
+    "@bprogress/next": "^3.2.12",
     "@dagrejs/dagre": "^3.0.0",
     "@hookform/resolvers": "^5.2.2",
     "@opencode-ai/sdk": "^1.14.48",

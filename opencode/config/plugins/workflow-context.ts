@@ -94,6 +94,10 @@ function createWorkflowContextPlugin(
 function formatWorkflowContext(workflows: WorkflowSummary[]) {
   const lines = [
     "Saved workflows are reusable execution playbooks for this agent.",
+    "To replace an existing workflow, first read it with get_workflow, then delete it with delete_workflows, then recreate it with create_workflow.",
+    "Treat an explicit user request to update or replace a workflow as sufficient authorization to delete the old saved workflow.",
+    "If you do not yet know the workflow name, call list_workflows first.",
+    "If recreate fails after deletion, stop and report the failure instead of silently renaming the workflow.",
     "Call get_workflow with a workflow_name when the current task matches one of the saved workflows below.",
     "<available_workflows>",
   ]

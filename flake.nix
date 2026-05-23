@@ -53,6 +53,7 @@
             cp ${./opencode/config/tsconfig.json} "$out/opencode/tsconfig.json"
             cp ${./opencode/config/tools/get_workflow.ts} "$out/opencode/tools/get_workflow.ts"
             cp ${./opencode/config/tools/create_workflow.ts} "$out/opencode/tools/create_workflow.ts"
+            cp ${./opencode/config/tools/list_workflows.ts} "$out/opencode/tools/list_workflows.ts"
             cp ${./opencode/config/tools/delete_workflows.ts} "$out/opencode/tools/delete_workflows.ts"
             cp ${./opencode/config/plugins/workflow-context.ts} "$out/opencode/plugins/workflow-context.ts"
 
@@ -62,6 +63,7 @@
               "plugin": ["./plugins/opencode-plugin-otel"],
               "tools": {
                 "create_workflow": true,
+                "list_workflows": true,
                 "get_workflow": true,
                 "delete_workflows": true
               }

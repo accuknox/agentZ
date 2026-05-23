@@ -152,7 +152,7 @@ function FiltersSkeleton() {
 function CanvasSkeleton() {
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden border-t bg-sidebar">
-      <div className="absolute inset-0 bg-[radial-gradient(circle,theme(colors.sidebar-border)_1px,transparent_1px)] [background-size:10px_10px] opacity-35" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
       <div className="absolute left-4 top-4 z-10 w-sm max-w-sm rounded-md border bg-card p-1">
         <div className="flex items-start gap-2 rounded-sm px-3 py-2">
           <Skeleton className="h-4 w-56 max-w-full" />
@@ -160,9 +160,9 @@ function CanvasSkeleton() {
         </div>
       </div>
       <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-px overflow-hidden rounded-md border bg-card p-1">
-        <Skeleton className="size-[26px] rounded-sm" />
-        <Skeleton className="size-[26px] rounded-sm" />
-        <Skeleton className="size-[26px] rounded-sm" />
+        <Skeleton className="size-6.5 rounded-sm" />
+        <Skeleton className="size-6.5 rounded-sm" />
+        <Skeleton className="size-6.5 rounded-sm" />
       </div>
       <div className="absolute left-9 right-10 top-[53%] -translate-y-1/2">
         <div className="flex min-w-max items-center gap-12">

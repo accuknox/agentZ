@@ -72,7 +72,7 @@ export function TelemetryTableSkeleton({
                   const cellClass = headerClasses[header] || ""
                   return (
                     <TableCell key={index} className={cellClass}>
-                      <Skeleton className="h-4 w-full max-w-[200px]" />
+                      <Skeleton className="h-4 w-full max-w-50" />
                     </TableCell>
                   )
                 })}

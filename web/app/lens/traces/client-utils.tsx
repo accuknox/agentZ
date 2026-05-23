@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { useTokenPagination as useSharedTokenPagination } from "@/lib/use-token-pagination"
 
 const numberFormatter = new Intl.NumberFormat("en", {

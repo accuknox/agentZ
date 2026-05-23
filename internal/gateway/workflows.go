@@ -109,6 +109,44 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// DeleteWorkflows handles DELETE /api/workflows/{agentName}.
+func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
+	var req gatewayapi.DeleteWorkflowsRequest
+	if err := apiutil.DecodeJSONBody(w, r, &req, false); err != nil {
+		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
+			apiutil.WriteError(w, r, apiErr)
+			return
+		}
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+
+	agtName = strings.TrimSpace(agtName)
+	for i := range req.WorkflowNames {
+		req.WorkflowNames[i] = strings.TrimSpace(req.WorkflowNames[i])
+	}
+
+	fields := workflowstore.ValidateDeleteRequest(agtName, req.WorkflowNames)
+	if len(fields) > 0 {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			nil,
+			fields...,
+		))
+		return
+	}
+
+	missing, err := workflowstore.DeleteMany(r.Context(), s.db, agtName, req.WorkflowNames)
+	if err != nil {
+		apiutil.WriteError(w, r, workflowstore.MapDeleteError(err, missing))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 var _ gatewayapi.ServerInterface = (*Service)(nil)
 
 // ListWorkflowSummaries handles GET /api/workflow-summaries/{agentName}.

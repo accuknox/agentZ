@@ -309,6 +309,17 @@ components:
       required:
       - keys
       type: object
+    DeleteWorkflowsRequest:
+      additionalProperties: false
+      properties:
+        workflow_names:
+          items:
+            $ref: '#/components/schemas/WorkflowName'
+          minItems: 1
+          type: array
+      required:
+      - workflow_names
+      type: object
     Environment:
       additionalProperties: false
       properties:
@@ -17516,6 +17527,31 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create a workflow definition.
+      tags:
+      - workflows
+  /api/workflows/{agentName}:
+    delete:
+      description: |
+        Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+      operationId: deleteWorkflows
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteWorkflowsRequest'
+        required: true
+      responses:
+        "204":
+          description: Workflows deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete workflow definitions.
       tags:
       - workflows
   /api/workflows/{agentName}/{workflowName}:

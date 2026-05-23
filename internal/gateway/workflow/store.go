@@ -127,6 +127,55 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 	return row, nil
 }
 
+// DeleteMany removes multiple workflows for one agent.
+func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowNames []string) ([]string, error) {
+	names := uniqueNames(workflowNames)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	queries := workflowdb.New(tx)
+	existing, err := queries.WorkflowListExistingNames(ctx, workflowdb.WorkflowListExistingNamesParams{
+		AgentName:     agentName,
+		WorkflowNames: names,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list existing workflows: %w", err)
+	}
+
+	if len(existing) != len(names) {
+		existingSet := make(map[string]struct{}, len(existing))
+		for _, name := range existing {
+			existingSet[name] = struct{}{}
+		}
+
+		missing := make([]string, 0, len(names)-len(existing))
+		for _, name := range names {
+			if _, ok := existingSet[name]; ok {
+				continue
+			}
+			missing = append(missing, name)
+		}
+		return missing, ErrWorkflowNotFound
+	}
+
+	_, err = queries.WorkflowDeleteMany(ctx, workflowdb.WorkflowDeleteManyParams{
+		AgentName:     agentName,
+		WorkflowNames: names,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("delete workflows: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
+	}
+
+	return nil, nil
+}
+
 // Get reconstructs a stored workflow graph from normalized workflow tables.
 func Get(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowName string) (gatewayapi.Workflow, error) {
 	queries := workflowdb.New(pool)
@@ -270,4 +319,19 @@ func marshalEdges(edges []gatewayapi.WorkflowEdge) ([]byte, error) {
 	}
 
 	return edgesJSON, nil
+}
+
+func uniqueNames(names []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(names))
+
+	for _, name := range names {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+
+	return out
 }

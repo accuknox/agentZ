@@ -119,6 +119,19 @@ FROM workflows
 WHERE agent_name = sqlc.arg(agent_name)
 ORDER BY updated_at DESC, workflow_name ASC;
 
+-- name: WorkflowListExistingNames :many
+SELECT workflow_name
+FROM workflows
+WHERE agent_name = sqlc.arg(agent_name)
+  AND workflow_name = ANY(sqlc.arg(workflow_names)::text[])
+ORDER BY workflow_name ASC
+FOR UPDATE;
+
+-- name: WorkflowDeleteMany :execrows
+DELETE FROM workflows
+WHERE agent_name = sqlc.arg(agent_name)
+  AND workflow_name = ANY(sqlc.arg(workflow_names)::text[]);
+
 -- name: WorkflowListNodes :many
 SELECT
   agent_name,

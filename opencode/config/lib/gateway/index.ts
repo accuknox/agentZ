@@ -16,9 +16,11 @@ client.setConfig({
 
 export {
   createWorkflow,
+  deleteWorkflows,
   getWorkflow,
   listWorkflowSummaries,
   type CreateWorkflowRequest,
+  type DeleteWorkflowsRequest,
   type Error as GatewayError,
   type Workflow,
   type WorkflowEdge,

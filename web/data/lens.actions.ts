@@ -347,7 +347,7 @@ export async function getRuntimeTelemetryTabAction({
 }
 
 const maxTelemetryChartPoints = 5
-const defaultPageSize = 50
+const defaultPageSize = 25
 
 function rowTelemetryEvent(event: ProcessObservabilityEventAggregated): ProcessTelemetryRow {
   return {

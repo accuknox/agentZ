@@ -130,6 +130,10 @@ export const zDeleteAgentRequest = z.object({
   agent_name: zAgentName,
 })
 
+export const zDeleteWorkflowsRequest = z.object({
+  workflow_names: z.array(zWorkflowName).min(1),
+})
+
 export const zAgentOpencodeProviderConfig = z.object({
   env: z.array(z.string()).optional(),
   baseURL: z.string().optional(),
@@ -735,6 +739,17 @@ export const zCreateWorkflowBody = zCreateWorkflowRequest
  * Workflow created.
  */
 export const zCreateWorkflowResponse = zWorkflow
+
+export const zDeleteWorkflowsBody = zDeleteWorkflowsRequest
+
+export const zDeleteWorkflowsPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Workflows deleted.
+ */
+export const zDeleteWorkflowsResponse = z.void()
 
 export const zGetWorkflowPath = z.object({
   agentName: zAgentName,

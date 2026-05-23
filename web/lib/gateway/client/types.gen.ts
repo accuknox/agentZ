@@ -123,6 +123,10 @@ export type DeleteAgentRequest = {
   agent_name: AgentName
 }
 
+export type DeleteWorkflowsRequest = {
+  workflow_names: Array<WorkflowName>
+}
+
 export type UpdateAgentRequest = {
   env?: {
     [key: string]: string
@@ -1059,6 +1063,44 @@ export type CreateWorkflowResponses = {
 }
 
 export type CreateWorkflowResponse = CreateWorkflowResponses[keyof CreateWorkflowResponses]
+
+export type DeleteWorkflowsData = {
+  body: DeleteWorkflowsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/workflows/{agentName}"
+}
+
+export type DeleteWorkflowsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteWorkflowsError = DeleteWorkflowsErrors[keyof DeleteWorkflowsErrors]
+
+export type DeleteWorkflowsResponses = {
+  /**
+   * Workflows deleted.
+   */
+  204: void
+}
+
+export type DeleteWorkflowsResponse = DeleteWorkflowsResponses[keyof DeleteWorkflowsResponses]
 
 export type GetWorkflowData = {
   body?: never

@@ -52,6 +52,39 @@ func ValidateListRequest(agentName string) []gatewayapi.FieldError {
 	}}
 }
 
+// ValidateDeleteRequest validates one agent-scoped workflow delete request.
+func ValidateDeleteRequest(agentName string, workflowNames []string) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, len(workflowNames)+1)
+
+	if !isDNSLabel(agentName, 32) {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "agentName",
+			Message: "must be a valid DNS label",
+		})
+	}
+
+	if len(workflowNames) == 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "workflow_names",
+			Message: "must include at least one workflow name",
+		})
+		return fields
+	}
+
+	for i, workflowName := range workflowNames {
+		if isDNSLabel(workflowName, 32) {
+			continue
+		}
+
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   fmt.Sprintf("workflow_names.%d", i),
+			Message: "must be a valid DNS label",
+		})
+	}
+
+	return fields
+}
+
 //nolint:gocyclo
 func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.FieldError, error) {
 	fields := make([]gatewayapi.FieldError, 0)
@@ -379,6 +412,34 @@ func MapCreateError(err error) *apiutil.APIError {
 	}
 
 	return apiutil.NewError(500, "internal_error", "request failed", err)
+}
+
+// MapDeleteError translates workflow delete errors to API errors.
+func MapDeleteError(err error, missing []string) *apiutil.APIError {
+	if errors.Is(err, ErrWorkflowNotFound) {
+		fields := make([]gatewayapi.FieldError, 0, len(missing))
+		for _, name := range missing {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "workflow_names",
+				Message: fmt.Sprintf("workflow %q was not found", name),
+			})
+		}
+
+		return apiutil.NewError(
+			404,
+			"not_found",
+			"one or more workflows were not found",
+			err,
+			fields...,
+		)
+	}
+
+	return apiutil.NewError(
+		500,
+		"internal_error",
+		"request failed",
+		err,
+	)
 }
 
 // MapGetError translates workflow read failures to API errors.

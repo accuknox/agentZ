@@ -10,6 +10,7 @@ import {
   deleteAgent,
   deleteEnvironment,
   deleteSecret,
+  deleteWorkflows,
   getSpanDetail,
   getWorkflow,
   listAgents,
@@ -46,6 +47,9 @@ import type {
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
+  DeleteWorkflowsData,
+  DeleteWorkflowsError,
+  DeleteWorkflowsResponse,
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
@@ -397,6 +401,36 @@ export const createWorkflowMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await createWorkflow({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete workflow definitions.
+ *
+ * Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+ *
+ */
+export const deleteWorkflowsMutation = (
+  options?: Partial<Options<DeleteWorkflowsData>>
+): UseMutationOptions<
+  DeleteWorkflowsResponse,
+  DeleteWorkflowsError,
+  Options<DeleteWorkflowsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkflowsResponse,
+    DeleteWorkflowsError,
+    Options<DeleteWorkflowsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflows({
         ...options,
         ...fnOptions,
         throwOnError: true,

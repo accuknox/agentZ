@@ -172,6 +172,25 @@ func (q *Queries) WorkflowCreatePreferredTools(ctx context.Context, arg Workflow
 	return err
 }
 
+const workflowDeleteMany = `-- name: WorkflowDeleteMany :execrows
+DELETE FROM workflows
+WHERE agent_name = $1
+  AND workflow_name = ANY($2::text[])
+`
+
+type WorkflowDeleteManyParams struct {
+	AgentName     string   `json:"agent_name"`
+	WorkflowNames []string `json:"workflow_names"`
+}
+
+func (q *Queries) WorkflowDeleteMany(ctx context.Context, arg WorkflowDeleteManyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, workflowDeleteMany, arg.AgentName, arg.WorkflowNames)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const workflowGet = `-- name: WorkflowGet :one
 SELECT
   agent_name,
@@ -251,6 +270,40 @@ func (q *Queries) WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesPa
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const workflowListExistingNames = `-- name: WorkflowListExistingNames :many
+SELECT workflow_name
+FROM workflows
+WHERE agent_name = $1
+  AND workflow_name = ANY($2::text[])
+ORDER BY workflow_name ASC
+FOR UPDATE
+`
+
+type WorkflowListExistingNamesParams struct {
+	AgentName     string   `json:"agent_name"`
+	WorkflowNames []string `json:"workflow_names"`
+}
+
+func (q *Queries) WorkflowListExistingNames(ctx context.Context, arg WorkflowListExistingNamesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, workflowListExistingNames, arg.AgentName, arg.WorkflowNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var workflow_name string
+		if err := rows.Scan(&workflow_name); err != nil {
+			return nil, err
+		}
+		items = append(items, workflow_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

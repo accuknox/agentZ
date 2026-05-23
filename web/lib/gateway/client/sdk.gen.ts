@@ -23,6 +23,9 @@ import type {
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
+  DeleteWorkflowsData,
+  DeleteWorkflowsErrors,
+  DeleteWorkflowsResponses,
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
@@ -81,6 +84,8 @@ import {
   zDeleteEnvironmentBody,
   zDeleteSecretBody,
   zDeleteSecretPath,
+  zDeleteWorkflowsBody,
+  zDeleteWorkflowsPath,
   zGetSpanDetailQuery,
   zGetWorkflowPath,
   zListAgentsQuery,
@@ -355,6 +360,32 @@ export const createWorkflow = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     url: "/api/workflows",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete workflow definitions.
+ *
+ * Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+ *
+ */
+export const deleteWorkflows = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteWorkflowsData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<DeleteWorkflowsResponses, DeleteWorkflowsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zDeleteWorkflowsBody,
+          path: zDeleteWorkflowsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflows/{agentName}",
     ...options,
     headers: {
       "Content-Type": "application/json",

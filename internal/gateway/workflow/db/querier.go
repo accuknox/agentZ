@@ -13,8 +13,10 @@ type Querier interface {
 	WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error
 	WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNodesParams) error
 	WorkflowCreatePreferredTools(ctx context.Context, arg WorkflowCreatePreferredToolsParams) error
+	WorkflowDeleteMany(ctx context.Context, arg WorkflowDeleteManyParams) (int64, error)
 	WorkflowGet(ctx context.Context, arg WorkflowGetParams) (Workflow, error)
 	WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesParams) ([]WorkflowEdge, error)
+	WorkflowListExistingNames(ctx context.Context, arg WorkflowListExistingNamesParams) ([]string, error)
 	WorkflowListNodes(ctx context.Context, arg WorkflowListNodesParams) ([]WorkflowNode, error)
 	WorkflowListPreferredTools(ctx context.Context, arg WorkflowListPreferredToolsParams) ([]WorkflowNodePreferredTool, error)
 	WorkflowListSummaries(ctx context.Context, agentName string) ([]WorkflowListSummariesRow, error)

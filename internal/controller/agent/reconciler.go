@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // Reconciler reconciles an Agent object.
@@ -105,16 +105,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var opencodeCfg []byte
 	var instruction string
 
-	mountConfig := hasOpencodeConfig(agt)
-	if mountConfig {
-		opencodeCfg, instruction, err = renderOpencodeConfig(agt)
-		if err != nil {
-			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-			if updateErr != nil {
-				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
-			}
-			return ctrl.Result{}, fmt.Errorf("render opencode config: %w", err)
+	opencodeCfg, instruction, err = renderOpencodeConfig(agt)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
+		return ctrl.Result{}, fmt.Errorf("render opencode config: %w", err)
 	}
 
 	err = r.reconcileConfigMap(ctx, agt, string(opencodeCfg), instruction)
@@ -195,7 +192,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	hash := configHash(opencodeCfg, agt.Spec.Env, envCfg.Packages)
-	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, mountConfig)
+	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, true)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {

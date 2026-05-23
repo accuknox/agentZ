@@ -6,10 +6,13 @@ import { client } from "../client.gen"
 import {
   createAgent,
   createEnvironment,
+  createWorkflow,
   deleteAgent,
   deleteEnvironment,
   deleteSecret,
+  deleteWorkflows,
   getSpanDetail,
+  getWorkflow,
   listAgents,
   listEnvironments,
   listFileObservability,
@@ -19,6 +22,7 @@ import {
   listSpans,
   listTraces,
   listTraceSessions,
+  listWorkflowSummaries,
   type Options,
   putSecret,
   updateAgent,
@@ -31,6 +35,9 @@ import type {
   CreateEnvironmentData,
   CreateEnvironmentError,
   CreateEnvironmentResponse,
+  CreateWorkflowData,
+  CreateWorkflowError,
+  CreateWorkflowResponse,
   DeleteAgentData,
   DeleteAgentError,
   DeleteAgentResponse,
@@ -40,9 +47,15 @@ import type {
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
+  DeleteWorkflowsData,
+  DeleteWorkflowsError,
+  DeleteWorkflowsResponse,
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
+  GetWorkflowData,
+  GetWorkflowError,
+  GetWorkflowResponse,
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
@@ -70,6 +83,9 @@ import type {
   ListTraceSessionsError,
   ListTraceSessionsResponse2,
   ListTracesResponse2,
+  ListWorkflowSummariesData,
+  ListWorkflowSummariesError,
+  ListWorkflowSummariesResponse,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
@@ -368,6 +384,118 @@ export const deleteAgentMutation = (
   }
   return mutationOptions
 }
+
+/**
+ * Create a workflow definition.
+ *
+ * Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
+ *
+ */
+export const createWorkflowMutation = (
+  options?: Partial<Options<CreateWorkflowData>>
+): UseMutationOptions<CreateWorkflowResponse, CreateWorkflowError, Options<CreateWorkflowData>> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowResponse,
+    CreateWorkflowError,
+    Options<CreateWorkflowData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflow({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete workflow definitions.
+ *
+ * Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+ *
+ */
+export const deleteWorkflowsMutation = (
+  options?: Partial<Options<DeleteWorkflowsData>>
+): UseMutationOptions<
+  DeleteWorkflowsResponse,
+  DeleteWorkflowsError,
+  Options<DeleteWorkflowsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkflowsResponse,
+    DeleteWorkflowsError,
+    Options<DeleteWorkflowsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflows({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getWorkflowQueryKey = (options: Options<GetWorkflowData>) =>
+  createQueryKey("getWorkflow", options)
+
+/**
+ * Get a workflow definition.
+ *
+ * Retrieves a persisted workflow DAG for a single agent. The response preserves the normalized workflow structure so clients can derive a detailed execution playbook from the graph.
+ *
+ */
+export const getWorkflowOptions = (options: Options<GetWorkflowData>) =>
+  queryOptions<
+    GetWorkflowResponse,
+    GetWorkflowError,
+    GetWorkflowResponse,
+    ReturnType<typeof getWorkflowQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkflow({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkflowQueryKey(options),
+  })
+
+export const listWorkflowSummariesQueryKey = (options: Options<ListWorkflowSummariesData>) =>
+  createQueryKey("listWorkflowSummaries", options)
+
+/**
+ * List workflow summaries.
+ *
+ * Lists saved workflow metadata for a single agent without loading the full workflow graph.
+ *
+ */
+export const listWorkflowSummariesOptions = (options: Options<ListWorkflowSummariesData>) =>
+  queryOptions<
+    ListWorkflowSummariesResponse,
+    ListWorkflowSummariesError,
+    ListWorkflowSummariesResponse,
+    ReturnType<typeof listWorkflowSummariesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowSummaries({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowSummariesQueryKey(options),
+  })
 
 /**
  * Update an Agent resource.

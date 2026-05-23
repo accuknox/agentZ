@@ -75,7 +75,6 @@ export default async function TracesPage({
     agents,
     agentName,
     sessionID,
-    range,
   })
 
   return (
@@ -209,12 +208,10 @@ async function getTraceScope({
   agents,
   agentName,
   sessionID,
-  range,
 }: {
   agents: Promise<ListAgentActionResponse>
   agentName?: string
   sessionID?: string
-  range: TraceDateRange
 }): Promise<TraceScope> {
   const agentResult = await agents
   if (agentResult.error) {
@@ -236,8 +233,6 @@ async function getTraceScope({
 
   const sessionResult = await listTraceSessionFilterAction({
     agent_name: selectedAgentName,
-    started_after: range.startedAfter,
-    started_before: range.startedBefore,
   })
   if (sessionResult.error) {
     return traceScopeFailure(sessionResult.error)

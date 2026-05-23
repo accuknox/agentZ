@@ -22,10 +22,10 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	baoclient "github.com/accuknox/clawarmor/internal/openbao"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 const labelManagedBy = "app.kubernetes.io/managed-by"
@@ -55,6 +55,7 @@ type Service struct {
 	ctx       context.Context
 	resolver  *resolver
 	queries   gatewaydb.Querier
+	db        *pgxpool.Pool
 	cfg       Config
 	bao       *baoapi.Client
 	baoKV     *baoapi.KVv2
@@ -171,6 +172,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		ctx:       ctx,
 		resolver:  resolver,
 		queries:   gatewaydb.New(db),
+		db:        db,
 		cfg:       cfg,
 		bao:       baoClient,
 		baoKV:     baoClient.KVv2(cfg.OpenBaoSecretMountPath),

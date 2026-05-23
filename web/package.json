@@ -11,6 +11,8 @@
     "gen:openapi-client": "openapi-ts"
   },
   "dependencies": {
+    "@bprogress/next": "^3.2.12",
+    "@dagrejs/dagre": "^3.0.0",
     "@hookform/resolvers": "^5.2.2",
     "@opencode-ai/sdk": "^1.14.48",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
@@ -21,6 +23,7 @@
     "@streamdown/mermaid": "^1.0.2",
     "@tanstack/react-query": "^5.100.6",
     "@tanstack/react-table": "^8.21.3",
+    "@xyflow/react": "^12.10.2",
     "ai": "^6.0.182",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

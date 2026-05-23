@@ -33,12 +33,14 @@ export function traceDateRange(from?: string, to?: string): TraceDateRange {
 
   const now = dayjs()
   const yesterday = now.subtract(24, "hour")
+  const defaultFrom = yesterday.startOf("day")
+  const defaultTo = now.endOf("day")
 
   return {
-    from: yesterday.format("YYYY-MM-DD"),
-    to: now.format("YYYY-MM-DD"),
-    startedAfter: yesterday.toISOString(),
-    startedBefore: now.toISOString(),
+    from: defaultFrom.format("YYYY-MM-DD"),
+    to: defaultTo.format("YYYY-MM-DD"),
+    startedAfter: defaultFrom.toISOString(),
+    startedBefore: defaultTo.toISOString(),
   }
 }
 

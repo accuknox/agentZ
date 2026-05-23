@@ -70,8 +70,8 @@ func ParseHost(raw string) (Host, error) {
 	}
 
 	value = strings.ToLower(value)
-	if strings.HasPrefix(value, "*.") {
-		domain := strings.TrimPrefix(value, "*.")
+	if after, ok := strings.CutPrefix(value, "*."); ok {
+		domain := after
 		if err := validateDomain(domain); err != nil {
 			return Host{}, err
 		}

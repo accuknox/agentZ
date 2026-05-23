@@ -23,7 +23,7 @@ import (
 	time "time"
 
 	versioned "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned"
-	api "github.com/accuknox/clawarmor/pkg/agent-controller/informers/externalversions/api"
+	clawarmor "github.com/accuknox/clawarmor/pkg/agent-controller/informers/externalversions/clawarmor"
 	internalinterfaces "github.com/accuknox/clawarmor/pkg/agent-controller/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -254,9 +254,9 @@ type SharedInformerFactory interface {
 	// client.
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
-	Api() api.Interface
+	Clawarmor() clawarmor.Interface
 }
 
-func (f *sharedInformerFactory) Api() api.Interface {
-	return api.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Clawarmor() clawarmor.Interface {
+	return clawarmor.New(f, f.namespace, f.tweakListOptions)
 }

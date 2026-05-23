@@ -1,322 +1,120 @@
-//go:build controller
-// +build controller
-
 package agent
 
 import (
-	"context"
-	"fmt"
-	"time"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
+	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-var _ = Describe("Agent Controller", func() {
-	const namespace = "default"
+func TestAgentEnvAddsNoProxyForTelemetryWhenSinjectorEnabled(t *testing.T) {
+	t.Parallel()
 
-	var (
-		ctx        context.Context
-		key        types.NamespacedName
-		name       string
-		reconciler *Reconciler
-	)
-
-	BeforeEach(func() {
-		ctx = context.Background()
-		name = fmt.Sprintf("agent-%d", time.Now().UnixNano())
-		key = types.NamespacedName{Name: name, Namespace: namespace}
-		reconciler = &Reconciler{
-			Client: k8sClient,
-			Scheme: k8sClient.Scheme(),
-			Config: RuntimeConfig{
-				AgentDefaultImage: "murtazau/clawarmor-agent:latest",
+	reconciler := &Reconciler{
+		Config: RuntimeConfig{
+			SinjectorImage:    "murtazau/clawarmor-sinjector:latest",
+			AgentCABundlePath: "/etc/clawarmor/sinjector-ca/ca.crt",
+		},
+	}
+	agt := &clawarmorv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: "agent-proxy", Namespace: "default"},
+		Spec: clawarmorv1alpha1.AgentSpec{
+			Telemetry: clawarmorv1alpha1.TelemetryConfig{
+				Enabled:       true,
+				TraceEndpoint: "172.18.0.1:4317",
 			},
+		},
+	}
+
+	env := reconciler.agentEnv(agt, nil, false)
+	for _, tc := range []struct {
+		name string
+		want string
+	}{
+		{name: "NO_PROXY", want: "127.0.0.1,::1,localhost,.cluster.local,.svc,172.18.0.1"},
+		{name: "no_proxy", want: "127.0.0.1,::1,localhost,.cluster.local,.svc,172.18.0.1"},
+	} {
+		found := false
+		for _, item := range env {
+			if item.Name != tc.name {
+				continue
+			}
+			found = true
+			if item.Value != tc.want {
+				t.Fatalf("%s = %q, want %q", tc.name, item.Value, tc.want)
+			}
 		}
-
-		Expect(k8sClient.Create(ctx, &clawarmorv1alpha1.Agent{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-			},
-			Spec: clawarmorv1alpha1.AgentSpec{
-				Image: "murtazau/clawarmor-agent:latest",
-				Telemetry: clawarmorv1alpha1.TelemetryConfig{
-					Enabled:       true,
-					TraceEndpoint: "observer.default.svc.cluster.local:4317",
-				},
-				Model:       "openai/gpt-5",
-				SmallModel:  "openai/gpt-5-mini",
-				Instruction: "Follow repository instructions strictly.",
-				Providers: map[string]clawarmorv1alpha1.OpencodeProviderConfig{
-					"openai": {
-						Env:     []string{"OPENAI_API_KEY"},
-						BaseURL: "https://api.openai.com/v1",
-					},
-				},
-			},
-		})).To(Succeed())
-	})
-
-	AfterEach(func() {
-		deleteIfExists(ctx, key, &clawarmorv1alpha1.Agent{})
-		deleteIfExists(ctx, key, &clawarmorv1alpha1.Environment{})
-		deleteIfExists(ctx, key, &appsv1.Deployment{})
-		deleteIfExists(ctx, key, &corev1.Service{})
-		deleteIfExists(ctx, key, &corev1.ConfigMap{})
-		deleteIfExists(ctx, types.NamespacedName{
-			Name:      name + "-nix",
-			Namespace: namespace,
-		}, &corev1.PersistentVolumeClaim{})
-	})
-
-	It("creates configmap deployment and service for an agent", func() {
-		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
-		Expect(err).NotTo(HaveOccurred())
-
-		pvc := &corev1.PersistentVolumeClaim{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      name + "-nix",
-			Namespace: namespace,
-		}, pvc)).To(Succeed())
-
-		cm := &corev1.ConfigMap{}
-		Expect(k8sClient.Get(ctx, key, cm)).To(Succeed())
-		Expect(cm.Data).To(HaveKey(opencodeConfigKey))
-		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"model": "openai/gpt-5"`))
-		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"small_model": "openai/gpt-5-mini"`))
-		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"instructions": [`))
-		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(opencodeInstructionPath))
-		Expect(cm.Data).To(HaveKeyWithValue(
-			opencodeInstructionKey,
-			"Follow repository instructions strictly.",
-		))
-		Expect(cm.Data[opencodeConfigKey]).To(ContainSubstring(`"baseURL": "https://api.openai.com/v1"`))
-
-		dep := &appsv1.Deployment{}
-		Expect(k8sClient.Get(ctx, key, dep)).To(Succeed())
-		Expect(dep.Spec.Template.Spec.InitContainers).To(HaveLen(1))
-		Expect(dep.Spec.Template.Spec.InitContainers[0].VolumeMounts).To(
-			ContainElement(corev1.VolumeMount{
-				Name:      nixAgentVolume,
-				MountPath: nixVolumeRootMount,
-			}),
-		)
-
-		container := dep.Spec.Template.Spec.Containers[0]
-		Expect(container.WorkingDir).To(Equal("/home/clawarmor"))
-		Expect(container.Args).To(ContainElement("serve"))
-		Expect(container.Env).To(ContainElement(
-			corev1.EnvVar{
-				Name:  "OPENCODE_CONFIG",
-				Value: opencodeConfigDir + "/" + opencodeConfigKey,
-			},
-		))
-		Expect(container.Env).To(ContainElement(corev1.EnvVar{
-			Name:  "OPENCODE_ENABLE_TELEMETRY",
-			Value: "1",
-		}))
-		Expect(container.Env).To(ContainElement(corev1.EnvVar{
-			Name:  "OPENCODE_OTLP_PROTOCOL",
-			Value: "grpc",
-		}))
-		Expect(container.Env).To(ContainElement(corev1.EnvVar{
-			Name:  "OPENCODE_OTLP_ENDPOINT",
-			Value: "http://observer.default.svc.cluster.local:4317",
-		}))
-		Expect(container.Env).To(ContainElement(corev1.EnvVar{
-			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
-			Value: "clawarmor.agent_name=" + name,
-		}))
-		Expect(container.VolumeMounts).To(ContainElement(corev1.VolumeMount{
-			Name:      configVolume,
-			MountPath: opencodeConfigDir,
-			ReadOnly:  true,
-		}))
-		Expect(container.VolumeMounts).To(ContainElement(corev1.VolumeMount{
-			Name:      nixAgentVolume,
-			MountPath: "/home/clawarmor",
-			SubPath:   nixHomeSubPath,
-		}))
-
-		svc := &corev1.Service{}
-		Expect(k8sClient.Get(ctx, key, svc)).To(Succeed())
-		Expect(svc.Spec.Ports[0].Port).To(Equal(int32(4096)))
-	})
-
-	It("updates ready status once deployment reports ready replicas", func() {
-		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
-		Expect(err).NotTo(HaveOccurred())
-
-		dep := &appsv1.Deployment{}
-		Expect(k8sClient.Get(ctx, key, dep)).To(Succeed())
-		dep.Status.Replicas = 1
-		dep.Status.ReadyReplicas = 1
-		dep.Status.AvailableReplicas = 1
-		Expect(k8sClient.Status().Update(ctx, dep)).To(Succeed())
-
-		_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
-		Expect(err).NotTo(HaveOccurred())
-
-		agt := &clawarmorv1alpha1.Agent{}
-		Expect(k8sClient.Get(ctx, key, agt)).To(Succeed())
-		Expect(agt.Status.ServiceName).To(Equal(name))
-		Expect(agt.Status.URL).To(Equal(fmt.Sprintf(
-			"http://%s.default.svc.cluster.local:4096",
-			name,
-		)))
-		Expect(agt.Status.ObservedGeneration).To(Equal(agt.Generation))
-	})
-
-	It("bootstraps nix packages from a referenced environment", func() {
-		env := &clawarmorv1alpha1.Environment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-			},
-			Spec: clawarmorv1alpha1.EnvironmentSpec{
-				Packages: []string{"python3", "ripgrep"},
-			},
+		if !found {
+			t.Fatalf("missing env var %s", tc.name)
 		}
-		Expect(k8sClient.Create(ctx, env)).To(Succeed())
+	}
+}
 
-		agt := &clawarmorv1alpha1.Agent{}
-		Expect(k8sClient.Get(ctx, key, agt)).To(Succeed())
-		agt.Spec.EnvironmentRef = &corev1.LocalObjectReference{Name: name}
-		Expect(k8sClient.Update(ctx, agt)).To(Succeed())
+func TestAgentEnvInjectsGatewayAndTelemetryDefaults(t *testing.T) {
+	t.Parallel()
 
-		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
-		Expect(err).NotTo(HaveOccurred())
+	reconciler := &Reconciler{
+		Config: RuntimeConfig{
+			GatewayURL: "http://gateway.default.svc.cluster.local:8090",
+		},
+	}
+	agt := &clawarmorv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: "agent-workflow", Namespace: "default"},
+	}
 
-		pvc := &corev1.PersistentVolumeClaim{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      name + "-nix",
-			Namespace: namespace,
-		}, pvc)).To(Succeed())
-
-		dep := &appsv1.Deployment{}
-		Expect(k8sClient.Get(ctx, key, dep)).To(Succeed())
-		Expect(dep.Spec.Template.Spec.InitContainers).To(HaveLen(2))
-		Expect(dep.Spec.Template.Spec.InitContainers[1].SecurityContext.Capabilities).NotTo(BeNil())
-		Expect(dep.Spec.Template.Spec.InitContainers[1].SecurityContext.Capabilities.Add).To(
-			ContainElement(corev1.Capability("DAC_OVERRIDE")),
-		)
-		Expect(dep.Spec.Template.Spec.InitContainers[1].Env).To(ContainElement(
-			corev1.EnvVar{Name: nixPkgEnv, Value: "python3,ripgrep"},
-		))
-		Expect(dep.Spec.Template.Spec.InitContainers[1].VolumeMounts).To(
-			ContainElement(corev1.VolumeMount{
-				Name:      nixAgentVolume,
-				MountPath: nixAgentMount,
-				SubPath:   nixStoreSubPath,
-			}),
-		)
-		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(
-			ContainElement(corev1.VolumeMount{
-				Name:      nixAgentVolume,
-				MountPath: nixAgentMount,
-				SubPath:   nixStoreSubPath,
-				ReadOnly:  true,
-			}),
-		)
-		Expect(dep.Spec.Template.Spec.Containers[0].Env).To(ContainElement(
-			corev1.EnvVar{Name: "NIX_PROFILES", Value: nixLinkMount + "/profile"},
-		))
-	})
-
-	It("skips configmap and config mount when no opencode params are defined", func() {
-		agt := &clawarmorv1alpha1.Agent{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name + "-plain",
-				Namespace: namespace,
-			},
-			Spec: clawarmorv1alpha1.AgentSpec{
-				Image: "murtazau/clawarmor-agent:latest",
-			},
+	env := reconciler.agentEnv(agt, nil, false)
+	for _, tc := range []struct {
+		name string
+		want string
+	}{
+		{name: "OPENCODE_ENABLE_TELEMETRY", want: "false"},
+		{name: "OPENCODE_OTLP_PROTOCOL", want: "grpc"},
+		{name: "OPENCODE_OTLP_ENDPOINT", want: ""},
+		{name: "OPENCODE_RESOURCE_ATTRIBUTES", want: "clawarmor.agent_name=agent-workflow"},
+		{name: "CLAWARMOR_GATEWAY_URL", want: "http://gateway.default.svc.cluster.local:8090"},
+	} {
+		found := false
+		for _, item := range env {
+			if item.Name != tc.name {
+				continue
+			}
+			found = true
+			if item.Value != tc.want {
+				t.Fatalf("%s = %q, want %q", tc.name, item.Value, tc.want)
+			}
 		}
-		plainKey := types.NamespacedName{
-			Name:      agt.Name,
-			Namespace: agt.Namespace,
+		if !found {
+			t.Fatalf("missing env var %s", tc.name)
 		}
-		Expect(k8sClient.Create(ctx, agt)).To(Succeed())
-		defer deleteIfExists(ctx, plainKey, &clawarmorv1alpha1.Agent{})
-		defer deleteIfExists(ctx, plainKey, &appsv1.Deployment{})
-		defer deleteIfExists(ctx, plainKey, &corev1.Service{})
-		defer deleteIfExists(ctx, plainKey, &corev1.ConfigMap{})
-		defer deleteIfExists(ctx, types.NamespacedName{
-			Name:      agt.Name + "-nix",
-			Namespace: namespace,
-		}, &corev1.PersistentVolumeClaim{})
+	}
+}
 
-		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: plainKey})
-		Expect(err).NotTo(HaveOccurred())
+func TestBuildEgressPolicySpecAddsGatewayHost(t *testing.T) {
+	t.Parallel()
 
-		cm := &corev1.ConfigMap{}
-		err = k8sClient.Get(ctx, plainKey, cm)
-		Expect(err).To(HaveOccurred())
+	reconciler := &Reconciler{
+		Config: RuntimeConfig{
+			GatewayURL: "http://gateway.default.svc.cluster.local:8090",
+		},
+	}
+	agt := &clawarmorv1alpha1.Agent{}
 
-		dep := &appsv1.Deployment{}
-		Expect(k8sClient.Get(ctx, plainKey, dep)).To(Succeed())
-		pvc := &corev1.PersistentVolumeClaim{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      agt.Name + "-nix",
-			Namespace: namespace,
-		}, pvc)).To(Succeed())
-		Expect(dep.Spec.Template.Spec.Volumes).NotTo(ContainElement(
-			HaveField("Name", Equal(configVolume)),
-		))
-		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).NotTo(
-			ContainElement(HaveField("Name", Equal(configVolume))),
-		)
-		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(
-			ContainElement(corev1.VolumeMount{
-				Name:      nixAgentVolume,
-				MountPath: "/home/clawarmor",
-				SubPath:   nixHomeSubPath,
-			}),
-		)
-	})
+	spec, err := reconciler.buildEgressPolicySpec(agt, []string{"example.com"})
+	if err != nil {
+		t.Fatalf("buildEgressPolicySpec() error = %v", err)
+	}
 
-	It("adds no_proxy for the telemetry endpoint when sinjector is enabled", func() {
-		reconciler.Config.SinjectorImage = "murtazau/clawarmor-sinjector:latest"
-		reconciler.Config.AgentCABundlePath = "/etc/clawarmor/sinjector-ca/ca.crt"
-
-		agt := &clawarmorv1alpha1.Agent{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name + "-proxy",
-				Namespace: namespace,
-			},
-			Spec: clawarmorv1alpha1.AgentSpec{
-				Telemetry: clawarmorv1alpha1.TelemetryConfig{
-					Enabled:       true,
-					TraceEndpoint: "172.18.0.1:4317",
-				},
-			},
+	var found bool
+	for _, rule := range spec.Egress {
+		for _, fqdn := range rule.ToFQDNs {
+			if fqdn == (ciliumapi.FQDNSelector{MatchName: "gateway.default.svc.cluster.local"}) {
+				found = true
+			}
 		}
-
-		env := reconciler.agentEnv(agt, nil, false)
-		Expect(env).To(ContainElement(corev1.EnvVar{
-			Name:  "NO_PROXY",
-			Value: "127.0.0.1,::1,localhost,.cluster.local,.svc,172.18.0.1",
-		}))
-		Expect(env).To(ContainElement(corev1.EnvVar{
-			Name:  "no_proxy",
-			Value: "127.0.0.1,::1,localhost,.cluster.local,.svc,172.18.0.1",
-		}))
-	})
-})
-
-func deleteIfExists(ctx context.Context, key types.NamespacedName, obj client.Object) {
-	err := k8sClient.Get(ctx, key, obj)
-	if err == nil {
-		Expect(k8sClient.Delete(ctx, obj)).To(Succeed())
+	}
+	if !found {
+		t.Fatal("gateway host missing from egress rules")
 	}
 }

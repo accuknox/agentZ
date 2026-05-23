@@ -19,8 +19,8 @@ package fake
 
 import (
 	clientset "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned"
-	apiv1alpha1 "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned/typed/api/v1alpha1"
-	fakeapiv1alpha1 "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned/typed/api/v1alpha1/fake"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned/typed/clawarmor/v1alpha1"
+	fakeclawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned/typed/clawarmor/v1alpha1/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -94,7 +94,7 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// ApiV1alpha1 retrieves the ApiV1alpha1Client
-func (c *Clientset) ApiV1alpha1() apiv1alpha1.ApiV1alpha1Interface {
-	return &fakeapiv1alpha1.FakeApiV1alpha1{Fake: &c.Fake}
+// ClawarmorV1alpha1 retrieves the ClawarmorV1alpha1Client
+func (c *Clientset) ClawarmorV1alpha1() clawarmorv1alpha1.ClawarmorV1alpha1Interface {
+	return &fakeclawarmorv1alpha1.FakeClawarmorV1alpha1{Fake: &c.Fake}
 }

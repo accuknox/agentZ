@@ -17,7 +17,7 @@ resources:
   domain: accuknox.com
   group: clawarmor
   kind: Agent
-  path: github.com/accuknox/clawarmor/api/v1alpha1
+  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -30,7 +30,7 @@ resources:
   domain: accuknox.com
   group: clawarmor
   kind: Environment
-  path: github.com/accuknox/clawarmor/api/v1alpha1
+  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
   plural: envs
   version: v1alpha1
   webhooks:

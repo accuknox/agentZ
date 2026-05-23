@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { Agent } from "@/lib/gateway/client"
+import { useRouter } from "@bprogress/next/app"
+import { usePathname, useSearchParams } from "next/navigation"
 import {
   Select,
   SelectContent,
@@ -36,7 +37,8 @@ export function SecretsFilters({
     }
 
     startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`)
+      const query = params.toString()
+      router.replace(query === "" ? pathname : `${pathname}?${query}`)
     })
   }
 

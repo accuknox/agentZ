@@ -361,7 +361,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, err := s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Get(
+		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Get(
 			ctx,
 			agentName,
 			metav1.GetOptions{},
@@ -394,7 +394,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 		}
 
 		agt.Spec.Env = newEnv
-		_, err = s.resolver.client.ApiV1alpha1().Agents(s.cfg.Namespace).Update(
+		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Update(
 			ctx,
 			agt,
 			metav1.UpdateOptions{},

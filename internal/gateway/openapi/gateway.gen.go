@@ -88,6 +88,18 @@ type CreateEnvironmentRequest struct {
 	Packages *[]string       `json:"packages,omitempty"`
 }
 
+// CreateWorkflowRequest defines model for CreateWorkflowRequest.
+type CreateWorkflowRequest struct {
+	AgentName AgentName      `json:"agent_name"`
+	Edges     []WorkflowEdge `json:"edges"`
+	Nodes     []WorkflowNode `json:"nodes"`
+	Summary   string         `json:"summary"`
+	Title     string         `json:"title"`
+
+	// WorkflowName Workflow name scoped to one agent.
+	WorkflowName WorkflowName `json:"workflow_name"`
+}
+
 // DeleteAgentRequest defines model for DeleteAgentRequest.
 type DeleteAgentRequest struct {
 	AgentName AgentName `json:"agent_name"`
@@ -102,6 +114,11 @@ type DeleteEnvironmentRequest struct {
 // DeleteSecretsRequest defines model for DeleteSecretsRequest.
 type DeleteSecretsRequest struct {
 	Keys []SecretKey `json:"keys"`
+}
+
+// DeleteWorkflowsRequest defines model for DeleteWorkflowsRequest.
+type DeleteWorkflowsRequest struct {
+	WorkflowNames []WorkflowName `json:"workflow_names"`
 }
 
 // Environment defines model for Environment.
@@ -527,6 +544,61 @@ type WatchAgentsRequest struct {
 	AgentNames *[]AgentName `json:"agent_names,omitempty"`
 }
 
+// Workflow defines model for Workflow.
+type Workflow struct {
+	AgentName AgentName      `json:"agent_name"`
+	CreatedAt time.Time      `json:"created_at"`
+	Edges     []WorkflowEdge `json:"edges"`
+	Nodes     []WorkflowNode `json:"nodes"`
+	Summary   string         `json:"summary"`
+	Title     string         `json:"title"`
+	UpdatedAt time.Time      `json:"updated_at"`
+
+	// WorkflowName Workflow name scoped to one agent.
+	WorkflowName WorkflowName `json:"workflow_name"`
+}
+
+// WorkflowEdge defines model for WorkflowEdge.
+type WorkflowEdge struct {
+	BranchLabel      string `json:"branch_label"`
+	CelExpression    string `json:"cel_expression"`
+	ConditionSummary string `json:"condition_summary"`
+
+	// Source Stable workflow node identifier.
+	Source WorkflowNodeName `json:"source"`
+
+	// Target Stable workflow node identifier.
+	Target WorkflowNodeName `json:"target"`
+}
+
+// WorkflowName Workflow name scoped to one agent.
+type WorkflowName = string
+
+// WorkflowNode defines model for WorkflowNode.
+type WorkflowNode struct {
+	DoneCriteria   string `json:"done_criteria"`
+	ExpectedOutput string `json:"expected_output"`
+	Goal           string `json:"goal"`
+	Instructions   string `json:"instructions"`
+
+	// Name Stable workflow node identifier.
+	Name           WorkflowNodeName `json:"name"`
+	PreferredTools []string         `json:"preferred_tools"`
+}
+
+// WorkflowNodeName Stable workflow node identifier.
+type WorkflowNodeName = string
+
+// WorkflowSummary defines model for WorkflowSummary.
+type WorkflowSummary struct {
+	Summary   string    `json:"summary"`
+	Title     string    `json:"title"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// WorkflowName Workflow name scoped to one agent.
+	WorkflowName WorkflowName `json:"workflow_name"`
+}
+
 // ActionQuery defines model for ActionQuery.
 type ActionQuery = ObservabilityAction
 
@@ -778,6 +850,12 @@ type DeleteSecretJSONRequestBody = DeleteSecretsRequest
 
 // PutSecretJSONRequestBody defines body for PutSecret for application/json ContentType.
 type PutSecretJSONRequestBody = PutSecretsRequest
+
+// CreateWorkflowJSONRequestBody defines body for CreateWorkflow for application/json ContentType.
+type CreateWorkflowJSONRequestBody = CreateWorkflowRequest
+
+// DeleteWorkflowsJSONRequestBody defines body for DeleteWorkflows for application/json ContentType.
+type DeleteWorkflowsJSONRequestBody = DeleteWorkflowsRequest
 
 // AsJSONValue0 returns the union data inside the JSONValue as a JSONValue0
 func (t JSONValue) AsJSONValue0() (JSONValue0, error) {
@@ -1252,6 +1330,22 @@ type ClientInterface interface {
 	PutSecretWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PutSecret(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListWorkflowSummaries request
+	ListWorkflowSummaries(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateWorkflowWithBody request with any body
+	CreateWorkflowWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateWorkflow(ctx context.Context, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteWorkflowsWithBody request with any body
+	DeleteWorkflowsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteWorkflows(ctx context.Context, agentName AgentNamePath, body DeleteWorkflowsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetWorkflow request
+	GetWorkflow(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) CreateAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1580,6 +1674,78 @@ func (c *Client) PutSecretWithBody(ctx context.Context, agentName AgentNamePath,
 
 func (c *Client) PutSecret(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutSecretRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListWorkflowSummaries(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWorkflowSummariesRequest(c.Server, agentName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkflowWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkflowRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkflow(ctx context.Context, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkflowRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteWorkflowsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteWorkflowsRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteWorkflows(ctx context.Context, agentName AgentNamePath, body DeleteWorkflowsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteWorkflowsRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetWorkflow(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWorkflowRequest(c.Server, agentName, workflowName)
 	if err != nil {
 		return nil, err
 	}
@@ -3011,6 +3177,168 @@ func NewPutSecretRequestWithBody(server string, agentName AgentNamePath, content
 	return req, nil
 }
 
+// NewListWorkflowSummariesRequest generates requests for ListWorkflowSummaries
+func NewListWorkflowSummariesRequest(server string, agentName AgentNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workflow-summaries/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateWorkflowRequest calls the generic CreateWorkflow builder with application/json body
+func NewCreateWorkflowRequest(server string, body CreateWorkflowJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateWorkflowRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateWorkflowRequestWithBody generates requests for CreateWorkflow with any type of body
+func NewCreateWorkflowRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workflows")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteWorkflowsRequest calls the generic DeleteWorkflows builder with application/json body
+func NewDeleteWorkflowsRequest(server string, agentName AgentNamePath, body DeleteWorkflowsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteWorkflowsRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewDeleteWorkflowsRequestWithBody generates requests for DeleteWorkflows with any type of body
+func NewDeleteWorkflowsRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workflows/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetWorkflowRequest generates requests for GetWorkflow
+func NewGetWorkflowRequest(server string, agentName AgentNamePath, workflowName WorkflowName) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowName", runtime.ParamLocationPath, workflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workflows/%s/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -3128,6 +3456,22 @@ type ClientWithResponsesInterface interface {
 	PutSecretWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
 
 	PutSecretWithResponse(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
+
+	// ListWorkflowSummariesWithResponse request
+	ListWorkflowSummariesWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*ListWorkflowSummariesResp, error)
+
+	// CreateWorkflowWithBodyWithResponse request with any body
+	CreateWorkflowWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error)
+
+	CreateWorkflowWithResponse(ctx context.Context, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error)
+
+	// DeleteWorkflowsWithBodyWithResponse request with any body
+	DeleteWorkflowsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteWorkflowsResp, error)
+
+	DeleteWorkflowsWithResponse(ctx context.Context, agentName AgentNamePath, body DeleteWorkflowsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteWorkflowsResp, error)
+
+	// GetWorkflowWithResponse request
+	GetWorkflowWithResponse(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, reqEditors ...RequestEditorFn) (*GetWorkflowResp, error)
 }
 
 type CreateAgentResp struct {
@@ -3599,6 +3943,105 @@ func (r PutSecretResp) StatusCode() int {
 	return 0
 }
 
+type ListWorkflowSummariesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]WorkflowSummary
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWorkflowSummariesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWorkflowSummariesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Workflow
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteWorkflowsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteWorkflowsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteWorkflowsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Workflow
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // CreateAgentWithBodyWithResponse request with arbitrary body returning *CreateAgentResp
 func (c *ClientWithResponses) CreateAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentResp, error) {
 	rsp, err := c.CreateAgentWithBody(ctx, contentType, body, reqEditors...)
@@ -3840,6 +4283,58 @@ func (c *ClientWithResponses) PutSecretWithResponse(ctx context.Context, agentNa
 		return nil, err
 	}
 	return ParsePutSecretResp(rsp)
+}
+
+// ListWorkflowSummariesWithResponse request returning *ListWorkflowSummariesResp
+func (c *ClientWithResponses) ListWorkflowSummariesWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*ListWorkflowSummariesResp, error) {
+	rsp, err := c.ListWorkflowSummaries(ctx, agentName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWorkflowSummariesResp(rsp)
+}
+
+// CreateWorkflowWithBodyWithResponse request with arbitrary body returning *CreateWorkflowResp
+func (c *ClientWithResponses) CreateWorkflowWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error) {
+	rsp, err := c.CreateWorkflowWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkflowResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateWorkflowWithResponse(ctx context.Context, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error) {
+	rsp, err := c.CreateWorkflow(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkflowResp(rsp)
+}
+
+// DeleteWorkflowsWithBodyWithResponse request with arbitrary body returning *DeleteWorkflowsResp
+func (c *ClientWithResponses) DeleteWorkflowsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteWorkflowsResp, error) {
+	rsp, err := c.DeleteWorkflowsWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteWorkflowsResp(rsp)
+}
+
+func (c *ClientWithResponses) DeleteWorkflowsWithResponse(ctx context.Context, agentName AgentNamePath, body DeleteWorkflowsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteWorkflowsResp, error) {
+	rsp, err := c.DeleteWorkflows(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteWorkflowsResp(rsp)
+}
+
+// GetWorkflowWithResponse request returning *GetWorkflowResp
+func (c *ClientWithResponses) GetWorkflowWithResponse(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, reqEditors ...RequestEditorFn) (*GetWorkflowResp, error) {
+	rsp, err := c.GetWorkflow(ctx, agentName, workflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWorkflowResp(rsp)
 }
 
 // ParseCreateAgentResp parses an HTTP response from a CreateAgentWithResponse call
@@ -4693,6 +5188,187 @@ func ParsePutSecretResp(rsp *http.Response) (*PutSecretResp, error) {
 	return response, nil
 }
 
+// ParseListWorkflowSummariesResp parses an HTTP response from a ListWorkflowSummariesWithResponse call
+func ParseListWorkflowSummariesResp(rsp *http.Response) (*ListWorkflowSummariesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWorkflowSummariesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []WorkflowSummary
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateWorkflowResp parses an HTTP response from a CreateWorkflowWithResponse call
+func ParseCreateWorkflowResp(rsp *http.Response) (*CreateWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteWorkflowsResp parses an HTTP response from a DeleteWorkflowsWithResponse call
+func ParseDeleteWorkflowsResp(rsp *http.Response) (*DeleteWorkflowsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteWorkflowsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetWorkflowResp parses an HTTP response from a GetWorkflowWithResponse call
+func ParseGetWorkflowResp(rsp *http.Response) (*GetWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Create an Agent resource.
@@ -4752,6 +5428,18 @@ type ServerInterface interface {
 	// Store or overwrite secrets for an agent.
 	// (POST /api/secret/{agentName}/put)
 	PutSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// List workflow summaries.
+	// (GET /api/workflow-summaries/{agentName})
+	ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Create a workflow definition.
+	// (POST /api/workflows)
+	CreateWorkflow(w http.ResponseWriter, r *http.Request)
+	// Delete workflow definitions.
+	// (DELETE /api/workflows/{agentName})
+	DeleteWorkflows(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Get a workflow definition.
+	// (GET /api/workflows/{agentName}/{workflowName})
+	GetWorkflow(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, workflowName WorkflowName)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -4869,6 +5557,30 @@ func (_ Unimplemented) ListSecrets(w http.ResponseWriter, r *http.Request, agent
 // Store or overwrite secrets for an agent.
 // (POST /api/secret/{agentName}/put)
 func (_ Unimplemented) PutSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List workflow summaries.
+// (GET /api/workflow-summaries/{agentName})
+func (_ Unimplemented) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a workflow definition.
+// (POST /api/workflows)
+func (_ Unimplemented) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete workflow definitions.
+// (DELETE /api/workflows/{agentName})
+func (_ Unimplemented) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a workflow definition.
+// (GET /api/workflows/{agentName}/{workflowName})
+func (_ Unimplemented) GetWorkflow(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, workflowName WorkflowName) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5688,6 +6400,104 @@ func (siw *ServerInterfaceWrapper) PutSecret(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ListWorkflowSummaries operation middleware
+func (siw *ServerInterfaceWrapper) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListWorkflowSummaries(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateWorkflow operation middleware
+func (siw *ServerInterfaceWrapper) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateWorkflow(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteWorkflows operation middleware
+func (siw *ServerInterfaceWrapper) DeleteWorkflows(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteWorkflows(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetWorkflow operation middleware
+func (siw *ServerInterfaceWrapper) GetWorkflow(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "workflowName" -------------
+	var workflowName WorkflowName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workflowName", chi.URLParam(r, "workflowName"), &workflowName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workflowName", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetWorkflow(w, r, agentName, workflowName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -5858,6 +6668,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/secret/{agentName}/put", wrapper.PutSecret)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/workflow-summaries/{agentName}", wrapper.ListWorkflowSummaries)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/workflows", wrapper.CreateWorkflow)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/workflows/{agentName}", wrapper.DeleteWorkflows)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/workflows/{agentName}/{workflowName}", wrapper.GetWorkflow)
+	})
 
 	return r
 }
@@ -5865,102 +6687,116 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"9gAA",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

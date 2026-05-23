@@ -8,7 +8,7 @@ set -o pipefail
 CODEGEN_PKG="$(realpath $CODEGEN_PKG)"
 
 source "$CODEGEN_PKG/kube_codegen.sh"
-kube::codegen::gen_client . \
+kube::codegen::gen_client ./pkg/apis \
    --with-watch \
    --output-dir pkg/agent-controller \
    --output-pkg github.com/accuknox/clawarmor/pkg/agent-controller \

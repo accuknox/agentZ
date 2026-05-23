@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { deleteAgentFormAction } from "@/data/agent.actions"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
@@ -35,13 +36,15 @@ export default async function Home({
           </div>
         </div>
       ) : null}
-      <Agents
-        environments={environments.error ? [] : environments.environments}
-        initialHasNextEnvironmentPage={environments.error ? false : environments.hasNextPage}
-        initialNextEnvironmentPageToken={environments.error ? "" : environments.nextPageToken}
-        searchParams={searchParams}
-        deleteAgentAction={deleteAgentFormAction}
-      />
+      <Suspense fallback={<AgentsSkeleton />}>
+        <Agents
+          environments={environments.error ? [] : environments.environments}
+          initialHasNextEnvironmentPage={environments.error ? false : environments.hasNextPage}
+          initialNextEnvironmentPageToken={environments.error ? "" : environments.nextPageToken}
+          searchParams={searchParams}
+          deleteAgentAction={deleteAgentFormAction}
+        />
+      </Suspense>
     </main>
   )
 }
@@ -85,5 +88,15 @@ async function Agents({
       nextPageToken={result.nextPageToken}
       deleteAgentAction={deleteAgentAction}
     />
+  )
+}
+
+function AgentsSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 px-4 md:px-6">
+      <div className="h-10 rounded-md bg-muted/20" />
+      <div className="h-10 rounded-md bg-muted/20" />
+      <div className="h-10 rounded-md bg-muted/20" />
+    </div>
   )
 }

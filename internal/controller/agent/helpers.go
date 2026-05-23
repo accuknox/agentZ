@@ -26,7 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 const (
@@ -35,8 +35,15 @@ const (
 	configVolume            = "config"
 	opencodeConfigDir       = "/etc/clawarmor/opencode"
 	opencodeInstructionPath = "/etc/clawarmor/opencode/instruction.md"
+	createWorkflowToolName  = "create_workflow"
+	getWorkflowToolName     = "get_workflow"
+	listWorkflowsToolName   = "list_workflows"
+	deleteWorkflowsToolName = "delete_workflows"
 	nixAgentVolume          = "nix-agent"
+	nixRuntimeStoreVolume   = "nix-runtime-store"
 	nixAgentMount           = "/mnt/nix"
+	nixRuntimeStoreMount    = "/nix/store"
+	nixRuntimeStageMount    = "/runtime-nix-store"
 	nixHomeSubPath          = "home"
 	nixStoreSubPath         = "nix"
 	nixVolumeRootMount      = "/pvc"
@@ -59,6 +66,7 @@ var errImageEmpty = errors.New("agent image must not be empty")
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
 	AgentDefaultImage                string
+	GatewayURL                       string
 	SharedNixPVC                     string
 	AgentInitImage                   string
 	SinjectorImage                   string
@@ -118,19 +126,6 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	return labels
 }
 
-func hasOpencodeConfig(agt *clawarmorv1alpha1.Agent) bool {
-	if strings.TrimSpace(agt.Spec.Model) != "" {
-		return true
-	}
-	if strings.TrimSpace(agt.Spec.SmallModel) != "" {
-		return true
-	}
-	if strings.TrimSpace(agt.Spec.Instruction) != "" {
-		return true
-	}
-	return len(agt.Spec.Providers) > 0
-}
-
 func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
@@ -160,6 +155,12 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) 
 			cfg.Provider[name] = item
 		}
 	}
+	cfg.Tools = map[string]bool{
+		createWorkflowToolName:  true,
+		getWorkflowToolName:     true,
+		listWorkflowsToolName:   true,
+		deleteWorkflowsToolName: true,
+	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
@@ -174,6 +175,7 @@ type opencodeConfigFile struct {
 	SmallModel   string                          `json:"small_model,omitempty"`
 	Instructions []string                        `json:"instructions,omitempty"`
 	Provider     map[string]opencodeProviderFile `json:"provider,omitempty"`
+	Tools        map[string]bool                 `json:"tools,omitempty"`
 }
 
 type opencodeProviderFile struct {

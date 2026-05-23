@@ -19,7 +19,7 @@ package agent
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // WebhookConfig configures Agent defaulting behavior.

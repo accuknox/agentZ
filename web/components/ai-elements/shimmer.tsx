@@ -21,7 +21,7 @@ const ShimmerComponent = ({ children, className, duration = 2, spread = 2 }: Tex
     <MotionP
       animate={{ backgroundPosition: "0% center" }}
       className={cn(
-        "relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
+        "relative inline-block bg-size-[250%_100%,auto] bg-clip-text text-transparent",
         "[background-repeat:no-repeat,padding-box]",
         className
       )}

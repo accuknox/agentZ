@@ -1,0 +1,21 @@
+{
+  "private": true,
+  "scripts": {
+    "lint": "eslint",
+    "format": "prettier . --write",
+    "gen:openapi-client": "openapi-ts"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.15.6",
+    "zod": "^4.4.1"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.97.2",
+    "@types/node": "^24.10.0",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.4"
+  }
+}

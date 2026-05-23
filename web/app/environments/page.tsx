@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { deleteEnvironmentFormAction } from "@/data/environment.actions"
@@ -24,10 +25,12 @@ export default function EnvironmentsPage({
           </Link>
         </Button>
       </div>
-      <Environments
-        searchParams={searchParams}
-        deleteEnvironmentAction={deleteEnvironmentFormAction}
-      />
+      <Suspense fallback={<EnvironmentsSkeleton />}>
+        <Environments
+          searchParams={searchParams}
+          deleteEnvironmentAction={deleteEnvironmentFormAction}
+        />
+      </Suspense>
     </main>
   )
 }
@@ -62,5 +65,15 @@ async function Environments({
       nextPageToken={result.nextPageToken}
       deleteEnvironmentAction={deleteEnvironmentAction}
     />
+  )
+}
+
+function EnvironmentsSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 px-4 md:px-6">
+      <div className="h-10 rounded-md bg-muted/20" />
+      <div className="h-10 rounded-md bg-muted/20" />
+      <div className="h-10 rounded-md bg-muted/20" />
+    </div>
   )
 }

@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "@bprogress/next/app"
+import { usePathname, useSearchParams } from "next/navigation"
 
 type TokenPaginationConfig = {
   pageTokenKey: string
@@ -32,7 +33,8 @@ export function useTokenPagination(config: TokenPaginationConfig) {
     }
 
     startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`)
+      const query = params.toString()
+      router.replace(query === "" ? pathname : `${pathname}?${query}`)
     })
   }
 

@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"net/url"
+	"strconv"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/api/v1alpha1"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, opencodeCfg string, instruction string) error {
@@ -264,14 +264,47 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
 			},
+			corev1.Volume{
+				Name: nixRuntimeStoreVolume,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
 		)
 		initVolumeMounts := []corev1.VolumeMount{
 			{Name: nixAgentVolume, MountPath: nixAgentMount, SubPath: nixStoreSubPath},
 			{Name: nixLinkVolume, MountPath: nixLinkStage},
+			{Name: nixRuntimeStoreVolume, MountPath: nixRuntimeStageMount},
 		}
 		initEnv := []corev1.EnvVar{
 			{Name: nixPkgEnv, Value: strings.Join(packages, ",")},
 		}
+
+		initContainers = append(initContainers, corev1.Container{
+			Name:            "nix-store-init",
+			Image:           image,
+			ImagePullPolicy: agt.Spec.ImagePullPolicy,
+			Command: []string{
+				"/bin/sh",
+				"-lc",
+				// Seed the shared runtime store with the agent image's own closures
+				// before nix-init links package closures into the same namespace.
+				"cp -a /nix/store/. " + nixRuntimeStageMount + "/",
+			},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: new(false),
+				RunAsUser:                new(int64(0)),
+				RunAsGroup:               new(int64(0)),
+				RunAsNonRoot:             new(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{{
+				Name:      nixRuntimeStoreVolume,
+				MountPath: nixRuntimeStageMount,
+			}},
+		})
 
 		if r.Config.SharedNixPVC != "" {
 			volumes = append(volumes, corev1.Volume{
@@ -316,8 +349,15 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 				ReadOnly:  true,
 			},
 			corev1.VolumeMount{
+				// The init container stages a runnable profile here so the agent can
+				// reach installed tools while /nix/store itself is backed by the
+				// shared runtime store volume prepared by the init containers.
 				Name:      nixLinkVolume,
 				MountPath: nixLinkMount,
+			},
+			corev1.VolumeMount{
+				Name:      nixRuntimeStoreVolume,
+				MountPath: nixRuntimeStoreMount,
 			},
 		)
 	}
@@ -398,6 +438,8 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	proxy = strings.TrimPrefix(proxy, "https://")
 	proxy = strings.TrimPrefix(proxy, "http://")
 	proxy = "http://" + proxy
+	telemetryEndpoint := strings.TrimPrefix(agt.Spec.Telemetry.TraceEndpoint, "https://")
+	telemetryEndpoint = strings.TrimPrefix(telemetryEndpoint, "http://")
 
 	var forced []corev1.EnvVar
 	noProxy := []string{
@@ -414,7 +456,7 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		})
 	}
 	if agt.Spec.Telemetry.Enabled {
-		endpointHost := telemetryEndpointHost(agt.Spec.Telemetry.TraceEndpoint)
+		endpointHost := endpointHost(agt.Spec.Telemetry.TraceEndpoint)
 		if endpointHost != "" {
 			noProxy = append(noProxy, endpointHost)
 		}
@@ -432,22 +474,23 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 			corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
 		)
 	}
-	if agt.Spec.Telemetry.Enabled {
-		endpoint := strings.TrimPrefix(agt.Spec.Telemetry.TraceEndpoint, "https://")
-		endpoint = strings.TrimPrefix(endpoint, "http://")
-		forced = append(forced,
-			corev1.EnvVar{Name: "OPENCODE_ENABLE_TELEMETRY", Value: "1"},
-			corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
-			corev1.EnvVar{
-				Name:  "OPENCODE_OTLP_ENDPOINT",
-				Value: "http://" + endpoint,
-			},
-			corev1.EnvVar{
-				Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
-				Value: "clawarmor.agent_name=" + agt.Name,
-			},
-		)
+	var telemetryURL string
+	if telemetryEndpoint != "" {
+		telemetryURL = "http://" + telemetryEndpoint
 	}
+	forced = append(forced,
+		corev1.EnvVar{
+			Name:  "OPENCODE_ENABLE_TELEMETRY",
+			Value: strconv.FormatBool(agt.Spec.Telemetry.Enabled),
+		},
+		corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
+		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
+		corev1.EnvVar{
+			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
+			Value: "clawarmor.agent_name=" + agt.Name,
+		},
+		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_URL", Value: r.Config.GatewayURL},
+	)
 
 	forcedNames := make(map[string]struct{}, len(forced))
 	for _, item := range forced {
@@ -477,19 +520,4 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	}
 
 	return env
-}
-
-func telemetryEndpointHost(endpoint string) string {
-	if strings.TrimSpace(endpoint) == "" {
-		return ""
-	}
-	raw := endpoint
-	if !strings.Contains(raw, "://") {
-		raw = "http://" + raw
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	return parsed.Hostname()
 }

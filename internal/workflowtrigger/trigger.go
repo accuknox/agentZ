@@ -19,8 +19,8 @@ package workflowtrigger
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -47,8 +47,23 @@ type Config struct {
 	TimeoutSeconds int32
 }
 
-// RunSchedule creates a WorkflowRun and waits for its terminal status.
+// RunSchedule creates a WorkflowRun for one schedule tick.
 func RunSchedule(ctx context.Context, cfg Config) error {
+	slog.InfoContext(
+		ctx,
+		"starting workflow schedule trigger",
+		"namespace",
+		cfg.Namespace,
+		"schedule",
+		cfg.ScheduleName,
+		"agent",
+		cfg.AgentName,
+		"workflow",
+		cfg.WorkflowName,
+		"timeoutSeconds",
+		cfg.TimeoutSeconds,
+	)
+
 	rawInputs := json.RawMessage("null")
 	if cfg.InputsJSON != "" {
 		rawInputs = json.RawMessage(cfg.InputsJSON)
@@ -84,7 +99,7 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 	run := &clawarmorv1alpha1.WorkflowRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    cfg.Namespace,
-			GenerateName: "wfs-" + cfg.ScheduleName + "-",
+			GenerateName: cfg.ScheduleName + "-",
 			Labels: map[string]string{
 				"clawarmor.accuknox.com/workflow-schedule": cfg.ScheduleName,
 			},
@@ -110,6 +125,16 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create workflow run: %w", err)
 	}
+	slog.InfoContext(
+		ctx,
+		"created workflow run",
+		"namespace",
+		run.Namespace,
+		"schedule",
+		cfg.ScheduleName,
+		"workflowRun",
+		run.Name,
+	)
 
 	waitCtx, cancel := context.WithTimeout(
 		ctx,
@@ -122,6 +147,37 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("wait for workflow run: %w", err)
 	}
 	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseSucceeded {
+		slog.InfoContext(
+			ctx,
+			"workflow run finished successfully",
+			"namespace",
+			run.Namespace,
+			"schedule",
+			cfg.ScheduleName,
+			"workflowRun",
+			run.Name,
+		)
+		return nil
+	}
+	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseUnacked {
+		msg := run.Status.Message
+		if msg == "" {
+			msg = "workflow run completed without terminal status update"
+		}
+		slog.InfoContext(
+			ctx,
+			"workflow run completed without terminal status update",
+			"namespace",
+			run.Namespace,
+			"schedule",
+			cfg.ScheduleName,
+			"workflowRun",
+			run.Name,
+			"phase",
+			run.Status.Phase,
+			"message",
+			msg,
+		)
 		return nil
 	}
 
@@ -129,7 +185,21 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 	if msg == "" {
 		msg = "workflow run failed"
 	}
-	return errors.New(msg)
+	slog.ErrorContext(
+		ctx,
+		"workflow run finished unsuccessfully",
+		"namespace",
+		run.Namespace,
+		"schedule",
+		cfg.ScheduleName,
+		"workflowRun",
+		run.Name,
+		"phase",
+		run.Status.Phase,
+		"message",
+		msg,
+	)
+	return nil
 }
 
 func waitForRun(ctx context.Context, k8sClient client.Client, key types.NamespacedName) (*clawarmorv1alpha1.WorkflowRun, error) {

@@ -74,6 +74,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseUnknown {
+		if run.Status.CompletedAt != nil {
+			err = r.syncTerminalStatus(ctx, run)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf(
+					"sync zero-value workflow run status: %w",
+					err,
+				)
+			}
+			return ctrl.Result{}, nil
+		}
 		err = r.markPending(ctx, run)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("initialize workflow run status: %w", err)
@@ -162,13 +172,18 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *clawarmorv1alpha
 		message = "workflow session completed without terminal status update"
 	}
 
-	err = r.failRun(
-		ctx,
-		run,
-		clawarmorv1alpha1.WorkflowRunReasonFailed,
-		message,
-		false,
-	)
+	now := metav1.Now()
+	err = r.patchStatus(ctx, run, func(status *clawarmorv1alpha1.WorkflowRunStatus) {
+		status.Phase = clawarmorv1alpha1.WorkflowRunPhaseUnacked
+		status.Message = message
+		r.setTerminalStatus(
+			status,
+			run.Generation,
+			clawarmorv1alpha1.WorkflowRunReasonUnacked,
+			message,
+			&now,
+		)
+	})
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -300,8 +315,11 @@ func sessionMayStillStart(run *clawarmorv1alpha1.WorkflowRun) bool {
 
 func (r *Reconciler) syncTerminalStatus(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
 	reason := clawarmorv1alpha1.WorkflowRunReasonSucceeded
-	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseFailed {
+	switch run.Status.Phase {
+	case clawarmorv1alpha1.WorkflowRunPhaseFailed:
 		reason = clawarmorv1alpha1.WorkflowRunReasonFailed
+	case clawarmorv1alpha1.WorkflowRunPhaseUnacked:
+		reason = clawarmorv1alpha1.WorkflowRunReasonUnacked
 	}
 	message := run.Status.Message
 	if message == "" {

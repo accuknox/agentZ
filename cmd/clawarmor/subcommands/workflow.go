@@ -17,7 +17,7 @@ var WorkflowCmd = &cli.Command{
 
 var workflowRunScheduleCmd = &cli.Command{
 	Name:  "run-schedule",
-	Usage: "Create a WorkflowRun from a schedule tick and wait for completion",
+	Usage: "Create a WorkflowRun from a schedule tick and observe completion",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:     "namespace",

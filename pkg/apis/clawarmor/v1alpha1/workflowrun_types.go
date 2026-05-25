@@ -29,6 +29,8 @@ const (
 	WorkflowRunPhasePending WorkflowRunPhase = "Pending"
 	// WorkflowRunPhaseRunning means the run has an active OpenCode session.
 	WorkflowRunPhaseRunning WorkflowRunPhase = "Running"
+	// WorkflowRunPhaseUnacked means the session completed without a terminal status update.
+	WorkflowRunPhaseUnacked WorkflowRunPhase = "Unacked"
 	// WorkflowRunPhaseSucceeded means the run completed successfully.
 	WorkflowRunPhaseSucceeded WorkflowRunPhase = "Succeeded"
 	// WorkflowRunPhaseFailed means the run completed unsuccessfully.
@@ -47,6 +49,8 @@ const (
 	WorkflowRunReasonPending = "Pending"
 	// WorkflowRunReasonSessionRunning indicates the agent is executing the workflow.
 	WorkflowRunReasonSessionRunning = "SessionRunning"
+	// WorkflowRunReasonUnacked indicates the workflow completed without a terminal status update.
+	WorkflowRunReasonUnacked = "Unacked"
 	// WorkflowRunReasonSucceeded indicates the workflow finished successfully.
 	WorkflowRunReasonSucceeded = "Succeeded"
 	// WorkflowRunReasonFailed indicates the workflow finished unsuccessfully.
@@ -62,7 +66,9 @@ type WorkflowRunPhase string
 
 // Terminal returns true when the phase is terminal.
 func (p WorkflowRunPhase) Terminal() bool {
-	return p == WorkflowRunPhaseSucceeded || p == WorkflowRunPhaseFailed
+	return p == WorkflowRunPhaseSucceeded ||
+		p == WorkflowRunPhaseFailed ||
+		p == WorkflowRunPhaseUnacked
 }
 
 // WorkflowRunSpec defines the desired state of WorkflowRun.
@@ -97,7 +103,7 @@ type WorkflowRunSpec struct {
 // WorkflowRunStatus defines the observed state of WorkflowRun.
 type WorkflowRunStatus struct {
 	// Phase is the lifecycle state tracked by controllers and the agent.
-	// +kubebuilder:validation:Enum=Pending;Running;Succeeded;Failed
+	// +kubebuilder:validation:Enum=Pending;Running;Unacked;Succeeded;Failed
 	// +optional
 	Phase WorkflowRunPhase `json:"phase,omitempty"`
 

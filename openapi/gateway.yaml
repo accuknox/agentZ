@@ -8778,6 +8778,17 @@ components:
       maxLength: 16
       pattern: ^([0-9a-f]{16})?$
       type: string
+    PatchWorkflowRunStatusRequest:
+      additionalProperties: false
+      properties:
+        message:
+          maxLength: 4096
+          type: string
+        phase:
+          $ref: '#/components/schemas/WorkflowRunTerminalPhase'
+      required:
+      - phase
+      type: object
     ProcessObservabilityEvent:
       additionalProperties: false
       properties:
@@ -9408,6 +9419,17 @@ components:
       maxLength: 64
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    WorkflowRunName:
+      description: WorkflowRun resource name.
+      maxLength: 253
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+      type: string
+    WorkflowRunTerminalPhase:
+      enum:
+      - Succeeded
+      - Failed
       type: string
     WorkflowSummary:
       additionalProperties: false
@@ -17477,6 +17499,38 @@ paths:
       summary: Store or overwrite secrets for an agent.
       tags:
       - secrets
+  /api/workflow-runs/{name}/status:
+    patch:
+      description: |
+        Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+      operationId: patchWorkflowRunStatus
+      parameters:
+      - description: WorkflowRun resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
+        required: true
+      responses:
+        "204":
+          description: WorkflowRun status updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Set a WorkflowRun terminal status.
+      tags:
+      - workflows
   /api/workflow-summaries/{agentName}:
     get:
       description: |

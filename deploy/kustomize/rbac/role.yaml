@@ -46,9 +46,64 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - cilium.io
   resources:
   - ciliumnetworkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - workflowruns
+  - workflowschedules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - workflowruns/finalizers
+  - workflowschedules/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - workflowruns/status
+  - workflowschedules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
   verbs:
   - create
   - delete

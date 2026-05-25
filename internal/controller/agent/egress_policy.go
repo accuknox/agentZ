@@ -37,7 +37,11 @@ import (
 
 func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
 	name := egressPolicyName(agt)
-	if len(allowedHosts) == 0 {
+	spec, err := r.buildEgressPolicySpec(agt, allowedHosts)
+	if err != nil {
+		return err
+	}
+	if len(spec.Egress) == 0 {
 		policy := &ciliumv2.CiliumNetworkPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: agt.Namespace},
 		}
@@ -47,10 +51,6 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1
 		return nil
 	}
 
-	spec, err := r.buildEgressPolicySpec(agt, allowedHosts)
-	if err != nil {
-		return err
-	}
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = name
 	current.Namespace = agt.Namespace

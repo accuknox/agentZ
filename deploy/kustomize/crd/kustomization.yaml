@@ -4,6 +4,8 @@
 resources:
 - bases/clawarmor.accuknox.com_agents.yaml
 - bases/clawarmor.accuknox.com_envs.yaml
+- bases/clawarmor.accuknox.com_workflowschedules.yaml
+- bases/clawarmor.accuknox.com_workflowruns.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 # patches:

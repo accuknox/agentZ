@@ -1,0 +1,62 @@
+import { tool } from "@opencode-ai/plugin"
+
+import { patchWorkflowRunStatus, type PatchWorkflowRunStatusRequest, zError } from "../lib/gateway"
+
+const args = {
+  workflowrun_name: tool.schema
+    .string()
+    .min(1)
+    .max(253)
+    .describe("WorkflowRun resource name to update."),
+  phase: tool.schema.enum(["Succeeded", "Failed"]).describe("Terminal WorkflowRun phase."),
+  message: tool.schema
+    .string()
+    .max(4096)
+    .optional()
+    .describe("Optional terminal summary or failure reason."),
+}
+
+export default tool({
+  description: [
+    "Set the terminal status for one ClawArmor WorkflowRun.",
+    "Use this only after the workflow has fully finished.",
+    "This tool only permits terminal phases: Succeeded or Failed.",
+  ].join(" "),
+  args,
+  async execute(input, context) {
+    context.metadata({
+      title: `Set workflow run ${input.phase.toLowerCase()}`,
+      metadata: {
+        workflowrun_name: input.workflowrun_name,
+        phase: input.phase,
+      },
+    })
+
+    try {
+      const body = {
+        phase: input.phase,
+        message: input.message,
+      } satisfies PatchWorkflowRunStatusRequest
+      const result = await patchWorkflowRunStatus({
+        path: {
+          name: input.workflowrun_name,
+        },
+        body,
+        throwOnError: false,
+      })
+      if (!result.error) {
+        return `workflow run ${input.workflowrun_name} marked ${input.phase.toLowerCase()}`
+      }
+
+      const error = zError.safeParse(result.error)
+      if (error.success) {
+        return `workflow run status update failed: ${error.data.code}: ${error.data.message}`
+      }
+
+      return "workflow run status update failed: unexpected gateway error"
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown gateway client error"
+      return `workflow run status update failed: ${message}`
+    }
+  },
+})

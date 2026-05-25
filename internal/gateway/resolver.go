@@ -11,10 +11,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	clientset "github.com/accuknox/clawarmor/pkg/agent-controller/clientset/versioned"
-	informers "github.com/accuknox/clawarmor/pkg/agent-controller/informers/externalversions"
-	listersv1alpha1 "github.com/accuknox/clawarmor/pkg/agent-controller/listers/clawarmor/v1alpha1"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	clientset "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
+	informers "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions"
+	listersv1alpha1 "github.com/accuknox/clawarmor/pkg/controller/listers/clawarmor/v1alpha1"
 )
 
 type resolvedAgent struct {

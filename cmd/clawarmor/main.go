@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 
@@ -45,6 +46,9 @@ import (
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
 	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
+	workflowruncontroller "github.com/accuknox/clawarmor/internal/controller/workflowrun"
+	workflowschedulecontroller "github.com/accuknox/clawarmor/internal/controller/workflowschedule"
+	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 	// +kubebuilder:scaffold:imports
@@ -62,6 +66,7 @@ var (
 	enableHTTP2                                      bool
 	tlsOpts                                          []func(*tls.Config)
 	agentImage                                       string
+	controllerImage                                  string
 	gatewayURL                                       string
 	nixStorePVC                                      string
 	agentInitImage                                   string
@@ -128,6 +133,7 @@ var cmd = &cli.Command{
 		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,
 		subcommands.SinjectorCmd,
+		subcommands.WorkflowCmd,
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		level := c.String("log-level")
@@ -200,6 +206,14 @@ var managerCmd = &cli.Command{
 			Name:        "enable-http2",
 			Value:       false,
 			Destination: &enableHTTP2,
+		},
+		&cli.StringFlag{
+			Name:        "controller-image",
+			Usage:       "Container image for workflow schedule CronJob pods",
+			Destination: &controllerImage,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
 		},
 		&cli.StringFlag{
 			Name:        "agent-image",
@@ -478,7 +492,13 @@ var managerCmd = &cli.Command{
 			setupLog.Info("Watching namespace(s)", "namespaces", watchNamespace)
 		}
 
-		mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), mgrOptions)
+		restCfg, err := ctrl.GetConfig()
+		if err != nil {
+			setupLog.Error(err, "Failed to load Kubernetes config")
+			os.Exit(1)
+		}
+
+		mgr, err := ctrl.NewManager(restCfg, mgrOptions)
 		if err != nil {
 			setupLog.Error(err, "Failed to start manager")
 			os.Exit(1)
@@ -505,6 +525,7 @@ var managerCmd = &cli.Command{
 			SinjectorCAKeyPath:               sinjectorCAKeyPath,
 			AgentCABundlePath:                agentCABundlePath,
 		}
+
 		var bao agent.OpenBaoProvisioner
 		if sinjectorImage != "" {
 			if openBaoAddr == "" {
@@ -522,6 +543,7 @@ var managerCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}
+
 		reconciler := &agent.Reconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -532,6 +554,7 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "Failed to create controller", "controller", "Agent")
 			os.Exit(1)
 		}
+
 		envReconciler := &environmentcontroller.Reconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -540,6 +563,7 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "Failed to create controller", "controller", "Environment")
 			os.Exit(1)
 		}
+
 		if enableWebhooks {
 			err = webhookv1alpha1.SetupAgentWebhookWithManager(
 				mgr,
@@ -555,7 +579,42 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "Failed to create webhook", "webhook", "Environment")
 				os.Exit(1)
 			}
+			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowSchedule")
+				os.Exit(1)
+			}
+			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowRun")
+				os.Exit(1)
+			}
 		}
+
+		workflowScheduleReconciler := &workflowschedulecontroller.Reconciler{
+			Client:          mgr.GetClient(),
+			Scheme:          mgr.GetScheme(),
+			ControllerImage: controllerImage,
+		}
+		if err := workflowScheduleReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "WorkflowSchedule")
+			os.Exit(1)
+		}
+
+		workflowRunReconciler := &workflowruncontroller.Reconciler{
+			Client: mgr.GetClient(),
+		}
+		workflowRunReconciler.GatewayClient, err = gatewayapi.NewClientWithResponses(
+			gatewayURL,
+			gatewayapi.WithHTTPClient(&http.Client{}),
+		)
+		if err != nil {
+			setupLog.Error(err, "Failed to create gateway client", "gatewayURL", gatewayURL)
+			os.Exit(1)
+		}
+		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "WorkflowRun")
+			os.Exit(1)
+		}
+
 		// +kubebuilder:scaffold:builder
 
 		if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

@@ -24,6 +24,7 @@ import {
   listTraceSessions,
   listWorkflowSummaries,
   type Options,
+  patchWorkflowRunStatus,
   putSecret,
   updateAgent,
   updateEnvironment,
@@ -86,6 +87,9 @@ import type {
   ListWorkflowSummariesData,
   ListWorkflowSummariesError,
   ListWorkflowSummariesResponse,
+  PatchWorkflowRunStatusData,
+  PatchWorkflowRunStatusError,
+  PatchWorkflowRunStatusResponse,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
@@ -468,6 +472,36 @@ export const getWorkflowOptions = (options: Options<GetWorkflowData>) =>
     },
     queryKey: getWorkflowQueryKey(options),
   })
+
+/**
+ * Set a WorkflowRun terminal status.
+ *
+ * Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+ *
+ */
+export const patchWorkflowRunStatusMutation = (
+  options?: Partial<Options<PatchWorkflowRunStatusData>>
+): UseMutationOptions<
+  PatchWorkflowRunStatusResponse,
+  PatchWorkflowRunStatusError,
+  Options<PatchWorkflowRunStatusData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PatchWorkflowRunStatusResponse,
+    PatchWorkflowRunStatusError,
+    Options<PatchWorkflowRunStatusData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await patchWorkflowRunStatus({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export const listWorkflowSummariesQueryKey = (options: Options<ListWorkflowSummariesData>) =>
   createQueryKey("listWorkflowSummaries", options)

@@ -37,6 +37,249 @@ const (
 	Blocked ObservabilityAction = "Blocked"
 )
 
+// Defines values for OpencodeAPIErrorName.
+const (
+	APIError OpencodeAPIErrorName = "APIError"
+)
+
+// Defines values for OpencodeAgentPartType.
+const (
+	OpencodeAgentPartTypeAgent OpencodeAgentPartType = "agent"
+)
+
+// Defines values for OpencodeAgentPartInputType.
+const (
+	OpencodeAgentPartInputTypeAgent OpencodeAgentPartInputType = "agent"
+)
+
+// Defines values for OpencodeAssistantMessageRole.
+const (
+	Assistant OpencodeAssistantMessageRole = "assistant"
+)
+
+// Defines values for OpencodeBadRequestErrorSuccess.
+const (
+	OpencodeBadRequestErrorSuccessFalse OpencodeBadRequestErrorSuccess = false
+)
+
+// Defines values for OpencodeCompactionPartType.
+const (
+	Compaction OpencodeCompactionPartType = "compaction"
+)
+
+// Defines values for OpencodeContextOverflowErrorName.
+const (
+	ContextOverflowError OpencodeContextOverflowErrorName = "ContextOverflowError"
+)
+
+// Defines values for OpencodeFilePartType.
+const (
+	OpencodeFilePartTypeFile OpencodeFilePartType = "file"
+)
+
+// Defines values for OpencodeFilePartInputType.
+const (
+	OpencodeFilePartInputTypeFile OpencodeFilePartInputType = "file"
+)
+
+// Defines values for OpencodeFileSourceType.
+const (
+	OpencodeFileSourceTypeFile OpencodeFileSourceType = "file"
+)
+
+// Defines values for OpencodeMessageAbortedErrorName.
+const (
+	MessageAbortedError OpencodeMessageAbortedErrorName = "MessageAbortedError"
+)
+
+// Defines values for OpencodeMessageOutputLengthErrorName.
+const (
+	MessageOutputLengthError OpencodeMessageOutputLengthErrorName = "MessageOutputLengthError"
+)
+
+// Defines values for OpencodeNotFoundErrorName.
+const (
+	NotFoundError OpencodeNotFoundErrorName = "NotFoundError"
+)
+
+// Defines values for OpencodeOutputFormatJsonSchemaType.
+const (
+	JsonSchema OpencodeOutputFormatJsonSchemaType = "json_schema"
+)
+
+// Defines values for OpencodeOutputFormatTextType.
+const (
+	OpencodeOutputFormatTextTypeText OpencodeOutputFormatTextType = "text"
+)
+
+// Defines values for OpencodePatchPartType.
+const (
+	Patch OpencodePatchPartType = "patch"
+)
+
+// Defines values for OpencodePermissionAction.
+const (
+	Allow OpencodePermissionAction = "allow"
+	Ask   OpencodePermissionAction = "ask"
+	Deny  OpencodePermissionAction = "deny"
+)
+
+// Defines values for OpencodeProviderAuthErrorName.
+const (
+	ProviderAuthError OpencodeProviderAuthErrorName = "ProviderAuthError"
+)
+
+// Defines values for OpencodeReasoningPartType.
+const (
+	Reasoning OpencodeReasoningPartType = "reasoning"
+)
+
+// Defines values for OpencodeResourceSourceType.
+const (
+	Resource OpencodeResourceSourceType = "resource"
+)
+
+// Defines values for OpencodeRetryPartType.
+const (
+	OpencodeRetryPartTypeRetry OpencodeRetryPartType = "retry"
+)
+
+// Defines values for OpencodeSessionStatus0Type.
+const (
+	Idle OpencodeSessionStatus0Type = "idle"
+)
+
+// Defines values for OpencodeSessionStatus1Type.
+const (
+	OpencodeSessionStatus1TypeRetry OpencodeSessionStatus1Type = "retry"
+)
+
+// Defines values for OpencodeSessionStatus2Type.
+const (
+	Busy OpencodeSessionStatus2Type = "busy"
+)
+
+// Defines values for OpencodeSnapshotFileDiffStatus.
+const (
+	Added    OpencodeSnapshotFileDiffStatus = "added"
+	Deleted  OpencodeSnapshotFileDiffStatus = "deleted"
+	Modified OpencodeSnapshotFileDiffStatus = "modified"
+)
+
+// Defines values for OpencodeSnapshotPartType.
+const (
+	Snapshot OpencodeSnapshotPartType = "snapshot"
+)
+
+// Defines values for OpencodeStepFinishPartType.
+const (
+	StepFinish OpencodeStepFinishPartType = "step-finish"
+)
+
+// Defines values for OpencodeStepStartPartType.
+const (
+	StepStart OpencodeStepStartPartType = "step-start"
+)
+
+// Defines values for OpencodeStructuredOutputErrorName.
+const (
+	StructuredOutputError OpencodeStructuredOutputErrorName = "StructuredOutputError"
+)
+
+// Defines values for OpencodeSubtaskPartType.
+const (
+	OpencodeSubtaskPartTypeSubtask OpencodeSubtaskPartType = "subtask"
+)
+
+// Defines values for OpencodeSubtaskPartInputType.
+const (
+	OpencodeSubtaskPartInputTypeSubtask OpencodeSubtaskPartInputType = "subtask"
+)
+
+// Defines values for OpencodeSymbolSourceType.
+const (
+	Symbol OpencodeSymbolSourceType = "symbol"
+)
+
+// Defines values for OpencodeTextPartType.
+const (
+	OpencodeTextPartTypeText OpencodeTextPartType = "text"
+)
+
+// Defines values for OpencodeTextPartInputType.
+const (
+	Text OpencodeTextPartInputType = "text"
+)
+
+// Defines values for OpencodeToolPartType.
+const (
+	Tool OpencodeToolPartType = "tool"
+)
+
+// Defines values for OpencodeToolStateCompletedStatus.
+const (
+	Completed OpencodeToolStateCompletedStatus = "completed"
+)
+
+// Defines values for OpencodeToolStateErrorStatus.
+const (
+	OpencodeToolStateErrorStatusError OpencodeToolStateErrorStatus = "error"
+)
+
+// Defines values for OpencodeToolStatePendingStatus.
+const (
+	Pending OpencodeToolStatePendingStatus = "pending"
+)
+
+// Defines values for OpencodeToolStateRunningStatus.
+const (
+	Running OpencodeToolStateRunningStatus = "running"
+)
+
+// Defines values for OpencodeUnknownErrorName.
+const (
+	UnknownError OpencodeUnknownErrorName = "UnknownError"
+)
+
+// Defines values for OpencodeUserMessageRole.
+const (
+	User OpencodeUserMessageRole = "user"
+)
+
+// Defines values for OpencodeeffectHttpApiErrorInternalServerErrorTag.
+const (
+	InternalServerError OpencodeeffectHttpApiErrorInternalServerErrorTag = "InternalServerError"
+)
+
+// Defines values for WorkflowRunTerminalPhase.
+const (
+	Failed    WorkflowRunTerminalPhase = "Failed"
+	Succeeded WorkflowRunTerminalPhase = "Succeeded"
+)
+
+// Defines values for SessionListParamsScope.
+const (
+	Project SessionListParamsScope = "project"
+)
+
+// Defines values for SessionListParamsRoots1.
+const (
+	SessionListParamsRoots1False SessionListParamsRoots1 = "false"
+	SessionListParamsRoots1True  SessionListParamsRoots1 = "true"
+)
+
+// Defines values for SessionCommandJSONBodyPartsType.
+const (
+	SessionCommandJSONBodyPartsTypeFile SessionCommandJSONBodyPartsType = "file"
+)
+
+// Defines values for PermissionRespondJSONBodyResponse.
+const (
+	Always PermissionRespondJSONBodyResponse = "always"
+	Once   PermissionRespondJSONBodyResponse = "once"
+	Reject PermissionRespondJSONBodyResponse = "reject"
+)
+
 // Agent defines model for Agent.
 type Agent struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -301,8 +544,726 @@ type NetworkObservabilityEventAggregated struct {
 // ObservabilityAction defines model for ObservabilityAction.
 type ObservabilityAction string
 
+// OpencodeAPIError defines model for OpencodeAPIError.
+type OpencodeAPIError struct {
+	Data struct {
+		IsRetryable     bool               `json:"isRetryable"`
+		Message         string             `json:"message"`
+		Metadata        *map[string]string `json:"metadata,omitempty"`
+		ResponseBody    *string            `json:"responseBody,omitempty"`
+		ResponseHeaders *map[string]string `json:"responseHeaders,omitempty"`
+		StatusCode      *int               `json:"statusCode,omitempty"`
+	} `json:"data"`
+	Name OpencodeAPIErrorName `json:"name"`
+}
+
+// OpencodeAPIErrorName defines model for OpencodeAPIError.Name.
+type OpencodeAPIErrorName string
+
+// OpencodeAgentPart defines model for OpencodeAgentPart.
+type OpencodeAgentPart struct {
+	Id        string `json:"id"`
+	MessageID string `json:"messageID"`
+	Name      string `json:"name"`
+	SessionID string `json:"sessionID"`
+	Source    *struct {
+		End   int    `json:"end"`
+		Start int    `json:"start"`
+		Value string `json:"value"`
+	} `json:"source,omitempty"`
+	Type OpencodeAgentPartType `json:"type"`
+}
+
+// OpencodeAgentPartType defines model for OpencodeAgentPart.Type.
+type OpencodeAgentPartType string
+
+// OpencodeAgentPartInput defines model for OpencodeAgentPartInput.
+type OpencodeAgentPartInput struct {
+	Id     *string `json:"id,omitempty"`
+	Name   string  `json:"name"`
+	Source *struct {
+		End   int    `json:"end"`
+		Start int    `json:"start"`
+		Value string `json:"value"`
+	} `json:"source,omitempty"`
+	Type OpencodeAgentPartInputType `json:"type"`
+}
+
+// OpencodeAgentPartInputType defines model for OpencodeAgentPartInput.Type.
+type OpencodeAgentPartInputType string
+
+// OpencodeAssistantMessage defines model for OpencodeAssistantMessage.
+type OpencodeAssistantMessage struct {
+	Agent    string                          `json:"agent"`
+	Cost     float32                         `json:"cost"`
+	Error    *OpencodeAssistantMessage_Error `json:"error,omitempty"`
+	Finish   *string                         `json:"finish,omitempty"`
+	Id       string                          `json:"id"`
+	Mode     string                          `json:"mode"`
+	ModelID  string                          `json:"modelID"`
+	ParentID string                          `json:"parentID"`
+	Path     struct {
+		Cwd  string `json:"cwd"`
+		Root string `json:"root"`
+	} `json:"path"`
+	ProviderID string                       `json:"providerID"`
+	Role       OpencodeAssistantMessageRole `json:"role"`
+	SessionID  string                       `json:"sessionID"`
+	Structured interface{}                  `json:"structured,omitempty"`
+	Summary    *bool                        `json:"summary,omitempty"`
+	Time       struct {
+		Completed *int `json:"completed,omitempty"`
+		Created   int  `json:"created"`
+	} `json:"time"`
+	Tokens struct {
+		Cache struct {
+			Read  float32 `json:"read"`
+			Write float32 `json:"write"`
+		} `json:"cache"`
+		Input     float32  `json:"input"`
+		Output    float32  `json:"output"`
+		Reasoning float32  `json:"reasoning"`
+		Total     *float32 `json:"total,omitempty"`
+	} `json:"tokens"`
+	Variant *string `json:"variant,omitempty"`
+}
+
+// OpencodeAssistantMessage_Error defines model for OpencodeAssistantMessage.Error.
+type OpencodeAssistantMessage_Error struct {
+	union json.RawMessage
+}
+
+// OpencodeAssistantMessageRole defines model for OpencodeAssistantMessage.Role.
+type OpencodeAssistantMessageRole string
+
+// OpencodeBadRequestError defines model for OpencodeBadRequestError.
+type OpencodeBadRequestError struct {
+	Data    interface{}                    `json:"data"`
+	Errors  []map[string]interface{}       `json:"errors"`
+	Success OpencodeBadRequestErrorSuccess `json:"success"`
+}
+
+// OpencodeBadRequestErrorSuccess defines model for OpencodeBadRequestError.Success.
+type OpencodeBadRequestErrorSuccess bool
+
+// OpencodeCompactionPart defines model for OpencodeCompactionPart.
+type OpencodeCompactionPart struct {
+	Auto        bool                       `json:"auto"`
+	Id          string                     `json:"id"`
+	MessageID   string                     `json:"messageID"`
+	Overflow    *bool                      `json:"overflow,omitempty"`
+	SessionID   string                     `json:"sessionID"`
+	TailStartId *string                    `json:"tail_start_id,omitempty"`
+	Type        OpencodeCompactionPartType `json:"type"`
+}
+
+// OpencodeCompactionPartType defines model for OpencodeCompactionPart.Type.
+type OpencodeCompactionPartType string
+
+// OpencodeContextOverflowError defines model for OpencodeContextOverflowError.
+type OpencodeContextOverflowError struct {
+	Data struct {
+		Message      string  `json:"message"`
+		ResponseBody *string `json:"responseBody,omitempty"`
+	} `json:"data"`
+	Name OpencodeContextOverflowErrorName `json:"name"`
+}
+
+// OpencodeContextOverflowErrorName defines model for OpencodeContextOverflowError.Name.
+type OpencodeContextOverflowErrorName string
+
+// OpencodeFilePart defines model for OpencodeFilePart.
+type OpencodeFilePart struct {
+	Filename  *string                 `json:"filename,omitempty"`
+	Id        string                  `json:"id"`
+	MessageID string                  `json:"messageID"`
+	Mime      string                  `json:"mime"`
+	SessionID string                  `json:"sessionID"`
+	Source    *OpencodeFilePartSource `json:"source,omitempty"`
+	Type      OpencodeFilePartType    `json:"type"`
+	Url       string                  `json:"url"`
+}
+
+// OpencodeFilePartType defines model for OpencodeFilePart.Type.
+type OpencodeFilePartType string
+
+// OpencodeFilePartInput defines model for OpencodeFilePartInput.
+type OpencodeFilePartInput struct {
+	Filename *string                   `json:"filename,omitempty"`
+	Id       *string                   `json:"id,omitempty"`
+	Mime     string                    `json:"mime"`
+	Source   *OpencodeFilePartSource   `json:"source,omitempty"`
+	Type     OpencodeFilePartInputType `json:"type"`
+	Url      string                    `json:"url"`
+}
+
+// OpencodeFilePartInputType defines model for OpencodeFilePartInput.Type.
+type OpencodeFilePartInputType string
+
+// OpencodeFilePartSource defines model for OpencodeFilePartSource.
+type OpencodeFilePartSource struct {
+	union json.RawMessage
+}
+
+// OpencodeFilePartSourceText defines model for OpencodeFilePartSourceText.
+type OpencodeFilePartSourceText struct {
+	End   float32 `json:"end"`
+	Start float32 `json:"start"`
+	Value string  `json:"value"`
+}
+
+// OpencodeFileSource defines model for OpencodeFileSource.
+type OpencodeFileSource struct {
+	Path string                     `json:"path"`
+	Text OpencodeFilePartSourceText `json:"text"`
+	Type OpencodeFileSourceType     `json:"type"`
+}
+
+// OpencodeFileSourceType defines model for OpencodeFileSource.Type.
+type OpencodeFileSourceType string
+
+// OpencodeJSONSchema defines model for OpencodeJSONSchema.
+type OpencodeJSONSchema = map[string]interface{}
+
+// OpencodeMessage defines model for OpencodeMessage.
+type OpencodeMessage struct {
+	union json.RawMessage
+}
+
+// OpencodeMessageAbortedError defines model for OpencodeMessageAbortedError.
+type OpencodeMessageAbortedError struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Name OpencodeMessageAbortedErrorName `json:"name"`
+}
+
+// OpencodeMessageAbortedErrorName defines model for OpencodeMessageAbortedError.Name.
+type OpencodeMessageAbortedErrorName string
+
+// OpencodeMessageOutputLengthError defines model for OpencodeMessageOutputLengthError.
+type OpencodeMessageOutputLengthError struct {
+	Data map[string]interface{}               `json:"data"`
+	Name OpencodeMessageOutputLengthErrorName `json:"name"`
+}
+
+// OpencodeMessageOutputLengthErrorName defines model for OpencodeMessageOutputLengthError.Name.
+type OpencodeMessageOutputLengthErrorName string
+
+// OpencodeNotFoundError defines model for OpencodeNotFoundError.
+type OpencodeNotFoundError struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Name OpencodeNotFoundErrorName `json:"name"`
+}
+
+// OpencodeNotFoundErrorName defines model for OpencodeNotFoundError.Name.
+type OpencodeNotFoundErrorName string
+
+// OpencodeOutputFormat defines model for OpencodeOutputFormat.
+type OpencodeOutputFormat struct {
+	union json.RawMessage
+}
+
+// OpencodeOutputFormatJsonSchema defines model for OpencodeOutputFormatJsonSchema.
+type OpencodeOutputFormatJsonSchema struct {
+	RetryCount *int                               `json:"retryCount,omitempty"`
+	Schema     OpencodeJSONSchema                 `json:"schema"`
+	Type       OpencodeOutputFormatJsonSchemaType `json:"type"`
+}
+
+// OpencodeOutputFormatJsonSchemaType defines model for OpencodeOutputFormatJsonSchema.Type.
+type OpencodeOutputFormatJsonSchemaType string
+
+// OpencodeOutputFormatText defines model for OpencodeOutputFormatText.
+type OpencodeOutputFormatText struct {
+	Type OpencodeOutputFormatTextType `json:"type"`
+}
+
+// OpencodeOutputFormatTextType defines model for OpencodeOutputFormatText.Type.
+type OpencodeOutputFormatTextType string
+
+// OpencodePart defines model for OpencodePart.
+type OpencodePart struct {
+	union json.RawMessage
+}
+
+// OpencodePatchPart defines model for OpencodePatchPart.
+type OpencodePatchPart struct {
+	Files     []string              `json:"files"`
+	Hash      string                `json:"hash"`
+	Id        string                `json:"id"`
+	MessageID string                `json:"messageID"`
+	SessionID string                `json:"sessionID"`
+	Type      OpencodePatchPartType `json:"type"`
+}
+
+// OpencodePatchPartType defines model for OpencodePatchPart.Type.
+type OpencodePatchPartType string
+
+// OpencodePermissionAction defines model for OpencodePermissionAction.
+type OpencodePermissionAction string
+
+// OpencodePermissionRule defines model for OpencodePermissionRule.
+type OpencodePermissionRule struct {
+	Action     OpencodePermissionAction `json:"action"`
+	Pattern    string                   `json:"pattern"`
+	Permission string                   `json:"permission"`
+}
+
+// OpencodePermissionRuleset defines model for OpencodePermissionRuleset.
+type OpencodePermissionRuleset = []OpencodePermissionRule
+
+// OpencodeProviderAuthError defines model for OpencodeProviderAuthError.
+type OpencodeProviderAuthError struct {
+	Data struct {
+		Message    string `json:"message"`
+		ProviderID string `json:"providerID"`
+	} `json:"data"`
+	Name OpencodeProviderAuthErrorName `json:"name"`
+}
+
+// OpencodeProviderAuthErrorName defines model for OpencodeProviderAuthError.Name.
+type OpencodeProviderAuthErrorName string
+
+// OpencodeRange defines model for OpencodeRange.
+type OpencodeRange struct {
+	End struct {
+		Character int `json:"character"`
+		Line      int `json:"line"`
+	} `json:"end"`
+	Start struct {
+		Character int `json:"character"`
+		Line      int `json:"line"`
+	} `json:"start"`
+}
+
+// OpencodeReasoningPart defines model for OpencodeReasoningPart.
+type OpencodeReasoningPart struct {
+	Id        string                  `json:"id"`
+	MessageID string                  `json:"messageID"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	SessionID string                  `json:"sessionID"`
+	Text      string                  `json:"text"`
+	Time      struct {
+		End   *int `json:"end,omitempty"`
+		Start int  `json:"start"`
+	} `json:"time"`
+	Type OpencodeReasoningPartType `json:"type"`
+}
+
+// OpencodeReasoningPartType defines model for OpencodeReasoningPart.Type.
+type OpencodeReasoningPartType string
+
+// OpencodeResourceSource defines model for OpencodeResourceSource.
+type OpencodeResourceSource struct {
+	ClientName string                     `json:"clientName"`
+	Text       OpencodeFilePartSourceText `json:"text"`
+	Type       OpencodeResourceSourceType `json:"type"`
+	Uri        string                     `json:"uri"`
+}
+
+// OpencodeResourceSourceType defines model for OpencodeResourceSource.Type.
+type OpencodeResourceSourceType string
+
+// OpencodeRetryPart defines model for OpencodeRetryPart.
+type OpencodeRetryPart struct {
+	Attempt   int              `json:"attempt"`
+	Error     OpencodeAPIError `json:"error"`
+	Id        string           `json:"id"`
+	MessageID string           `json:"messageID"`
+	SessionID string           `json:"sessionID"`
+	Time      struct {
+		Created int `json:"created"`
+	} `json:"time"`
+	Type OpencodeRetryPartType `json:"type"`
+}
+
+// OpencodeRetryPartType defines model for OpencodeRetryPart.Type.
+type OpencodeRetryPartType string
+
+// OpencodeSession defines model for OpencodeSession.
+type OpencodeSession struct {
+	Agent     *string `json:"agent,omitempty"`
+	Directory string  `json:"directory"`
+	Id        string  `json:"id"`
+	Model     *struct {
+		Id         string  `json:"id"`
+		ProviderID string  `json:"providerID"`
+		Variant    *string `json:"variant,omitempty"`
+	} `json:"model,omitempty"`
+	ParentID   *string                    `json:"parentID,omitempty"`
+	Path       *string                    `json:"path,omitempty"`
+	Permission *OpencodePermissionRuleset `json:"permission,omitempty"`
+	ProjectID  string                     `json:"projectID"`
+	Revert     *struct {
+		Diff      *string `json:"diff,omitempty"`
+		MessageID string  `json:"messageID"`
+		PartID    *string `json:"partID,omitempty"`
+		Snapshot  *string `json:"snapshot,omitempty"`
+	} `json:"revert,omitempty"`
+	Share *struct {
+		Url string `json:"url"`
+	} `json:"share,omitempty"`
+	Slug    string `json:"slug"`
+	Summary *struct {
+		Additions float32                     `json:"additions"`
+		Deletions float32                     `json:"deletions"`
+		Diffs     *[]OpencodeSnapshotFileDiff `json:"diffs,omitempty"`
+		Files     float32                     `json:"files"`
+	} `json:"summary,omitempty"`
+	Time struct {
+		Archived   *float32 `json:"archived,omitempty"`
+		Compacting *int     `json:"compacting,omitempty"`
+		Created    int      `json:"created"`
+		Updated    int      `json:"updated"`
+	} `json:"time"`
+	Title       string  `json:"title"`
+	Version     string  `json:"version"`
+	WorkspaceID *string `json:"workspaceID,omitempty"`
+}
+
+// OpencodeSessionStatus defines model for OpencodeSessionStatus.
+type OpencodeSessionStatus struct {
+	union json.RawMessage
+}
+
+// OpencodeSessionStatus0 defines model for .
+type OpencodeSessionStatus0 struct {
+	Type OpencodeSessionStatus0Type `json:"type"`
+}
+
+// OpencodeSessionStatus0Type defines model for OpencodeSessionStatus.0.Type.
+type OpencodeSessionStatus0Type string
+
+// OpencodeSessionStatus1 defines model for .
+type OpencodeSessionStatus1 struct {
+	Action *struct {
+		Label    string  `json:"label"`
+		Link     *string `json:"link,omitempty"`
+		Message  string  `json:"message"`
+		Provider string  `json:"provider"`
+		Reason   string  `json:"reason"`
+		Title    string  `json:"title"`
+	} `json:"action,omitempty"`
+	Attempt int                        `json:"attempt"`
+	Message string                     `json:"message"`
+	Next    int                        `json:"next"`
+	Type    OpencodeSessionStatus1Type `json:"type"`
+}
+
+// OpencodeSessionStatus1Type defines model for OpencodeSessionStatus.1.Type.
+type OpencodeSessionStatus1Type string
+
+// OpencodeSessionStatus2 defines model for .
+type OpencodeSessionStatus2 struct {
+	Type OpencodeSessionStatus2Type `json:"type"`
+}
+
+// OpencodeSessionStatus2Type defines model for OpencodeSessionStatus.2.Type.
+type OpencodeSessionStatus2Type string
+
+// OpencodeSnapshotFileDiff defines model for OpencodeSnapshotFileDiff.
+type OpencodeSnapshotFileDiff struct {
+	Additions float32                         `json:"additions"`
+	Deletions float32                         `json:"deletions"`
+	File      *string                         `json:"file,omitempty"`
+	Patch     *string                         `json:"patch,omitempty"`
+	Status    *OpencodeSnapshotFileDiffStatus `json:"status,omitempty"`
+}
+
+// OpencodeSnapshotFileDiffStatus defines model for OpencodeSnapshotFileDiff.Status.
+type OpencodeSnapshotFileDiffStatus string
+
+// OpencodeSnapshotPart defines model for OpencodeSnapshotPart.
+type OpencodeSnapshotPart struct {
+	Id        string                   `json:"id"`
+	MessageID string                   `json:"messageID"`
+	SessionID string                   `json:"sessionID"`
+	Snapshot  string                   `json:"snapshot"`
+	Type      OpencodeSnapshotPartType `json:"type"`
+}
+
+// OpencodeSnapshotPartType defines model for OpencodeSnapshotPart.Type.
+type OpencodeSnapshotPartType string
+
+// OpencodeStepFinishPart defines model for OpencodeStepFinishPart.
+type OpencodeStepFinishPart struct {
+	Cost      float32 `json:"cost"`
+	Id        string  `json:"id"`
+	MessageID string  `json:"messageID"`
+	Reason    string  `json:"reason"`
+	SessionID string  `json:"sessionID"`
+	Snapshot  *string `json:"snapshot,omitempty"`
+	Tokens    struct {
+		Cache struct {
+			Read  float32 `json:"read"`
+			Write float32 `json:"write"`
+		} `json:"cache"`
+		Input     float32  `json:"input"`
+		Output    float32  `json:"output"`
+		Reasoning float32  `json:"reasoning"`
+		Total     *float32 `json:"total,omitempty"`
+	} `json:"tokens"`
+	Type OpencodeStepFinishPartType `json:"type"`
+}
+
+// OpencodeStepFinishPartType defines model for OpencodeStepFinishPart.Type.
+type OpencodeStepFinishPartType string
+
+// OpencodeStepStartPart defines model for OpencodeStepStartPart.
+type OpencodeStepStartPart struct {
+	Id        string                    `json:"id"`
+	MessageID string                    `json:"messageID"`
+	SessionID string                    `json:"sessionID"`
+	Snapshot  *string                   `json:"snapshot,omitempty"`
+	Type      OpencodeStepStartPartType `json:"type"`
+}
+
+// OpencodeStepStartPartType defines model for OpencodeStepStartPart.Type.
+type OpencodeStepStartPartType string
+
+// OpencodeStructuredOutputError defines model for OpencodeStructuredOutputError.
+type OpencodeStructuredOutputError struct {
+	Data struct {
+		Message string `json:"message"`
+		Retries int    `json:"retries"`
+	} `json:"data"`
+	Name OpencodeStructuredOutputErrorName `json:"name"`
+}
+
+// OpencodeStructuredOutputErrorName defines model for OpencodeStructuredOutputError.Name.
+type OpencodeStructuredOutputErrorName string
+
+// OpencodeSubtaskPart defines model for OpencodeSubtaskPart.
+type OpencodeSubtaskPart struct {
+	Agent       string  `json:"agent"`
+	Command     *string `json:"command,omitempty"`
+	Description string  `json:"description"`
+	Id          string  `json:"id"`
+	MessageID   string  `json:"messageID"`
+	Model       *struct {
+		ModelID    string `json:"modelID"`
+		ProviderID string `json:"providerID"`
+	} `json:"model,omitempty"`
+	Prompt    string                  `json:"prompt"`
+	SessionID string                  `json:"sessionID"`
+	Type      OpencodeSubtaskPartType `json:"type"`
+}
+
+// OpencodeSubtaskPartType defines model for OpencodeSubtaskPart.Type.
+type OpencodeSubtaskPartType string
+
+// OpencodeSubtaskPartInput defines model for OpencodeSubtaskPartInput.
+type OpencodeSubtaskPartInput struct {
+	Agent       string  `json:"agent"`
+	Command     *string `json:"command,omitempty"`
+	Description string  `json:"description"`
+	Id          *string `json:"id,omitempty"`
+	Model       *struct {
+		ModelID    string `json:"modelID"`
+		ProviderID string `json:"providerID"`
+	} `json:"model,omitempty"`
+	Prompt string                       `json:"prompt"`
+	Type   OpencodeSubtaskPartInputType `json:"type"`
+}
+
+// OpencodeSubtaskPartInputType defines model for OpencodeSubtaskPartInput.Type.
+type OpencodeSubtaskPartInputType string
+
+// OpencodeSymbolSource defines model for OpencodeSymbolSource.
+type OpencodeSymbolSource struct {
+	Kind  int                        `json:"kind"`
+	Name  string                     `json:"name"`
+	Path  string                     `json:"path"`
+	Range OpencodeRange              `json:"range"`
+	Text  OpencodeFilePartSourceText `json:"text"`
+	Type  OpencodeSymbolSourceType   `json:"type"`
+}
+
+// OpencodeSymbolSourceType defines model for OpencodeSymbolSource.Type.
+type OpencodeSymbolSourceType string
+
+// OpencodeTextPart defines model for OpencodeTextPart.
+type OpencodeTextPart struct {
+	Id        string                  `json:"id"`
+	Ignored   *bool                   `json:"ignored,omitempty"`
+	MessageID string                  `json:"messageID"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	SessionID string                  `json:"sessionID"`
+	Synthetic *bool                   `json:"synthetic,omitempty"`
+	Text      string                  `json:"text"`
+	Time      *struct {
+		End   *int `json:"end,omitempty"`
+		Start int  `json:"start"`
+	} `json:"time,omitempty"`
+	Type OpencodeTextPartType `json:"type"`
+}
+
+// OpencodeTextPartType defines model for OpencodeTextPart.Type.
+type OpencodeTextPartType string
+
+// OpencodeTextPartInput defines model for OpencodeTextPartInput.
+type OpencodeTextPartInput struct {
+	Id        *string                 `json:"id,omitempty"`
+	Ignored   *bool                   `json:"ignored,omitempty"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	Synthetic *bool                   `json:"synthetic,omitempty"`
+	Text      string                  `json:"text"`
+	Time      *struct {
+		End   *int `json:"end,omitempty"`
+		Start int  `json:"start"`
+	} `json:"time,omitempty"`
+	Type OpencodeTextPartInputType `json:"type"`
+}
+
+// OpencodeTextPartInputType defines model for OpencodeTextPartInput.Type.
+type OpencodeTextPartInputType string
+
+// OpencodeTodo defines model for OpencodeTodo.
+type OpencodeTodo struct {
+	// Content Brief description of the task
+	Content string `json:"content"`
+
+	// Priority Priority level of the task: high, medium, low
+	Priority string `json:"priority"`
+
+	// Status Current status of the task: pending, in_progress, completed, cancelled
+	Status string `json:"status"`
+}
+
+// OpencodeToolPart defines model for OpencodeToolPart.
+type OpencodeToolPart struct {
+	CallID    string                  `json:"callID"`
+	Id        string                  `json:"id"`
+	MessageID string                  `json:"messageID"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	SessionID string                  `json:"sessionID"`
+	State     OpencodeToolState       `json:"state"`
+	Tool      string                  `json:"tool"`
+	Type      OpencodeToolPartType    `json:"type"`
+}
+
+// OpencodeToolPartType defines model for OpencodeToolPart.Type.
+type OpencodeToolPartType string
+
+// OpencodeToolState defines model for OpencodeToolState.
+type OpencodeToolState struct {
+	union json.RawMessage
+}
+
+// OpencodeToolStateCompleted defines model for OpencodeToolStateCompleted.
+type OpencodeToolStateCompleted struct {
+	Attachments *[]OpencodeFilePart              `json:"attachments,omitempty"`
+	Input       map[string]interface{}           `json:"input"`
+	Metadata    map[string]interface{}           `json:"metadata"`
+	Output      string                           `json:"output"`
+	Status      OpencodeToolStateCompletedStatus `json:"status"`
+	Time        struct {
+		Compacted *int `json:"compacted,omitempty"`
+		End       int  `json:"end"`
+		Start     int  `json:"start"`
+	} `json:"time"`
+	Title string `json:"title"`
+}
+
+// OpencodeToolStateCompletedStatus defines model for OpencodeToolStateCompleted.Status.
+type OpencodeToolStateCompletedStatus string
+
+// OpencodeToolStateError defines model for OpencodeToolStateError.
+type OpencodeToolStateError struct {
+	Error    string                       `json:"error"`
+	Input    map[string]interface{}       `json:"input"`
+	Metadata *map[string]interface{}      `json:"metadata,omitempty"`
+	Status   OpencodeToolStateErrorStatus `json:"status"`
+	Time     struct {
+		End   int `json:"end"`
+		Start int `json:"start"`
+	} `json:"time"`
+}
+
+// OpencodeToolStateErrorStatus defines model for OpencodeToolStateError.Status.
+type OpencodeToolStateErrorStatus string
+
+// OpencodeToolStatePending defines model for OpencodeToolStatePending.
+type OpencodeToolStatePending struct {
+	Input  map[string]interface{}         `json:"input"`
+	Raw    string                         `json:"raw"`
+	Status OpencodeToolStatePendingStatus `json:"status"`
+}
+
+// OpencodeToolStatePendingStatus defines model for OpencodeToolStatePending.Status.
+type OpencodeToolStatePendingStatus string
+
+// OpencodeToolStateRunning defines model for OpencodeToolStateRunning.
+type OpencodeToolStateRunning struct {
+	Input    map[string]interface{}         `json:"input"`
+	Metadata *map[string]interface{}        `json:"metadata,omitempty"`
+	Status   OpencodeToolStateRunningStatus `json:"status"`
+	Time     struct {
+		Start int `json:"start"`
+	} `json:"time"`
+	Title *string `json:"title,omitempty"`
+}
+
+// OpencodeToolStateRunningStatus defines model for OpencodeToolStateRunning.Status.
+type OpencodeToolStateRunningStatus string
+
+// OpencodeUnknownError defines model for OpencodeUnknownError.
+type OpencodeUnknownError struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Name OpencodeUnknownErrorName `json:"name"`
+}
+
+// OpencodeUnknownErrorName defines model for OpencodeUnknownError.Name.
+type OpencodeUnknownErrorName string
+
+// OpencodeUserMessage defines model for OpencodeUserMessage.
+type OpencodeUserMessage struct {
+	Agent  string                `json:"agent"`
+	Format *OpencodeOutputFormat `json:"format,omitempty"`
+	Id     string                `json:"id"`
+	Model  struct {
+		ModelID    string  `json:"modelID"`
+		ProviderID string  `json:"providerID"`
+		Variant    *string `json:"variant,omitempty"`
+	} `json:"model"`
+	Role      OpencodeUserMessageRole `json:"role"`
+	SessionID string                  `json:"sessionID"`
+	Summary   *struct {
+		Body  *string                    `json:"body,omitempty"`
+		Diffs []OpencodeSnapshotFileDiff `json:"diffs"`
+		Title *string                    `json:"title,omitempty"`
+	} `json:"summary,omitempty"`
+	System *string `json:"system,omitempty"`
+	Time   struct {
+		Created int `json:"created"`
+	} `json:"time"`
+	Tools *map[string]bool `json:"tools,omitempty"`
+}
+
+// OpencodeUserMessageRole defines model for OpencodeUserMessage.Role.
+type OpencodeUserMessageRole string
+
+// OpencodeeffectHttpApiErrorInternalServerError defines model for Opencodeeffect_HttpApiError_InternalServerError.
+type OpencodeeffectHttpApiErrorInternalServerError struct {
+	UnderscoreTag OpencodeeffectHttpApiErrorInternalServerErrorTag `json:"_tag"`
+}
+
+// OpencodeeffectHttpApiErrorInternalServerErrorTag defines model for OpencodeeffectHttpApiErrorInternalServerError.Tag.
+type OpencodeeffectHttpApiErrorInternalServerErrorTag string
+
 // OptionalSpanID Lowercase hexadecimal OTLP span ID, or empty for root spans.
 type OptionalSpanID = string
+
+// PatchWorkflowRunStatusRequest defines model for PatchWorkflowRunStatusRequest.
+type PatchWorkflowRunStatusRequest struct {
+	Message *string                  `json:"message,omitempty"`
+	Phase   WorkflowRunTerminalPhase `json:"phase"`
+}
 
 // ProcessObservabilityEvent defines model for ProcessObservabilityEvent.
 type ProcessObservabilityEvent struct {
@@ -589,6 +1550,12 @@ type WorkflowNode struct {
 // WorkflowNodeName Stable workflow node identifier.
 type WorkflowNodeName = string
 
+// WorkflowRunName WorkflowRun resource name.
+type WorkflowRunName = string
+
+// WorkflowRunTerminalPhase defines model for WorkflowRunTerminalPhase.
+type WorkflowRunTerminalPhase string
+
 // WorkflowSummary defines model for WorkflowSummary.
 type WorkflowSummary struct {
 	Summary   string    `json:"summary"`
@@ -815,6 +1782,318 @@ type ListTraceSessionsParams struct {
 	StartedBefore *StartedBeforeQuery `form:"started_before,omitempty" json:"started_before,omitempty"`
 }
 
+// SessionListParams defines parameters for SessionList.
+type SessionListParams struct {
+	Directory *string                 `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string                 `form:"workspace,omitempty" json:"workspace,omitempty"`
+	Scope     *SessionListParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+	Path      *string                 `form:"path,omitempty" json:"path,omitempty"`
+	Roots     *struct {
+		union json.RawMessage
+	} `form:"roots,omitempty" json:"roots,omitempty"`
+	Start  *float32 `form:"start,omitempty" json:"start,omitempty"`
+	Search *string  `form:"search,omitempty" json:"search,omitempty"`
+	Limit  *float32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// SessionListParamsScope defines parameters for SessionList.
+type SessionListParamsScope string
+
+// SessionListParamsRoots0 defines parameters for SessionList.
+type SessionListParamsRoots0 = bool
+
+// SessionListParamsRoots1 defines parameters for SessionList.
+type SessionListParamsRoots1 string
+
+// SessionCreateJSONBody defines parameters for SessionCreate.
+type SessionCreateJSONBody struct {
+	Agent *string `json:"agent,omitempty"`
+	Model *struct {
+		Id         string  `json:"id"`
+		ProviderID string  `json:"providerID"`
+		Variant    *string `json:"variant,omitempty"`
+	} `json:"model,omitempty"`
+	ParentID    *string                    `json:"parentID,omitempty"`
+	Permission  *OpencodePermissionRuleset `json:"permission,omitempty"`
+	Title       *string                    `json:"title,omitempty"`
+	WorkspaceID *string                    `json:"workspaceID,omitempty"`
+}
+
+// SessionCreateParams defines parameters for SessionCreate.
+type SessionCreateParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionStatusParams defines parameters for SessionStatus.
+type SessionStatusParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionDeleteParams defines parameters for SessionDelete.
+type SessionDeleteParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionGetParams defines parameters for SessionGet.
+type SessionGetParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionUpdateJSONBody defines parameters for SessionUpdate.
+type SessionUpdateJSONBody struct {
+	Permission *OpencodePermissionRuleset `json:"permission,omitempty"`
+	Time       *struct {
+		Archived *float32 `json:"archived,omitempty"`
+	} `json:"time,omitempty"`
+	Title *string `json:"title,omitempty"`
+}
+
+// SessionUpdateParams defines parameters for SessionUpdate.
+type SessionUpdateParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionAbortParams defines parameters for SessionAbort.
+type SessionAbortParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionChildrenParams defines parameters for SessionChildren.
+type SessionChildrenParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionCommandJSONBody defines parameters for SessionCommand.
+type SessionCommandJSONBody struct {
+	Agent     *string `json:"agent,omitempty"`
+	Arguments string  `json:"arguments"`
+	Command   string  `json:"command"`
+	MessageID *string `json:"messageID,omitempty"`
+	Model     *string `json:"model,omitempty"`
+	Parts     *[]struct {
+		Filename *string                         `json:"filename,omitempty"`
+		Id       *string                         `json:"id,omitempty"`
+		Mime     string                          `json:"mime"`
+		Source   *OpencodeFilePartSource         `json:"source,omitempty"`
+		Type     SessionCommandJSONBodyPartsType `json:"type"`
+		Url      string                          `json:"url"`
+	} `json:"parts,omitempty"`
+	Variant *string `json:"variant,omitempty"`
+}
+
+// SessionCommandParams defines parameters for SessionCommand.
+type SessionCommandParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionCommandJSONBodyPartsType defines parameters for SessionCommand.
+type SessionCommandJSONBodyPartsType string
+
+// SessionDiffParams defines parameters for SessionDiff.
+type SessionDiffParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+	MessageID *string `form:"messageID,omitempty" json:"messageID,omitempty"`
+}
+
+// SessionForkJSONBody defines parameters for SessionFork.
+type SessionForkJSONBody struct {
+	MessageID *string `json:"messageID,omitempty"`
+}
+
+// SessionForkParams defines parameters for SessionFork.
+type SessionForkParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionInitJSONBody defines parameters for SessionInit.
+type SessionInitJSONBody struct {
+	MessageID  string `json:"messageID"`
+	ModelID    string `json:"modelID"`
+	ProviderID string `json:"providerID"`
+}
+
+// SessionInitParams defines parameters for SessionInit.
+type SessionInitParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionMessagesParams defines parameters for SessionMessages.
+type SessionMessagesParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+	Limit     *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Before    *string `form:"before,omitempty" json:"before,omitempty"`
+}
+
+// SessionPromptJSONBody defines parameters for SessionPrompt.
+type SessionPromptJSONBody struct {
+	Agent     *string               `json:"agent,omitempty"`
+	Format    *OpencodeOutputFormat `json:"format,omitempty"`
+	MessageID *string               `json:"messageID,omitempty"`
+	Model     *struct {
+		ModelID    string `json:"modelID"`
+		ProviderID string `json:"providerID"`
+	} `json:"model,omitempty"`
+	NoReply *bool                              `json:"noReply,omitempty"`
+	Parts   []SessionPromptJSONBody_Parts_Item `json:"parts"`
+	System  *string                            `json:"system,omitempty"`
+	Tools   *map[string]bool                   `json:"tools,omitempty"`
+	Variant *string                            `json:"variant,omitempty"`
+}
+
+// SessionPromptParams defines parameters for SessionPrompt.
+type SessionPromptParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionPromptJSONBody_Parts_Item defines parameters for SessionPrompt.
+type SessionPromptJSONBody_Parts_Item struct {
+	union json.RawMessage
+}
+
+// SessionDeleteMessageParams defines parameters for SessionDeleteMessage.
+type SessionDeleteMessageParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionMessageParams defines parameters for SessionMessage.
+type SessionMessageParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PartDeleteParams defines parameters for PartDelete.
+type PartDeleteParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PartUpdateParams defines parameters for PartUpdate.
+type PartUpdateParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PermissionRespondJSONBody defines parameters for PermissionRespond.
+type PermissionRespondJSONBody struct {
+	Response PermissionRespondJSONBodyResponse `json:"response"`
+}
+
+// PermissionRespondParams defines parameters for PermissionRespond.
+type PermissionRespondParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PermissionRespondJSONBodyResponse defines parameters for PermissionRespond.
+type PermissionRespondJSONBodyResponse string
+
+// SessionPromptAsyncJSONBody defines parameters for SessionPromptAsync.
+type SessionPromptAsyncJSONBody struct {
+	Agent     *string               `json:"agent,omitempty"`
+	Format    *OpencodeOutputFormat `json:"format,omitempty"`
+	MessageID *string               `json:"messageID,omitempty"`
+	Model     *struct {
+		ModelID    string `json:"modelID"`
+		ProviderID string `json:"providerID"`
+	} `json:"model,omitempty"`
+	NoReply *bool                                   `json:"noReply,omitempty"`
+	Parts   []SessionPromptAsyncJSONBody_Parts_Item `json:"parts"`
+	System  *string                                 `json:"system,omitempty"`
+	Tools   *map[string]bool                        `json:"tools,omitempty"`
+	Variant *string                                 `json:"variant,omitempty"`
+}
+
+// SessionPromptAsyncParams defines parameters for SessionPromptAsync.
+type SessionPromptAsyncParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionPromptAsyncJSONBody_Parts_Item defines parameters for SessionPromptAsync.
+type SessionPromptAsyncJSONBody_Parts_Item struct {
+	union json.RawMessage
+}
+
+// SessionRevertJSONBody defines parameters for SessionRevert.
+type SessionRevertJSONBody struct {
+	MessageID string  `json:"messageID"`
+	PartID    *string `json:"partID,omitempty"`
+}
+
+// SessionRevertParams defines parameters for SessionRevert.
+type SessionRevertParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionUnshareParams defines parameters for SessionUnshare.
+type SessionUnshareParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionShareParams defines parameters for SessionShare.
+type SessionShareParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionShellJSONBody defines parameters for SessionShell.
+type SessionShellJSONBody struct {
+	Agent     string  `json:"agent"`
+	Command   string  `json:"command"`
+	MessageID *string `json:"messageID,omitempty"`
+	Model     *struct {
+		ModelID    string `json:"modelID"`
+		ProviderID string `json:"providerID"`
+	} `json:"model,omitempty"`
+}
+
+// SessionShellParams defines parameters for SessionShell.
+type SessionShellParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionSummarizeJSONBody defines parameters for SessionSummarize.
+type SessionSummarizeJSONBody struct {
+	Auto       *bool  `json:"auto,omitempty"`
+	ModelID    string `json:"modelID"`
+	ProviderID string `json:"providerID"`
+}
+
+// SessionSummarizeParams defines parameters for SessionSummarize.
+type SessionSummarizeParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionTodoParams defines parameters for SessionTodo.
+type SessionTodoParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// SessionUnrevertParams defines parameters for SessionUnrevert.
+type SessionUnrevertParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
 // ListSecretsParams defines parameters for ListSecrets.
 type ListSecretsParams struct {
 	// Limit Maximum number of items to return.
@@ -845,11 +2124,50 @@ type DeleteEnvironmentJSONRequestBody = DeleteEnvironmentRequest
 // UpdateEnvironmentJSONRequestBody defines body for UpdateEnvironment for application/json ContentType.
 type UpdateEnvironmentJSONRequestBody = UpdateEnvironmentRequest
 
+// SessionCreateJSONRequestBody defines body for SessionCreate for application/json ContentType.
+type SessionCreateJSONRequestBody SessionCreateJSONBody
+
+// SessionUpdateJSONRequestBody defines body for SessionUpdate for application/json ContentType.
+type SessionUpdateJSONRequestBody SessionUpdateJSONBody
+
+// SessionCommandJSONRequestBody defines body for SessionCommand for application/json ContentType.
+type SessionCommandJSONRequestBody SessionCommandJSONBody
+
+// SessionForkJSONRequestBody defines body for SessionFork for application/json ContentType.
+type SessionForkJSONRequestBody SessionForkJSONBody
+
+// SessionInitJSONRequestBody defines body for SessionInit for application/json ContentType.
+type SessionInitJSONRequestBody SessionInitJSONBody
+
+// SessionPromptJSONRequestBody defines body for SessionPrompt for application/json ContentType.
+type SessionPromptJSONRequestBody SessionPromptJSONBody
+
+// PartUpdateJSONRequestBody defines body for PartUpdate for application/json ContentType.
+type PartUpdateJSONRequestBody = OpencodePart
+
+// PermissionRespondJSONRequestBody defines body for PermissionRespond for application/json ContentType.
+type PermissionRespondJSONRequestBody PermissionRespondJSONBody
+
+// SessionPromptAsyncJSONRequestBody defines body for SessionPromptAsync for application/json ContentType.
+type SessionPromptAsyncJSONRequestBody SessionPromptAsyncJSONBody
+
+// SessionRevertJSONRequestBody defines body for SessionRevert for application/json ContentType.
+type SessionRevertJSONRequestBody SessionRevertJSONBody
+
+// SessionShellJSONRequestBody defines body for SessionShell for application/json ContentType.
+type SessionShellJSONRequestBody SessionShellJSONBody
+
+// SessionSummarizeJSONRequestBody defines body for SessionSummarize for application/json ContentType.
+type SessionSummarizeJSONRequestBody SessionSummarizeJSONBody
+
 // DeleteSecretJSONRequestBody defines body for DeleteSecret for application/json ContentType.
 type DeleteSecretJSONRequestBody = DeleteSecretsRequest
 
 // PutSecretJSONRequestBody defines body for PutSecret for application/json ContentType.
 type PutSecretJSONRequestBody = PutSecretsRequest
+
+// PatchWorkflowRunStatusJSONRequestBody defines body for PatchWorkflowRunStatus for application/json ContentType.
+type PatchWorkflowRunStatusJSONRequestBody = PatchWorkflowRunStatusRequest
 
 // CreateWorkflowJSONRequestBody defines body for CreateWorkflow for application/json ContentType.
 type CreateWorkflowJSONRequestBody = CreateWorkflowRequest
@@ -1183,6 +2501,934 @@ func (t *ListProcessObservabilityResponse_Events_Item) UnmarshalJSON(b []byte) e
 	return err
 }
 
+// AsOpencodeProviderAuthError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeProviderAuthError
+func (t OpencodeAssistantMessage_Error) AsOpencodeProviderAuthError() (OpencodeProviderAuthError, error) {
+	var body OpencodeProviderAuthError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProviderAuthError overwrites any union data inside the OpencodeAssistantMessage_Error as the provided OpencodeProviderAuthError
+func (t *OpencodeAssistantMessage_Error) FromOpencodeProviderAuthError(v OpencodeProviderAuthError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProviderAuthError performs a merge with any union data inside the OpencodeAssistantMessage_Error, using the provided OpencodeProviderAuthError
+func (t *OpencodeAssistantMessage_Error) MergeOpencodeProviderAuthError(v OpencodeProviderAuthError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeUnknownError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeUnknownError
+func (t OpencodeAssistantMessage_Error) AsOpencodeUnknownError() (OpencodeUnknownError, error) {
+	var body OpencodeUnknownError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeUnknownError overwrites any union data inside the OpencodeAssistantMessage_Error as the provided OpencodeUnknownError
+func (t *OpencodeAssistantMessage_Error) FromOpencodeUnknownError(v OpencodeUnknownError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeUnknownError performs a merge with any union data inside the OpencodeAssistantMessage_Error, using the provided OpencodeUnknownError
+func (t *OpencodeAssistantMessage_Error) MergeOpencodeUnknownError(v OpencodeUnknownError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessageOutputLengthError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeMessageOutputLengthError
+func (t OpencodeAssistantMessage_Error) AsOpencodeMessageOutputLengthError() (OpencodeMessageOutputLengthError, error) {
+	var body OpencodeMessageOutputLengthError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessageOutputLengthError overwrites any union data inside the OpencodeAssistantMessage_Error as the provided OpencodeMessageOutputLengthError
+func (t *OpencodeAssistantMessage_Error) FromOpencodeMessageOutputLengthError(v OpencodeMessageOutputLengthError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessageOutputLengthError performs a merge with any union data inside the OpencodeAssistantMessage_Error, using the provided OpencodeMessageOutputLengthError
+func (t *OpencodeAssistantMessage_Error) MergeOpencodeMessageOutputLengthError(v OpencodeMessageOutputLengthError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessageAbortedError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeMessageAbortedError
+func (t OpencodeAssistantMessage_Error) AsOpencodeMessageAbortedError() (OpencodeMessageAbortedError, error) {
+	var body OpencodeMessageAbortedError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessageAbortedError overwrites any union data inside the OpencodeAssistantMessage_Error as the provided OpencodeMessageAbortedError
+func (t *OpencodeAssistantMessage_Error) FromOpencodeMessageAbortedError(v OpencodeMessageAbortedError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessageAbortedError performs a merge with any union data inside the OpencodeAssistantMessage_Error, using the provided OpencodeMessageAbortedError
+func (t *OpencodeAssistantMessage_Error) MergeOpencodeMessageAbortedError(v OpencodeMessageAbortedError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeStructuredOutputError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeStructuredOutputError
+func (t OpencodeAssistantMessage_Error) AsOpencodeStructuredOutputError() (OpencodeStructuredOutputError, error) {
+	var body OpencodeStructuredOutputError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeStructuredOutputError overwrites any union data inside the OpencodeAssistantMessage_Error as the provided OpencodeStructuredOutputError
+func (t *OpencodeAssistantMessage_Error) FromOpencodeStructuredOutputError(v OpencodeStructuredOutputError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeStructuredOutputError performs a merge with any union data inside the OpencodeAssistantMessage_Error, using the provided OpencodeStructuredOutputError
+func (t *OpencodeAssistantMessage_Error) MergeOpencodeStructuredOutputError(v OpencodeStructuredOutputError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeContextOverflowError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeContextOverflowError
+func (t OpencodeAssistantMessage_Error) AsOpencodeContextOverflowError() (OpencodeContextOverflowError, error) {
+	var body OpencodeContextOverflowError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeContextOverflowError overwrites any union data inside the OpencodeAssistantMessage_Error as the provided OpencodeContextOverflowError
+func (t *OpencodeAssistantMessage_Error) FromOpencodeContextOverflowError(v OpencodeContextOverflowError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeContextOverflowError performs a merge with any union data inside the OpencodeAssistantMessage_Error, using the provided OpencodeContextOverflowError
+func (t *OpencodeAssistantMessage_Error) MergeOpencodeContextOverflowError(v OpencodeContextOverflowError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeAPIError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeAPIError
+func (t OpencodeAssistantMessage_Error) AsOpencodeAPIError() (OpencodeAPIError, error) {
+	var body OpencodeAPIError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeAPIError overwrites any union data inside the OpencodeAssistantMessage_Error as the provided OpencodeAPIError
+func (t *OpencodeAssistantMessage_Error) FromOpencodeAPIError(v OpencodeAPIError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeAPIError performs a merge with any union data inside the OpencodeAssistantMessage_Error, using the provided OpencodeAPIError
+func (t *OpencodeAssistantMessage_Error) MergeOpencodeAPIError(v OpencodeAPIError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeAssistantMessage_Error) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeAssistantMessage_Error) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeFileSource returns the union data inside the OpencodeFilePartSource as a OpencodeFileSource
+func (t OpencodeFilePartSource) AsOpencodeFileSource() (OpencodeFileSource, error) {
+	var body OpencodeFileSource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeFileSource overwrites any union data inside the OpencodeFilePartSource as the provided OpencodeFileSource
+func (t *OpencodeFilePartSource) FromOpencodeFileSource(v OpencodeFileSource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeFileSource performs a merge with any union data inside the OpencodeFilePartSource, using the provided OpencodeFileSource
+func (t *OpencodeFilePartSource) MergeOpencodeFileSource(v OpencodeFileSource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSymbolSource returns the union data inside the OpencodeFilePartSource as a OpencodeSymbolSource
+func (t OpencodeFilePartSource) AsOpencodeSymbolSource() (OpencodeSymbolSource, error) {
+	var body OpencodeSymbolSource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSymbolSource overwrites any union data inside the OpencodeFilePartSource as the provided OpencodeSymbolSource
+func (t *OpencodeFilePartSource) FromOpencodeSymbolSource(v OpencodeSymbolSource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSymbolSource performs a merge with any union data inside the OpencodeFilePartSource, using the provided OpencodeSymbolSource
+func (t *OpencodeFilePartSource) MergeOpencodeSymbolSource(v OpencodeSymbolSource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeResourceSource returns the union data inside the OpencodeFilePartSource as a OpencodeResourceSource
+func (t OpencodeFilePartSource) AsOpencodeResourceSource() (OpencodeResourceSource, error) {
+	var body OpencodeResourceSource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeResourceSource overwrites any union data inside the OpencodeFilePartSource as the provided OpencodeResourceSource
+func (t *OpencodeFilePartSource) FromOpencodeResourceSource(v OpencodeResourceSource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeResourceSource performs a merge with any union data inside the OpencodeFilePartSource, using the provided OpencodeResourceSource
+func (t *OpencodeFilePartSource) MergeOpencodeResourceSource(v OpencodeResourceSource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeFilePartSource) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeFilePartSource) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeUserMessage returns the union data inside the OpencodeMessage as a OpencodeUserMessage
+func (t OpencodeMessage) AsOpencodeUserMessage() (OpencodeUserMessage, error) {
+	var body OpencodeUserMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeUserMessage overwrites any union data inside the OpencodeMessage as the provided OpencodeUserMessage
+func (t *OpencodeMessage) FromOpencodeUserMessage(v OpencodeUserMessage) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeUserMessage performs a merge with any union data inside the OpencodeMessage, using the provided OpencodeUserMessage
+func (t *OpencodeMessage) MergeOpencodeUserMessage(v OpencodeUserMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeAssistantMessage returns the union data inside the OpencodeMessage as a OpencodeAssistantMessage
+func (t OpencodeMessage) AsOpencodeAssistantMessage() (OpencodeAssistantMessage, error) {
+	var body OpencodeAssistantMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeAssistantMessage overwrites any union data inside the OpencodeMessage as the provided OpencodeAssistantMessage
+func (t *OpencodeMessage) FromOpencodeAssistantMessage(v OpencodeAssistantMessage) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeAssistantMessage performs a merge with any union data inside the OpencodeMessage, using the provided OpencodeAssistantMessage
+func (t *OpencodeMessage) MergeOpencodeAssistantMessage(v OpencodeAssistantMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeMessage) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeMessage) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeOutputFormatText returns the union data inside the OpencodeOutputFormat as a OpencodeOutputFormatText
+func (t OpencodeOutputFormat) AsOpencodeOutputFormatText() (OpencodeOutputFormatText, error) {
+	var body OpencodeOutputFormatText
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeOutputFormatText overwrites any union data inside the OpencodeOutputFormat as the provided OpencodeOutputFormatText
+func (t *OpencodeOutputFormat) FromOpencodeOutputFormatText(v OpencodeOutputFormatText) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeOutputFormatText performs a merge with any union data inside the OpencodeOutputFormat, using the provided OpencodeOutputFormatText
+func (t *OpencodeOutputFormat) MergeOpencodeOutputFormatText(v OpencodeOutputFormatText) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeOutputFormatJsonSchema returns the union data inside the OpencodeOutputFormat as a OpencodeOutputFormatJsonSchema
+func (t OpencodeOutputFormat) AsOpencodeOutputFormatJsonSchema() (OpencodeOutputFormatJsonSchema, error) {
+	var body OpencodeOutputFormatJsonSchema
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeOutputFormatJsonSchema overwrites any union data inside the OpencodeOutputFormat as the provided OpencodeOutputFormatJsonSchema
+func (t *OpencodeOutputFormat) FromOpencodeOutputFormatJsonSchema(v OpencodeOutputFormatJsonSchema) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeOutputFormatJsonSchema performs a merge with any union data inside the OpencodeOutputFormat, using the provided OpencodeOutputFormatJsonSchema
+func (t *OpencodeOutputFormat) MergeOpencodeOutputFormatJsonSchema(v OpencodeOutputFormatJsonSchema) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeOutputFormat) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeOutputFormat) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeTextPart returns the union data inside the OpencodePart as a OpencodeTextPart
+func (t OpencodePart) AsOpencodeTextPart() (OpencodeTextPart, error) {
+	var body OpencodeTextPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeTextPart overwrites any union data inside the OpencodePart as the provided OpencodeTextPart
+func (t *OpencodePart) FromOpencodeTextPart(v OpencodeTextPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeTextPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeTextPart
+func (t *OpencodePart) MergeOpencodeTextPart(v OpencodeTextPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSubtaskPart returns the union data inside the OpencodePart as a OpencodeSubtaskPart
+func (t OpencodePart) AsOpencodeSubtaskPart() (OpencodeSubtaskPart, error) {
+	var body OpencodeSubtaskPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSubtaskPart overwrites any union data inside the OpencodePart as the provided OpencodeSubtaskPart
+func (t *OpencodePart) FromOpencodeSubtaskPart(v OpencodeSubtaskPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSubtaskPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeSubtaskPart
+func (t *OpencodePart) MergeOpencodeSubtaskPart(v OpencodeSubtaskPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeReasoningPart returns the union data inside the OpencodePart as a OpencodeReasoningPart
+func (t OpencodePart) AsOpencodeReasoningPart() (OpencodeReasoningPart, error) {
+	var body OpencodeReasoningPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeReasoningPart overwrites any union data inside the OpencodePart as the provided OpencodeReasoningPart
+func (t *OpencodePart) FromOpencodeReasoningPart(v OpencodeReasoningPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeReasoningPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeReasoningPart
+func (t *OpencodePart) MergeOpencodeReasoningPart(v OpencodeReasoningPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeFilePart returns the union data inside the OpencodePart as a OpencodeFilePart
+func (t OpencodePart) AsOpencodeFilePart() (OpencodeFilePart, error) {
+	var body OpencodeFilePart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeFilePart overwrites any union data inside the OpencodePart as the provided OpencodeFilePart
+func (t *OpencodePart) FromOpencodeFilePart(v OpencodeFilePart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeFilePart performs a merge with any union data inside the OpencodePart, using the provided OpencodeFilePart
+func (t *OpencodePart) MergeOpencodeFilePart(v OpencodeFilePart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeToolPart returns the union data inside the OpencodePart as a OpencodeToolPart
+func (t OpencodePart) AsOpencodeToolPart() (OpencodeToolPart, error) {
+	var body OpencodeToolPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeToolPart overwrites any union data inside the OpencodePart as the provided OpencodeToolPart
+func (t *OpencodePart) FromOpencodeToolPart(v OpencodeToolPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeToolPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeToolPart
+func (t *OpencodePart) MergeOpencodeToolPart(v OpencodeToolPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeStepStartPart returns the union data inside the OpencodePart as a OpencodeStepStartPart
+func (t OpencodePart) AsOpencodeStepStartPart() (OpencodeStepStartPart, error) {
+	var body OpencodeStepStartPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeStepStartPart overwrites any union data inside the OpencodePart as the provided OpencodeStepStartPart
+func (t *OpencodePart) FromOpencodeStepStartPart(v OpencodeStepStartPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeStepStartPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeStepStartPart
+func (t *OpencodePart) MergeOpencodeStepStartPart(v OpencodeStepStartPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeStepFinishPart returns the union data inside the OpencodePart as a OpencodeStepFinishPart
+func (t OpencodePart) AsOpencodeStepFinishPart() (OpencodeStepFinishPart, error) {
+	var body OpencodeStepFinishPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeStepFinishPart overwrites any union data inside the OpencodePart as the provided OpencodeStepFinishPart
+func (t *OpencodePart) FromOpencodeStepFinishPart(v OpencodeStepFinishPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeStepFinishPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeStepFinishPart
+func (t *OpencodePart) MergeOpencodeStepFinishPart(v OpencodeStepFinishPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSnapshotPart returns the union data inside the OpencodePart as a OpencodeSnapshotPart
+func (t OpencodePart) AsOpencodeSnapshotPart() (OpencodeSnapshotPart, error) {
+	var body OpencodeSnapshotPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSnapshotPart overwrites any union data inside the OpencodePart as the provided OpencodeSnapshotPart
+func (t *OpencodePart) FromOpencodeSnapshotPart(v OpencodeSnapshotPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSnapshotPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeSnapshotPart
+func (t *OpencodePart) MergeOpencodeSnapshotPart(v OpencodeSnapshotPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePatchPart returns the union data inside the OpencodePart as a OpencodePatchPart
+func (t OpencodePart) AsOpencodePatchPart() (OpencodePatchPart, error) {
+	var body OpencodePatchPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePatchPart overwrites any union data inside the OpencodePart as the provided OpencodePatchPart
+func (t *OpencodePart) FromOpencodePatchPart(v OpencodePatchPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePatchPart performs a merge with any union data inside the OpencodePart, using the provided OpencodePatchPart
+func (t *OpencodePart) MergeOpencodePatchPart(v OpencodePatchPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeAgentPart returns the union data inside the OpencodePart as a OpencodeAgentPart
+func (t OpencodePart) AsOpencodeAgentPart() (OpencodeAgentPart, error) {
+	var body OpencodeAgentPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeAgentPart overwrites any union data inside the OpencodePart as the provided OpencodeAgentPart
+func (t *OpencodePart) FromOpencodeAgentPart(v OpencodeAgentPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeAgentPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeAgentPart
+func (t *OpencodePart) MergeOpencodeAgentPart(v OpencodeAgentPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeRetryPart returns the union data inside the OpencodePart as a OpencodeRetryPart
+func (t OpencodePart) AsOpencodeRetryPart() (OpencodeRetryPart, error) {
+	var body OpencodeRetryPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeRetryPart overwrites any union data inside the OpencodePart as the provided OpencodeRetryPart
+func (t *OpencodePart) FromOpencodeRetryPart(v OpencodeRetryPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeRetryPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeRetryPart
+func (t *OpencodePart) MergeOpencodeRetryPart(v OpencodeRetryPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeCompactionPart returns the union data inside the OpencodePart as a OpencodeCompactionPart
+func (t OpencodePart) AsOpencodeCompactionPart() (OpencodeCompactionPart, error) {
+	var body OpencodeCompactionPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeCompactionPart overwrites any union data inside the OpencodePart as the provided OpencodeCompactionPart
+func (t *OpencodePart) FromOpencodeCompactionPart(v OpencodeCompactionPart) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeCompactionPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeCompactionPart
+func (t *OpencodePart) MergeOpencodeCompactionPart(v OpencodeCompactionPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodePart) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodePart) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeSessionStatus0 returns the union data inside the OpencodeSessionStatus as a OpencodeSessionStatus0
+func (t OpencodeSessionStatus) AsOpencodeSessionStatus0() (OpencodeSessionStatus0, error) {
+	var body OpencodeSessionStatus0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionStatus0 overwrites any union data inside the OpencodeSessionStatus as the provided OpencodeSessionStatus0
+func (t *OpencodeSessionStatus) FromOpencodeSessionStatus0(v OpencodeSessionStatus0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionStatus0 performs a merge with any union data inside the OpencodeSessionStatus, using the provided OpencodeSessionStatus0
+func (t *OpencodeSessionStatus) MergeOpencodeSessionStatus0(v OpencodeSessionStatus0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionStatus1 returns the union data inside the OpencodeSessionStatus as a OpencodeSessionStatus1
+func (t OpencodeSessionStatus) AsOpencodeSessionStatus1() (OpencodeSessionStatus1, error) {
+	var body OpencodeSessionStatus1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionStatus1 overwrites any union data inside the OpencodeSessionStatus as the provided OpencodeSessionStatus1
+func (t *OpencodeSessionStatus) FromOpencodeSessionStatus1(v OpencodeSessionStatus1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionStatus1 performs a merge with any union data inside the OpencodeSessionStatus, using the provided OpencodeSessionStatus1
+func (t *OpencodeSessionStatus) MergeOpencodeSessionStatus1(v OpencodeSessionStatus1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionStatus2 returns the union data inside the OpencodeSessionStatus as a OpencodeSessionStatus2
+func (t OpencodeSessionStatus) AsOpencodeSessionStatus2() (OpencodeSessionStatus2, error) {
+	var body OpencodeSessionStatus2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionStatus2 overwrites any union data inside the OpencodeSessionStatus as the provided OpencodeSessionStatus2
+func (t *OpencodeSessionStatus) FromOpencodeSessionStatus2(v OpencodeSessionStatus2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionStatus2 performs a merge with any union data inside the OpencodeSessionStatus, using the provided OpencodeSessionStatus2
+func (t *OpencodeSessionStatus) MergeOpencodeSessionStatus2(v OpencodeSessionStatus2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeSessionStatus) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeSessionStatus) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeToolStatePending returns the union data inside the OpencodeToolState as a OpencodeToolStatePending
+func (t OpencodeToolState) AsOpencodeToolStatePending() (OpencodeToolStatePending, error) {
+	var body OpencodeToolStatePending
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeToolStatePending overwrites any union data inside the OpencodeToolState as the provided OpencodeToolStatePending
+func (t *OpencodeToolState) FromOpencodeToolStatePending(v OpencodeToolStatePending) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeToolStatePending performs a merge with any union data inside the OpencodeToolState, using the provided OpencodeToolStatePending
+func (t *OpencodeToolState) MergeOpencodeToolStatePending(v OpencodeToolStatePending) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeToolStateRunning returns the union data inside the OpencodeToolState as a OpencodeToolStateRunning
+func (t OpencodeToolState) AsOpencodeToolStateRunning() (OpencodeToolStateRunning, error) {
+	var body OpencodeToolStateRunning
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeToolStateRunning overwrites any union data inside the OpencodeToolState as the provided OpencodeToolStateRunning
+func (t *OpencodeToolState) FromOpencodeToolStateRunning(v OpencodeToolStateRunning) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeToolStateRunning performs a merge with any union data inside the OpencodeToolState, using the provided OpencodeToolStateRunning
+func (t *OpencodeToolState) MergeOpencodeToolStateRunning(v OpencodeToolStateRunning) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeToolStateCompleted returns the union data inside the OpencodeToolState as a OpencodeToolStateCompleted
+func (t OpencodeToolState) AsOpencodeToolStateCompleted() (OpencodeToolStateCompleted, error) {
+	var body OpencodeToolStateCompleted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeToolStateCompleted overwrites any union data inside the OpencodeToolState as the provided OpencodeToolStateCompleted
+func (t *OpencodeToolState) FromOpencodeToolStateCompleted(v OpencodeToolStateCompleted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeToolStateCompleted performs a merge with any union data inside the OpencodeToolState, using the provided OpencodeToolStateCompleted
+func (t *OpencodeToolState) MergeOpencodeToolStateCompleted(v OpencodeToolStateCompleted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeToolStateError returns the union data inside the OpencodeToolState as a OpencodeToolStateError
+func (t OpencodeToolState) AsOpencodeToolStateError() (OpencodeToolStateError, error) {
+	var body OpencodeToolStateError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeToolStateError overwrites any union data inside the OpencodeToolState as the provided OpencodeToolStateError
+func (t *OpencodeToolState) FromOpencodeToolStateError(v OpencodeToolStateError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeToolStateError performs a merge with any union data inside the OpencodeToolState, using the provided OpencodeToolStateError
+func (t *OpencodeToolState) MergeOpencodeToolStateError(v OpencodeToolStateError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeToolState) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeToolState) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
 
@@ -1318,6 +3564,111 @@ type ClientInterface interface {
 	// ListTraceSessions request
 	ListTraceSessions(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SessionList request
+	SessionList(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionCreateWithBody request with any body
+	SessionCreateWithBody(ctx context.Context, agentName string, params *SessionCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionCreate(ctx context.Context, agentName string, params *SessionCreateParams, body SessionCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionStatus request
+	SessionStatus(ctx context.Context, agentName string, params *SessionStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionDelete request
+	SessionDelete(ctx context.Context, agentName string, sessionID string, params *SessionDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionGet request
+	SessionGet(ctx context.Context, agentName string, sessionID string, params *SessionGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionUpdateWithBody request with any body
+	SessionUpdateWithBody(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionUpdate(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, body SessionUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionAbort request
+	SessionAbort(ctx context.Context, agentName string, sessionID string, params *SessionAbortParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionChildren request
+	SessionChildren(ctx context.Context, agentName string, sessionID string, params *SessionChildrenParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionCommandWithBody request with any body
+	SessionCommandWithBody(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionCommand(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, body SessionCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionDiff request
+	SessionDiff(ctx context.Context, agentName string, sessionID string, params *SessionDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionForkWithBody request with any body
+	SessionForkWithBody(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionFork(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, body SessionForkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionInitWithBody request with any body
+	SessionInitWithBody(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionInit(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, body SessionInitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionMessages request
+	SessionMessages(ctx context.Context, agentName string, sessionID string, params *SessionMessagesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionPromptWithBody request with any body
+	SessionPromptWithBody(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionPrompt(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, body SessionPromptJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionDeleteMessage request
+	SessionDeleteMessage(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionDeleteMessageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionMessage request
+	SessionMessage(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionMessageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PartDelete request
+	PartDelete(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PartUpdateWithBody request with any body
+	PartUpdateWithBody(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PartUpdate(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, body PartUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PermissionRespondWithBody request with any body
+	PermissionRespondWithBody(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PermissionRespond(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, body PermissionRespondJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionPromptAsyncWithBody request with any body
+	SessionPromptAsyncWithBody(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionPromptAsync(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, body SessionPromptAsyncJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionRevertWithBody request with any body
+	SessionRevertWithBody(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionRevert(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, body SessionRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionUnshare request
+	SessionUnshare(ctx context.Context, agentName string, sessionID string, params *SessionUnshareParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionShare request
+	SessionShare(ctx context.Context, agentName string, sessionID string, params *SessionShareParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionShellWithBody request with any body
+	SessionShellWithBody(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionShell(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, body SessionShellJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionSummarizeWithBody request with any body
+	SessionSummarizeWithBody(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SessionSummarize(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, body SessionSummarizeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionTodo request
+	SessionTodo(ctx context.Context, agentName string, sessionID string, params *SessionTodoParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SessionUnrevert request
+	SessionUnrevert(ctx context.Context, agentName string, sessionID string, params *SessionUnrevertParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteSecretWithBody request with any body
 	DeleteSecretWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1330,6 +3681,11 @@ type ClientInterface interface {
 	PutSecretWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PutSecret(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PatchWorkflowRunStatusWithBody request with any body
+	PatchWorkflowRunStatusWithBody(ctx context.Context, name WorkflowRunName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PatchWorkflowRunStatus(ctx context.Context, name WorkflowRunName, body PatchWorkflowRunStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListWorkflowSummaries request
 	ListWorkflowSummaries(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1624,6 +3980,474 @@ func (c *Client) ListTraceSessions(ctx context.Context, params *ListTraceSession
 	return c.Client.Do(req)
 }
 
+func (c *Client) SessionList(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionListRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionCreateWithBody(ctx context.Context, agentName string, params *SessionCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionCreateRequestWithBody(c.Server, agentName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionCreate(ctx context.Context, agentName string, params *SessionCreateParams, body SessionCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionCreateRequest(c.Server, agentName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionStatus(ctx context.Context, agentName string, params *SessionStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionStatusRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionDelete(ctx context.Context, agentName string, sessionID string, params *SessionDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionDeleteRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionGet(ctx context.Context, agentName string, sessionID string, params *SessionGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionGetRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionUpdateWithBody(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionUpdateRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionUpdate(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, body SessionUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionUpdateRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionAbort(ctx context.Context, agentName string, sessionID string, params *SessionAbortParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionAbortRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionChildren(ctx context.Context, agentName string, sessionID string, params *SessionChildrenParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionChildrenRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionCommandWithBody(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionCommandRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionCommand(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, body SessionCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionCommandRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionDiff(ctx context.Context, agentName string, sessionID string, params *SessionDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionDiffRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionForkWithBody(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionForkRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionFork(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, body SessionForkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionForkRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionInitWithBody(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionInitRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionInit(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, body SessionInitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionInitRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionMessages(ctx context.Context, agentName string, sessionID string, params *SessionMessagesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionMessagesRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionPromptWithBody(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionPromptRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionPrompt(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, body SessionPromptJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionPromptRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionDeleteMessage(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionDeleteMessageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionDeleteMessageRequest(c.Server, agentName, sessionID, messageID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionMessage(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionMessageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionMessageRequest(c.Server, agentName, sessionID, messageID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PartDelete(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPartDeleteRequest(c.Server, agentName, sessionID, messageID, partID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PartUpdateWithBody(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPartUpdateRequestWithBody(c.Server, agentName, sessionID, messageID, partID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PartUpdate(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, body PartUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPartUpdateRequest(c.Server, agentName, sessionID, messageID, partID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PermissionRespondWithBody(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPermissionRespondRequestWithBody(c.Server, agentName, sessionID, permissionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PermissionRespond(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, body PermissionRespondJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPermissionRespondRequest(c.Server, agentName, sessionID, permissionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionPromptAsyncWithBody(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionPromptAsyncRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionPromptAsync(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, body SessionPromptAsyncJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionPromptAsyncRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionRevertWithBody(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionRevertRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionRevert(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, body SessionRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionRevertRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionUnshare(ctx context.Context, agentName string, sessionID string, params *SessionUnshareParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionUnshareRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionShare(ctx context.Context, agentName string, sessionID string, params *SessionShareParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionShareRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionShellWithBody(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionShellRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionShell(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, body SessionShellJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionShellRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionSummarizeWithBody(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionSummarizeRequestWithBody(c.Server, agentName, sessionID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionSummarize(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, body SessionSummarizeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionSummarizeRequest(c.Server, agentName, sessionID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionTodo(ctx context.Context, agentName string, sessionID string, params *SessionTodoParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionTodoRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SessionUnrevert(ctx context.Context, agentName string, sessionID string, params *SessionUnrevertParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSessionUnrevertRequest(c.Server, agentName, sessionID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) DeleteSecretWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteSecretRequestWithBody(c.Server, agentName, contentType, body)
 	if err != nil {
@@ -1674,6 +4498,30 @@ func (c *Client) PutSecretWithBody(ctx context.Context, agentName AgentNamePath,
 
 func (c *Client) PutSecret(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutSecretRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchWorkflowRunStatusWithBody(ctx context.Context, name WorkflowRunName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchWorkflowRunStatusRequestWithBody(c.Server, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchWorkflowRunStatus(ctx context.Context, name WorkflowRunName, body PatchWorkflowRunStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchWorkflowRunStatusRequest(c.Server, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3011,6 +5859,2467 @@ func NewListTraceSessionsRequest(server string, params *ListTraceSessionsParams)
 	return req, nil
 }
 
+// NewSessionListRequest generates requests for SessionList
+func NewSessionListRequest(server string, agentName string, params *SessionListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Scope != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scope", runtime.ParamLocationQuery, *params.Scope); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Path != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "path", runtime.ParamLocationQuery, *params.Path); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Roots != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "roots", runtime.ParamLocationQuery, *params.Roots); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Start != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "start", runtime.ParamLocationQuery, *params.Start); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionCreateRequest calls the generic SessionCreate builder with application/json body
+func NewSessionCreateRequest(server string, agentName string, params *SessionCreateParams, body SessionCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionCreateRequestWithBody(server, agentName, params, "application/json", bodyReader)
+}
+
+// NewSessionCreateRequestWithBody generates requests for SessionCreate with any type of body
+func NewSessionCreateRequestWithBody(server string, agentName string, params *SessionCreateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionStatusRequest generates requests for SessionStatus
+func NewSessionStatusRequest(server string, agentName string, params *SessionStatusParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionDeleteRequest generates requests for SessionDelete
+func NewSessionDeleteRequest(server string, agentName string, sessionID string, params *SessionDeleteParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionGetRequest generates requests for SessionGet
+func NewSessionGetRequest(server string, agentName string, sessionID string, params *SessionGetParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionUpdateRequest calls the generic SessionUpdate builder with application/json body
+func NewSessionUpdateRequest(server string, agentName string, sessionID string, params *SessionUpdateParams, body SessionUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionUpdateRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionUpdateRequestWithBody generates requests for SessionUpdate with any type of body
+func NewSessionUpdateRequestWithBody(server string, agentName string, sessionID string, params *SessionUpdateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionAbortRequest generates requests for SessionAbort
+func NewSessionAbortRequest(server string, agentName string, sessionID string, params *SessionAbortParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/abort", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionChildrenRequest generates requests for SessionChildren
+func NewSessionChildrenRequest(server string, agentName string, sessionID string, params *SessionChildrenParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/children", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionCommandRequest calls the generic SessionCommand builder with application/json body
+func NewSessionCommandRequest(server string, agentName string, sessionID string, params *SessionCommandParams, body SessionCommandJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionCommandRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionCommandRequestWithBody generates requests for SessionCommand with any type of body
+func NewSessionCommandRequestWithBody(server string, agentName string, sessionID string, params *SessionCommandParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/command", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionDiffRequest generates requests for SessionDiff
+func NewSessionDiffRequest(server string, agentName string, sessionID string, params *SessionDiffParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/diff", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.MessageID != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "messageID", runtime.ParamLocationQuery, *params.MessageID); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionForkRequest calls the generic SessionFork builder with application/json body
+func NewSessionForkRequest(server string, agentName string, sessionID string, params *SessionForkParams, body SessionForkJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionForkRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionForkRequestWithBody generates requests for SessionFork with any type of body
+func NewSessionForkRequestWithBody(server string, agentName string, sessionID string, params *SessionForkParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/fork", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionInitRequest calls the generic SessionInit builder with application/json body
+func NewSessionInitRequest(server string, agentName string, sessionID string, params *SessionInitParams, body SessionInitJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionInitRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionInitRequestWithBody generates requests for SessionInit with any type of body
+func NewSessionInitRequestWithBody(server string, agentName string, sessionID string, params *SessionInitParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/init", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionMessagesRequest generates requests for SessionMessages
+func NewSessionMessagesRequest(server string, agentName string, sessionID string, params *SessionMessagesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/message", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Before != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "before", runtime.ParamLocationQuery, *params.Before); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionPromptRequest calls the generic SessionPrompt builder with application/json body
+func NewSessionPromptRequest(server string, agentName string, sessionID string, params *SessionPromptParams, body SessionPromptJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionPromptRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionPromptRequestWithBody generates requests for SessionPrompt with any type of body
+func NewSessionPromptRequestWithBody(server string, agentName string, sessionID string, params *SessionPromptParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/message", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionDeleteMessageRequest generates requests for SessionDeleteMessage
+func NewSessionDeleteMessageRequest(server string, agentName string, sessionID string, messageID string, params *SessionDeleteMessageParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "messageID", runtime.ParamLocationPath, messageID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/message/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionMessageRequest generates requests for SessionMessage
+func NewSessionMessageRequest(server string, agentName string, sessionID string, messageID string, params *SessionMessageParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "messageID", runtime.ParamLocationPath, messageID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/message/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPartDeleteRequest generates requests for PartDelete
+func NewPartDeleteRequest(server string, agentName string, sessionID string, messageID string, partID string, params *PartDeleteParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "messageID", runtime.ParamLocationPath, messageID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "partID", runtime.ParamLocationPath, partID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/message/%s/part/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPartUpdateRequest calls the generic PartUpdate builder with application/json body
+func NewPartUpdateRequest(server string, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, body PartUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPartUpdateRequestWithBody(server, agentName, sessionID, messageID, partID, params, "application/json", bodyReader)
+}
+
+// NewPartUpdateRequestWithBody generates requests for PartUpdate with any type of body
+func NewPartUpdateRequestWithBody(server string, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "messageID", runtime.ParamLocationPath, messageID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "partID", runtime.ParamLocationPath, partID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/message/%s/part/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPermissionRespondRequest calls the generic PermissionRespond builder with application/json body
+func NewPermissionRespondRequest(server string, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, body PermissionRespondJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPermissionRespondRequestWithBody(server, agentName, sessionID, permissionID, params, "application/json", bodyReader)
+}
+
+// NewPermissionRespondRequestWithBody generates requests for PermissionRespond with any type of body
+func NewPermissionRespondRequestWithBody(server string, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "permissionID", runtime.ParamLocationPath, permissionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/permissions/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionPromptAsyncRequest calls the generic SessionPromptAsync builder with application/json body
+func NewSessionPromptAsyncRequest(server string, agentName string, sessionID string, params *SessionPromptAsyncParams, body SessionPromptAsyncJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionPromptAsyncRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionPromptAsyncRequestWithBody generates requests for SessionPromptAsync with any type of body
+func NewSessionPromptAsyncRequestWithBody(server string, agentName string, sessionID string, params *SessionPromptAsyncParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/prompt_async", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionRevertRequest calls the generic SessionRevert builder with application/json body
+func NewSessionRevertRequest(server string, agentName string, sessionID string, params *SessionRevertParams, body SessionRevertJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionRevertRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionRevertRequestWithBody generates requests for SessionRevert with any type of body
+func NewSessionRevertRequestWithBody(server string, agentName string, sessionID string, params *SessionRevertParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/revert", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionUnshareRequest generates requests for SessionUnshare
+func NewSessionUnshareRequest(server string, agentName string, sessionID string, params *SessionUnshareParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/share", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionShareRequest generates requests for SessionShare
+func NewSessionShareRequest(server string, agentName string, sessionID string, params *SessionShareParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/share", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionShellRequest calls the generic SessionShell builder with application/json body
+func NewSessionShellRequest(server string, agentName string, sessionID string, params *SessionShellParams, body SessionShellJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionShellRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionShellRequestWithBody generates requests for SessionShell with any type of body
+func NewSessionShellRequestWithBody(server string, agentName string, sessionID string, params *SessionShellParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/shell", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionSummarizeRequest calls the generic SessionSummarize builder with application/json body
+func NewSessionSummarizeRequest(server string, agentName string, sessionID string, params *SessionSummarizeParams, body SessionSummarizeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSessionSummarizeRequestWithBody(server, agentName, sessionID, params, "application/json", bodyReader)
+}
+
+// NewSessionSummarizeRequestWithBody generates requests for SessionSummarize with any type of body
+func NewSessionSummarizeRequestWithBody(server string, agentName string, sessionID string, params *SessionSummarizeParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/summarize", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSessionTodoRequest generates requests for SessionTodo
+func NewSessionTodoRequest(server string, agentName string, sessionID string, params *SessionTodoParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/todo", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSessionUnrevertRequest generates requests for SessionUnrevert
+func NewSessionUnrevertRequest(server string, agentName string, sessionID string, params *SessionUnrevertParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionID", runtime.ParamLocationPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/session/%s/unrevert", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteSecretRequest calls the generic DeleteSecret builder with application/json body
 func NewDeleteSecretRequest(server string, agentName AgentNamePath, body DeleteSecretJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3168,6 +8477,53 @@ func NewPutSecretRequestWithBody(server string, agentName AgentNamePath, content
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPatchWorkflowRunStatusRequest calls the generic PatchWorkflowRunStatus builder with application/json body
+func NewPatchWorkflowRunStatusRequest(server string, name WorkflowRunName, body PatchWorkflowRunStatusJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPatchWorkflowRunStatusRequestWithBody(server, name, "application/json", bodyReader)
+}
+
+// NewPatchWorkflowRunStatusRequestWithBody generates requests for PatchWorkflowRunStatus with any type of body
+func NewPatchWorkflowRunStatusRequestWithBody(server string, name WorkflowRunName, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workflow-runs/%s/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -3444,6 +8800,111 @@ type ClientWithResponsesInterface interface {
 	// ListTraceSessionsWithResponse request
 	ListTraceSessionsWithResponse(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*ListTraceSessionsResp, error)
 
+	// SessionListWithResponse request
+	SessionListWithResponse(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*SessionListResp, error)
+
+	// SessionCreateWithBodyWithResponse request with any body
+	SessionCreateWithBodyWithResponse(ctx context.Context, agentName string, params *SessionCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionCreateResp, error)
+
+	SessionCreateWithResponse(ctx context.Context, agentName string, params *SessionCreateParams, body SessionCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionCreateResp, error)
+
+	// SessionStatusWithResponse request
+	SessionStatusWithResponse(ctx context.Context, agentName string, params *SessionStatusParams, reqEditors ...RequestEditorFn) (*SessionStatusResp, error)
+
+	// SessionDeleteWithResponse request
+	SessionDeleteWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionDeleteParams, reqEditors ...RequestEditorFn) (*SessionDeleteResp, error)
+
+	// SessionGetWithResponse request
+	SessionGetWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionGetParams, reqEditors ...RequestEditorFn) (*SessionGetResp, error)
+
+	// SessionUpdateWithBodyWithResponse request with any body
+	SessionUpdateWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionUpdateResp, error)
+
+	SessionUpdateWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, body SessionUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionUpdateResp, error)
+
+	// SessionAbortWithResponse request
+	SessionAbortWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionAbortParams, reqEditors ...RequestEditorFn) (*SessionAbortResp, error)
+
+	// SessionChildrenWithResponse request
+	SessionChildrenWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionChildrenParams, reqEditors ...RequestEditorFn) (*SessionChildrenResp, error)
+
+	// SessionCommandWithBodyWithResponse request with any body
+	SessionCommandWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionCommandResp, error)
+
+	SessionCommandWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, body SessionCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionCommandResp, error)
+
+	// SessionDiffWithResponse request
+	SessionDiffWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionDiffParams, reqEditors ...RequestEditorFn) (*SessionDiffResp, error)
+
+	// SessionForkWithBodyWithResponse request with any body
+	SessionForkWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionForkResp, error)
+
+	SessionForkWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, body SessionForkJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionForkResp, error)
+
+	// SessionInitWithBodyWithResponse request with any body
+	SessionInitWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionInitResp, error)
+
+	SessionInitWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, body SessionInitJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionInitResp, error)
+
+	// SessionMessagesWithResponse request
+	SessionMessagesWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionMessagesParams, reqEditors ...RequestEditorFn) (*SessionMessagesResp, error)
+
+	// SessionPromptWithBodyWithResponse request with any body
+	SessionPromptWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionPromptResp, error)
+
+	SessionPromptWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, body SessionPromptJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionPromptResp, error)
+
+	// SessionDeleteMessageWithResponse request
+	SessionDeleteMessageWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionDeleteMessageParams, reqEditors ...RequestEditorFn) (*SessionDeleteMessageResp, error)
+
+	// SessionMessageWithResponse request
+	SessionMessageWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionMessageParams, reqEditors ...RequestEditorFn) (*SessionMessageResp, error)
+
+	// PartDeleteWithResponse request
+	PartDeleteWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartDeleteParams, reqEditors ...RequestEditorFn) (*PartDeleteResp, error)
+
+	// PartUpdateWithBodyWithResponse request with any body
+	PartUpdateWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PartUpdateResp, error)
+
+	PartUpdateWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, body PartUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*PartUpdateResp, error)
+
+	// PermissionRespondWithBodyWithResponse request with any body
+	PermissionRespondWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PermissionRespondResp, error)
+
+	PermissionRespondWithResponse(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, body PermissionRespondJSONRequestBody, reqEditors ...RequestEditorFn) (*PermissionRespondResp, error)
+
+	// SessionPromptAsyncWithBodyWithResponse request with any body
+	SessionPromptAsyncWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionPromptAsyncResp, error)
+
+	SessionPromptAsyncWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, body SessionPromptAsyncJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionPromptAsyncResp, error)
+
+	// SessionRevertWithBodyWithResponse request with any body
+	SessionRevertWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionRevertResp, error)
+
+	SessionRevertWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, body SessionRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionRevertResp, error)
+
+	// SessionUnshareWithResponse request
+	SessionUnshareWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUnshareParams, reqEditors ...RequestEditorFn) (*SessionUnshareResp, error)
+
+	// SessionShareWithResponse request
+	SessionShareWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionShareParams, reqEditors ...RequestEditorFn) (*SessionShareResp, error)
+
+	// SessionShellWithBodyWithResponse request with any body
+	SessionShellWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionShellResp, error)
+
+	SessionShellWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, body SessionShellJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionShellResp, error)
+
+	// SessionSummarizeWithBodyWithResponse request with any body
+	SessionSummarizeWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionSummarizeResp, error)
+
+	SessionSummarizeWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, body SessionSummarizeJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionSummarizeResp, error)
+
+	// SessionTodoWithResponse request
+	SessionTodoWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionTodoParams, reqEditors ...RequestEditorFn) (*SessionTodoResp, error)
+
+	// SessionUnrevertWithResponse request
+	SessionUnrevertWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUnrevertParams, reqEditors ...RequestEditorFn) (*SessionUnrevertResp, error)
+
 	// DeleteSecretWithBodyWithResponse request with any body
 	DeleteSecretWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteSecretResp, error)
 
@@ -3456,6 +8917,11 @@ type ClientWithResponsesInterface interface {
 	PutSecretWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
 
 	PutSecretWithResponse(ctx context.Context, agentName AgentNamePath, body PutSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSecretResp, error)
+
+	// PatchWorkflowRunStatusWithBodyWithResponse request with any body
+	PatchWorkflowRunStatusWithBodyWithResponse(ctx context.Context, name WorkflowRunName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchWorkflowRunStatusResp, error)
+
+	PatchWorkflowRunStatusWithResponse(ctx context.Context, name WorkflowRunName, body PatchWorkflowRunStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchWorkflowRunStatusResp, error)
 
 	// ListWorkflowSummariesWithResponse request
 	ListWorkflowSummariesWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*ListWorkflowSummariesResp, error)
@@ -3869,6 +9335,661 @@ func (r ListTraceSessionsResp) StatusCode() int {
 	return 0
 }
 
+type SessionListResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]OpencodeSession
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionListResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionListResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionCreateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON400      *OpencodeBadRequestError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionCreateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionCreateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionStatusResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]OpencodeSessionStatus
+	JSON400      *OpencodeBadRequestError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionStatusResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionStatusResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionDeleteResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionDeleteResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionDeleteResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionGetResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionGetResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionGetResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionAbortResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionAbortResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionAbortResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionChildrenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]OpencodeSession
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionChildrenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionChildrenResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionCommandResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Info  OpencodeAssistantMessage `json:"info"`
+		Parts []OpencodePart           `json:"parts"`
+	}
+	JSON400 *OpencodeBadRequestError
+	JSON404 *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionCommandResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionCommandResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionDiffResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]OpencodeSnapshotFileDiff
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionDiffResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionDiffResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionForkResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionForkResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionForkResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionInitResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionInitResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionInitResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionMessagesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]struct {
+		Info  OpencodeMessage `json:"info"`
+		Parts []OpencodePart  `json:"parts"`
+	}
+	JSON400 *OpencodeBadRequestError
+	JSON404 *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionMessagesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionMessagesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionPromptResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Info  OpencodeAssistantMessage `json:"info"`
+		Parts []OpencodePart           `json:"parts"`
+	}
+	JSON400 *OpencodeBadRequestError
+	JSON404 *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionPromptResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionPromptResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionDeleteMessageResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionDeleteMessageResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionDeleteMessageResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionMessageResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Info  OpencodeMessage `json:"info"`
+		Parts []OpencodePart  `json:"parts"`
+	}
+	JSON400 *OpencodeBadRequestError
+	JSON404 *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionMessageResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionMessageResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PartDeleteResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PartDeleteResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PartDeleteResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PartUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodePart
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PartUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PartUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PermissionRespondResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PermissionRespondResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PermissionRespondResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionPromptAsyncResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionPromptAsyncResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionPromptAsyncResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionRevertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionRevertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionRevertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionUnshareResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON404      *OpencodeNotFoundError
+	JSON500      *OpencodeeffectHttpApiErrorInternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionUnshareResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionUnshareResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionShareResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON404      *OpencodeNotFoundError
+	JSON500      *OpencodeeffectHttpApiErrorInternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionShareResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionShareResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionShellResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Info  OpencodeMessage `json:"info"`
+		Parts []OpencodePart  `json:"parts"`
+	}
+	JSON400 *OpencodeBadRequestError
+	JSON404 *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionShellResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionShellResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionSummarizeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionSummarizeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionSummarizeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionTodoResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]OpencodeTodo
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionTodoResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionTodoResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SessionUnrevertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodeSession
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r SessionUnrevertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SessionUnrevertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type DeleteSecretResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3937,6 +10058,31 @@ func (r PutSecretResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PutSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PatchWorkflowRunStatusResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r PatchWorkflowRunStatusResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PatchWorkflowRunStatusResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4242,6 +10388,345 @@ func (c *ClientWithResponses) ListTraceSessionsWithResponse(ctx context.Context,
 	return ParseListTraceSessionsResp(rsp)
 }
 
+// SessionListWithResponse request returning *SessionListResp
+func (c *ClientWithResponses) SessionListWithResponse(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*SessionListResp, error) {
+	rsp, err := c.SessionList(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionListResp(rsp)
+}
+
+// SessionCreateWithBodyWithResponse request with arbitrary body returning *SessionCreateResp
+func (c *ClientWithResponses) SessionCreateWithBodyWithResponse(ctx context.Context, agentName string, params *SessionCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionCreateResp, error) {
+	rsp, err := c.SessionCreateWithBody(ctx, agentName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionCreateResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionCreateWithResponse(ctx context.Context, agentName string, params *SessionCreateParams, body SessionCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionCreateResp, error) {
+	rsp, err := c.SessionCreate(ctx, agentName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionCreateResp(rsp)
+}
+
+// SessionStatusWithResponse request returning *SessionStatusResp
+func (c *ClientWithResponses) SessionStatusWithResponse(ctx context.Context, agentName string, params *SessionStatusParams, reqEditors ...RequestEditorFn) (*SessionStatusResp, error) {
+	rsp, err := c.SessionStatus(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionStatusResp(rsp)
+}
+
+// SessionDeleteWithResponse request returning *SessionDeleteResp
+func (c *ClientWithResponses) SessionDeleteWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionDeleteParams, reqEditors ...RequestEditorFn) (*SessionDeleteResp, error) {
+	rsp, err := c.SessionDelete(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionDeleteResp(rsp)
+}
+
+// SessionGetWithResponse request returning *SessionGetResp
+func (c *ClientWithResponses) SessionGetWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionGetParams, reqEditors ...RequestEditorFn) (*SessionGetResp, error) {
+	rsp, err := c.SessionGet(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionGetResp(rsp)
+}
+
+// SessionUpdateWithBodyWithResponse request with arbitrary body returning *SessionUpdateResp
+func (c *ClientWithResponses) SessionUpdateWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionUpdateResp, error) {
+	rsp, err := c.SessionUpdateWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionUpdateResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionUpdateWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUpdateParams, body SessionUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionUpdateResp, error) {
+	rsp, err := c.SessionUpdate(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionUpdateResp(rsp)
+}
+
+// SessionAbortWithResponse request returning *SessionAbortResp
+func (c *ClientWithResponses) SessionAbortWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionAbortParams, reqEditors ...RequestEditorFn) (*SessionAbortResp, error) {
+	rsp, err := c.SessionAbort(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionAbortResp(rsp)
+}
+
+// SessionChildrenWithResponse request returning *SessionChildrenResp
+func (c *ClientWithResponses) SessionChildrenWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionChildrenParams, reqEditors ...RequestEditorFn) (*SessionChildrenResp, error) {
+	rsp, err := c.SessionChildren(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionChildrenResp(rsp)
+}
+
+// SessionCommandWithBodyWithResponse request with arbitrary body returning *SessionCommandResp
+func (c *ClientWithResponses) SessionCommandWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionCommandResp, error) {
+	rsp, err := c.SessionCommandWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionCommandResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionCommandWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionCommandParams, body SessionCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionCommandResp, error) {
+	rsp, err := c.SessionCommand(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionCommandResp(rsp)
+}
+
+// SessionDiffWithResponse request returning *SessionDiffResp
+func (c *ClientWithResponses) SessionDiffWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionDiffParams, reqEditors ...RequestEditorFn) (*SessionDiffResp, error) {
+	rsp, err := c.SessionDiff(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionDiffResp(rsp)
+}
+
+// SessionForkWithBodyWithResponse request with arbitrary body returning *SessionForkResp
+func (c *ClientWithResponses) SessionForkWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionForkResp, error) {
+	rsp, err := c.SessionForkWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionForkResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionForkWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionForkParams, body SessionForkJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionForkResp, error) {
+	rsp, err := c.SessionFork(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionForkResp(rsp)
+}
+
+// SessionInitWithBodyWithResponse request with arbitrary body returning *SessionInitResp
+func (c *ClientWithResponses) SessionInitWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionInitResp, error) {
+	rsp, err := c.SessionInitWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionInitResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionInitWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionInitParams, body SessionInitJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionInitResp, error) {
+	rsp, err := c.SessionInit(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionInitResp(rsp)
+}
+
+// SessionMessagesWithResponse request returning *SessionMessagesResp
+func (c *ClientWithResponses) SessionMessagesWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionMessagesParams, reqEditors ...RequestEditorFn) (*SessionMessagesResp, error) {
+	rsp, err := c.SessionMessages(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionMessagesResp(rsp)
+}
+
+// SessionPromptWithBodyWithResponse request with arbitrary body returning *SessionPromptResp
+func (c *ClientWithResponses) SessionPromptWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionPromptResp, error) {
+	rsp, err := c.SessionPromptWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionPromptResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionPromptWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptParams, body SessionPromptJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionPromptResp, error) {
+	rsp, err := c.SessionPrompt(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionPromptResp(rsp)
+}
+
+// SessionDeleteMessageWithResponse request returning *SessionDeleteMessageResp
+func (c *ClientWithResponses) SessionDeleteMessageWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionDeleteMessageParams, reqEditors ...RequestEditorFn) (*SessionDeleteMessageResp, error) {
+	rsp, err := c.SessionDeleteMessage(ctx, agentName, sessionID, messageID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionDeleteMessageResp(rsp)
+}
+
+// SessionMessageWithResponse request returning *SessionMessageResp
+func (c *ClientWithResponses) SessionMessageWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, params *SessionMessageParams, reqEditors ...RequestEditorFn) (*SessionMessageResp, error) {
+	rsp, err := c.SessionMessage(ctx, agentName, sessionID, messageID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionMessageResp(rsp)
+}
+
+// PartDeleteWithResponse request returning *PartDeleteResp
+func (c *ClientWithResponses) PartDeleteWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartDeleteParams, reqEditors ...RequestEditorFn) (*PartDeleteResp, error) {
+	rsp, err := c.PartDelete(ctx, agentName, sessionID, messageID, partID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePartDeleteResp(rsp)
+}
+
+// PartUpdateWithBodyWithResponse request with arbitrary body returning *PartUpdateResp
+func (c *ClientWithResponses) PartUpdateWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PartUpdateResp, error) {
+	rsp, err := c.PartUpdateWithBody(ctx, agentName, sessionID, messageID, partID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePartUpdateResp(rsp)
+}
+
+func (c *ClientWithResponses) PartUpdateWithResponse(ctx context.Context, agentName string, sessionID string, messageID string, partID string, params *PartUpdateParams, body PartUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*PartUpdateResp, error) {
+	rsp, err := c.PartUpdate(ctx, agentName, sessionID, messageID, partID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePartUpdateResp(rsp)
+}
+
+// PermissionRespondWithBodyWithResponse request with arbitrary body returning *PermissionRespondResp
+func (c *ClientWithResponses) PermissionRespondWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PermissionRespondResp, error) {
+	rsp, err := c.PermissionRespondWithBody(ctx, agentName, sessionID, permissionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePermissionRespondResp(rsp)
+}
+
+func (c *ClientWithResponses) PermissionRespondWithResponse(ctx context.Context, agentName string, sessionID string, permissionID string, params *PermissionRespondParams, body PermissionRespondJSONRequestBody, reqEditors ...RequestEditorFn) (*PermissionRespondResp, error) {
+	rsp, err := c.PermissionRespond(ctx, agentName, sessionID, permissionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePermissionRespondResp(rsp)
+}
+
+// SessionPromptAsyncWithBodyWithResponse request with arbitrary body returning *SessionPromptAsyncResp
+func (c *ClientWithResponses) SessionPromptAsyncWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionPromptAsyncResp, error) {
+	rsp, err := c.SessionPromptAsyncWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionPromptAsyncResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionPromptAsyncWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionPromptAsyncParams, body SessionPromptAsyncJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionPromptAsyncResp, error) {
+	rsp, err := c.SessionPromptAsync(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionPromptAsyncResp(rsp)
+}
+
+// SessionRevertWithBodyWithResponse request with arbitrary body returning *SessionRevertResp
+func (c *ClientWithResponses) SessionRevertWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionRevertResp, error) {
+	rsp, err := c.SessionRevertWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionRevertResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionRevertWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionRevertParams, body SessionRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionRevertResp, error) {
+	rsp, err := c.SessionRevert(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionRevertResp(rsp)
+}
+
+// SessionUnshareWithResponse request returning *SessionUnshareResp
+func (c *ClientWithResponses) SessionUnshareWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUnshareParams, reqEditors ...RequestEditorFn) (*SessionUnshareResp, error) {
+	rsp, err := c.SessionUnshare(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionUnshareResp(rsp)
+}
+
+// SessionShareWithResponse request returning *SessionShareResp
+func (c *ClientWithResponses) SessionShareWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionShareParams, reqEditors ...RequestEditorFn) (*SessionShareResp, error) {
+	rsp, err := c.SessionShare(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionShareResp(rsp)
+}
+
+// SessionShellWithBodyWithResponse request with arbitrary body returning *SessionShellResp
+func (c *ClientWithResponses) SessionShellWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionShellResp, error) {
+	rsp, err := c.SessionShellWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionShellResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionShellWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionShellParams, body SessionShellJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionShellResp, error) {
+	rsp, err := c.SessionShell(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionShellResp(rsp)
+}
+
+// SessionSummarizeWithBodyWithResponse request with arbitrary body returning *SessionSummarizeResp
+func (c *ClientWithResponses) SessionSummarizeWithBodyWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SessionSummarizeResp, error) {
+	rsp, err := c.SessionSummarizeWithBody(ctx, agentName, sessionID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionSummarizeResp(rsp)
+}
+
+func (c *ClientWithResponses) SessionSummarizeWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionSummarizeParams, body SessionSummarizeJSONRequestBody, reqEditors ...RequestEditorFn) (*SessionSummarizeResp, error) {
+	rsp, err := c.SessionSummarize(ctx, agentName, sessionID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionSummarizeResp(rsp)
+}
+
+// SessionTodoWithResponse request returning *SessionTodoResp
+func (c *ClientWithResponses) SessionTodoWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionTodoParams, reqEditors ...RequestEditorFn) (*SessionTodoResp, error) {
+	rsp, err := c.SessionTodo(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionTodoResp(rsp)
+}
+
+// SessionUnrevertWithResponse request returning *SessionUnrevertResp
+func (c *ClientWithResponses) SessionUnrevertWithResponse(ctx context.Context, agentName string, sessionID string, params *SessionUnrevertParams, reqEditors ...RequestEditorFn) (*SessionUnrevertResp, error) {
+	rsp, err := c.SessionUnrevert(ctx, agentName, sessionID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSessionUnrevertResp(rsp)
+}
+
 // DeleteSecretWithBodyWithResponse request with arbitrary body returning *DeleteSecretResp
 func (c *ClientWithResponses) DeleteSecretWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteSecretResp, error) {
 	rsp, err := c.DeleteSecretWithBody(ctx, agentName, contentType, body, reqEditors...)
@@ -4283,6 +10768,23 @@ func (c *ClientWithResponses) PutSecretWithResponse(ctx context.Context, agentNa
 		return nil, err
 	}
 	return ParsePutSecretResp(rsp)
+}
+
+// PatchWorkflowRunStatusWithBodyWithResponse request with arbitrary body returning *PatchWorkflowRunStatusResp
+func (c *ClientWithResponses) PatchWorkflowRunStatusWithBodyWithResponse(ctx context.Context, name WorkflowRunName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchWorkflowRunStatusResp, error) {
+	rsp, err := c.PatchWorkflowRunStatusWithBody(ctx, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchWorkflowRunStatusResp(rsp)
+}
+
+func (c *ClientWithResponses) PatchWorkflowRunStatusWithResponse(ctx context.Context, name WorkflowRunName, body PatchWorkflowRunStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchWorkflowRunStatusResp, error) {
+	rsp, err := c.PatchWorkflowRunStatus(ctx, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchWorkflowRunStatusResp(rsp)
 }
 
 // ListWorkflowSummariesWithResponse request returning *ListWorkflowSummariesResp
@@ -5054,6 +11556,1045 @@ func ParseListTraceSessionsResp(rsp *http.Response) (*ListTraceSessionsResp, err
 	return response, nil
 }
 
+// ParseSessionListResp parses an HTTP response from a SessionListWithResponse call
+func ParseSessionListResp(rsp *http.Response) (*SessionListResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionListResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionCreateResp parses an HTTP response from a SessionCreateWithResponse call
+func ParseSessionCreateResp(rsp *http.Response) (*SessionCreateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionCreateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionStatusResp parses an HTTP response from a SessionStatusWithResponse call
+func ParseSessionStatusResp(rsp *http.Response) (*SessionStatusResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionStatusResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]OpencodeSessionStatus
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionDeleteResp parses an HTTP response from a SessionDeleteWithResponse call
+func ParseSessionDeleteResp(rsp *http.Response) (*SessionDeleteResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionDeleteResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionGetResp parses an HTTP response from a SessionGetWithResponse call
+func ParseSessionGetResp(rsp *http.Response) (*SessionGetResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionGetResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionUpdateResp parses an HTTP response from a SessionUpdateWithResponse call
+func ParseSessionUpdateResp(rsp *http.Response) (*SessionUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionAbortResp parses an HTTP response from a SessionAbortWithResponse call
+func ParseSessionAbortResp(rsp *http.Response) (*SessionAbortResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionAbortResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionChildrenResp parses an HTTP response from a SessionChildrenWithResponse call
+func ParseSessionChildrenResp(rsp *http.Response) (*SessionChildrenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionChildrenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionCommandResp parses an HTTP response from a SessionCommandWithResponse call
+func ParseSessionCommandResp(rsp *http.Response) (*SessionCommandResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionCommandResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Info  OpencodeAssistantMessage `json:"info"`
+			Parts []OpencodePart           `json:"parts"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionDiffResp parses an HTTP response from a SessionDiffWithResponse call
+func ParseSessionDiffResp(rsp *http.Response) (*SessionDiffResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionDiffResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []OpencodeSnapshotFileDiff
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionForkResp parses an HTTP response from a SessionForkWithResponse call
+func ParseSessionForkResp(rsp *http.Response) (*SessionForkResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionForkResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionInitResp parses an HTTP response from a SessionInitWithResponse call
+func ParseSessionInitResp(rsp *http.Response) (*SessionInitResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionInitResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionMessagesResp parses an HTTP response from a SessionMessagesWithResponse call
+func ParseSessionMessagesResp(rsp *http.Response) (*SessionMessagesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionMessagesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []struct {
+			Info  OpencodeMessage `json:"info"`
+			Parts []OpencodePart  `json:"parts"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionPromptResp parses an HTTP response from a SessionPromptWithResponse call
+func ParseSessionPromptResp(rsp *http.Response) (*SessionPromptResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionPromptResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Info  OpencodeAssistantMessage `json:"info"`
+			Parts []OpencodePart           `json:"parts"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionDeleteMessageResp parses an HTTP response from a SessionDeleteMessageWithResponse call
+func ParseSessionDeleteMessageResp(rsp *http.Response) (*SessionDeleteMessageResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionDeleteMessageResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionMessageResp parses an HTTP response from a SessionMessageWithResponse call
+func ParseSessionMessageResp(rsp *http.Response) (*SessionMessageResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionMessageResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Info  OpencodeMessage `json:"info"`
+			Parts []OpencodePart  `json:"parts"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePartDeleteResp parses an HTTP response from a PartDeleteWithResponse call
+func ParsePartDeleteResp(rsp *http.Response) (*PartDeleteResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PartDeleteResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePartUpdateResp parses an HTTP response from a PartUpdateWithResponse call
+func ParsePartUpdateResp(rsp *http.Response) (*PartUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PartUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodePart
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePermissionRespondResp parses an HTTP response from a PermissionRespondWithResponse call
+func ParsePermissionRespondResp(rsp *http.Response) (*PermissionRespondResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PermissionRespondResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionPromptAsyncResp parses an HTTP response from a SessionPromptAsyncWithResponse call
+func ParseSessionPromptAsyncResp(rsp *http.Response) (*SessionPromptAsyncResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionPromptAsyncResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionRevertResp parses an HTTP response from a SessionRevertWithResponse call
+func ParseSessionRevertResp(rsp *http.Response) (*SessionRevertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionRevertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionUnshareResp parses an HTTP response from a SessionUnshareWithResponse call
+func ParseSessionUnshareResp(rsp *http.Response) (*SessionUnshareResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionUnshareResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest OpencodeeffectHttpApiErrorInternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionShareResp parses an HTTP response from a SessionShareWithResponse call
+func ParseSessionShareResp(rsp *http.Response) (*SessionShareResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionShareResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest OpencodeeffectHttpApiErrorInternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionShellResp parses an HTTP response from a SessionShellWithResponse call
+func ParseSessionShellResp(rsp *http.Response) (*SessionShellResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionShellResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Info  OpencodeMessage `json:"info"`
+			Parts []OpencodePart  `json:"parts"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionSummarizeResp parses an HTTP response from a SessionSummarizeWithResponse call
+func ParseSessionSummarizeResp(rsp *http.Response) (*SessionSummarizeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionSummarizeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionTodoResp parses an HTTP response from a SessionTodoWithResponse call
+func ParseSessionTodoResp(rsp *http.Response) (*SessionTodoResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionTodoResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []OpencodeTodo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSessionUnrevertResp parses an HTTP response from a SessionUnrevertWithResponse call
+func ParseSessionUnrevertResp(rsp *http.Response) (*SessionUnrevertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SessionUnrevertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodeSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseDeleteSecretResp parses an HTTP response from a DeleteSecretWithResponse call
 func ParseDeleteSecretResp(rsp *http.Response) (*DeleteSecretResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5175,6 +12716,53 @@ func ParsePutSecretResp(rsp *http.Response) (*PutSecretResp, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePatchWorkflowRunStatusResp parses an HTTP response from a PatchWorkflowRunStatusWithResponse call
+func ParsePatchWorkflowRunStatusResp(rsp *http.Response) (*PatchWorkflowRunStatusResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PatchWorkflowRunStatusResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -5419,6 +13007,87 @@ type ServerInterface interface {
 	// List paginated per-session trace summaries.
 	// (GET /api/lens/trace/session/list)
 	ListTraceSessions(w http.ResponseWriter, r *http.Request, params ListTraceSessionsParams)
+	// List sessions
+	// (GET /api/opencode/{agentName}/session)
+	SessionList(w http.ResponseWriter, r *http.Request, agentName string, params SessionListParams)
+	// Create session
+	// (POST /api/opencode/{agentName}/session)
+	SessionCreate(w http.ResponseWriter, r *http.Request, agentName string, params SessionCreateParams)
+	// Get session status
+	// (GET /api/opencode/{agentName}/session/status)
+	SessionStatus(w http.ResponseWriter, r *http.Request, agentName string, params SessionStatusParams)
+	// Delete session
+	// (DELETE /api/opencode/{agentName}/session/{sessionID})
+	SessionDelete(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionDeleteParams)
+	// Get session
+	// (GET /api/opencode/{agentName}/session/{sessionID})
+	SessionGet(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionGetParams)
+	// Update session
+	// (PATCH /api/opencode/{agentName}/session/{sessionID})
+	SessionUpdate(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionUpdateParams)
+	// Abort session
+	// (POST /api/opencode/{agentName}/session/{sessionID}/abort)
+	SessionAbort(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionAbortParams)
+	// Get session children
+	// (GET /api/opencode/{agentName}/session/{sessionID}/children)
+	SessionChildren(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionChildrenParams)
+	// Send command
+	// (POST /api/opencode/{agentName}/session/{sessionID}/command)
+	SessionCommand(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionCommandParams)
+	// Get message diff
+	// (GET /api/opencode/{agentName}/session/{sessionID}/diff)
+	SessionDiff(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionDiffParams)
+	// Fork session
+	// (POST /api/opencode/{agentName}/session/{sessionID}/fork)
+	SessionFork(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionForkParams)
+	// Initialize session
+	// (POST /api/opencode/{agentName}/session/{sessionID}/init)
+	SessionInit(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionInitParams)
+	// Get session messages
+	// (GET /api/opencode/{agentName}/session/{sessionID}/message)
+	SessionMessages(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionMessagesParams)
+	// Send message
+	// (POST /api/opencode/{agentName}/session/{sessionID}/message)
+	SessionPrompt(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionPromptParams)
+	// Delete message
+	// (DELETE /api/opencode/{agentName}/session/{sessionID}/message/{messageID})
+	SessionDeleteMessage(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, params SessionDeleteMessageParams)
+	// Get message
+	// (GET /api/opencode/{agentName}/session/{sessionID}/message/{messageID})
+	SessionMessage(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, params SessionMessageParams)
+
+	// (DELETE /api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID})
+	PartDelete(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, partID string, params PartDeleteParams)
+
+	// (PATCH /api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID})
+	PartUpdate(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, partID string, params PartUpdateParams)
+	// Respond to permission
+	// (POST /api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID})
+	PermissionRespond(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, permissionID string, params PermissionRespondParams)
+	// Send async message
+	// (POST /api/opencode/{agentName}/session/{sessionID}/prompt_async)
+	SessionPromptAsync(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionPromptAsyncParams)
+	// Revert message
+	// (POST /api/opencode/{agentName}/session/{sessionID}/revert)
+	SessionRevert(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionRevertParams)
+	// Unshare session
+	// (DELETE /api/opencode/{agentName}/session/{sessionID}/share)
+	SessionUnshare(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionUnshareParams)
+	// Share session
+	// (POST /api/opencode/{agentName}/session/{sessionID}/share)
+	SessionShare(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionShareParams)
+	// Run shell command
+	// (POST /api/opencode/{agentName}/session/{sessionID}/shell)
+	SessionShell(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionShellParams)
+	// Summarize session
+	// (POST /api/opencode/{agentName}/session/{sessionID}/summarize)
+	SessionSummarize(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionSummarizeParams)
+	// Get session todos
+	// (GET /api/opencode/{agentName}/session/{sessionID}/todo)
+	SessionTodo(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionTodoParams)
+	// Restore reverted messages
+	// (POST /api/opencode/{agentName}/session/{sessionID}/unrevert)
+	SessionUnrevert(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionUnrevertParams)
 	// Delete secrets for an agent.
 	// (POST /api/secret/{agentName}/delete)
 	DeleteSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
@@ -5428,6 +13097,9 @@ type ServerInterface interface {
 	// Store or overwrite secrets for an agent.
 	// (POST /api/secret/{agentName}/put)
 	PutSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Set a WorkflowRun terminal status.
+	// (PATCH /api/workflow-runs/{name}/status)
+	PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request, name WorkflowRunName)
 	// List workflow summaries.
 	// (GET /api/workflow-summaries/{agentName})
 	ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
@@ -5542,6 +13214,166 @@ func (_ Unimplemented) ListTraceSessions(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List sessions
+// (GET /api/opencode/{agentName}/session)
+func (_ Unimplemented) SessionList(w http.ResponseWriter, r *http.Request, agentName string, params SessionListParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create session
+// (POST /api/opencode/{agentName}/session)
+func (_ Unimplemented) SessionCreate(w http.ResponseWriter, r *http.Request, agentName string, params SessionCreateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get session status
+// (GET /api/opencode/{agentName}/session/status)
+func (_ Unimplemented) SessionStatus(w http.ResponseWriter, r *http.Request, agentName string, params SessionStatusParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete session
+// (DELETE /api/opencode/{agentName}/session/{sessionID})
+func (_ Unimplemented) SessionDelete(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionDeleteParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get session
+// (GET /api/opencode/{agentName}/session/{sessionID})
+func (_ Unimplemented) SessionGet(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionGetParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update session
+// (PATCH /api/opencode/{agentName}/session/{sessionID})
+func (_ Unimplemented) SessionUpdate(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionUpdateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Abort session
+// (POST /api/opencode/{agentName}/session/{sessionID}/abort)
+func (_ Unimplemented) SessionAbort(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionAbortParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get session children
+// (GET /api/opencode/{agentName}/session/{sessionID}/children)
+func (_ Unimplemented) SessionChildren(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionChildrenParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send command
+// (POST /api/opencode/{agentName}/session/{sessionID}/command)
+func (_ Unimplemented) SessionCommand(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionCommandParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get message diff
+// (GET /api/opencode/{agentName}/session/{sessionID}/diff)
+func (_ Unimplemented) SessionDiff(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionDiffParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Fork session
+// (POST /api/opencode/{agentName}/session/{sessionID}/fork)
+func (_ Unimplemented) SessionFork(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionForkParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Initialize session
+// (POST /api/opencode/{agentName}/session/{sessionID}/init)
+func (_ Unimplemented) SessionInit(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionInitParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get session messages
+// (GET /api/opencode/{agentName}/session/{sessionID}/message)
+func (_ Unimplemented) SessionMessages(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionMessagesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send message
+// (POST /api/opencode/{agentName}/session/{sessionID}/message)
+func (_ Unimplemented) SessionPrompt(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionPromptParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete message
+// (DELETE /api/opencode/{agentName}/session/{sessionID}/message/{messageID})
+func (_ Unimplemented) SessionDeleteMessage(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, params SessionDeleteMessageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get message
+// (GET /api/opencode/{agentName}/session/{sessionID}/message/{messageID})
+func (_ Unimplemented) SessionMessage(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, params SessionMessageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID})
+func (_ Unimplemented) PartDelete(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, partID string, params PartDeleteParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID})
+func (_ Unimplemented) PartUpdate(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, messageID string, partID string, params PartUpdateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Respond to permission
+// (POST /api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID})
+func (_ Unimplemented) PermissionRespond(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, permissionID string, params PermissionRespondParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send async message
+// (POST /api/opencode/{agentName}/session/{sessionID}/prompt_async)
+func (_ Unimplemented) SessionPromptAsync(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionPromptAsyncParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Revert message
+// (POST /api/opencode/{agentName}/session/{sessionID}/revert)
+func (_ Unimplemented) SessionRevert(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionRevertParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Unshare session
+// (DELETE /api/opencode/{agentName}/session/{sessionID}/share)
+func (_ Unimplemented) SessionUnshare(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionUnshareParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Share session
+// (POST /api/opencode/{agentName}/session/{sessionID}/share)
+func (_ Unimplemented) SessionShare(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionShareParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Run shell command
+// (POST /api/opencode/{agentName}/session/{sessionID}/shell)
+func (_ Unimplemented) SessionShell(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionShellParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Summarize session
+// (POST /api/opencode/{agentName}/session/{sessionID}/summarize)
+func (_ Unimplemented) SessionSummarize(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionSummarizeParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get session todos
+// (GET /api/opencode/{agentName}/session/{sessionID}/todo)
+func (_ Unimplemented) SessionTodo(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionTodoParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Restore reverted messages
+// (POST /api/opencode/{agentName}/session/{sessionID}/unrevert)
+func (_ Unimplemented) SessionUnrevert(w http.ResponseWriter, r *http.Request, agentName string, sessionID string, params SessionUnrevertParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Delete secrets for an agent.
 // (POST /api/secret/{agentName}/delete)
 func (_ Unimplemented) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
@@ -5557,6 +13389,12 @@ func (_ Unimplemented) ListSecrets(w http.ResponseWriter, r *http.Request, agent
 // Store or overwrite secrets for an agent.
 // (POST /api/secret/{agentName}/put)
 func (_ Unimplemented) PutSecret(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set a WorkflowRun terminal status.
+// (PATCH /api/workflow-runs/{name}/status)
+func (_ Unimplemented) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request, name WorkflowRunName) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6306,6 +14144,1545 @@ func (siw *ServerInterfaceWrapper) ListTraceSessions(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// SessionList operation middleware
+func (siw *ServerInterfaceWrapper) SessionList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionListParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "path" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "path", r.URL.Query(), &params.Path)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "roots" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "roots", r.URL.Query(), &params.Roots)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "roots", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "start", r.URL.Query(), &params.Start)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionList(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionCreate operation middleware
+func (siw *ServerInterfaceWrapper) SessionCreate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionCreateParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionCreate(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionStatus operation middleware
+func (siw *ServerInterfaceWrapper) SessionStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionStatusParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionStatus(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionDelete operation middleware
+func (siw *ServerInterfaceWrapper) SessionDelete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionDeleteParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionDelete(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionGet operation middleware
+func (siw *ServerInterfaceWrapper) SessionGet(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionGetParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionGet(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionUpdate operation middleware
+func (siw *ServerInterfaceWrapper) SessionUpdate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionUpdateParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionUpdate(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionAbort operation middleware
+func (siw *ServerInterfaceWrapper) SessionAbort(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionAbortParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionAbort(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionChildren operation middleware
+func (siw *ServerInterfaceWrapper) SessionChildren(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionChildrenParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionChildren(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionCommand operation middleware
+func (siw *ServerInterfaceWrapper) SessionCommand(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionCommandParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionCommand(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionDiff operation middleware
+func (siw *ServerInterfaceWrapper) SessionDiff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionDiffParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "messageID" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "messageID", r.URL.Query(), &params.MessageID)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "messageID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionDiff(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionFork operation middleware
+func (siw *ServerInterfaceWrapper) SessionFork(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionForkParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionFork(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionInit operation middleware
+func (siw *ServerInterfaceWrapper) SessionInit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionInitParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionInit(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionMessages operation middleware
+func (siw *ServerInterfaceWrapper) SessionMessages(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionMessagesParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "before" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "before", r.URL.Query(), &params.Before)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "before", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionMessages(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionPrompt operation middleware
+func (siw *ServerInterfaceWrapper) SessionPrompt(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionPromptParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionPrompt(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionDeleteMessage operation middleware
+func (siw *ServerInterfaceWrapper) SessionDeleteMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "messageID" -------------
+	var messageID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "messageID", chi.URLParam(r, "messageID"), &messageID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "messageID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionDeleteMessageParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionDeleteMessage(w, r, agentName, sessionID, messageID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionMessage operation middleware
+func (siw *ServerInterfaceWrapper) SessionMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "messageID" -------------
+	var messageID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "messageID", chi.URLParam(r, "messageID"), &messageID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "messageID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionMessageParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionMessage(w, r, agentName, sessionID, messageID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PartDelete operation middleware
+func (siw *ServerInterfaceWrapper) PartDelete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "messageID" -------------
+	var messageID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "messageID", chi.URLParam(r, "messageID"), &messageID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "messageID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "partID" -------------
+	var partID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "partID", chi.URLParam(r, "partID"), &partID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "partID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PartDeleteParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PartDelete(w, r, agentName, sessionID, messageID, partID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PartUpdate operation middleware
+func (siw *ServerInterfaceWrapper) PartUpdate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "messageID" -------------
+	var messageID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "messageID", chi.URLParam(r, "messageID"), &messageID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "messageID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "partID" -------------
+	var partID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "partID", chi.URLParam(r, "partID"), &partID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "partID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PartUpdateParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PartUpdate(w, r, agentName, sessionID, messageID, partID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PermissionRespond operation middleware
+func (siw *ServerInterfaceWrapper) PermissionRespond(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "permissionID" -------------
+	var permissionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "permissionID", chi.URLParam(r, "permissionID"), &permissionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "permissionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PermissionRespondParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PermissionRespond(w, r, agentName, sessionID, permissionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionPromptAsync operation middleware
+func (siw *ServerInterfaceWrapper) SessionPromptAsync(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionPromptAsyncParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionPromptAsync(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionRevert operation middleware
+func (siw *ServerInterfaceWrapper) SessionRevert(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionRevertParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionRevert(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionUnshare operation middleware
+func (siw *ServerInterfaceWrapper) SessionUnshare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionUnshareParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionUnshare(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionShare operation middleware
+func (siw *ServerInterfaceWrapper) SessionShare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionShareParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionShare(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionShell operation middleware
+func (siw *ServerInterfaceWrapper) SessionShell(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionShellParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionShell(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionSummarize operation middleware
+func (siw *ServerInterfaceWrapper) SessionSummarize(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionSummarizeParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionSummarize(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionTodo operation middleware
+func (siw *ServerInterfaceWrapper) SessionTodo(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionTodoParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionTodo(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SessionUnrevert operation middleware
+func (siw *ServerInterfaceWrapper) SessionUnrevert(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", chi.URLParam(r, "sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SessionUnrevertParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SessionUnrevert(w, r, agentName, sessionID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteSecret operation middleware
 func (siw *ServerInterfaceWrapper) DeleteSecret(w http.ResponseWriter, r *http.Request) {
 
@@ -6391,6 +15768,31 @@ func (siw *ServerInterfaceWrapper) PutSecret(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutSecret(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchWorkflowRunStatus operation middleware
+func (siw *ServerInterfaceWrapper) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name WorkflowRunName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchWorkflowRunStatus(w, r, name)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -6660,6 +16062,87 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/lens/trace/session/list", wrapper.ListTraceSessions)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session", wrapper.SessionList)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session", wrapper.SessionCreate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session/status", wrapper.SessionStatus)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}", wrapper.SessionDelete)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}", wrapper.SessionGet)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}", wrapper.SessionUpdate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/abort", wrapper.SessionAbort)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/children", wrapper.SessionChildren)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/command", wrapper.SessionCommand)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/diff", wrapper.SessionDiff)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/fork", wrapper.SessionFork)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/init", wrapper.SessionInit)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/message", wrapper.SessionMessages)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/message", wrapper.SessionPrompt)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/message/{messageID}", wrapper.SessionDeleteMessage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/message/{messageID}", wrapper.SessionMessage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID}", wrapper.PartDelete)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/message/{messageID}/part/{partID}", wrapper.PartUpdate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID}", wrapper.PermissionRespond)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/prompt_async", wrapper.SessionPromptAsync)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/revert", wrapper.SessionRevert)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/share", wrapper.SessionUnshare)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/share", wrapper.SessionShare)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/shell", wrapper.SessionShell)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/summarize", wrapper.SessionSummarize)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/todo", wrapper.SessionTodo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/session/{sessionID}/unrevert", wrapper.SessionUnrevert)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/secret/{agentName}/delete", wrapper.DeleteSecret)
 	})
 	r.Group(func(r chi.Router) {
@@ -6667,6 +16150,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/secret/{agentName}/put", wrapper.PutSecret)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/workflow-runs/{name}/status", wrapper.PatchWorkflowRunStatus)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/workflow-summaries/{agentName}", wrapper.ListWorkflowSummaries)
@@ -6687,116 +16173,207 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"AAAA//+hTAuJHuoBAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

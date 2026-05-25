@@ -5,6 +5,7 @@
 # Re-include Go source files (but not *_test.go)
 !**/*.go
 !**/*.hcl
+!**/*.tmpl
 **/*_test.go
 
 # Re-include Go module files

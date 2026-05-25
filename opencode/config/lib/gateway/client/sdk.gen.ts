@@ -62,6 +62,9 @@ import type {
   ListWorkflowSummariesData,
   ListWorkflowSummariesErrors,
   ListWorkflowSummariesResponses,
+  PatchWorkflowRunStatusData,
+  PatchWorkflowRunStatusErrors,
+  PatchWorkflowRunStatusResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -99,6 +102,8 @@ import {
   zListTraceSessionsQuery,
   zListTracesQuery,
   zListWorkflowSummariesPath,
+  zPatchWorkflowRunStatusBody,
+  zPatchWorkflowRunStatusPath,
   zPutSecretBody,
   zPutSecretPath,
   zUpdateAgentBody,
@@ -413,6 +418,36 @@ export const getWorkflow = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     url: "/api/workflows/{agentName}/{workflowName}",
     ...options,
+  })
+
+/**
+ * Set a WorkflowRun terminal status.
+ *
+ * Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+ *
+ */
+export const patchWorkflowRunStatus = <ThrowOnError extends boolean = false>(
+  options: Options<PatchWorkflowRunStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    PatchWorkflowRunStatusResponses,
+    PatchWorkflowRunStatusErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPatchWorkflowRunStatusBody,
+          path: zPatchWorkflowRunStatusPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-runs/{name}/status",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

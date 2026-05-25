@@ -53,6 +53,15 @@ export const zWorkflowName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
+ * WorkflowRun resource name.
+ */
+export const zWorkflowRunName = z
+  .string()
+  .min(1)
+  .max(253)
+  .regex(/^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$/)
+
+/**
  * Stable workflow node identifier.
  */
 export const zWorkflowNodeName = z
@@ -64,6 +73,13 @@ export const zWorkflowNodeName = z
 export const zFieldError = z.object({
   field: z.string().min(1),
   message: z.string().min(1),
+})
+
+export const zWorkflowRunTerminalPhase = z.enum(["Succeeded", "Failed"])
+
+export const zPatchWorkflowRunStatusRequest = z.object({
+  phase: zWorkflowRunTerminalPhase,
+  message: z.string().max(4096).optional(),
 })
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
@@ -760,6 +776,17 @@ export const zGetWorkflowPath = z.object({
  * Workflow definition.
  */
 export const zGetWorkflowResponse = zWorkflow
+
+export const zPatchWorkflowRunStatusBody = zPatchWorkflowRunStatusRequest
+
+export const zPatchWorkflowRunStatusPath = z.object({
+  name: zWorkflowRunName,
+})
+
+/**
+ * WorkflowRun status updated.
+ */
+export const zPatchWorkflowRunStatusResponse = z.void()
 
 export const zListWorkflowSummariesPath = z.object({
   agentName: zAgentName,

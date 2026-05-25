@@ -358,6 +358,40 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/workflow-runs/{name}/status:
+    patch:
+      operationId: patchWorkflowRunStatus
+      summary: Set a WorkflowRun terminal status.
+      description: >
+        Marks a running WorkflowRun as succeeded or failed. The gateway owns
+        request validation and state-transition checks, then patches the
+        WorkflowRun status in the configured namespace.
+      tags: [workflows]
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: WorkflowRun resource name.
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
+      responses:
+        '204':
+          description: WorkflowRun status updated.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/workflow-summaries/{agentName}:
     get:
       operationId: listWorkflowSummaries
@@ -832,6 +866,13 @@ components:
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
       description: Workflow name scoped to one agent.
 
+    WorkflowRunName:
+      type: string
+      minLength: 1
+      maxLength: 253
+      pattern: '^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$'
+      description: WorkflowRun resource name.
+
     WorkflowNodeName:
       type: string
       minLength: 1
@@ -868,6 +909,23 @@ components:
           type: string
           minLength: 1
       required: [field, message]
+
+    WorkflowRunTerminalPhase:
+      type: string
+      enum:
+      - Succeeded
+      - Failed
+
+    PatchWorkflowRunStatusRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        phase:
+          $ref: '#/components/schemas/WorkflowRunTerminalPhase'
+        message:
+          type: string
+          maxLength: 4096
+      required: [phase]
 
     ListAgentsResponse:
       type: object

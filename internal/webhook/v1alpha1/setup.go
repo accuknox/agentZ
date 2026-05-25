@@ -21,6 +21,8 @@ import (
 
 	agentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/agent"
 	environmentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/environment"
+	workflowrunwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowrun"
+	workflowschedulewebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowschedule"
 )
 
 // AgentWebhookConfig configures Agent defaulting behavior.
@@ -34,4 +36,14 @@ func SetupAgentWebhookWithManager(mgr ctrl.Manager, cfg AgentWebhookConfig) erro
 // SetupEnvironmentWebhookWithManager registers the webhook for Environment in the manager.
 func SetupEnvironmentWebhookWithManager(mgr ctrl.Manager) error {
 	return environmentwebhook.RegisterWithManager(mgr)
+}
+
+// SetupWorkflowScheduleWebhookWithManager registers the WorkflowSchedule webhook.
+func SetupWorkflowScheduleWebhookWithManager(mgr ctrl.Manager) error {
+	return workflowschedulewebhook.RegisterWithManager(mgr)
+}
+
+// SetupWorkflowRunWebhookWithManager registers the WorkflowRun webhook.
+func SetupWorkflowRunWebhookWithManager(mgr ctrl.Manager) error {
+	return workflowrunwebhook.RegisterWithManager(mgr)
 }

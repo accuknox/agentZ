@@ -34,6 +34,11 @@ export type EnvironmentName = string
 export type WorkflowName = string
 
 /**
+ * WorkflowRun resource name.
+ */
+export type WorkflowRunName = string
+
+/**
  * Stable workflow node identifier.
  */
 export type WorkflowNodeName = string
@@ -48,6 +53,13 @@ export type Error = {
 export type FieldError = {
   field: string
   message: string
+}
+
+export type WorkflowRunTerminalPhase = "Succeeded" | "Failed"
+
+export type PatchWorkflowRunStatusRequest = {
+  phase: WorkflowRunTerminalPhase
+  message?: string
 }
 
 export type ListAgentsResponse = {
@@ -1143,6 +1155,50 @@ export type GetWorkflowResponses = {
 }
 
 export type GetWorkflowResponse = GetWorkflowResponses[keyof GetWorkflowResponses]
+
+export type PatchWorkflowRunStatusData = {
+  body: PatchWorkflowRunStatusRequest
+  path: {
+    /**
+     * WorkflowRun resource name.
+     */
+    name: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow-runs/{name}/status"
+}
+
+export type PatchWorkflowRunStatusErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type PatchWorkflowRunStatusError =
+  PatchWorkflowRunStatusErrors[keyof PatchWorkflowRunStatusErrors]
+
+export type PatchWorkflowRunStatusResponses = {
+  /**
+   * WorkflowRun status updated.
+   */
+  204: void
+}
+
+export type PatchWorkflowRunStatusResponse =
+  PatchWorkflowRunStatusResponses[keyof PatchWorkflowRunStatusResponses]
 
 export type ListWorkflowSummariesData = {
   body?: never

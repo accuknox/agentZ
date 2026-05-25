@@ -1,0 +1,89 @@
+/*
+Copyright 2026 AccuKnox Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package workflowschedule
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/robfig/cron/v3"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+)
+
+var scheduleParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
+// Validator validates WorkflowSchedule resources.
+//
+// +kubebuilder:object:generate=false
+type Validator struct{}
+
+var _ admission.Validator[*clawarmorv1alpha1.WorkflowSchedule] = &Validator{}
+
+// +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-workflowschedule,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=create;update,versions=v1alpha1,name=vworkflowschedule-v1alpha1.kb.io,admissionReviewVersions=v1
+
+// ValidateCreate validates WorkflowSchedule creation.
+func (v *Validator) ValidateCreate(_ context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) (admission.Warnings, error) {
+	return nil, validateSchedule(schedule)
+}
+
+// ValidateUpdate validates WorkflowSchedule updates.
+func (v *Validator) ValidateUpdate(_ context.Context, _, newSchedule *clawarmorv1alpha1.WorkflowSchedule) (admission.Warnings, error) {
+	return nil, validateSchedule(newSchedule)
+}
+
+// ValidateDelete validates WorkflowSchedule deletion.
+func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.WorkflowSchedule) (admission.Warnings, error) {
+	return nil, nil
+}
+
+func validateSchedule(schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+	var fields field.ErrorList
+
+	_, err := scheduleParser.Parse(schedule.Spec.Schedule)
+	if err != nil {
+		fields = append(fields, field.Invalid(
+			field.NewPath("spec").Child("schedule"),
+			schedule.Spec.Schedule,
+			fmt.Sprintf("invalid cron schedule: %v", err),
+		))
+	}
+
+	if schedule.Spec.TimeZone != "" {
+		_, err = time.LoadLocation(schedule.Spec.TimeZone)
+		if err != nil {
+			fields = append(fields, field.Invalid(
+				field.NewPath("spec").Child("timeZone"),
+				schedule.Spec.TimeZone,
+				fmt.Sprintf("invalid time zone: %v", err),
+			))
+		}
+	}
+
+	if len(fields) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(
+		schedule.GroupVersionKind().GroupKind(),
+		schedule.Name,
+		fields,
+	)
+}

@@ -18,10 +18,6 @@ package workflowschedule
 
 import (
 	"context"
-	"fmt"
-	"time"
-
-	"github.com/robfig/cron/v3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -30,8 +26,6 @@ import (
 	"github.com/accuknox/clawarmor/internal/workflow"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
-
-var scheduleParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
 // Validator validates WorkflowSchedule resources.
 //
@@ -67,24 +61,22 @@ func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.Workf
 func (v *Validator) validateSchedule(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
 	var fields field.ErrorList
 
-	_, err := scheduleParser.Parse(schedule.Spec.Schedule)
+	err := workflow.ValidateCronSchedule(schedule.Spec.Schedule)
 	if err != nil {
 		fields = append(fields, field.Invalid(
 			field.NewPath("spec").Child("schedule"),
 			schedule.Spec.Schedule,
-			fmt.Sprintf("invalid cron schedule: %v", err),
+			err.Error(),
 		))
 	}
 
-	if schedule.Spec.TimeZone != "" {
-		_, err = time.LoadLocation(schedule.Spec.TimeZone)
-		if err != nil {
-			fields = append(fields, field.Invalid(
-				field.NewPath("spec").Child("timeZone"),
-				schedule.Spec.TimeZone,
-				fmt.Sprintf("invalid time zone: %v", err),
-			))
-		}
+	err = workflow.ValidateTimeZone(schedule.Spec.TimeZone)
+	if err != nil {
+		fields = append(fields, field.Invalid(
+			field.NewPath("spec").Child("timeZone"),
+			schedule.Spec.TimeZone,
+			err.Error(),
+		))
 	}
 
 	if len(fields) == 0 {

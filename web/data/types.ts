@@ -1,4 +1,4 @@
-import type { Agent, Environment, Error } from "@/lib/gateway/client"
+import type { Agent, Environment, Error, WorkflowInputs } from "@/lib/gateway/client"
 
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
@@ -331,6 +331,22 @@ export type DeleteSecretFormState = {
 export type DeleteSessionFormState = {
   error?: Error
   success?: boolean
+}
+
+export type CreateWorkflowScheduleFormState = {
+  error?: Error
+}
+
+export type UpdateWorkflowScheduleFormState = {
+  error?: Error
+}
+
+export type DeleteWorkflowScheduleFormState = {
+  error?: Error
+}
+
+export type WorkflowInputSchemaResult = {
+  inputs: WorkflowInputs
 }
 
 export type ProviderModelItem = {

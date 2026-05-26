@@ -14,16 +14,16 @@ import (
 	"github.com/accuknox/clawarmor/internal/workflow"
 )
 
-func ValidateLookupRequest(agentName string, workflowName string) []gatewayapi.FieldError {
+func ValidateLookupRequest(agtName string, wfName string) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 2)
 
-	if !isDNSLabel(agentName, 32) {
+	if !isDNSLabel(agtName, 32) {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "agentName",
 			Message: "must be a valid DNS label",
 		})
 	}
-	if !isDNSLabel(workflowName, 32) {
+	if !isDNSLabel(wfName, 32) {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "workflowName",
 			Message: "must be a valid DNS label",
@@ -33,8 +33,8 @@ func ValidateLookupRequest(agentName string, workflowName string) []gatewayapi.F
 	return fields
 }
 
-func ValidateListRequest(agentName string) []gatewayapi.FieldError {
-	if isDNSLabel(agentName, 32) {
+func ValidateListRequest(agtName string) []gatewayapi.FieldError {
+	if isDNSLabel(agtName, 32) {
 		return nil
 	}
 
@@ -45,17 +45,17 @@ func ValidateListRequest(agentName string) []gatewayapi.FieldError {
 }
 
 // ValidateDeleteRequest validates one agent-scoped workflow delete request.
-func ValidateDeleteRequest(agentName string, workflowNames []string) []gatewayapi.FieldError {
-	fields := make([]gatewayapi.FieldError, 0, len(workflowNames)+1)
+func ValidateDeleteRequest(agtName string, wfNames []string) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, len(wfNames)+1)
 
-	if !isDNSLabel(agentName, 32) {
+	if !isDNSLabel(agtName, 32) {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "agentName",
 			Message: "must be a valid DNS label",
 		})
 	}
 
-	if len(workflowNames) == 0 {
+	if len(wfNames) == 0 {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "workflow_names",
 			Message: "must include at least one workflow name",
@@ -63,7 +63,7 @@ func ValidateDeleteRequest(agentName string, workflowNames []string) []gatewayap
 		return fields
 	}
 
-	for i, workflowName := range workflowNames {
+	for i, workflowName := range wfNames {
 		if isDNSLabel(workflowName, 32) {
 			continue
 		}

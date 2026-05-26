@@ -143,18 +143,14 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *clawarmorv1alp
 		return fmt.Errorf("get cronjob: %w", err)
 	}
 
-	runList := &clawarmorv1alpha1.WorkflowRunList{}
-	err = r.List(ctx, runList, client.InNamespace(schedule.Namespace))
+	runs, err := r.listOwnedRuns(ctx, schedule)
 	if err != nil {
-		return fmt.Errorf("list workflow runs: %w", err)
+		return err
 	}
 
 	var lastRun *clawarmorv1alpha1.WorkflowRun
-	for i := range runList.Items {
-		run := &runList.Items[i]
-		if !metav1.IsControlledBy(run, schedule) {
-			continue
-		}
+	for i := range runs {
+		run := &runs[i]
 		if lastRun == nil || run.CreationTimestamp.After(lastRun.CreationTimestamp.Time) {
 			lastRun = run
 		}
@@ -190,18 +186,14 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *clawarmorv1alp
 }
 
 func (r *Reconciler) pruneRuns(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
-	runList := &clawarmorv1alpha1.WorkflowRunList{}
-	err := r.List(ctx, runList, client.InNamespace(schedule.Namespace))
+	runs, err := r.listOwnedRuns(ctx, schedule)
 	if err != nil {
-		return fmt.Errorf("list workflow runs: %w", err)
+		return err
 	}
 
 	successful := []clawarmorv1alpha1.WorkflowRun{}
 	failed := []clawarmorv1alpha1.WorkflowRun{}
-	for _, run := range runList.Items {
-		if !metav1.IsControlledBy(&run, schedule) {
-			continue
-		}
+	for _, run := range runs {
 		switch run.Status.Phase {
 		case clawarmorv1alpha1.WorkflowRunPhaseSucceeded:
 			successful = append(successful, run)
@@ -230,6 +222,23 @@ func (r *Reconciler) pruneRuns(ctx context.Context, schedule *clawarmorv1alpha1.
 		return err
 	}
 	return nil
+}
+
+func (r *Reconciler) listOwnedRuns(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) ([]clawarmorv1alpha1.WorkflowRun, error) {
+	runList := &clawarmorv1alpha1.WorkflowRunList{}
+	err := r.List(ctx, runList, client.InNamespace(schedule.Namespace))
+	if err != nil {
+		return nil, fmt.Errorf("list workflow runs: %w", err)
+	}
+
+	runs := make([]clawarmorv1alpha1.WorkflowRun, 0, len(runList.Items))
+	for _, run := range runList.Items {
+		if !metav1.IsControlledBy(&run, schedule) {
+			continue
+		}
+		runs = append(runs, run)
+	}
+	return runs, nil
 }
 
 func (r *Reconciler) deleteRunsAfterLimit(ctx context.Context, runs []clawarmorv1alpha1.WorkflowRun, limit int32) error {

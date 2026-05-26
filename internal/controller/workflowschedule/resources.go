@@ -29,6 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/accuknox/clawarmor/internal/workflow"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -127,6 +128,15 @@ func (r *Reconciler) reconcileRoleBinding(ctx context.Context, schedule *clawarm
 
 func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) (string, error) {
 	name := schedule.Name
+	err := workflow.ValidateCronSchedule(schedule.Spec.Schedule)
+	if err != nil {
+		return "", err
+	}
+	err = workflow.ValidateTimeZone(schedule.Spec.TimeZone)
+	if err != nil {
+		return "", err
+	}
+
 	inputsJSON := "null"
 	if len(schedule.Spec.Inputs.Raw) > 0 {
 		inputsJSON = string(schedule.Spec.Inputs.Raw)
@@ -141,7 +151,7 @@ func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *clawarmorv1
 			Namespace: schedule.Namespace,
 		},
 	}
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, cronJob, func() error {
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, cronJob, func() error {
 		cronJob.Labels = scheduleLabels(schedule)
 		cronJob.Annotations = schedule.Annotations
 		cronJob.Spec.Schedule = schedule.Spec.Schedule

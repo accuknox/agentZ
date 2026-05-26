@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	defaultWorkflowScheduleTimeoutSeconds int32 = 3600
-	defaultSuccessfulRunsHistoryLimit     int32 = 3
-	defaultFailedRunsHistoryLimit         int32 = 3
+	defaultSuccessfulRunsHistoryLimit int32 = 3
+	defaultFailedRunsHistoryLimit     int32 = 3
+	defaultWorkflowScheduleTimeZone         = "UTC"
 )
 
 // Defaulter applies defaults to WorkflowSchedule resources.
@@ -39,16 +39,16 @@ var _ admission.Defaulter[*clawarmorv1alpha1.WorkflowSchedule] = &Defaulter{}
 
 // +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-workflowschedule,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=create;update,versions=v1alpha1,name=mworkflowschedule-v1alpha1.kb.io,admissionReviewVersions=v1
 
-// Default applies defaults to a WorkflowSchedule resource.
+// Default applies fallback defaults when schema-level defaulting does not.
 func (d *Defaulter) Default(_ context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
-	if schedule.Spec.TimeoutSeconds == 0 {
-		schedule.Spec.TimeoutSeconds = defaultWorkflowScheduleTimeoutSeconds
-	}
 	if schedule.Spec.SuccessfulRunsHistoryLimit == nil {
 		schedule.Spec.SuccessfulRunsHistoryLimit = new(defaultSuccessfulRunsHistoryLimit)
 	}
 	if schedule.Spec.FailedRunsHistoryLimit == nil {
 		schedule.Spec.FailedRunsHistoryLimit = new(defaultFailedRunsHistoryLimit)
+	}
+	if schedule.Spec.TimeZone == "" {
+		schedule.Spec.TimeZone = defaultWorkflowScheduleTimeZone
 	}
 	return nil
 }

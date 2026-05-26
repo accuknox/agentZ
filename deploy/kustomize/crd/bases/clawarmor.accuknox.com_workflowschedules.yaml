@@ -68,9 +68,11 @@ spec:
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
               failedRunsHistoryLimit:
+                default: 3
                 description: FailedRunsHistoryLimit retains the newest failed runs.
                 format: int32
-                minimum: 0
+                maximum: 10
+                minimum: 1
                 type: integer
               inputs:
                 description: Inputs contains execution inputs copied into each WorkflowRun.
@@ -80,15 +82,19 @@ spec:
                 minLength: 1
                 type: string
               successfulRunsHistoryLimit:
+                default: 3
                 description: SuccessfulRunsHistoryLimit retains the newest successful runs.
                 format: int32
-                minimum: 0
+                maximum: 10
+                minimum: 1
                 type: integer
               suspend:
                 description: Suspend pauses future schedule ticks without deleting state.
                 type: boolean
               timeZone:
+                default: UTC
                 description: TimeZone controls CronJob schedule evaluation.
+                minLength: 1
                 type: string
               timeoutSeconds:
                 description: TimeoutSeconds bounds total execution time for one run.

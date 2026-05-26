@@ -7,10 +7,12 @@ import {
   createAgent,
   createEnvironment,
   createWorkflow,
+  createWorkflowSchedule,
   deleteAgent,
   deleteEnvironment,
   deleteSecret,
   deleteWorkflows,
+  deleteWorkflowSchedule,
   getSpanDetail,
   getWorkflow,
   listAgents,
@@ -22,12 +24,14 @@ import {
   listSpans,
   listTraces,
   listTraceSessions,
+  listWorkflowSchedules,
   listWorkflowSummaries,
   type Options,
   patchWorkflowRunStatus,
   putSecret,
   updateAgent,
   updateEnvironment,
+  updateWorkflowSchedule,
 } from "../sdk.gen"
 import type {
   CreateAgentData,
@@ -39,6 +43,9 @@ import type {
   CreateWorkflowData,
   CreateWorkflowError,
   CreateWorkflowResponse,
+  CreateWorkflowScheduleData,
+  CreateWorkflowScheduleError,
+  CreateWorkflowScheduleResponse,
   DeleteAgentData,
   DeleteAgentError,
   DeleteAgentResponse,
@@ -48,6 +55,9 @@ import type {
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
+  DeleteWorkflowScheduleData,
+  DeleteWorkflowScheduleError,
+  DeleteWorkflowScheduleResponse,
   DeleteWorkflowsData,
   DeleteWorkflowsError,
   DeleteWorkflowsResponse,
@@ -84,6 +94,9 @@ import type {
   ListTraceSessionsError,
   ListTraceSessionsResponse2,
   ListTracesResponse2,
+  ListWorkflowSchedulesData,
+  ListWorkflowSchedulesError,
+  ListWorkflowSchedulesResponse2,
   ListWorkflowSummariesData,
   ListWorkflowSummariesError,
   ListWorkflowSummariesResponse,
@@ -99,6 +112,9 @@ import type {
   UpdateEnvironmentData,
   UpdateEnvironmentError,
   UpdateEnvironmentResponse,
+  UpdateWorkflowScheduleData,
+  UpdateWorkflowScheduleError,
+  UpdateWorkflowScheduleResponse,
 } from "../types.gen"
 
 export type QueryKey<TOptions extends Options> = [
@@ -530,6 +546,124 @@ export const listWorkflowSummariesOptions = (options: Options<ListWorkflowSummar
     },
     queryKey: listWorkflowSummariesQueryKey(options),
   })
+
+/**
+ * Create a workflow schedule.
+ *
+ * Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+ *
+ */
+export const createWorkflowScheduleMutation = (
+  options?: Partial<Options<CreateWorkflowScheduleData>>
+): UseMutationOptions<
+  CreateWorkflowScheduleResponse,
+  CreateWorkflowScheduleError,
+  Options<CreateWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowScheduleResponse,
+    CreateWorkflowScheduleError,
+    Options<CreateWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkflowSchedulesQueryKey = (options: Options<ListWorkflowSchedulesData>) =>
+  createQueryKey("listWorkflowSchedules", options)
+
+/**
+ * List workflow schedules.
+ *
+ * Lists paginated workflow schedules for one agent. The optional workflow_name query narrows the result to one workflow definition.
+ *
+ */
+export const listWorkflowSchedulesOptions = (options: Options<ListWorkflowSchedulesData>) =>
+  queryOptions<
+    ListWorkflowSchedulesResponse2,
+    ListWorkflowSchedulesError,
+    ListWorkflowSchedulesResponse2,
+    ReturnType<typeof listWorkflowSchedulesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowSchedules({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowSchedulesQueryKey(options),
+  })
+
+/**
+ * Delete a workflow schedule.
+ *
+ * Deletes one workflow schedule. The agent name in the path must match the referenced schedule, otherwise the gateway returns not found.
+ *
+ */
+export const deleteWorkflowScheduleMutation = (
+  options?: Partial<Options<DeleteWorkflowScheduleData>>
+): UseMutationOptions<
+  DeleteWorkflowScheduleResponse,
+  DeleteWorkflowScheduleError,
+  Options<DeleteWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkflowScheduleResponse,
+    DeleteWorkflowScheduleError,
+    Options<DeleteWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Update a workflow schedule.
+ *
+ * Replaces all mutable workflow schedule fields for one existing schedule. The schedule name and agent name in the path identify the resource.
+ *
+ */
+export const updateWorkflowScheduleMutation = (
+  options?: Partial<Options<UpdateWorkflowScheduleData>>
+): UseMutationOptions<
+  UpdateWorkflowScheduleResponse,
+  UpdateWorkflowScheduleError,
+  Options<UpdateWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateWorkflowScheduleResponse,
+    UpdateWorkflowScheduleError,
+    Options<UpdateWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 /**
  * Update an Agent resource.

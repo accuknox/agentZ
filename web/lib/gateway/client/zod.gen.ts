@@ -53,6 +53,15 @@ export const zWorkflowName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
+ * WorkflowSchedule resource name.
+ */
+export const zWorkflowScheduleName = z
+  .string()
+  .min(1)
+  .max(32)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+/**
  * WorkflowRun resource name.
  */
 export const zWorkflowRunName = z
@@ -476,6 +485,49 @@ export const zError = z.object({
   details: zJsonValue.optional(),
 })
 
+export const zWorkflowSchedule = z.object({
+  name: zWorkflowScheduleName,
+  agent_name: zAgentName,
+  workflow_name: zWorkflowName,
+  schedule: z.string().min(1),
+  time_zone: z.string().optional(),
+  inputs: zJsonValue,
+  timeout_seconds: z.int().gte(1).lte(604800),
+  suspend: z.boolean(),
+  successful_runs_history_limit: z.int().gte(1).lte(10),
+  failed_runs_history_limit: z.int().gte(1).lte(10),
+  created_at: z.iso.datetime(),
+})
+
+export const zListWorkflowSchedulesResponse = z.object({
+  workflow_schedules: z.array(zWorkflowSchedule),
+  next_page_token: z.string(),
+})
+
+export const zCreateWorkflowScheduleRequest = z.object({
+  name: zWorkflowScheduleName,
+  agent_name: zAgentName,
+  workflow_name: zWorkflowName,
+  schedule: z.string().min(1),
+  time_zone: z.string().optional(),
+  inputs: zJsonValue.optional(),
+  timeout_seconds: z.int().gte(1).lte(604800),
+  suspend: z.boolean().optional(),
+  successful_runs_history_limit: z.int().gte(1).lte(10).optional(),
+  failed_runs_history_limit: z.int().gte(1).lte(10).optional(),
+})
+
+export const zUpdateWorkflowScheduleRequest = z.object({
+  workflow_name: zWorkflowName,
+  schedule: z.string().min(1),
+  time_zone: z.string().optional(),
+  inputs: zJsonValue.optional(),
+  timeout_seconds: z.int().gte(1).lte(604800),
+  suspend: z.boolean().optional(),
+  successful_runs_history_limit: z.int().gte(1).lte(10).optional(),
+  failed_runs_history_limit: z.int().gte(1).lte(10).optional(),
+})
+
 export const zSpanDetail = zSpan.and(
   z.object({
     resource_attributes: zJsonValue,
@@ -828,6 +880,50 @@ export const zListWorkflowSummariesPath = z.object({
  * Workflow summaries for one agent.
  */
 export const zListWorkflowSummariesResponse = z.array(zWorkflowSummary)
+
+export const zCreateWorkflowScheduleBody = zCreateWorkflowScheduleRequest
+
+/**
+ * Workflow schedule created.
+ */
+export const zCreateWorkflowScheduleResponse = zWorkflowSchedule
+
+export const zListWorkflowSchedulesPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListWorkflowSchedulesQuery = z.object({
+  workflow_name: zWorkflowName.optional(),
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated workflow schedules for one agent.
+ */
+export const zListWorkflowSchedulesResponse2 = zListWorkflowSchedulesResponse
+
+export const zDeleteWorkflowSchedulePath = z.object({
+  agentName: zAgentName,
+  name: zWorkflowScheduleName,
+})
+
+/**
+ * Workflow schedule deleted.
+ */
+export const zDeleteWorkflowScheduleResponse = z.void()
+
+export const zUpdateWorkflowScheduleBody = zUpdateWorkflowScheduleRequest
+
+export const zUpdateWorkflowSchedulePath = z.object({
+  agentName: zAgentName,
+  name: zWorkflowScheduleName,
+})
+
+/**
+ * Workflow schedule updated.
+ */
+export const zUpdateWorkflowScheduleResponse = zWorkflowSchedule
 
 export const zUpdateAgentBody = zUpdateAgentRequest
 

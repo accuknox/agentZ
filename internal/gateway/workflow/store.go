@@ -39,8 +39,8 @@ type storedEdge struct {
 }
 
 // ListSummaries returns workflow metadata for one agent without loading nodes or edges.
-func ListSummaries(ctx context.Context, pool *pgxpool.Pool, agentName string) ([]gatewayapi.WorkflowSummary, error) {
-	rows, err := workflowdb.New(pool).WorkflowListSummaries(ctx, agentName)
+func ListSummaries(ctx context.Context, pool *pgxpool.Pool, agtName string) ([]gatewayapi.WorkflowSummary, error) {
+	rows, err := workflowdb.New(pool).WorkflowListSummaries(ctx, agtName)
 	if err != nil {
 		return nil, fmt.Errorf("list workflow summaries: %w", err)
 	}
@@ -132,8 +132,8 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 }
 
 // DeleteMany removes multiple workflows for one agent.
-func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowNames []string) ([]string, error) {
-	names := uniqueNames(workflowNames)
+func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agtName string, wfNames []string) ([]string, error) {
+	names := uniqueNames(wfNames)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -142,7 +142,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agentName string, workf
 
 	queries := workflowdb.New(tx)
 	existing, err := queries.WorkflowListExistingNames(ctx, workflowdb.WorkflowListExistingNamesParams{
-		AgentName:     agentName,
+		AgentName:     agtName,
 		WorkflowNames: names,
 	})
 	if err != nil {
@@ -166,7 +166,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agentName string, workf
 	}
 
 	_, err = queries.WorkflowDeleteMany(ctx, workflowdb.WorkflowDeleteManyParams{
-		AgentName:     agentName,
+		AgentName:     agtName,
 		WorkflowNames: names,
 	})
 	if err != nil {
@@ -181,12 +181,12 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agentName string, workf
 }
 
 // Get reconstructs a stored workflow graph from normalized workflow tables.
-func Get(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowName string) (gatewayapi.Workflow, error) {
+func Get(ctx context.Context, pool *pgxpool.Pool, agtName string, wfName string) (gatewayapi.Workflow, error) {
 	queries := workflowdb.New(pool)
 
 	row, err := queries.WorkflowGet(ctx, workflowdb.WorkflowGetParams{
-		AgentName:    agentName,
-		WorkflowName: workflowName,
+		AgentName:    agtName,
+		WorkflowName: wfName,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -196,24 +196,24 @@ func Get(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowName
 	}
 
 	nodeRows, err := queries.WorkflowListNodes(ctx, workflowdb.WorkflowListNodesParams{
-		AgentName:    agentName,
-		WorkflowName: workflowName,
+		AgentName:    agtName,
+		WorkflowName: wfName,
 	})
 	if err != nil {
 		return gatewayapi.Workflow{}, fmt.Errorf("list workflow nodes: %w", err)
 	}
 
 	toolRows, err := queries.WorkflowListPreferredTools(ctx, workflowdb.WorkflowListPreferredToolsParams{
-		AgentName:    agentName,
-		WorkflowName: workflowName,
+		AgentName:    agtName,
+		WorkflowName: wfName,
 	})
 	if err != nil {
 		return gatewayapi.Workflow{}, fmt.Errorf("list preferred tools: %w", err)
 	}
 
 	edgeRows, err := queries.WorkflowListEdges(ctx, workflowdb.WorkflowListEdgesParams{
-		AgentName:    agentName,
-		WorkflowName: workflowName,
+		AgentName:    agtName,
+		WorkflowName: wfName,
 	})
 	if err != nil {
 		return gatewayapi.Workflow{}, fmt.Errorf("list workflow edges: %w", err)

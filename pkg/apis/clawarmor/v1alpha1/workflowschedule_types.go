@@ -54,6 +54,8 @@ type WorkflowScheduleSpec struct {
 	Schedule string `json:"schedule"`
 
 	// TimeZone controls CronJob schedule evaluation.
+	// +kubebuilder:default:=UTC
+	// +kubebuilder:validation:MinLength=1
 	// +optional
 	TimeZone string `json:"timeZone,omitempty"`
 
@@ -64,7 +66,6 @@ type WorkflowScheduleSpec struct {
 	// TimeoutSeconds bounds total execution time for one run.
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=604800
-	// +optional
 	TimeoutSeconds int32 `json:"timeoutSeconds,omitempty"`
 
 	// Suspend pauses future schedule ticks without deleting state.
@@ -72,12 +73,16 @@ type WorkflowScheduleSpec struct {
 	Suspend bool `json:"suspend,omitempty"`
 
 	// SuccessfulRunsHistoryLimit retains the newest successful runs.
-	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=3
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=10
 	// +optional
 	SuccessfulRunsHistoryLimit *int32 `json:"successfulRunsHistoryLimit,omitempty"`
 
 	// FailedRunsHistoryLimit retains the newest failed runs.
-	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=3
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=10
 	// +optional
 	FailedRunsHistoryLimit *int32 `json:"failedRunsHistoryLimit,omitempty"`
 }

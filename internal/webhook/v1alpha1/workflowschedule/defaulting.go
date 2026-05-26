@@ -19,7 +19,6 @@ package workflowschedule
 import (
 	"context"
 
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
@@ -46,10 +45,10 @@ func (d *Defaulter) Default(_ context.Context, schedule *clawarmorv1alpha1.Workf
 		schedule.Spec.TimeoutSeconds = defaultWorkflowScheduleTimeoutSeconds
 	}
 	if schedule.Spec.SuccessfulRunsHistoryLimit == nil {
-		schedule.Spec.SuccessfulRunsHistoryLimit = ptr.To(defaultSuccessfulRunsHistoryLimit)
+		schedule.Spec.SuccessfulRunsHistoryLimit = new(defaultSuccessfulRunsHistoryLimit)
 	}
 	if schedule.Spec.FailedRunsHistoryLimit == nil {
-		schedule.Spec.FailedRunsHistoryLimit = ptr.To(defaultFailedRunsHistoryLimit)
+		schedule.Spec.FailedRunsHistoryLimit = new(defaultFailedRunsHistoryLimit)
 	}
 	return nil
 }

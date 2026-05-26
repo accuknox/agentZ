@@ -7,6 +7,11 @@ CREATE TABLE workflows(
     ),
   title TEXT NOT NULL,
   summary TEXT NOT NULL,
+  input_schema JSONB
+    CHECK (
+      input_schema IS NULL OR
+      jsonb_typeof(input_schema) = 'object'
+    ),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY(agent_name, workflow_name)
@@ -26,7 +31,6 @@ CREATE TABLE workflow_nodes(
   ordinal INT NOT NULL CHECK(ordinal >= 0),
   instructions TEXT NOT NULL,
   goal TEXT NOT NULL,
-  expected_output TEXT NOT NULL,
   done_criteria TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -68,7 +72,6 @@ CREATE TABLE workflow_edges(
   ordinal INT NOT NULL CHECK(ordinal >= 0),
   branch_label TEXT NOT NULL DEFAULT '',
   condition_summary TEXT NOT NULL DEFAULT '',
-  cel_expression TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   FOREIGN KEY(agent_name, workflow_name)
     REFERENCES workflows(agent_name, workflow_name)

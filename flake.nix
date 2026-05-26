@@ -38,7 +38,7 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-/KdCoXAT5lQDY0fcf/b9aQVzWsZUj9/HEOiOQXKTkv8=";
+            outputHash = "sha256-EuyeZEVSvkh5VQMHwziBgYl7CZewgquW37zTWd0ipt4=";
           };
           opencodeXdgConfigRoot = pkgs.runCommand "clawarmor-xdg-config" { } ''
             mkdir -p "$out/opencode/plugins/opencode-plugin-otel"

@@ -35,13 +35,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/accuknox/clawarmor/internal/envutil"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
-	if err := r.reconcileServiceAccount(ctx, agt, agt.Name, resourceLabels(agt)); err != nil {
-		return err
-	}
 	sipLabels := sinjectorLabels(agt)
 	sipName := sinjectorName(agt)
 	if err := r.reconcileServiceAccount(ctx, agt, sipName, sipLabels); err != nil {
@@ -185,13 +183,11 @@ func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *claw
 }
 
 func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
-	egress, err := egressRulesForHosts(allowedHosts, r.automaticEgressHosts(agt))
+	hosts, err := envutil.ParseHostList(allowedHosts)
 	if err != nil {
 		return err
 	}
-	if len(egress) == 0 {
-		egress = append(egress, dnsEgressRule())
-	}
+	egress := buildHostEgressRules(uniqueHosts(hosts), true)
 	egress = append(egress, openBaoEgressRule())
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = sinjectorName(agt)

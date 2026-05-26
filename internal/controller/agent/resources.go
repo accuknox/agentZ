@@ -379,7 +379,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName:           agt.Name,
-					AutomountServiceAccountToken: new(true),
+					AutomountServiceAccountToken: new(false),
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(true),
 						FSGroup:      new(int64(1000)),
@@ -437,24 +437,12 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	telemetryEndpoint = strings.TrimPrefix(telemetryEndpoint, "http://")
 
 	var forced []corev1.EnvVar
-	noProxy := []string{
-		"127.0.0.1",
-		"::1",
-		"localhost",
-		".cluster.local",
-		".svc",
-	}
+	noProxy := r.agentNoProxyHosts(agt)
 	if mountConfig {
 		forced = append(forced, corev1.EnvVar{
 			Name:  "OPENCODE_CONFIG",
 			Value: opencodeConfigDir + "/" + opencodeConfigKey,
 		})
-	}
-	if agt.Spec.Telemetry.Enabled {
-		endpointHost := endpointHost(agt.Spec.Telemetry.TraceEndpoint)
-		if endpointHost != "" {
-			noProxy = append(noProxy, endpointHost)
-		}
 	}
 	if r.sinjectorEnabled() {
 		noProxyValue := strings.Join(noProxy, ",")

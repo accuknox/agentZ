@@ -18,9 +18,10 @@ const args = {
 
 export default tool({
   description: [
-    "Set the terminal status for one ClawArmor WorkflowRun.",
+    "Set the terminal status for WorkflowRun.",
     "Use this only after the workflow has fully finished.",
     "This tool only permits terminal phases: Succeeded or Failed.",
+    "It is mandatory to run this tool as soon as you finish executing the workflow.",
   ].join(" "),
   args,
   async execute(input, context) {

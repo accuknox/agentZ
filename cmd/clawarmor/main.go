@@ -504,6 +504,12 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
+		gwClient, err := gatewayapi.NewClientWithResponses(gatewayURL, gatewayapi.WithHTTPClient(&http.Client{}))
+		if err != nil {
+			setupLog.Error(err, "Failed to create gateway client", "gatewayURL", gatewayURL)
+			os.Exit(1)
+		}
+
 		runtimeConfig := agent.RuntimeConfig{
 			AgentDefaultImage:                agentImage,
 			GatewayURL:                       gatewayURL,
@@ -565,12 +571,9 @@ var managerCmd = &cli.Command{
 		}
 
 		if enableWebhooks {
-			err = webhookv1alpha1.SetupAgentWebhookWithManager(
-				mgr,
-				webhookv1alpha1.AgentWebhookConfig{
-					AgentDefaultImage: agentImage,
-				},
-			)
+			err = webhookv1alpha1.SetupAgentWebhookWithManager(mgr, webhookv1alpha1.AgentWebhookConfig{
+				AgentDefaultImage: agentImage,
+			})
 			if err != nil {
 				setupLog.Error(err, "Failed to create webhook", "webhook", "Agent")
 				os.Exit(1)
@@ -579,11 +582,11 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "Failed to create webhook", "webhook", "Environment")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr); err != nil {
+			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient); err != nil {
 				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowSchedule")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr); err != nil {
+			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr, gwClient); err != nil {
 				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowRun")
 				os.Exit(1)
 			}
@@ -600,15 +603,8 @@ var managerCmd = &cli.Command{
 		}
 
 		workflowRunReconciler := &workflowruncontroller.Reconciler{
-			Client: mgr.GetClient(),
-		}
-		workflowRunReconciler.GatewayClient, err = gatewayapi.NewClientWithResponses(
-			gatewayURL,
-			gatewayapi.WithHTTPClient(&http.Client{}),
-		)
-		if err != nil {
-			setupLog.Error(err, "Failed to create gateway client", "gatewayURL", gatewayURL)
-			os.Exit(1)
+			Client:        mgr.GetClient(),
+			GatewayClient: gwClient,
 		}
 		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "WorkflowRun")

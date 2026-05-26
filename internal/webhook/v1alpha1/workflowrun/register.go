@@ -19,13 +19,14 @@ package workflowrun
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // RegisterWithManager registers the WorkflowRun webhook.
-func RegisterWithManager(mgr ctrl.Manager) error {
+func RegisterWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses) error {
 	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.WorkflowRun{}).
-		WithValidator(&Validator{}).
+		WithValidator(NewValidator(gatewayClient)).
 		WithDefaulter(&Defaulter{}).
 		Complete()
 }

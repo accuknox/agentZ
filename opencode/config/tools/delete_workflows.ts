@@ -14,35 +14,28 @@ const deleteWorkflowsArgs = {
         .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
     )
     .min(1)
-    .describe(
-      "Exact saved workflow names to delete for the current agent. Multiple names are allowed."
-    ),
+    .describe("Exact saved workflow names to delete. Multiple names are allowed."),
   confirmed: tool.schema
     .boolean()
     .default(false)
     .describe(
-      "Set to true only when the user explicitly asked to delete these workflows in the current conversation. Leave false to surface a confirmation prompt before deletion."
+      "Set to true only when the user explicitly asked to delete these workflows in the current conversation. " +
+        "Leave false to surface a confirmation prompt before deletion."
     ),
 }
 
 const description = `
-Delete one or more persisted ClawArmor workflow DAGs for the current agent.
+Delete one or more workflows.
 
-Use this tool only for saved workflows that should be removed permanently from the current agent.
-
-Safety rules:
-- workflow_names must be exact saved workflow names for the current agent.
-- This tool supports deleting multiple workflows in one call.
+Guidelines:
 - If the user explicitly asked to delete the workflows, set confirmed to true.
 - If deletion is only inferred from cleanup, replacement, or reorganization intent, leave confirmed as false so the tool surfaces a confirmation prompt first.
 - Deletion is strict. If any named workflow does not exist, the entire call fails and nothing is deleted.
 
 Example:
-The user says "delete the old repo-triage and incident-intake workflows".
+The user says "delete the repo-triage and incident-intake workflows". Call delete_workflows tool with:
 - workflow_names: ["repo-triage", "incident-intake"]
 - confirmed: true
-
-Successful calls permanently remove the saved workflows for the current agent.
 `.trim()
 
 type DeleteWorkflowsToolInput = {

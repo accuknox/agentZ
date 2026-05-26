@@ -26,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/workflow"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -34,20 +36,27 @@ var scheduleParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Mo
 // Validator validates WorkflowSchedule resources.
 //
 // +kubebuilder:object:generate=false
-type Validator struct{}
+type Validator struct {
+	gatewayClient *gatewayapi.ClientWithResponses
+}
 
 var _ admission.Validator[*clawarmorv1alpha1.WorkflowSchedule] = &Validator{}
+
+// NewValidator builds a WorkflowSchedule validator.
+func NewValidator(gatewayClient *gatewayapi.ClientWithResponses) *Validator {
+	return &Validator{gatewayClient: gatewayClient}
+}
 
 // +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-workflowschedule,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=create;update,versions=v1alpha1,name=vworkflowschedule-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // ValidateCreate validates WorkflowSchedule creation.
-func (v *Validator) ValidateCreate(_ context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) (admission.Warnings, error) {
-	return nil, validateSchedule(schedule)
+func (v *Validator) ValidateCreate(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) (admission.Warnings, error) {
+	return nil, v.validateSchedule(ctx, schedule)
 }
 
 // ValidateUpdate validates WorkflowSchedule updates.
-func (v *Validator) ValidateUpdate(_ context.Context, _, newSchedule *clawarmorv1alpha1.WorkflowSchedule) (admission.Warnings, error) {
-	return nil, validateSchedule(newSchedule)
+func (v *Validator) ValidateUpdate(ctx context.Context, _, newSchedule *clawarmorv1alpha1.WorkflowSchedule) (admission.Warnings, error) {
+	return nil, v.validateSchedule(ctx, newSchedule)
 }
 
 // ValidateDelete validates WorkflowSchedule deletion.
@@ -55,7 +64,7 @@ func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.Workf
 	return nil, nil
 }
 
-func validateSchedule(schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+func (v *Validator) validateSchedule(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
 	var fields field.ErrorList
 
 	_, err := scheduleParser.Parse(schedule.Spec.Schedule)
@@ -79,6 +88,19 @@ func validateSchedule(schedule *clawarmorv1alpha1.WorkflowSchedule) error {
 	}
 
 	if len(fields) == 0 {
+		err := workflow.ValidateInputs(
+			ctx,
+			v.gatewayClient,
+			schedule.GroupVersionKind().GroupKind(),
+			schedule.Name,
+			schedule.Spec.AgentName,
+			schedule.Spec.WorkflowName,
+			schedule.Spec.Inputs.Raw,
+			field.NewPath("spec").Child("inputs"),
+		)
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 	return apierrors.NewInvalid(

@@ -15,19 +15,22 @@ INSERT INTO workflows(
   agent_name,
   workflow_name,
   title,
-  summary
+  summary,
+  input_schema
 )
 VALUES (
   $1,
   $2,
   $3,
-  $4
+  $4,
+  $5::jsonb
 )
 RETURNING
   agent_name,
   workflow_name,
   title,
   summary,
+  input_schema,
   created_at,
   updated_at
 `
@@ -37,6 +40,7 @@ type WorkflowCreateParams struct {
 	WorkflowName string `json:"workflow_name"`
 	Title        string `json:"title"`
 	Summary      string `json:"summary"`
+	InputSchema  []byte `json:"input_schema"`
 }
 
 func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error) {
@@ -45,6 +49,7 @@ func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) 
 		arg.WorkflowName,
 		arg.Title,
 		arg.Summary,
+		arg.InputSchema,
 	)
 	var i Workflow
 	err := row.Scan(
@@ -52,6 +57,7 @@ func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) 
 		&i.WorkflowName,
 		&i.Title,
 		&i.Summary,
+		&i.InputSchema,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -66,8 +72,7 @@ INSERT INTO workflow_edges(
   target_node_name,
   ordinal,
   branch_label,
-  condition_summary,
-  cel_expression
+  condition_summary
 )
 SELECT
   $1::text,
@@ -76,15 +81,13 @@ SELECT
   e.target_node_name,
   e.ordinal,
   e.branch_label,
-  e.condition_summary,
-  e.cel_expression
+  e.condition_summary
 FROM jsonb_to_recordset($3::jsonb) AS e(
   source_node_name text,
   target_node_name text,
   ordinal int,
   branch_label text,
-  condition_summary text,
-  cel_expression text
+  condition_summary text
 )
 `
 
@@ -107,7 +110,6 @@ INSERT INTO workflow_nodes(
   ordinal,
   instructions,
   goal,
-  expected_output,
   done_criteria
 )
 SELECT
@@ -117,14 +119,12 @@ SELECT
   n.ordinal,
   n.instructions,
   n.goal,
-  n.expected_output,
   n.done_criteria
 FROM jsonb_to_recordset($3::jsonb) AS n(
   node_name text,
   ordinal int,
   instructions text,
   goal text,
-  expected_output text,
   done_criteria text
 )
 `
@@ -197,6 +197,7 @@ SELECT
   workflow_name,
   title,
   summary,
+  input_schema,
   created_at,
   updated_at
 FROM workflows
@@ -217,6 +218,7 @@ func (q *Queries) WorkflowGet(ctx context.Context, arg WorkflowGetParams) (Workf
 		&i.WorkflowName,
 		&i.Title,
 		&i.Summary,
+		&i.InputSchema,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -233,7 +235,6 @@ SELECT
   ordinal,
   branch_label,
   condition_summary,
-  cel_expression,
   created_at
 FROM workflow_edges
 WHERE agent_name = $1
@@ -264,7 +265,6 @@ func (q *Queries) WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesPa
 			&i.Ordinal,
 			&i.BranchLabel,
 			&i.ConditionSummary,
-			&i.CelExpression,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -319,7 +319,6 @@ SELECT
   ordinal,
   instructions,
   goal,
-  expected_output,
   done_criteria,
   created_at,
   updated_at
@@ -350,7 +349,6 @@ func (q *Queries) WorkflowListNodes(ctx context.Context, arg WorkflowListNodesPa
 			&i.Ordinal,
 			&i.Instructions,
 			&i.Goal,
-			&i.ExpectedOutput,
 			&i.DoneCriteria,
 			&i.CreatedAt,
 			&i.UpdatedAt,

@@ -92,6 +92,7 @@ export type CreateWorkflowRequest = {
   workflow_name: WorkflowName
   title: string
   summary: string
+  inputs?: WorkflowInputs
   nodes: Array<WorkflowNode>
   edges: Array<WorkflowEdge>
 }
@@ -101,6 +102,7 @@ export type Workflow = {
   workflow_name: WorkflowName
   title: string
   summary: string
+  inputs?: WorkflowInputs
   nodes: Array<WorkflowNode>
   edges: Array<WorkflowEdge>
   created_at: string
@@ -118,7 +120,6 @@ export type WorkflowNode = {
   name: WorkflowNodeName
   instructions: string
   goal: string
-  expected_output: string
   done_criteria: string
   preferred_tools: Array<string>
 }
@@ -128,7 +129,40 @@ export type WorkflowEdge = {
   target: WorkflowNodeName
   branch_label: string
   condition_summary: string
-  cel_expression: string
+}
+
+export type WorkflowInputs = {
+  [key: string]: WorkflowInputSchema
+}
+
+export type WorkflowInputStringFormat = "email" | "uri" | "uuid" | "date" | "date-time"
+
+export type WorkflowInputType = "string" | "integer" | "number" | "boolean"
+
+export type WorkflowInputScalarValue = boolean | number | string
+
+/**
+ * Per-input validation schema. Only these keys are accepted: type,
+ * description, required, default, enum, minLength, maxLength, pattern,
+ * format, minimum, maximum, exclusiveMinimum, exclusiveMaximum, and
+ * multipleOf. Extra JSON Schema metadata is not supported.
+ *
+ */
+export type WorkflowInputSchema = {
+  type: WorkflowInputType
+  description?: string
+  required: boolean
+  default?: WorkflowInputScalarValue
+  enum?: Array<WorkflowInputScalarValue>
+  minLength?: number
+  maxLength?: number
+  pattern?: string
+  format?: WorkflowInputStringFormat
+  minimum?: number
+  maximum?: number
+  exclusiveMinimum?: number
+  exclusiveMaximum?: number
+  multipleOf?: number
 }
 
 export type DeleteAgentRequest = {

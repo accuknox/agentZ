@@ -8,7 +8,6 @@ require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/cors v1.2.2
 	github.com/go-logr/logr v1.4.3
-	github.com/google/cel-go v0.26.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/kubearmor/KubeArmor/protobuf v0.0.0-20260417183239-3c0345205950
@@ -16,6 +15,7 @@ require (
 	github.com/openbao/openbao/api/auth/kubernetes/v2 v2.5.1
 	github.com/openbao/openbao/api/v2 v2.5.1
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/urfave/cli/v3 v3.8.0
 	go.opentelemetry.io/proto/otlp v1.10.0
 	google.golang.org/grpc v1.80.0
@@ -74,6 +74,7 @@ require (
 	github.com/go-openapi/validate v0.25.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
+	github.com/google/cel-go v0.26.1 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect

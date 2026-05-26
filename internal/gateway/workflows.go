@@ -52,13 +52,25 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 	req.WorkflowName = strings.TrimSpace(req.WorkflowName)
 	req.Title = strings.TrimSpace(req.Title)
 	req.Summary = strings.TrimSpace(req.Summary)
+	if req.Inputs != nil {
+		for name, input := range *req.Inputs {
+			if input.Description != nil {
+				trimmed := strings.TrimSpace(*input.Description)
+				input.Description = &trimmed
+			}
+			if input.Pattern != nil {
+				trimmed := strings.TrimSpace(*input.Pattern)
+				input.Pattern = &trimmed
+			}
+			(*req.Inputs)[name] = input
+		}
+	}
 
 	for nodeIndex := range req.Nodes {
 		node := &req.Nodes[nodeIndex]
 		node.Name = strings.TrimSpace(node.Name)
 		node.Instructions = strings.TrimSpace(node.Instructions)
 		node.Goal = strings.TrimSpace(node.Goal)
-		node.ExpectedOutput = strings.TrimSpace(node.ExpectedOutput)
 		node.DoneCriteria = strings.TrimSpace(node.DoneCriteria)
 
 		for toolIndex := range node.PreferredTools {
@@ -72,7 +84,6 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 		edge.Target = strings.TrimSpace(edge.Target)
 		edge.BranchLabel = strings.TrimSpace(edge.BranchLabel)
 		edge.ConditionSummary = strings.TrimSpace(edge.ConditionSummary)
-		edge.CelExpression = strings.TrimSpace(edge.CelExpression)
 	}
 
 	fields, err := workflowstore.ValidateCreateRequest(req)

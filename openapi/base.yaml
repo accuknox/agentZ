@@ -1007,6 +1007,8 @@ components:
           type: string
           minLength: 1
           maxLength: 4096
+        inputs:
+          $ref: '#/components/schemas/WorkflowInputs'
         nodes:
           type: array
           minItems: 1
@@ -1036,6 +1038,8 @@ components:
           type: string
         summary:
           type: string
+        inputs:
+          $ref: '#/components/schemas/WorkflowInputs'
         nodes:
           type: array
           items:
@@ -1093,10 +1097,6 @@ components:
           type: string
           minLength: 1
           maxLength: 2048
-        expected_output:
-          type: string
-          minLength: 1
-          maxLength: 2048
         done_criteria:
           type: string
           minLength: 1
@@ -1111,7 +1111,6 @@ components:
       - name
       - instructions
       - goal
-      - expected_output
       - done_criteria
       - preferred_tools
 
@@ -1129,15 +1128,96 @@ components:
         condition_summary:
           type: string
           maxLength: 1024
-        cel_expression:
-          type: string
-          maxLength: 2048
       required:
       - source
       - target
       - branch_label
       - condition_summary
-      - cel_expression
+
+    WorkflowInputs:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/WorkflowInputSchema'
+
+    WorkflowInputStringFormat:
+      type: string
+      enum:
+      - email
+      - uri
+      - uuid
+      - date
+      - date-time
+
+    WorkflowInputType:
+      type: string
+      enum:
+      - string
+      - integer
+      - number
+      - boolean
+
+    WorkflowInputScalarValue:
+      oneOf:
+      - type: boolean
+      - type: number
+        format: double
+      - type: string
+
+    WorkflowInputSchema:
+      type: object
+      additionalProperties: false
+      description: |
+        Per-input validation schema. Only these keys are accepted: type,
+        description, required, default, enum, minLength, maxLength, pattern,
+        format, minimum, maximum, exclusiveMinimum, exclusiveMaximum, and
+        multipleOf. Extra JSON Schema metadata is not supported.
+      properties:
+        type:
+          $ref: '#/components/schemas/WorkflowInputType'
+        description:
+          type: string
+          minLength: 1
+        required:
+          type: boolean
+        default:
+          $ref: '#/components/schemas/WorkflowInputScalarValue'
+        enum:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/WorkflowInputScalarValue'
+        minLength:
+          type: integer
+          minimum: 0
+        maxLength:
+          type: integer
+          minimum: 0
+        pattern:
+          type: string
+          minLength: 1
+        format:
+          $ref: '#/components/schemas/WorkflowInputStringFormat'
+        minimum:
+          type: number
+          format: double
+        maximum:
+          type: number
+          format: double
+        exclusiveMinimum:
+          type: number
+          format: double
+        exclusiveMaximum:
+          type: number
+          format: double
+        multipleOf:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+      required:
+      - type
+      - required
 
     DeleteAgentRequest:
       type: object

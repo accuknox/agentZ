@@ -109,7 +109,6 @@ export const zWorkflowNode = z.object({
   name: zWorkflowNodeName,
   instructions: z.string().min(1).max(16384),
   goal: z.string().min(1).max(2048),
-  expected_output: z.string().min(1).max(2048),
   done_criteria: z.string().min(1).max(2048),
   preferred_tools: z.array(z.string().min(1).max(128)),
 })
@@ -119,14 +118,46 @@ export const zWorkflowEdge = z.object({
   target: zWorkflowNodeName,
   branch_label: z.string().max(256),
   condition_summary: z.string().max(1024),
-  cel_expression: z.string().max(2048),
 })
+
+export const zWorkflowInputStringFormat = z.enum(["email", "uri", "uuid", "date", "date-time"])
+
+export const zWorkflowInputType = z.enum(["string", "integer", "number", "boolean"])
+
+export const zWorkflowInputScalarValue = z.union([z.boolean(), z.number(), z.string()])
+
+/**
+ * Per-input validation schema. Only these keys are accepted: type,
+ * description, required, default, enum, minLength, maxLength, pattern,
+ * format, minimum, maximum, exclusiveMinimum, exclusiveMaximum, and
+ * multipleOf. Extra JSON Schema metadata is not supported.
+ *
+ */
+export const zWorkflowInputSchema = z.object({
+  type: zWorkflowInputType,
+  description: z.string().min(1).optional(),
+  required: z.boolean(),
+  default: zWorkflowInputScalarValue.optional(),
+  enum: z.array(zWorkflowInputScalarValue).min(1).optional(),
+  minLength: z.int().gte(0).optional(),
+  maxLength: z.int().gte(0).optional(),
+  pattern: z.string().min(1).optional(),
+  format: zWorkflowInputStringFormat.optional(),
+  minimum: z.number().optional(),
+  maximum: z.number().optional(),
+  exclusiveMinimum: z.number().optional(),
+  exclusiveMaximum: z.number().optional(),
+  multipleOf: z.number().gt(0).optional(),
+})
+
+export const zWorkflowInputs = z.record(z.string(), zWorkflowInputSchema)
 
 export const zCreateWorkflowRequest = z.object({
   agent_name: zAgentName,
   workflow_name: zWorkflowName,
   title: z.string().min(1).max(256),
   summary: z.string().min(1).max(4096),
+  inputs: zWorkflowInputs.optional(),
   nodes: z.array(zWorkflowNode).min(1),
   edges: z.array(zWorkflowEdge),
 })
@@ -136,6 +167,7 @@ export const zWorkflow = z.object({
   workflow_name: zWorkflowName,
   title: z.string(),
   summary: z.string(),
+  inputs: zWorkflowInputs.optional(),
   nodes: z.array(zWorkflowNode),
   edges: z.array(zWorkflowEdge),
   created_at: z.iso.datetime(),

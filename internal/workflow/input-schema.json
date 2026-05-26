@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "required"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "string",
+        "integer",
+        "number",
+        "boolean"
+      ]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required": {
+      "type": "boolean"
+    },
+    "default": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "enum": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "minLength": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "maxLength": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pattern": {
+      "type": "string",
+      "minLength": 1
+    },
+    "format": {
+      "type": "string",
+      "enum": [
+        "email",
+        "uri",
+        "uuid",
+        "date",
+        "date-time"
+      ]
+    },
+    "minimum": {
+      "type": "number"
+    },
+    "maximum": {
+      "type": "number"
+    },
+    "exclusiveMinimum": {
+      "type": "number"
+    },
+    "exclusiveMaximum": {
+      "type": "number"
+    },
+    "multipleOf": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "string"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "minLength"
+              ]
+            },
+            {
+              "required": [
+                "maxLength"
+              ]
+            },
+            {
+              "required": [
+                "pattern"
+              ]
+            },
+            {
+              "required": [
+                "format"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "integer",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "minimum"
+              ]
+            },
+            {
+              "required": [
+                "maximum"
+              ]
+            },
+            {
+              "required": [
+                "exclusiveMinimum"
+              ]
+            },
+            {
+              "required": [
+                "exclusiveMaximum"
+              ]
+            },
+            {
+              "required": [
+                "multipleOf"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

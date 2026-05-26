@@ -17,12 +17,11 @@ import (
 var ErrWorkflowNotFound = errors.New("workflow not found")
 
 type storedNode struct {
-	NodeName       string `json:"node_name"`
-	Ordinal        int32  `json:"ordinal"`
-	Instructions   string `json:"instructions"`
-	Goal           string `json:"goal"`
-	ExpectedOutput string `json:"expected_output"`
-	DoneCriteria   string `json:"done_criteria"`
+	NodeName     string `json:"node_name"`
+	Ordinal      int32  `json:"ordinal"`
+	Instructions string `json:"instructions"`
+	Goal         string `json:"goal"`
+	DoneCriteria string `json:"done_criteria"`
 }
 
 type storedPreferredTool struct {
@@ -37,7 +36,6 @@ type storedEdge struct {
 	Ordinal          int32  `json:"ordinal"`
 	BranchLabel      string `json:"branch_label"`
 	ConditionSummary string `json:"condition_summary"`
-	CelExpression    string `json:"cel_expression"`
 }
 
 // ListSummaries returns workflow metadata for one agent without loading nodes or edges.
@@ -69,11 +67,17 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 	defer tx.Rollback(ctx)
 
 	queries := workflowdb.New(tx)
+	inputsJSON, err := marshalInputs(req.Inputs)
+	if err != nil {
+		return workflowdb.Workflow{}, err
+	}
+
 	row, err := queries.WorkflowCreate(ctx, workflowdb.WorkflowCreateParams{
 		AgentName:    req.AgentName,
 		WorkflowName: req.WorkflowName,
 		Title:        req.Title,
 		Summary:      req.Summary,
+		InputSchema:  inputsJSON,
 	})
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("create workflow: %w", err)
@@ -234,7 +238,6 @@ func Get(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowName
 			Name:           nodeRow.NodeName,
 			Instructions:   nodeRow.Instructions,
 			Goal:           nodeRow.Goal,
-			ExpectedOutput: nodeRow.ExpectedOutput,
 			DoneCriteria:   nodeRow.DoneCriteria,
 			PreferredTools: preferredTools,
 		})
@@ -247,8 +250,16 @@ func Get(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowName
 			Target:           edgeRow.TargetNodeName,
 			BranchLabel:      edgeRow.BranchLabel,
 			ConditionSummary: edgeRow.ConditionSummary,
-			CelExpression:    edgeRow.CelExpression,
 		})
+	}
+
+	var inputs *gatewayapi.WorkflowInputs
+	if row.InputSchema != nil {
+		var decoded gatewayapi.WorkflowInputs
+		if err := json.Unmarshal(row.InputSchema, &decoded); err != nil {
+			return gatewayapi.Workflow{}, fmt.Errorf("unmarshal workflow input schema: %w", err)
+		}
+		inputs = &decoded
 	}
 
 	return gatewayapi.Workflow{
@@ -256,6 +267,7 @@ func Get(ctx context.Context, pool *pgxpool.Pool, agentName string, workflowName
 		WorkflowName: row.WorkflowName,
 		Title:        row.Title,
 		Summary:      row.Summary,
+		Inputs:       inputs,
 		Nodes:        nodes,
 		Edges:        edges,
 		CreatedAt:    row.CreatedAt,
@@ -269,12 +281,11 @@ func marshalNodes(nodes []gatewayapi.WorkflowNode) ([]byte, []byte, error) {
 
 	for nodeIndex, node := range nodes {
 		storedNodes = append(storedNodes, storedNode{
-			NodeName:       node.Name,
-			Ordinal:        int32(nodeIndex),
-			Instructions:   node.Instructions,
-			Goal:           node.Goal,
-			ExpectedOutput: node.ExpectedOutput,
-			DoneCriteria:   node.DoneCriteria,
+			NodeName:     node.Name,
+			Ordinal:      int32(nodeIndex),
+			Instructions: node.Instructions,
+			Goal:         node.Goal,
+			DoneCriteria: node.DoneCriteria,
 		})
 
 		for toolIndex, tool := range node.PreferredTools {
@@ -309,7 +320,6 @@ func marshalEdges(edges []gatewayapi.WorkflowEdge) ([]byte, error) {
 			Ordinal:          int32(edgeIndex),
 			BranchLabel:      edge.BranchLabel,
 			ConditionSummary: edge.ConditionSummary,
-			CelExpression:    edge.CelExpression,
 		})
 	}
 
@@ -319,6 +329,18 @@ func marshalEdges(edges []gatewayapi.WorkflowEdge) ([]byte, error) {
 	}
 
 	return edgesJSON, nil
+}
+
+func marshalInputs(inputs *gatewayapi.WorkflowInputs) ([]byte, error) {
+	if inputs == nil {
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(inputs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal workflow inputs: %w", err)
+	}
+	return raw, nil
 }
 
 func uniqueNames(names []string) []string {

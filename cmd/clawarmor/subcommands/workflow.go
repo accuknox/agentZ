@@ -5,7 +5,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/accuknox/clawarmor/internal/workflowtrigger"
+	"github.com/accuknox/clawarmor/internal/workflow"
 )
 
 // WorkflowCmd runs workflow-related operational commands.
@@ -66,7 +66,7 @@ var workflowRunScheduleCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return workflowtrigger.RunSchedule(ctx, workflowtrigger.Config{
+		return workflow.RunSchedule(ctx, workflow.Config{
 			Namespace:      c.String("namespace"),
 			ScheduleName:   c.String("schedule-name"),
 			AgentName:      c.String("agent-name"),

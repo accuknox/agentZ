@@ -10,31 +10,25 @@ const getWorkflowArgs = {
     .min(1)
     .max(32)
     .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
-    .describe(
-      "Stable DNS-label workflow identifier scoped to this agent, for example triage-review."
-    ),
+    .describe("Stable DNS-label workflow identifier, for example triage-review"),
 }
 
 const description = `
-Retrieve a persisted ClawArmor workflow DAG for the current agent and return it as a detailed execution playbook in Markdown.
+Retrieve a reusable workflow DAG as a detailed execution playbook in markdown.
 
-Use this tool when you need the exact saved workflow definition, including every node, transition, branch condition, preferred tool list, and execution order. Prefer this tool over reconstructing or guessing workflow details from memory.
+Use this tool when you need the saved workflow's definition. Prefer this tool over reconstructing or guessing workflow details from memory.
 
 The tool returns:
+
 - workflow metadata and summary
+- declared workflow inputs
 - start and terminal nodes
 - nodes in execution order
-- complete node instructions, goals, expected output, done criteria, and preferred tools
+- complete node instructions, goals, done criteria, and preferred tools
 - incoming and outgoing transitions for each node
-- branch labels, condition summaries, and CEL expressions for every edge
+- branch labels and condition summaries for every edge
 
-Only call this tool with the saved workflow_name for the current agent.
-
-Example:
-If the user asks "show me the saved repo-triage workflow so we can follow it", call:
-- workflow_name: repo-triage
-
-The response will be a Markdown execution playbook that fully describes the workflow graph and each step the agent should follow.
+Example, if the user asks "Use the repo-triage workflow", call this tool with workflow_name "repo-triage"
 `.trim()
 
 export default tool({
@@ -47,7 +41,10 @@ export default tool({
         title: "Workflow retrieval unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return "Could not derive clawarmor.agent_name from OPENCODE_RESOURCE_ATTRIBUTES. Configure the agent runtime to inject that resource attribute before using get_workflow."
+      return (
+        "Could not derive clawarmor.agent_name from OPENCODE_RESOURCE_ATTRIBUTES. " +
+        "Configure the agent runtime to inject that resource attribute before using get_workflow."
+      )
     }
 
     context.metadata({
@@ -126,7 +123,7 @@ function workflowToMarkdown(workflow: Workflow) {
     outgoingByNode.get(edge.source)?.push(edge)
     incomingByNode.get(edge.target)?.push(edge)
     indegreeByNode.set(edge.target, (indegreeByNode.get(edge.target) ?? 0) + 1)
-    if (edge.condition_summary || edge.cel_expression) {
+    if (edge.condition_summary) {
       conditionalEdgeCount++
     }
   }
@@ -180,6 +177,7 @@ function workflowToMarkdown(workflow: Workflow) {
     `- Agent: \`${workflow.agent_name}\``,
     `- Workflow name: \`${workflow.workflow_name}\``,
     `- Summary: ${workflow.summary}`,
+    `- Inputs: ${workflow.inputs ? Object.keys(workflow.inputs).length : 0}`,
     `- Created at: ${workflow.created_at}`,
     `- Updated at: ${workflow.updated_at}`,
     `- Node count: ${workflow.nodes.length}`,
@@ -190,6 +188,9 @@ function workflowToMarkdown(workflow: Workflow) {
     `- Terminal nodes: ${joinNames(terminalNodes)}`,
     `- Conditional edges: ${conditionalEdgeCount}`,
     `- Unconditional edges: ${workflow.edges.length - conditionalEdgeCount}`,
+    "",
+    "## Inputs",
+    workflow.inputs ? formatInputs(workflow.inputs) : "- No declared inputs.",
     "",
     "## Execution Order",
   ]
@@ -203,7 +204,6 @@ function workflowToMarkdown(workflow: Workflow) {
     lines.push(`## Node ${index + 1}: \`${node.name}\``)
     lines.push(`- Execution position: ${index + 1}`)
     lines.push(`- Goal: ${node.goal}`)
-    lines.push(`- Expected output: ${node.expected_output}`)
     lines.push(`- Done criteria: ${node.done_criteria}`)
     lines.push(`- Preferred tools: ${joinNames(node.preferred_tools)}`)
     lines.push(`- Incoming transitions: ${joinTransitions(incomingByNode.get(node.name) ?? [])}`)
@@ -224,7 +224,6 @@ function workflowToMarkdown(workflow: Workflow) {
       lines.push(`- Path: \`${edge.source}\` -> \`${edge.target}\``)
       lines.push(`  Branch: ${edge.branch_label || "unconditional"}`)
       lines.push(`  Condition summary: ${edge.condition_summary || "none"}`)
-      lines.push(`  CEL expression: ${edge.cel_expression || "none"}`)
     }
   }
 
@@ -249,4 +248,58 @@ function joinTransitions(edges: Array<WorkflowEdge>) {
       return `\`${edge.source}\` -> \`${edge.target}\`${branch}`
     })
     .join(", ")
+}
+
+function formatInputs(inputs: NonNullable<Workflow["inputs"]>) {
+  const lines: Array<string> = []
+
+  for (const [name, schemaValue] of Object.entries(inputs).sort(([left], [right]) =>
+    left.localeCompare(right)
+  )) {
+    const attrs = [
+      `type=${schemaValue.type}`,
+      `required=${schemaValue.required ? "true" : "false"}`,
+    ]
+
+    if (schemaValue.description) {
+      attrs.push(`description=${JSON.stringify(schemaValue.description)}`)
+    }
+    if (schemaValue.default !== undefined) {
+      attrs.push(`default=${JSON.stringify(schemaValue.default)}`)
+    }
+    if (schemaValue.enum && schemaValue.enum.length > 0) {
+      attrs.push(`enum=${JSON.stringify(schemaValue.enum)}`)
+    }
+    if (schemaValue.minLength !== undefined) {
+      attrs.push(`minLength=${schemaValue.minLength}`)
+    }
+    if (schemaValue.maxLength !== undefined) {
+      attrs.push(`maxLength=${schemaValue.maxLength}`)
+    }
+    if (schemaValue.pattern) {
+      attrs.push(`pattern=${JSON.stringify(schemaValue.pattern)}`)
+    }
+    if (schemaValue.format) {
+      attrs.push(`format=${schemaValue.format}`)
+    }
+    if (schemaValue.minimum !== undefined) {
+      attrs.push(`minimum=${schemaValue.minimum}`)
+    }
+    if (schemaValue.maximum !== undefined) {
+      attrs.push(`maximum=${schemaValue.maximum}`)
+    }
+    if (schemaValue.exclusiveMinimum !== undefined) {
+      attrs.push(`exclusiveMinimum=${schemaValue.exclusiveMinimum}`)
+    }
+    if (schemaValue.exclusiveMaximum !== undefined) {
+      attrs.push(`exclusiveMaximum=${schemaValue.exclusiveMaximum}`)
+    }
+    if (schemaValue.multipleOf !== undefined) {
+      attrs.push(`multipleOf=${schemaValue.multipleOf}`)
+    }
+
+    lines.push(`- \`${name}\`: ${attrs.join(", ")}`)
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "- No declared inputs."
 }

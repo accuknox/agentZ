@@ -58,7 +58,6 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile moves the cluster state toward the desired Agent state.
@@ -124,13 +123,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile configmap: %w", err)
 	}
 
-	err = r.reconcileWorkflowRunAccess(ctx, agt)
+	err = r.reconcileServiceAccount(ctx, agt, agt.Name, resourceLabels(agt))
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("reconcile workflow run access: %w", err)
+		return ctrl.Result{}, fmt.Errorf("reconcile agent serviceaccount: %w", err)
 	}
 
 	err = r.reconcileService(ctx, agt)

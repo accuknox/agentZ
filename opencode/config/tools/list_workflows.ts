@@ -5,22 +5,13 @@ import { zError } from "../lib/gateway"
 import { agentNameFromResourceAttributes, workflowErrorOutput } from "../lib/workflow"
 
 const description = `
-List all persisted ClawArmor workflows for the current agent.
+List all saved workflows.
 
-Use this tool when you need to discover which saved workflows already exist
-before choosing one to inspect, update, or delete. This tool lists every
-saved workflow for the current agent and returns only the workflow name,
-title, and summary metadata.
+Use this tool when you need to discover which saved workflows already exist before choosing one to inspect, update, or delete. This returns the workflow name, title, and summary metadata for every saved workflow.
 
-Do not use this tool when you need the full workflow graph, nodes, edges, or
-execution playbook. Use get_workflow for that.
+Do NOT use this tool when you need the full workflow graph, nodes, edges, or execution playbook. Use get_workflow for that.
 
-Examples:
-If the user asks "show me all saved workflows for this agent", call this tool
-with no arguments.
-
-If the user asks "what workflows do we already have before I pick one to
-edit?", call this tool with no arguments.
+This tool takes no arguments.
 `.trim()
 
 export default tool({

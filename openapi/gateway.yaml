@@ -259,6 +259,8 @@ components:
           items:
             $ref: '#/components/schemas/WorkflowEdge'
           type: array
+        inputs:
+          $ref: '#/components/schemas/WorkflowInputs'
         nodes:
           items:
             $ref: '#/components/schemas/WorkflowNode'
@@ -9327,6 +9329,8 @@ components:
           items:
             $ref: '#/components/schemas/WorkflowEdge'
           type: array
+        inputs:
+          $ref: '#/components/schemas/WorkflowInputs'
         nodes:
           items:
             $ref: '#/components/schemas/WorkflowNode'
@@ -9356,9 +9360,6 @@ components:
         branch_label:
           maxLength: 256
           type: string
-        cel_expression:
-          maxLength: 2048
-          type: string
         condition_summary:
           maxLength: 1024
           type: string
@@ -9371,7 +9372,86 @@ components:
       - target
       - branch_label
       - condition_summary
-      - cel_expression
+      type: object
+    WorkflowInputScalarValue:
+      oneOf:
+      - type: boolean
+      - format: double
+        type: number
+      - type: string
+    WorkflowInputSchema:
+      additionalProperties: false
+      description: |
+        Per-input validation schema. Only these keys are accepted: type,
+        description, required, default, enum, minLength, maxLength, pattern,
+        format, minimum, maximum, exclusiveMinimum, exclusiveMaximum, and
+        multipleOf. Extra JSON Schema metadata is not supported.
+      properties:
+        default:
+          $ref: '#/components/schemas/WorkflowInputScalarValue'
+        description:
+          minLength: 1
+          type: string
+        enum:
+          items:
+            $ref: '#/components/schemas/WorkflowInputScalarValue'
+          minItems: 1
+          type: array
+          uniqueItems: true
+        exclusiveMaximum:
+          format: double
+          type: number
+        exclusiveMinimum:
+          format: double
+          type: number
+        format:
+          $ref: '#/components/schemas/WorkflowInputStringFormat'
+        maxLength:
+          minimum: 0
+          type: integer
+        maximum:
+          format: double
+          type: number
+        minLength:
+          minimum: 0
+          type: integer
+        minimum:
+          format: double
+          type: number
+        multipleOf:
+          exclusiveMinimum: true
+          format: double
+          minimum: 0
+          type: number
+        pattern:
+          minLength: 1
+          type: string
+        required:
+          type: boolean
+        type:
+          $ref: '#/components/schemas/WorkflowInputType'
+      required:
+      - type
+      - required
+      type: object
+    WorkflowInputStringFormat:
+      enum:
+      - email
+      - uri
+      - uuid
+      - date
+      - date-time
+      type: string
+    WorkflowInputType:
+      enum:
+      - string
+      - integer
+      - number
+      - boolean
+      type: string
+    WorkflowInputs:
+      additionalProperties:
+        $ref: '#/components/schemas/WorkflowInputSchema'
       type: object
     WorkflowName:
       description: Workflow name scoped to one agent.
@@ -9383,10 +9463,6 @@ components:
       additionalProperties: false
       properties:
         done_criteria:
-          maxLength: 2048
-          minLength: 1
-          type: string
-        expected_output:
           maxLength: 2048
           minLength: 1
           type: string
@@ -9410,7 +9486,6 @@ components:
       - name
       - instructions
       - goal
-      - expected_output
       - done_criteria
       - preferred_tools
       type: object

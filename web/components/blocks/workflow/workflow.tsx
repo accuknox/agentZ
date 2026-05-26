@@ -122,7 +122,12 @@ export default function Workflow({ workflow }: WorkflowProps) {
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="border-t px-3 py-2">
-              <p className="text-sm text-muted-foreground">{workflow.summary}</p>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">{workflow.summary}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Inputs: {workflow.inputs ? Object.keys(workflow.inputs).length : 0}
+                </p>
+              </div>
             </CollapsibleContent>
           </Collapsible>
         </Panel>
@@ -150,7 +155,6 @@ export default function Workflow({ workflow }: WorkflowProps) {
                 </Button>
               </div>
               <Section title="Instructions" value={selectedWorkflowNode.instructions} />
-              <Section title="Expected output" value={selectedWorkflowNode.expected_output} />
               <Section title="Done criteria" value={selectedWorkflowNode.done_criteria} />
               <PreferredTools tools={selectedWorkflowNode.preferred_tools} />
             </div>
@@ -217,7 +221,7 @@ function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvas
       </NodeHeader>
       <NodeContent className="flex flex-col gap-3">
         <Section title="Goal" value={data.node.goal} clamp />
-        <Section title="Expected output" value={data.node.expected_output} clamp />
+        <Section title="Done criteria" value={data.node.done_criteria} clamp />
       </NodeContent>
       <NodeFooter className="flex flex-wrap gap-2">
         <PreferredTools tools={data.node.preferred_tools} compact />

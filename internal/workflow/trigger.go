@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package workflowtrigger
+package workflow
 
 import (
 	"context"
@@ -88,10 +88,8 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 	}
 
 	schedule := &clawarmorv1alpha1.WorkflowSchedule{}
-	err = k8sClient.Get(ctx, types.NamespacedName{
-		Namespace: cfg.Namespace,
-		Name:      cfg.ScheduleName,
-	}, schedule)
+	key := types.NamespacedName{Namespace: cfg.Namespace, Name: cfg.ScheduleName}
+	err = k8sClient.Get(ctx, key, schedule)
 	if err != nil {
 		return fmt.Errorf("get workflow schedule: %w", err)
 	}

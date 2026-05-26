@@ -19,6 +19,7 @@ type Workflow struct {
 	WorkflowName string    `json:"workflow_name"`
 	Title        string    `json:"title"`
 	Summary      string    `json:"summary"`
+	InputSchema  []byte    `json:"input_schema"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -32,21 +33,19 @@ type WorkflowEdge struct {
 	Ordinal          int32     `json:"ordinal"`
 	BranchLabel      string    `json:"branch_label"`
 	ConditionSummary string    `json:"condition_summary"`
-	CelExpression    string    `json:"cel_expression"`
 	CreatedAt        time.Time `json:"created_at"`
 }
 
 type WorkflowNode struct {
-	AgentName      string    `json:"agent_name"`
-	WorkflowName   string    `json:"workflow_name"`
-	NodeName       string    `json:"node_name"`
-	Ordinal        int32     `json:"ordinal"`
-	Instructions   string    `json:"instructions"`
-	Goal           string    `json:"goal"`
-	ExpectedOutput string    `json:"expected_output"`
-	DoneCriteria   string    `json:"done_criteria"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	AgentName    string    `json:"agent_name"`
+	WorkflowName string    `json:"workflow_name"`
+	NodeName     string    `json:"node_name"`
+	Ordinal      int32     `json:"ordinal"`
+	Instructions string    `json:"instructions"`
+	Goal         string    `json:"goal"`
+	DoneCriteria string    `json:"done_criteria"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type WorkflowNodePreferredTool struct {

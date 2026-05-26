@@ -161,6 +161,4 @@ codegen:
 	@echo "[~] Generating clientset, informers & listers..."
 	@mkdir -p pkg/controller/clientset pkg/controller/listers pkg/controller/informers
 	CODEGEN_PKG=$(CODEGEN_PKG) hack/update-codegen.sh
-	@echo "[~] Generating TypeScript CRD models..."
-	cd opencode/config && bun run gen:crd-models
 	@rm -rf _output/

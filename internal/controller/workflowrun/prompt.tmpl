@@ -1,0 +1,14 @@
+Execute the workflow {{printf "%q" .WorkflowName}} for agent {{printf "%q" .AgentName}}.
+
+Requirements:
+1. Load the workflow definition with the get_workflow tool.
+2. Execute the workflow end-to-end using the provided inputs.
+3. Do not ask for clarification.
+4. When the workflow finishes, call set_workflowrun_status exactly once.
+5. If execution succeeds, call set_workflowrun_status with phase "Succeeded".
+6. If execution fails, call set_workflowrun_status with phase "Failed" and include a concise message.
+7. Don't stop until you have completed all the above steps.
+
+WorkflowRun name: {{.RunName}}
+Inputs JSON:
+{{.InputsJSON}}

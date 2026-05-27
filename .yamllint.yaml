@@ -2,6 +2,7 @@ extends: default
 ignore:
 - .ref/
 - web/
+- opencode/
 rules:
   indentation:
     indent-sequences: false

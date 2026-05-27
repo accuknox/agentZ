@@ -9,7 +9,7 @@ export function TeamSwitcher() {
         <SidebarMenuButton size="lg">
           <Link href="/" className="flex justify-between items-center gap-2">
             <Avatar className="h-8 w-8">
-              <AvatarImage src="/logo.png" />
+              <AvatarImage src="/emblem.svg" />
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">AccuKnox</span>

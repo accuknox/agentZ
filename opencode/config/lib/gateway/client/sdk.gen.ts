@@ -14,6 +14,12 @@ import type {
   CreateWorkflowData,
   CreateWorkflowErrors,
   CreateWorkflowResponses,
+  CreateWorkflowRunData,
+  CreateWorkflowRunErrors,
+  CreateWorkflowRunResponses,
+  CreateWorkflowScheduleData,
+  CreateWorkflowScheduleErrors,
+  CreateWorkflowScheduleResponses,
   DeleteAgentData,
   DeleteAgentErrors,
   DeleteAgentResponses,
@@ -23,6 +29,12 @@ import type {
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
+  DeleteWorkflowRunData,
+  DeleteWorkflowRunErrors,
+  DeleteWorkflowRunResponses,
+  DeleteWorkflowScheduleData,
+  DeleteWorkflowScheduleErrors,
+  DeleteWorkflowScheduleResponses,
   DeleteWorkflowsData,
   DeleteWorkflowsErrors,
   DeleteWorkflowsResponses,
@@ -32,6 +44,9 @@ import type {
   GetWorkflowData,
   GetWorkflowErrors,
   GetWorkflowResponses,
+  GetWorkflowRunData,
+  GetWorkflowRunErrors,
+  GetWorkflowRunResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
@@ -59,9 +74,18 @@ import type {
   ListTraceSessionsErrors,
   ListTraceSessionsResponses,
   ListTracesResponses,
+  ListWorkflowRunsData,
+  ListWorkflowRunsErrors,
+  ListWorkflowRunsResponses,
+  ListWorkflowSchedulesData,
+  ListWorkflowSchedulesErrors,
+  ListWorkflowSchedulesResponses,
   ListWorkflowSummariesData,
   ListWorkflowSummariesErrors,
   ListWorkflowSummariesResponses,
+  PatchWorkflowRunStatusData,
+  PatchWorkflowRunStatusErrors,
+  PatchWorkflowRunStatusResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -71,23 +95,35 @@ import type {
   UpdateEnvironmentData,
   UpdateEnvironmentErrors,
   UpdateEnvironmentResponses,
+  UpdateWorkflowScheduleData,
+  UpdateWorkflowScheduleErrors,
+  UpdateWorkflowScheduleResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WatchWorkflowRunsData,
+  WatchWorkflowRunsErrors,
+  WatchWorkflowRunsResponse,
+  WatchWorkflowRunsResponses,
 } from "./types.gen"
 import {
   zCreateAgentBody,
   zCreateEnvironmentBody,
   zCreateWorkflowBody,
+  zCreateWorkflowRunPath,
+  zCreateWorkflowScheduleBody,
   zDeleteAgentBody,
   zDeleteEnvironmentBody,
   zDeleteSecretBody,
   zDeleteSecretPath,
+  zDeleteWorkflowRunPath,
   zDeleteWorkflowsBody,
+  zDeleteWorkflowSchedulePath,
   zDeleteWorkflowsPath,
   zGetSpanDetailQuery,
   zGetWorkflowPath,
+  zGetWorkflowRunPath,
   zListAgentsQuery,
   zListEnvironmentsQuery,
   zListFileObservabilityQuery,
@@ -98,14 +134,24 @@ import {
   zListSpansQuery,
   zListTraceSessionsQuery,
   zListTracesQuery,
+  zListWorkflowRunsPath,
+  zListWorkflowRunsQuery,
+  zListWorkflowSchedulesPath,
+  zListWorkflowSchedulesQuery,
   zListWorkflowSummariesPath,
+  zPatchWorkflowRunStatusBody,
+  zPatchWorkflowRunStatusPath,
   zPutSecretBody,
   zPutSecretPath,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateEnvironmentBody,
   zUpdateEnvironmentPath,
+  zUpdateWorkflowScheduleBody,
+  zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
+  zWatchWorkflowRunsBody,
+  zWatchWorkflowRunsPath,
 } from "./zod.gen"
 
 export type Options<
@@ -416,6 +462,36 @@ export const getWorkflow = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * Set a WorkflowRun terminal status.
+ *
+ * Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+ *
+ */
+export const patchWorkflowRunStatus = <ThrowOnError extends boolean = false>(
+  options: Options<PatchWorkflowRunStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    PatchWorkflowRunStatusResponses,
+    PatchWorkflowRunStatusErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPatchWorkflowRunStatusBody,
+          path: zPatchWorkflowRunStatusPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-runs/{name}/status",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
  * List workflow summaries.
  *
  * Lists saved workflow metadata for a single agent without loading the full workflow graph.
@@ -438,6 +514,244 @@ export const listWorkflowSummaries = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     url: "/api/workflow-summaries/{agentName}",
+    ...options,
+  })
+
+/**
+ * Create a workflow schedule.
+ *
+ * Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+ *
+ */
+export const createWorkflowSchedule = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkflowScheduleData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateWorkflowScheduleResponses,
+    CreateWorkflowScheduleErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateWorkflowScheduleBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List workflow schedules.
+ *
+ * Lists paginated workflow schedules for one agent. The optional workflow_name query narrows the result to one workflow definition.
+ *
+ */
+export const listWorkflowSchedules = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowSchedulesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkflowSchedulesResponses,
+    ListWorkflowSchedulesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkflowSchedulesPath,
+          query: zListWorkflowSchedulesQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}",
+    ...options,
+  })
+
+/**
+ * Delete a workflow schedule.
+ *
+ * Deletes one workflow schedule. The agent name in the path must match the referenced schedule, otherwise the gateway returns not found.
+ *
+ */
+export const deleteWorkflowSchedule = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteWorkflowScheduleData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteWorkflowScheduleResponses,
+    DeleteWorkflowScheduleErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteWorkflowSchedulePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}",
+    ...options,
+  })
+
+/**
+ * Update a workflow schedule.
+ *
+ * Replaces all mutable workflow schedule fields for one existing schedule. The schedule name and agent name in the path identify the resource.
+ *
+ */
+export const updateWorkflowSchedule = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateWorkflowScheduleData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateWorkflowScheduleResponses,
+    UpdateWorkflowScheduleErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateWorkflowScheduleBody,
+          path: zUpdateWorkflowSchedulePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Trigger one workflow run from a workflow schedule.
+ *
+ * Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+ *
+ */
+export const createWorkflowRun = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkflowRunData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateWorkflowRunResponses,
+    CreateWorkflowRunErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zCreateWorkflowRunPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/run",
+    ...options,
+  })
+
+/**
+ * List workflow runs for a workflow schedule.
+ *
+ * Lists paginated workflow runs created from the addressed WorkflowSchedule.
+ *
+ */
+export const listWorkflowRuns = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowRunsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListWorkflowRunsResponses, ListWorkflowRunsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkflowRunsPath,
+          query: zListWorkflowRunsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs",
+    ...options,
+  })
+
+/**
+ * Watch workflow runs for a workflow schedule.
+ *
+ * Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed WorkflowSchedule are watched.
+ *
+ */
+export const watchWorkflowRuns = <ThrowOnError extends boolean = false>(
+  options: Options<WatchWorkflowRunsData, ThrowOnError, WatchWorkflowRunsResponse>
+) =>
+  (options.client ?? client).sse.post<
+    WatchWorkflowRunsResponses,
+    WatchWorkflowRunsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWatchWorkflowRunsBody.optional(),
+          path: zWatchWorkflowRunsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs/watch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete one workflow run.
+ *
+ * Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+ *
+ */
+export const deleteWorkflowRun = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteWorkflowRunData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteWorkflowRunResponses,
+    DeleteWorkflowRunErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteWorkflowRunPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}",
+    ...options,
+  })
+
+/**
+ * Get one workflow run.
+ *
+ * Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+ *
+ */
+export const getWorkflowRun = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkflowRunData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetWorkflowRunResponses, GetWorkflowRunErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetWorkflowRunPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}",
     ...options,
   })
 

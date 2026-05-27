@@ -38,23 +38,27 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-cnB0gd6R675ZxcXs/kCM/8uc4g4LI0M4F5+8fVNt9Q4=";
+            outputHash = "sha256-EuyeZEVSvkh5VQMHwziBgYl7CZewgquW37zTWd0ipt4=";
           };
           opencodeXdgConfigRoot = pkgs.runCommand "clawarmor-xdg-config" { } ''
             mkdir -p "$out/opencode/plugins/opencode-plugin-otel"
             cp -R ${opencodePluginOtel}/. "$out/opencode/plugins/opencode-plugin-otel/"
-            mkdir -p "$out/opencode/tools" "$out/opencode/lib/gateway"
+            mkdir -p "$out/opencode/tools" "$out/opencode/lib"
             cp -R ${opencodeConfigNodeModules}/node_modules "$out/opencode/"
-            cp -R ${./opencode/config/lib/gateway}/. "$out/opencode/lib/gateway/"
-            cp ${./opencode/config/lib/workflow.ts} "$out/opencode/lib/workflow.ts"
+            cp -R ${./opencode/config/lib}/. "$out/opencode/lib/"
             cp ${./opencode/config/bun.lock} "$out/opencode/bun.lock"
             cp ${./opencode/config/package.json} "$out/opencode/package.json"
             cp ${./opencode/config/openapi-ts.config.mjs} "$out/opencode/openapi-ts.config.mjs"
             cp ${./opencode/config/tsconfig.json} "$out/opencode/tsconfig.json"
             cp ${./opencode/config/tools/get_workflow.ts} "$out/opencode/tools/get_workflow.ts"
             cp ${./opencode/config/tools/create_workflow.ts} "$out/opencode/tools/create_workflow.ts"
+            cp ${./opencode/config/tools/create_workflow_schedule.ts} "$out/opencode/tools/create_workflow_schedule.ts"
             cp ${./opencode/config/tools/list_workflows.ts} "$out/opencode/tools/list_workflows.ts"
+            cp ${./opencode/config/tools/list_workflow_schedules.ts} "$out/opencode/tools/list_workflow_schedules.ts"
             cp ${./opencode/config/tools/delete_workflows.ts} "$out/opencode/tools/delete_workflows.ts"
+            cp ${./opencode/config/tools/delete_workflow_schedule.ts} "$out/opencode/tools/delete_workflow_schedule.ts"
+            cp ${./opencode/config/tools/set_workflowrun_status.ts} "$out/opencode/tools/set_workflowrun_status.ts"
+            cp ${./opencode/config/tools/update_workflow_schedule.ts} "$out/opencode/tools/update_workflow_schedule.ts"
             cp ${./opencode/config/plugins/workflow-context.ts} "$out/opencode/plugins/workflow-context.ts"
 
             cat > "$out/opencode/opencode.json" <<'EOF'
@@ -63,9 +67,14 @@
               "plugin": ["./plugins/opencode-plugin-otel"],
               "tools": {
                 "create_workflow": true,
+                "create_workflow_schedule": true,
                 "list_workflows": true,
+                "list_workflow_schedules": true,
                 "get_workflow": true,
-                "delete_workflows": true
+                "delete_workflows": true,
+                "delete_workflow_schedule": true,
+                "update_workflow_schedule": true,
+                "set_workflowrun_status": false
               }
             }
             EOF
@@ -75,7 +84,10 @@
           formatter = pkgs.nixpkgs-fmt;
           packages = rec {
             inherit opencodePluginOtel;
-            opencodeConfigDir = "${opencodeXdgConfigRoot}/opencode";
+            opencodeConfigDir = pkgs.runCommand "clawarmor-opencode-config-dir" { } ''
+              mkdir -p "$out"
+              cp -R ${opencodeXdgConfigRoot}/opencode/. "$out/"
+            '';
             opencodeAgentRuntime = pkgs.buildEnv {
               name = "clawarmor-opencode-runtime";
               paths = [

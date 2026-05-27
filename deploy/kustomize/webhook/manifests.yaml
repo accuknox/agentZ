@@ -43,6 +43,46 @@ webhooks:
     resources:
     - envs
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-clawarmor-accuknox-com-v1alpha1-workflowrun
+  failurePolicy: Fail
+  name: mworkflowrun-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - clawarmor.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - workflowruns
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-clawarmor-accuknox-com-v1alpha1-workflowschedule
+  failurePolicy: Fail
+  name: mworkflowschedule-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - clawarmor.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - workflowschedules
+  sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -89,4 +129,44 @@ webhooks:
     - DELETE
     resources:
     - envs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-clawarmor-accuknox-com-v1alpha1-workflowrun
+  failurePolicy: Fail
+  name: vworkflowrun-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - clawarmor.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - workflowruns
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-clawarmor-accuknox-com-v1alpha1-workflowschedule
+  failurePolicy: Fail
+  name: vworkflowschedule-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - clawarmor.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - workflowschedules
   sideEffects: None

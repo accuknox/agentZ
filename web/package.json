@@ -28,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cron-validate": "^1.5.3",
     "dayjs": "^1.11.20",
     "ipaddr.js": "^2.4.0",
     "lucide-react": "^1.16.0",

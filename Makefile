@@ -17,7 +17,7 @@ all: generate lint build
 generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
-	oapi-codegen --include-tags agents,lens,secrets,environments,workflows -config oapi-codegen.gateway.yaml openapi/gateway.yaml
+	oapi-codegen --include-tags agents,lens,secrets,environments,workflows,workflow-schedules,session -config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./pkg/apis/...;./internal/controller/...;./internal/webhook/..." \
@@ -71,6 +71,7 @@ run-manager:
 		--health-probe-bind-address=:8888 \
 		--watch-namespace=default \
 		--enable-webhooks=false \
+		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
 		--sinjector-image=$(IMAGE) \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
@@ -158,6 +159,6 @@ codegen:
 	@echo "[~] Installing kube-codegen..."
 	@git clone https://github.com/kubernetes/code-generator --branch $(CODEGEN_PKG_VERSION) --single-branch $(CODEGEN_PKG)
 	@echo "[~] Generating clientset, informers & listers..."
-	@mkdir -p pkg/agent-controller/clientset pkg/agent-controller/listers pkg/agent-controller/informers
+	@mkdir -p pkg/controller/clientset pkg/controller/listers pkg/controller/informers
 	CODEGEN_PKG=$(CODEGEN_PKG) hack/update-codegen.sh
 	@rm -rf _output/

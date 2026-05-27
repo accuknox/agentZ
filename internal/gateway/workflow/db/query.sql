@@ -3,19 +3,22 @@ INSERT INTO workflows(
   agent_name,
   workflow_name,
   title,
-  summary
+  summary,
+  input_schema
 )
 VALUES (
   sqlc.arg(agent_name),
   sqlc.arg(workflow_name),
   sqlc.arg(title),
-  sqlc.arg(summary)
+  sqlc.arg(summary),
+  sqlc.narg(input_schema)::jsonb
 )
 RETURNING
   agent_name,
   workflow_name,
   title,
   summary,
+  input_schema,
   created_at,
   updated_at;
 
@@ -27,7 +30,6 @@ INSERT INTO workflow_nodes(
   ordinal,
   instructions,
   goal,
-  expected_output,
   done_criteria
 )
 SELECT
@@ -37,14 +39,12 @@ SELECT
   n.ordinal,
   n.instructions,
   n.goal,
-  n.expected_output,
   n.done_criteria
 FROM jsonb_to_recordset(sqlc.arg(nodes)::jsonb) AS n(
   node_name text,
   ordinal int,
   instructions text,
   goal text,
-  expected_output text,
   done_criteria text
 );
 
@@ -76,8 +76,7 @@ INSERT INTO workflow_edges(
   target_node_name,
   ordinal,
   branch_label,
-  condition_summary,
-  cel_expression
+  condition_summary
 )
 SELECT
   sqlc.arg(agent_name)::text,
@@ -86,15 +85,13 @@ SELECT
   e.target_node_name,
   e.ordinal,
   e.branch_label,
-  e.condition_summary,
-  e.cel_expression
+  e.condition_summary
 FROM jsonb_to_recordset(sqlc.arg(edges)::jsonb) AS e(
   source_node_name text,
   target_node_name text,
   ordinal int,
   branch_label text,
-  condition_summary text,
-  cel_expression text
+  condition_summary text
 );
 
 -- name: WorkflowGet :one
@@ -103,6 +100,7 @@ SELECT
   workflow_name,
   title,
   summary,
+  input_schema,
   created_at,
   updated_at
 FROM workflows
@@ -140,7 +138,6 @@ SELECT
   ordinal,
   instructions,
   goal,
-  expected_output,
   done_criteria,
   created_at,
   updated_at
@@ -171,7 +168,6 @@ SELECT
   ordinal,
   branch_label,
   condition_summary,
-  cel_expression,
   created_at
 FROM workflow_edges
 WHERE agent_name = sqlc.arg(agent_name)

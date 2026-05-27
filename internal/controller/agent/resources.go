@@ -166,13 +166,9 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	podAnnotations["clawarmor.accuknox.com/config-hash"] = hash
 	podAnnotations["kubearmor-visibility"] = "process,file"
 
-	replicas := int32(1)
-	var automount bool
-	var serviceAccountName string
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 	var initContainers []corev1.Container
-	claimName := agt.Name + "-nix"
 
 	agentInitImage := r.Config.AgentInitImage
 	if agentInitImage == "" {
@@ -183,7 +179,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 		Name: nixAgentVolume,
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: claimName,
+				ClaimName: agt.Name + "-nix",
 			},
 		},
 	})
@@ -235,7 +231,6 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	}
 
 	if r.sinjectorEnabled() {
-		serviceAccountName = agt.Name
 		bundleKey := r.Config.SinjectorCASecretBundleKey
 		volumes = append(volumes, corev1.Volume{
 			Name: sinjectorCAVolume,
@@ -370,7 +365,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			Annotations: agt.Annotations,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
+			Replicas: new(int32(1)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: selectorLabels(agt),
 			},
@@ -383,8 +378,8 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 					Annotations: podAnnotations,
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName:           serviceAccountName,
-					AutomountServiceAccountToken: &automount,
+					ServiceAccountName:           agt.Name,
+					AutomountServiceAccountToken: new(false),
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(true),
 						FSGroup:      new(int64(1000)),
@@ -442,24 +437,12 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	telemetryEndpoint = strings.TrimPrefix(telemetryEndpoint, "http://")
 
 	var forced []corev1.EnvVar
-	noProxy := []string{
-		"127.0.0.1",
-		"::1",
-		"localhost",
-		".cluster.local",
-		".svc",
-	}
+	noProxy := r.agentNoProxyHosts(agt)
 	if mountConfig {
 		forced = append(forced, corev1.EnvVar{
 			Name:  "OPENCODE_CONFIG",
 			Value: opencodeConfigDir + "/" + opencodeConfigKey,
 		})
-	}
-	if agt.Spec.Telemetry.Enabled {
-		endpointHost := endpointHost(agt.Spec.Telemetry.TraceEndpoint)
-		if endpointHost != "" {
-			noProxy = append(noProxy, endpointHost)
-		}
 	}
 	if r.sinjectorEnabled() {
 		noProxyValue := strings.Join(noProxy, ",")

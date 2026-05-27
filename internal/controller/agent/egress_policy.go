@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -35,9 +36,19 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
+var packageInstallPolicyHosts = []envutil.Host{
+	{Kind: envutil.HostKindWildcard, Value: "*.nixos.org"},
+	{Kind: envutil.HostKindDomain, Value: "github.com"},
+	{Kind: envutil.HostKindWildcard, Value: "*.github.com"},
+}
+
 func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
 	name := egressPolicyName(agt)
-	if len(allowedHosts) == 0 {
+	spec, err := r.buildEgressPolicySpec(agt, allowedHosts)
+	if err != nil {
+		return err
+	}
+	if len(spec.Egress) == 0 {
 		policy := &ciliumv2.CiliumNetworkPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: agt.Namespace},
 		}
@@ -47,10 +58,6 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1
 		return nil
 	}
 
-	spec, err := r.buildEgressPolicySpec(agt, allowedHosts)
-	if err != nil {
-		return err
-	}
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = name
 	current.Namespace = agt.Namespace
@@ -67,10 +74,11 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1
 }
 
 func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowedHosts []string) (*ciliumapi.Rule, error) {
-	egress, err := egressRulesForHosts(allowedHosts, r.automaticEgressHosts(agt))
+	hosts, err := r.resolveDirectEgressHosts(agt, allowedHosts)
 	if err != nil {
 		return nil, err
 	}
+	egress := buildHostEgressRules(hosts, r.sinjectorEnabled())
 
 	if r.sinjectorEnabled() {
 		egress = append(egress, sinjectorEgressRule(agt))
@@ -88,17 +96,31 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowed
 	}, nil
 }
 
-func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ciliumapi.EgressRule, error) {
+func (r *Reconciler) resolveDirectEgressHosts(agt *clawarmorv1alpha1.Agent, allowedHosts []string) ([]envutil.Host, error) {
 	hosts, err := envutil.ParseHostList(allowedHosts)
 	if err != nil {
 		return nil, err
 	}
-	hosts = append(hosts, extraHosts...)
+	hosts = append(hosts, r.automaticEgressHosts(agt)...)
 	hosts = uniqueHosts(hosts)
-	if len(hosts) == 0 {
-		return nil, nil
+	if !r.sinjectorEnabled() {
+		return hosts, nil
 	}
 
+	noProxy := r.agentNoProxyHosts(agt)
+	var direct []envutil.Host
+
+	for _, host := range hosts {
+		if hostMatchesNoProxy(host, noProxy) ||
+			slices.Contains(packageInstallPolicyHosts, host) {
+			direct = append(direct, host)
+		}
+	}
+
+	return direct, nil
+}
+
+func buildHostEgressRules(hosts []envutil.Host, includeDNS bool) []ciliumapi.EgressRule {
 	fqdns := ciliumapi.FQDNSelectorSlice{}
 	cidrs := ciliumapi.CIDRRuleSlice{}
 	for _, host := range hosts {
@@ -112,7 +134,10 @@ func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ci
 		}
 	}
 
-	egress := []ciliumapi.EgressRule{dnsEgressRule()}
+	egress := []ciliumapi.EgressRule{}
+	if includeDNS {
+		egress = append(egress, dnsEgressRule())
+	}
 	if len(fqdns) > 0 {
 		egress = append(egress, ciliumapi.EgressRule{ToFQDNs: fqdns})
 	}
@@ -121,7 +146,55 @@ func egressRulesForHosts(allowedHosts []string, extraHosts []envutil.Host) ([]ci
 			EgressCommonRule: ciliumapi.EgressCommonRule{ToCIDRSet: cidrs},
 		})
 	}
-	return egress, nil
+	return egress
+}
+
+func hostMatchesNoProxy(host envutil.Host, noProxy []string) bool {
+	switch host.Kind {
+	case envutil.HostKindDomain, envutil.HostKindWildcard:
+		name := host.Value
+		if host.Kind == envutil.HostKindWildcard {
+			name = strings.TrimPrefix(name, "*.")
+		}
+		for _, item := range noProxy {
+			item = strings.ToLower(strings.TrimSpace(item))
+			if item == "" {
+				continue
+			}
+			if after, ok := strings.CutPrefix(item, "."); ok {
+				if name == after || strings.HasSuffix(name, item) {
+					return true
+				}
+				continue
+			}
+			if name == item {
+				return true
+			}
+		}
+	case envutil.HostKindCIDR:
+		prefix, err := netip.ParsePrefix(host.Value)
+		if err != nil {
+			return false
+		}
+		for _, item := range noProxy {
+			item = strings.ToLower(strings.TrimSpace(item))
+			if item == "" {
+				continue
+			}
+			addr, err := netip.ParseAddr(item)
+			if err == nil {
+				if prefix.Bits() == addr.BitLen() && prefix.Addr() == addr {
+					return true
+				}
+				continue
+			}
+			other, err := netip.ParsePrefix(item)
+			if err == nil && prefix == other.Masked() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func uniqueHosts(hosts []envutil.Host) []envutil.Host {
@@ -197,6 +270,27 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent) ciliumapi.EgressRule {
 	}
 }
 
+func (r *Reconciler) agentNoProxyHosts(agt *clawarmorv1alpha1.Agent) []string {
+	hosts := []string{
+		"127.0.0.1",
+		"::1",
+		"localhost",
+		".cluster.local",
+		".svc",
+	}
+	gatewayHost := endpointHost(r.Config.GatewayURL)
+	if gatewayHost != "" {
+		hosts = append(hosts, gatewayHost)
+	}
+	if agt.Spec.Telemetry.Enabled {
+		host := endpointHost(agt.Spec.Telemetry.TraceEndpoint)
+		if host != "" {
+			hosts = append(hosts, host)
+		}
+	}
+	return hosts
+}
+
 func (r *Reconciler) automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
 	var hosts []envutil.Host
 	if agt.Spec.Telemetry.Enabled {
@@ -204,11 +298,7 @@ func (r *Reconciler) automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envuti
 	}
 	hosts = append(hosts, hostForEndpoint(r.Config.GatewayURL)...)
 	// TODO: move away from init-container to an init Job
-	hosts = append(hosts, []envutil.Host{
-		{Kind: envutil.HostKindWildcard, Value: "*.nixos.org"},
-		{Kind: envutil.HostKindDomain, Value: "github.com"},
-		{Kind: envutil.HostKindWildcard, Value: "*.github.com"},
-	}...)
+	hosts = append(hosts, packageInstallPolicyHosts...)
 	return hosts
 }
 

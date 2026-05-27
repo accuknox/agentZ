@@ -123,6 +123,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile configmap: %w", err)
 	}
 
+	err = r.reconcileServiceAccount(ctx, agt, agt.Name, resourceLabels(agt))
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("reconcile agent serviceaccount: %w", err)
+	}
+
 	err = r.reconcileService(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)

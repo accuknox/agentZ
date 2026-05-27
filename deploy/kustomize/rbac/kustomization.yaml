@@ -22,6 +22,12 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the clawarmor itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
+- workflowrun_admin_role.yaml
+- workflowrun_editor_role.yaml
+- workflowrun_viewer_role.yaml
+- workflowschedule_admin_role.yaml
+- workflowschedule_editor_role.yaml
+- workflowschedule_viewer_role.yaml
 - environment_admin_role.yaml
 - environment_editor_role.yaml
 - environment_viewer_role.yaml

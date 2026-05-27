@@ -7,12 +7,17 @@ import {
   createAgent,
   createEnvironment,
   createWorkflow,
+  createWorkflowRun,
+  createWorkflowSchedule,
   deleteAgent,
   deleteEnvironment,
   deleteSecret,
+  deleteWorkflowRun,
   deleteWorkflows,
+  deleteWorkflowSchedule,
   getSpanDetail,
   getWorkflow,
+  getWorkflowRun,
   listAgents,
   listEnvironments,
   listFileObservability,
@@ -22,11 +27,15 @@ import {
   listSpans,
   listTraces,
   listTraceSessions,
+  listWorkflowRuns,
+  listWorkflowSchedules,
   listWorkflowSummaries,
   type Options,
+  patchWorkflowRunStatus,
   putSecret,
   updateAgent,
   updateEnvironment,
+  updateWorkflowSchedule,
 } from "../sdk.gen"
 import type {
   CreateAgentData,
@@ -38,6 +47,12 @@ import type {
   CreateWorkflowData,
   CreateWorkflowError,
   CreateWorkflowResponse,
+  CreateWorkflowRunData,
+  CreateWorkflowRunError,
+  CreateWorkflowRunResponse,
+  CreateWorkflowScheduleData,
+  CreateWorkflowScheduleError,
+  CreateWorkflowScheduleResponse,
   DeleteAgentData,
   DeleteAgentError,
   DeleteAgentResponse,
@@ -47,6 +62,12 @@ import type {
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
+  DeleteWorkflowRunData,
+  DeleteWorkflowRunError,
+  DeleteWorkflowRunResponse,
+  DeleteWorkflowScheduleData,
+  DeleteWorkflowScheduleError,
+  DeleteWorkflowScheduleResponse,
   DeleteWorkflowsData,
   DeleteWorkflowsError,
   DeleteWorkflowsResponse,
@@ -56,6 +77,9 @@ import type {
   GetWorkflowData,
   GetWorkflowError,
   GetWorkflowResponse,
+  GetWorkflowRunData,
+  GetWorkflowRunError,
+  GetWorkflowRunResponse,
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
@@ -83,9 +107,18 @@ import type {
   ListTraceSessionsError,
   ListTraceSessionsResponse2,
   ListTracesResponse2,
+  ListWorkflowRunsData,
+  ListWorkflowRunsError,
+  ListWorkflowRunsResponse2,
+  ListWorkflowSchedulesData,
+  ListWorkflowSchedulesError,
+  ListWorkflowSchedulesResponse2,
   ListWorkflowSummariesData,
   ListWorkflowSummariesError,
   ListWorkflowSummariesResponse,
+  PatchWorkflowRunStatusData,
+  PatchWorkflowRunStatusError,
+  PatchWorkflowRunStatusResponse,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
@@ -95,6 +128,9 @@ import type {
   UpdateEnvironmentData,
   UpdateEnvironmentError,
   UpdateEnvironmentResponse,
+  UpdateWorkflowScheduleData,
+  UpdateWorkflowScheduleError,
+  UpdateWorkflowScheduleResponse,
 } from "../types.gen"
 
 export type QueryKey<TOptions extends Options> = [
@@ -469,6 +505,36 @@ export const getWorkflowOptions = (options: Options<GetWorkflowData>) =>
     queryKey: getWorkflowQueryKey(options),
   })
 
+/**
+ * Set a WorkflowRun terminal status.
+ *
+ * Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+ *
+ */
+export const patchWorkflowRunStatusMutation = (
+  options?: Partial<Options<PatchWorkflowRunStatusData>>
+): UseMutationOptions<
+  PatchWorkflowRunStatusResponse,
+  PatchWorkflowRunStatusError,
+  Options<PatchWorkflowRunStatusData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PatchWorkflowRunStatusResponse,
+    PatchWorkflowRunStatusError,
+    Options<PatchWorkflowRunStatusData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await patchWorkflowRunStatus({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
 export const listWorkflowSummariesQueryKey = (options: Options<ListWorkflowSummariesData>) =>
   createQueryKey("listWorkflowSummaries", options)
 
@@ -495,6 +561,240 @@ export const listWorkflowSummariesOptions = (options: Options<ListWorkflowSummar
       return data
     },
     queryKey: listWorkflowSummariesQueryKey(options),
+  })
+
+/**
+ * Create a workflow schedule.
+ *
+ * Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+ *
+ */
+export const createWorkflowScheduleMutation = (
+  options?: Partial<Options<CreateWorkflowScheduleData>>
+): UseMutationOptions<
+  CreateWorkflowScheduleResponse,
+  CreateWorkflowScheduleError,
+  Options<CreateWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowScheduleResponse,
+    CreateWorkflowScheduleError,
+    Options<CreateWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkflowSchedulesQueryKey = (options: Options<ListWorkflowSchedulesData>) =>
+  createQueryKey("listWorkflowSchedules", options)
+
+/**
+ * List workflow schedules.
+ *
+ * Lists paginated workflow schedules for one agent. The optional workflow_name query narrows the result to one workflow definition.
+ *
+ */
+export const listWorkflowSchedulesOptions = (options: Options<ListWorkflowSchedulesData>) =>
+  queryOptions<
+    ListWorkflowSchedulesResponse2,
+    ListWorkflowSchedulesError,
+    ListWorkflowSchedulesResponse2,
+    ReturnType<typeof listWorkflowSchedulesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowSchedules({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowSchedulesQueryKey(options),
+  })
+
+/**
+ * Delete a workflow schedule.
+ *
+ * Deletes one workflow schedule. The agent name in the path must match the referenced schedule, otherwise the gateway returns not found.
+ *
+ */
+export const deleteWorkflowScheduleMutation = (
+  options?: Partial<Options<DeleteWorkflowScheduleData>>
+): UseMutationOptions<
+  DeleteWorkflowScheduleResponse,
+  DeleteWorkflowScheduleError,
+  Options<DeleteWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkflowScheduleResponse,
+    DeleteWorkflowScheduleError,
+    Options<DeleteWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Update a workflow schedule.
+ *
+ * Replaces all mutable workflow schedule fields for one existing schedule. The schedule name and agent name in the path identify the resource.
+ *
+ */
+export const updateWorkflowScheduleMutation = (
+  options?: Partial<Options<UpdateWorkflowScheduleData>>
+): UseMutationOptions<
+  UpdateWorkflowScheduleResponse,
+  UpdateWorkflowScheduleError,
+  Options<UpdateWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateWorkflowScheduleResponse,
+    UpdateWorkflowScheduleError,
+    Options<UpdateWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Trigger one workflow run from a workflow schedule.
+ *
+ * Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+ *
+ */
+export const createWorkflowRunMutation = (
+  options?: Partial<Options<CreateWorkflowRunData>>
+): UseMutationOptions<
+  CreateWorkflowRunResponse,
+  CreateWorkflowRunError,
+  Options<CreateWorkflowRunData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowRunResponse,
+    CreateWorkflowRunError,
+    Options<CreateWorkflowRunData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflowRun({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkflowRunsQueryKey = (options: Options<ListWorkflowRunsData>) =>
+  createQueryKey("listWorkflowRuns", options)
+
+/**
+ * List workflow runs for a workflow schedule.
+ *
+ * Lists paginated workflow runs created from the addressed WorkflowSchedule.
+ *
+ */
+export const listWorkflowRunsOptions = (options: Options<ListWorkflowRunsData>) =>
+  queryOptions<
+    ListWorkflowRunsResponse2,
+    ListWorkflowRunsError,
+    ListWorkflowRunsResponse2,
+    ReturnType<typeof listWorkflowRunsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowRuns({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowRunsQueryKey(options),
+  })
+
+/**
+ * Delete one workflow run.
+ *
+ * Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+ *
+ */
+export const deleteWorkflowRunMutation = (
+  options?: Partial<Options<DeleteWorkflowRunData>>
+): UseMutationOptions<
+  DeleteWorkflowRunResponse,
+  DeleteWorkflowRunError,
+  Options<DeleteWorkflowRunData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkflowRunResponse,
+    DeleteWorkflowRunError,
+    Options<DeleteWorkflowRunData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflowRun({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getWorkflowRunQueryKey = (options: Options<GetWorkflowRunData>) =>
+  createQueryKey("getWorkflowRun", options)
+
+/**
+ * Get one workflow run.
+ *
+ * Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+ *
+ */
+export const getWorkflowRunOptions = (options: Options<GetWorkflowRunData>) =>
+  queryOptions<
+    GetWorkflowRunResponse,
+    GetWorkflowRunError,
+    GetWorkflowRunResponse,
+    ReturnType<typeof getWorkflowRunQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkflowRun({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkflowRunQueryKey(options),
   })
 
 /**

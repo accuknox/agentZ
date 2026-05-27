@@ -5,33 +5,25 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 
-	"github.com/google/cel-go/cel"
 	"github.com/jackc/pgx/v5/pgconn"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/accuknox/clawarmor/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/workflow"
 )
 
-var (
-	ErrConditionEnvUnavailable = errors.New("condition environment unavailable")
-	conditionEnvOnce           sync.Once
-	conditionEnv               *cel.Env
-	conditionEnvErr            error
-)
-
-func ValidateLookupRequest(agentName string, workflowName string) []gatewayapi.FieldError {
+func ValidateLookupRequest(agtName string, wfName string) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 2)
 
-	if !isDNSLabel(agentName, 32) {
+	if !isDNSLabel(agtName, 32) {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "agentName",
 			Message: "must be a valid DNS label",
 		})
 	}
-	if !isDNSLabel(workflowName, 32) {
+	if !isDNSLabel(wfName, 32) {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "workflowName",
 			Message: "must be a valid DNS label",
@@ -41,8 +33,8 @@ func ValidateLookupRequest(agentName string, workflowName string) []gatewayapi.F
 	return fields
 }
 
-func ValidateListRequest(agentName string) []gatewayapi.FieldError {
-	if isDNSLabel(agentName, 32) {
+func ValidateListRequest(agtName string) []gatewayapi.FieldError {
+	if isDNSLabel(agtName, 32) {
 		return nil
 	}
 
@@ -53,17 +45,17 @@ func ValidateListRequest(agentName string) []gatewayapi.FieldError {
 }
 
 // ValidateDeleteRequest validates one agent-scoped workflow delete request.
-func ValidateDeleteRequest(agentName string, workflowNames []string) []gatewayapi.FieldError {
-	fields := make([]gatewayapi.FieldError, 0, len(workflowNames)+1)
+func ValidateDeleteRequest(agtName string, wfNames []string) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, len(wfNames)+1)
 
-	if !isDNSLabel(agentName, 32) {
+	if !isDNSLabel(agtName, 32) {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "agentName",
 			Message: "must be a valid DNS label",
 		})
 	}
 
-	if len(workflowNames) == 0 {
+	if len(wfNames) == 0 {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "workflow_names",
 			Message: "must include at least one workflow name",
@@ -71,7 +63,7 @@ func ValidateDeleteRequest(agentName string, workflowNames []string) []gatewayap
 		return fields
 	}
 
-	for i, workflowName := range workflowNames {
+	for i, workflowName := range wfNames {
 		if isDNSLabel(workflowName, 32) {
 			continue
 		}
@@ -111,6 +103,16 @@ func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.F
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "summary",
 			Message: "required",
+		})
+	}
+	inputIssues, err := workflow.ValidateDefinition(req.Inputs, "inputs")
+	if err != nil {
+		return nil, err
+	}
+	for _, issue := range inputIssues {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   issue.Field,
+			Message: issue.Message,
 		})
 	}
 	if len(req.Nodes) == 0 {
@@ -160,12 +162,6 @@ func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.F
 		if strings.TrimSpace(node.Goal) == "" {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fieldPrefix + ".goal",
-				Message: "required",
-			})
-		}
-		if strings.TrimSpace(node.ExpectedOutput) == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".expected_output",
 				Message: "required",
 			})
 		}
@@ -221,33 +217,6 @@ func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.F
 			})
 		}
 
-		summary := strings.TrimSpace(edge.ConditionSummary)
-		expr := strings.TrimSpace(edge.CelExpression)
-		if (summary == "") != (expr == "") {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix,
-				Message: "condition_summary and cel_expression must be provided together",
-			})
-		}
-		if expr != "" {
-			env, err := ConditionEnv()
-			if err != nil {
-				return nil, err
-			}
-			ast, issues := env.Compile(expr)
-			if issues != nil && issues.Err() != nil {
-				fields = append(fields, gatewayapi.FieldError{
-					Field:   fieldPrefix + ".cel_expression",
-					Message: issues.Err().Error(),
-				})
-			} else if ast != nil && ast.OutputType() != cel.BoolType && ast.OutputType() != cel.DynType {
-				fields = append(fields, gatewayapi.FieldError{
-					Field:   fieldPrefix + ".cel_expression",
-					Message: "must evaluate to a boolean",
-				})
-			}
-		}
-
 		if _, sourceExists := nodeIndex[source]; sourceExists {
 			adjacency[source] = append(adjacency[source], target)
 			outDegree[source]++
@@ -292,26 +261,9 @@ func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.F
 		})
 	}
 
+	fields = append(fields, validateBranchConditions(req, outDegree)...)
+
 	return fields, nil
-}
-
-func ConditionEnv() (*cel.Env, error) {
-	conditionEnvOnce.Do(func() {
-		conditionEnv, conditionEnvErr = cel.NewEnv(
-			cel.Variable("tool_name", cel.StringType),
-			cel.Variable("tool_success", cel.BoolType),
-			cel.Variable("tool_output", cel.StringType),
-		)
-		if conditionEnvErr != nil {
-			conditionEnvErr = fmt.Errorf("%w: %w", ErrConditionEnvUnavailable, conditionEnvErr)
-		}
-	})
-
-	if conditionEnvErr != nil {
-		return nil, conditionEnvErr
-	}
-
-	return conditionEnv, nil
 }
 
 func isDNSLabel(value string, maxLen int) bool {
@@ -381,6 +333,25 @@ func countTerminalNodes(degrees map[string]int) int {
 	return count
 }
 
+func validateBranchConditions(req gatewayapi.CreateWorkflowRequest, outDegree map[string]int) []gatewayapi.FieldError {
+	fields := []gatewayapi.FieldError{}
+	for edgeIndex, edge := range req.Edges {
+		if outDegree[edge.Source] <= 1 {
+			continue
+		}
+		if strings.TrimSpace(edge.ConditionSummary) != "" {
+			continue
+		}
+
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "edges." + strconv.Itoa(edgeIndex) + ".condition_summary",
+			Message: "required when the source node has multiple outgoing edges",
+		})
+	}
+
+	return fields
+}
+
 // MapCreateError translates workflow persistence and validation setup errors to API errors.
 func MapCreateError(err error) *apiutil.APIError {
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
@@ -400,15 +371,6 @@ func MapCreateError(err error) *apiutil.APIError {
 				gatewayapi.FieldError{Field: field, Message: "already in-use"},
 			)
 		}
-	}
-
-	if errors.Is(err, ErrConditionEnvUnavailable) {
-		return apiutil.NewError(
-			500,
-			"internal_error",
-			"request validation failed",
-			fmt.Errorf("workflow validation setup: %w", err),
-		)
 	}
 
 	return apiutil.NewError(500, "internal_error", "request failed", err)

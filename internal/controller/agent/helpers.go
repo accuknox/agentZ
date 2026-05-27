@@ -30,35 +30,36 @@ import (
 )
 
 const (
-	opencodeConfigKey       = "opencode.json"
-	opencodeInstructionKey  = "instruction.md"
-	configVolume            = "config"
-	opencodeConfigDir       = "/etc/clawarmor/opencode"
-	opencodeInstructionPath = "/etc/clawarmor/opencode/instruction.md"
-	createWorkflowToolName  = "create_workflow"
-	getWorkflowToolName     = "get_workflow"
-	listWorkflowsToolName   = "list_workflows"
-	deleteWorkflowsToolName = "delete_workflows"
-	nixAgentVolume          = "nix-agent"
-	nixRuntimeStoreVolume   = "nix-runtime-store"
-	nixAgentMount           = "/mnt/nix"
-	nixRuntimeStoreMount    = "/nix/store"
-	nixRuntimeStageMount    = "/runtime-nix-store"
-	nixHomeSubPath          = "home"
-	nixStoreSubPath         = "nix"
-	nixVolumeRootMount      = "/pvc"
-	nixLinkVolume           = "nix-link"
-	nixLinkMount            = "/tmp/nix-link"
-	nixLinkStage            = "/tmp/nix-link"
-	nixInitImage            = "murtazau/clawarmor-init:latest"
-	homeInitName            = "home-init"
-	nixPkgEnv               = "NIX_PACKAGES"
-	sinjectorNameSuffix     = "-sinjector"
-	sinjectorCAVolume       = "sinjector-ca"
-	sinjectorCAMountPath    = "/etc/clawarmor/sinjector-ca"
-	sinjectorFinalizer      = "clawarmor.accuknox.com/sinjector"
-	egressPolicySuffix      = "-egress"
-	opencodeConfigSchema    = "https://opencode.ai/config.json"
+	opencodeConfigKey            = "opencode.json"
+	opencodeInstructionKey       = "instruction.md"
+	configVolume                 = "config"
+	opencodeConfigDir            = "/etc/clawarmor/opencode"
+	opencodeInstructionPath      = "/etc/clawarmor/opencode/instruction.md"
+	createWorkflowToolName       = "create_workflow"
+	getWorkflowToolName          = "get_workflow"
+	listWorkflowsToolName        = "list_workflows"
+	deleteWorkflowsToolName      = "delete_workflows"
+	setWorkflowRunStatusToolName = "set_workflowrun_status"
+	nixAgentVolume               = "nix-agent"
+	nixRuntimeStoreVolume        = "nix-runtime-store"
+	nixAgentMount                = "/mnt/nix"
+	nixRuntimeStoreMount         = "/nix/store"
+	nixRuntimeStageMount         = "/runtime-nix-store"
+	nixHomeSubPath               = "home"
+	nixStoreSubPath              = "nix"
+	nixVolumeRootMount           = "/pvc"
+	nixLinkVolume                = "nix-link"
+	nixLinkMount                 = "/tmp/nix-link"
+	nixLinkStage                 = "/tmp/nix-link"
+	nixInitImage                 = "murtazau/clawarmor-init:latest"
+	homeInitName                 = "home-init"
+	nixPkgEnv                    = "NIX_PACKAGES"
+	sinjectorNameSuffix          = "-sinjector"
+	sinjectorCAVolume            = "sinjector-ca"
+	sinjectorCAMountPath         = "/etc/clawarmor/sinjector-ca"
+	sinjectorFinalizer           = "clawarmor.accuknox.com/sinjector"
+	egressPolicySuffix           = "-egress"
+	opencodeConfigSchema         = "https://opencode.ai/config.json"
 )
 
 var errImageEmpty = errors.New("agent image must not be empty")
@@ -156,10 +157,11 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) 
 		}
 	}
 	cfg.Tools = map[string]bool{
-		createWorkflowToolName:  true,
-		getWorkflowToolName:     true,
-		listWorkflowsToolName:   true,
-		deleteWorkflowsToolName: true,
+		createWorkflowToolName:       true,
+		getWorkflowToolName:          true,
+		listWorkflowsToolName:        true,
+		deleteWorkflowsToolName:      true,
+		setWorkflowRunStatusToolName: false,
 	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")

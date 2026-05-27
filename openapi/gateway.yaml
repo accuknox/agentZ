@@ -259,6 +259,8 @@ components:
           items:
             $ref: '#/components/schemas/WorkflowEdge'
           type: array
+        inputs:
+          $ref: '#/components/schemas/WorkflowInputs'
         nodes:
           items:
             $ref: '#/components/schemas/WorkflowNode'
@@ -281,6 +283,46 @@ components:
       - summary
       - nodes
       - edges
+      type: object
+    CreateWorkflowScheduleRequest:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        failed_runs_history_limit:
+          format: int32
+          maximum: 10
+          minimum: 1
+          type: integer
+        inputs:
+          $ref: '#/components/schemas/JSONValue'
+        name:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+        schedule:
+          minLength: 1
+          type: string
+        successful_runs_history_limit:
+          format: int32
+          maximum: 10
+          minimum: 1
+          type: integer
+        suspend:
+          type: boolean
+        time_zone:
+          type: string
+        timeout_seconds:
+          format: int32
+          maximum: 604800
+          minimum: 1
+          type: integer
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - name
+      - agent_name
+      - workflow_name
+      - schedule
+      - timeout_seconds
       type: object
     DeleteAgentRequest:
       additionalProperties: false
@@ -607,6 +649,32 @@ components:
           type: array
       required:
       - traces
+      - next_page_token
+      type: object
+    ListWorkflowRunsResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        workflow_runs:
+          items:
+            $ref: '#/components/schemas/WorkflowRunSummary'
+          type: array
+      required:
+      - workflow_runs
+      - next_page_token
+      type: object
+    ListWorkflowSchedulesResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        workflow_schedules:
+          items:
+            $ref: '#/components/schemas/WorkflowSchedule'
+          type: array
+      required:
+      - workflow_schedules
       - next_page_token
       type: object
     NetworkObservabilityEvent:
@@ -8778,6 +8846,17 @@ components:
       maxLength: 16
       pattern: ^([0-9a-f]{16})?$
       type: string
+    PatchWorkflowRunStatusRequest:
+      additionalProperties: false
+      properties:
+        message:
+          maxLength: 4096
+          type: string
+        phase:
+          $ref: '#/components/schemas/WorkflowRunTerminalPhase'
+      required:
+      - phase
+      type: object
     ProcessObservabilityEvent:
       additionalProperties: false
       properties:
@@ -9285,6 +9364,40 @@ components:
       - packages
       - allowed_hosts
       type: object
+    UpdateWorkflowScheduleRequest:
+      additionalProperties: false
+      properties:
+        failed_runs_history_limit:
+          format: int32
+          maximum: 10
+          minimum: 1
+          type: integer
+        inputs:
+          $ref: '#/components/schemas/JSONValue'
+        schedule:
+          minLength: 1
+          type: string
+        successful_runs_history_limit:
+          format: int32
+          maximum: 10
+          minimum: 1
+          type: integer
+        suspend:
+          type: boolean
+        time_zone:
+          type: string
+        timeout_seconds:
+          format: int32
+          maximum: 604800
+          minimum: 1
+          type: integer
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - workflow_name
+      - schedule
+      - timeout_seconds
+      type: object
     WatchAgentsEvent:
       additionalProperties: false
       properties:
@@ -9304,6 +9417,25 @@ components:
           type: array
           uniqueItems: true
       type: object
+    WatchWorkflowRunsEvent:
+      additionalProperties: false
+      properties:
+        workflow_runs:
+          items:
+            $ref: '#/components/schemas/WorkflowRunSummary'
+          type: array
+      required:
+      - workflow_runs
+      type: object
+    WatchWorkflowRunsRequest:
+      additionalProperties: false
+      properties:
+        run_names:
+          items:
+            $ref: '#/components/schemas/WorkflowRunName'
+          type: array
+          uniqueItems: true
+      type: object
     Workflow:
       additionalProperties: false
       properties:
@@ -9316,6 +9448,8 @@ components:
           items:
             $ref: '#/components/schemas/WorkflowEdge'
           type: array
+        inputs:
+          $ref: '#/components/schemas/WorkflowInputs'
         nodes:
           items:
             $ref: '#/components/schemas/WorkflowNode'
@@ -9345,9 +9479,6 @@ components:
         branch_label:
           maxLength: 256
           type: string
-        cel_expression:
-          maxLength: 2048
-          type: string
         condition_summary:
           maxLength: 1024
           type: string
@@ -9360,7 +9491,86 @@ components:
       - target
       - branch_label
       - condition_summary
-      - cel_expression
+      type: object
+    WorkflowInputScalarValue:
+      oneOf:
+      - type: boolean
+      - format: double
+        type: number
+      - type: string
+    WorkflowInputSchema:
+      additionalProperties: false
+      description: |
+        Per-input validation schema. Only these keys are accepted: type,
+        description, required, default, enum, minLength, maxLength, pattern,
+        format, minimum, maximum, exclusiveMinimum, exclusiveMaximum, and
+        multipleOf. Extra JSON Schema metadata is not supported.
+      properties:
+        default:
+          $ref: '#/components/schemas/WorkflowInputScalarValue'
+        description:
+          minLength: 1
+          type: string
+        enum:
+          items:
+            $ref: '#/components/schemas/WorkflowInputScalarValue'
+          minItems: 1
+          type: array
+          uniqueItems: true
+        exclusiveMaximum:
+          format: double
+          type: number
+        exclusiveMinimum:
+          format: double
+          type: number
+        format:
+          $ref: '#/components/schemas/WorkflowInputStringFormat'
+        maxLength:
+          minimum: 0
+          type: integer
+        maximum:
+          format: double
+          type: number
+        minLength:
+          minimum: 0
+          type: integer
+        minimum:
+          format: double
+          type: number
+        multipleOf:
+          exclusiveMinimum: true
+          format: double
+          minimum: 0
+          type: number
+        pattern:
+          minLength: 1
+          type: string
+        required:
+          type: boolean
+        type:
+          $ref: '#/components/schemas/WorkflowInputType'
+      required:
+      - type
+      - required
+      type: object
+    WorkflowInputStringFormat:
+      enum:
+      - email
+      - uri
+      - uuid
+      - date
+      - date-time
+      type: string
+    WorkflowInputType:
+      enum:
+      - string
+      - integer
+      - number
+      - boolean
+      type: string
+    WorkflowInputs:
+      additionalProperties:
+        $ref: '#/components/schemas/WorkflowInputSchema'
       type: object
     WorkflowName:
       description: Workflow name scoped to one agent.
@@ -9372,10 +9582,6 @@ components:
       additionalProperties: false
       properties:
         done_criteria:
-          maxLength: 2048
-          minLength: 1
-          type: string
-        expected_output:
           maxLength: 2048
           minLength: 1
           type: string
@@ -9399,13 +9605,160 @@ components:
       - name
       - instructions
       - goal
-      - expected_output
       - done_criteria
       - preferred_tools
       type: object
     WorkflowNodeName:
       description: Stable workflow node identifier.
       maxLength: 64
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    WorkflowRunDetail:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        completed_at:
+          format: date-time
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        duration_seconds:
+          format: int64
+          minimum: 0
+          type: integer
+        inputs:
+          $ref: '#/components/schemas/JSONValue'
+        message:
+          type: string
+        name:
+          $ref: '#/components/schemas/WorkflowRunName'
+        reason:
+          type: string
+        schedule_name:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+        session_id:
+          type: string
+        started_at:
+          format: date-time
+          type: string
+        status:
+          $ref: '#/components/schemas/WorkflowRunStatus'
+        timeout_seconds:
+          format: int32
+          maximum: 604800
+          minimum: 1
+          type: integer
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - name
+      - agent_name
+      - workflow_name
+      - inputs
+      - timeout_seconds
+      - status
+      - reason
+      - message
+      - created_at
+      type: object
+    WorkflowRunName:
+      description: WorkflowRun resource name.
+      maxLength: 253
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+      type: string
+    WorkflowRunStatus:
+      enum:
+      - Pending
+      - Running
+      - Succeeded
+      - Failed
+      - Unacked
+      type: string
+    WorkflowRunSummary:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        duration_seconds:
+          format: int64
+          minimum: 0
+          type: integer
+        name:
+          $ref: '#/components/schemas/WorkflowRunName'
+        reason:
+          type: string
+        status:
+          $ref: '#/components/schemas/WorkflowRunStatus'
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - name
+      - workflow_name
+      - status
+      - reason
+      - created_at
+      type: object
+    WorkflowRunTerminalPhase:
+      enum:
+      - Succeeded
+      - Failed
+      type: string
+    WorkflowSchedule:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        created_at:
+          format: date-time
+          type: string
+        failed_runs_history_limit:
+          format: int32
+          maximum: 10
+          minimum: 1
+          type: integer
+        inputs:
+          $ref: '#/components/schemas/JSONValue'
+        name:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+        schedule:
+          minLength: 1
+          type: string
+        successful_runs_history_limit:
+          format: int32
+          maximum: 10
+          minimum: 1
+          type: integer
+        suspend:
+          type: boolean
+        time_zone:
+          type: string
+        timeout_seconds:
+          format: int32
+          maximum: 604800
+          minimum: 1
+          type: integer
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - name
+      - agent_name
+      - workflow_name
+      - schedule
+      - timeout_seconds
+      - inputs
+      - suspend
+      - successful_runs_history_limit
+      - failed_runs_history_limit
+      - created_at
+      type: object
+    WorkflowScheduleName:
+      description: WorkflowSchedule resource name.
+      maxLength: 32
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
       type: string
@@ -17477,6 +17830,325 @@ paths:
       summary: Store or overwrite secrets for an agent.
       tags:
       - secrets
+  /api/workflow-runs/{name}/status:
+    patch:
+      description: |
+        Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+      operationId: patchWorkflowRunStatus
+      parameters:
+      - description: WorkflowRun resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
+        required: true
+      responses:
+        "204":
+          description: WorkflowRun status updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Set a WorkflowRun terminal status.
+      tags:
+      - workflows
+  /api/workflow-schedules:
+    post:
+      description: |
+        Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+      operationId: createWorkflowSchedule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowScheduleRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSchedule'
+          description: Workflow schedule created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow-schedules/{agentName}:
+    get:
+      description: |
+        Lists paginated workflow schedules for one agent. The optional workflow_name query narrows the result to one workflow definition.
+      operationId: listWorkflowSchedules
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Optional workflow name filter scoped to one agent.
+        in: query
+        name: workflow_name
+        required: false
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowSchedulesResponse'
+          description: Paginated workflow schedules for one agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow schedules.
+      tags:
+      - workflow-schedules
+  /api/workflow-schedules/{agentName}/{name}:
+    delete:
+      description: |
+        Deletes one workflow schedule. The agent name in the path must match the referenced schedule, otherwise the gateway returns not found.
+      operationId: deleteWorkflowSchedule
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      responses:
+        "204":
+          description: Workflow schedule deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete a workflow schedule.
+      tags:
+      - workflow-schedules
+    put:
+      description: |
+        Replaces all mutable workflow schedule fields for one existing schedule. The schedule name and agent name in the path identify the resource.
+      operationId: updateWorkflowSchedule
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkflowScheduleRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSchedule'
+          description: Workflow schedule updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Update a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow-schedules/{agentName}/{name}/run:
+    post:
+      description: |
+        Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+      operationId: createWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunSummary'
+          description: Workflow run accepted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Trigger one workflow run from a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow-schedules/{agentName}/{name}/runs:
+    get:
+      description: |
+        Lists paginated workflow runs created from the addressed WorkflowSchedule.
+      operationId: listWorkflowRuns
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      - description: Optional WorkflowRun phase filter.
+        in: query
+        name: status
+        required: false
+        schema:
+          $ref: '#/components/schemas/WorkflowRunStatus'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowRunsResponse'
+          description: Paginated workflow runs for one workflow schedule.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow runs for a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow-schedules/{agentName}/{name}/runs/{runName}:
+    delete:
+      description: |
+        Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+      operationId: deleteWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      responses:
+        "204":
+          description: Workflow run deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete one workflow run.
+      tags:
+      - workflow-schedules
+    get:
+      description: |
+        Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+      operationId: getWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunDetail'
+          description: Workflow run details.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get one workflow run.
+      tags:
+      - workflow-schedules
+  /api/workflow-schedules/{agentName}/{name}/runs/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed WorkflowSchedule are watched.
+      operationId: watchWorkflowRuns
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: name
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchWorkflowRunsRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchWorkflowRunsEvent'
+          description: Stream of workflow run updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch workflow runs for a workflow schedule.
+      tags:
+      - workflow-schedules
   /api/workflow-summaries/{agentName}:
     get:
       description: |
@@ -17597,6 +18269,8 @@ tags:
   name: environments
 - description: Workflow definition management APIs.
   name: workflows
+- description: Workflow schedule management APIs.
+  name: workflow-schedules
 - description: Control plane routes.
   name: control
 - description: Global server routes.

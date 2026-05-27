@@ -2,11 +2,20 @@
 
 import type { Error } from "@/lib/gateway/client"
 
-const esUrl =
-  process.env.NIXOS_SEARCH_ES_URL ?? "https://nixos-search-7-1733963800.us-east-1.bonsaisearch.net"
-const esUsername = process.env.NIXOS_SEARCH_ES_USERNAME ?? "aWVSALXpZv"
-const esPassword = process.env.NIXOS_SEARCH_ES_PASSWORD ?? "X8gPHnzL52wFEekuxsfQ9cSh"
-const index = "nixos-48-25.11-d7a713c0b7e47c908258e71cba7a2d77cc8d71d5"
+type SearchConfig = {
+  esUrl: string
+  esUsername: string
+  esPassword: string
+  indexAlias: string
+}
+
+const searchConfigEnvKeys = [
+  "NIXOS_SEARCH_ES_URL",
+  "NIXOS_SEARCH_ES_USERNAME",
+  "NIXOS_SEARCH_ES_PASSWORD",
+  "NIXOS_SEARCH_ES_SCHEMA_VERSION",
+  "NIXOS_SEARCH_ES_BRANCH",
+] as const
 
 export type NixPackageLicense = {
   fullName: string | null
@@ -42,16 +51,77 @@ function dashUnderscoreVariants(word: string): string[] {
   return [word.replace(/_/g, "-"), word.replace(/-/g, "_"), word]
 }
 
+function getSearchConfig(): SearchConfig {
+  const missing = searchConfigEnvKeys.filter((key) => {
+    const value = process.env[key]
+    return value == null || value.trim() === ""
+  })
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required Elasticsearch env vars: ${missing.join(", ")}`)
+  }
+
+  const esUrl = process.env.NIXOS_SEARCH_ES_URL
+  const esUsername = process.env.NIXOS_SEARCH_ES_USERNAME
+  const esPassword = process.env.NIXOS_SEARCH_ES_PASSWORD
+  const schemaVersion = process.env.NIXOS_SEARCH_ES_SCHEMA_VERSION
+  const branch = process.env.NIXOS_SEARCH_ES_BRANCH
+
+  if (
+    esUrl == null ||
+    esUsername == null ||
+    esPassword == null ||
+    schemaVersion == null ||
+    branch == null
+  ) {
+    throw new Error("Elasticsearch env configuration disappeared during lookup")
+  }
+
+  // Upstream nixos-search rotates concrete indices and moves the stable
+  // `latest-*` alias to the fresh index, so callers must always query alias.
+  return {
+    esUrl,
+    esUsername,
+    esPassword,
+    indexAlias: `latest-${schemaVersion}-${branch}`,
+  }
+}
+
+function isElasticsearchIndexNotFound(text: string): boolean {
+  let payload: unknown
+
+  try {
+    payload = JSON.parse(text)
+  } catch {
+    return false
+  }
+
+  if (!isRecord(payload) || !isRecord(payload.error)) {
+    return false
+  }
+
+  const rootCause = payload.error.root_cause
+
+  if (!Array.isArray(rootCause) || rootCause.length === 0) {
+    return false
+  }
+
+  const firstCause = rootCause[0]
+
+  if (!isRecord(firstCause) || typeof firstCause.type !== "string") {
+    return false
+  }
+
+  return firstCause.type === "index_not_found_exception"
+}
+
 function buildSearchBody(query: string, from = 0, size = 20): Record<string, unknown> {
   const rawWords = query.toLowerCase().trim().split(/\s+/).filter(Boolean)
   const positiveWords = rawWords.filter((w) => !w.startsWith("-"))
   const negativeWords = rawWords.filter((w) => w.startsWith("-")).map((w) => w.slice(1))
 
-  const positiveVariants = positiveWords.flatMap(dashUnderscoreVariants)
-  const uniquePositiveVariants = [...new Set(positiveVariants)]
-
-  const negativeVariants = negativeWords.flatMap(dashUnderscoreVariants)
-  const uniqueNegativeVariants = [...new Set(negativeVariants)]
+  const uniquePositiveVariants = [...new Set(positiveWords.flatMap(dashUnderscoreVariants))]
+  const uniqueNegativeVariants = [...new Set(negativeWords.flatMap(dashUnderscoreVariants))]
 
   const fields = [
     "package_attr_name^9.0",
@@ -205,11 +275,14 @@ export async function searchNixPackagesAction(
   from = 0,
   size = 20
 ): Promise<SearchNixPackagesResponse> {
+  const searchConfig = getSearchConfig()
   const body = buildSearchBody(query, from, size)
-  const auth = Buffer.from(`${esUsername}:${esPassword}`).toString("base64")
+  const auth = Buffer.from(`${searchConfig.esUsername}:${searchConfig.esPassword}`).toString(
+    "base64"
+  )
 
   try {
-    const res = await fetch(`${esUrl}/${index}/_search`, {
+    const res = await fetch(`${searchConfig.esUrl}/${searchConfig.indexAlias}/_search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -220,11 +293,14 @@ export async function searchNixPackagesAction(
 
     if (!res.ok) {
       const text = await res.text()
+
       return {
         packages: undefined,
         error: {
           code: `ES_${res.status}`,
-          message: `Elasticsearch request failed: ${text.slice(0, 200)}`,
+          message: isElasticsearchIndexNotFound(text)
+            ? `Elasticsearch alias not found: ${searchConfig.indexAlias}`
+            : `Elasticsearch request failed with status ${res.status}`,
         },
       }
     }

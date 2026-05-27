@@ -19,21 +19,6 @@ type RunsParams = {
   scheduleName: string
 }
 
-export const unstable_instant = {
-  prefetch: "runtime",
-  samples: [
-    {
-      params: {
-        agentName: "",
-        scheduleName: "",
-      },
-      searchParams: {
-        page_token: "",
-      },
-    },
-  ],
-}
-
 export default function ScheduledWorkflowRunsPage({
   params,
   searchParams,

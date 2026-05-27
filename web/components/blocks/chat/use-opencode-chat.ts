@@ -1,16 +1,19 @@
 "use client"
 
 import type { AttachmentData } from "@/components/ai-elements/attachments"
-import type { Event, Message, Part, SessionStatus, TextPart } from "@opencode-ai/sdk"
 import type {
-  Event as EventV2,
+  Event as OpencodeEventV2,
+  Message,
+  Part,
   PermissionRequest,
   QuestionRequest,
   Session as SessionV2,
+  SessionStatus,
+  TextPart,
 } from "@opencode-ai/sdk/v2"
 import { QueryClient, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { startTransition, useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
-import { createAgentOpencodeClient, createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
+import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
 
 type SessionMessageRecord = {
   info: Message
@@ -31,6 +34,8 @@ type HitlStore = {
   questions: Record<string, QuestionRequest[]>
   sessions: SessionV2[]
 }
+
+type StreamEvent = OpencodeEventV2
 
 export type ChatSystemPrompt = {
   content: string
@@ -146,7 +151,7 @@ function sdkErrorMessage(error: { data?: { message?: string } } | undefined, fal
 }
 
 function sessionErrorMessage(
-  error: Extract<Event, { type: "session.error" }>["properties"]["error"]
+  error: Extract<StreamEvent, { type: "session.error" }>["properties"]["error"]
 ) {
   if (!error) return "Session error"
 
@@ -229,11 +234,13 @@ function sessionMessageText(parts: Part[]) {
     .join("")
 }
 
-function messageSessionID(event: Event) {
+function messageSessionID(event: StreamEvent) {
   switch (event.type) {
     case "message.updated":
-      return event.properties.info.sessionID
+      return event.properties.sessionID
     case "message.removed":
+      return event.properties.sessionID
+    case "message.part.delta":
       return event.properties.sessionID
     case "message.part.updated":
       return event.properties.part.sessionID
@@ -318,10 +325,10 @@ function firstVisibleRequest<T extends { sessionID: string }>(
   return undefined
 }
 
-function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
+function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatStore {
   switch (event.type) {
     case "message.updated": {
-      const sessionID = event.properties.info.sessionID
+      const sessionID = event.properties.sessionID
       const messages = store.message[sessionID] ?? []
 
       return pruneStore({
@@ -350,13 +357,7 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
       const part = event.properties.part
       const parts = store.part[part.messageID] ?? []
       const nextParts = upsertPart(parts, part)
-      const current = store.partTextAccumDelta[part.id] ?? ""
-      const nextText =
-        part.type === "text" || part.type === "reasoning"
-          ? event.properties.delta
-            ? current + event.properties.delta
-            : part.text
-          : undefined
+      const nextText = part.type === "text" || part.type === "reasoning" ? part.text : undefined
 
       return pruneStore({
         ...store,
@@ -371,6 +372,45 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
                 ...store.partTextAccumDelta,
                 [part.id]: nextText,
               },
+      })
+    }
+
+    case "message.part.delta": {
+      const parts = store.part[event.properties.messageID] ?? []
+      const index = parts.findIndex((part) => part.id === event.properties.partID)
+      if (index < 0) {
+        return store
+      }
+
+      const part = parts[index]
+      if (part.type !== "text" && part.type !== "reasoning") {
+        return store
+      }
+
+      if (event.properties.field !== "text") {
+        return store
+      }
+
+      const nextText =
+        (store.partTextAccumDelta[event.properties.partID] ?? "") + event.properties.delta
+      const nextParts = parts.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        return {
+          ...part,
+          text: part.text + event.properties.delta,
+        }
+      })
+
+      return pruneStore({
+        ...store,
+        part: {
+          ...store.part,
+          [event.properties.messageID]: nextParts,
+        },
+        partTextAccumDelta: {
+          ...store.partTextAccumDelta,
+          [event.properties.partID]: nextText,
+        },
       })
     }
 
@@ -419,7 +459,7 @@ function applyEvent(store: OpencodeChatStore, event: Event): OpencodeChatStore {
   }
 }
 
-function applySessionEvent(store: OpencodeChatStore, event: EventV2): OpencodeChatStore {
+function applySessionEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatStore {
   switch (event.type) {
     case "session.created":
     case "session.updated":
@@ -448,7 +488,7 @@ function applySessionEvent(store: OpencodeChatStore, event: EventV2): OpencodeCh
   }
 }
 
-function applyHitlEvent(store: HitlStore, event: EventV2): HitlStore {
+function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
   switch (event.type) {
     case "permission.asked": {
       const sessionID = event.properties.sessionID
@@ -674,11 +714,10 @@ function sessionInfoQueryOptions(agentName: string, sessionID: string) {
 function sessionMessagesQueryOptions(agentName: string, sessionID: string, directory: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = createAgentOpencodeClient(agentName, directory)
+      const client = createAgentOpencodeClientV2(agentName)
       const result = await client.session.messages({
-        path: {
-          id: sessionID,
-        },
+        directory,
+        sessionID,
       })
 
       if (result.error || !result.data) {
@@ -738,9 +777,6 @@ function sessionTreeQueryOptions(agentName: string, directory: string) {
 
 export function useOpencodeChat(agentName: string, sessionID?: string): UseOpencodeChatResult {
   const queryClient = useQueryClient()
-  const client = useMemo(() => {
-    return createAgentOpencodeClient(agentName)
-  }, [agentName])
   const clientV2 = useMemo(() => {
     return createAgentOpencodeClientV2(agentName)
   }, [agentName])
@@ -748,7 +784,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     key: string
     store: OpencodeChatStore
   }>()
-  const [hitlEvents, setHitlEvents] = useState<EventV2[]>([])
+  const [hitlEvents, setHitlEvents] = useState<StreamEvent[]>([])
   const [streamError, setStreamError] = useState<string>()
   const session = useQuery({
     ...sessionInfoQueryOptions(agentName, sessionID ?? ""),
@@ -800,7 +836,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     return hitlEvents.reduce((current, event) => applyHitlEvent(current, event), base)
   }, [hitl.data, hitlEvents])
 
-  const handleEvent = useEffectEvent((event: Event) => {
+  const handleEvent = useEffectEvent((event: StreamEvent) => {
     if (!sessionID) return
     if (messageSessionID(event) !== sessionID) return
 
@@ -812,69 +848,126 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         sessionErrorMessage(event.properties.error)
       )
     }
+  })
 
-    startTransition(() => {
+  const flushEvents = useEffectEvent((events: StreamEvent[]) => {
+    if (!sessionID) return
+
+    let hasStoreUpdate = false
+    const nextHitlEvents: StreamEvent[] = []
+
+    for (const event of events) {
+      handleEvent(event)
+
+      switch (event.type) {
+        case "message.updated":
+        case "message.removed":
+        case "message.part.updated":
+        case "message.part.delta":
+        case "message.part.removed":
+        case "session.status":
+        case "session.idle":
+        case "session.created":
+        case "session.updated":
+        case "session.deleted":
+        case "session.next.step.ended":
+          hasStoreUpdate = true
+          break
+        default:
+          break
+      }
+
+      switch (event.type) {
+        case "permission.asked":
+        case "permission.replied":
+        case "question.asked":
+        case "question.replied":
+        case "question.rejected":
+        case "session.created":
+        case "session.updated":
+        case "session.deleted":
+        case "session.next.step.ended":
+          nextHitlEvents.push(event)
+          break
+        default:
+          break
+      }
+    }
+
+    if (hasStoreUpdate) {
       setLiveStore((current) => {
         const nextKey = baseStoreKey
         const currentStore = current?.key === nextKey ? current.store : baseStore
 
         return {
           key: nextKey,
-          store: applyEvent(currentStore, event),
+          store: events.reduce((draft, event) => {
+            const withChat = applyEvent(draft, event)
+            return applySessionEvent(withChat, event)
+          }, currentStore),
         }
       })
+    }
+
+    if (nextHitlEvents.length > 0) {
+      setHitlEvents((current) => [...current, ...nextHitlEvents])
+    }
+
+    if (events.length > 0) {
       setStreamError(undefined)
-    })
-  })
-
-  const handleHitlEvent = useEffectEvent((event: EventV2) => {
-    if (!sessionID) return
-
-    switch (event.type) {
-      case "permission.asked":
-      case "permission.replied":
-      case "question.asked":
-      case "question.replied":
-      case "question.rejected":
-        break
-      case "session.created":
-      case "session.updated":
-      case "session.deleted":
-      case "session.next.step.ended":
-        break
-      default:
-        return
     }
-
-    startTransition(() => {
-      setLiveStore((current) => {
-        const nextKey = baseStoreKey
-        const currentStore = current?.key === nextKey ? current.store : baseStore
-
-        return {
-          key: nextKey,
-          store: applySessionEvent(currentStore, event),
-        }
-      })
-      setHitlEvents((current) => [...current, event])
-    })
   })
 
   useEffect(() => {
-    if (!sessionID) return
+    if (!sessionID || !session.data?.directory) return
 
+    const directory = session.data.directory
     const abortController = new AbortController()
+    const queue: StreamEvent[] = []
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let lastFlush = 0
+
+    function flushQueue() {
+      if (queue.length === 0) return
+      if (timer) {
+        clearTimeout(timer)
+        timer = undefined
+      }
+
+      const events = queue.splice(0)
+      lastFlush = Date.now()
+      flushEvents(events)
+    }
+
+    function scheduleFlush() {
+      if (timer) return
+
+      const elapsed = Date.now() - lastFlush
+      const delay = elapsed >= 16 ? 0 : 16 - elapsed
+      timer = setTimeout(() => {
+        flushQueue()
+      }, delay)
+    }
 
     async function consume() {
       try {
-        const result = await client.event.subscribe({
-          signal: abortController.signal,
-        })
+        const result = await clientV2.event.subscribe(
+          {
+            directory,
+          },
+          {
+            signal: abortController.signal,
+          }
+        )
 
         for await (const event of result.stream) {
           if (abortController.signal.aborted) return
-          handleEvent(event)
+
+          queue.push(event)
+          scheduleFlush()
         }
+
+        flushQueue()
       } catch (error) {
         if (abortController.signal.aborted) return
 
@@ -888,39 +981,11 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
     return () => {
       abortController.abort()
-    }
-  }, [client, sessionID])
-
-  useEffect(() => {
-    if (!sessionID) return
-
-    const abortController = new AbortController()
-
-    async function consume() {
-      try {
-        const result = await clientV2.event.subscribe(undefined, {
-          signal: abortController.signal,
-        })
-
-        for await (const event of result.stream) {
-          if (abortController.signal.aborted) return
-          handleHitlEvent(event)
-        }
-      } catch (error) {
-        if (abortController.signal.aborted) return
-
-        setStreamError(
-          error instanceof Error ? error.message : "Failed to subscribe to session events"
-        )
+      if (timer) {
+        clearTimeout(timer)
       }
     }
-
-    void consume()
-
-    return () => {
-      abortController.abort()
-    }
-  }, [clientV2, sessionID])
+  }, [clientV2, session.data?.directory, sessionID])
 
   const messages = useMemo(() => {
     return sessionID ? (store.message[sessionID] ?? []) : []

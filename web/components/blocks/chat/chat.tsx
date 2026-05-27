@@ -49,8 +49,13 @@ import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
-import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk"
-import type { PermissionRequest, QuestionAnswer, QuestionRequest } from "@opencode-ai/sdk/v2"
+import type {
+  Message as OpencodeMessage,
+  Part,
+  PermissionRequest,
+  QuestionAnswer,
+  QuestionRequest,
+} from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import { CheckIcon, PaperclipIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"

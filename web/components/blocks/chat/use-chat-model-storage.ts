@@ -34,6 +34,11 @@ const storageSnapshotCache = new Map<
     snapshot: ChatModelStorageSnapshot
   }
 >()
+const emptyStorageSnapshot = {
+  ready: false,
+  recent: [],
+  variant: {},
+} satisfies ChatModelStorageSnapshot
 
 function isStoredModelRef(value: unknown): value is StoredModelRef {
   if (typeof value !== "object" || value === null) return false
@@ -96,11 +101,7 @@ function modelKey(model: StoredModelRef) {
 
 function readSnapshot(storageKey: string): ChatModelStorageSnapshot {
   if (typeof window === "undefined") {
-    return {
-      ready: false,
-      recent: [],
-      variant: {},
-    }
+    return emptyStorageSnapshot
   }
 
   const raw = window.localStorage.getItem(storageKey)
@@ -160,11 +161,7 @@ export function useChatModelStorage(agentName: string): UseChatModelStorageResul
       }
     },
     () => readSnapshot(storageKey),
-    () => ({
-      ready: false,
-      recent: [],
-      variant: {},
-    })
+    () => emptyStorageSnapshot
   )
 
   const getVariant = useCallback(

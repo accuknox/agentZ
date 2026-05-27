@@ -143,6 +143,9 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
       void queryClient.invalidateQueries({
         queryKey: sessionMessagesBaseQueryKey(agentName, result.sessionID),
       })
+      void queryClient.invalidateQueries({
+        queryKey: sessionInfoQueryKey(agentName, result.sessionID),
+      })
     },
   })
   const { error: sendError, isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation

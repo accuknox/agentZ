@@ -40,6 +40,10 @@ import {
   chatAttachmentErrorMessage,
   messageHasRenderableContent,
 } from "@/components/blocks/chat/attachments"
+import {
+  type StoredModelRef,
+  useChatModelStorage,
+} from "@/components/blocks/chat/use-chat-model-storage"
 import { type LocalChatMessage, useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
 import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
 import type { ProviderModelItem } from "@/data/types"
@@ -49,7 +53,7 @@ import type { Message as OpencodeMessage, Part } from "@opencode-ai/sdk"
 import type { PermissionRequest, QuestionAnswer, QuestionRequest } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import { CheckIcon, PaperclipIcon } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   ModelSelector,
@@ -242,6 +246,24 @@ type QuestionDraftState = {
   customEnabled: Record<number, boolean>
   questionIndex: number
   selected: Record<number, string[]>
+}
+
+type AgentSelectionConfig = {
+  model?: {
+    modelID: string
+    providerID: string
+  }
+  variant?: string
+}
+
+type ModelCatalog = {
+  agent?: AgentSelectionConfig
+  chefs: string[]
+  config: {
+    model?: string
+  }
+  models: ProviderModelItem[]
+  providerDefaults: Record<string, string>
 }
 
 function CustomAnswerInput({
@@ -882,28 +904,38 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
   const [reasoningLevel, setReasoningLevel] = useState<string>(DEFAULT_REASONING_LEVEL)
   const opencodeClient = useMemo(() => createAgentOpencodeClientV2(agentName), [agentName])
   const permissionAlwaysConfirm = permissionAlwaysConfirmRequestID === permissionRequest?.id
+  const {
+    clearInvalid,
+    getVariant,
+    pushRecent,
+    ready: modelStorageReady,
+    recent,
+    setVariant,
+  } = useChatModelStorage(agentName)
 
-  const providers = useQuery(
+  const modelCatalog = useQuery(
     queryOptions({
-      queryKey: ["opencode", "providers", agentName],
+      queryKey: ["opencode", "modelCatalog", agentName],
       queryFn: async () => {
-        const result = await createAgentOpencodeClientV2(agentName).config.providers()
-        if (result.error || !result.data) {
-          const errorMessage =
-            result.error &&
-            typeof result.error === "object" &&
-            "data" in result.error &&
-            typeof result.error.data === "object" &&
-            result.error.data !== null &&
-            "message" in result.error.data &&
-            typeof result.error.data.message === "string"
-              ? result.error.data.message
-              : "Failed to load providers"
-          throw new Error(errorMessage)
+        const client = createAgentOpencodeClientV2(agentName)
+        const [providersResult, configResult, agentsResult] = await Promise.all([
+          client.config.providers(),
+          client.config.get(),
+          client.app.agents(),
+        ])
+
+        if (providersResult.error || !providersResult.data) {
+          throw new Error("Failed to load providers")
+        }
+        if (configResult.error || !configResult.data) {
+          throw new Error("Failed to load config")
+        }
+        if (agentsResult.error || !agentsResult.data) {
+          throw new Error("Failed to load agents")
         }
 
         const models: ProviderModelItem[] = []
-        for (const provider of result.data.providers) {
+        for (const provider of providersResult.data.providers) {
           for (const model of Object.values(provider.models)) {
             models.push({
               chef: provider.name,
@@ -919,24 +951,133 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         }
 
         return {
+          agent: agentsResult.data.find((item) => item.name === agentName),
           chefs: [...new Set(models.map((item) => item.chef))],
+          config: configResult.data,
           models,
+          providerDefaults: providersResult.data.default,
         }
       },
       staleTime: 60_000,
     })
   )
+  const catalog = modelCatalog.data
 
-  const models = useMemo(() => providers.data?.models ?? [], [providers.data?.models])
-  const chefs = useMemo(() => providers.data?.chefs ?? [], [providers.data?.chefs])
-  const selectedModelID = model || models[0]?.id || ""
+  const models = useMemo(() => catalog?.models ?? [], [catalog?.models])
+  const chefs = useMemo(() => catalog?.chefs ?? [], [catalog?.chefs])
+  const sessionModel = session?.model
+  const selectedSessionModel = useMemo(() => {
+    if (!sessionModel) return undefined
 
+    return models.find((item) => {
+      return item.providerID === sessionModel.providerID && item.modelID === sessionModel.id
+    })
+  }, [models, sessionModel])
+  const selectedAgentModel = useMemo(() => {
+    const agentModel = catalog?.agent?.model
+    if (!agentModel) return undefined
+
+    return models.find((item) => {
+      return item.providerID === agentModel.providerID && item.modelID === agentModel.modelID
+    })
+  }, [catalog?.agent?.model, models])
+  const selectedConfigModel = useMemo(() => {
+    const configModel = catalog?.config.model
+    if (!configModel) return undefined
+
+    const [providerID, ...modelID] = configModel.split("/")
+    if (!providerID || modelID.length === 0) return undefined
+
+    return models.find((item) => {
+      return item.providerID === providerID && item.modelID === modelID.join("/")
+    })
+  }, [catalog?.config.model, models])
+  const selectedRecentModel = useMemo(() => {
+    for (const storedModel of recent) {
+      const match = models.find((item) => {
+        return item.providerID === storedModel.providerID && item.modelID === storedModel.modelID
+      })
+      if (match) return match
+    }
+  }, [models, recent])
+  const selectedProviderDefaultModel = useMemo(() => {
+    const providerDefaults = catalog?.providerDefaults ?? {}
+
+    for (const provider of Object.keys(providerDefaults)) {
+      const modelID = providerDefaults[provider]
+      if (!modelID) continue
+
+      const match = models.find((item) => {
+        return item.providerID === provider && item.modelID === modelID
+      })
+      if (match) return match
+    }
+  }, [catalog?.providerDefaults, models])
+  const fallbackModel = useMemo(() => {
+    return (
+      selectedSessionModel ??
+      selectedAgentModel ??
+      selectedConfigModel ??
+      selectedRecentModel ??
+      selectedProviderDefaultModel ??
+      models[0]
+    )
+  }, [
+    models,
+    selectedAgentModel,
+    selectedConfigModel,
+    selectedProviderDefaultModel,
+    selectedRecentModel,
+    selectedSessionModel,
+  ])
   const selectedModel = useMemo(() => {
-    return models.find((item) => item.id === selectedModelID)
-  }, [models, selectedModelID])
+    if (model) {
+      const explicitModel = models.find((item) => item.id === model)
+      if (explicitModel) return explicitModel
+    }
+
+    return fallbackModel
+  }, [fallbackModel, model, models])
+  const selectedModelID = selectedModel?.id ?? ""
   const reasoningVariants = useMemo(() => {
     return selectedModel?.variants ?? []
   }, [selectedModel?.variants])
+  const fallbackReasoningLevel = useMemo(() => {
+    if (!selectedModel || reasoningVariants.length === 0) return DEFAULT_REASONING_LEVEL
+
+    const variants = new Set(reasoningVariants)
+    const sameAsSessionModel =
+      selectedSessionModel?.providerID === selectedModel.providerID &&
+      selectedSessionModel.modelID === selectedModel.modelID
+    if (sameAsSessionModel && session?.model?.variant && variants.has(session.model.variant)) {
+      return session.model.variant
+    }
+
+    const sameAsAgentModel =
+      selectedAgentModel?.providerID === selectedModel.providerID &&
+      selectedAgentModel.modelID === selectedModel.modelID
+    if (sameAsAgentModel && catalog?.agent?.variant && variants.has(catalog.agent.variant)) {
+      return catalog.agent.variant
+    }
+
+    const storedVariant = getVariant({
+      modelID: selectedModel.modelID,
+      providerID: selectedModel.providerID,
+    })
+    if (storedVariant && variants.has(storedVariant)) {
+      return storedVariant
+    }
+
+    return DEFAULT_REASONING_LEVEL
+  }, [
+    catalog,
+    getVariant,
+    reasoningVariants,
+    selectedAgentModel,
+    selectedModel,
+    selectedSessionModel,
+    session,
+  ])
   const selectedReasoningLevel = useMemo(() => {
     if (reasoningVariants.length === 0) {
       return DEFAULT_REASONING_LEVEL
@@ -946,8 +1087,8 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       return reasoningLevel
     }
 
-    return DEFAULT_REASONING_LEVEL
-  }, [reasoningLevel, reasoningVariants])
+    return fallbackReasoningLevel
+  }, [fallbackReasoningLevel, reasoningLevel, reasoningVariants])
   const selectedReasoningVariant = useMemo(() => {
     if (selectedReasoningLevel === DEFAULT_REASONING_LEVEL) {
       return undefined
@@ -964,6 +1105,17 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     sessionId,
     isBusy || blocked
   )
+
+  useEffect(() => {
+    if (models.length === 0 || !modelStorageReady) return
+
+    clearInvalid((storedModel) => {
+      return models.some((item) => {
+        return item.providerID === storedModel.providerID && item.modelID === storedModel.modelID
+      })
+    })
+  }, [clearInvalid, modelStorageReady, models])
+
   const { isPending: isQuestionPending, mutateAsync: submitQuestionAnswer } = useMutation({
     mutationFn: async (answers: QuestionAnswer[]) => {
       if (!questionRequest) {
@@ -1028,8 +1180,13 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         text: message.text,
         variant: selectedReasoningVariant,
       })
+      if (!selectedModel) return
+      pushRecent({
+        modelID: selectedModel.modelID,
+        providerID: selectedModel.providerID,
+      })
     },
-    [selectedModel, selectedReasoningVariant, sendMessage, sessionId]
+    [pushRecent, selectedModel, selectedReasoningVariant, sendMessage, sessionId]
   )
 
   const handlePermissionDecision = useCallback(
@@ -1052,8 +1209,25 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
 
   const handleModelSelect = useCallback((modelId: string) => {
     setModel(modelId)
+    setReasoningLevel(DEFAULT_REASONING_LEVEL)
     setModelSelectorOpen(false)
   }, [])
+
+  const handleReasoningLevelChange = useCallback(
+    (value: string) => {
+      setReasoningLevel(value)
+      if (!selectedModel) return
+
+      setVariant(
+        {
+          modelID: selectedModel.modelID,
+          providerID: selectedModel.providerID,
+        },
+        value === DEFAULT_REASONING_LEVEL ? undefined : value
+      )
+    },
+    [selectedModel, setVariant]
+  )
 
   const renderMessages: RenderMessage[] = messages.map((message) => {
     const parts = partsByMessage[message.id] ?? []
@@ -1438,7 +1612,10 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                     </Context>
                   ) : null}
                   {reasoningVariants.length > 0 ? (
-                    <Select onValueChange={setReasoningLevel} value={selectedReasoningLevel}>
+                    <Select
+                      onValueChange={handleReasoningLevelChange}
+                      value={selectedReasoningLevel}
+                    >
                       <ReasoningSelectTrigger
                         aria-label="Reasoning level"
                         className="h-8 min-w-16 gap-1 px-2 text-xs"

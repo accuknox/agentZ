@@ -22,6 +22,8 @@ import (
 
 var ErrScheduleAgentMismatch = errors.New("workflow schedule agent mismatch")
 
+const defaultRunsHistoryLimit int32 = 3
+
 type scheduleSpecInput struct {
 	workflowName               string
 	schedule                   string
@@ -374,7 +376,16 @@ func applyScheduleSpec(spec *clawarmorv1alpha1.WorkflowScheduleSpec, agtName str
 		spec.Suspend = *specInput.suspend
 	}
 	spec.SuccessfulRunsHistoryLimit = specInput.successfulRunsHistoryLimit
+	if spec.SuccessfulRunsHistoryLimit != nil && *spec.SuccessfulRunsHistoryLimit == 0 {
+		value := defaultRunsHistoryLimit
+		spec.SuccessfulRunsHistoryLimit = &value
+	}
+
 	spec.FailedRunsHistoryLimit = specInput.failedRunsHistoryLimit
+	if spec.FailedRunsHistoryLimit != nil && *spec.FailedRunsHistoryLimit == 0 {
+		value := defaultRunsHistoryLimit
+		spec.FailedRunsHistoryLimit = &value
+	}
 }
 
 func validateScheduleDNSLabel(fieldName string, value string) []gatewayapi.FieldError {

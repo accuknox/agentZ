@@ -154,10 +154,7 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 				http.StatusNotFound,
 				"not_found",
 				"delete workflow schedule not found",
-				apierrors.NewNotFound(
-					clawarmorv1alpha1.Resource("workflowschedule"),
-					scheduleName,
-				),
+				apierrors.NewNotFound(clawarmorv1alpha1.Resource("workflowschedule"), scheduleName),
 			))
 			return
 		}
@@ -229,10 +226,7 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 				http.StatusNotFound,
 				"not_found",
 				"update workflow schedule not found",
-				apierrors.NewNotFound(
-					clawarmorv1alpha1.Resource("workflowschedule"),
-					scheduleName,
-				),
+				apierrors.NewNotFound(clawarmorv1alpha1.Resource("workflowschedule"), scheduleName),
 			))
 			return
 		}
@@ -241,4 +235,44 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// CreateWorkflowRun handles POST /api/workflow-schedules/{agentName}/{name}/run.
+func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName) {
+	agtName = strings.TrimSpace(agtName)
+	scheduleName := strings.TrimSpace(name)
+	fields := workflow.ValidateRunRoute(agtName, scheduleName)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	resp, err := workflow.CreateRun(
+		r.Context(),
+		s.k8sClient,
+		s.cfg.Namespace,
+		agtName,
+		scheduleName,
+	)
+	if err != nil {
+		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {
+			writeError(w, r, newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"create workflow run not found",
+				apierrors.NewNotFound(clawarmorv1alpha1.Resource("workflowschedule"), scheduleName),
+			))
+			return
+		}
+		writeError(w, r, mapKubeHTTPError("create workflow run", err))
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, resp)
 }

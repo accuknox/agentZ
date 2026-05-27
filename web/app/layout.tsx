@@ -23,7 +23,7 @@ const roboto = Roboto({ subsets: ["latin"], variable: "--font-roboto" })
 export const metadata: Metadata = {
   title: "Clawarmor",
   description: "The AI that actually does things - SECURELY.",
-  icons: ["/favicon.png"],
+  icons: ["/favicon.svg"],
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

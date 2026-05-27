@@ -34,6 +34,18 @@ type agentWatchEvent struct {
 	Agent *clawarmorv1alpha1.Agent
 }
 
+type workflowRunWatchEventType string
+
+const (
+	workflowRunWatchEventChanged workflowRunWatchEventType = "changed"
+	workflowRunWatchEventDeleted workflowRunWatchEventType = "deleted"
+)
+
+type workflowRunWatchEvent struct {
+	Type workflowRunWatchEventType
+	Run  *clawarmorv1alpha1.WorkflowRun
+}
+
 type resolver struct {
 	namespace      string
 	targetOverride string
@@ -43,6 +55,7 @@ type resolver struct {
 	stopOnce       sync.Once
 	watchMu        sync.Mutex
 	watchers       map[chan agentWatchEvent]struct{}
+	runWatchers    map[chan workflowRunWatchEvent]struct{}
 }
 
 func newResolver(ctx context.Context, namespace, targetOverride string) (*resolver, error) {
@@ -66,7 +79,9 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 		informers.WithNamespace(namespace),
 	)
 	agentInformer := factory.Clawarmor().V1alpha1().Agents()
+	workflowRunInformer := factory.Clawarmor().V1alpha1().WorkflowRuns()
 	informer := agentInformer.Informer()
+	runInformer := workflowRunInformer.Informer()
 	lister := agentInformer.Lister()
 
 	r := &resolver{
@@ -76,6 +91,7 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 		lister:         lister,
 		stopCh:         make(chan struct{}),
 		watchers:       make(map[chan agentWatchEvent]struct{}),
+		runWatchers:    make(map[chan workflowRunWatchEvent]struct{}),
 	}
 	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
@@ -92,6 +108,21 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 		r.Close()
 		return nil, fmt.Errorf("register agent informer handler: %w", err)
 	}
+	_, err = runInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			r.broadcastWorkflowRunEvent(workflowRunWatchEventChanged, workflowRunFromInformerObject(obj))
+		},
+		UpdateFunc: func(_, newObj any) {
+			r.broadcastWorkflowRunEvent(workflowRunWatchEventChanged, workflowRunFromInformerObject(newObj))
+		},
+		DeleteFunc: func(obj any) {
+			r.broadcastWorkflowRunEvent(workflowRunWatchEventDeleted, workflowRunFromInformerObject(obj))
+		},
+	})
+	if err != nil {
+		r.Close()
+		return nil, fmt.Errorf("register workflow run informer handler: %w", err)
+	}
 	go func() {
 		<-ctx.Done()
 		r.Close()
@@ -99,7 +130,7 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 
 	factory.Start(r.stopCh)
 
-	ok := cache.WaitForCacheSync(r.stopCh, informer.HasSynced)
+	ok := cache.WaitForCacheSync(r.stopCh, informer.HasSynced, runInformer.HasSynced)
 	if !ok {
 		r.Close()
 		return nil, fmt.Errorf("agent informer cache did not sync")
@@ -133,6 +164,23 @@ func (r *resolver) watchAgents() (<-chan agentWatchEvent, func()) {
 	return ch, cancel
 }
 
+func (r *resolver) watchWorkflowRuns() (<-chan workflowRunWatchEvent, func()) {
+	ch := make(chan workflowRunWatchEvent, 16)
+	r.watchMu.Lock()
+	r.runWatchers[ch] = struct{}{}
+	r.watchMu.Unlock()
+
+	cancel := func() {
+		r.watchMu.Lock()
+		if _, ok := r.runWatchers[ch]; ok {
+			delete(r.runWatchers, ch)
+			close(ch)
+		}
+		r.watchMu.Unlock()
+	}
+	return ch, cancel
+}
+
 func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *clawarmorv1alpha1.Agent) {
 	if agt == nil {
 		return
@@ -145,6 +193,25 @@ func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *clawarmorv1
 	r.watchMu.Lock()
 	defer r.watchMu.Unlock()
 	for ch := range r.watchers {
+		select {
+		case ch <- evt:
+		default:
+		}
+	}
+}
+
+func (r *resolver) broadcastWorkflowRunEvent(typ workflowRunWatchEventType, run *clawarmorv1alpha1.WorkflowRun) {
+	if run == nil {
+		return
+	}
+	evt := workflowRunWatchEvent{
+		Type: typ,
+		Run:  run.DeepCopy(),
+	}
+
+	r.watchMu.Lock()
+	defer r.watchMu.Unlock()
+	for ch := range r.runWatchers {
 		select {
 		case ch <- evt:
 		default:
@@ -186,6 +253,20 @@ func agentFromInformerObject(obj any) *clawarmorv1alpha1.Agent {
 	case cache.DeletedFinalStateUnknown:
 		if agt, ok := item.Obj.(*clawarmorv1alpha1.Agent); ok {
 			return agt
+		}
+	default:
+		return nil
+	}
+	return nil
+}
+
+func workflowRunFromInformerObject(obj any) *clawarmorv1alpha1.WorkflowRun {
+	switch item := obj.(type) {
+	case *clawarmorv1alpha1.WorkflowRun:
+		return item
+	case cache.DeletedFinalStateUnknown:
+		if run, ok := item.Obj.(*clawarmorv1alpha1.WorkflowRun); ok {
+			return run
 		}
 	default:
 		return nil

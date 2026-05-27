@@ -9,9 +9,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	workflowdb "github.com/accuknox/clawarmor/internal/gateway/workflow/db"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 var ErrWorkflowNotFound = errors.New("workflow not found")
@@ -132,7 +135,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 }
 
 // DeleteMany removes multiple workflows for one agent.
-func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agtName string, wfNames []string) ([]string, error) {
+func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, ns string, agtName string, wfNames []string) ([]string, error) {
 	names := uniqueNames(wfNames)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -163,6 +166,53 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, agtName string, wfNames
 			missing = append(missing, name)
 		}
 		return missing, ErrWorkflowNotFound
+	}
+
+	wfSet := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		wfSet[name] = struct{}{}
+	}
+
+	runList := &clawarmorv1alpha1.WorkflowRunList{}
+	err = k8sClient.List(ctx, runList, ctrlclient.InNamespace(ns))
+	if err != nil {
+		return nil, fmt.Errorf("list workflow runs: %w", err)
+	}
+	for i := range runList.Items {
+		run := &runList.Items[i]
+		if run.Spec.AgentName != agtName {
+			continue
+		}
+		if _, ok := wfSet[run.Spec.WorkflowName]; !ok {
+			continue
+		}
+		err := k8sClient.Delete(ctx, run)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("delete workflow run %q: %w", run.Name, err)
+		}
+	}
+
+	scheduleList := &clawarmorv1alpha1.WorkflowScheduleList{}
+	err = k8sClient.List(ctx, scheduleList, ctrlclient.InNamespace(ns))
+	if err != nil {
+		return nil, fmt.Errorf("list workflow schedules: %w", err)
+	}
+	for i := range scheduleList.Items {
+		schedule := &scheduleList.Items[i]
+		if schedule.Spec.AgentName != agtName {
+			continue
+		}
+		if _, ok := wfSet[schedule.Spec.WorkflowName]; !ok {
+			continue
+		}
+		err := k8sClient.Delete(ctx, schedule)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf(
+				"delete workflow schedule %q: %w",
+				schedule.Name,
+				err,
+			)
+		}
 	}
 
 	_, err = queries.WorkflowDeleteMany(ctx, workflowdb.WorkflowDeleteManyParams{

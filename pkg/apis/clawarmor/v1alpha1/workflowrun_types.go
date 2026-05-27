@@ -141,9 +141,7 @@ func (s *WorkflowRunStatus) SetCondition(cond metav1.Condition) {
 		if cur.Type != cond.Type {
 			continue
 		}
-		if cur.Status == cond.Status && cur.Reason == cond.Reason &&
-			cur.Message == cond.Message &&
-			cur.ObservedGeneration == cond.ObservedGeneration {
+		if cur.Status == cond.Status && cur.Reason == cond.Reason && cur.Message == cond.Message && cur.ObservedGeneration == cond.ObservedGeneration {
 			cond.LastTransitionTime = cur.LastTransitionTime
 		}
 		s.Conditions[i] = cond

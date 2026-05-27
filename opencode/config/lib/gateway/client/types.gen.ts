@@ -62,6 +62,8 @@ export type FieldError = {
 
 export type WorkflowRunTerminalPhase = "Succeeded" | "Failed"
 
+export type WorkflowRunStatus = "Pending" | "Running" | "Succeeded" | "Failed" | "Unacked"
+
 export type PatchWorkflowRunStatusRequest = {
   phase: WorkflowRunTerminalPhase
   message?: string
@@ -74,6 +76,11 @@ export type ListAgentsResponse = {
 
 export type ListWorkflowSchedulesResponse = {
   workflow_schedules: Array<WorkflowSchedule>
+  next_page_token: string
+}
+
+export type ListWorkflowRunsResponse = {
+  workflow_runs: Array<WorkflowRunSummary>
   next_page_token: string
 }
 
@@ -131,6 +138,32 @@ export type WorkflowSchedule = {
   successful_runs_history_limit: number
   failed_runs_history_limit: number
   created_at: string
+}
+
+export type WorkflowRunSummary = {
+  name: WorkflowRunName
+  workflow_name: WorkflowName
+  status: WorkflowRunStatus
+  reason: string
+  created_at: string
+  duration_seconds?: number
+}
+
+export type WorkflowRunDetail = {
+  name: WorkflowRunName
+  agent_name: AgentName
+  workflow_name: WorkflowName
+  schedule_name?: WorkflowScheduleName
+  inputs: JsonValue
+  timeout_seconds: number
+  status: WorkflowRunStatus
+  reason: string
+  message: string
+  session_id?: string
+  created_at: string
+  started_at?: string
+  completed_at?: string
+  duration_seconds?: number
 }
 
 export type CreateWorkflowScheduleRequest = {
@@ -445,6 +478,14 @@ export type WatchAgentsRequest = {
 
 export type WatchAgentsEvent = {
   agents: Array<Agent>
+}
+
+export type WatchWorkflowRunsRequest = {
+  run_names?: Array<WorkflowRunName>
+}
+
+export type WatchWorkflowRunsEvent = {
+  workflow_runs: Array<WorkflowRunSummary>
 }
 
 export type JsonValue =
@@ -1497,6 +1538,241 @@ export type UpdateWorkflowScheduleResponses = {
 
 export type UpdateWorkflowScheduleResponse =
   UpdateWorkflowScheduleResponses[keyof UpdateWorkflowScheduleResponses]
+
+export type CreateWorkflowRunData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    name: WorkflowScheduleName
+  }
+  query?: never
+  url: "/api/workflow-schedules/{agentName}/{name}/run"
+}
+
+export type CreateWorkflowRunErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateWorkflowRunError = CreateWorkflowRunErrors[keyof CreateWorkflowRunErrors]
+
+export type CreateWorkflowRunResponses = {
+  /**
+   * Workflow run accepted.
+   */
+  202: WorkflowRunSummary
+}
+
+export type CreateWorkflowRunResponse = CreateWorkflowRunResponses[keyof CreateWorkflowRunResponses]
+
+export type ListWorkflowRunsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    name: WorkflowScheduleName
+  }
+  query?: {
+    /**
+     * Optional WorkflowRun phase filter.
+     */
+    status?: WorkflowRunStatus
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/workflow-schedules/{agentName}/{name}/runs"
+}
+
+export type ListWorkflowRunsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkflowRunsError = ListWorkflowRunsErrors[keyof ListWorkflowRunsErrors]
+
+export type ListWorkflowRunsResponses = {
+  /**
+   * Paginated workflow runs for one workflow schedule.
+   */
+  200: ListWorkflowRunsResponse
+}
+
+export type ListWorkflowRunsResponse2 = ListWorkflowRunsResponses[keyof ListWorkflowRunsResponses]
+
+export type WatchWorkflowRunsData = {
+  body?: WatchWorkflowRunsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    name: WorkflowScheduleName
+  }
+  query?: never
+  url: "/api/workflow-schedules/{agentName}/{name}/runs/watch"
+}
+
+export type WatchWorkflowRunsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchWorkflowRunsError = WatchWorkflowRunsErrors[keyof WatchWorkflowRunsErrors]
+
+export type WatchWorkflowRunsResponses = {
+  /**
+   * Stream of workflow run updates.
+   */
+  200: WatchWorkflowRunsEvent
+}
+
+export type WatchWorkflowRunsResponse = WatchWorkflowRunsResponses[keyof WatchWorkflowRunsResponses]
+
+export type DeleteWorkflowRunData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    name: WorkflowScheduleName
+    /**
+     * WorkflowRun resource name.
+     */
+    runName: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}"
+}
+
+export type DeleteWorkflowRunErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteWorkflowRunError = DeleteWorkflowRunErrors[keyof DeleteWorkflowRunErrors]
+
+export type DeleteWorkflowRunResponses = {
+  /**
+   * Workflow run deleted.
+   */
+  204: void
+}
+
+export type DeleteWorkflowRunResponse = DeleteWorkflowRunResponses[keyof DeleteWorkflowRunResponses]
+
+export type GetWorkflowRunData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    name: WorkflowScheduleName
+    /**
+     * WorkflowRun resource name.
+     */
+    runName: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}"
+}
+
+export type GetWorkflowRunErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetWorkflowRunError = GetWorkflowRunErrors[keyof GetWorkflowRunErrors]
+
+export type GetWorkflowRunResponses = {
+  /**
+   * Workflow run details.
+   */
+  200: WorkflowRunDetail
+}
+
+export type GetWorkflowRunResponse = GetWorkflowRunResponses[keyof GetWorkflowRunResponses]
 
 export type UpdateAgentData = {
   body: UpdateAgentRequest

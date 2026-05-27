@@ -14,6 +14,9 @@ import type {
   CreateWorkflowData,
   CreateWorkflowErrors,
   CreateWorkflowResponses,
+  CreateWorkflowRunData,
+  CreateWorkflowRunErrors,
+  CreateWorkflowRunResponses,
   CreateWorkflowScheduleData,
   CreateWorkflowScheduleErrors,
   CreateWorkflowScheduleResponses,
@@ -26,6 +29,9 @@ import type {
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
+  DeleteWorkflowRunData,
+  DeleteWorkflowRunErrors,
+  DeleteWorkflowRunResponses,
   DeleteWorkflowScheduleData,
   DeleteWorkflowScheduleErrors,
   DeleteWorkflowScheduleResponses,
@@ -38,6 +44,9 @@ import type {
   GetWorkflowData,
   GetWorkflowErrors,
   GetWorkflowResponses,
+  GetWorkflowRunData,
+  GetWorkflowRunErrors,
+  GetWorkflowRunResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
@@ -65,6 +74,9 @@ import type {
   ListTraceSessionsErrors,
   ListTraceSessionsResponses,
   ListTracesResponses,
+  ListWorkflowRunsData,
+  ListWorkflowRunsErrors,
+  ListWorkflowRunsResponses,
   ListWorkflowSchedulesData,
   ListWorkflowSchedulesErrors,
   ListWorkflowSchedulesResponses,
@@ -90,21 +102,28 @@ import type {
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WatchWorkflowRunsData,
+  WatchWorkflowRunsErrors,
+  WatchWorkflowRunsResponse,
+  WatchWorkflowRunsResponses,
 } from "./types.gen"
 import {
   zCreateAgentBody,
   zCreateEnvironmentBody,
   zCreateWorkflowBody,
+  zCreateWorkflowRunPath,
   zCreateWorkflowScheduleBody,
   zDeleteAgentBody,
   zDeleteEnvironmentBody,
   zDeleteSecretBody,
   zDeleteSecretPath,
+  zDeleteWorkflowRunPath,
   zDeleteWorkflowsBody,
   zDeleteWorkflowSchedulePath,
   zDeleteWorkflowsPath,
   zGetSpanDetailQuery,
   zGetWorkflowPath,
+  zGetWorkflowRunPath,
   zListAgentsQuery,
   zListEnvironmentsQuery,
   zListFileObservabilityQuery,
@@ -115,6 +134,8 @@ import {
   zListSpansQuery,
   zListTraceSessionsQuery,
   zListTracesQuery,
+  zListWorkflowRunsPath,
+  zListWorkflowRunsQuery,
   zListWorkflowSchedulesPath,
   zListWorkflowSchedulesQuery,
   zListWorkflowSummariesPath,
@@ -129,6 +150,8 @@ import {
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
+  zWatchWorkflowRunsBody,
+  zWatchWorkflowRunsPath,
 } from "./zod.gen"
 
 export type Options<
@@ -604,6 +627,132 @@ export const updateWorkflowSchedule = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Trigger one workflow run from a workflow schedule.
+ *
+ * Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+ *
+ */
+export const createWorkflowRun = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkflowRunData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateWorkflowRunResponses,
+    CreateWorkflowRunErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zCreateWorkflowRunPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/run",
+    ...options,
+  })
+
+/**
+ * List workflow runs for a workflow schedule.
+ *
+ * Lists paginated workflow runs created from the addressed WorkflowSchedule.
+ *
+ */
+export const listWorkflowRuns = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowRunsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListWorkflowRunsResponses, ListWorkflowRunsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkflowRunsPath,
+          query: zListWorkflowRunsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs",
+    ...options,
+  })
+
+/**
+ * Watch workflow runs for a workflow schedule.
+ *
+ * Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed WorkflowSchedule are watched.
+ *
+ */
+export const watchWorkflowRuns = <ThrowOnError extends boolean = false>(
+  options: Options<WatchWorkflowRunsData, ThrowOnError, WatchWorkflowRunsResponse>
+) =>
+  (options.client ?? client).sse.post<
+    WatchWorkflowRunsResponses,
+    WatchWorkflowRunsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWatchWorkflowRunsBody.optional(),
+          path: zWatchWorkflowRunsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs/watch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete one workflow run.
+ *
+ * Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+ *
+ */
+export const deleteWorkflowRun = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteWorkflowRunData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteWorkflowRunResponses,
+    DeleteWorkflowRunErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteWorkflowRunPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}",
+    ...options,
+  })
+
+/**
+ * Get one workflow run.
+ *
+ * Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+ *
+ */
+export const getWorkflowRun = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkflowRunData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetWorkflowRunResponses, GetWorkflowRunErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetWorkflowRunPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}",
+    ...options,
   })
 
 /**

@@ -86,6 +86,8 @@ export const zFieldError = z.object({
 
 export const zWorkflowRunTerminalPhase = z.enum(["Succeeded", "Failed"])
 
+export const zWorkflowRunStatus = z.enum(["Pending", "Running", "Succeeded", "Failed", "Unacked"])
+
 export const zPatchWorkflowRunStatusRequest = z.object({
   phase: zWorkflowRunTerminalPhase,
   message: z.string().max(4096).optional(),
@@ -104,6 +106,26 @@ export const zAgent = z.object({
 
 export const zListAgentsResponse = z.object({
   agents: z.array(zAgent),
+  next_page_token: z.string(),
+})
+
+export const zWorkflowRunSummary = z.object({
+  name: zWorkflowRunName,
+  workflow_name: zWorkflowName,
+  status: zWorkflowRunStatus,
+  reason: z.string(),
+  created_at: z.iso.datetime(),
+  duration_seconds: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+})
+
+export const zListWorkflowRunsResponse = z.object({
+  workflow_runs: z.array(zWorkflowRunSummary),
   next_page_token: z.string(),
 })
 
@@ -467,6 +489,14 @@ export const zWatchAgentsEvent = z.object({
   agents: z.array(zAgent),
 })
 
+export const zWatchWorkflowRunsRequest = z.object({
+  run_names: z.array(zWorkflowRunName).optional(),
+})
+
+export const zWatchWorkflowRunsEvent = z.object({
+  workflow_runs: z.array(zWorkflowRunSummary),
+})
+
 export const zJsonValue = z.union([
   z.boolean(),
   z.number(),
@@ -502,6 +532,29 @@ export const zWorkflowSchedule = z.object({
 export const zListWorkflowSchedulesResponse = z.object({
   workflow_schedules: z.array(zWorkflowSchedule),
   next_page_token: z.string(),
+})
+
+export const zWorkflowRunDetail = z.object({
+  name: zWorkflowRunName,
+  agent_name: zAgentName,
+  workflow_name: zWorkflowName,
+  schedule_name: zWorkflowScheduleName.optional(),
+  inputs: zJsonValue,
+  timeout_seconds: z.int().gte(1).lte(604800),
+  status: zWorkflowRunStatus,
+  reason: z.string(),
+  message: z.string(),
+  session_id: z.string().optional(),
+  created_at: z.iso.datetime(),
+  started_at: z.iso.datetime().optional(),
+  completed_at: z.iso.datetime().optional(),
+  duration_seconds: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
 })
 
 export const zCreateWorkflowScheduleRequest = z.object({
@@ -924,6 +977,66 @@ export const zUpdateWorkflowSchedulePath = z.object({
  * Workflow schedule updated.
  */
 export const zUpdateWorkflowScheduleResponse = zWorkflowSchedule
+
+export const zCreateWorkflowRunPath = z.object({
+  agentName: zAgentName,
+  name: zWorkflowScheduleName,
+})
+
+/**
+ * Workflow run accepted.
+ */
+export const zCreateWorkflowRunResponse = zWorkflowRunSummary
+
+export const zListWorkflowRunsPath = z.object({
+  agentName: zAgentName,
+  name: zWorkflowScheduleName,
+})
+
+export const zListWorkflowRunsQuery = z.object({
+  status: zWorkflowRunStatus.optional(),
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated workflow runs for one workflow schedule.
+ */
+export const zListWorkflowRunsResponse2 = zListWorkflowRunsResponse
+
+export const zWatchWorkflowRunsBody = zWatchWorkflowRunsRequest
+
+export const zWatchWorkflowRunsPath = z.object({
+  agentName: zAgentName,
+  name: zWorkflowScheduleName,
+})
+
+/**
+ * Stream of workflow run updates.
+ */
+export const zWatchWorkflowRunsResponse = zWatchWorkflowRunsEvent
+
+export const zDeleteWorkflowRunPath = z.object({
+  agentName: zAgentName,
+  name: zWorkflowScheduleName,
+  runName: zWorkflowRunName,
+})
+
+/**
+ * Workflow run deleted.
+ */
+export const zDeleteWorkflowRunResponse = z.void()
+
+export const zGetWorkflowRunPath = z.object({
+  agentName: zAgentName,
+  name: zWorkflowScheduleName,
+  runName: zWorkflowRunName,
+})
+
+/**
+ * Workflow run details.
+ */
+export const zGetWorkflowRunResponse = zWorkflowRunDetail
 
 export const zUpdateAgentBody = zUpdateAgentRequest
 

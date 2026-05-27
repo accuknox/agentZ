@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "@bprogress/next/app"
 import {
   flexRender,
   getCoreRowModel,
@@ -9,7 +10,15 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowLeft, ArrowRight, ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  Trash2,
+} from "lucide-react"
 import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
 import { dayjs } from "@/lib/dayjs"
 import { useTokenPagination } from "@/app/lens/traces/client-utils"
@@ -43,6 +52,7 @@ import type {
   UpdateWorkflowScheduleFormState,
   WorkflowInputSchemaResult,
 } from "@/data/types"
+import type { TriggerWorkflowRunActionState } from "@/data/workflow-run.actions"
 import { ScheduleSheet } from "./schedule-sheet"
 
 const columnClassName: Record<string, string> = {
@@ -61,6 +71,7 @@ export function SchedulesTable({
   nextPageToken,
   deleteWorkflowScheduleAction,
   getWorkflowInputSchemaAction,
+  triggerWorkflowRunAction,
   updateWorkflowScheduleAction,
 }: {
   agentName: string
@@ -77,6 +88,12 @@ export function SchedulesTable({
     agentName: string,
     workflowName: string
   ) => Promise<WorkflowInputSchemaResult>
+  triggerWorkflowRunAction: (
+    agentName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>
   updateWorkflowScheduleAction: (
     agentName: string,
     state: UpdateWorkflowScheduleFormState,
@@ -87,6 +104,7 @@ export function SchedulesTable({
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at", desc: true }])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const router = useRouter()
   const columns = React.useMemo<ColumnDef<WorkflowSchedule>[]>(
     () =>
       createColumns(
@@ -94,12 +112,14 @@ export function SchedulesTable({
         workflows,
         deleteWorkflowScheduleAction,
         getWorkflowInputSchemaAction,
+        triggerWorkflowRunAction,
         updateWorkflowScheduleAction
       ),
     [
       agentName,
       deleteWorkflowScheduleAction,
       getWorkflowInputSchemaAction,
+      triggerWorkflowRunAction,
       updateWorkflowScheduleAction,
       workflows,
     ]
@@ -140,7 +160,28 @@ export function SchedulesTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => {
+                    router.push(
+                      `/workflows/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(row.original.name)}/runs`
+                    )
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return
+                    }
+
+                    event.preventDefault()
+                    router.push(
+                      `/workflows/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(row.original.name)}/runs`
+                    )
+                  }}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -192,6 +233,12 @@ function createColumns(
     agentName: string,
     workflowName: string
   ) => Promise<WorkflowInputSchemaResult>,
+  triggerWorkflowRunAction: (
+    agentName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>,
   updateWorkflowScheduleAction: (
     agentName: string,
     state: UpdateWorkflowScheduleFormState,
@@ -272,6 +319,7 @@ function createColumns(
           item={row.original}
           deleteWorkflowScheduleAction={deleteWorkflowScheduleAction}
           getWorkflowInputSchemaAction={getWorkflowInputSchemaAction}
+          triggerWorkflowRunAction={triggerWorkflowRunAction}
           updateWorkflowScheduleAction={updateWorkflowScheduleAction}
         />
       ),
@@ -285,6 +333,7 @@ function ScheduleActions({
   item,
   deleteWorkflowScheduleAction,
   getWorkflowInputSchemaAction,
+  triggerWorkflowRunAction,
   updateWorkflowScheduleAction,
 }: {
   agentName: string
@@ -299,6 +348,12 @@ function ScheduleActions({
     agentName: string,
     workflowName: string
   ) => Promise<WorkflowInputSchemaResult>
+  triggerWorkflowRunAction: (
+    agentName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>
   updateWorkflowScheduleAction: (
     agentName: string,
     state: UpdateWorkflowScheduleFormState,
@@ -306,10 +361,15 @@ function ScheduleActions({
   ) => Promise<UpdateWorkflowScheduleFormState>
 }) {
   const [editOpen, setEditOpen] = React.useState(false)
+  const [runOpen, setRunOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   return (
-    <div className="flex justify-end">
+    <div
+      className="flex justify-end"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8">
@@ -318,6 +378,10 @@ function ScheduleActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setRunOpen(true)}>
+            <Play />
+            Run
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setEditOpen(true)}>
             <Pencil />
             Edit
@@ -338,6 +402,13 @@ function ScheduleActions({
         open={editOpen}
         onOpenChangeAction={setEditOpen}
       />
+      <RunScheduleDialog
+        agentName={agentName}
+        item={item}
+        open={runOpen}
+        setOpen={setRunOpen}
+        triggerWorkflowRunAction={triggerWorkflowRunAction}
+      />
       <DeleteScheduleDialog
         agentName={agentName}
         item={item}
@@ -346,6 +417,62 @@ function ScheduleActions({
         setOpen={setDeleteOpen}
       />
     </div>
+  )
+}
+
+function RunScheduleDialog({
+  agentName,
+  item,
+  open,
+  setOpen,
+  triggerWorkflowRunAction,
+}: {
+  agentName: string
+  item: WorkflowSchedule
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  triggerWorkflowRunAction: (
+    agentName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>
+}) {
+  const [state, action, pending] = React.useActionState(
+    triggerWorkflowRunAction.bind(null, agentName, item.name),
+    { success: false }
+  )
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Run {item.name} now?</DialogTitle>
+          <DialogDescription>
+            This will trigger the workflow schedule immediately using its saved configuration.
+          </DialogDescription>
+        </DialogHeader>
+        {state.error ? (
+          <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {state.error.message}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={pending}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <form action={action}>
+            <input type="hidden" name="schedule_name" value={item.name} />
+            <Button type="submit" disabled={pending}>
+              {pending ? <Spinner /> : <Play />}
+              Run
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -21,15 +21,18 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"text/template"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
@@ -42,6 +45,8 @@ const (
 	// transition before treating an idle session as a failed run.
 	sessionStartupGrace = 30 * time.Second
 )
+
+const workflowRunFinalizer = "clawarmor.accuknox.com/workflowrun-session"
 
 //go:embed prompt.tmpl
 var promptTemplateText string
@@ -71,6 +76,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.Get(ctx, req.NamespacedName, run)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if !run.DeletionTimestamp.IsZero() {
+		err = r.finalizeRun(ctx, run)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("finalize workflow run: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
+	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
+		err = r.addFinalizer(ctx, run)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("add workflow run finalizer: %w", err)
+		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseUnknown {
@@ -129,6 +150,67 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&clawarmorv1alpha1.WorkflowRun{}).
 		Named("workflowrun").
 		Complete(r)
+}
+
+func (r *Reconciler) addFinalizer(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &clawarmorv1alpha1.WorkflowRun{}
+		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
+		if err != nil {
+			return err
+		}
+		if ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+			return nil
+		}
+		ctrlutil.AddFinalizer(current, workflowRunFinalizer)
+		return r.Update(ctx, current)
+	})
+}
+
+func (r *Reconciler) finalizeRun(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
+	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
+		return nil
+	}
+	if run.Status.SessionID != "" {
+		if r.GatewayClient == nil {
+			return fmt.Errorf("gateway client is not configured")
+		}
+		resp, err := r.GatewayClient.SessionDeleteWithResponse(
+			ctx,
+			run.Spec.AgentName,
+			run.Status.SessionID,
+			nil,
+		)
+		if err != nil {
+			return fmt.Errorf("delete workflow session: %w", err)
+		}
+		if resp.StatusCode() != http.StatusNoContent && resp.StatusCode() != http.StatusNotFound {
+			return fmt.Errorf(
+				"delete workflow session returned status %d",
+				resp.StatusCode(),
+			)
+		}
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &clawarmorv1alpha1.WorkflowRun{}
+		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		if !ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+			return nil
+		}
+		ctrlutil.RemoveFinalizer(current, workflowRunFinalizer)
+		err = r.Update(ctx, current)
+		if apierrors.IsNotFound(err) || errors.Is(err, context.Canceled) {
+			return nil
+		}
+		return err
+	})
 }
 
 func (r *Reconciler) reconcilePending(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) (ctrl.Result, error) {

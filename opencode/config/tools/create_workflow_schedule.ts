@@ -85,6 +85,8 @@ export default tool({
       schedule: args.schedule.trim(),
       inputs: args.inputs,
       timeout_seconds: args.timeout_seconds,
+      successful_runs_history_limit: 3,
+      failed_runs_history_limit: 3,
       agent_name: agentName,
     }
 

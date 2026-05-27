@@ -3,6 +3,7 @@ import { connection } from "next/server"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowSchedulesAgentAction } from "@/data/workflow.actions"
+import { triggerWorkflowRunAction } from "@/data/workflow-run.actions"
 import {
   createWorkflowScheduleFormAction,
   deleteWorkflowScheduleFormAction,
@@ -123,6 +124,7 @@ async function Schedules({
       nextPageToken={schedulesResult.nextPageToken}
       deleteWorkflowScheduleAction={deleteWorkflowScheduleFormAction}
       getWorkflowInputSchemaAction={getWorkflowInputSchemaAction}
+      triggerWorkflowRunAction={triggerWorkflowRunAction}
       updateWorkflowScheduleAction={updateWorkflowScheduleFormAction}
     />
   )

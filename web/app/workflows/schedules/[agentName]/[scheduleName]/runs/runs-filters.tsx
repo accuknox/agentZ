@@ -5,8 +5,11 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useProgress } from "@bprogress/next"
 import { Controller, useForm } from "react-hook-form"
 import { BotIcon, Workflow } from "lucide-react"
-import type { Agent, WorkflowSummary } from "@/lib/gateway/client"
-import { workflowFiltersFormSchema, type WorkflowFiltersFormValues } from "@/data/workflow.schema"
+import type { Agent, WorkflowSchedule } from "@/lib/gateway/client"
+import {
+  workflowRunFiltersFormSchema,
+  type WorkflowRunFiltersFormValues,
+} from "@/data/workflow.schema"
 import {
   Select,
   SelectContent,
@@ -16,28 +19,28 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-type WorkflowsFiltersProps = {
+type RunsFiltersProps = {
   agents: Agent[]
   selectedAgentName?: string
-  workflows: WorkflowSummary[]
-  selectedWorkflowName?: string
+  schedules: WorkflowSchedule[]
+  selectedScheduleName?: string
   action: (formData: FormData) => void | Promise<void>
 }
 
-export function WorkflowsFilters({
+export function RunsFilters({
   agents,
   selectedAgentName,
-  workflows,
-  selectedWorkflowName,
+  schedules,
+  selectedScheduleName,
   action,
-}: WorkflowsFiltersProps) {
+}: RunsFiltersProps) {
   const [pending, startTransition] = React.useTransition()
   const progress = useProgress()
-  const form = useForm<WorkflowFiltersFormValues>({
-    resolver: zodResolver(workflowFiltersFormSchema),
+  const form = useForm<WorkflowRunFiltersFormValues>({
+    resolver: zodResolver(workflowRunFiltersFormSchema),
     defaultValues: {
       agent_name: selectedAgentName ?? "",
-      workflow_name: selectedWorkflowName ?? "",
+      schedule_name: selectedScheduleName ?? "",
     },
   })
 
@@ -50,11 +53,11 @@ export function WorkflowsFilters({
     progress.stop()
   }, [pending, progress])
 
-  function submitSelection(values: WorkflowFiltersFormValues) {
+  function submitSelection(values: WorkflowRunFiltersFormValues) {
     const formData = new FormData()
     formData.set("agent_name", values.agent_name)
-    if (values.workflow_name) {
-      formData.set("workflow_name", values.workflow_name)
+    if (values.schedule_name) {
+      formData.set("schedule_name", values.schedule_name)
     }
 
     startTransition(() => {
@@ -74,8 +77,8 @@ export function WorkflowsFilters({
               onValueChange={(nextAgentName) => {
                 const nextValues = {
                   agent_name: nextAgentName,
-                  workflow_name: "",
-                } satisfies WorkflowFiltersFormValues
+                  schedule_name: "",
+                } satisfies WorkflowRunFiltersFormValues
                 form.reset(nextValues)
                 submitSelection(nextValues)
               }}
@@ -98,33 +101,33 @@ export function WorkflowsFilters({
           )}
         />
         <Controller
-          name="workflow_name"
+          name="schedule_name"
           control={form.control}
           render={({ field }) => (
             <Select
               value={field.value}
-              onValueChange={(nextWorkflowName) => {
+              onValueChange={(nextScheduleName) => {
                 const nextValues = {
                   agent_name: form.getValues("agent_name"),
-                  workflow_name: nextWorkflowName,
-                } satisfies WorkflowFiltersFormValues
-                form.setValue("workflow_name", nextWorkflowName, {
+                  schedule_name: nextScheduleName,
+                } satisfies WorkflowRunFiltersFormValues
+                form.setValue("schedule_name", nextScheduleName, {
                   shouldDirty: false,
                   shouldTouch: false,
                 })
                 submitSelection(nextValues)
               }}
-              disabled={workflows.length === 0 || pending}
+              disabled={schedules.length === 0 || pending}
             >
               <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-72">
-                <SelectValue placeholder="Workflow" />
+                <SelectValue placeholder="Schedule" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {workflows.map((workflow) => (
-                    <SelectItem key={workflow.workflow_name} value={workflow.workflow_name}>
+                  {schedules.map((schedule) => (
+                    <SelectItem key={schedule.name} value={schedule.name}>
                       <Workflow className="inline-block" />
-                      {workflow.workflow_name}
+                      {schedule.name}
                     </SelectItem>
                   ))}
                 </SelectGroup>

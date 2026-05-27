@@ -149,7 +149,14 @@ func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtNam
 		return
 	}
 
-	missing, err := workflowstore.DeleteMany(r.Context(), s.db, agtName, req.WorkflowNames)
+	missing, err := workflowstore.DeleteMany(
+		r.Context(),
+		s.db,
+		s.k8sClient,
+		s.cfg.Namespace,
+		agtName,
+		req.WorkflowNames,
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, workflowstore.MapDeleteError(err, missing))
 		return

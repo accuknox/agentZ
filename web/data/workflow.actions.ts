@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { workflowFiltersFormSchema } from "@/data/workflow.schema"
+import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
+import { workflowFiltersFormSchema, workflowRunFiltersFormSchema } from "@/data/workflow.schema"
 import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
 
 export async function selectWorkflowFiltersAction(formData: FormData) {
@@ -71,6 +72,46 @@ export async function selectWorkflowSchedulesAgentAction(formData: FormData) {
   redirect(workflowSchedulesPath(agent?.name))
 }
 
+export async function selectWorkflowRunsFiltersAction(formData: FormData) {
+  const agentsResult = await listAgentsCachedQuery()
+  if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
+    redirect("/workflows/schedules")
+  }
+
+  const parsed = workflowRunFiltersFormSchema.safeParse({
+    agent_name: typeof formData.get("agent_name") === "string" ? formData.get("agent_name") : "",
+    schedule_name:
+      typeof formData.get("schedule_name") === "string" ? formData.get("schedule_name") : "",
+  })
+  if (!parsed.success) {
+    redirect("/workflows/schedules")
+  }
+
+  const agent =
+    agentsResult.agents.find((currentAgent) => currentAgent.name === parsed.data.agent_name) ??
+    agentsResult.agents[0]
+  if (!agent) {
+    redirect("/workflows/schedules")
+  }
+
+  const schedulesResult = await listWorkflowSchedulesCachedQuery(agent.name, {
+    limit: 200,
+  })
+  if (schedulesResult.error || !schedulesResult.workflowSchedules) {
+    redirect(workflowSchedulesPath(agent.name))
+  }
+
+  const schedule =
+    schedulesResult.workflowSchedules.find(
+      (currentSchedule) => currentSchedule.name === parsed.data.schedule_name
+    ) ?? schedulesResult.workflowSchedules[0]
+  if (!schedule) {
+    redirect(workflowSchedulesPath(agent.name))
+  }
+
+  redirect(workflowRunsPath(agent.name, schedule.name))
+}
+
 function workflowsPath({ agentName, workflowName }: { agentName?: string; workflowName?: string }) {
   const params = new URLSearchParams()
   if (agentName) {
@@ -92,4 +133,8 @@ function workflowSchedulesPath(agentName?: string) {
 
   const query = params.toString()
   return query === "" ? "/workflows/schedules" : `/workflows/schedules?${query}`
+}
+
+function workflowRunsPath(agentName: string, scheduleName: string) {
+  return `/workflows/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(scheduleName)}/runs`
 }

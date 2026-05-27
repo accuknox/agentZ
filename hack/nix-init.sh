@@ -11,6 +11,7 @@ if [[ -n "${NIX_SHARED_PVC:-}" ]]; then
     export NIX_CONF_DIR=/tmp/nix-etc
     mkdir -p /tmp/nix-etc
     {
+        echo "build-users-group ="
         echo "experimental-features = nix-command flakes"
         echo "sandbox = false"
         echo "substituters = file:///nix-shared?priority=100 https://cache.nixos.org?priority=50"

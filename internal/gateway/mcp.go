@@ -122,6 +122,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn.Spec = spec
+	setMCPConnectionSecretRef(name, &conn.Spec)
 
 	mcpconnwebhook.NormalizeSpec(&conn.Spec)
 	if err := mcpconnwebhook.ValidateResource(conn); err != nil {
@@ -187,6 +188,7 @@ func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, na
 			)
 		}
 		conn.Spec = spec
+		setMCPConnectionSecretRef(name, &conn.Spec)
 		mcpconnwebhook.NormalizeSpec(&conn.Spec)
 		if err := mcpconnwebhook.ValidateResource(conn); err != nil {
 			return err
@@ -454,12 +456,6 @@ func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, aut
 		spec.Auth.Bearer = &clawarmorv1alpha1.MCPConnectionBearerAuth{
 			Location: authLocationFromRequest(auth.Bearer.Location),
 		}
-		if auth.Bearer.SecretRef != nil {
-			spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
-				Path: strings.TrimSpace(auth.Bearer.SecretRef.Path),
-				Key:  strings.TrimSpace(auth.Bearer.SecretRef.Key),
-			}
-		}
 	}
 	if auth.Oauth != nil {
 		var issuer string
@@ -492,12 +488,6 @@ func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, aut
 		}
 		if auth.Oauth.Scopes != nil {
 			spec.Auth.OAuth.Scopes = append([]string{}, (*auth.Oauth.Scopes)...)
-		}
-		if auth.Oauth.SecretRef != nil {
-			spec.Auth.OAuth.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
-				Path: strings.TrimSpace(auth.Oauth.SecretRef.Path),
-				Key:  strings.TrimSpace(auth.Oauth.SecretRef.Key),
-			}
 		}
 	}
 	if spec.Auth.Bearer == nil && spec.Auth.OAuth == nil {
@@ -592,12 +582,6 @@ func mcpConnectionFromCRD(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPCo
 			out.Auth.Bearer = &gatewayapi.MCPConnectionBearerAuth{
 				Location: authLocationToResponse(conn.Spec.Auth.Bearer.Location),
 			}
-			if conn.Spec.Auth.Bearer.SecretRef != nil {
-				out.Auth.Bearer.SecretRef = &gatewayapi.MCPConnectionSecretRef{
-					Path: conn.Spec.Auth.Bearer.SecretRef.Path,
-					Key:  conn.Spec.Auth.Bearer.SecretRef.Key,
-				}
-			}
 		}
 		if conn.Spec.Auth.OAuth != nil {
 			out.Auth.Oauth = &gatewayapi.MCPConnectionOAuthAuth{
@@ -626,12 +610,6 @@ func mcpConnectionFromCRD(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPCo
 			if conn.Spec.Auth.OAuth.Scopes != nil {
 				scopes := append([]string{}, conn.Spec.Auth.OAuth.Scopes...)
 				out.Auth.Oauth.Scopes = &scopes
-			}
-			if conn.Spec.Auth.OAuth.SecretRef != nil {
-				out.Auth.Oauth.SecretRef = &gatewayapi.MCPConnectionSecretRef{
-					Path: conn.Spec.Auth.OAuth.SecretRef.Path,
-					Key:  conn.Spec.Auth.OAuth.SecretRef.Key,
-				}
 			}
 		}
 	}
@@ -780,6 +758,24 @@ func (s *Service) readMCPConnectionSecretData(ctx context.Context, path string) 
 	data := make(map[string]any, len(secret.Data))
 	maps.Copy(data, secret.Data)
 	return data, nil
+}
+
+func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
+	if spec.Auth == nil {
+		return
+	}
+	if spec.Auth.Bearer != nil {
+		spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+			Path: "mcp-connections/" + name,
+			Key:  "credentials",
+		}
+	}
+	if spec.Auth.OAuth != nil {
+		spec.Auth.OAuth.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+			Path: "mcp-connections/" + name,
+			Key:  "credentials",
+		}
+	}
 }
 
 func cloneJSONObject(raw *gatewayapi.JSONObject) map[string]any {

@@ -766,8 +766,6 @@ components:
       properties:
         location:
           $ref: '#/components/schemas/MCPConnectionAuthLocation'
-        secret_ref:
-          $ref: '#/components/schemas/MCPConnectionSecretRef'
       type: object
     MCPConnectionBearerCredentials:
       additionalProperties: false
@@ -883,8 +881,6 @@ components:
             minLength: 1
             type: string
           type: array
-        secret_ref:
-          $ref: '#/components/schemas/MCPConnectionSecretRef'
         token_endpoint:
           type: string
       type: object
@@ -930,19 +926,6 @@ components:
           $ref: '#/components/schemas/MCPConnectionName'
       required:
       - name
-      type: object
-    MCPConnectionSecretRef:
-      additionalProperties: false
-      properties:
-        key:
-          minLength: 1
-          type: string
-        path:
-          minLength: 1
-          type: string
-      required:
-      - path
-      - key
       type: object
     MCPConnectionState:
       enum:

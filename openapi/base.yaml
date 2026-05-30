@@ -2936,8 +2936,6 @@ components:
       type: object
       additionalProperties: false
       properties:
-        secret_ref:
-          $ref: '#/components/schemas/MCPConnectionSecretRef'
         location:
           $ref: '#/components/schemas/MCPConnectionAuthLocation'
 
@@ -2960,22 +2958,8 @@ components:
           items:
             type: string
             minLength: 1
-        secret_ref:
-          $ref: '#/components/schemas/MCPConnectionSecretRef'
         location:
           $ref: '#/components/schemas/MCPConnectionAuthLocation'
-
-    MCPConnectionSecretRef:
-      type: object
-      additionalProperties: false
-      properties:
-        path:
-          type: string
-          minLength: 1
-        key:
-          type: string
-          minLength: 1
-      required: [path, key]
 
     MCPConnectionAuthLocation:
       type: object

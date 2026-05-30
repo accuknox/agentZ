@@ -8,7 +8,8 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import type { SecretListItem } from "@/lib/gateway/client"
+import type { McpConnection } from "@/lib/gateway/client"
+import { useTokenPagination } from "@/app/lens/traces/client-utils"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -18,54 +19,52 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useTokenPagination } from "@/app/lens/traces/client-utils"
+import type { DeleteMcpFormState, McpFormState } from "@/data/mcp.actions"
+import { createMcpColumns } from "./mcp-columns"
 import { ArrowLeft, ArrowRight } from "lucide-react"
-import { createSecretColumns } from "./secret-columns"
-import type { DeleteSecretFormState, PutSecretFormState } from "@/data/types"
 
 const columnClassName: Record<string, string> = {
-  key: "min-w-48",
-  hosts: "min-w-72",
-  created_at: "w-65",
-  modified_at: "w-65",
+  name: "w-40",
+  auth_mode: "w-32",
+  status: "w-48",
+  endpoint: "min-w-0 w-0",
+  age: "w-28",
   actions: "w-14",
 }
 
-export function SecretTable({
-  agentName,
-  secrets,
+export function McpTable({
+  mcpConnections,
   hasNextPage,
   nextPageToken,
-  deleteSecretAction,
-  putSecretAction,
+  submitMcpAction,
+  deleteMcpAction,
 }: {
-  agentName: string
-  secrets: SecretListItem[]
+  mcpConnections: McpConnection[]
   hasNextPage: boolean
   nextPageToken: string
-  deleteSecretAction: (
-    agentName: string,
-    state: DeleteSecretFormState,
+  submitMcpAction: (_: McpFormState, formData: FormData) => Promise<McpFormState>
+  deleteMcpAction: (
+    name: string,
+    state: DeleteMcpFormState,
     formData: FormData
-  ) => Promise<DeleteSecretFormState>
-  putSecretAction: (
-    agentName: string,
-    state: PutSecretFormState,
-    formData: FormData
-  ) => Promise<PutSecretFormState>
+  ) => Promise<DeleteMcpFormState>
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: "age", desc: true }])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const columns = React.useMemo(
-    () => createSecretColumns(agentName, deleteSecretAction, putSecretAction),
-    [agentName, deleteSecretAction, putSecretAction]
+    () =>
+      createMcpColumns({
+        submitMcpAction,
+        deleteMcpAction,
+      }),
+    [deleteMcpAction, submitMcpAction]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data: secrets,
+    data: mcpConnections,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -85,7 +84,7 @@ export function SecretTable({
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id]}`}
+                    className={`h-8 px-4 ${columnClassName[header.column.id] ?? ""}`}
                   >
                     {header.isPlaceholder
                       ? null
@@ -98,11 +97,11 @@ export function SecretTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={`h-11 px-4 py-1.5 align-middle ${columnClassName[cell.column.id]}`}
+                      className={`h-11 px-4 py-2 align-middle ${columnClassName[cell.column.id] ?? ""}`}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
@@ -112,7 +111,7 @@ export function SecretTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No secrets
+                  No MCP connections
                 </TableCell>
               </TableRow>
             )}

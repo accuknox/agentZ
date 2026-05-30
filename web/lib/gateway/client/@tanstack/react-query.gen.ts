@@ -6,21 +6,26 @@ import { client } from "../client.gen"
 import {
   createAgent,
   createEnvironment,
+  createMcpConnection,
   createWorkflow,
   createWorkflowRun,
   createWorkflowSchedule,
   deleteAgent,
   deleteEnvironment,
+  deleteMcpConnection,
+  deleteMcpConnectionCredentials,
   deleteSecret,
   deleteWorkflowRun,
   deleteWorkflows,
   deleteWorkflowSchedule,
+  getMcpConnection,
   getSpanDetail,
   getWorkflow,
   getWorkflowRun,
   listAgents,
   listEnvironments,
   listFileObservability,
+  listMcpConnections,
   listNetworkObservability,
   listProcessObservability,
   listSecrets,
@@ -33,8 +38,10 @@ import {
   type Options,
   patchWorkflowRunStatus,
   putSecret,
+  setMcpConnectionCredentials,
   updateAgent,
   updateEnvironment,
+  updateMcpConnection,
   updateWorkflowSchedule,
 } from "../sdk.gen"
 import type {
@@ -44,6 +51,9 @@ import type {
   CreateEnvironmentData,
   CreateEnvironmentError,
   CreateEnvironmentResponse,
+  CreateMcpConnectionData,
+  CreateMcpConnectionError,
+  CreateMcpConnectionResponse,
   CreateWorkflowData,
   CreateWorkflowError,
   CreateWorkflowResponse,
@@ -59,6 +69,12 @@ import type {
   DeleteEnvironmentData,
   DeleteEnvironmentError,
   DeleteEnvironmentResponse,
+  DeleteMcpConnectionCredentialsData,
+  DeleteMcpConnectionCredentialsError,
+  DeleteMcpConnectionCredentialsResponse,
+  DeleteMcpConnectionData,
+  DeleteMcpConnectionError,
+  DeleteMcpConnectionResponse,
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
@@ -71,6 +87,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsError,
   DeleteWorkflowsResponse,
+  GetMcpConnectionData,
+  GetMcpConnectionError,
+  GetMcpConnectionResponse,
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
@@ -89,6 +108,9 @@ import type {
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
+  ListMcpConnectionsData,
+  ListMcpConnectionsError,
+  ListMcpConnectionsResponse2,
   ListNetworkObservabilityData,
   ListNetworkObservabilityError,
   ListNetworkObservabilityResponse2,
@@ -122,12 +144,18 @@ import type {
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
+  SetMcpConnectionCredentialsData,
+  SetMcpConnectionCredentialsError,
+  SetMcpConnectionCredentialsResponse,
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
   UpdateEnvironmentData,
   UpdateEnvironmentError,
   UpdateEnvironmentResponse,
+  UpdateMcpConnectionData,
+  UpdateMcpConnectionError,
+  UpdateMcpConnectionResponse,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleError,
   UpdateWorkflowScheduleResponse,
@@ -1002,6 +1030,191 @@ export const updateEnvironmentMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await updateEnvironment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Create an MCPConnection resource.
+ */
+export const createMcpConnectionMutation = (
+  options?: Partial<Options<CreateMcpConnectionData>>
+): UseMutationOptions<
+  CreateMcpConnectionResponse,
+  CreateMcpConnectionError,
+  Options<CreateMcpConnectionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateMcpConnectionResponse,
+    CreateMcpConnectionError,
+    Options<CreateMcpConnectionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createMcpConnection({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete an MCPConnection resource.
+ */
+export const deleteMcpConnectionMutation = (
+  options?: Partial<Options<DeleteMcpConnectionData>>
+): UseMutationOptions<
+  DeleteMcpConnectionResponse,
+  DeleteMcpConnectionError,
+  Options<DeleteMcpConnectionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteMcpConnectionResponse,
+    DeleteMcpConnectionError,
+    Options<DeleteMcpConnectionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteMcpConnection({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getMcpConnectionQueryKey = (options: Options<GetMcpConnectionData>) =>
+  createQueryKey("getMcpConnection", options)
+
+/**
+ * Get an MCPConnection resource.
+ */
+export const getMcpConnectionOptions = (options: Options<GetMcpConnectionData>) =>
+  queryOptions<
+    GetMcpConnectionResponse,
+    GetMcpConnectionError,
+    GetMcpConnectionResponse,
+    ReturnType<typeof getMcpConnectionQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getMcpConnection({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getMcpConnectionQueryKey(options),
+  })
+
+/**
+ * Replace an MCPConnection resource spec.
+ */
+export const updateMcpConnectionMutation = (
+  options?: Partial<Options<UpdateMcpConnectionData>>
+): UseMutationOptions<
+  UpdateMcpConnectionResponse,
+  UpdateMcpConnectionError,
+  Options<UpdateMcpConnectionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateMcpConnectionResponse,
+    UpdateMcpConnectionError,
+    Options<UpdateMcpConnectionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateMcpConnection({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listMcpConnectionsQueryKey = (options?: Options<ListMcpConnectionsData>) =>
+  createQueryKey("listMcpConnections", options)
+
+/**
+ * List paginated MCPConnection resources.
+ */
+export const listMcpConnectionsOptions = (options?: Options<ListMcpConnectionsData>) =>
+  queryOptions<
+    ListMcpConnectionsResponse2,
+    ListMcpConnectionsError,
+    ListMcpConnectionsResponse2,
+    ReturnType<typeof listMcpConnectionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listMcpConnections({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listMcpConnectionsQueryKey(options),
+  })
+
+/**
+ * Remove MCPConnection credentials.
+ */
+export const deleteMcpConnectionCredentialsMutation = (
+  options?: Partial<Options<DeleteMcpConnectionCredentialsData>>
+): UseMutationOptions<
+  DeleteMcpConnectionCredentialsResponse,
+  DeleteMcpConnectionCredentialsError,
+  Options<DeleteMcpConnectionCredentialsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteMcpConnectionCredentialsResponse,
+    DeleteMcpConnectionCredentialsError,
+    Options<DeleteMcpConnectionCredentialsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteMcpConnectionCredentials({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Set MCPConnection credentials.
+ */
+export const setMcpConnectionCredentialsMutation = (
+  options?: Partial<Options<SetMcpConnectionCredentialsData>>
+): UseMutationOptions<
+  SetMcpConnectionCredentialsResponse,
+  SetMcpConnectionCredentialsError,
+  Options<SetMcpConnectionCredentialsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetMcpConnectionCredentialsResponse,
+    SetMcpConnectionCredentialsError,
+    Options<SetMcpConnectionCredentialsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await setMcpConnectionCredentials({
         ...options,
         ...fnOptions,
         throwOnError: true,

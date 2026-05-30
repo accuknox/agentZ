@@ -48,6 +48,7 @@ function environmentFormValues(formData: FormData) {
   return {
     packages: formData.getAll("packages").map((p) => String(p)),
     allowedHosts: formData.getAll("allowedHosts").map((h) => String(h)),
+    mcpConnectionRefs: [] as { name: string }[],
   }
 }
 
@@ -68,6 +69,7 @@ function environmentPayload(data: { packages: string[]; allowedHosts: string[] }
   return {
     packages: data.packages,
     allowed_hosts: data.allowedHosts,
+    mcp_connection_refs: [],
   }
 }
 

@@ -110,6 +110,7 @@ function genericCrumbs(segments: string[]): Crumb[] {
     "/lens/traces",
     "/secrets",
   ])
+  const labelOverrides = new Map([["mcps", "MCPs"]])
 
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i]
@@ -117,7 +118,7 @@ function genericCrumbs(segments: string[]): Crumb[] {
 
     crumbs.push({
       href: hrefs.has(href) ? href : undefined,
-      label: titleize(segment),
+      label: labelOverrides.get(segment) ?? titleize(segment),
     })
   }
 

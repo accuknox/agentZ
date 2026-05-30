@@ -1,5 +1,6 @@
 export const agentsTag = "agents"
 export const environmentsTag = "environments"
+export const mcpsTag = "mcps"
 export const secretsTag = "secrets"
 export const workflowsTag = "workflows"
 export const workflowRunsTag = "workflow-runs"

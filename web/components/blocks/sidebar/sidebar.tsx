@@ -16,6 +16,7 @@ import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
 import { NavEnvironments } from "./environments"
 import { NavWorkflows } from "./workflows"
+import { NavMCPs } from "./mcps"
 
 export function AppSidebar({
   agents,
@@ -36,6 +37,7 @@ export function AppSidebar({
           <NavSecrets />
           <NavEnvironments />
           <NavWorkflows />
+          <NavMCPs />
         </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupLabel>Agents</SidebarGroupLabel>

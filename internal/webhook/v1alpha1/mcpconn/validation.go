@@ -54,14 +54,19 @@ func NewValidator() *Validator {
 	return &Validator{}
 }
 
+// ValidateResource validates one MCPConnection resource.
+func ValidateResource(conn *clawarmorv1alpha1.MCPConnection) error {
+	return validateMCPConnection(conn)
+}
+
 // ValidateCreate validates MCPConnection creation.
 func (v *Validator) ValidateCreate(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
-	return nil, validateMCPConnection(conn)
+	return nil, ValidateResource(conn)
 }
 
 // ValidateUpdate validates MCPConnection updates.
 func (v *Validator) ValidateUpdate(_ context.Context, _, newConn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
-	return nil, validateMCPConnection(newConn)
+	return nil, ValidateResource(newConn)
 }
 
 // ValidateDelete validates MCPConnection deletion.

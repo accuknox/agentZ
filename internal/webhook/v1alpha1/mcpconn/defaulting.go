@@ -45,26 +45,35 @@ func NewDefaulter() *Defaulter {
 	return &Defaulter{}
 }
 
-// Default applies defaults to an MCPConnection resource.
-func (d *Defaulter) Default(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
-	if parsed, err := url.Parse(strings.TrimSpace(conn.Spec.Endpoint.URL)); err == nil {
+// NormalizeSpec applies gateway- and webhook-shared MCPConnection defaults.
+func NormalizeSpec(spec *clawarmorv1alpha1.MCPConnectionSpec) {
+	if spec == nil {
+		return
+	}
+
+	if parsed, err := url.Parse(strings.TrimSpace(spec.Endpoint.URL)); err == nil {
 		parsed.Host = strings.ToLower(parsed.Host)
 		if parsed.Scheme == "https" && parsed.Port() == "443" {
 			parsed.Host = parsed.Hostname()
 		}
-		conn.Spec.Endpoint.URL = parsed.String()
+		spec.Endpoint.URL = parsed.String()
 	}
 
-	if conn.Spec.Auth == nil {
-		return nil
+	if spec.Auth == nil {
+		return
 	}
 
-	if conn.Spec.Auth.Bearer != nil {
-		conn.Spec.Auth.Bearer.Location = defaultAuthLocation(conn.Spec.Auth.Bearer.Location)
+	if spec.Auth.Bearer != nil {
+		spec.Auth.Bearer.Location = defaultAuthLocation(spec.Auth.Bearer.Location)
 	}
-	if conn.Spec.Auth.OAuth != nil {
-		conn.Spec.Auth.OAuth.Location = defaultAuthLocation(conn.Spec.Auth.OAuth.Location)
+	if spec.Auth.OAuth != nil {
+		spec.Auth.OAuth.Location = defaultAuthLocation(spec.Auth.OAuth.Location)
 	}
+}
+
+// Default applies defaults to an MCPConnection resource.
+func (d *Defaulter) Default(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
+	NormalizeSpec(&conn.Spec)
 	return nil
 }
 

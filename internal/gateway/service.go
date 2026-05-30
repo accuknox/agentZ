@@ -252,8 +252,7 @@ func requestLog(next http.Handler) http.Handler {
 			slog.LogAttrs(r.Context(), slog.LevelError, "gateway request completed", attrs...)
 			return
 		}
-		if rec.status >= http.StatusBadRequest &&
-			slog.Default().Enabled(r.Context(), slog.LevelDebug) {
+		if rec.status >= http.StatusBadRequest && slog.Default().Enabled(r.Context(), slog.LevelDebug) {
 			slog.LogAttrs(r.Context(), slog.LevelDebug, "gateway request completed", attrs...)
 			return
 		}

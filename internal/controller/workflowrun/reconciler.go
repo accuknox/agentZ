@@ -541,8 +541,7 @@ func (r *Reconciler) sessionIdle(ctx context.Context, run *clawarmorv1alpha1.Wor
 	if idle, err := status.AsOpencodeSessionStatus0(); err == nil && idle.Type == gatewayapi.Idle {
 		return true, nil
 	}
-	if retry, err := status.AsOpencodeSessionStatus1(); err == nil &&
-		retry.Type == gatewayapi.OpencodeSessionStatus1TypeRetry {
+	if retry, err := status.AsOpencodeSessionStatus1(); err == nil && retry.Type == gatewayapi.OpencodeSessionStatus1TypeRetry {
 		return false, nil
 	}
 	if busy, err := status.AsOpencodeSessionStatus2(); err == nil && busy.Type == gatewayapi.Busy {

@@ -240,6 +240,10 @@ components:
             minLength: 1
             type: string
           type: array
+        mcp_connection_refs:
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
+          type: array
         name:
           $ref: '#/components/schemas/EnvironmentName'
         packages:
@@ -373,6 +377,10 @@ components:
         created_at:
           format: date-time
           type: string
+        mcp_connection_refs:
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
+          type: array
         metadata:
           additionalProperties: false
           properties:
@@ -402,6 +410,7 @@ components:
       - name
       - packages
       - allowed_hosts
+      - mcp_connection_refs
       - created_at
       - metadata
       type: object
@@ -676,6 +685,14 @@ components:
       required:
       - workflow_schedules
       - next_page_token
+      type: object
+    MCPConnectionRef:
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/EnvironmentName'
+      required:
+      - name
       type: object
     NetworkObservabilityEvent:
       additionalProperties: false
@@ -9355,6 +9372,10 @@ components:
             minLength: 1
             type: string
           type: array
+        mcp_connection_refs:
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
+          type: array
         packages:
           items:
             minLength: 1
@@ -9363,6 +9384,7 @@ components:
       required:
       - packages
       - allowed_hosts
+      - mcp_connection_refs
       type: object
     UpdateWorkflowScheduleRequest:
       additionalProperties: false

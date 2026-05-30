@@ -46,6 +46,7 @@ import (
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
 	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
+	"github.com/accuknox/clawarmor/internal/controller/mcpconn"
 	workflowruncontroller "github.com/accuknox/clawarmor/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/clawarmor/internal/controller/workflowschedule"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
@@ -590,6 +591,10 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowRun")
 				os.Exit(1)
 			}
+			if err := webhookv1alpha1.SetupMCPConnectionWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "Failed to create webhook", "webhook", "MCPConnection")
+				os.Exit(1)
+			}
 		}
 
 		workflowScheduleReconciler := &workflowschedulecontroller.Reconciler{
@@ -608,6 +613,15 @@ var managerCmd = &cli.Command{
 		}
 		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "WorkflowRun")
+			os.Exit(1)
+		}
+
+		mcpConnReconciler := &mcpconn.MCPConnectionReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}
+		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "MCPConnection")
 			os.Exit(1)
 		}
 

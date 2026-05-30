@@ -106,6 +106,12 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var rawMCPConnectionRefs []gatewayapi.MCPConnectionRef
+	if req.McpConnectionRefs != nil {
+		rawMCPConnectionRefs = *req.McpConnectionRefs
+	}
+	mcpConnectionRefs := normalizeMCPConnectionRefs(rawMCPConnectionRefs)
+
 	env := &clawarmorv1alpha1.Environment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
@@ -116,8 +122,9 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 			Namespace: s.cfg.Namespace,
 		},
 		Spec: clawarmorv1alpha1.EnvironmentSpec{
-			Packages:     packages,
-			AllowedHosts: allowedHosts,
+			Packages:          packages,
+			AllowedHosts:      allowedHosts,
+			MCPConnectionRefs: mcpConnectionRefs,
 		},
 	}
 
@@ -204,6 +211,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		writeAllowedHostsError(w, r, err)
 		return
 	}
+	mcpConnectionRefs := normalizeMCPConnectionRefs(req.McpConnectionRefs)
 
 	var updated *clawarmorv1alpha1.Environment
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -217,6 +225,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 
 		env.Spec.Packages = normalizePackages(req.Packages)
 		env.Spec.AllowedHosts = allowedHosts
+		env.Spec.MCPConnectionRefs = mcpConnectionRefs
 
 		if updateErr := s.k8sClient.Update(r.Context(), env); updateErr != nil {
 			return updateErr
@@ -251,11 +260,21 @@ func environmentFromCRD(env clawarmorv1alpha1.Environment, referenced bool) gate
 	if env.Spec.AllowedHosts != nil {
 		allowedHosts = env.Spec.AllowedHosts
 	}
+	mcpConnectionRefs := []gatewayapi.MCPConnectionRef{}
+	if env.Spec.MCPConnectionRefs != nil {
+		mcpConnectionRefs = make([]gatewayapi.MCPConnectionRef, 0, len(env.Spec.MCPConnectionRefs))
+		for _, ref := range env.Spec.MCPConnectionRefs {
+			mcpConnectionRefs = append(mcpConnectionRefs, gatewayapi.MCPConnectionRef{
+				Name: ref.Name,
+			})
+		}
+	}
 	out := gatewayapi.Environment{
-		Name:         env.Name,
-		Packages:     packages,
-		AllowedHosts: allowedHosts,
-		CreatedAt:    env.CreationTimestamp.Time,
+		Name:              env.Name,
+		Packages:          packages,
+		AllowedHosts:      allowedHosts,
+		McpConnectionRefs: mcpConnectionRefs,
+		CreatedAt:         env.CreationTimestamp.Time,
 	}
 	out.Metadata.PackageCount = int32(len(packages))
 	out.Metadata.AllowedHostCount = int32(len(allowedHosts))
@@ -269,11 +288,16 @@ func validateCreateEnvironmentRequest(req gatewayapi.CreateEnvironmentRequest) (
 	if req.Packages != nil {
 		fields = append(fields, validatePackageList(*req.Packages)...)
 	}
+	if req.McpConnectionRefs != nil {
+		fields = append(fields, validateMCPConnectionRefList(*req.McpConnectionRefs)...)
+	}
 	return name, fields
 }
 
 func validateUpdateEnvironmentRequest(req gatewayapi.UpdateEnvironmentRequest) []gatewayapi.FieldError {
-	return validatePackageList(req.Packages)
+	fields := validatePackageList(req.Packages)
+	fields = append(fields, validateMCPConnectionRefList(req.McpConnectionRefs)...)
+	return fields
 }
 
 func validateEnvironmentName(name string) []gatewayapi.FieldError {
@@ -318,6 +342,42 @@ func normalizePackages(raw []string) []string {
 		}
 	}
 	return packages
+}
+
+func normalizeMCPConnectionRefs(raw []gatewayapi.MCPConnectionRef) []clawarmorv1alpha1.MCPConnectionRef {
+	refs := []clawarmorv1alpha1.MCPConnectionRef{}
+	for _, ref := range raw {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			continue
+		}
+		refs = append(refs, clawarmorv1alpha1.MCPConnectionRef{Name: name})
+	}
+	return refs
+}
+
+func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewayapi.FieldError {
+	fields := []gatewayapi.FieldError{}
+	seen := map[string]int{}
+	for i, ref := range refs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: "must not be empty",
+			})
+			continue
+		}
+		if first, ok := seen[name]; ok {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: fmt.Sprintf("duplicate value %q first seen at index %d", name, first),
+			})
+			continue
+		}
+		seen[name] = i
+	}
+	return fields
 }
 
 func writeAllowedHostsError(w http.ResponseWriter, r *http.Request, err error) {

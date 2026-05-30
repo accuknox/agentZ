@@ -45,6 +45,20 @@ spec:
                 items:
                   type: string
                 type: array
+              mcpConnectionRefs:
+                description: |-
+                  MCPConnectionRefs lists external MCP connections exposed in this
+                  environment in order.
+                items:
+                  description: MCPConnectionRef references one MCPConnection in the same namespace.
+                  properties:
+                    name:
+                      description: Name is the local name of the referenced MCPConnection.
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
               packages:
                 description: |-
                   Packages lists nix packages (e.g. "python3", "nodejs_22",

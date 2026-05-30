@@ -40,9 +40,9 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=envs,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=envs/finalizers,verbs=update
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents,verbs=get;list;watch
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/finalizers,verbs=update
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents,verbs=get;list;watch
 
 // Reconcile prevents deletion of environments while an Agent references them.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

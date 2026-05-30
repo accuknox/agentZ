@@ -2620,6 +2620,10 @@ components:
           items:
             type: string
             minLength: 1
+        mcp_connection_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
         created_at:
           type: string
           format: date-time
@@ -2638,7 +2642,7 @@ components:
             referenced_by_agent:
               type: boolean
           required: [package_count, allowed_host_count, referenced_by_agent]
-      required: [name, packages, allowed_hosts, created_at, metadata]
+      required: [name, packages, allowed_hosts, mcp_connection_refs, created_at, metadata]
 
     ListEnvironmentsResponse:
       type: object
@@ -2668,6 +2672,10 @@ components:
           items:
             type: string
             minLength: 1
+        mcp_connection_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
       required: [name]
 
     DeleteEnvironmentRequest:
@@ -2692,4 +2700,16 @@ components:
           items:
             type: string
             minLength: 1
-      required: [packages, allowed_hosts]
+        mcp_connection_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
+      required: [packages, allowed_hosts, mcp_connection_refs]
+
+    MCPConnectionRef:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/EnvironmentName'
+      required: [name]

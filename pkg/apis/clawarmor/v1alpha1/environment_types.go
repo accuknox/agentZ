@@ -18,6 +18,12 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// MCPConnectionRef references one MCPConnection in the same namespace.
+type MCPConnectionRef struct {
+	// Name is the local name of the referenced MCPConnection.
+	Name string `json:"name"`
+}
+
 // EnvironmentSpec defines the desired state of Environment.
 type EnvironmentSpec struct {
 	// Packages lists nix packages (e.g. "python3", "nodejs_22",
@@ -31,6 +37,11 @@ type EnvironmentSpec struct {
 	// IPv4/IPv6 CIDRs the referencing Agent pods may reach.
 	// +optional
 	AllowedHosts []string `json:"allowedHosts,omitempty"`
+
+	// MCPConnectionRefs lists external MCP connections exposed in this
+	// environment in order.
+	// +optional
+	MCPConnectionRefs []MCPConnectionRef `json:"mcpConnectionRefs,omitempty"`
 }
 
 // EnvironmentStatus defines the observed state of Environment.

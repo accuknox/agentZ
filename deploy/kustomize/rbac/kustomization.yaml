@@ -22,6 +22,9 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the clawarmor itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
+- mcpconnection_admin_role.yaml
+- mcpconnection_editor_role.yaml
+- mcpconnection_viewer_role.yaml
 - workflowrun_admin_role.yaml
 - workflowrun_editor_role.yaml
 - workflowrun_viewer_role.yaml

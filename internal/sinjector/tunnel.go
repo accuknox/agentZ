@@ -184,8 +184,7 @@ func writeResponse(dst net.Conn, resp *http.Response, closeConn bool) error {
 	if resp.Body == nil || !bodyAllowed(resp.StatusCode) {
 		return nil
 	}
-	chunked := resp.ContentLength < 0 && resp.Body != nil &&
-		bodyAllowed(resp.StatusCode)
+	chunked := resp.ContentLength < 0 && resp.Body != nil && bodyAllowed(resp.StatusCode)
 	if chunked {
 		return writeChunkedBody(dst, resp.Body)
 	}
@@ -200,8 +199,7 @@ func writeResponseHead(dst net.Conn, resp *http.Response, closeConn bool) error 
 	}
 
 	header := resp.Header.Clone()
-	chunked := resp.ContentLength < 0 && resp.Body != nil &&
-		bodyAllowed(resp.StatusCode)
+	chunked := resp.ContentLength < 0 && resp.Body != nil && bodyAllowed(resp.StatusCode)
 	if chunked {
 		header.Del("Content-Length")
 		header.Set("Transfer-Encoding", "chunked")

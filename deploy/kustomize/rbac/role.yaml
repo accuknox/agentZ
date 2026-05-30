@@ -73,6 +73,8 @@ rules:
 - apiGroups:
   - clawarmor.accuknox.com
   resources:
+  - agents
+  - mcpconnections
   - workflowruns
   - workflowschedules
   verbs:
@@ -86,6 +88,9 @@ rules:
 - apiGroups:
   - clawarmor.accuknox.com
   resources:
+  - agents/finalizers
+  - envs/finalizers
+  - mcpconnections/finalizers
   - workflowruns/finalizers
   - workflowschedules/finalizers
   verbs:
@@ -93,55 +98,10 @@ rules:
 - apiGroups:
   - clawarmor.accuknox.com
   resources:
+  - agents/status
+  - mcpconnections/status
   - workflowruns/status
   - workflowschedules/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - rolebindings
-  - roles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: manager-role
-  namespace: clawarmor-system
-rules:
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - agents
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - agents/finalizers
-  - envs/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - agents/status
   verbs:
   - get
   - patch
@@ -151,6 +111,19 @@ rules:
   resources:
   - envs
   verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch

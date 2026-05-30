@@ -48,10 +48,10 @@ type Reconciler struct {
 	Bao    OpenBaoProvisioner
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=agents/finalizers,verbs=update
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,namespace=clawarmor-system,resources=envs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents/finalizers,verbs=update
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete

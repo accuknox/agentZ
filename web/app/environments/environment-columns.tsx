@@ -75,6 +75,15 @@ export function createEnvironmentColumns(
       },
     },
     {
+      accessorFn: (env) => env.mcp_connection_refs.length,
+      id: "mcps",
+      header: "MCPs",
+      cell: ({ row }) => {
+        const count = row.getValue<number>("mcps")
+        return `${count} MCP${count === 1 ? "" : "s"}`
+      },
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button

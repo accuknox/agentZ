@@ -9,6 +9,7 @@ import {
   updateEnvironment,
   type Error,
   type ListEnvironmentsData,
+  type McpConnectionRef,
 } from "@/lib/gateway/client"
 import { createEnvironmentFormSchema } from "@/data/schema"
 import type {
@@ -48,7 +49,9 @@ function environmentFormValues(formData: FormData) {
   return {
     packages: formData.getAll("packages").map((p) => String(p)),
     allowedHosts: formData.getAll("allowedHosts").map((h) => String(h)),
-    mcpConnectionRefs: [] as { name: string }[],
+    mcpConnectionRefs: formData
+      .getAll("mcpConnectionRefs")
+      .map((name): McpConnectionRef => ({ name: String(name) })),
   }
 }
 
@@ -65,11 +68,15 @@ function invalidEnvironmentForm(error: z.ZodError): CreateEnvironmentFormState {
   }
 }
 
-function environmentPayload(data: { packages: string[]; allowedHosts: string[] }) {
+function environmentPayload(data: {
+  packages: string[]
+  allowedHosts: string[]
+  mcpConnectionRefs: McpConnectionRef[]
+}) {
   return {
     packages: data.packages,
     allowed_hosts: data.allowedHosts,
-    mcp_connection_refs: [],
+    mcp_connection_refs: data.mcpConnectionRefs,
   }
 }
 

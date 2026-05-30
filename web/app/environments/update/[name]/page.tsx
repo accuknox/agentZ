@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
+import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { EnvironmentWizard } from "../../wizard"
 
 export default function UpdateEnvironmentPage({ params }: { params: Promise<{ name: string }> }) {
@@ -14,17 +15,20 @@ export default function UpdateEnvironmentPage({ params }: { params: Promise<{ na
 }
 
 async function UpdateEnvironmentContent({ name }: { name: string }) {
-  const result = await listEnvironmentsCachedQuery({ limit: 200 })
+  const [environmentResult, mcpResult] = await Promise.all([
+    listEnvironmentsCachedQuery({ limit: 200 }),
+    listMcpConnectionsCachedQuery({ limit: 200 }),
+  ])
 
-  if (result.error || !result.environments) {
+  if (environmentResult.error || !environmentResult.environments) {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-        {result.error?.message ?? "Failed to load environment"}
+        {environmentResult.error?.message ?? "Failed to load environment"}
       </div>
     )
   }
 
-  const env = result.environments.find((e) => e.name === name)
+  const env = environmentResult.environments.find((e) => e.name === name)
   if (!env) {
     notFound()
   }
@@ -39,6 +43,8 @@ async function UpdateEnvironmentContent({ name }: { name: string }) {
         initialName={env.name}
         initialPackages={env.packages ?? []}
         initialAllowedHosts={env.allowed_hosts ?? []}
+        initialMcpConnectionRefs={env.mcp_connection_refs.map((ref) => ref.name)}
+        mcpConnections={mcpResult.mcpConnections ?? []}
       />
     </main>
   )

@@ -2,12 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { defineStepper } from "@stepperize/react"
-import { Box, Globe2, PackageSearch as PackageSearchIcon, Plus, X } from "lucide-react"
+import { Box, Globe2, Link2, PackageSearch as PackageSearchIcon, Plus, X } from "lucide-react"
 import * as React from "react"
 import { startTransition, useActionState, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { WizardShell } from "@/components/blocks/wizard"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Field,
   FieldDescription,
@@ -25,12 +27,15 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 import {
   createEnvironmentFormAction,
   updateEnvironmentFormAction,
 } from "@/data/environment.actions"
 import * as z from "zod"
 import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
+import type { McpConnection } from "@/lib/gateway/client"
+import { cn } from "@/lib/utils"
 import { PackageSearch } from "./package-search"
 
 type EnvironmentWizardMode = "create" | "update"
@@ -42,12 +47,15 @@ type EnvironmentIdentity = {
 type EnvironmentWizardData = {
   identity?: EnvironmentIdentity
   packages?: string[]
+  mcps?: string[]
 }
 
 type EnvironmentWizardProps = {
   initialName?: string
   initialAllowedHosts?: string[]
+  initialMcpConnectionRefs?: string[]
   initialPackages?: string[]
+  mcpConnections: McpConnection[]
   mode: EnvironmentWizardMode
 }
 
@@ -60,8 +68,16 @@ type PackageStepProps = {
 type AllowedHostsStepProps = {
   identity: EnvironmentIdentity
   initialAllowedHosts: string[]
+  mcpConnectionRefs: string[]
   packages: string[]
   mode: EnvironmentWizardMode
+  onPrev: () => void
+}
+
+type McpStepProps = {
+  initialMcpConnectionRefs: string[]
+  mcpConnections: McpConnection[]
+  onNext: (mcpConnectionRefs: string[]) => void
   onPrev: () => void
 }
 
@@ -93,6 +109,11 @@ const steps = [
     icon: PackageSearchIcon,
   },
   {
+    id: "mcps",
+    title: "MCP",
+    icon: Link2,
+  },
+  {
     id: "allowedHosts",
     title: "Allowed hosts",
     icon: Globe2,
@@ -121,7 +142,11 @@ function IdentityForm({
   })
 
   return (
-    <form id="environment-form-identity" onSubmit={form.handleSubmit(onNext)} className="space-y-5">
+    <form
+      id="environment-form-identity"
+      onSubmit={form.handleSubmit(onNext)}
+      className="flex flex-col gap-5"
+    >
       <FieldGroup>
         <Controller
           name="name"
@@ -196,9 +221,104 @@ function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
   )
 }
 
+function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: McpStepProps) {
+  const form = useForm<{ mcpConnectionRefs: string[] }>({
+    defaultValues: {
+      mcpConnectionRefs: initialMcpConnectionRefs,
+    },
+  })
+  const selected = useWatch({
+    control: form.control,
+    name: "mcpConnectionRefs",
+    defaultValue: initialMcpConnectionRefs,
+  })
+  const selectedNames = new Set(selected)
+  const connections = mcpConnections.toSorted((a, b) => a.name.localeCompare(b.name))
+
+  return (
+    <form
+      onSubmit={form.handleSubmit((data) =>
+        onNext(data.mcpConnectionRefs.toSorted((a, b) => a.localeCompare(b)))
+      )}
+      className="flex flex-col gap-5"
+    >
+      <FieldSet>
+        {connections.length > 0 ? (
+          <FieldGroup className="grid gap-0 md:grid-cols-2">
+            {connections.map((connection) => {
+              const checked = selectedNames.has(connection.name)
+              const state = connection.status.state ?? "Accepted"
+              const badgeVariant =
+                state === "Ready"
+                  ? "success"
+                  : state === "Degraded"
+                    ? "destructive"
+                    : state === "NeedsAuth"
+                      ? "warning"
+                      : "pending"
+
+              return (
+                <Field key={connection.name} orientation="horizontal">
+                  <Card
+                    className={cn(
+                      "w-full rounded-none ring-1 transition-colors",
+                      checked ? "ring-primary/30 z-10" : "ring-foreground/10"
+                    )}
+                  >
+                    <CardHeader>
+                      <CardTitle className="truncate">{connection.name}</CardTitle>
+                      <CardDescription className="truncate">
+                        {connection.endpoint.url}
+                      </CardDescription>
+                      <CardAction className="flex items-center gap-2">
+                        <Badge variant={badgeVariant}>{state}</Badge>
+                        <Switch
+                          checked={checked}
+                          aria-label={`Attach ${connection.name}`}
+                          onCheckedChange={(nextChecked) => {
+                            const nextRefs = nextChecked
+                              ? [...selected, connection.name].toSorted((a, b) =>
+                                  a.localeCompare(b)
+                                )
+                              : selected.filter((name) => name !== connection.name)
+                            form.setValue("mcpConnectionRefs", nextRefs, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }}
+                        />
+                      </CardAction>
+                    </CardHeader>
+                  </Card>
+                </Field>
+              )
+            })}
+          </FieldGroup>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>No MCP connections yet</CardTitle>
+              <CardDescription>
+                Create an MCP connection separately, then return here to attach it.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+      </FieldSet>
+      <StepActions>
+        <Button type="button" variant="secondary" onClick={onPrev}>
+          Previous
+        </Button>
+        <Button type="submit">Next</Button>
+      </StepActions>
+    </form>
+  )
+}
+
 function AllowedHostsStep({
   identity,
   initialAllowedHosts,
+  mcpConnectionRefs,
   packages,
   mode,
   onPrev,
@@ -287,6 +407,9 @@ function AllowedHostsStep({
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (
         <input key={pkg} type="hidden" name="packages" value={pkg} />
+      ))}
+      {mcpConnectionRefs.map((name) => (
+        <input key={name} type="hidden" name="mcpConnectionRefs" value={name} />
       ))}
       {hosts.map((host) => (
         <input key={host} type="hidden" name="allowedHosts" value={host} />
@@ -380,8 +503,10 @@ function StepActions({ children }: { children: React.ReactNode }) {
 
 export function EnvironmentWizard({
   initialAllowedHosts = [],
+  initialMcpConnectionRefs = [],
   initialName = "",
   initialPackages = [],
+  mcpConnections,
   mode,
 }: EnvironmentWizardProps) {
   const [direction, setDirection] = useState(1)
@@ -393,6 +518,7 @@ export function EnvironmentWizard({
       initialMetadata={{
         identity: initialName ? initialIdentity : undefined,
         packages: initialPackages,
+        mcps: initialMcpConnectionRefs,
       }}
       orientation="horizontal"
     >
@@ -400,6 +526,7 @@ export function EnvironmentWizard({
         const data: EnvironmentWizardData = {
           identity: stepper.metadata.get("identity") as EnvironmentIdentity | undefined,
           packages: stepper.metadata.get("packages") as string[] | undefined,
+          mcps: stepper.metadata.get("mcps") as string[] | undefined,
         }
         const goPrev = () => {
           setDirection(-1)
@@ -446,10 +573,22 @@ export function EnvironmentWizard({
                   }}
                 />
               ),
+              mcps: () => (
+                <McpStep
+                  initialMcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
+                  mcpConnections={mcpConnections}
+                  onPrev={goPrev}
+                  onNext={(mcpConnectionRefs) => {
+                    stepper.metadata.set("mcps", mcpConnectionRefs)
+                    goNext()
+                  }}
+                />
+              ),
               allowedHosts: () => (
                 <AllowedHostsStep
                   identity={data.identity!}
                   initialAllowedHosts={initialAllowedHosts}
+                  mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
                   packages={data.packages ?? initialPackages}
                   mode={mode}
                   onPrev={goPrev}

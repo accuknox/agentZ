@@ -146,6 +146,29 @@ export const updateAgentSimpleFormSchema = z.object({
 export const createEnvironmentFormSchema = z.object({
   name: environmentNameSchema,
   packages: z.array(z.string()),
+  mcpConnectionRefs: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1, "MCP connection name is required"),
+      })
+    )
+    .superRefine((refs, ctx) => {
+      const names = new Set<string>()
+      for (const [index, ref] of refs.entries()) {
+        if (names.has(ref.name)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Duplicate MCP connection references are not allowed",
+            path: [index, "name"],
+          })
+          continue
+        }
+        names.add(ref.name)
+      }
+    })
+    .transform((refs) =>
+      refs.toSorted((a, b) => a.name.localeCompare(b.name)).map((ref) => ({ name: ref.name }))
+    ),
   allowedHosts: z
     .array(environmentAllowedHostSchema)
     .transform((hosts) => Array.from(new Set(hosts)).sort()),

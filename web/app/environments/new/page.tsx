@@ -1,12 +1,15 @@
+import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { EnvironmentWizard } from "../wizard"
 
-export default function NewEnvironmentPage() {
+export default async function NewEnvironmentPage() {
+  const result = await listMcpConnectionsCachedQuery({ limit: 200 })
+
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 p-4 sm:px-6 sm:pb-6">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-normal">New environment</h1>
       </div>
-      <EnvironmentWizard mode="create" />
+      <EnvironmentWizard mode="create" mcpConnections={result.mcpConnections ?? []} />
     </main>
   )
 }

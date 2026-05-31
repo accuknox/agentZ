@@ -130,6 +130,7 @@ var cmd = &cli.Command{
 		},
 	},
 	Commands: []*cli.Command{
+		subcommands.ExtAuthCmd,
 		managerCmd,
 		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,

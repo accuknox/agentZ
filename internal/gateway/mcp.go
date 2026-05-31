@@ -19,24 +19,10 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/mcp"
 	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
-
-type bearerSecretRecord struct {
-	Token     string    `json:"token"`
-	UpdatedAt time.Time `json:"updatedAt"`
-}
-
-type oauthSecretRecord struct {
-	ClientID     string         `json:"clientId,omitempty"`
-	ClientSecret string         `json:"clientSecret,omitempty"`
-	Token        *oauth2.Token  `json:"token,omitempty"`
-	Scopes       []string       `json:"scopes,omitempty"`
-	Registration map[string]any `json:"registration,omitempty"`
-	Revocation   map[string]any `json:"revocation,omitempty"`
-	UpdatedAt    time.Time      `json:"updatedAt"`
-}
 
 // ListMCPConnections handles GET /api/mcp-connection/list.
 func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, params gatewayapi.ListMCPConnectionsParams) {
@@ -289,7 +275,7 @@ func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		record := bearerSecretRecord{
+		record := mcp.BearerSecretRecord{
 			Token:     strings.TrimSpace(req.Bearer.Token),
 			UpdatedAt: now,
 		}
@@ -332,7 +318,7 @@ func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Req
 		if req.Oauth.ClientSecret != nil {
 			clientSecret = *req.Oauth.ClientSecret
 		}
-		record := oauthSecretRecord{
+		record := mcp.OAuthSecretRecord{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			UpdatedAt:    now,

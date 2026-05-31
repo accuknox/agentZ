@@ -88,6 +88,18 @@ run-manager:
 run-observer:
 	go run ./cmd/clawarmor observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
 
+# Run MCP ext-auth service
+.PHONY: run-extauth
+run-extauth:
+	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	go run ./cmd/clawarmor extauth serve \
+		--addr 0.0.0.0:18081 \
+		--namespace=default \
+		--openbao-addr=http://localhost:8200 \
+		--openbao-secret-mount-path=kv \
+		--openbao-k8s-auth-role=clawarmor-extauth \
+		--openbao-k8s-auth-token-path=/tmp/sa-token
+
 # Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer
 build-installer: generate

@@ -179,6 +179,7 @@
               yamllint
               yaml-language-server
               setup-envtest
+              grpcurl
             ];
           };
         });

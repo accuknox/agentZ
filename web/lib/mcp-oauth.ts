@@ -187,6 +187,7 @@ type RuntimeOAuthState = {
 
 const oauthCookieName = "clawarmor-mcp-oauth"
 const oauthCookieTTLSeconds = 15 * 60
+const googleAuthorizationHosts = new Set(["accounts.google.com"])
 
 function secretKeyMaterial() {
   const secret = process.env.MCP_OAUTH_COOKIE_SECRET
@@ -227,6 +228,26 @@ function oauthClientMetadata(): OAuthClientMetadata {
   }
 }
 
+function applyProviderAuthorizationURLCompat(authorizationUrl: URL) {
+  if (!googleAuthorizationHosts.has(authorizationUrl.hostname)) {
+    return authorizationUrl
+  }
+
+  if (!authorizationUrl.searchParams.has("access_type")) {
+    authorizationUrl.searchParams.set("access_type", "offline")
+  }
+
+  const promptValues = (authorizationUrl.searchParams.get("prompt") ?? "")
+    .split(" ")
+    .filter(Boolean)
+  if (!promptValues.includes("consent")) {
+    promptValues.push("consent")
+  }
+  authorizationUrl.searchParams.set("prompt", promptValues.join(" "))
+
+  return authorizationUrl
+}
+
 function requiresManualClientInput(form: ParsedMcpForm) {
   if (form.oauth.clientId && form.oauth.clientSecret) {
     return false
@@ -260,7 +281,7 @@ function oauthProvider(input: { form: ParsedMcpForm; runtime: RuntimeOAuthState;
       input.runtime.tokens = tokens
     },
     redirectToAuthorization(authorizationUrl) {
-      input.runtime.authorizationUrl = authorizationUrl
+      input.runtime.authorizationUrl = applyProviderAuthorizationURLCompat(authorizationUrl)
     },
     saveCodeVerifier(codeVerifier) {
       input.runtime.codeVerifier = codeVerifier

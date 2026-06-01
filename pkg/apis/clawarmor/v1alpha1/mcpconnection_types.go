@@ -22,9 +22,6 @@ const (
 	// MCPConnectionStateAccepted means the spec is accepted but runtime state is
 	// not yet fully ready.
 	MCPConnectionStateAccepted MCPConnectionState = "Accepted"
-	// MCPConnectionStateNeedsAuth means the connection is configured but runtime
-	// credentials are missing or incomplete.
-	MCPConnectionStateNeedsAuth MCPConnectionState = "NeedsAuth"
 	// MCPConnectionStateReady means the connection is ready for use.
 	MCPConnectionStateReady MCPConnectionState = "Ready"
 	// MCPConnectionStateDegraded means the connection was accepted but the
@@ -170,6 +167,10 @@ type MCPConnectionCookieLocation struct {
 
 // MCPConnectionStatus defines the observed state of MCPConnection.
 type MCPConnectionStatus struct {
+	// AuthMode is the resolved authentication mode ("None", "Bearer", or "OAuth").
+	// +optional
+	AuthMode string `json:"authMode,omitempty"`
+
 	// Conditions represent the current state of the MCPConnection resource.
 	// +listType=map
 	// +listMapKey=type
@@ -181,7 +182,7 @@ type MCPConnectionStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// State is the high-level runtime state of the connection.
-	// +kubebuilder:validation:Enum=Accepted;NeedsAuth;Ready;Degraded
+	// +kubebuilder:validation:Enum=Accepted;Ready;Degraded
 	// +optional
 	State MCPConnectionState `json:"state,omitempty"`
 
@@ -193,6 +194,16 @@ type MCPConnectionStatus struct {
 	// AuthPolicyRef identifies the managed auth policy for the connection.
 	// +optional
 	AuthPolicyRef *MCPConnectionManagedResourceRef `json:"authPolicyRef,omitempty"`
+
+	// ExtAuthServiceRef identifies the shared ext-auth Service for the
+	// namespace.
+	// +optional
+	ExtAuthServiceRef *MCPConnectionManagedResourceRef `json:"extAuthServiceRef,omitempty"`
+
+	// ExtAuthDeploymentRef identifies the shared ext-auth Deployment for the
+	// namespace.
+	// +optional
+	ExtAuthDeploymentRef *MCPConnectionManagedResourceRef `json:"extAuthDeploymentRef,omitempty"`
 }
 
 // MCPConnectionManagedResourceRef identifies one managed Kubernetes resource.
@@ -204,8 +215,32 @@ type MCPConnectionManagedResourceRef struct {
 	Name string `json:"name"`
 }
 
+// SetCondition adds or updates one MCPConnection condition.
+func (s *MCPConnectionStatus) SetCondition(cond metav1.Condition) {
+	cond.LastTransitionTime = metav1.Now()
+	for i, cur := range s.Conditions {
+		if cur.Type != cond.Type {
+			continue
+		}
+		update := cur.Status == cond.Status &&
+			cur.Reason == cond.Reason &&
+			cur.Message == cond.Message &&
+			cur.ObservedGeneration == cond.ObservedGeneration
+		if update {
+			cond.LastTransitionTime = cur.LastTransitionTime
+		}
+		s.Conditions[i] = cond
+		return
+	}
+	s.Conditions = append(s.Conditions, cond)
+}
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Auth Mode",type=string,JSONPath=`.status.authMode`,description="Authentication mode"
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.state`,description="Connection state"
+// +kubebuilder:printcolumn:name="Endpoint",type=string,JSONPath=`.spec.endpoint.url`,description="MCP endpoint URL"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age of the MCPConnection"
 
 // MCPConnection is the Schema for the mcpconnections API.
 type MCPConnection struct {

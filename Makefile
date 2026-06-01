@@ -80,7 +80,7 @@ run-manager:
 		--manager-openbao-k8s-auth-role=clawarmor-manager \
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector \
-		--nix-store-pvc=clawarmor-nix-store \
+		--nix-store-pvc=nix-store \
 		--gateway-url=http://172.18.0.1:8090
 
 # Run observer

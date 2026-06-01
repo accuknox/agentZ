@@ -249,13 +249,7 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
               const checked = selectedNames.has(connection.name)
               const state = connection.status.state ?? "Accepted"
               const badgeVariant =
-                state === "Ready"
-                  ? "success"
-                  : state === "Degraded"
-                    ? "destructive"
-                    : state === "NeedsAuth"
-                      ? "warning"
-                      : "pending"
+                state === "Ready" ? "success" : state === "Degraded" ? "destructive" : "pending"
 
               return (
                 <Field key={connection.name} orientation="horizontal">

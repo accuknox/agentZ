@@ -930,7 +930,6 @@ components:
     MCPConnectionState:
       enum:
       - Accepted
-      - NeedsAuth
       - Ready
       - Degraded
       type: string
@@ -943,6 +942,10 @@ components:
           items:
             $ref: '#/components/schemas/MCPConnectionCondition'
           type: array
+        ext_auth_deployment_ref:
+          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
+        ext_auth_service_ref:
+          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
         observed_generation:
           format: int64
           type: integer

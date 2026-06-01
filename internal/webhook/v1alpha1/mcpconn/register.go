@@ -18,14 +18,15 @@ package mcpconn
 
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 // RegisterWithManager registers the MCPConnection webhook with the manager.
-func RegisterWithManager(mgr ctrl.Manager) error {
+func RegisterWithManager(mgr ctrl.Manager, kubeClient client.Client) error {
 	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.MCPConnection{}).
-		WithValidator(NewValidator()).
+		WithValidator(NewValidator(kubeClient)).
 		WithDefaulter(NewDefaulter()).
 		Complete()
 }

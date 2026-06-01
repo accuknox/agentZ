@@ -555,6 +555,18 @@ func mcpConnectionFromCRD(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPCo
 			Name:      conn.Status.AuthPolicyRef.Name,
 		}
 	}
+	if conn.Status.ExtAuthServiceRef != nil {
+		status.ExtAuthServiceRef = &gatewayapi.MCPConnectionManagedResourceRef{
+			Namespace: conn.Status.ExtAuthServiceRef.Namespace,
+			Name:      conn.Status.ExtAuthServiceRef.Name,
+		}
+	}
+	if conn.Status.ExtAuthDeploymentRef != nil {
+		status.ExtAuthDeploymentRef = &gatewayapi.MCPConnectionManagedResourceRef{
+			Namespace: conn.Status.ExtAuthDeploymentRef.Namespace,
+			Name:      conn.Status.ExtAuthDeploymentRef.Name,
+		}
+	}
 
 	out := gatewayapi.MCPConnection{
 		Name:      conn.Name,

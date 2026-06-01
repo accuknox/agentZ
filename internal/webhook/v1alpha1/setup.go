@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	agentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/agent"
@@ -51,6 +52,6 @@ func SetupWorkflowRunWebhookWithManager(mgr ctrl.Manager, gatewayClient *gateway
 }
 
 // SetupMCPConnectionWebhookWithManager registers the MCPConnection webhook.
-func SetupMCPConnectionWebhookWithManager(mgr ctrl.Manager) error {
-	return mcpconnwebhook.RegisterWithManager(mgr)
+func SetupMCPConnectionWebhookWithManager(mgr ctrl.Manager, kubeClient client.Client) error {
+	return mcpconnwebhook.RegisterWithManager(mgr, kubeClient)
 }

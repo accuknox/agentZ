@@ -663,7 +663,7 @@ export type McpConnectionCondition = {
   last_transition_time: string
 }
 
-export type McpConnectionState = "Accepted" | "NeedsAuth" | "Ready" | "Degraded"
+export type McpConnectionState = "Accepted" | "Ready" | "Degraded"
 
 export type McpConnectionStatus = {
   observed_generation: number
@@ -671,6 +671,8 @@ export type McpConnectionStatus = {
   conditions: Array<McpConnectionCondition>
   service_ref?: McpConnectionManagedResourceRef
   auth_policy_ref?: McpConnectionManagedResourceRef
+  ext_auth_service_ref?: McpConnectionManagedResourceRef
+  ext_auth_deployment_ref?: McpConnectionManagedResourceRef
 }
 
 export type ListMcpConnectionsResponse = {

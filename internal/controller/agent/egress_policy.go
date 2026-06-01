@@ -33,6 +33,7 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/accuknox/clawarmor/internal/envutil"
+	"github.com/accuknox/clawarmor/internal/mcp"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -42,9 +43,9 @@ var packageInstallPolicyHosts = []envutil.Host{
 	{Kind: envutil.HostKindWildcard, Value: "*.github.com"},
 }
 
-func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
+func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) error {
 	name := egressPolicyName(agt)
-	spec, err := r.buildEgressPolicySpec(agt, allowedHosts)
+	spec, err := r.buildEgressPolicySpec(agt, envCfg)
 	if err != nil {
 		return err
 	}
@@ -73,12 +74,15 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1
 	return nil
 }
 
-func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowedHosts []string) (*ciliumapi.Rule, error) {
-	hosts, err := r.resolveDirectEgressHosts(agt, allowedHosts)
+func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) (*ciliumapi.Rule, error) {
+	hosts, err := r.resolveDirectEgressHosts(agt, envCfg)
 	if err != nil {
 		return nil, err
 	}
 	egress := buildHostEgressRules(hosts, r.sinjectorEnabled())
+	if envCfg.MCPURL != "" {
+		egress = append(egress, gatewayMcpEgressRule(agt.Namespace))
+	}
 
 	if r.sinjectorEnabled() {
 		egress = append(egress, sinjectorEgressRule(agt))
@@ -96,11 +100,12 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, allowed
 	}, nil
 }
 
-func (r *Reconciler) resolveDirectEgressHosts(agt *clawarmorv1alpha1.Agent, allowedHosts []string) ([]envutil.Host, error) {
-	hosts, err := envutil.ParseHostList(allowedHosts)
+func (r *Reconciler) resolveDirectEgressHosts(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]envutil.Host, error) {
+	hosts, err := envutil.ParseHostList(envCfg.AllowedHosts)
 	if err != nil {
 		return nil, err
 	}
+
 	hosts = append(hosts, r.automaticEgressHosts(agt)...)
 	hosts = uniqueHosts(hosts)
 	if !r.sinjectorEnabled() {
@@ -237,6 +242,43 @@ func dnsEgressRule() ciliumapi.EgressRule {
 					{MatchPattern: "*"},
 				},
 			},
+		}},
+	}
+}
+
+func gatewayMcpEgressRule(namespace string) ciliumapi.EgressRule {
+	return ciliumapi.EgressRule{
+		EgressCommonRule: ciliumapi.EgressCommonRule{
+			ToEndpoints: []ciliumapi.EndpointSelector{
+				ciliumapi.NewESFromLabels(
+					ciliumlabels.NewLabel(
+						"io.kubernetes.pod.namespace",
+						namespace,
+						ciliumlabels.LabelSourceK8s,
+					),
+					ciliumlabels.NewLabel(
+						"app.kubernetes.io/name",
+						mcp.GatewayName,
+						ciliumlabels.LabelSourceK8s,
+					),
+					ciliumlabels.NewLabel(
+						"app.kubernetes.io/instance",
+						mcp.GatewayName,
+						ciliumlabels.LabelSourceK8s,
+					),
+					ciliumlabels.NewLabel(
+						"gateway.networking.k8s.io/gateway-name",
+						mcp.GatewayName,
+						ciliumlabels.LabelSourceK8s,
+					),
+				),
+			},
+		},
+		ToPorts: []ciliumapi.PortRule{{
+			Ports: []ciliumapi.PortProtocol{{
+				Port:     "80",
+				Protocol: ciliumapi.ProtoTCP,
+			}},
 		}},
 	}
 }

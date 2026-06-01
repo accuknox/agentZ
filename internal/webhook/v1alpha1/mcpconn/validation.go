@@ -26,8 +26,10 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/accuknox/clawarmor/internal/mcp"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -45,13 +47,15 @@ var reservedAuthHeaders = map[string]struct{}{
 // Validator validates MCPConnection resources.
 //
 // +kubebuilder:object:generate=false
-type Validator struct{}
+type Validator struct {
+	kubeClient client.Client
+}
 
 var _ admission.Validator[*clawarmorv1alpha1.MCPConnection] = &Validator{}
 
 // NewValidator builds an MCPConnection validator.
-func NewValidator() *Validator {
-	return &Validator{}
+func NewValidator(kubeClient client.Client) *Validator {
+	return &Validator{kubeClient: kubeClient}
 }
 
 // ValidateResource validates one MCPConnection resource.
@@ -70,8 +74,30 @@ func (v *Validator) ValidateUpdate(_ context.Context, _, newConn *clawarmorv1alp
 }
 
 // ValidateDelete validates MCPConnection deletion.
-func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
-	return nil, nil
+func (v *Validator) ValidateDelete(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
+	if v.kubeClient == nil {
+		return nil, nil
+	}
+
+	envs := &clawarmorv1alpha1.EnvironmentList{}
+	err := v.kubeClient.List(
+		ctx,
+		envs,
+		client.InNamespace(conn.Namespace),
+		client.MatchingFields{mcp.EnvironmentByMCPConnectionIndex: conn.Name},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list referencing environments: %w", err)
+	}
+	if len(envs.Items) == 0 {
+		return nil, nil
+	}
+
+	names := make([]string, 0, len(envs.Items))
+	for _, env := range envs.Items {
+		names = append(names, env.Name)
+	}
+	return nil, fmt.Errorf("mcp connection is referenced by environments: %s", strings.Join(names, ", "))
 }
 
 func validateMCPConnection(conn *clawarmorv1alpha1.MCPConnection) error {

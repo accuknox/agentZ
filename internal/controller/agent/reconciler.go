@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/accuknox/clawarmor/internal/mcp"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -105,7 +106,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var opencodeCfg []byte
 	var instruction string
 
-	opencodeCfg, instruction, err = renderOpencodeConfig(agt)
+	opencodeCfg, instruction, err = renderOpencodeConfig(agt, envCfg)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -191,7 +192,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	err = r.reconcileEgressPolicy(ctx, agt, envCfg.AllowedHosts)
+	err = r.reconcileEgressPolicy(ctx, agt, envCfg)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -239,6 +240,7 @@ func (r *Reconciler) sinjectorEnabled() bool {
 type environmentConfig struct {
 	Packages     []string
 	AllowedHosts []string
+	MCPURL       string
 }
 
 func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alpha1.Agent) (environmentConfig, error) {
@@ -247,6 +249,7 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alp
 		return environmentConfig{
 			Packages:     []string{},
 			AllowedHosts: []string{},
+			MCPURL:       "",
 		}, nil
 	}
 
@@ -262,7 +265,21 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alp
 	return environmentConfig{
 		Packages:     packages,
 		AllowedHosts: allowedHosts,
+		MCPURL:       r.environmentMCPURL(ctx, agt.Namespace, env),
 	}, nil
+}
+
+func (r *Reconciler) environmentMCPURL(ctx context.Context, namespace string, env *clawarmorv1alpha1.Environment) string {
+	conns, err := mcp.LoadConnections(ctx, r.Client, env)
+	if err != nil || len(conns) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"http://%s.%s.svc.cluster.local%s",
+		mcp.GatewayName,
+		namespace,
+		mcp.EnvironmentRoutePath(env.Name),
+	)
 }
 
 func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object) []reconcile.Request {

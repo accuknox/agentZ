@@ -64,13 +64,7 @@ export function createMcpColumns(actions: {
       cell: ({ row }) => {
         const state = row.original.status.state ?? "Accepted"
         const badgeVariant =
-          state === "Ready"
-            ? "success"
-            : state === "Degraded"
-              ? "destructive"
-              : state === "NeedsAuth"
-                ? "warning"
-                : "pending"
+          state === "Ready" ? "success" : state === "Degraded" ? "destructive" : "pending"
 
         return <Badge variant={badgeVariant}>{state}</Badge>
       },

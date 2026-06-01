@@ -64,6 +64,7 @@ spec:
         - manager
         - --leader-elect
         - --health-probe-bind-address=:8081
+        - --controller-image=controller:latest
         image: controller:latest
         name: manager
         ports: []

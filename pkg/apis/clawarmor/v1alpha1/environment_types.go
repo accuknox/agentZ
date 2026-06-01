@@ -46,8 +46,14 @@ type EnvironmentSpec struct {
 
 // EnvironmentStatus defines the observed state of Environment.
 type EnvironmentStatus struct {
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	// PackageCount is the number of nix packages configured.
+	PackageCount int `json:"packageCount"`
+
+	// AllowedHostCount is the number of allowed hosts configured.
+	AllowedHostCount int `json:"allowedHostCount"`
+
+	// MCPRefCount is the number of MCP connection references configured.
+	MCPRefCount int `json:"mcpRefCount"`
 
 	// conditions represent the current state of the Environment resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
@@ -67,6 +73,10 @@ type EnvironmentStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=envs
+// +kubebuilder:printcolumn:name="Packages",type=integer,JSONPath=`.status.packageCount`,description="Number of nix packages"
+// +kubebuilder:printcolumn:name="Allowed Hosts",type=integer,JSONPath=`.status.allowedHostCount`,description="Number of allowed hosts"
+// +kubebuilder:printcolumn:name="MCPs",type=integer,JSONPath=`.status.mcpRefCount`,description="Number of MCP connection references"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age of the Environment"
 
 // Environment is the Schema for the envs API.
 type Environment struct {

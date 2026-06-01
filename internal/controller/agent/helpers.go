@@ -127,7 +127,7 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	return labels
 }
 
-func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) {
+func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]byte, string, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
 	}
@@ -163,6 +163,14 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) 
 		deleteWorkflowsToolName:      true,
 		setWorkflowRunStatusToolName: false,
 	}
+	if envCfg.MCPURL != "" {
+		cfg.MCP = map[string]opencodeMCPRemoteFile{
+			"clawarmor": {
+				Type: "remote",
+				URL:  envCfg.MCPURL,
+			},
+		}
+	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
@@ -172,12 +180,18 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) 
 }
 
 type opencodeConfigFile struct {
-	Schema       string                          `json:"$schema"`
-	Model        string                          `json:"model,omitempty"`
-	SmallModel   string                          `json:"small_model,omitempty"`
-	Instructions []string                        `json:"instructions,omitempty"`
-	Provider     map[string]opencodeProviderFile `json:"provider,omitempty"`
-	Tools        map[string]bool                 `json:"tools,omitempty"`
+	Schema       string                           `json:"$schema"`
+	Model        string                           `json:"model,omitempty"`
+	SmallModel   string                           `json:"small_model,omitempty"`
+	Instructions []string                         `json:"instructions,omitempty"`
+	Provider     map[string]opencodeProviderFile  `json:"provider,omitempty"`
+	MCP          map[string]opencodeMCPRemoteFile `json:"mcp,omitempty"`
+	Tools        map[string]bool                  `json:"tools,omitempty"`
+}
+
+type opencodeMCPRemoteFile struct {
+	Type string `json:"type"`
+	URL  string `json:"url"`
 }
 
 type opencodeProviderFile struct {

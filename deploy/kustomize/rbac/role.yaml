@@ -7,6 +7,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - pods
   - serviceaccounts
   - services
   verbs:
@@ -26,6 +27,19 @@ rules:
   - delete
   - get
   - list
+  - watch
+- apiGroups:
+  - agentgateway.dev
+  resources:
+  - agentgatewaybackends
+  - agentgatewaypolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - apps
@@ -111,6 +125,19 @@ rules:
   resources:
   - envs
   verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  - httproutes
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch

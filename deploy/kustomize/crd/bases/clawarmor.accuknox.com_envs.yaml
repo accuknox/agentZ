@@ -13,7 +13,24 @@ spec:
     singular: environment
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Number of nix packages
+      jsonPath: .status.packageCount
+      name: Packages
+      type: integer
+    - description: Number of allowed hosts
+      jsonPath: .status.allowedHostCount
+      name: Allowed Hosts
+      type: integer
+    - description: Number of MCP connection references
+      jsonPath: .status.mcpRefCount
+      name: MCPs
+      type: integer
+    - description: Age of the Environment
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Environment is the Schema for the envs API.
@@ -72,6 +89,9 @@ spec:
           status:
             description: status defines the observed state of Environment
             properties:
+              allowedHostCount:
+                description: AllowedHostCount is the number of allowed hosts configured.
+                type: integer
               conditions:
                 description: |-
                   conditions represent the current state of the Environment resource.
@@ -140,6 +160,16 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              mcpRefCount:
+                description: MCPRefCount is the number of MCP connection references configured.
+                type: integer
+              packageCount:
+                description: PackageCount is the number of nix packages configured.
+                type: integer
+            required:
+            - allowedHostCount
+            - mcpRefCount
+            - packageCount
             type: object
         required:
         - spec

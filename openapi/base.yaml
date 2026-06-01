@@ -3038,7 +3038,7 @@ components:
 
     MCPConnectionState:
       type: string
-      enum: [Accepted, NeedsAuth, Ready, Degraded]
+      enum: [Accepted, Ready, Degraded]
 
     MCPConnectionStatus:
       type: object
@@ -3056,6 +3056,10 @@ components:
         service_ref:
           $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
         auth_policy_ref:
+          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
+        ext_auth_service_ref:
+          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
+        ext_auth_deployment_ref:
           $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
       required: [observed_generation, conditions]
 

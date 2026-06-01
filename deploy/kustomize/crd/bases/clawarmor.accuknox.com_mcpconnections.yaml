@@ -13,7 +13,24 @@ spec:
     singular: mcpconnection
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Authentication mode
+      jsonPath: .status.authMode
+      name: Auth Mode
+      type: string
+    - description: Connection state
+      jsonPath: .status.state
+      name: Status
+      type: string
+    - description: MCP endpoint URL
+      jsonPath: .spec.endpoint.url
+      name: Endpoint
+      type: string
+    - description: Age of the MCPConnection
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: MCPConnection is the Schema for the mcpconnections API.
@@ -192,6 +209,9 @@ spec:
           status:
             description: Status defines the observed state of MCPConnection.
             properties:
+              authMode:
+                description: AuthMode is the resolved authentication mode ("None", "Bearer", or "OAuth").
+                type: string
               authPolicyRef:
                 description: AuthPolicyRef identifies the managed auth policy for the connection.
                 properties:
@@ -264,6 +284,36 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              extAuthDeploymentRef:
+                description: |-
+                  ExtAuthDeploymentRef identifies the shared ext-auth Deployment for the
+                  namespace.
+                properties:
+                  name:
+                    description: Name is the resource name.
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace containing the managed resource.
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
+              extAuthServiceRef:
+                description: |-
+                  ExtAuthServiceRef identifies the shared ext-auth Service for the
+                  namespace.
+                properties:
+                  name:
+                    description: Name is the resource name.
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace containing the managed resource.
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.
                 format: int64
@@ -287,7 +337,6 @@ spec:
                 description: State is the high-level runtime state of the connection.
                 enum:
                 - Accepted
-                - NeedsAuth
                 - Ready
                 - Degraded
                 type: string

@@ -775,7 +775,7 @@ export const zMcpConnectionCondition = z.object({
   last_transition_time: z.iso.datetime(),
 })
 
-export const zMcpConnectionState = z.enum(["Accepted", "NeedsAuth", "Ready", "Degraded"])
+export const zMcpConnectionState = z.enum(["Accepted", "Ready", "Degraded"])
 
 export const zMcpConnectionStatus = z.object({
   observed_generation: z.coerce
@@ -790,6 +790,8 @@ export const zMcpConnectionStatus = z.object({
   conditions: z.array(zMcpConnectionCondition),
   service_ref: zMcpConnectionManagedResourceRef.optional(),
   auth_policy_ref: zMcpConnectionManagedResourceRef.optional(),
+  ext_auth_service_ref: zMcpConnectionManagedResourceRef.optional(),
+  ext_auth_deployment_ref: zMcpConnectionManagedResourceRef.optional(),
 })
 
 export const zMcpConnection = z.object({

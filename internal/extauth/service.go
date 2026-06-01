@@ -32,7 +32,6 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/accuknox/clawarmor/internal/mcp"
 	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
@@ -292,18 +291,6 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	sessionID := strings.TrimSpace(httpReq.GetHeaders()[sessionHeaderName])
 	attrs.sessionID = sessionID
 
-	environmentName, err := mcp.EnvironmentNameFromPath(httpReq.GetPath())
-	if err != nil {
-		return denyDecision(
-			codes.PermissionDenied,
-			typev3.StatusCode_Forbidden,
-			"request is not allowed for this environment",
-			"invalid_environment_path",
-			slog.LevelWarn,
-		), attrs
-	}
-	attrs.environment = environmentName
-
 	sourceIP, err := peerAddress(checkAttrs.GetSource())
 	if err != nil {
 		return denyDecision(
@@ -316,7 +303,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	}
 	attrs.sourceIP = sourceIP
 
-	agentName, err := s.authorizeSourceAgent(ctx, attrs, connName)
+	agentName, environmentName, err := s.authorizeSourceAgent(ctx, attrs.namespace, attrs.sourceIP, connName)
 	if err != nil {
 		if errors.Is(err, errCredentialUnavailable) {
 			return denyDecision(
@@ -336,6 +323,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		), attrs
 	}
 	attrs.agent = agentName
+	attrs.environment = environmentName
 
 	conn, err := s.loadConnection(ctx, attrs.namespace, connName)
 	if err != nil {
@@ -362,15 +350,15 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	return allowDecision(header.name, header.value), attrs
 }
 
-func (s *Service) authorizeSourceAgent(ctx context.Context, attrs requestAttrs, connName string) (string, error) {
-	pod, err := s.lookupAgentPodByIP(ctx, attrs.namespace, attrs.sourceIP)
+func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, connName string) (string, string, error) {
+	pod, err := s.lookupAgentPodByIP(ctx, namespace, sourceIP)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	agentName := strings.TrimSpace(pod.Labels[agentLabelKey])
 	if agentName == "" {
-		return "", fmt.Errorf("agent label is missing on pod %s", pod.Name)
+		return "", "", fmt.Errorf("agent label is missing on pod %s", pod.Name)
 	}
 
 	agentCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
@@ -378,14 +366,14 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, attrs requestAttrs, 
 
 	agent := &clawarmorv1alpha1.Agent{}
 	agentKey := ctrlclient.ObjectKey{
-		Namespace: attrs.namespace,
+		Namespace: namespace,
 		Name:      agentName,
 	}
 	if err := s.kube.Get(agentCtx, agentKey, agent); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("agent %q does not exist", agentName)
+			return "", "", fmt.Errorf("agent %q does not exist", agentName)
 		}
-		return "", fmt.Errorf(
+		return "", "", fmt.Errorf(
 			"get agent %q: %w: %w",
 			agentName,
 			err,
@@ -394,27 +382,25 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, attrs requestAttrs, 
 	}
 
 	if agent.Spec.EnvironmentRef == nil || strings.TrimSpace(agent.Spec.EnvironmentRef.Name) == "" {
-		return "", fmt.Errorf("agent %q has no environment", agentName)
+		return "", "", fmt.Errorf("agent %q has no environment", agentName)
 	}
-	if agent.Spec.EnvironmentRef.Name != attrs.environment {
-		return "", fmt.Errorf("agent %q targets environment %q", agentName, agent.Spec.EnvironmentRef.Name)
-	}
+	environmentName := strings.TrimSpace(agent.Spec.EnvironmentRef.Name)
 
 	envCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 
 	env := &clawarmorv1alpha1.Environment{}
 	envKey := ctrlclient.ObjectKey{
-		Namespace: attrs.namespace,
-		Name:      attrs.environment,
+		Namespace: namespace,
+		Name:      environmentName,
 	}
 	if err := s.kube.Get(envCtx, envKey, env); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("environment %q does not exist", attrs.environment)
+			return "", "", fmt.Errorf("environment %q does not exist", environmentName)
 		}
-		return "", fmt.Errorf(
+		return "", "", fmt.Errorf(
 			"get environment %q: %w: %w",
-			attrs.environment,
+			environmentName,
 			err,
 			errCredentialUnavailable,
 		)
@@ -424,10 +410,10 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, attrs requestAttrs, 
 		return ref.Name == connName
 	})
 	if !hasConnection {
-		return "", fmt.Errorf("environment %q does not include mcp connection %q", attrs.environment, connName)
+		return "", "", fmt.Errorf("environment %q does not include mcp connection %q", environmentName, connName)
 	}
 
-	return agentName, nil
+	return agentName, environmentName, nil
 }
 
 func (s *Service) lookupAgentPodByIP(ctx context.Context, namespace, ip string) (*corev1.Pod, error) {

@@ -29,6 +29,8 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
+	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/go-logr/logr"
 	"github.com/urfave/cli/v3"
@@ -41,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
 	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
@@ -50,6 +53,7 @@ import (
 	workflowruncontroller "github.com/accuknox/clawarmor/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/clawarmor/internal/controller/workflowschedule"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/mcp"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 	// +kubebuilder:scaffold:imports
@@ -505,10 +509,23 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "Failed to start manager")
 			os.Exit(1)
 		}
+		err = mcp.IndexEnvironmentMCPConnections(
+			context.Background(),
+			mgr.GetFieldIndexer(),
+		)
+		if err != nil {
+			setupLog.Error(err, "Failed to register shared field index", "index", mcp.EnvironmentByMCPConnectionIndex)
+			os.Exit(1)
+		}
 
 		gwClient, err := gatewayapi.NewClientWithResponses(gatewayURL, gatewayapi.WithHTTPClient(&http.Client{}))
 		if err != nil {
 			setupLog.Error(err, "Failed to create gateway client", "gatewayURL", gatewayURL)
+			os.Exit(1)
+		}
+		agClient, err := agentgatewayclientset.NewForConfig(restCfg)
+		if err != nil {
+			setupLog.Error(err, "Failed to create agentgateway clientset")
 			os.Exit(1)
 		}
 
@@ -564,8 +581,9 @@ var managerCmd = &cli.Command{
 		}
 
 		envReconciler := &environmentcontroller.Reconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:       mgr.GetClient(),
+			Scheme:       mgr.GetScheme(),
+			AgentGateway: agClient,
 		}
 		if err := envReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "Environment")
@@ -592,7 +610,7 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowRun")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupMCPConnectionWebhookWithManager(mgr); err != nil {
+			if err := webhookv1alpha1.SetupMCPConnectionWebhookWithManager(mgr, mgr.GetClient()); err != nil {
 				setupLog.Error(err, "Failed to create webhook", "webhook", "MCPConnection")
 				os.Exit(1)
 			}
@@ -618,8 +636,16 @@ var managerCmd = &cli.Command{
 		}
 
 		mcpConnReconciler := &mcpconn.MCPConnectionReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:                  mgr.GetClient(),
+			Scheme:                  mgr.GetScheme(),
+			AgentGateway:            agClient,
+			ControllerImage:         controllerImage,
+			OpenBaoAddr:             openBaoAddr,
+			ManagerOpenBaoAddr:      managerOpenBaoAddr,
+			OpenBaoSecretMountPath:  openBaoSecretMountPath,
+			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
+			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
+			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "MCPConnection")
@@ -651,6 +677,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clawarmorv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ciliumv2.AddToScheme(scheme))
+	utilruntime.Must(gwv1.Install(scheme))
+	utilruntime.Must(agentgatewayv1alpha1.Install(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

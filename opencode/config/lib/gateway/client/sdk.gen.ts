@@ -11,6 +11,9 @@ import type {
   CreateEnvironmentData,
   CreateEnvironmentErrors,
   CreateEnvironmentResponses,
+  CreateMcpConnectionData,
+  CreateMcpConnectionErrors,
+  CreateMcpConnectionResponses,
   CreateWorkflowData,
   CreateWorkflowErrors,
   CreateWorkflowResponses,
@@ -26,6 +29,12 @@ import type {
   DeleteEnvironmentData,
   DeleteEnvironmentErrors,
   DeleteEnvironmentResponses,
+  DeleteMcpConnectionCredentialsData,
+  DeleteMcpConnectionCredentialsErrors,
+  DeleteMcpConnectionCredentialsResponses,
+  DeleteMcpConnectionData,
+  DeleteMcpConnectionErrors,
+  DeleteMcpConnectionResponses,
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
@@ -38,6 +47,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsErrors,
   DeleteWorkflowsResponses,
+  GetMcpConnectionData,
+  GetMcpConnectionErrors,
+  GetMcpConnectionResponses,
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
@@ -56,6 +68,9 @@ import type {
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
+  ListMcpConnectionsData,
+  ListMcpConnectionsErrors,
+  ListMcpConnectionsResponses,
   ListNetworkObservabilityData,
   ListNetworkObservabilityErrors,
   ListNetworkObservabilityResponses,
@@ -89,12 +104,18 @@ import type {
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
+  SetMcpConnectionCredentialsData,
+  SetMcpConnectionCredentialsErrors,
+  SetMcpConnectionCredentialsResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
   UpdateEnvironmentData,
   UpdateEnvironmentErrors,
   UpdateEnvironmentResponses,
+  UpdateMcpConnectionData,
+  UpdateMcpConnectionErrors,
+  UpdateMcpConnectionResponses,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
@@ -110,23 +131,28 @@ import type {
 import {
   zCreateAgentBody,
   zCreateEnvironmentBody,
+  zCreateMcpConnectionBody,
   zCreateWorkflowBody,
   zCreateWorkflowRunPath,
   zCreateWorkflowScheduleBody,
   zDeleteAgentBody,
   zDeleteEnvironmentBody,
+  zDeleteMcpConnectionCredentialsPath,
+  zDeleteMcpConnectionPath,
   zDeleteSecretBody,
   zDeleteSecretPath,
   zDeleteWorkflowRunPath,
   zDeleteWorkflowsBody,
   zDeleteWorkflowSchedulePath,
   zDeleteWorkflowsPath,
+  zGetMcpConnectionPath,
   zGetSpanDetailQuery,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
   zListAgentsQuery,
   zListEnvironmentsQuery,
   zListFileObservabilityQuery,
+  zListMcpConnectionsQuery,
   zListNetworkObservabilityQuery,
   zListProcessObservabilityQuery,
   zListSecretsPath,
@@ -143,10 +169,14 @@ import {
   zPatchWorkflowRunStatusPath,
   zPutSecretBody,
   zPutSecretPath,
+  zSetMcpConnectionCredentialsBody,
+  zSetMcpConnectionCredentialsPath,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateEnvironmentBody,
   zUpdateEnvironmentPath,
+  zUpdateMcpConnectionBody,
+  zUpdateMcpConnectionPath,
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
@@ -977,6 +1007,175 @@ export const updateEnvironment = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     url: "/api/environment/update/{name}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Create an MCPConnection resource.
+ */
+export const createMcpConnection = <ThrowOnError extends boolean = false>(
+  options: Options<CreateMcpConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateMcpConnectionResponses,
+    CreateMcpConnectionErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateMcpConnectionBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an MCPConnection resource.
+ */
+export const deleteMcpConnection = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteMcpConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteMcpConnectionResponses,
+    DeleteMcpConnectionErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteMcpConnectionPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection/{name}",
+    ...options,
+  })
+
+/**
+ * Get an MCPConnection resource.
+ */
+export const getMcpConnection = <ThrowOnError extends boolean = false>(
+  options: Options<GetMcpConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetMcpConnectionResponses, GetMcpConnectionErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetMcpConnectionPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection/{name}",
+    ...options,
+  })
+
+/**
+ * Replace an MCPConnection resource spec.
+ */
+export const updateMcpConnection = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateMcpConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateMcpConnectionResponses,
+    UpdateMcpConnectionErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateMcpConnectionBody,
+          path: zUpdateMcpConnectionPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection/{name}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List paginated MCPConnection resources.
+ */
+export const listMcpConnections = <ThrowOnError extends boolean = false>(
+  options?: Options<ListMcpConnectionsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListMcpConnectionsResponses,
+    ListMcpConnectionsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListMcpConnectionsQuery.optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection/list",
+    ...options,
+  })
+
+/**
+ * Remove MCPConnection credentials.
+ */
+export const deleteMcpConnectionCredentials = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteMcpConnectionCredentialsData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteMcpConnectionCredentialsResponses,
+    DeleteMcpConnectionCredentialsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteMcpConnectionCredentialsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection/{name}/credentials",
+    ...options,
+  })
+
+/**
+ * Set MCPConnection credentials.
+ */
+export const setMcpConnectionCredentials = <ThrowOnError extends boolean = false>(
+  options: Options<SetMcpConnectionCredentialsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    SetMcpConnectionCredentialsResponses,
+    SetMcpConnectionCredentialsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zSetMcpConnectionCredentialsBody,
+          path: zSetMcpConnectionCredentialsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection/{name}/credentials",
     ...options,
     headers: {
       "Content-Type": "application/json",

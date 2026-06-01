@@ -3,8 +3,20 @@
 import * as React from "react"
 import { dayjs } from "@/lib/dayjs"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
-import type { McpConnection } from "@/lib/gateway/client"
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  CircleDashed,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  XCircle,
+} from "lucide-react"
+import type {
+  McpConnection,
+  McpConnectionCondition,
+  McpConnectionState,
+} from "@/lib/gateway/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,9 +36,35 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { authModeOf } from "@/lib/mcp"
 import type { DeleteMcpFormState, McpFormState } from "@/data/mcp.actions"
 import { McpSheet } from "./mcp-sheet"
+
+const mcpStatusMeta = {
+  Accepted: {
+    icon: CircleDashed,
+    label: "Accepted",
+    variant: "pending",
+  },
+  Ready: {
+    icon: CheckCircle2,
+    label: "Ready",
+    variant: "success",
+  },
+  Degraded: {
+    icon: XCircle,
+    label: "Degraded",
+    variant: "destructive",
+  },
+} satisfies Record<
+  McpConnectionState,
+  {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
+    label: string
+    variant: React.ComponentProps<typeof Badge>["variant"]
+  }
+>
 
 export function createMcpColumns(actions: {
   submitMcpAction: (_: McpFormState, formData: FormData) => Promise<McpFormState>
@@ -61,13 +99,7 @@ export function createMcpColumns(actions: {
       id: "status",
       header: "Status",
       accessorFn: (row) => row.status.state ?? "Accepted",
-      cell: ({ row }) => {
-        const state = row.original.status.state ?? "Accepted"
-        const badgeVariant =
-          state === "Ready" ? "success" : state === "Degraded" ? "destructive" : "pending"
-
-        return <Badge variant={badgeVariant}>{state}</Badge>
-      },
+      cell: ({ row }) => <McpStatusBadge connection={row.original} />,
     },
     {
       id: "endpoint",
@@ -108,6 +140,37 @@ export function createMcpColumns(actions: {
       ),
     },
   ]
+}
+
+function McpStatusBadge({ connection }: { connection: McpConnection }) {
+  const state = connection.status.state ?? "Accepted"
+  const meta = mcpStatusMeta[state]
+  const conditionTypesByState = {
+    Accepted: "Accepted",
+    Ready: "Ready",
+    Degraded: "Degraded",
+  } satisfies Record<McpConnectionState, McpConnectionCondition["type"]>
+  const matchingType = conditionTypesByState[state]
+  const condition =
+    connection.status.conditions.find((item) => item.type === matchingType) ??
+    connection.status.conditions.find((item) => item.message.length > 0)
+  const badge = (
+    <Badge variant={meta.variant}>
+      <meta.icon data-icon="inline-start" />
+      {meta.label}
+    </Badge>
+  )
+
+  if (condition === undefined || condition.message.length === 0) {
+    return badge
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent>{condition.message}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 function McpActions({

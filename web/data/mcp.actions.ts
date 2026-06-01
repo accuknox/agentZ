@@ -6,7 +6,6 @@ import { redirect } from "next/navigation"
 import {
   createMcpConnection,
   deleteMcpConnection,
-  getMcpConnection,
   setMcpConnectionCredentials,
   updateMcpConnection,
   type Error as GatewayError,
@@ -20,6 +19,7 @@ import {
   oauthCookieOptions,
   sealPendingOAuthState,
 } from "@/lib/mcp-oauth"
+import { oauthErrorFieldNames } from "@/lib/mcp-oauth-shared"
 import { mcpsTag } from "@/data/cache"
 
 export type McpFormState =
@@ -32,6 +32,7 @@ export type McpFormState =
       status: "success"
       error?: undefined
       success: true
+      message?: string
       oauth?: undefined
     }
   | {
@@ -79,14 +80,19 @@ function invalidMcpNameState(error: { issues: { message: string }[] }): DeleteMc
 function mcpFormInput(formData: FormData): McpFormInput {
   const headerKeys = formData.getAll("extra_header_key")
   const headerValues = formData.getAll("extra_header_value")
+  const modeValue = formData.get("mode")
+  const currentAuthModeValue = formData.get("current_auth_mode")
+  const authModeValue = formData.get("auth_mode")
 
   return {
-    mode: String(formData.get("mode") ?? "create") as "create" | "update",
+    mode: modeValue === "update" ? "update" : "create",
     current_name: String(formData.get("current_name") ?? ""),
-    current_auth_mode: String(formData.get("current_auth_mode") ?? "none") as
-      | "none"
-      | "bearer"
-      | "oauth",
+    current_auth_mode:
+      currentAuthModeValue === "bearer"
+        ? "bearer"
+        : currentAuthModeValue === "oauth"
+          ? "oauth"
+          : "none",
     name: String(formData.get("name") ?? ""),
     endpoint_url: String(formData.get("endpoint_url") ?? ""),
     endpoint_timeout: String(formData.get("endpoint_timeout") ?? ""),
@@ -94,11 +100,20 @@ function mcpFormInput(formData: FormData): McpFormInput {
       key: String(key ?? ""),
       value: String(headerValues[index] ?? ""),
     })),
-    auth_mode: String(formData.get("auth_mode") ?? "oauth") as "bearer" | "oauth",
+    auth_mode: authModeValue === "bearer" ? "bearer" : "oauth",
     bearer_token: String(formData.get("bearer_token") ?? ""),
     oauth_scopes: String(formData.get("oauth_scopes") ?? ""),
     oauth_client_id: String(formData.get("oauth_client_id") ?? ""),
     oauth_client_secret: String(formData.get("oauth_client_secret") ?? ""),
+    oauth_issuer: String(formData.get("oauth_issuer") ?? ""),
+    oauth_authorization_endpoint: String(formData.get("oauth_authorization_endpoint") ?? ""),
+    oauth_token_endpoint: String(formData.get("oauth_token_endpoint") ?? ""),
+    oauth_registration_endpoint: String(formData.get("oauth_registration_endpoint") ?? ""),
+    oauth_resource: String(formData.get("oauth_resource") ?? ""),
+    oauth_location_header_name: String(formData.get("oauth_location_header_name") ?? ""),
+    oauth_location_header_prefix: String(formData.get("oauth_location_header_prefix") ?? ""),
+    bearer_location_header_name: String(formData.get("bearer_location_header_name") ?? ""),
+    bearer_location_header_prefix: String(formData.get("bearer_location_header_prefix") ?? ""),
   }
 }
 
@@ -114,22 +129,26 @@ function createPayload(input: {
   return {
     name: input.name,
     endpoint: input.form.endpoint,
-    auth:
-      input.auth ??
-      (input.form.authMode === "bearer"
-        ? {
-            bearer: {
-              location: mcpAuthLocation(),
-            },
-          }
-        : undefined),
+    auth: input.auth ?? (input.form.authMode === "bearer" ? bearerAuth(input.form) : undefined),
   }
+}
+
+function bearerAuth(input: ReturnType<typeof parseMcpForm>) {
+  return {
+    bearer: {
+      location: input.bearer?.location ?? mcpAuthLocation(),
+    },
+  } satisfies McpConnectionAuth
 }
 
 async function persistBearerMutation(
   form: ReturnType<typeof parseMcpForm>
 ): Promise<GatewayError | undefined> {
-  const payload = createPayload({ name: form.name, form })
+  const payload = createPayload({
+    name: form.name,
+    form,
+    auth: bearerAuth(form),
+  })
   if (form.mode === "create") {
     const createResult = await createMcpConnection({
       body: payload,
@@ -150,9 +169,6 @@ async function persistBearerMutation(
     }
   }
 
-  if (!form.bearerToken && form.preserveBearerToken) {
-    return undefined
-  }
   if (!form.bearerToken) {
     return undefined
   }
@@ -168,32 +184,6 @@ async function persistBearerMutation(
   return credentialsResult.error
 }
 
-async function persistOAuthMetadataOnlyMutation(
-  form: ReturnType<typeof parseMcpForm>
-): Promise<GatewayError | undefined> {
-  if (form.mode !== "update") {
-    return undefined
-  }
-
-  const current = await getMcpConnection({
-    path: { name: form.currentName ?? form.name },
-    cache: "no-store",
-  })
-  if (current.error) {
-    return current.error
-  }
-
-  const updateResult = await updateMcpConnection({
-    path: { name: form.currentName ?? form.name },
-    body: createPayload({
-      name: form.currentName ?? form.name,
-      form,
-      auth: current.data.auth,
-    }),
-  })
-  return updateResult.error
-}
-
 export async function submitMcpFormAction(
   _: McpFormState,
   formData: FormData
@@ -205,45 +195,53 @@ export async function submitMcpFormAction(
 
   const form = parseMcpForm(parsed.data)
   if (form.authMode === "oauth") {
-    const shouldStartOAuthFlow =
-      form.mode === "create" ||
-      form.currentAuthMode !== "oauth" ||
-      form.currentName !== form.name ||
-      form.oauth.clientId !== undefined ||
-      form.oauth.clientSecret !== undefined
+    const result =
+      form.mode === "create"
+        ? await beginOAuthFlow({
+            kind: "create",
+            form,
+          })
+        : await beginOAuthFlow({
+            kind: "update",
+            name: form.currentName ?? form.name,
+            form,
+          })
+    if (!result.ok) {
+      const errors = result.error.field
+        ? result.error.code === "manual_client_credentials_required"
+          ? oauthErrorFieldNames.map((field) => ({
+              field,
+              message: result.error.message,
+            }))
+          : [
+              {
+                field: result.error.field,
+                message: result.error.message,
+              },
+            ]
+        : undefined
 
-    if (!shouldStartOAuthFlow) {
-      const mutationError = await persistOAuthMetadataOnlyMutation(form)
-      if (mutationError) {
-        return { error: mutationError }
+      return {
+        error: {
+          code: result.error.code,
+          message: result.error.message,
+          errors,
+        },
       }
-      updateTag(mcpsTag)
-      return { status: "success", success: true }
     }
 
     try {
-      const { authorizationURL, pending } =
-        form.mode === "create"
-          ? await beginOAuthFlow({
-              kind: "create",
-              form,
-            })
-          : await beginOAuthFlow({
-              kind: "update",
-              name: form.currentName ?? form.name,
-              form,
-            })
       const cookieStore = await cookies()
       cookieStore.set(
         mcpOAuthCookieName(),
-        await sealPendingOAuthState(pending),
+        await sealPendingOAuthState(result.value.pending),
         oauthCookieOptions()
       )
       return {
         status: "oauth_pending",
         oauth: {
-          flowId: pending.flowId,
-          url: authorizationURL.toString(),
+          flowId: result.value.pending.flowId,
+          url: result.value.authorizationURL.toString(),
         },
       }
     } catch (error) {

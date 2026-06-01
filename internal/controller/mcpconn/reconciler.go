@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -169,7 +170,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	policy, err := r.reconcileAuthPolicies(ctx, conn, refs)
+	policy, err := r.reconcileConnectionPolicies(ctx, conn, refs)
 	if err != nil {
 		statusErr := r.updateStatus(
 			ctx,
@@ -183,7 +184,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("update degraded status: %w", statusErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("reconcile auth policies: %w", err)
+		return ctrl.Result{}, fmt.Errorf("reconcile connection policies: %w", err)
 	}
 
 	err = r.updateStatus(
@@ -242,7 +243,7 @@ func (r *MCPConnectionReconciler) referencingEnvironments(ctx context.Context, n
 	return envs.Items, nil
 }
 
-func (r *MCPConnectionReconciler) reconcileAuthPolicies(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, refs []clawarmorv1alpha1.Environment) (*clawarmorv1alpha1.MCPConnectionManagedResourceRef, error) {
+func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, refs []clawarmorv1alpha1.Environment) (*clawarmorv1alpha1.MCPConnectionManagedResourceRef, error) {
 	policies := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace)
 	namespaceEnvs := &clawarmorv1alpha1.EnvironmentList{}
 	err := r.List(ctx, namespaceEnvs, client.InNamespace(conn.Namespace))
@@ -250,7 +251,7 @@ func (r *MCPConnectionReconciler) reconcileAuthPolicies(ctx context.Context, con
 		return nil, fmt.Errorf("list namespace environments: %w", err)
 	}
 
-	if conn.Spec.Auth == nil {
+	if conn.Spec.Auth == nil && len(conn.Spec.Endpoint.Headers) == 0 {
 		for _, env := range namespaceEnvs.Items {
 			name := mcp.EnvironmentAuthPolicyName(env.Name, conn.Name)
 			err := policies.Delete(ctx, name, metav1.DeleteOptions{})
@@ -292,6 +293,47 @@ func (r *MCPConnectionReconciler) reconcileAuthPolicies(ctx context.Context, con
 			}
 		}
 
+		var transformation *agentgatewayv1alpha1.Transformation
+		if len(conn.Spec.Endpoint.Headers) > 0 {
+			names := slices.Collect(maps.Keys(conn.Spec.Endpoint.Headers))
+			slices.Sort(names)
+			setHeaders := make([]agentgatewayv1alpha1.HeaderTransformation, 0, len(names))
+			for _, headerName := range names {
+				setHeaders = append(setHeaders, agentgatewayv1alpha1.HeaderTransformation{
+					Name:  agentgatewayv1alpha1.HeaderName(headerName),
+					Value: agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Spec.Endpoint.Headers[headerName])),
+				})
+			}
+			transformation = &agentgatewayv1alpha1.Transformation{
+				Request: &agentgatewayv1alpha1.Transform{
+					Set: setHeaders,
+				},
+			}
+		}
+
+		var extAuth *agentgatewayv1alpha1.ExtAuth
+		if conn.Spec.Auth != nil {
+			extAuthPort := mcp.ExtAuthPort
+			extAuth = &agentgatewayv1alpha1.ExtAuth{
+				BackendRef: &gwv1.BackendObjectReference{
+					Name: gwv1.ObjectName(mcp.ExtAuthServiceName),
+					Port: &extAuthPort,
+				},
+				GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
+					ContextExtensions: map[string]string{
+						"clawarmor.namespace":      conn.Namespace,
+						"clawarmor.environment":    env.Name,
+						"clawarmor.mcp_connection": conn.Name,
+					},
+					RequestMetadata: map[string]agentgatewayshared.CELExpression{
+						"clawarmor.namespace":      agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
+						"clawarmor.environment":    agentgatewayshared.CELExpression(fmt.Sprintf("%q", env.Name)),
+						"clawarmor.mcp_connection": agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Name)),
+					},
+				},
+			}
+		}
+
 		section := gwv1.SectionName(conn.Name)
 		obj.Spec = agentgatewayv1alpha1.AgentgatewayPolicySpec{
 			TargetRefs: []agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{{
@@ -303,24 +345,8 @@ func (r *MCPConnectionReconciler) reconcileAuthPolicies(ctx context.Context, con
 				SectionName: &section,
 			}},
 			Backend: &agentgatewayv1alpha1.BackendFull{
-				ExtAuth: &agentgatewayv1alpha1.ExtAuth{
-					BackendRef: &gwv1.BackendObjectReference{
-						Name: gwv1.ObjectName(mcp.ExtAuthServiceName),
-						Port: new(mcp.ExtAuthPort),
-					},
-					GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
-						ContextExtensions: map[string]string{
-							"clawarmor.namespace":      conn.Namespace,
-							"clawarmor.environment":    env.Name,
-							"clawarmor.mcp_connection": conn.Name,
-						},
-						RequestMetadata: map[string]agentgatewayshared.CELExpression{
-							"clawarmor.namespace":      agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
-							"clawarmor.environment":    agentgatewayshared.CELExpression(fmt.Sprintf("%q", env.Name)),
-							"clawarmor.mcp_connection": agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Name)),
-						},
-					},
-				},
+				Transformation: transformation,
+				ExtAuth:        extAuth,
 			},
 		}
 

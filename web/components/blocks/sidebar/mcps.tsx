@@ -1,7 +1,7 @@
 "use client"
 
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
-import { Usb } from "lucide-react"
+import { PlugZap } from "lucide-react"
 import Link from "next/link"
 
 export function NavMCPs() {
@@ -10,7 +10,7 @@ export function NavMCPs() {
       <SidebarMenuItem>
         <Link href="/mcps">
           <SidebarMenuButton tooltip="MCPs">
-            <Usb />
+            <PlugZap />
             <span>MCPs</span>
           </SidebarMenuButton>
         </Link>

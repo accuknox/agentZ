@@ -165,7 +165,7 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	}
 	if envCfg.MCPURL != "" {
 		cfg.MCP = map[string]opencodeMCPRemoteFile{
-			"clawarmor": {
+			"gateway": {
 				Type: "remote",
 				URL:  envCfg.MCPURL,
 			},

@@ -283,28 +283,45 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		if err != nil {
 			return fmt.Errorf("resolve target for %q: %w", conn.Name, err)
 		}
+		policies := &agentgatewayv1alpha1.BackendSimple{}
+		if target.Secure {
+			policies.TLS = &agentgatewayv1alpha1.BackendTLS{
+				Sni: &target.Host,
+			}
+			if conn.Spec.Endpoint.InsecureSkipVerify {
+				mode := agentgatewayv1alpha1.InsecureTLSModeAll
+				policies.TLS.InsecureSkipVerify = &mode
+			}
+		}
+		if conn.Spec.Endpoint.Timeout != nil {
+			timeout := conn.Spec.Endpoint.Timeout.DeepCopy()
+			policies.HTTP = &agentgatewayv1alpha1.BackendHTTP{
+				RequestTimeout: timeout,
+			}
+		}
+		if policies.TLS == nil && policies.HTTP == nil && policies.Tunnel == nil && policies.Auth == nil && policies.TCP == nil {
+			policies = nil
+		}
+
 		targets = append(targets, agentgatewayv1alpha1.McpTargetSelector{
 			Name: gwv1.SectionName(conn.Name),
 			Static: &agentgatewayv1alpha1.McpTarget{
-				Host:     new(target.Host),
+				Host:     &target.Host,
 				Port:     target.Port,
 				Path:     target.Path,
 				Protocol: target.Protocol,
+				Policies: policies,
 			},
 		})
-		if target.Secure {
-			targets[len(targets)-1].Static.Policies = &agentgatewayv1alpha1.BackendSimple{
-				TLS: &agentgatewayv1alpha1.BackendTLS{
-					Sni: new(target.Host),
-				},
-			}
-		}
 	}
 
 	obj.Spec = agentgatewayv1alpha1.AgentgatewayBackendSpec{
 		MCP: &agentgatewayv1alpha1.MCPBackend{
 			Targets:        targets,
 			SessionRouting: agentgatewayv1alpha1.Stateful,
+			// One unhealthy MCP target must not make healthy targets unreachable.
+			// Agentgateway still fails requests when every target is unavailable.
+			FailureMode: agentgatewayv1alpha1.FailOpen,
 		},
 	}
 	if err := ctrl.SetControllerReference(env, obj, r.Scheme); err != nil {

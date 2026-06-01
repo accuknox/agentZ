@@ -1,9 +1,15 @@
 import * as z from "zod"
-import { zMcpConnectionName, zMcpConnectionOAuthCredentials } from "@/lib/gateway/client/zod.gen"
-import type { JsonObject, McpConnectionAuthLocation } from "@/lib/gateway/client"
-import { oauthMaskedPlaceholder } from "@/lib/mcp-oauth-shared"
-
-export const maskedSecretValue = oauthMaskedPlaceholder
+import type {
+  JsonObject,
+  McpConnection,
+  McpConnectionAuthLocation,
+  McpConnectionHeaderLocation,
+} from "@/lib/gateway/client"
+import {
+  zMcpConnectionAuthLocation,
+  zMcpConnectionName,
+  zMcpConnectionOAuthCredentials,
+} from "@/lib/gateway/client/zod.gen"
 
 const reservedHeaderNames = new Set([
   "authorization",
@@ -51,6 +57,17 @@ const extraHeaderSchema = z.object({
   value: z.string().trim(),
 })
 
+const authLocationHeaderFormSchema = z.object({
+  name: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  prefix: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+})
+
 const baseFormSchema = z.object({
   mode: z.enum(["create", "update"]),
   current_name: z
@@ -82,12 +99,56 @@ const baseFormSchema = z.object({
     .string()
     .optional()
     .transform((value) => value?.trim() || undefined),
+  oauth_issuer: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  oauth_authorization_endpoint: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  oauth_token_endpoint: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  oauth_registration_endpoint: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  oauth_resource: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  oauth_location_header_name: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  oauth_location_header_prefix: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  bearer_location_header_name: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  bearer_location_header_prefix: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
 })
 
 export type McpFormInput = z.input<typeof baseFormSchema>
 export type McpFormValues = z.infer<typeof baseFormSchema>
 
 export const mcpFormSchema = baseFormSchema.superRefine((value, ctx) => {
+  if (value.mode === "update" && value.current_name && value.name.trim() !== value.current_name) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["name"],
+      message: "Name cannot be changed while updating an MCP connection",
+    })
+  }
+
   if (value.name) {
     const parsedName = zMcpConnectionName.safeParse(value.name)
     if (!parsedName.success) {
@@ -130,26 +191,42 @@ export const mcpFormSchema = baseFormSchema.superRefine((value, ctx) => {
   }
 
   if (value.auth_mode === "bearer") {
-    const needsToken =
-      value.mode === "create" ||
-      value.current_auth_mode !== "bearer" ||
-      (value.bearer_token !== undefined && value.bearer_token !== maskedSecretValue)
-    if (needsToken && !value.bearer_token) {
+    if (!value.bearer_token) {
       ctx.addIssue({
         code: "custom",
         path: ["bearer_token"],
         message: "Token is required",
       })
     }
+    const parsedBearerLocation = zMcpConnectionAuthLocation.safeParse({
+      header: locationHeaderInput(
+        value.bearer_location_header_name,
+        value.bearer_location_header_prefix
+      ),
+    })
+    if (!parsedBearerLocation.success) {
+      for (const issue of parsedBearerLocation.error.issues) {
+        const path =
+          issue.path.at(-1) === "name"
+            ? ["bearer_location_header_name"]
+            : issue.path.at(-1) === "prefix"
+              ? ["bearer_location_header_prefix"]
+              : ["bearer_location_header_name"]
+        ctx.addIssue({
+          code: "custom",
+          path,
+          message: issue.message,
+        })
+      }
+    }
     return
   }
 
-  const hasClientId = Boolean(value.oauth_client_id) && value.oauth_client_id !== maskedSecretValue
-  const hasClientSecret =
-    Boolean(value.oauth_client_secret) && value.oauth_client_secret !== maskedSecretValue
+  const hasClientId = Boolean(value.oauth_client_id)
+  const hasClientSecret = Boolean(value.oauth_client_secret)
   const useDcr = !hasClientId && !hasClientSecret
 
-  if (!useDcr && !hasClientId && value.oauth_client_id !== maskedSecretValue) {
+  if (!useDcr && !hasClientId) {
     ctx.addIssue({
       code: "custom",
       path: ["oauth_client_id"],
@@ -157,12 +234,34 @@ export const mcpFormSchema = baseFormSchema.superRefine((value, ctx) => {
     })
   }
 
-  if (!useDcr && !hasClientSecret && value.oauth_client_secret !== maskedSecretValue) {
+  if (!useDcr && !hasClientSecret) {
     ctx.addIssue({
       code: "custom",
       path: ["oauth_client_secret"],
       message: "Client secret is required",
     })
+  }
+
+  const parsedOAuthLocation = zMcpConnectionAuthLocation.safeParse({
+    header: locationHeaderInput(
+      value.oauth_location_header_name,
+      value.oauth_location_header_prefix
+    ),
+  })
+  if (!parsedOAuthLocation.success) {
+    for (const issue of parsedOAuthLocation.error.issues) {
+      const path =
+        issue.path.at(-1) === "name"
+          ? ["oauth_location_header_name"]
+          : issue.path.at(-1) === "prefix"
+            ? ["oauth_location_header_prefix"]
+            : ["oauth_location_header_name"]
+      ctx.addIssue({
+        code: "custom",
+        path,
+        message: issue.message,
+      })
+    }
   }
 })
 
@@ -179,14 +278,31 @@ export type ParsedMcpForm = {
   }
   authMode: "bearer" | "oauth"
   bearerToken?: string
-  preserveBearerToken: boolean
+  bearer?: {
+    location?: McpConnectionAuthLocation
+  }
   oauth: {
+    issuer?: string
+    authorizationEndpoint?: string
+    tokenEndpoint?: string
+    registrationEndpoint?: string
+    resource?: string
     scopes?: string[]
+    location?: McpConnectionAuthLocation
     clientId?: string
     clientSecret?: string
-    preserveClientId: boolean
-    preserveClientSecret: boolean
   }
+}
+
+function locationHeaderInput(name?: string, prefix?: string) {
+  const parsed = authLocationHeaderFormSchema.parse({
+    name,
+    prefix,
+  })
+  if (!parsed.name && !parsed.prefix) {
+    return undefined
+  }
+  return parsed satisfies Partial<McpConnectionHeaderLocation>
 }
 
 export function parseMcpForm(values: McpFormValues): ParsedMcpForm {
@@ -201,18 +317,6 @@ export function parseMcpForm(values: McpFormValues): ParsedMcpForm {
     .split(/[\n,\s]+/)
     .map((scope) => scope.trim())
     .filter(Boolean)
-  const preserveBearerToken =
-    values.mode === "update" &&
-    values.current_auth_mode === "bearer" &&
-    values.bearer_token === maskedSecretValue
-  const preserveClientId =
-    values.mode === "update" &&
-    values.current_auth_mode === "oauth" &&
-    values.oauth_client_id === maskedSecretValue
-  const preserveClientSecret =
-    values.mode === "update" &&
-    values.current_auth_mode === "oauth" &&
-    values.oauth_client_secret === maskedSecretValue
 
   return {
     mode: values.mode,
@@ -226,16 +330,42 @@ export function parseMcpForm(values: McpFormValues): ParsedMcpForm {
       headers,
     },
     authMode: values.auth_mode,
-    bearerToken: preserveBearerToken ? undefined : values.bearer_token,
-    preserveBearerToken,
+    bearerToken: values.bearer_token,
+    bearer: {
+      location: authLocationFromHeaderInput(
+        values.bearer_location_header_name,
+        values.bearer_location_header_prefix
+      ),
+    },
     oauth: {
+      issuer: values.oauth_issuer,
+      authorizationEndpoint: values.oauth_authorization_endpoint,
+      tokenEndpoint: values.oauth_token_endpoint,
+      registrationEndpoint: values.oauth_registration_endpoint,
+      resource: values.oauth_resource,
       scopes: scopes.length > 0 ? scopes : undefined,
-      clientId: preserveClientId ? undefined : values.oauth_client_id,
-      clientSecret: preserveClientSecret ? undefined : values.oauth_client_secret,
-      preserveClientId,
-      preserveClientSecret,
+      location: authLocationFromHeaderInput(
+        values.oauth_location_header_name,
+        values.oauth_location_header_prefix
+      ),
+      clientId: values.oauth_client_id,
+      clientSecret: values.oauth_client_secret,
     },
   }
+}
+
+function authLocationFromHeaderInput(
+  name?: string,
+  prefix?: string
+): McpConnectionAuthLocation | undefined {
+  const header = locationHeaderInput(name, prefix)
+  if (!header) {
+    return undefined
+  }
+
+  return zMcpConnectionAuthLocation.parse({
+    header,
+  })
 }
 
 export function mcpAuthLocation(): McpConnectionAuthLocation {
@@ -244,6 +374,38 @@ export function mcpAuthLocation(): McpConnectionAuthLocation {
       name: "Authorization",
       prefix: "Bearer",
     },
+  }
+}
+
+export function formAuthLocation(input?: McpConnectionAuthLocation) {
+  return {
+    headerName: input?.header?.name ?? "Authorization",
+    headerPrefix: input?.header?.prefix ?? "Bearer",
+  }
+}
+
+export function formOAuthDefaults(connection?: McpConnection) {
+  const oauth = connection?.auth?.oauth
+  const location = formAuthLocation(oauth?.location)
+
+  return {
+    oauth_issuer: oauth?.issuer ?? "",
+    oauth_authorization_endpoint: oauth?.authorization_endpoint ?? "",
+    oauth_token_endpoint: oauth?.token_endpoint ?? "",
+    oauth_registration_endpoint: oauth?.registration_endpoint ?? "",
+    oauth_resource: oauth?.resource ?? "",
+    oauth_scopes: oauth?.scopes?.join("\n") ?? "",
+    oauth_location_header_name: location.headerName,
+    oauth_location_header_prefix: location.headerPrefix,
+  }
+}
+
+export function formBearerDefaults(connection?: McpConnection) {
+  const location = formAuthLocation(connection?.auth?.bearer?.location)
+
+  return {
+    bearer_location_header_name: location.headerName,
+    bearer_location_header_prefix: location.headerPrefix,
   }
 }
 

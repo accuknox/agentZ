@@ -3,6 +3,8 @@ import { cookies } from "next/headers"
 import { mcpsTag } from "@/data/cache"
 import {
   createMcpConnection,
+  deleteMcpConnection,
+  getMcpConnection,
   setMcpConnectionCredentials,
   updateMcpConnection,
 } from "@/lib/gateway/client"
@@ -24,15 +26,29 @@ function htmlResponse(body: string) {
   })
 }
 
+function clearPendingOAuthCookie(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  cookieStore.set(mcpOAuthCookieName(), "", {
+    ...oauthCookieOptions(),
+    maxAge: 0,
+  })
+}
+
+function popupFailure(flowId: string, message: string) {
+  return htmlResponse(
+    oauthCallbackResultPage({
+      success: false,
+      flowId,
+      message,
+    })
+  )
+}
+
 export async function GET(request: Request) {
   const cookieStore = await cookies()
   const sealed = cookieStore.get(mcpOAuthCookieName())?.value
   if (!sealed) {
     return htmlResponse(
-      oauthCallbackResultPage({
-        success: false,
-        message: "OAuth flow could not be completed.",
-      })
+      "<!doctype html><html><body>OAuth flow could not be completed.</body></html>"
     )
   }
 
@@ -40,11 +56,9 @@ export async function GET(request: Request) {
   try {
     pending = await openPendingOAuthState(sealed)
   } catch {
+    clearPendingOAuthCookie(cookieStore)
     return htmlResponse(
-      oauthCallbackResultPage({
-        success: false,
-        message: "OAuth flow could not be completed.",
-      })
+      "<!doctype html><html><body>OAuth flow could not be completed.</body></html>"
     )
   }
 
@@ -53,13 +67,21 @@ export async function GET(request: Request) {
       pending,
       callbackURL: new URL(request.url),
     })
+    if (!result.ok) {
+      console.error("mcp oauth completion failed", {
+        code: result.error.code,
+        flowId: result.error.flowId,
+      })
+      clearPendingOAuthCookie(cookieStore)
+      return popupFailure(pending.flowId, result.error.message)
+    }
 
     if (pending.operation.kind === "create") {
       const createResult = await createMcpConnection({
         body: {
           name: pending.operation.form.name,
           endpoint: pending.operation.form.endpoint,
-          auth: result.auth,
+          auth: result.value.auth,
         },
       })
       if (createResult.error) {
@@ -69,18 +91,36 @@ export async function GET(request: Request) {
       const credentialsResult = await setMcpConnectionCredentials({
         path: { name: pending.operation.form.name },
         body: {
-          oauth: result.credentials,
+          oauth: result.value.credentials,
         },
       })
       if (credentialsResult.error) {
+        const deleteResult = await deleteMcpConnection({
+          path: { name: pending.operation.form.name },
+        })
+        if (deleteResult.error) {
+          console.error("mcp oauth create compensation failed", {
+            flowId: pending.flowId,
+            code: deleteResult.error.code,
+          })
+        }
         throw new Error(credentialsResult.error.message)
       }
     } else {
+      const currentResult = await getMcpConnection({
+        path: { name: pending.operation.name },
+        cache: "no-store",
+      })
+      if (currentResult.error) {
+        throw new Error(currentResult.error.message)
+      }
+
+      const previous = currentResult.data
       const updateResult = await updateMcpConnection({
         path: { name: pending.operation.name },
         body: {
           endpoint: pending.operation.form.endpoint,
-          auth: result.auth,
+          auth: result.value.auth,
         },
       })
       if (updateResult.error) {
@@ -90,10 +130,23 @@ export async function GET(request: Request) {
       const credentialsResult = await setMcpConnectionCredentials({
         path: { name: pending.operation.name },
         body: {
-          oauth: result.credentials,
+          oauth: result.value.credentials,
         },
       })
       if (credentialsResult.error) {
+        const rollbackResult = await updateMcpConnection({
+          path: { name: pending.operation.name },
+          body: {
+            endpoint: previous.endpoint,
+            auth: previous.auth,
+          },
+        })
+        if (rollbackResult.error) {
+          console.error("mcp oauth update rollback failed", {
+            flowId: pending.flowId,
+            code: rollbackResult.error.code,
+          })
+        }
         throw new Error(credentialsResult.error.message)
       }
     }
@@ -104,20 +157,18 @@ export async function GET(request: Request) {
       oauthCallbackResultPage({
         success: true,
         flowId: pending.flowId,
-        message: "OAuth flow completed.",
+        message: result.value.message,
       })
     )
   } catch (error) {
-    cookieStore.set(mcpOAuthCookieName(), "", {
-      ...oauthCookieOptions(),
-      maxAge: 0,
+    console.error("mcp oauth callback commit failed", {
+      flowId: pending.flowId,
+      message: error instanceof Error ? error.message : "unknown error",
     })
-    return htmlResponse(
-      oauthCallbackResultPage({
-        success: false,
-        flowId: pending.flowId,
-        message: error instanceof Error ? error.message : "OAuth flow could not be completed.",
-      })
+    clearPendingOAuthCookie(cookieStore)
+    return popupFailure(
+      pending.flowId,
+      error instanceof Error ? error.message : "OAuth flow could not be completed."
     )
   }
 }

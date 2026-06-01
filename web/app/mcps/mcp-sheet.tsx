@@ -1,10 +1,12 @@
 "use client"
 
 import * as React from "react"
+import Fuse from "fuse.js"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
-import { Check, Globe, RefreshCw, Trash2, X } from "lucide-react"
+import { Check, ChevronDown, Globe, RefreshCw, Settings2, Trash2, X } from "lucide-react"
+import { mcpServers, type McpServer } from "@/app/mcps/catalog"
 import type { McpConnection } from "@/lib/gateway/client"
 import {
   Accordion,
@@ -14,8 +16,17 @@ import {
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
+import { Separator } from "@/components/ui/separator"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import {
   Sheet,
   SheetContent,
@@ -68,6 +79,24 @@ const defaultFormValues: McpFormInput = {
 
 const clientCredentialsAccordionItem = "client-credentials"
 const advancedAccordionItem = "advanced"
+const initialServerResults = 8
+const generalErrorFields = [
+  "name",
+  "endpoint_url",
+  "bearer_token",
+  "oauth_client_id",
+  "oauth_client_secret",
+  "oauth_issuer",
+  "oauth_authorization_endpoint",
+  "oauth_token_endpoint",
+  "oauth_registration_endpoint",
+  "oauth_resource",
+  "oauth_scopes",
+  "oauth_location_header_name",
+  "oauth_location_header_prefix",
+  "bearer_location_header_name",
+  "bearer_location_header_prefix",
+] as const
 
 type DiscoveryIconState =
   | { status: "idle" }
@@ -79,6 +108,23 @@ type DiscoveryResultState = {
   endpointURL: string
   message?: string
 } & DiscoveryIconState
+
+type McpCatalogResult =
+  | {
+      kind: "catalog"
+      server: McpServer
+    }
+  | {
+      kind: "custom"
+      mcpUrl: string
+    }
+
+const mcpServerSearch = new Fuse(mcpServers, {
+  keys: ["name", "mcpUrl"],
+  threshold: 0.3,
+  ignoreLocation: true,
+  minMatchCharLength: 2,
+})
 
 function formDefaults(connection?: McpConnection): McpFormInput {
   if (!connection) {
@@ -95,8 +141,10 @@ function formDefaults(connection?: McpConnection): McpFormInput {
     name: connection.name,
     endpoint_url: connection.endpoint.url,
     endpoint_timeout: connection.endpoint.timeout,
-    extra_headers:
-      Object.entries(connection.endpoint.headers).map(([key, value]) => ({ key, value })) || [],
+    extra_headers: Object.entries(connection.endpoint.headers).map(([key, value]) => ({
+      key,
+      value,
+    })),
     auth_mode: authMode === "bearer" ? "bearer" : "oauth",
     bearer_token: "",
     oauth_scopes: oauthDefaults.oauth_scopes,
@@ -189,23 +237,8 @@ function generalErrorMessage(error: McpFormState["error"]) {
       }
 
       return (
-        [
-          "name",
-          "endpoint_url",
-          "bearer_token",
-          "oauth_client_id",
-          "oauth_client_secret",
-          "oauth_issuer",
-          "oauth_authorization_endpoint",
-          "oauth_token_endpoint",
-          "oauth_registration_endpoint",
-          "oauth_resource",
-          "oauth_scopes",
-          "oauth_location_header_name",
-          "oauth_location_header_prefix",
-          "bearer_location_header_name",
-          "bearer_location_header_prefix",
-        ].includes(item.field) || item.field.startsWith("extra_headers.")
+        generalErrorFields.includes(item.field as (typeof generalErrorFields)[number]) ||
+        item.field.startsWith("extra_headers.")
       )
     }) ?? []
   const hasGeneralError = !error.errors || error.errors.length > fieldErrors.length
@@ -228,10 +261,11 @@ export function McpSheet({
 }) {
   const router = useRouter()
   const [isPending, startTransition] = React.useTransition()
+  const defaultValues = React.useMemo(() => formDefaults(connection), [connection])
   const form = useForm<McpFormInput>({
     resolver: zodResolver(mcpFormSchema),
     mode: "onBlur",
-    defaultValues: formDefaults(connection),
+    defaultValues,
   })
   const headerFields = useFieldArray({
     control: form.control,
@@ -240,12 +274,12 @@ export function McpSheet({
   const authMode = useWatch({
     control: form.control,
     name: "auth_mode",
-    defaultValue: formDefaults(connection).auth_mode,
+    defaultValue: defaultValues.auth_mode,
   })
   const endpointURL = useWatch({
     control: form.control,
     name: "endpoint_url",
-    defaultValue: formDefaults(connection).endpoint_url,
+    defaultValue: defaultValues.endpoint_url,
   })
   const { errors } = form.formState
 
@@ -256,9 +290,7 @@ export function McpSheet({
     status: "idle",
   })
   const discoveryState =
-    discoveryResult.endpointURL === endpointURL
-      ? { status: discoveryResult.status }
-      : { status: "idle" as const }
+    discoveryResult.endpointURL === endpointURL ? discoveryResult.status : "idle"
   const discoveryError =
     discoveryResult.endpointURL === endpointURL ? discoveryResult.message : undefined
 
@@ -295,11 +327,15 @@ export function McpSheet({
   const [submitError, setSubmitError] = React.useState<string>()
   const [successMessage, setSuccessMessage] = React.useState<string>()
   const [submitted, setSubmitted] = React.useState(false)
+  const [serverPickerOpen, setServerPickerOpen] = React.useState(false)
   const popupRef = React.useRef<Window | null>(null)
   const popupPollRef = React.useRef<number | null>(null)
   const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
   const mountedRef = React.useRef(true)
   const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
+  const serverFieldRef = React.useRef<HTMLDivElement | null>(null)
+  const serverInputRef = React.useRef<HTMLInputElement | null>(null)
+  const serverPopoverRef = React.useRef<HTMLDivElement | null>(null)
 
   const cancelPendingOAuthFlow = React.useCallback(() => {
     void fetch("/mcps/oauth/pending", {
@@ -346,8 +382,44 @@ export function McpSheet({
     if (!open) {
       return
     }
-    form.reset(formDefaults(connection))
-  }, [connection, form, open])
+    form.reset(defaultValues)
+  }, [defaultValues, form, open])
+
+  const deferredEndpointURL = React.useDeferredValue(endpointURL)
+  const selectedServer = React.useMemo(
+    () => mcpServers.find((server) => server.mcpUrl === endpointURL),
+    [endpointURL]
+  )
+  const SelectedServerIcon = selectedServer?.icon
+  const serverResults = React.useMemo(() => {
+    const query = deferredEndpointURL.trim()
+    const catalogResults = query
+      ? mcpServerSearch.search(query).map((result) => result.item)
+      : mcpServers.slice(0, initialServerResults)
+    const results: McpCatalogResult[] = catalogResults.map((server) => ({
+      kind: "catalog",
+      server,
+    }))
+    const hasExactCatalogURL = mcpServers.some((server) => server.mcpUrl === query)
+
+    if (query) {
+      let customURL: URL | undefined
+      try {
+        customURL = new URL(query)
+      } catch {
+        customURL = undefined
+      }
+
+      if (customURL?.protocol === "https:" && !hasExactCatalogURL) {
+        results.push({
+          kind: "custom",
+          mcpUrl: query,
+        })
+      }
+    }
+
+    return results
+  }, [deferredEndpointURL])
 
   function onSheetOpenChange(nextOpen: boolean) {
     if (nextOpen) {
@@ -358,7 +430,7 @@ export function McpSheet({
         closePopup: true,
         cancelPending: Boolean(oauthPopupFlowId),
       })
-      form.reset(formDefaults(connection))
+      form.reset(defaultValues)
       setOauthFlowError(undefined)
       setDiscoveryResult({
         endpointURL: "",
@@ -367,6 +439,7 @@ export function McpSheet({
       setSubmitError(undefined)
       setSuccessMessage(undefined)
       setSubmitted(false)
+      setServerPickerOpen(false)
     }
     onOpenChangeAction(nextOpen)
   }
@@ -591,6 +664,26 @@ export function McpSheet({
   const title = "Connect MCP server"
   const submitLabel =
     mode === "create" ? "Connect" : authMode === "oauth" ? "Save changes" : "Update credential"
+
+  function selectServer(result: McpCatalogResult, onChange: (value: string) => void) {
+    const nextURL = result.kind === "catalog" ? result.server.mcpUrl : result.mcpUrl
+    onChange(nextURL)
+    form.clearErrors("endpoint_url")
+    setServerPickerOpen(false)
+    serverInputRef.current?.focus()
+  }
+
+  function isInServerField(target: EventTarget | null) {
+    if (!(target instanceof Node)) {
+      return false
+    }
+
+    return (
+      serverFieldRef.current?.contains(target) === true ||
+      serverPopoverRef.current?.contains(target) === true
+    )
+  }
+
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
       <SheetContent
@@ -706,43 +799,166 @@ export function McpSheet({
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor="mcp-endpoint-url">MCP Server</FieldLabel>
-                    <div className="relative">
-                      <Globe className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="mcp-endpoint-url"
-                        name={field.name}
-                        ref={field.ref}
-                        value={field.value}
-                        onBlur={field.onBlur}
-                        onChange={field.onChange}
-                        placeholder="https://example.com/mcp"
-                        className="pr-19 pl-9"
-                        aria-invalid={fieldState.invalid}
-                      />
-                      {authMode === "oauth" ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="absolute inset-y-0 right-1.5 my-auto"
-                          onClick={() => {
-                            void refreshOAuthDiscovery()
-                          }}
-                          disabled={discoveryState.status === "loading"}
-                          aria-label="Discover OAuth metadata"
-                        >
-                          {discoveryState.status === "loading" ? (
-                            <Spinner aria-hidden="true" />
-                          ) : discoveryState.status === "success" ? (
-                            <Check />
-                          ) : discoveryState.status === "error" ? (
-                            <X />
+                    <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
+                      <PopoverAnchor asChild>
+                        <div ref={serverFieldRef} className="relative">
+                          {SelectedServerIcon ? (
+                            <SelectedServerIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                           ) : (
-                            <RefreshCw />
+                            <Globe className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                           )}
-                        </Button>
-                      ) : null}
-                    </div>
+                          <Input
+                            id="mcp-endpoint-url"
+                            name={field.name}
+                            ref={(node) => {
+                              field.ref(node)
+                              serverInputRef.current = node
+                            }}
+                            value={field.value ?? ""}
+                            onFocus={() => {
+                              setServerPickerOpen(true)
+                            }}
+                            onBlur={(event) => {
+                              if (isInServerField(event.relatedTarget)) {
+                                return
+                              }
+                              setServerPickerOpen(false)
+                              field.onBlur()
+                            }}
+                            onChange={(event) => {
+                              field.onChange(event)
+                              if (!serverPickerOpen) {
+                                setServerPickerOpen(true)
+                              }
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                setServerPickerOpen(false)
+                              }
+                            }}
+                            placeholder="https://example.com/mcp"
+                            className="pr-25 pl-9"
+                            aria-invalid={fieldState.invalid}
+                            aria-expanded={serverPickerOpen}
+                            aria-autocomplete="list"
+                            aria-controls="mcp-endpoint-url-suggestions"
+                            role="combobox"
+                          />
+                          <ChevronDown className="pointer-events-none absolute top-1/2 right-10 size-4 -translate-y-1/2 text-muted-foreground" />
+                          {authMode === "oauth" ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="absolute inset-y-0 right-1.5 my-auto"
+                              onClick={() => {
+                                void refreshOAuthDiscovery()
+                              }}
+                              disabled={discoveryState === "loading"}
+                              aria-label="Discover OAuth metadata"
+                            >
+                              {discoveryState === "loading" ? (
+                                <Spinner aria-hidden="true" />
+                              ) : discoveryState === "success" ? (
+                                <Check />
+                              ) : discoveryState === "error" ? (
+                                <X />
+                              ) : (
+                                <RefreshCw />
+                              )}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </PopoverAnchor>
+                      <PopoverContent
+                        ref={serverPopoverRef}
+                        align="start"
+                        className="w-[var(--radix-popper-anchor-width)] p-0"
+                        onCloseAutoFocus={(event) => {
+                          event.preventDefault()
+                        }}
+                        onFocusOutside={(event) => {
+                          if (isInServerField(event.target)) {
+                            event.preventDefault()
+                          }
+                        }}
+                        onInteractOutside={(event) => {
+                          if (isInServerField(event.target)) {
+                            event.preventDefault()
+                          }
+                        }}
+                        onOpenAutoFocus={(event) => {
+                          event.preventDefault()
+                        }}
+                        sideOffset={8}
+                      >
+                        <Command shouldFilter={false}>
+                          <CommandList id="mcp-endpoint-url-suggestions">
+                            <CommandEmpty>
+                              No known MCP servers match. You can still use the typed URL.
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {serverResults.map((result) => {
+                                if (result.kind === "catalog") {
+                                  const Icon = result.server.icon
+                                  return (
+                                    <CommandItem
+                                      key={result.server.mcpUrl}
+                                      value={result.server.mcpUrl}
+                                      className="cursor-pointer"
+                                      onMouseDown={(event) => {
+                                        event.preventDefault()
+                                      }}
+                                      onSelect={() => {
+                                        selectServer(result, field.onChange)
+                                      }}
+                                    >
+                                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+                                        <Icon />
+                                      </span>
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate font-medium">
+                                          {result.server.name}
+                                        </span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                          {result.server.mcpUrl}
+                                        </span>
+                                      </span>
+                                    </CommandItem>
+                                  )
+                                }
+
+                                return (
+                                  <CommandItem
+                                    key={result.mcpUrl}
+                                    value={result.mcpUrl}
+                                    className="cursor-pointer"
+                                    onMouseDown={(event) => {
+                                      event.preventDefault()
+                                    }}
+                                    onSelect={() => {
+                                      selectServer(result, field.onChange)
+                                    }}
+                                  >
+                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+                                      <Settings2 />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-medium">
+                                        Custom Server
+                                      </span>
+                                      <span className="block truncate text-xs text-muted-foreground">
+                                        {result.mcpUrl}
+                                      </span>
+                                    </span>
+                                  </CommandItem>
+                                )
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
                   </Field>
                 )}
@@ -812,6 +1028,9 @@ export function McpSheet({
                         </FieldGroup>
                       </AccordionContent>
                     </AccordionItem>
+                    <div className="-mx-[calc(1rem+1px)]">
+                      <Separator />
+                    </div>
                     <AccordionItem value={advancedAccordionItem} className="border-none">
                       <AccordionTrigger className="py-4 hover:no-underline">
                         <div className="flex items-center gap-2">

@@ -286,7 +286,7 @@ spec:
                 x-kubernetes-list-type: map
               extAuthDeploymentRef:
                 description: |-
-                  ExtAuthDeploymentRef identifies the shared ext-auth Deployment for the
+                  ExtAuthDeploymentRef identifies the ext-auth Deployment for the
                   namespace.
                 properties:
                   name:
@@ -301,7 +301,7 @@ spec:
                 type: object
               extAuthServiceRef:
                 description: |-
-                  ExtAuthServiceRef identifies the shared ext-auth Service for the
+                  ExtAuthServiceRef identifies the ext-auth Service for the
                   namespace.
                 properties:
                   name:
@@ -320,7 +320,7 @@ spec:
                 type: integer
               serviceRef:
                 description: |-
-                  ServiceRef identifies the managed Service that fronts the shared upstream
+                  ServiceRef identifies the managed Service that fronts the upstream
                   connection runtime.
                 properties:
                   name:

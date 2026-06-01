@@ -26,6 +26,9 @@ import (
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	ciliumlabels "github.com/cilium/cilium/pkg/labels"
+	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,6 +60,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;httproutes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile prevents unsafe deletion and manages namespace MCP runtime.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -203,10 +207,30 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		return err
 	}
 	if len(owners) == 0 {
-		if err := r.deleteGateway(ctx, namespace); err != nil {
+		policy := &ciliumv2.CiliumNetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      mcp.GatewayName,
+				Namespace: namespace,
+			},
+		}
+		if err := r.Delete(ctx, policy); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete gateway network policy: %w", err)
+		}
+
+		gw := &gwv1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      mcp.GatewayName,
+			},
+		}
+		if err := r.Delete(ctx, gw); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete namespace gateway: %w", err)
+		}
+
+		if err := r.deleteAgentgatewayParameters(ctx, namespace); err != nil {
 			return err
 		}
-		return r.deleteAgentgatewayParameters(ctx, namespace)
+		return nil
 	}
 
 	gw := &gwv1.Gateway{}
@@ -215,11 +239,23 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, gw, func() error {
 		desired := mcp.Gateway(namespace)
 		gw.Spec = desired.Spec
-		gw.OwnerReferences = gatewayOwnerReferences(owners)
+		refs := make([]metav1.OwnerReference, 0, len(owners))
+		for _, env := range owners {
+			refs = append(refs, metav1.OwnerReference{
+				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Environment",
+				Name:       env.Name,
+				UID:        env.UID,
+			})
+		}
+		gw.OwnerReferences = refs
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("reconcile gateway: %w", err)
+	}
+	if err := r.reconcileGatewayNetworkPolicy(ctx, namespace, owners); err != nil {
+		return err
 	}
 	return r.ensureAgentgatewayParameters(ctx, namespace)
 }
@@ -377,30 +413,88 @@ func (r *Reconciler) gatewayOwners(ctx context.Context, namespace string) ([]cla
 	return owners, nil
 }
 
-func gatewayOwnerReferences(envs []clawarmorv1alpha1.Environment) []metav1.OwnerReference {
-	refs := make([]metav1.OwnerReference, 0, len(envs))
-	for _, env := range envs {
-		refs = append(refs, metav1.OwnerReference{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
-			Kind:       "Environment",
-			Name:       env.Name,
-			UID:        env.UID,
-		})
-	}
-	return refs
-}
-
-func (r *Reconciler) deleteGateway(ctx context.Context, namespace string) error {
-	gw := &gwv1.Gateway{
+func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespace string, owners []clawarmorv1alpha1.Environment) error {
+	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
 			Name:      mcp.GatewayName,
+			Namespace: namespace,
 		},
 	}
-	if err := r.Delete(ctx, gw); err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("delete namespace gateway: %w", err)
+
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
+		refs := make([]metav1.OwnerReference, 0, len(owners))
+		for _, env := range owners {
+			refs = append(refs, metav1.OwnerReference{
+				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Environment",
+				Name:       env.Name,
+				UID:        env.UID,
+			})
+		}
+		policy.OwnerReferences = refs
+		policy.Spec = gatewayNetworkPolicySpec(namespace)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile gateway network policy: %w", err)
 	}
 	return nil
+}
+
+func gatewayNetworkPolicySpec(namespace string) *ciliumapi.Rule {
+	return &ciliumapi.Rule{
+		EndpointSelector: ciliumapi.NewESFromLabels(
+			ciliumlabels.NewLabel(
+				"io.kubernetes.pod.namespace",
+				namespace,
+				ciliumlabels.LabelSourceK8s,
+			),
+			ciliumlabels.NewLabel(
+				"app.kubernetes.io/name",
+				mcp.GatewayName,
+				ciliumlabels.LabelSourceK8s,
+			),
+			ciliumlabels.NewLabel(
+				"app.kubernetes.io/instance",
+				mcp.GatewayName,
+				ciliumlabels.LabelSourceK8s,
+			),
+			ciliumlabels.NewLabel(
+				"gateway.networking.k8s.io/gateway-name",
+				mcp.GatewayName,
+				ciliumlabels.LabelSourceK8s,
+			),
+		),
+		Ingress: []ciliumapi.IngressRule{{
+			IngressCommonRule: ciliumapi.IngressCommonRule{
+				FromEndpoints: []ciliumapi.EndpointSelector{
+					ciliumapi.NewESFromLabels(
+						ciliumlabels.NewLabel(
+							"io.kubernetes.pod.namespace",
+							namespace,
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"app.kubernetes.io/name",
+							"clawarmor-agent",
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"clawarmor.accuknox.com/managed",
+							"true",
+							ciliumlabels.LabelSourceK8s,
+						),
+					),
+				},
+			},
+			ToPorts: []ciliumapi.PortRule{{
+				Ports: []ciliumapi.PortProtocol{{
+					Port:     "80",
+					Protocol: ciliumapi.ProtoTCP,
+				}},
+			}},
+		}},
+	}
 }
 
 func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace string) error {

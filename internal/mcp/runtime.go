@@ -81,9 +81,10 @@ func ParseTarget(conn *clawarmorv1alpha1.MCPConnection) (Target, error) {
 	}, nil
 }
 
-// SharedAuthPolicyName returns the shared auth policy name for one connection.
-func SharedAuthPolicyName(name string) string {
-	return dnsLabel("mcpconn-" + name + "-auth")
+// EnvironmentAuthPolicyName returns the auth policy name for one environment
+// and connection pair.
+func EnvironmentAuthPolicyName(environmentName, connectionName string) string {
+	return dnsLabel("env-" + environmentName + "-mcpconn-" + connectionName + "-auth")
 }
 
 // ExtAuthOpenBaoName returns the shared OpenBao role and policy name.

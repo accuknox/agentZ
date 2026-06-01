@@ -137,7 +137,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	requiresExtAuth := conn.Spec.Auth != nil && len(refs) > 0
 	if len(refs) == 0 {
-		err = r.deleteSharedRuntime(ctx, conn)
+		err = r.deleteAuthPolicies(ctx, conn)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -169,7 +169,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	policy, err := r.reconcileSharedAuthPolicy(ctx, conn, refs)
+	policy, err := r.reconcileAuthPolicies(ctx, conn, refs)
 	if err != nil {
 		statusErr := r.updateStatus(
 			ctx,
@@ -183,7 +183,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("update degraded status: %w", statusErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("reconcile shared auth policy: %w", err)
+		return ctrl.Result{}, fmt.Errorf("reconcile auth policies: %w", err)
 	}
 
 	err = r.updateStatus(
@@ -242,88 +242,108 @@ func (r *MCPConnectionReconciler) referencingEnvironments(ctx context.Context, n
 	return envs.Items, nil
 }
 
-func (r *MCPConnectionReconciler) reconcileSharedAuthPolicy(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, refs []clawarmorv1alpha1.Environment) (*clawarmorv1alpha1.MCPConnectionManagedResourceRef, error) {
-	client := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace)
-	name := mcp.SharedAuthPolicyName(conn.Name)
+func (r *MCPConnectionReconciler) reconcileAuthPolicies(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, refs []clawarmorv1alpha1.Environment) (*clawarmorv1alpha1.MCPConnectionManagedResourceRef, error) {
+	policies := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace)
+	namespaceEnvs := &clawarmorv1alpha1.EnvironmentList{}
+	err := r.List(ctx, namespaceEnvs, client.InNamespace(conn.Namespace))
+	if err != nil {
+		return nil, fmt.Errorf("list namespace environments: %w", err)
+	}
 
 	if conn.Spec.Auth == nil {
-		err := client.Delete(ctx, name, metav1.DeleteOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("delete auth policy: %w", err)
+		for _, env := range namespaceEnvs.Items {
+			name := mcp.EnvironmentAuthPolicyName(env.Name, conn.Name)
+			err := policies.Delete(ctx, name, metav1.DeleteOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				return nil, fmt.Errorf("delete auth policy %q: %w", name, err)
+			}
 		}
 		return nil, nil
 	}
 
-	obj, err := client.Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("get auth policy: %w", err)
-		}
-		obj = &agentgatewayv1alpha1.AgentgatewayPolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: conn.Namespace,
-			},
-		}
-	}
-
-	targetRefs := make([]agentgatewayshared.LocalPolicyTargetReferenceWithSectionName, 0, len(refs))
+	activeEnvNames := make(map[string]struct{}, len(refs))
 	for _, env := range refs {
-		section := gwv1.SectionName(conn.Name)
-		targetRefs = append(targetRefs, agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{
-			LocalPolicyTargetReference: agentgatewayshared.LocalPolicyTargetReference{
-				Group: "agentgateway.dev",
-				Kind:  "AgentgatewayBackend",
-				Name:  gwv1.ObjectName(mcp.EnvironmentBackendName(env.Name)),
-			},
-			SectionName: &section,
-		})
+		activeEnvNames[env.Name] = struct{}{}
 	}
-	if len(targetRefs) == 0 {
-		err := client.Delete(ctx, name, metav1.DeleteOptions{})
+	for _, env := range namespaceEnvs.Items {
+		if _, ok := activeEnvNames[env.Name]; ok {
+			continue
+		}
+		name := mcp.EnvironmentAuthPolicyName(env.Name, conn.Name)
+		err := policies.Delete(ctx, name, metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("delete auth policy without targets: %w", err)
+			return nil, fmt.Errorf("delete stale auth policy %q: %w", name, err)
 		}
-		return nil, nil
 	}
 
-	obj.Spec = agentgatewayv1alpha1.AgentgatewayPolicySpec{
-		TargetRefs: targetRefs,
-		Backend: &agentgatewayv1alpha1.BackendFull{
-			ExtAuth: &agentgatewayv1alpha1.ExtAuth{
-				BackendRef: &gwv1.BackendObjectReference{
-					Name: gwv1.ObjectName(mcp.ExtAuthServiceName),
-					Port: new(mcp.ExtAuthPort),
+	var managedRef *clawarmorv1alpha1.MCPConnectionManagedResourceRef
+	for _, env := range refs {
+		name := mcp.EnvironmentAuthPolicyName(env.Name, conn.Name)
+		obj, err := policies.Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			if !apierrors.IsNotFound(err) {
+				return nil, fmt.Errorf("get auth policy %q: %w", name, err)
+			}
+			obj = &agentgatewayv1alpha1.AgentgatewayPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: conn.Namespace,
 				},
-				GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
-					ContextExtensions: map[string]string{
-						"clawarmor.namespace":      conn.Namespace,
-						"clawarmor.mcp_connection": conn.Name,
+			}
+		}
+
+		section := gwv1.SectionName(conn.Name)
+		obj.Spec = agentgatewayv1alpha1.AgentgatewayPolicySpec{
+			TargetRefs: []agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agentgatewayshared.LocalPolicyTargetReference{
+					Group: "agentgateway.dev",
+					Kind:  "AgentgatewayBackend",
+					Name:  gwv1.ObjectName(mcp.EnvironmentBackendName(env.Name)),
+				},
+				SectionName: &section,
+			}},
+			Backend: &agentgatewayv1alpha1.BackendFull{
+				ExtAuth: &agentgatewayv1alpha1.ExtAuth{
+					BackendRef: &gwv1.BackendObjectReference{
+						Name: gwv1.ObjectName(mcp.ExtAuthServiceName),
+						Port: new(mcp.ExtAuthPort),
 					},
-					RequestMetadata: map[string]agentgatewayshared.CELExpression{
-						"clawarmor.namespace":      agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
-						"clawarmor.mcp_connection": agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Name)),
+					GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
+						ContextExtensions: map[string]string{
+							"clawarmor.namespace":      conn.Namespace,
+							"clawarmor.environment":    env.Name,
+							"clawarmor.mcp_connection": conn.Name,
+						},
+						RequestMetadata: map[string]agentgatewayshared.CELExpression{
+							"clawarmor.namespace":      agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
+							"clawarmor.environment":    agentgatewayshared.CELExpression(fmt.Sprintf("%q", env.Name)),
+							"clawarmor.mcp_connection": agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Name)),
+						},
 					},
 				},
 			},
-		},
-	}
-
-	if err := ctrl.SetControllerReference(conn, obj, r.Scheme); err != nil {
-		return nil, fmt.Errorf("set auth policy owner: %w", err)
-	}
-
-	if obj.CreationTimestamp.IsZero() {
-		if _, err := client.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
-			return nil, fmt.Errorf("create auth policy: %w", err)
 		}
-	} else {
-		if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
-			return nil, fmt.Errorf("update auth policy: %w", err)
+
+		if err := ctrl.SetControllerReference(conn, obj, r.Scheme); err != nil {
+			return nil, fmt.Errorf("set auth policy owner: %w", err)
+		}
+
+		if obj.CreationTimestamp.IsZero() {
+			if _, err := policies.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
+				return nil, fmt.Errorf("create auth policy %q: %w", name, err)
+			}
+		} else {
+			if _, err := policies.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
+				return nil, fmt.Errorf("update auth policy %q: %w", name, err)
+			}
+		}
+
+		if managedRef == nil {
+			managedRef = mcp.ManagedRef(conn.Namespace, name)
 		}
 	}
 
-	return mcp.ManagedRef(conn.Namespace, name), nil
+	return managedRef, nil
 }
 
 func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, state clawarmorv1alpha1.MCPConnectionState, authRef *clawarmorv1alpha1.MCPConnectionManagedResourceRef, extAuth *extAuthStatus, extAuthRequired bool, recErr error) error {
@@ -348,18 +368,18 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawar
 		ready := metav1.ConditionFalse
 		degraded := metav1.ConditionFalse
 		readyReason := reasonAccepted
-		readyMessage := "Shared MCP runtime is accepted"
+		readyMessage := "MCP runtime is accepted"
 		degradedReason := reasonAccepted
 		degradedMessage := "No MCP runtime failure detected"
 		if state == clawarmorv1alpha1.MCPConnectionStateReady {
 			ready = metav1.ConditionTrue
 			readyReason = reasonReady
-			readyMessage = "Shared MCP runtime is ready"
+			readyMessage = "MCP runtime is ready"
 		}
 		if recErr != nil || state == clawarmorv1alpha1.MCPConnectionStateDegraded {
 			degraded = metav1.ConditionTrue
 			degradedReason = reasonDegraded
-			degradedMessage = "Shared MCP runtime reconcile failed"
+			degradedMessage = "MCP runtime reconcile failed"
 			if recErr != nil {
 				degradedMessage = recErr.Error()
 			}
@@ -390,21 +410,21 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawar
 			Type:               extAuthConditionType,
 			Status:             metav1.ConditionFalse,
 			Reason:             reasonAccepted,
-			Message:            "Shared ext auth runtime is not required",
+			Message:            "Ext auth runtime is not required",
 			ObservedGeneration: current.Generation,
 		}
 		if extAuth != nil && extAuth.ready {
 			extAuthCondition.Status = metav1.ConditionTrue
 			extAuthCondition.Reason = reasonReady
-			extAuthCondition.Message = "Shared ext auth runtime is ready"
+			extAuthCondition.Message = "Ext auth runtime is ready"
 		}
 		if extAuth != nil && !extAuth.ready {
 			extAuthCondition.Reason = "DeploymentNotReady"
-			extAuthCondition.Message = "Shared ext auth runtime is not ready"
+			extAuthCondition.Message = "Ext auth runtime is not ready"
 		}
 		if extAuthRequired && extAuth == nil {
 			extAuthCondition.Reason = reasonDegraded
-			extAuthCondition.Message = "Shared ext auth runtime is unavailable"
+			extAuthCondition.Message = "Ext auth runtime is unavailable"
 		}
 		current.Status.SetCondition(extAuthCondition)
 
@@ -427,21 +447,28 @@ func resolveAuthMode(auth *clawarmorv1alpha1.MCPConnectionAuth) string {
 	return "None"
 }
 
-func (r *MCPConnectionReconciler) deleteSharedRuntime(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
-	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace).Delete(
-		ctx,
-		mcp.SharedAuthPolicyName(conn.Name),
-		metav1.DeleteOptions{},
-	)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("delete shared auth policy: %w", err)
+func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
+	refs, err := r.referencingEnvironments(ctx, conn.Namespace, conn.Name)
+	if err != nil {
+		return fmt.Errorf("list referencing environments for auth policy cleanup: %w", err)
+	}
+	for _, env := range refs {
+		name := mcp.EnvironmentAuthPolicyName(env.Name, conn.Name)
+		err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace).Delete(
+			ctx,
+			name,
+			metav1.DeleteOptions{},
+		)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete auth policy %q: %w", name, err)
+		}
 	}
 
 	return nil
 }
 
 func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
-	if err := r.deleteSharedRuntime(ctx, conn); err != nil {
+	if err := r.deleteAuthPolicies(ctx, conn); err != nil {
 		return err
 	}
 

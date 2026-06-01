@@ -42,17 +42,18 @@ const (
 	// DefaultNamespace is the default namespace for MCP resources.
 	DefaultNamespace = "default"
 
-	managedLabelKey      = "clawarmor.accuknox.com/managed"
-	managedLabelValue    = "true"
-	agentLabelKey        = "clawarmor.accuknox.com/agent"
-	appNameLabelKey      = "app.kubernetes.io/name"
-	appNameAgent         = "clawarmor-agent"
-	sessionHeaderName    = "x-opencode-session-id"
-	contextNamespaceKey  = "clawarmor.namespace"
-	contextConnectionKey = "clawarmor.mcp_connection"
-	kubeRequestTimeout   = 5 * time.Second
-	grpcShutdownTimeout  = 15 * time.Second
-	httpClientTimeout    = 15 * time.Second
+	managedLabelKey       = "clawarmor.accuknox.com/managed"
+	managedLabelValue     = "true"
+	agentLabelKey         = "clawarmor.accuknox.com/agent"
+	appNameLabelKey       = "app.kubernetes.io/name"
+	appNameAgent          = "clawarmor-agent"
+	sessionHeaderName     = "x-opencode-session-id"
+	contextNamespaceKey   = "clawarmor.namespace"
+	contextEnvironmentKey = "clawarmor.environment"
+	contextConnectionKey  = "clawarmor.mcp_connection"
+	kubeRequestTimeout    = 5 * time.Second
+	grpcShutdownTimeout   = 15 * time.Second
+	httpClientTimeout     = 15 * time.Second
 )
 
 var errCredentialUnavailable = errors.New("credential unavailable")
@@ -273,6 +274,18 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	}
 	attrs.connection = connName
 
+	environmentName := strings.TrimSpace(checkAttrs.GetContextExtensions()[contextEnvironmentKey])
+	if environmentName == "" {
+		return denyDecision(
+			codes.Unavailable,
+			typev3.StatusCode_ServiceUnavailable,
+			"mcp environment context is missing",
+			"missing_environment_context",
+			slog.LevelError,
+		), attrs
+	}
+	attrs.environment = environmentName
+
 	if ns := strings.TrimSpace(checkAttrs.GetContextExtensions()[contextNamespaceKey]); ns != "" {
 		attrs.namespace = ns
 	}
@@ -303,7 +316,13 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	}
 	attrs.sourceIP = sourceIP
 
-	agentName, environmentName, err := s.authorizeSourceAgent(ctx, attrs.namespace, attrs.sourceIP, connName)
+	agentName, err := s.authorizeSourceAgent(
+		ctx,
+		attrs.namespace,
+		attrs.sourceIP,
+		environmentName,
+		connName,
+	)
 	if err != nil {
 		if errors.Is(err, errCredentialUnavailable) {
 			return denyDecision(
@@ -323,7 +342,6 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		), attrs
 	}
 	attrs.agent = agentName
-	attrs.environment = environmentName
 
 	conn, err := s.loadConnection(ctx, attrs.namespace, connName)
 	if err != nil {
@@ -350,15 +368,15 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	return allowDecision(header.name, header.value), attrs
 }
 
-func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, connName string) (string, string, error) {
+func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, environmentName, connName string) (string, error) {
 	pod, err := s.lookupAgentPodByIP(ctx, namespace, sourceIP)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	agentName := strings.TrimSpace(pod.Labels[agentLabelKey])
 	if agentName == "" {
-		return "", "", fmt.Errorf("agent label is missing on pod %s", pod.Name)
+		return "", fmt.Errorf("agent label is missing on pod %s", pod.Name)
 	}
 
 	agentCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
@@ -371,9 +389,9 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 	}
 	if err := s.kube.Get(agentCtx, agentKey, agent); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", "", fmt.Errorf("agent %q does not exist", agentName)
+			return "", fmt.Errorf("agent %q does not exist", agentName)
 		}
-		return "", "", fmt.Errorf(
+		return "", fmt.Errorf(
 			"get agent %q: %w: %w",
 			agentName,
 			err,
@@ -382,9 +400,17 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 	}
 
 	if agent.Spec.EnvironmentRef == nil || strings.TrimSpace(agent.Spec.EnvironmentRef.Name) == "" {
-		return "", "", fmt.Errorf("agent %q has no environment", agentName)
+		return "", fmt.Errorf("agent %q has no environment", agentName)
 	}
-	environmentName := strings.TrimSpace(agent.Spec.EnvironmentRef.Name)
+	agentEnvironmentName := strings.TrimSpace(agent.Spec.EnvironmentRef.Name)
+	if agentEnvironmentName != environmentName {
+		return "", fmt.Errorf(
+			"agent %q is bound to environment %q, not %q",
+			agentName,
+			agentEnvironmentName,
+			environmentName,
+		)
+	}
 
 	envCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
@@ -396,9 +422,9 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 	}
 	if err := s.kube.Get(envCtx, envKey, env); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", "", fmt.Errorf("environment %q does not exist", environmentName)
+			return "", fmt.Errorf("environment %q does not exist", environmentName)
 		}
-		return "", "", fmt.Errorf(
+		return "", fmt.Errorf(
 			"get environment %q: %w: %w",
 			environmentName,
 			err,
@@ -410,10 +436,10 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 		return ref.Name == connName
 	})
 	if !hasConnection {
-		return "", "", fmt.Errorf("environment %q does not include mcp connection %q", environmentName, connName)
+		return "", fmt.Errorf("environment %q does not include mcp connection %q", environmentName, connName)
 	}
 
-	return agentName, environmentName, nil
+	return agentName, nil
 }
 
 func (s *Service) lookupAgentPodByIP(ctx context.Context, namespace, ip string) (*corev1.Pod, error) {

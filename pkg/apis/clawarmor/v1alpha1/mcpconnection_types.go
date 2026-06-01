@@ -186,7 +186,7 @@ type MCPConnectionStatus struct {
 	// +optional
 	State MCPConnectionState `json:"state,omitempty"`
 
-	// ServiceRef identifies the managed Service that fronts the shared upstream
+	// ServiceRef identifies the managed Service that fronts the upstream
 	// connection runtime.
 	// +optional
 	ServiceRef *MCPConnectionManagedResourceRef `json:"serviceRef,omitempty"`
@@ -195,12 +195,12 @@ type MCPConnectionStatus struct {
 	// +optional
 	AuthPolicyRef *MCPConnectionManagedResourceRef `json:"authPolicyRef,omitempty"`
 
-	// ExtAuthServiceRef identifies the shared ext-auth Service for the
+	// ExtAuthServiceRef identifies the ext-auth Service for the
 	// namespace.
 	// +optional
 	ExtAuthServiceRef *MCPConnectionManagedResourceRef `json:"extAuthServiceRef,omitempty"`
 
-	// ExtAuthDeploymentRef identifies the shared ext-auth Deployment for the
+	// ExtAuthDeploymentRef identifies the ext-auth Deployment for the
 	// namespace.
 	// +optional
 	ExtAuthDeploymentRef *MCPConnectionManagedResourceRef `json:"extAuthDeploymentRef,omitempty"`

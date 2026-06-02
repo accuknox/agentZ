@@ -84,7 +84,7 @@ export function McpTable({
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id] ?? ""}`}
+                    className={`h-8 ${columnClassName[header.column.id] ?? "px-4"}`}
                   >
                     {header.isPlaceholder
                       ? null
@@ -101,7 +101,7 @@ export function McpTable({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={`h-11 px-4 py-2 align-middle ${columnClassName[cell.column.id] ?? ""}`}
+                      className={`h-11 py-2 align-middle ${columnClassName[cell.column.id] ?? "px-4"}`}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>

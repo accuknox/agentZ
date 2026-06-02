@@ -39,6 +39,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { authModeOf } from "@/lib/mcp"
 import type { DeleteMcpFormState, McpFormState } from "@/data/mcp.actions"
+import { findMcpServerByURL, mcpFallbackIcon } from "./catalog"
 import { McpSheet } from "./mcp-sheet"
 
 const mcpStatusMeta = {
@@ -87,7 +88,7 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      cell: ({ row }) => <McpNameCell connection={row.original} />,
     },
     {
       id: "auth_mode",
@@ -140,6 +141,18 @@ export function createMcpColumns(actions: {
       ),
     },
   ]
+}
+
+function McpNameCell({ connection }: { connection: McpConnection }) {
+  const server = findMcpServerByURL(connection.endpoint.url)
+  const Icon = server?.icon ?? mcpFallbackIcon
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 truncate font-medium">{connection.name}</span>
+    </div>
+  )
 }
 
 function McpStatusBadge({ connection }: { connection: McpConnection }) {

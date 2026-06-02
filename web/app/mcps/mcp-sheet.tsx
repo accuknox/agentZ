@@ -5,8 +5,8 @@ import Fuse from "fuse.js"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
-import { Check, ChevronDown, Globe, RefreshCw, Settings2, Trash2, X } from "lucide-react"
-import { mcpServers, type McpServer } from "@/app/mcps/catalog"
+import { Check, ChevronDown, RefreshCw, Settings2, Trash2, X } from "lucide-react"
+import { findMcpServerByURL, mcpFallbackIcon, mcpServers, type McpServer } from "@/app/mcps/catalog"
 import type { McpConnection } from "@/lib/gateway/client"
 import {
   Accordion,
@@ -71,15 +71,35 @@ const defaultFormValues: McpFormInput = {
   oauth_token_endpoint: "",
   oauth_registration_endpoint: "",
   oauth_resource: "",
-  oauth_location_header_name: "",
+  oauth_location_header_name: "Authorization",
   oauth_location_header_prefix: "Bearer",
-  bearer_location_header_name: "",
+  bearer_location_header_name: "Authorization",
   bearer_location_header_prefix: "Bearer",
 }
 
 const clientCredentialsAccordionItem = "client-credentials"
 const advancedAccordionItem = "advanced"
 const initialServerResults = 8
+const oauthAdvancedFieldNames = [
+  "oauth_issuer",
+  "oauth_authorization_endpoint",
+  "oauth_token_endpoint",
+  "oauth_registration_endpoint",
+  "oauth_resource",
+  "oauth_scopes",
+  "oauth_location_header_name",
+  "oauth_location_header_prefix",
+] as const
+const directServerErrorFields = [
+  "name",
+  "endpoint_url",
+  "bearer_token",
+  "oauth_client_id",
+  "oauth_client_secret",
+  ...oauthAdvancedFieldNames,
+  "bearer_location_header_name",
+  "bearer_location_header_prefix",
+] as const
 const generalErrorFields = [
   "name",
   "endpoint_url",
@@ -97,6 +117,31 @@ const generalErrorFields = [
   "bearer_location_header_name",
   "bearer_location_header_prefix",
 ] as const
+const scalarFormDataFields = [
+  "mode",
+  "current_name",
+  "current_auth_mode",
+  "name",
+  "endpoint_url",
+  "endpoint_timeout",
+  "auth_mode",
+  "bearer_token",
+  "oauth_scopes",
+  "oauth_client_id",
+  "oauth_client_secret",
+  "oauth_issuer",
+  "oauth_authorization_endpoint",
+  "oauth_token_endpoint",
+  "oauth_registration_endpoint",
+  "oauth_resource",
+  "oauth_location_header_name",
+  "oauth_location_header_prefix",
+  "bearer_location_header_name",
+  "bearer_location_header_prefix",
+] as const
+
+type OauthAdvancedFieldName = (typeof oauthAdvancedFieldNames)[number]
+type DirectServerErrorField = (typeof directServerErrorFields)[number]
 
 type DiscoveryIconState =
   | { status: "idle" }
@@ -169,24 +214,10 @@ function applyServerErrors(form: ReturnType<typeof useForm<McpFormInput>>, state
 
   for (const error of state.error.errors) {
     const field = error.field
-    if (
-      field === "name" ||
-      field === "endpoint_url" ||
-      field === "bearer_token" ||
-      field === "oauth_location_header_name" ||
-      field === "oauth_location_header_prefix" ||
-      field === "bearer_location_header_name" ||
-      field === "bearer_location_header_prefix"
-    ) {
-      form.setError(field, {
-        type: "server",
-        message: error.message,
-      })
-      continue
-    }
 
-    if (field === "oauth_client_id" || field === "oauth_client_secret") {
-      form.setError(field, {
+    if (directServerErrorFields.includes(field as DirectServerErrorField)) {
+      const directServerErrorField = field as DirectServerErrorField
+      form.setError(directServerErrorField, {
         type: "server",
         message: error.message,
       })
@@ -246,6 +277,21 @@ function generalErrorMessage(error: McpFormState["error"]) {
   return hasGeneralError ? error.message : undefined
 }
 
+function formDataFromValues(values: McpFormInput) {
+  const formData = new FormData()
+
+  for (const fieldName of scalarFormDataFields) {
+    formData.set(fieldName, values[fieldName] ?? "")
+  }
+
+  for (const header of values.extra_headers) {
+    formData.append("extra_header_key", header.key)
+    formData.append("extra_header_value", header.value)
+  }
+
+  return formData
+}
+
 export function McpSheet({
   mode,
   connection,
@@ -281,6 +327,26 @@ export function McpSheet({
     name: "endpoint_url",
     defaultValue: defaultValues.endpoint_url,
   })
+  const nameValue = useWatch({
+    control: form.control,
+    name: "name",
+    defaultValue: defaultValues.name,
+  })
+  const bearerTokenValue = useWatch({
+    control: form.control,
+    name: "bearer_token",
+    defaultValue: defaultValues.bearer_token,
+  })
+  const oauthClientIDValue = useWatch({
+    control: form.control,
+    name: "oauth_client_id",
+    defaultValue: defaultValues.oauth_client_id,
+  })
+  const oauthClientSecretValue = useWatch({
+    control: form.control,
+    name: "oauth_client_secret",
+    defaultValue: defaultValues.oauth_client_secret,
+  })
   const { errors } = form.formState
 
   const [oauthPopupFlowId, setOauthPopupFlowId] = React.useState<string>()
@@ -300,7 +366,7 @@ export function McpSheet({
   // derive the effective accordion state during render. Auto-expand the client
   // credentials section when there are validation errors for OAuth
   // client-id/secret fields.
-  const expandedAccordions = React.useMemo(() => {
+  const expandedAccordions = (() => {
     if (authMode !== "oauth") {
       return userExpandedAccordions
     }
@@ -309,21 +375,34 @@ export function McpSheet({
       Boolean(errors.oauth_client_id) ||
       Boolean(errors.oauth_client_secret) ||
       oauthFlowError?.includes("client credentials") === true
+    const hasAdvancedError = oauthAdvancedFieldNames.some((fieldName) => Boolean(errors[fieldName]))
+    const nextExpandedAccordions = new Set(userExpandedAccordions)
 
-    if (!hasClientCredentialError) {
-      return userExpandedAccordions
+    if (hasClientCredentialError) {
+      nextExpandedAccordions.add(clientCredentialsAccordionItem)
     }
 
-    return userExpandedAccordions.includes(clientCredentialsAccordionItem)
-      ? userExpandedAccordions
-      : [...userExpandedAccordions, clientCredentialsAccordionItem]
-  }, [
-    userExpandedAccordions,
-    authMode,
-    errors.oauth_client_id,
-    errors.oauth_client_secret,
-    oauthFlowError,
-  ])
+    if (hasAdvancedError) {
+      nextExpandedAccordions.add(advancedAccordionItem)
+    }
+
+    return [...nextExpandedAccordions]
+  })()
+  const oauthRequiresClientCredentials =
+    Boolean(oauthClientIDValue?.trim()) || Boolean(oauthClientSecretValue?.trim())
+  const oauthHasAdvancedError = oauthAdvancedFieldNames.some((fieldName) =>
+    Boolean(errors[fieldName])
+  )
+  const canSubmit =
+    nameValue.trim() &&
+    endpointURL.trim() &&
+    (authMode === "bearer"
+      ? Boolean(bearerTokenValue?.trim())
+      : oauthRequiresClientCredentials
+        ? Boolean(oauthClientIDValue?.trim()) &&
+          Boolean(oauthClientSecretValue?.trim()) &&
+          !oauthHasAdvancedError
+        : !oauthHasAdvancedError)
   const [submitError, setSubmitError] = React.useState<string>()
   const [successMessage, setSuccessMessage] = React.useState<string>()
   const [submitted, setSubmitted] = React.useState(false)
@@ -386,11 +465,8 @@ export function McpSheet({
   }, [defaultValues, form, open])
 
   const deferredEndpointURL = React.useDeferredValue(endpointURL)
-  const selectedServer = React.useMemo(
-    () => mcpServers.find((server) => server.mcpUrl === endpointURL),
-    [endpointURL]
-  )
-  const SelectedServerIcon = selectedServer?.icon
+  const selectedServer = React.useMemo(() => findMcpServerByURL(endpointURL), [endpointURL])
+  const SelectedServerIcon = selectedServer?.icon ?? mcpFallbackIcon
   const serverResults = React.useMemo(() => {
     const query = deferredEndpointURL.trim()
     const catalogResults = query
@@ -400,7 +476,7 @@ export function McpSheet({
       kind: "catalog",
       server,
     }))
-    const hasExactCatalogURL = mcpServers.some((server) => server.mcpUrl === query)
+    const hasExactCatalogURL = findMcpServerByURL(query) !== undefined
 
     if (query) {
       let customURL: URL | undefined
@@ -422,9 +498,6 @@ export function McpSheet({
   }, [deferredEndpointURL])
 
   function onSheetOpenChange(nextOpen: boolean) {
-    if (nextOpen) {
-      setSubmitted(false)
-    }
     if (!nextOpen) {
       cleanupPopupFlow({
         closePopup: true,
@@ -440,92 +513,97 @@ export function McpSheet({
       setSuccessMessage(undefined)
       setSubmitted(false)
       setServerPickerOpen(false)
+      setUserExpandedAccordions([])
     }
     onOpenChangeAction(nextOpen)
   }
 
-  function openOAuthPopup(oauth: { flowId: string; url: string }) {
-    setOauthFlowError(undefined)
-    setSuccessMessage(undefined)
-    let completed = false
+  const openOAuthPopup = React.useCallback(
+    (oauth: { flowId: string; url: string }) => {
+      setOauthFlowError(undefined)
+      setSuccessMessage(undefined)
+      let completed = false
 
-    function finishPopupFlow() {
-      cleanupPopupFlow()
-    }
-
-    function acknowledgePopup(flowId: string) {
-      const ack: OAuthPopupMessage = {
-        source: oauthWindowMessageSource,
-        kind: "ack",
-        flowId,
+      function finishPopupFlow() {
+        cleanupPopupFlow()
       }
-      broadcastChannelRef.current?.postMessage(ack)
-    }
 
-    function handlePopupMessage(data: unknown) {
-      const message = parseOAuthPopupMessage(data)
-      if (!message || message.kind !== "result" || message.flowId !== oauth.flowId) {
+      function acknowledgePopup(flowId: string) {
+        const ack: OAuthPopupMessage = {
+          source: oauthWindowMessageSource,
+          kind: "ack",
+          flowId,
+        }
+        broadcastChannelRef.current?.postMessage(ack)
+      }
+
+      function handlePopupMessage(data: unknown) {
+        const message = parseOAuthPopupMessage(data)
+        if (!message || message.kind !== "result" || message.flowId !== oauth.flowId) {
+          return
+        }
+
+        completed = true
+        acknowledgePopup(message.flowId)
+        finishPopupFlow()
+
+        if (message.status === "success") {
+          setOauthFlowError(undefined)
+          setSuccessMessage(message.message)
+          setSubmitted(true)
+          startTransition(() => {
+            router.refresh()
+          })
+          return
+        }
+
+        setOauthFlowError(message.message)
+      }
+
+      function onWindowMessage(event: MessageEvent<unknown>) {
+        if (event.origin !== window.location.origin) {
+          return
+        }
+        handlePopupMessage(event.data)
+      }
+
+      messageHandlerRef.current = onWindowMessage
+      window.addEventListener("message", onWindowMessage)
+      if (typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel(oauthBroadcastChannelName)
+        channel.onmessage = (event: MessageEvent<OAuthPopupMessage>) =>
+          handlePopupMessage(event.data)
+        broadcastChannelRef.current = channel
+      }
+
+      const popup = window.open(
+        oauth.url,
+        `mcp-oauth-${oauth.flowId}`,
+        "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes"
+      )
+      if (!popup) {
+        finishPopupFlow()
+        setOauthFlowError("OAuth popup was blocked by the browser. Allow popups and try again.")
         return
       }
 
-      completed = true
-      acknowledgePopup(message.flowId)
-      finishPopupFlow()
+      popupRef.current = popup
+      setOauthPopupFlowId(oauth.flowId)
 
-      if (message.status === "success") {
-        setOauthFlowError(undefined)
-        setSuccessMessage(message.message)
-        setSubmitted(true)
-        startTransition(() => {
-          router.refresh()
-        })
-        return
-      }
-
-      setOauthFlowError(message.message)
-    }
-
-    function onWindowMessage(event: MessageEvent<unknown>) {
-      if (event.origin !== window.location.origin) {
-        return
-      }
-      handlePopupMessage(event.data)
-    }
-
-    messageHandlerRef.current = onWindowMessage
-    window.addEventListener("message", onWindowMessage)
-    if (typeof BroadcastChannel !== "undefined") {
-      const channel = new BroadcastChannel(oauthBroadcastChannelName)
-      channel.onmessage = (event: MessageEvent<OAuthPopupMessage>) => handlePopupMessage(event.data)
-      broadcastChannelRef.current = channel
-    }
-
-    const popup = window.open(
-      oauth.url,
-      `mcp-oauth-${oauth.flowId}`,
-      "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes"
-    )
-    if (!popup) {
-      finishPopupFlow()
-      setOauthFlowError("OAuth popup was blocked by the browser. Allow popups and try again.")
-      return
-    }
-
-    popupRef.current = popup
-    setOauthPopupFlowId(oauth.flowId)
-
-    popupPollRef.current = window.setInterval(() => {
-      if (!popupRef.current || !popupRef.current.closed) {
-        return
-      }
-      if (completed) {
-        return
-      }
-      finishPopupFlow()
-      cancelPendingOAuthFlow()
-      setOauthFlowError("OAuth popup was closed before authentication completed.")
-    }, 400)
-  }
+      popupPollRef.current = window.setInterval(() => {
+        if (!popupRef.current || !popupRef.current.closed) {
+          return
+        }
+        if (completed) {
+          return
+        }
+        finishPopupFlow()
+        cancelPendingOAuthFlow()
+        setOauthFlowError("OAuth popup was closed before authentication completed.")
+      }, 400)
+    },
+    [cancelPendingOAuthFlow, cleanupPopupFlow, router]
+  )
 
   async function refreshOAuthDiscovery() {
     const isValid = await form.trigger("endpoint_url")
@@ -619,47 +697,50 @@ export function McpSheet({
     }
   }
 
-  async function submitAction(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const formElement = event.currentTarget
-    const isValid = await form.trigger()
-    if (!isValid) {
-      return
-    }
+  const submitValues = React.useCallback(
+    async (values: McpFormInput) => {
+      setOauthFlowError(undefined)
+      setSubmitError(undefined)
+      form.clearErrors()
 
-    setOauthFlowError(undefined)
-    setSubmitError(undefined)
-    form.clearErrors()
+      const formData = formDataFromValues(values)
+      startTransition(() => {
+        void (async () => {
+          const nextState = await submitMcpAction({}, formData)
+          if (!mountedRef.current) {
+            return
+          }
 
-    const formData = new FormData(formElement)
-    startTransition(() => {
-      void (async () => {
-        const nextState = await submitMcpAction({}, formData)
-        if (!mountedRef.current) {
-          return
-        }
+          applyServerErrors(form, nextState)
+          if (nextState.error) {
+            setSubmitError(generalErrorMessage(nextState.error))
+            return
+          }
 
-        applyServerErrors(form, nextState)
-        if (nextState.error) {
-          setSubmitError(generalErrorMessage(nextState.error))
-          return
-        }
+          if ("oauth" in nextState && nextState.oauth) {
+            openOAuthPopup(nextState.oauth)
+            return
+          }
 
-        if ("oauth" in nextState && nextState.oauth) {
-          openOAuthPopup(nextState.oauth)
-          return
-        }
-
-        if (nextState.success) {
-          setSubmitted(true)
-          setSubmitError(undefined)
-          setSuccessMessage(nextState.message)
-          form.reset()
-          router.refresh()
-        }
-      })()
-    })
-  }
+          if (nextState.success) {
+            setSubmitted(true)
+            setSubmitError(undefined)
+            setSuccessMessage(nextState.message)
+            form.reset()
+            router.refresh()
+          }
+        })()
+      })
+    },
+    [form, openOAuthPopup, router, submitMcpAction]
+  )
+  const submitAction = React.useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      void form.handleSubmit(submitValues)(event)
+    },
+    [form, submitValues]
+  )
 
   const title = "Connect MCP server"
   const submitLabel =
@@ -683,6 +764,10 @@ export function McpSheet({
       serverPopoverRef.current?.contains(target) === true
     )
   }
+
+  const oauthAdvancedRequiredFields = new Set<OauthAdvancedFieldName>(
+    oauthAdvancedFieldNames.filter((fieldName) => Boolean(errors[fieldName]))
+  )
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
@@ -731,18 +816,6 @@ export function McpSheet({
           </div>
         ) : (
           <form onSubmit={submitAction} className="flex flex-1 flex-col gap-5 px-4 pb-2">
-            <input type="hidden" name="mode" value={mode} />
-            <input type="hidden" name="current_name" value={connection?.name ?? ""} />
-            <input
-              type="hidden"
-              name="current_auth_mode"
-              value={connection ? authModeOf(connection) : "none"}
-            />
-            <input
-              type="hidden"
-              name="endpoint_timeout"
-              value={connection?.endpoint.timeout ?? ""}
-            />
             <FieldGroup>
               <Controller
                 name="name"
@@ -771,25 +844,22 @@ export function McpSheet({
                   name="auth_mode"
                   control={form.control}
                   render={({ field }) => (
-                    <>
-                      <input type="hidden" name={field.name} value={field.value} />
-                      <ButtonGroup>
-                        <Button
-                          type="button"
-                          variant={field.value === "oauth" ? "secondary" : "ghost"}
-                          onClick={() => field.onChange("oauth")}
-                        >
-                          OAuth
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={field.value === "bearer" ? "secondary" : "ghost"}
-                          onClick={() => field.onChange("bearer")}
-                        >
-                          Bearer token
-                        </Button>
-                      </ButtonGroup>
-                    </>
+                    <ButtonGroup>
+                      <Button
+                        type="button"
+                        variant={field.value === "oauth" ? "secondary" : "ghost"}
+                        onClick={() => field.onChange("oauth")}
+                      >
+                        OAuth
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "bearer" ? "secondary" : "ghost"}
+                        onClick={() => field.onChange("bearer")}
+                      >
+                        Bearer token
+                      </Button>
+                    </ButtonGroup>
                   )}
                 />
               </Field>
@@ -802,11 +872,7 @@ export function McpSheet({
                     <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
                       <PopoverAnchor asChild>
                         <div ref={serverFieldRef} className="relative">
-                          {SelectedServerIcon ? (
-                            <SelectedServerIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                          ) : (
-                            <Globe className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                          )}
+                          <SelectedServerIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
                             id="mcp-endpoint-url"
                             name={field.name}
@@ -976,7 +1042,7 @@ export function McpSheet({
                         <div className="flex items-center gap-2">
                           <span>OAuth client credentials</span>
                           <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                            Optional
+                            {oauthRequiresClientCredentials ? "Required" : "Optional"}
                           </span>
                         </div>
                       </AccordionTrigger>
@@ -995,6 +1061,7 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="Client ID"
+                                  required={oauthRequiresClientCredentials}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1017,6 +1084,7 @@ export function McpSheet({
                                   onChange={field.onChange}
                                   type="password"
                                   placeholder="Client secret"
+                                  required={oauthRequiresClientCredentials}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1036,7 +1104,7 @@ export function McpSheet({
                         <div className="flex items-center gap-2">
                           <span>Advanced</span>
                           <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                            Optional
+                            {oauthHasAdvancedError ? "Required" : "Optional"}
                           </span>
                         </div>
                       </AccordionTrigger>
@@ -1055,6 +1123,7 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="https://issuer.example.com"
+                                  required={oauthAdvancedRequiredFields.has("oauth_issuer")}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1076,6 +1145,9 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="https://issuer.example.com/authorize"
+                                  required={oauthAdvancedRequiredFields.has(
+                                    "oauth_authorization_endpoint"
+                                  )}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1097,6 +1169,7 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="https://issuer.example.com/token"
+                                  required={oauthAdvancedRequiredFields.has("oauth_token_endpoint")}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1118,6 +1191,9 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="https://issuer.example.com/register"
+                                  required={oauthAdvancedRequiredFields.has(
+                                    "oauth_registration_endpoint"
+                                  )}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1139,6 +1215,7 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="https://example.com/mcp"
+                                  required={oauthAdvancedRequiredFields.has("oauth_resource")}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1161,6 +1238,7 @@ export function McpSheet({
                                   onChange={field.onChange}
                                   rows={3}
                                   placeholder={"scope:read\nscope:write"}
+                                  required={oauthAdvancedRequiredFields.has("oauth_scopes")}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1182,6 +1260,9 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="Authorization"
+                                  required={oauthAdvancedRequiredFields.has(
+                                    "oauth_location_header_name"
+                                  )}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1203,6 +1284,9 @@ export function McpSheet({
                                   onBlur={field.onBlur}
                                   onChange={field.onChange}
                                   placeholder="Bearer"
+                                  required={oauthAdvancedRequiredFields.has(
+                                    "oauth_location_header_prefix"
+                                  )}
                                   aria-invalid={fieldState.invalid}
                                 />
                                 {fieldState.invalid ? (
@@ -1388,7 +1472,10 @@ export function McpSheet({
               </p>
             ) : null}
             <div className="flex justify-end">
-              <Button type="submit" disabled={isPending || oauthPopupFlowId !== undefined}>
+              <Button
+                type="submit"
+                disabled={!canSubmit || isPending || oauthPopupFlowId !== undefined}
+              >
                 {isPending || oauthPopupFlowId ? <Spinner /> : null}
                 {oauthPopupFlowId
                   ? "Waiting for OAuth"

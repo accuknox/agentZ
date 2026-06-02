@@ -46,6 +46,8 @@ export type McpServer = {
   icon: React.ComponentType<SVGProps<SVGSVGElement>>
 }
 
+export const mcpFallbackIcon = Globe
+
 export const mcpServers = [
   {
     name: "AdisInsight",
@@ -913,3 +915,8 @@ export const mcpServers = [
     icon: Globe,
   },
 ] as const satisfies readonly McpServer[]
+
+// findMcpServerByURL returns the catalog entry for an exact MCP endpoint URL.
+export function findMcpServerByURL(mcpURL: string): McpServer | undefined {
+  return mcpServers.find((server) => server.mcpUrl === mcpURL)
+}

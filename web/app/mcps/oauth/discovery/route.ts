@@ -4,7 +4,7 @@ import {
 } from "@modelcontextprotocol/client"
 import { NextResponse } from "next/server"
 import * as z from "zod"
-import { discoveredOAuthAuth, type StoredOAuthDiscoveryState } from "@/lib/mcp-oauth"
+import { discoveredOAuth, type StoredOAuthDiscoveryState } from "@/lib/mcp-oauth"
 
 const manualDiscoveryMessage =
   "Auto-discovery failed. If the MCP server supports OAuth, please fill in the required fields in advanced section manually."
@@ -80,9 +80,11 @@ export async function POST(request: Request) {
     resourceMetadata,
     authorizationServerMetadata,
   } satisfies StoredOAuthDiscoveryState
-  const oauth = discoveredOAuthAuth(discoveryState)
+  const discovered = discoveredOAuth(discoveryState)
 
   return NextResponse.json({
-    oauth,
+    oauth: discovered.oauth,
+    default_scopes: discovered.defaultScopes,
+    supported_scopes: discovered.supportedScopes,
   })
 }

@@ -2,6 +2,8 @@ import "server-only"
 
 import {
   auth,
+  checkResourceAllowed,
+  discoverAuthorizationServerMetadata,
   discoverOAuthServerInfo,
   OAuthError,
   OAuthErrorCode,
@@ -9,6 +11,7 @@ import {
   type OAuthClientMetadata,
   type OAuthClientProvider,
   type OAuthTokens,
+  resourceUrlFromServerUrl,
 } from "@modelcontextprotocol/client"
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 import * as z from "zod"
@@ -82,7 +85,22 @@ const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
   authMode: z.enum(["bearer", "oauth"]),
   bearerToken: z.string().min(1).optional(),
   oauth: z.object({
+    issuer: z.string().min(1).optional(),
+    authorizationEndpoint: z.string().url().optional(),
+    tokenEndpoint: z.string().url().optional(),
+    registrationEndpoint: z.string().url().optional(),
+    resource: z.string().min(1).optional(),
     scopes: z.array(z.string().min(1)).optional(),
+    location: z
+      .object({
+        header: z
+          .object({
+            name: z.string().min(1),
+            prefix: z.string().min(1).optional(),
+          })
+          .optional(),
+      })
+      .optional(),
     clientId: z.string().min(1).optional(),
     clientSecret: z.string().min(1).optional(),
   }),
@@ -136,6 +154,11 @@ export type PendingOAuthState = {
 
 export type StoredOAuthDiscoveryState = z.infer<typeof oauthDiscoveryStateSchema>
 export type DiscoverOAuthAuthValue = NonNullable<McpConnectionAuth["oauth"]>
+export type OAuthDiscoveryValue = {
+  oauth: DiscoverOAuthAuthValue
+  defaultScopes?: string[]
+  supportedScopes?: string[]
+}
 
 export type OAuthFlowErrorCode =
   | "cookie_too_large"
@@ -255,6 +278,122 @@ function requiresManualClientInput(form: ParsedMcpForm) {
   return !form.oauth.clientId && !form.oauth.clientSecret
 }
 
+function oauthResourceURL(input: {
+  form: ParsedMcpForm
+  serverUrl: string | URL
+  discoveredResource?: string
+}) {
+  if (input.form.oauth.resource) {
+    return new URL(input.form.oauth.resource)
+  }
+
+  if (!input.discoveredResource) {
+    return undefined
+  }
+
+  const defaultResource = resourceUrlFromServerUrl(input.serverUrl)
+  if (
+    !checkResourceAllowed({
+      requestedResource: defaultResource,
+      configuredResource: input.discoveredResource,
+    })
+  ) {
+    throw new Error(
+      `Protected resource ${input.discoveredResource} does not match expected ${defaultResource} (or origin)`
+    )
+  }
+
+  return new URL(input.discoveredResource)
+}
+
+function hasOAuthDiscoveryOverrides(form: ParsedMcpForm) {
+  return Boolean(
+    form.oauth.issuer ||
+    form.oauth.authorizationEndpoint ||
+    form.oauth.tokenEndpoint ||
+    form.oauth.registrationEndpoint ||
+    form.oauth.resource
+  )
+}
+
+function mergeDiscoveryStateWithForm(input: {
+  form: ParsedMcpForm
+  discoveryState: StoredOAuthDiscoveryState
+}): StoredOAuthDiscoveryState {
+  const { form, discoveryState } = input
+  const authorizationServerUrl = form.oauth.issuer ?? discoveryState.authorizationServerUrl
+  const authorizationServerMetadata = discoveryState.authorizationServerMetadata
+    ? {
+        ...discoveryState.authorizationServerMetadata,
+        issuer:
+          form.oauth.issuer ??
+          discoveryState.authorizationServerMetadata.issuer ??
+          authorizationServerUrl,
+        authorization_endpoint:
+          form.oauth.authorizationEndpoint ??
+          discoveryState.authorizationServerMetadata.authorization_endpoint,
+        token_endpoint:
+          form.oauth.tokenEndpoint ?? discoveryState.authorizationServerMetadata.token_endpoint,
+        registration_endpoint:
+          form.oauth.registrationEndpoint ??
+          discoveryState.authorizationServerMetadata.registration_endpoint,
+      }
+    : undefined
+
+  return {
+    ...discoveryState,
+    authorizationServerUrl,
+    authorizationServerMetadata,
+    resourceMetadata: form.oauth.resource
+      ? {
+          ...discoveryState.resourceMetadata,
+          resource: form.oauth.resource,
+        }
+      : discoveryState.resourceMetadata,
+  }
+}
+
+async function effectiveDiscoveryState(input: {
+  form: ParsedMcpForm
+  discoveryState?: StoredOAuthDiscoveryState
+}) {
+  const { form } = input
+  let discoveryState = input.discoveryState
+
+  if (!discoveryState && !hasOAuthDiscoveryOverrides(form)) {
+    return undefined
+  }
+
+  if (!discoveryState) {
+    const authorizationServerUrl = form.oauth.issuer
+    if (!authorizationServerUrl) {
+      return undefined
+    }
+
+    discoveryState = {
+      authorizationServerUrl,
+      authorizationServerMetadata:
+        await discoverAuthorizationServerMetadata(authorizationServerUrl),
+      resourceMetadata: undefined,
+      resourceMetadataUrl: undefined,
+    }
+  }
+
+  if (!discoveryState.authorizationServerMetadata) {
+    discoveryState = {
+      ...discoveryState,
+      authorizationServerMetadata: await discoverAuthorizationServerMetadata(
+        discoveryState.authorizationServerUrl
+      ),
+    }
+  }
+
+  return mergeDiscoveryStateWithForm({
+    form,
+    discoveryState,
+  })
+}
+
 function oauthProvider(input: { form: ParsedMcpForm; runtime: RuntimeOAuthState; state: string }) {
   const metadata = oauthClientMetadata()
 
@@ -297,6 +436,13 @@ function oauthProvider(input: { form: ParsedMcpForm; runtime: RuntimeOAuthState;
     },
     discoveryState() {
       return input.runtime.discoveryState
+    },
+    async validateResourceURL(serverUrl, discoveredResource) {
+      return oauthResourceURL({
+        form: input.form,
+        serverUrl,
+        discoveredResource,
+      })
     },
   }
 
@@ -432,11 +578,21 @@ export async function beginOAuthFlow(
   const state = randomBytes(24).toString("base64url")
   const flowId = randomBytes(18).toString("base64url")
   try {
-    const runtime: RuntimeOAuthState = {}
+    const runtime: RuntimeOAuthState = {
+      discoveryState: await effectiveDiscoveryState({
+        form: operation.form,
+      }),
+    }
     if (requiresManualClientInput(operation.form)) {
-      const discoveryState = await discoverOAuthServerInfo(operation.form.endpoint.url)
-      runtime.discoveryState = discoveryState
-      if (!discoveryState.authorizationServerMetadata?.registration_endpoint) {
+      if (!runtime.discoveryState) {
+        runtime.discoveryState = await discoverOAuthServerInfo(operation.form.endpoint.url)
+      }
+
+      runtime.discoveryState = await effectiveDiscoveryState({
+        form: operation.form,
+        discoveryState: runtime.discoveryState,
+      })
+      if (!runtime.discoveryState?.authorizationServerMetadata?.registration_endpoint) {
         throw new OAuthError(
           OAuthErrorCode.InvalidClient,
           "Client ID and client secret are required because this MCP server does not support dynamic client registration."
@@ -476,10 +632,8 @@ export async function beginOAuthFlow(
       operation,
       state,
       codeVerifier: runtime.codeVerifier,
-      // Only store the minimal discovery identifiers in the cookie.
-      // The library re-discovers the full authorizationServerMetadata
-      // and resourceMetadata during completeOAuthFlow if they are absent
-      // (see @modelcontextprotocol/client authInternal).
+      // Persist only compact discovery identifiers. The callback rebuilds
+      // the effective discovery state from these identifiers plus form values.
       discoveryState: runtime.discoveryState
         ? {
             authorizationServerUrl: runtime.discoveryState.authorizationServerUrl,
@@ -572,7 +726,10 @@ export async function completeOAuthFlow(input: {
     const runtime: RuntimeOAuthState = {
       codeVerifier: input.pending.codeVerifier,
       clientInformation: input.pending.clientInformation,
-      discoveryState: input.pending.discoveryState,
+      discoveryState: await effectiveDiscoveryState({
+        form: input.pending.operation.form,
+        discoveryState: input.pending.discoveryState,
+      }),
     }
     const provider = oauthProvider({
       form: input.pending.operation.form,
@@ -644,8 +801,26 @@ export function discoveredOAuthAuth(
     token_endpoint: discoveryState.authorizationServerMetadata?.token_endpoint,
     registration_endpoint: discoveryState.authorizationServerMetadata?.registration_endpoint,
     resource: discoveryState.resourceMetadata?.resource,
-    scopes: discoveryState.resourceMetadata?.scopes_supported,
     location: mcpAuthLocation(),
+  }
+}
+
+export function discoveredOAuth(discoveryState: StoredOAuthDiscoveryState): OAuthDiscoveryValue {
+  const defaultScopes = discoveryState.resourceMetadata?.scopes_supported
+  const supportedScopeSet = new Set<string>(defaultScopes ?? [])
+  for (const scope of discoveryState.authorizationServerMetadata?.scopes_supported ?? []) {
+    supportedScopeSet.add(scope)
+  }
+
+  let supportedScopes: string[] | undefined
+  if (supportedScopeSet.size > 0) {
+    supportedScopes = Array.from(supportedScopeSet)
+  }
+
+  return {
+    oauth: discoveredOAuthAuth(discoveryState),
+    defaultScopes,
+    supportedScopes,
   }
 }
 
@@ -653,7 +828,7 @@ export function oauthAuthFromPending(
   discoveryState: StoredOAuthDiscoveryState,
   form: ParsedMcpForm
 ): McpConnectionAuth {
-  const discovered = discoveredOAuthAuth(discoveryState)
+  const discovered = discoveredOAuth(discoveryState).oauth
 
   return {
     oauth: {
@@ -662,7 +837,7 @@ export function oauthAuthFromPending(
       token_endpoint: form.oauth.tokenEndpoint ?? discovered.token_endpoint,
       registration_endpoint: form.oauth.registrationEndpoint ?? discovered.registration_endpoint,
       resource: form.oauth.resource ?? discovered.resource,
-      scopes: form.oauth.scopes ?? discovered.scopes,
+      scopes: form.oauth.scopes,
       location: form.oauth.location ?? discovered.location,
     },
   }

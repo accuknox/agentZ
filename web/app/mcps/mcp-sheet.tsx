@@ -33,7 +33,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
@@ -186,7 +186,6 @@ const oauthDiscoveryResponseSchema = z.object({
       token_endpoint: z.string().optional(),
       registration_endpoint: z.string().optional(),
       resource: z.string().optional(),
-      scopes: z.array(z.string()).optional(),
       location: z
         .object({
           header: z
@@ -199,6 +198,8 @@ const oauthDiscoveryResponseSchema = z.object({
         .optional(),
     })
     .optional(),
+  default_scopes: z.array(z.string()).optional(),
+  supported_scopes: z.array(z.string()).optional(),
 })
 
 type OauthAdvancedFieldName = (typeof oauthAdvancedFields)[number]["name"]
@@ -409,6 +410,68 @@ function formDataFromValues(values: McpFormInput) {
   }
 
   return formData
+}
+
+function formValuesFromDOM(formData: FormData, fallback: McpFormInput): McpFormInput {
+  const values: McpFormInput = {
+    ...fallback,
+    extra_headers: [],
+  }
+  const scalarValues = values as Record<(typeof scalarFormDataFields)[number], string | undefined>
+
+  for (const fieldName of scalarFormDataFields) {
+    const fieldValue = formData.get(fieldName)
+    if (fieldValue === null) {
+      continue
+    }
+
+    scalarValues[fieldName] = String(fieldValue)
+  }
+
+  const extraHeaders = new Map<number, { key?: string; value?: string }>()
+  for (const [fieldName, fieldValue] of formData.entries()) {
+    const match = /^extra_headers\.(\d+)\.(key|value)$/.exec(fieldName)
+    if (!match) {
+      continue
+    }
+
+    const index = Number(match[1])
+    if (!Number.isInteger(index)) {
+      continue
+    }
+
+    const header = extraHeaders.get(index) ?? {}
+    header[match[2] as ExtraHeaderFieldKey] = String(fieldValue)
+    extraHeaders.set(index, header)
+  }
+
+  values.extra_headers = [...extraHeaders.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, header]) => ({
+      key: header.key ?? "",
+      value: header.value ?? "",
+    }))
+
+  return values
+}
+
+function applyFormValues(form: ReturnType<typeof useForm<McpFormInput>>, values: McpFormInput) {
+  form.setValue("extra_headers", values.extra_headers)
+
+  for (const fieldName of scalarFormDataFields) {
+    form.setValue(fieldName, values[fieldName] ?? "")
+  }
+}
+
+function applyDiscoveredOAuthValues(
+  form: ReturnType<typeof useForm<McpFormInput>>,
+  values: Record<OauthAdvancedFieldName, string>
+) {
+  for (const fieldName of oauthAdvancedFields.map((field) => field.name)) {
+    form.setValue(fieldName, values[fieldName], {
+      shouldValidate: true,
+    })
+  }
 }
 
 const ServerURLField = React.memo(function ServerURLField({
@@ -729,6 +792,22 @@ export function McpSheet({
     enabled: authMode === "oauth" && isHTTPSURL(discoveryURL),
   })
   const oauthDiscoveryData = oauthQuery.data?.oauth
+  const discoveredDefaultScopes = oauthQuery.data?.default_scopes
+  const discoveredSupportedScopes = oauthQuery.data?.supported_scopes
+  const discoveredAdditionalScopes = React.useMemo(() => {
+    if (!discoveredSupportedScopes?.length) {
+      return undefined
+    }
+
+    const defaultScopeSet = new Set(discoveredDefaultScopes ?? [])
+    const additionalScopes = discoveredSupportedScopes.filter(
+      (scope) => !defaultScopeSet.has(scope)
+    )
+    if (additionalScopes.length === 0) {
+      return undefined
+    }
+    return additionalScopes
+  }, [discoveredDefaultScopes, discoveredSupportedScopes])
   const isCurrentDiscoveryTarget = discoveryURL === trimmedEndpointURL
   const isCurrentDiscoveryResult = oauthQuery.data?.endpointURL === trimmedEndpointURL
   const discoveryWarningMessage =
@@ -854,42 +933,21 @@ export function McpSheet({
       return
     }
 
-    form.setValue("oauth_issuer", oauthDiscoveryData.issuer ?? "", {
-      shouldValidate: true,
+    applyDiscoveredOAuthValues(form, {
+      oauth_issuer: oauthDiscoveryData.issuer ?? "",
+      oauth_authorization_endpoint: oauthDiscoveryData.authorization_endpoint ?? "",
+      oauth_token_endpoint: oauthDiscoveryData.token_endpoint ?? "",
+      oauth_registration_endpoint: oauthDiscoveryData.registration_endpoint ?? "",
+      oauth_resource: oauthDiscoveryData.resource ?? "",
+      oauth_scopes: discoveredDefaultScopes?.join("\n") ?? "",
+      oauth_location_header_name: oauthDiscoveryData.location?.header?.name ?? "Authorization",
+      oauth_location_header_prefix: oauthDiscoveryData.location?.header?.prefix ?? "Bearer",
     })
-    form.setValue("oauth_authorization_endpoint", oauthDiscoveryData.authorization_endpoint ?? "", {
-      shouldValidate: true,
-    })
-    form.setValue("oauth_token_endpoint", oauthDiscoveryData.token_endpoint ?? "", {
-      shouldValidate: true,
-    })
-    form.setValue("oauth_registration_endpoint", oauthDiscoveryData.registration_endpoint ?? "", {
-      shouldValidate: true,
-    })
-    form.setValue("oauth_resource", oauthDiscoveryData.resource ?? "", {
-      shouldValidate: true,
-    })
-    form.setValue("oauth_scopes", oauthDiscoveryData.scopes?.join("\n") ?? "", {
-      shouldValidate: true,
-    })
-    form.setValue(
-      "oauth_location_header_name",
-      oauthDiscoveryData.location?.header?.name ?? "Authorization",
-      {
-        shouldValidate: true,
-      }
-    )
-    form.setValue(
-      "oauth_location_header_prefix",
-      oauthDiscoveryData.location?.header?.prefix ?? "Bearer",
-      {
-        shouldValidate: true,
-      }
-    )
   }, [
     authMode,
     form,
     isCurrentDiscoveryTarget,
+    discoveredDefaultScopes,
     oauthDiscoveryData,
     oauthQuery.data?.endpointURL,
     trimmedEndpointURL,
@@ -1234,9 +1292,21 @@ export function McpSheet({
           </div>
         ) : (
           <form
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault()
-              void form.handleSubmit(submitValues)(event)
+              const nextValues = formValuesFromDOM(
+                new FormData(event.currentTarget),
+                form.getValues()
+              )
+
+              applyFormValues(form, nextValues)
+
+              const valid = await form.trigger()
+              if (!valid) {
+                return
+              }
+
+              await submitValues(nextValues)
             }}
             className="flex flex-1 flex-col gap-5 px-4 pb-2"
           >
@@ -1370,6 +1440,13 @@ export function McpSheet({
                                   {...form.register(config.name)}
                                 />
                               )}
+                              {config.name === "oauth_scopes" ? (
+                                <FieldDescription>
+                                  {discoveredAdditionalScopes?.length
+                                    ? `Additional allowed scopes: ${discoveredAdditionalScopes.join(", ")}`
+                                    : ""}
+                                </FieldDescription>
+                              ) : null}
                               {error ? <FieldError errors={[error]} /> : null}
                             </Field>
                           )

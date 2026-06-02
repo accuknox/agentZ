@@ -120,49 +120,10 @@ func (s *Service) refreshOAuthToken(ctx context.Context, conn *clawarmorv1alpha1
 }
 
 func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, record mcp.OAuthSecretRecord) (*oauth2.Token, []string, error) {
-	if strings.TrimSpace(auth.Resource) != "" {
-		return s.refreshTokenWithResource(ctx, auth, record)
-	}
-
-	conf, err := oauthConfig(auth, record)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	clientCtx := context.WithValue(ctx, oauth2.HTTPClient, s.http)
-	src := oauth2.ReuseTokenSourceWithExpiry(
-		record.Token,
-		conf.TokenSource(clientCtx, record.Token),
-		oauthRefreshGrace,
-	)
-
-	token, err := src.Token()
-	if err != nil {
-		return nil, nil, fmt.Errorf(
-			"refresh oauth token: %v: %w",
-			err,
-			errCredentialUnavailable,
-		)
-	}
-	if strings.TrimSpace(token.AccessToken) == "" {
-		return nil, nil, fmt.Errorf(
-			"oauth refresh response omitted access token: %w",
-			errCredentialUnavailable,
-		)
-	}
-
-	return token, tokenScopes(token), nil
-}
-
-func (s *Service) refreshTokenWithResource(ctx context.Context, auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, record mcp.OAuthSecretRecord) (*oauth2.Token, []string, error) {
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", record.Token.RefreshToken)
-
-	scopeValue := strings.Join(record.Scopes, " ")
-	if scopeValue == "" {
-		scopeValue = strings.Join(auth.Scopes, " ")
-	}
+	scopeValue := strings.Join(oauthScopes(auth, record), " ")
 	if scopeValue != "" {
 		form.Set("scope", scopeValue)
 	}
@@ -171,6 +132,10 @@ func (s *Service) refreshTokenWithResource(ctx context.Context, auth *clawarmorv
 	}
 
 	tokenEndpointAuthMethod := registrationString(record.Registration, "token_endpoint_auth_method")
+	if tokenEndpointAuthMethod == "" {
+		tokenEndpointAuthMethod = "client_secret_basic"
+	}
+
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -184,17 +149,16 @@ func (s *Service) refreshTokenWithResource(ctx context.Context, auth *clawarmorv
 	req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
 	switch tokenEndpointAuthMethod {
-	case "", "client_secret_basic":
+	case "client_secret_basic":
 		req.SetBasicAuth(record.ClientID, record.ClientSecret)
-	case "client_secret_post":
+	case "client_secret_post", "none":
 		form.Set("client_id", record.ClientID)
-		form.Set("client_secret", record.ClientSecret)
-		req.Body = io.NopCloser(strings.NewReader(form.Encode()))
-		req.ContentLength = int64(len(form.Encode()))
-	case "none":
-		form.Set("client_id", record.ClientID)
-		req.Body = io.NopCloser(strings.NewReader(form.Encode()))
-		req.ContentLength = int64(len(form.Encode()))
+		if tokenEndpointAuthMethod == "client_secret_post" {
+			form.Set("client_secret", record.ClientSecret)
+		}
+		encoded := form.Encode()
+		req.Body = io.NopCloser(strings.NewReader(encoded))
+		req.ContentLength = int64(len(encoded))
 	default:
 		return nil, nil, fmt.Errorf(
 			"oauth token endpoint auth method %q is not supported: %w",
@@ -249,40 +213,11 @@ func (s *Service) refreshTokenWithResource(ctx context.Context, auth *clawarmorv
 		token.Expiry = time.Now().UTC().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 	}
 
-	var scopes []string
-	if trimmed := strings.TrimSpace(tokenResp.Scope); trimmed != "" {
-		scopes = strings.Fields(trimmed)
+	scope := strings.TrimSpace(tokenResp.Scope)
+	if scope == "" {
+		return token, nil, nil
 	}
-
-	return token, scopes, nil
-}
-
-func oauthConfig(auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, record mcp.OAuthSecretRecord) (*oauth2.Config, error) {
-	tokenEndpointAuthMethod := registrationString(record.Registration, "token_endpoint_auth_method")
-
-	endpoint := oauth2.Endpoint{
-		TokenURL: auth.TokenEndpoint,
-	}
-
-	switch tokenEndpointAuthMethod {
-	case "", "client_secret_basic":
-		endpoint.AuthStyle = oauth2.AuthStyleInHeader
-	case "client_secret_post", "none":
-		endpoint.AuthStyle = oauth2.AuthStyleInParams
-	default:
-		return nil, fmt.Errorf(
-			"oauth token endpoint auth method %q is not supported: %w",
-			tokenEndpointAuthMethod,
-			errCredentialUnavailable,
-		)
-	}
-
-	return &oauth2.Config{
-		ClientID:     record.ClientID,
-		ClientSecret: record.ClientSecret,
-		Endpoint:     endpoint,
-		Scopes:       oauthScopes(auth, record),
-	}, nil
+	return token, strings.Fields(scope), nil
 }
 
 func oauthScopes(auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, record mcp.OAuthSecretRecord) []string {
@@ -290,15 +225,6 @@ func oauthScopes(auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, record mcp.OAut
 		return record.Scopes
 	}
 	return auth.Scopes
-}
-
-func tokenScopes(token *oauth2.Token) []string {
-	scope, _ := token.Extra("scope").(string)
-	scope = strings.TrimSpace(scope)
-	if scope == "" {
-		return nil
-	}
-	return strings.Fields(scope)
 }
 
 func oauthTokenUsable(token *oauth2.Token, now time.Time) bool {

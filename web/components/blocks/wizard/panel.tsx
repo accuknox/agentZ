@@ -32,7 +32,7 @@ export function WizardPanel({
   return (
     <div className="bg-card relative mt-6 min-h-0 w-full flex-1 overflow-hidden rounded border">
       {panelAdornment}
-      <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+      <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
         <AnimatePresence custom={direction} mode="wait" initial={false}>
           <motion.div
             key={stepKey}
@@ -42,7 +42,7 @@ export function WizardPanel({
             animate="center"
             exit="exit"
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="min-h-full"
+            className="flex min-h-full flex-col"
           >
             {children}
           </motion.div>

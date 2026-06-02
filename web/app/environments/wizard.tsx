@@ -1,15 +1,32 @@
 "use client"
 
+import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
+import {
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { defineStepper } from "@stepperize/react"
-import { Box, Globe2, Link2, PackageSearch as PackageSearchIcon, Plus, X } from "lucide-react"
+import {
+  ArrowUpDown,
+  ArrowLeft,
+  ArrowRight,
+  Box,
+  Globe2,
+  Link2,
+  PackageSearch as PackageSearchIcon,
+  Plus,
+  X,
+} from "lucide-react"
 import * as React from "react"
 import { startTransition, useActionState, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
+import { dayjs } from "@/lib/dayjs"
 import { WizardShell } from "@/components/blocks/wizard"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Field,
   FieldDescription,
@@ -29,13 +46,22 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
   createEnvironmentFormAction,
   updateEnvironmentFormAction,
 } from "@/data/environment.actions"
 import * as z from "zod"
 import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
 import type { McpConnection } from "@/lib/gateway/client"
-import { cn } from "@/lib/utils"
+import { authModeOf } from "@/lib/mcp"
+import { findMcpServerByURL, mcpFallbackIcon } from "@/app/mcps/catalog"
 import { PackageSearch } from "./package-search"
 
 type EnvironmentWizardMode = "create" | "update"
@@ -81,6 +107,10 @@ type McpStepProps = {
   onPrev: () => void
 }
 
+type McpStepValues = {
+  mcpConnectionRefs: string[]
+}
+
 const identitySchema = z.object({
   name: environmentNameSchema,
 })
@@ -96,6 +126,17 @@ type PackageStepValues = {
 }
 
 type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
+
+const mcpColumnClassName: Record<string, string> = {
+  name: "w-40",
+  auth_mode: "w-32",
+  endpoint: "min-w-0 w-0",
+  age: "w-28",
+  attach: "w-14",
+}
+
+const defaultMcpSorting: SortingState = [{ id: "age", desc: true }]
+const defaultMcpPagination: PaginationState = { pageIndex: 0, pageSize: 10 }
 
 const steps = [
   {
@@ -145,7 +186,7 @@ function IdentityForm({
     <form
       id="environment-form-identity"
       onSubmit={form.handleSubmit(onNext)}
-      className="flex flex-col gap-5"
+      className="flex min-h-full flex-col gap-5"
     >
       <FieldGroup>
         <Controller
@@ -199,7 +240,7 @@ function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
   return (
     <form
       onSubmit={form.handleSubmit((data) => onNext(data.packages))}
-      className="flex flex-col gap-5"
+      className="flex min-h-full flex-col gap-5"
     >
       <PackageSearch
         installed={initialPackages}
@@ -221,8 +262,106 @@ function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
   )
 }
 
+function McpNameCell({ connection }: { connection: McpConnection }) {
+  const server = findMcpServerByURL(connection.endpoint.url)
+  const Icon = server?.icon ?? mcpFallbackIcon
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 truncate font-medium">{connection.name}</span>
+    </div>
+  )
+}
+
+function formatAge(value: string) {
+  const d = dayjs(value)
+  if (!d.isValid()) {
+    return "Unknown"
+  }
+
+  return d.fromNow()
+}
+
+function createMcpSelectionColumns({
+  selectedNames,
+  onCheckedChange,
+}: {
+  selectedNames: ReadonlySet<string>
+  onCheckedChange: (name: string, checked: boolean) => void
+}): ColumnDef<McpConnection>[] {
+  return [
+    {
+      accessorKey: "name",
+      header: ({ column }) => (
+        <Button
+          className="-ml-2"
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Name
+          <ArrowUpDown />
+        </Button>
+      ),
+      cell: ({ row }) => <McpNameCell connection={row.original} />,
+    },
+    {
+      id: "auth_mode",
+      header: "Auth type",
+      accessorFn: (row) => authModeOf(row),
+      cell: ({ row }) => <span className="capitalize">{authModeOf(row.original)}</span>,
+    },
+    {
+      id: "endpoint",
+      header: "Endpoint",
+      accessorFn: (row) => row.endpoint.url,
+      cell: ({ row }) => (
+        <span
+          className="text-muted-foreground block min-w-0 truncate"
+          title={row.original.endpoint.url}
+        >
+          {row.original.endpoint.url}
+        </span>
+      ),
+    },
+    {
+      id: "age",
+      accessorKey: "created_at",
+      header: ({ column }) => (
+        <Button
+          className="-ml-2"
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Age
+          <ArrowUpDown />
+        </Button>
+      ),
+      cell: ({ row }) => formatAge(row.original.created_at),
+    },
+    {
+      id: "attach",
+      header: "",
+      accessorFn: (row) => selectedNames.has(row.name),
+      cell: ({ row }) => {
+        const name = row.original.name
+
+        return (
+          <div className="flex justify-end">
+            <Switch
+              checked={selectedNames.has(name)}
+              aria-label={`Attach ${name}`}
+              onCheckedChange={(checked) => onCheckedChange(name, checked)}
+            />
+          </div>
+        )
+      },
+    },
+  ]
+}
+
 function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: McpStepProps) {
-  const form = useForm<{ mcpConnectionRefs: string[] }>({
+  const form = useForm<McpStepValues>({
     defaultValues: {
       mcpConnectionRefs: initialMcpConnectionRefs,
     },
@@ -232,73 +371,116 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
     name: "mcpConnectionRefs",
     defaultValue: initialMcpConnectionRefs,
   })
-  const selectedNames = new Set(selected)
+  const selectedNames = React.useMemo(() => new Set(selected), [selected])
   const connections = mcpConnections.toSorted((a, b) => a.name.localeCompare(b.name))
+  const [sorting, setSorting] = React.useState<SortingState>(defaultMcpSorting)
+  const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
+  const columns = React.useMemo(
+    () =>
+      createMcpSelectionColumns({
+        selectedNames,
+        onCheckedChange: (name, checked) => {
+          const nextRefs = checked
+            ? [...selected, name].toSorted((a, b) => a.localeCompare(b))
+            : selected.filter((item) => item !== name)
+
+          form.setValue("mcpConnectionRefs", nextRefs, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
+        },
+      }),
+    [form, selected, selectedNames]
+  )
+
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({
+    data: connections,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    state: {
+      pagination,
+      sorting,
+    },
+  })
 
   return (
     <form
       onSubmit={form.handleSubmit((data) =>
         onNext(data.mcpConnectionRefs.toSorted((a, b) => a.localeCompare(b)))
       )}
-      className="flex flex-col gap-5"
+      className="flex min-h-full flex-col gap-5"
     >
-      <FieldSet>
-        {connections.length > 0 ? (
-          <FieldGroup className="grid gap-0 md:grid-cols-2">
-            {connections.map((connection) => {
-              const checked = selectedNames.has(connection.name)
-              const state = connection.status.state ?? "Accepted"
-              const badgeVariant =
-                state === "Ready" ? "success" : state === "Degraded" ? "destructive" : "pending"
-
-              return (
-                <Field key={connection.name} orientation="horizontal">
-                  <Card
-                    className={cn(
-                      "w-full rounded-none ring-1 transition-colors",
-                      checked ? "ring-primary/30 z-10" : "ring-foreground/10"
-                    )}
-                  >
-                    <CardHeader>
-                      <CardTitle className="truncate">{connection.name}</CardTitle>
-                      <CardDescription className="truncate">
-                        {connection.endpoint.url}
-                      </CardDescription>
-                      <CardAction className="flex items-center gap-2">
-                        <Badge variant={badgeVariant}>{state}</Badge>
-                        <Switch
-                          checked={checked}
-                          aria-label={`Attach ${connection.name}`}
-                          onCheckedChange={(nextChecked) => {
-                            const nextRefs = nextChecked
-                              ? [...selected, connection.name].toSorted((a, b) =>
-                                  a.localeCompare(b)
-                                )
-                              : selected.filter((name) => name !== connection.name)
-                            form.setValue("mcpConnectionRefs", nextRefs, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            })
-                          }}
-                        />
-                      </CardAction>
-                    </CardHeader>
-                  </Card>
-                </Field>
-              )
-            })}
-          </FieldGroup>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>No MCP connections yet</CardTitle>
-              <CardDescription>
-                Create an MCP connection separately, then return here to attach it.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
-      </FieldSet>
+      <div className="-mx-4 -mt-4 min-w-0 space-y-4 sm:-mx-6 sm:-mt-6">
+        <div className="w-full min-w-0 overflow-hidden border-b">
+          <Table className="table-auto">
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={`h-8 ${mcpColumnClassName[header.column.id] ?? "px-4"}`}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length > 0 ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={`h-11 py-2 align-middle ${mcpColumnClassName[cell.column.id] ?? "px-4"}`}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No MCP connections
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            type="button"
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            type="button"
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      </div>
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
@@ -397,7 +579,7 @@ function AllowedHostsStep({
   }
 
   return (
-    <form action={submitAction} className="flex flex-col gap-5">
+    <form action={submitAction} className="flex min-h-full flex-col gap-5">
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (
         <input key={pkg} type="hidden" name="packages" value={pkg} />
@@ -492,7 +674,7 @@ function AllowedHostsStep({
 }
 
 function StepActions({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-wrap justify-end gap-3">{children}</div>
+  return <div className="mt-auto flex flex-wrap justify-end gap-3 pt-4">{children}</div>
 }
 
 export function EnvironmentWizard({

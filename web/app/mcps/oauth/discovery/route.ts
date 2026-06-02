@@ -14,7 +14,29 @@ const discoveryRequestSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const body = await request.json()
+  const raw = await request.text()
+  if (!raw.trim()) {
+    return NextResponse.json(
+      {
+        message: "Request body must be valid JSON",
+      },
+      { status: 400 }
+    )
+  }
+
+  let body: unknown
+
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    return NextResponse.json(
+      {
+        message: "Request body must be valid JSON",
+      },
+      { status: 400 }
+    )
+  }
+
   const parsed = discoveryRequestSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json(

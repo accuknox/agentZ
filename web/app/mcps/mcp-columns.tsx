@@ -92,7 +92,7 @@ export function createMcpColumns(actions: {
     },
     {
       id: "auth_mode",
-      header: "Auth mode",
+      header: "Auth type",
       accessorFn: (row) => authModeOf(row),
       cell: ({ row }) => <span className="capitalize">{authModeOf(row.original)}</span>,
     },

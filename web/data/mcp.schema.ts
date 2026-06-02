@@ -83,6 +83,10 @@ const baseFormSchema = z.object({
     .transform((value) => value?.trim() || undefined),
   extra_headers: z.array(extraHeaderSchema),
   auth_mode: z.enum(["bearer", "oauth"]),
+  oauth_discovery_state: z
+    .enum(["idle", "discovering", "success", "manual"])
+    .optional()
+    .default("idle"),
   bearer_token: z
     .string()
     .optional()
@@ -225,8 +229,13 @@ export const mcpFormSchema = baseFormSchema.superRefine((value, ctx) => {
   const hasClientId = Boolean(value.oauth_client_id)
   const hasClientSecret = Boolean(value.oauth_client_secret)
   const useDcr = !hasClientId && !hasClientSecret
+  const needsManualOAuthFields = value.oauth_discovery_state === "manual"
+  const hasRegistrationEndpoint = Boolean(value.oauth_registration_endpoint)
+  const discoveryNeedsClientCredentials =
+    value.oauth_discovery_state === "success" && !hasRegistrationEndpoint
+  const needsClientCredentials = hasClientId || hasClientSecret || discoveryNeedsClientCredentials
 
-  if (!useDcr && !hasClientId) {
+  if (needsClientCredentials && !hasClientId) {
     ctx.addIssue({
       code: "custom",
       path: ["oauth_client_id"],
@@ -234,12 +243,48 @@ export const mcpFormSchema = baseFormSchema.superRefine((value, ctx) => {
     })
   }
 
-  if (!useDcr && !hasClientSecret) {
+  if (needsClientCredentials && !hasClientSecret) {
     ctx.addIssue({
       code: "custom",
       path: ["oauth_client_secret"],
       message: "Client secret is required",
     })
+  }
+
+  if (needsManualOAuthFields || value.oauth_discovery_state === "success") {
+    if (!value.oauth_issuer) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["oauth_issuer"],
+        message: "Issuer is required",
+      })
+    }
+
+    if (!value.oauth_authorization_endpoint) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["oauth_authorization_endpoint"],
+        message: "Authorization endpoint is required",
+      })
+    }
+
+    if (!value.oauth_token_endpoint) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["oauth_token_endpoint"],
+        message: "Token endpoint is required",
+      })
+    }
+  }
+
+  if (needsManualOAuthFields) {
+    if (useDcr && !value.oauth_registration_endpoint) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["oauth_registration_endpoint"],
+        message: "Registration endpoint is required",
+      })
+    }
   }
 
   const parsedOAuthLocation = zMcpConnectionAuthLocation.safeParse({

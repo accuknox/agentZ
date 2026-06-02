@@ -3,11 +3,21 @@
 import * as React from "react"
 import Fuse from "fuse.js"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
-import { Check, ChevronDown, RefreshCw, Settings2, Trash2, X } from "lucide-react"
+import {
+  Controller,
+  useController,
+  useFieldArray,
+  useForm,
+  useWatch,
+  type Control,
+  type FieldError as RHFFieldError,
+} from "react-hook-form"
+import * as z from "zod"
+import { Check, ChevronDown, CircleAlert, RefreshCw, Settings2, Trash2, X } from "lucide-react"
 import { findMcpServerByURL, mcpFallbackIcon, mcpServers, type McpServer } from "@/app/mcps/catalog"
-import type { McpConnection } from "@/lib/gateway/client"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
   AccordionContent,
@@ -16,7 +26,6 @@ import {
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
-import { Separator } from "@/components/ui/separator"
 import {
   Command,
   CommandEmpty,
@@ -27,6 +36,7 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetContent,
@@ -36,13 +46,6 @@ import {
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
-import { authModeOf } from "@/lib/mcp"
-import {
-  oauthBroadcastChannelName,
-  parseOAuthPopupMessage,
-  type OAuthPopupMessage,
-  oauthWindowMessageSource,
-} from "@/lib/mcp-oauth-shared"
 import type { McpFormState } from "@/data/mcp.actions"
 import {
   formBearerDefaults,
@@ -50,6 +53,14 @@ import {
   mcpFormSchema,
   type McpFormInput,
 } from "@/data/mcp.schema"
+import type { McpConnection } from "@/lib/gateway/client"
+import { authModeOf } from "@/lib/mcp"
+import {
+  oauthBroadcastChannelName,
+  oauthWindowMessageSource,
+  parseOAuthPopupMessage,
+  type OAuthPopupMessage,
+} from "@/lib/mcp-oauth-shared"
 
 type SubmitMcpAction = (_: McpFormState, formData: FormData) => Promise<McpFormState>
 
@@ -62,6 +73,7 @@ const defaultFormValues: McpFormInput = {
   endpoint_timeout: undefined,
   extra_headers: [],
   auth_mode: "oauth",
+  oauth_discovery_state: "idle",
   bearer_token: "",
   oauth_scopes: "",
   oauth_client_id: "",
@@ -80,40 +92,59 @@ const defaultFormValues: McpFormInput = {
 const clientCredentialsAccordionItem = "client-credentials"
 const advancedAccordionItem = "advanced"
 const initialServerResults = 8
-const oauthAdvancedFieldNames = [
-  "oauth_issuer",
-  "oauth_authorization_endpoint",
-  "oauth_token_endpoint",
-  "oauth_registration_endpoint",
-  "oauth_resource",
-  "oauth_scopes",
-  "oauth_location_header_name",
-  "oauth_location_header_prefix",
+const discoveryDebounceMs = 500
+const discoveryErrorMessage =
+  "If the MCP server supports OAuth, please fill in the required fields in advanced section manually."
+const oauthAdvancedFields = [
+  {
+    name: "oauth_issuer",
+    label: "Issuer",
+    placeholder: "https://issuer.example.com",
+  },
+  {
+    name: "oauth_authorization_endpoint",
+    label: "Authorization endpoint",
+    placeholder: "https://issuer.example.com/authorize",
+  },
+  {
+    name: "oauth_token_endpoint",
+    label: "Token endpoint",
+    placeholder: "https://issuer.example.com/token",
+  },
+  {
+    name: "oauth_registration_endpoint",
+    label: "Registration endpoint",
+    placeholder: "https://issuer.example.com/register",
+  },
+  {
+    name: "oauth_resource",
+    label: "Resource",
+    placeholder: "https://example.com/mcp",
+  },
+  {
+    name: "oauth_scopes",
+    label: "Scopes",
+    placeholder: "scope:read\nscope:write",
+    kind: "textarea",
+  },
+  {
+    name: "oauth_location_header_name",
+    label: "Bearer token header name",
+    placeholder: "Authorization",
+  },
+  {
+    name: "oauth_location_header_prefix",
+    label: "Bearer token prefix",
+    placeholder: "Bearer",
+  },
 ] as const
-const directServerErrorFields = [
+const serverErrorFields = [
   "name",
   "endpoint_url",
   "bearer_token",
   "oauth_client_id",
   "oauth_client_secret",
-  ...oauthAdvancedFieldNames,
-  "bearer_location_header_name",
-  "bearer_location_header_prefix",
-] as const
-const generalErrorFields = [
-  "name",
-  "endpoint_url",
-  "bearer_token",
-  "oauth_client_id",
-  "oauth_client_secret",
-  "oauth_issuer",
-  "oauth_authorization_endpoint",
-  "oauth_token_endpoint",
-  "oauth_registration_endpoint",
-  "oauth_resource",
-  "oauth_scopes",
-  "oauth_location_header_name",
-  "oauth_location_header_prefix",
+  ...oauthAdvancedFields.map((field) => field.name),
   "bearer_location_header_name",
   "bearer_location_header_prefix",
 ] as const
@@ -125,6 +156,7 @@ const scalarFormDataFields = [
   "endpoint_url",
   "endpoint_timeout",
   "auth_mode",
+  "oauth_discovery_state",
   "bearer_token",
   "oauth_scopes",
   "oauth_client_id",
@@ -139,21 +171,55 @@ const scalarFormDataFields = [
   "bearer_location_header_name",
   "bearer_location_header_prefix",
 ] as const
+const conditionalFormFields = [
+  "oauth_client_id",
+  "oauth_client_secret",
+  ...oauthAdvancedFields.map((field) => field.name),
+  "bearer_location_header_name",
+  "bearer_location_header_prefix",
+] as const
+const oauthDiscoveryResponseSchema = z.object({
+  oauth: z
+    .object({
+      issuer: z.string().optional(),
+      authorization_endpoint: z.string().optional(),
+      token_endpoint: z.string().optional(),
+      registration_endpoint: z.string().optional(),
+      resource: z.string().optional(),
+      scopes: z.array(z.string()).optional(),
+      location: z
+        .object({
+          header: z
+            .object({
+              name: z.string().optional(),
+              prefix: z.string().optional(),
+            })
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+})
 
-type OauthAdvancedFieldName = (typeof oauthAdvancedFieldNames)[number]
-type DirectServerErrorField = (typeof directServerErrorFields)[number]
-
-type DiscoveryIconState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "success" }
-  | { status: "error" }
-
-type DiscoveryResultState = {
+type OauthAdvancedFieldName = (typeof oauthAdvancedFields)[number]["name"]
+type ServerErrorField = (typeof serverErrorFields)[number]
+type OAuthDiscoveryPayload = z.infer<typeof oauthDiscoveryResponseSchema>
+type OAuthDiscoveryResponse = OAuthDiscoveryPayload & {
   endpointURL: string
-  message?: string
-} & DiscoveryIconState
-
+}
+type ExtraHeaderFieldKey = "key" | "value"
+type AccordionAction =
+  | {
+      type: "set"
+      value: string[]
+    }
+  | {
+      type: "expand"
+      items: string[]
+    }
+  | {
+      type: "reset"
+    }
 type McpCatalogResult =
   | {
       kind: "catalog"
@@ -170,6 +236,75 @@ const mcpServerSearch = new Fuse(mcpServers, {
   ignoreLocation: true,
   minMatchCharLength: 2,
 })
+
+const oauthDiscoveryQueryOptions = (endpointURL: string) =>
+  queryOptions({
+    queryKey: ["mcp", "oauth-discovery", endpointURL],
+    queryFn: async ({ signal }) => {
+      const response = await fetch("/mcps/oauth/discovery", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          endpointUrl: endpointURL,
+        }),
+        signal,
+      })
+      const payload = oauthDiscoveryResponseSchema.parse(await response.json())
+
+      if (!response.ok) {
+        throw new Error(discoveryErrorMessage)
+      }
+
+      return {
+        ...payload,
+        endpointURL,
+      } satisfies OAuthDiscoveryResponse
+    },
+    placeholderData: (previousData) => previousData,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+function useDebouncedValue<T>(value: T, delay: number) {
+  const [debounced, setDebounced] = React.useState(value)
+
+  React.useEffect(() => {
+    const id = window.setTimeout(() => {
+      setDebounced(value)
+    }, delay)
+    return () => {
+      window.clearTimeout(id)
+    }
+  }, [delay, value])
+
+  return debounced
+}
+
+function isHTTPSURL(value: string) {
+  try {
+    return new URL(value).protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
+function accordionReducer(state: string[], action: AccordionAction) {
+  if (action.type === "set") {
+    return action.value
+  }
+
+  if (action.type === "reset") {
+    return []
+  }
+
+  const next = new Set(state)
+  for (const item of action.items) {
+    next.add(item)
+  }
+  return [...next]
+}
 
 function formDefaults(connection?: McpConnection): McpFormInput {
   if (!connection) {
@@ -191,6 +326,7 @@ function formDefaults(connection?: McpConnection): McpFormInput {
       value,
     })),
     auth_mode: authMode === "bearer" ? "bearer" : "oauth",
+    oauth_discovery_state: "idle",
     bearer_token: "",
     oauth_scopes: oauthDefaults.oauth_scopes,
     oauth_client_id: "",
@@ -213,47 +349,34 @@ function applyServerErrors(form: ReturnType<typeof useForm<McpFormInput>>, state
   }
 
   for (const error of state.error.errors) {
-    const field = error.field
-
-    if (directServerErrorFields.includes(field as DirectServerErrorField)) {
-      const directServerErrorField = field as DirectServerErrorField
-      form.setError(directServerErrorField, {
+    if (serverErrorFields.includes(error.field as ServerErrorField)) {
+      form.setError(error.field as ServerErrorField, {
         type: "server",
         message: error.message,
       })
       continue
     }
 
-    if (field.startsWith("extra_headers.")) {
-      const path = parseExtraHeaderFieldPath(field)
-      if (!path) {
-        continue
-      }
-      form.setError(path, {
-        type: "server",
-        message: error.message,
-      })
+    if (!error.field.startsWith("extra_headers.")) {
+      continue
     }
-  }
-}
 
-function parseExtraHeaderFieldPath(field: string) {
-  const match = /^extra_headers\.(\d+)\.(key|value)$/.exec(field)
-  if (!match) {
-    return undefined
-  }
+    const match = /^extra_headers\.(\d+)\.(key|value)$/.exec(error.field)
+    if (!match) {
+      continue
+    }
 
-  const [, indexText, key] = match
-  const index = Number(indexText)
-  if (!Number.isInteger(index)) {
-    return undefined
-  }
+    const index = Number(match[1])
+    if (!Number.isInteger(index)) {
+      continue
+    }
 
-  if (key === "key") {
-    return `extra_headers.${index}.key` as const
+    const key = match[2] as ExtraHeaderFieldKey
+    form.setError(`extra_headers.${index}.${key}` as const, {
+      type: "server",
+      message: error.message,
+    })
   }
-
-  return `extra_headers.${index}.value` as const
 }
 
 function generalErrorMessage(error: McpFormState["error"]) {
@@ -263,12 +386,8 @@ function generalErrorMessage(error: McpFormState["error"]) {
 
   const fieldErrors =
     error.errors?.filter((item) => {
-      if (!item.field) {
-        return false
-      }
-
       return (
-        generalErrorFields.includes(item.field as (typeof generalErrorFields)[number]) ||
+        serverErrorFields.includes(item.field as ServerErrorField) ||
         item.field.startsWith("extra_headers.")
       )
     }) ?? []
@@ -292,6 +411,246 @@ function formDataFromValues(values: McpFormInput) {
   return formData
 }
 
+const ServerURLField = React.memo(function ServerURLField({
+  control,
+  authMode,
+  endpointError,
+  discoveryIconState,
+  isRefreshingDiscovery,
+  discoveryURLOverride,
+  onDiscoveryURLOverrideChangeAction,
+  onRefreshDiscoveryAction,
+}: {
+  control: Control<McpFormInput>
+  authMode: McpFormInput["auth_mode"]
+  endpointError?: RHFFieldError
+  discoveryIconState: "idle" | "loading" | "error" | "success"
+  isRefreshingDiscovery: boolean
+  discoveryURLOverride?: string
+  onDiscoveryURLOverrideChangeAction: (value: string | undefined) => void
+  onRefreshDiscoveryAction: () => void
+}) {
+  const { field } = useController({
+    control,
+    name: "endpoint_url",
+  })
+  const [serverPickerOpen, setServerPickerOpen] = React.useState(false)
+  const serverFieldRef = React.useRef<HTMLDivElement | null>(null)
+  const serverInputRef = React.useRef<HTMLInputElement | null>(null)
+  const serverPopoverRef = React.useRef<HTMLDivElement | null>(null)
+  const selectedServer = React.useMemo(
+    () => findMcpServerByURL((field.value ?? "").trim()),
+    [field.value]
+  )
+  const SelectedServerIcon = selectedServer?.icon ?? mcpFallbackIcon
+  const deferredEndpointURL = React.useDeferredValue((field.value ?? "").trim())
+  const serverResults = React.useMemo(() => {
+    const query = deferredEndpointURL
+    const catalogResults = query
+      ? mcpServerSearch.search(query).map((result) => result.item)
+      : mcpServers.slice(0, initialServerResults)
+    const results: McpCatalogResult[] = catalogResults.map((server) => ({
+      kind: "catalog",
+      server,
+    }))
+    const hasExactCatalogURL = findMcpServerByURL(query) !== undefined
+
+    if (!query) {
+      return results
+    }
+
+    try {
+      const customURL = new URL(query)
+      if (customURL.protocol === "https:" && !hasExactCatalogURL) {
+        results.push({
+          kind: "custom",
+          mcpUrl: query,
+        })
+      }
+    } catch {}
+
+    return results
+  }, [deferredEndpointURL])
+
+  function isInServerField(target: EventTarget | null) {
+    if (!(target instanceof Node)) {
+      return false
+    }
+
+    return (
+      serverFieldRef.current?.contains(target) === true ||
+      serverPopoverRef.current?.contains(target) === true
+    )
+  }
+
+  function selectServer(result: McpCatalogResult) {
+    const value = result.kind === "catalog" ? result.server.mcpUrl : result.mcpUrl
+    field.onChange(value)
+    setServerPickerOpen(false)
+    serverInputRef.current?.focus()
+  }
+
+  return (
+    <Field data-invalid={Boolean(endpointError)}>
+      <FieldLabel htmlFor="mcp-endpoint-url">MCP Server</FieldLabel>
+      <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
+        <PopoverAnchor asChild>
+          <div ref={serverFieldRef} className="relative">
+            <SelectedServerIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="mcp-endpoint-url"
+              name={field.name}
+              ref={(node) => {
+                field.ref(node)
+                serverInputRef.current = node
+              }}
+              value={field.value ?? ""}
+              onFocus={() => {
+                setServerPickerOpen(true)
+              }}
+              onBlur={(event) => {
+                if (isInServerField(event.relatedTarget)) {
+                  return
+                }
+                setServerPickerOpen(false)
+                field.onBlur()
+              }}
+              onChange={(event) => {
+                field.onChange(event)
+                if (discoveryURLOverride && discoveryURLOverride !== event.target.value.trim()) {
+                  onDiscoveryURLOverrideChangeAction(undefined)
+                }
+                if (!serverPickerOpen) {
+                  setServerPickerOpen(true)
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setServerPickerOpen(false)
+                }
+              }}
+              placeholder="https://example.com/mcp"
+              className={authMode === "oauth" ? "pr-25 pl-9" : "pr-10 pl-9"}
+              aria-invalid={Boolean(endpointError)}
+              aria-expanded={serverPickerOpen}
+              aria-autocomplete="list"
+              aria-controls="mcp-endpoint-url-suggestions"
+              role="combobox"
+            />
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            {authMode === "oauth" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="absolute inset-y-0 right-8 my-auto"
+                onClick={onRefreshDiscoveryAction}
+                disabled={isRefreshingDiscovery}
+                aria-label="Discover OAuth metadata"
+              >
+                {discoveryIconState === "loading" ? (
+                  <Spinner aria-hidden="true" />
+                ) : discoveryIconState === "success" ? (
+                  <Check />
+                ) : discoveryIconState === "error" ? (
+                  <CircleAlert />
+                ) : (
+                  <RefreshCw />
+                )}
+              </Button>
+            ) : null}
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          ref={serverPopoverRef}
+          align="start"
+          className="w-[var(--radix-popper-anchor-width)] p-0"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+          }}
+          onFocusOutside={(event) => {
+            if (isInServerField(event.target)) {
+              event.preventDefault()
+            }
+          }}
+          onInteractOutside={(event) => {
+            if (isInServerField(event.target)) {
+              event.preventDefault()
+            }
+          }}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+          }}
+          sideOffset={8}
+        >
+          <Command shouldFilter={false}>
+            <CommandList id="mcp-endpoint-url-suggestions">
+              <CommandEmpty>
+                No known MCP servers match. You can still use the typed URL.
+              </CommandEmpty>
+              <CommandGroup>
+                {serverResults.map((result) => {
+                  if (result.kind === "catalog") {
+                    const Icon = result.server.icon
+                    return (
+                      <CommandItem
+                        key={result.server.mcpUrl}
+                        value={result.server.mcpUrl}
+                        className="cursor-pointer"
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                        }}
+                        onSelect={() => {
+                          selectServer(result)
+                        }}
+                      >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+                          <Icon />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{result.server.name}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {result.server.mcpUrl}
+                          </span>
+                        </span>
+                      </CommandItem>
+                    )
+                  }
+
+                  return (
+                    <CommandItem
+                      key={result.mcpUrl}
+                      value={result.mcpUrl}
+                      className="cursor-pointer"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                      }}
+                      onSelect={() => {
+                        selectServer(result)
+                      }}
+                    >
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+                        <Settings2 />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">Custom Server</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {result.mcpUrl}
+                        </span>
+                      </span>
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {endpointError ? <FieldError errors={[endpointError]} /> : null}
+    </Field>
+  )
+})
+
 export function McpSheet({
   mode,
   connection,
@@ -311,8 +670,10 @@ export function McpSheet({
   const form = useForm<McpFormInput>({
     resolver: zodResolver(mcpFormSchema),
     mode: "onBlur",
+    reValidateMode: "onChange",
     defaultValues,
   })
+  const { errors, isValid } = form.formState
   const headerFields = useFieldArray({
     control: form.control,
     name: "extra_headers",
@@ -322,99 +683,88 @@ export function McpSheet({
     name: "auth_mode",
     defaultValue: defaultValues.auth_mode,
   })
-  const endpointURL = useWatch({
+  const oauthDiscoveryState = useWatch({
     control: form.control,
-    name: "endpoint_url",
-    defaultValue: defaultValues.endpoint_url,
+    name: "oauth_discovery_state",
+    defaultValue: defaultValues.oauth_discovery_state,
   })
-  const nameValue = useWatch({
+  const oauthFields = useWatch({
     control: form.control,
-    name: "name",
-    defaultValue: defaultValues.name,
+    name: [
+      "oauth_client_id",
+      "oauth_client_secret",
+      "oauth_registration_endpoint",
+      "oauth_issuer",
+      "oauth_authorization_endpoint",
+      "oauth_token_endpoint",
+    ] as const,
   })
-  const bearerTokenValue = useWatch({
-    control: form.control,
-    name: "bearer_token",
-    defaultValue: defaultValues.bearer_token,
-  })
-  const oauthClientIDValue = useWatch({
-    control: form.control,
-    name: "oauth_client_id",
-    defaultValue: defaultValues.oauth_client_id,
-  })
-  const oauthClientSecretValue = useWatch({
-    control: form.control,
-    name: "oauth_client_secret",
-    defaultValue: defaultValues.oauth_client_secret,
-  })
-  const { errors } = form.formState
-
+  const [
+    oauthClientID = defaultValues.oauth_client_id,
+    oauthClientSecret = defaultValues.oauth_client_secret,
+    oauthRegistrationEndpoint = defaultValues.oauth_registration_endpoint,
+    oauthIssuer = defaultValues.oauth_issuer,
+    oauthAuthorizationEndpoint = defaultValues.oauth_authorization_endpoint,
+    oauthTokenEndpoint = defaultValues.oauth_token_endpoint,
+  ] = oauthFields
   const [oauthPopupFlowId, setOauthPopupFlowId] = React.useState<string>()
-  const [oauthFlowError, setOauthFlowError] = React.useState<string>()
-  const [discoveryResult, setDiscoveryResult] = React.useState<DiscoveryResultState>({
-    endpointURL: "",
-    status: "idle",
-  })
-  const discoveryState =
-    discoveryResult.endpointURL === endpointURL ? discoveryResult.status : "idle"
-  const discoveryError =
-    discoveryResult.endpointURL === endpointURL ? discoveryResult.message : undefined
-
-  // track which accordion items the user has manually toggled.
-  const [userExpandedAccordions, setUserExpandedAccordions] = React.useState<string[]>([])
-
-  // derive the effective accordion state during render. Auto-expand the client
-  // credentials section when there are validation errors for OAuth
-  // client-id/secret fields.
-  const expandedAccordions = (() => {
-    if (authMode !== "oauth") {
-      return userExpandedAccordions
-    }
-
-    const hasClientCredentialError =
-      Boolean(errors.oauth_client_id) ||
-      Boolean(errors.oauth_client_secret) ||
-      oauthFlowError?.includes("client credentials") === true
-    const hasAdvancedError = oauthAdvancedFieldNames.some((fieldName) => Boolean(errors[fieldName]))
-    const nextExpandedAccordions = new Set(userExpandedAccordions)
-
-    if (hasClientCredentialError) {
-      nextExpandedAccordions.add(clientCredentialsAccordionItem)
-    }
-
-    if (hasAdvancedError) {
-      nextExpandedAccordions.add(advancedAccordionItem)
-    }
-
-    return [...nextExpandedAccordions]
-  })()
-  const oauthRequiresClientCredentials =
-    Boolean(oauthClientIDValue?.trim()) || Boolean(oauthClientSecretValue?.trim())
-  const oauthHasAdvancedError = oauthAdvancedFieldNames.some((fieldName) =>
-    Boolean(errors[fieldName])
-  )
-  const canSubmit =
-    nameValue.trim() &&
-    endpointURL.trim() &&
-    (authMode === "bearer"
-      ? Boolean(bearerTokenValue?.trim())
-      : oauthRequiresClientCredentials
-        ? Boolean(oauthClientIDValue?.trim()) &&
-          Boolean(oauthClientSecretValue?.trim()) &&
-          !oauthHasAdvancedError
-        : !oauthHasAdvancedError)
   const [submitError, setSubmitError] = React.useState<string>()
   const [successMessage, setSuccessMessage] = React.useState<string>()
   const [submitted, setSubmitted] = React.useState(false)
-  const [serverPickerOpen, setServerPickerOpen] = React.useState(false)
+  const [userExpandedAccordions, dispatchAccordion] = React.useReducer(accordionReducer, [])
+  const [dismissedDiscoveryWarningKey, setDismissedDiscoveryWarningKey] = React.useState<string>()
+  const [discoveryURLOverride, setDiscoveryURLOverride] = React.useState<string>()
+  const [endpointURL, setEndpointURL] = React.useState(defaultValues.endpoint_url)
   const popupRef = React.useRef<Window | null>(null)
   const popupPollRef = React.useRef<number | null>(null)
   const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
   const mountedRef = React.useRef(true)
   const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
-  const serverFieldRef = React.useRef<HTMLDivElement | null>(null)
-  const serverInputRef = React.useRef<HTMLInputElement | null>(null)
-  const serverPopoverRef = React.useRef<HTMLDivElement | null>(null)
+  const trimmedEndpointURL = endpointURL.trim()
+  const debouncedEndpointURL = useDebouncedValue(trimmedEndpointURL, discoveryDebounceMs)
+  const validEndpointURL = isHTTPSURL(trimmedEndpointURL)
+  const discoveryURL = discoveryURLOverride ?? debouncedEndpointURL
+  const oauthQuery = useQuery({
+    ...oauthDiscoveryQueryOptions(discoveryURL),
+    enabled: authMode === "oauth" && isHTTPSURL(discoveryURL),
+  })
+  const oauthDiscoveryData = oauthQuery.data?.oauth
+  const isCurrentDiscoveryTarget = discoveryURL === trimmedEndpointURL
+  const isCurrentDiscoveryResult = oauthQuery.data?.endpointURL === trimmedEndpointURL
+  const discoveryWarningMessage =
+    oauthQuery.error instanceof Error ? oauthQuery.error.message : undefined
+  const discoveryWarningURL =
+    authMode === "oauth" && isCurrentDiscoveryTarget && isHTTPSURL(discoveryURL)
+      ? discoveryURL
+      : undefined
+  const discoveryWarningKey =
+    discoveryWarningURL && discoveryWarningMessage
+      ? `${discoveryWarningURL}:${discoveryWarningMessage}`
+      : undefined
+  const isDiscoveryPendingForCurrentURL =
+    authMode === "oauth" &&
+    validEndpointURL &&
+    (!isCurrentDiscoveryTarget || oauthQuery.fetchStatus === "fetching")
+  const currentDiscoveryState =
+    authMode !== "oauth" || !validEndpointURL
+      ? "idle"
+      : isDiscoveryPendingForCurrentURL
+        ? "discovering"
+        : oauthQuery.isError
+          ? "manual"
+          : isCurrentDiscoveryResult && oauthQuery.isSuccess
+            ? "success"
+            : "idle"
+  const discoveryIconState =
+    authMode !== "oauth" || !validEndpointURL || !isCurrentDiscoveryTarget
+      ? "idle"
+      : oauthQuery.fetchStatus === "fetching"
+        ? "loading"
+        : oauthQuery.isError
+          ? "error"
+          : isCurrentDiscoveryResult && oauthQuery.isSuccess
+            ? "success"
+            : "idle"
 
   const cancelPendingOAuthFlow = React.useCallback(() => {
     void fetch("/mcps/oauth/pending", {
@@ -461,66 +811,103 @@ export function McpSheet({
     if (!open) {
       return
     }
+
     form.reset(defaultValues)
   }, [defaultValues, form, open])
 
-  const deferredEndpointURL = React.useDeferredValue(endpointURL)
-  const selectedServer = React.useMemo(() => findMcpServerByURL(endpointURL), [endpointURL])
-  const SelectedServerIcon = selectedServer?.icon ?? mcpFallbackIcon
-  const serverResults = React.useMemo(() => {
-    const query = deferredEndpointURL.trim()
-    const catalogResults = query
-      ? mcpServerSearch.search(query).map((result) => result.item)
-      : mcpServers.slice(0, initialServerResults)
-    const results: McpCatalogResult[] = catalogResults.map((server) => ({
-      kind: "catalog",
-      server,
-    }))
-    const hasExactCatalogURL = findMcpServerByURL(query) !== undefined
+  React.useEffect(() => {
+    const unsubscribe = form.subscribe({
+      name: "endpoint_url",
+      exact: true,
+      formState: {
+        values: true,
+      },
+      callback: ({ values }) => {
+        setEndpointURL(values.endpoint_url ?? "")
+      },
+    })
 
-    if (query) {
-      let customURL: URL | undefined
-      try {
-        customURL = new URL(query)
-      } catch {
-        customURL = undefined
-      }
+    return () => {
+      unsubscribe()
+    }
+  }, [form])
 
-      if (customURL?.protocol === "https:" && !hasExactCatalogURL) {
-        results.push({
-          kind: "custom",
-          mcpUrl: query,
-        })
-      }
+  React.useEffect(() => {
+    for (const fieldName of conditionalFormFields) {
+      form.register(fieldName)
+    }
+  }, [form])
+
+  React.useEffect(() => {
+    const discoveredEndpointURL = oauthQuery.data?.endpointURL
+
+    if (
+      !oauthDiscoveryData ||
+      !discoveredEndpointURL ||
+      authMode !== "oauth" ||
+      !isCurrentDiscoveryTarget
+    ) {
+      return
     }
 
-    return results
-  }, [deferredEndpointURL])
-
-  function onSheetOpenChange(nextOpen: boolean) {
-    if (!nextOpen) {
-      cleanupPopupFlow({
-        closePopup: true,
-        cancelPending: Boolean(oauthPopupFlowId),
-      })
-      form.reset(defaultValues)
-      setOauthFlowError(undefined)
-      setDiscoveryResult({
-        endpointURL: "",
-        status: "idle",
-      })
-      setSubmitError(undefined)
-      setSuccessMessage(undefined)
-      setSubmitted(false)
-      setServerPickerOpen(false)
-      setUserExpandedAccordions([])
+    if (discoveredEndpointURL !== trimmedEndpointURL) {
+      return
     }
-    onOpenChangeAction(nextOpen)
-  }
+
+    form.setValue("oauth_issuer", oauthDiscoveryData.issuer ?? "", {
+      shouldValidate: true,
+    })
+    form.setValue("oauth_authorization_endpoint", oauthDiscoveryData.authorization_endpoint ?? "", {
+      shouldValidate: true,
+    })
+    form.setValue("oauth_token_endpoint", oauthDiscoveryData.token_endpoint ?? "", {
+      shouldValidate: true,
+    })
+    form.setValue("oauth_registration_endpoint", oauthDiscoveryData.registration_endpoint ?? "", {
+      shouldValidate: true,
+    })
+    form.setValue("oauth_resource", oauthDiscoveryData.resource ?? "", {
+      shouldValidate: true,
+    })
+    form.setValue("oauth_scopes", oauthDiscoveryData.scopes?.join("\n") ?? "", {
+      shouldValidate: true,
+    })
+    form.setValue(
+      "oauth_location_header_name",
+      oauthDiscoveryData.location?.header?.name ?? "Authorization",
+      {
+        shouldValidate: true,
+      }
+    )
+    form.setValue(
+      "oauth_location_header_prefix",
+      oauthDiscoveryData.location?.header?.prefix ?? "Bearer",
+      {
+        shouldValidate: true,
+      }
+    )
+  }, [
+    authMode,
+    form,
+    isCurrentDiscoveryTarget,
+    oauthDiscoveryData,
+    oauthQuery.data?.endpointURL,
+    trimmedEndpointURL,
+  ])
+
+  React.useEffect(() => {
+    if (oauthDiscoveryState === currentDiscoveryState) {
+      return
+    }
+
+    form.setValue("oauth_discovery_state", currentDiscoveryState, {
+      shouldValidate: true,
+    })
+  }, [currentDiscoveryState, form, oauthDiscoveryState])
 
   const openOAuthPopup = React.useCallback(
     (oauth: { flowId: string; url: string }) => {
-      setOauthFlowError(undefined)
+      setSubmitError(undefined)
       setSuccessMessage(undefined)
       let completed = false
 
@@ -548,7 +935,7 @@ export function McpSheet({
         finishPopupFlow()
 
         if (message.status === "success") {
-          setOauthFlowError(undefined)
+          setSubmitError(undefined)
           setSuccessMessage(message.message)
           setSubmitted(true)
           startTransition(() => {
@@ -557,7 +944,7 @@ export function McpSheet({
           return
         }
 
-        setOauthFlowError(message.message)
+        setSubmitError(message.message)
       }
 
       function onWindowMessage(event: MessageEvent<unknown>) {
@@ -571,8 +958,9 @@ export function McpSheet({
       window.addEventListener("message", onWindowMessage)
       if (typeof BroadcastChannel !== "undefined") {
         const channel = new BroadcastChannel(oauthBroadcastChannelName)
-        channel.onmessage = (event: MessageEvent<OAuthPopupMessage>) =>
+        channel.onmessage = (event: MessageEvent<OAuthPopupMessage>) => {
           handlePopupMessage(event.data)
+        }
         broadcastChannelRef.current = channel
       }
 
@@ -583,7 +971,7 @@ export function McpSheet({
       )
       if (!popup) {
         finishPopupFlow()
-        setOauthFlowError("OAuth popup was blocked by the browser. Allow popups and try again.")
+        setSubmitError("OAuth popup was blocked by the browser. Allow popups and try again.")
         return
       }
 
@@ -599,107 +987,14 @@ export function McpSheet({
         }
         finishPopupFlow()
         cancelPendingOAuthFlow()
-        setOauthFlowError("OAuth popup was closed before authentication completed.")
+        setSubmitError("OAuth popup was closed before authentication completed.")
       }, 400)
     },
     [cancelPendingOAuthFlow, cleanupPopupFlow, router]
   )
 
-  async function refreshOAuthDiscovery() {
-    const isValid = await form.trigger("endpoint_url")
-    if (!isValid) {
-      return
-    }
-
-    const nextEndpointURL = form.getValues("endpoint_url")
-    setDiscoveryResult({
-      endpointURL: nextEndpointURL,
-      status: "loading",
-    })
-
-    try {
-      const response = await fetch("/mcps/oauth/discovery", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          endpointUrl: nextEndpointURL,
-        }),
-      })
-      const payload = (await response.json()) as {
-        oauth?: {
-          issuer?: string
-          authorization_endpoint?: string
-          token_endpoint?: string
-          registration_endpoint?: string
-          resource?: string
-          scopes?: string[]
-          location?: {
-            header?: {
-              name?: string
-              prefix?: string
-            }
-          }
-        }
-        message?: string
-      }
-
-      if (payload.oauth) {
-        form.setValue("oauth_issuer", payload.oauth.issuer ?? "", {
-          shouldDirty: true,
-        })
-        form.setValue("oauth_authorization_endpoint", payload.oauth.authorization_endpoint ?? "", {
-          shouldDirty: true,
-        })
-        form.setValue("oauth_token_endpoint", payload.oauth.token_endpoint ?? "", {
-          shouldDirty: true,
-        })
-        form.setValue("oauth_registration_endpoint", payload.oauth.registration_endpoint ?? "", {
-          shouldDirty: true,
-        })
-        form.setValue("oauth_resource", payload.oauth.resource ?? "", {
-          shouldDirty: true,
-        })
-        form.setValue("oauth_scopes", payload.oauth.scopes?.join("\n") ?? "", {
-          shouldDirty: true,
-        })
-        form.setValue("oauth_location_header_name", payload.oauth.location?.header?.name ?? "", {
-          shouldDirty: true,
-        })
-        form.setValue(
-          "oauth_location_header_prefix",
-          payload.oauth.location?.header?.prefix ?? "",
-          { shouldDirty: true }
-        )
-      }
-
-      if (!response.ok) {
-        setDiscoveryResult({
-          endpointURL: nextEndpointURL,
-          status: "error",
-          message: payload.message ?? "OAuth metadata could not be discovered.",
-        })
-        return
-      }
-
-      setDiscoveryResult({
-        endpointURL: nextEndpointURL,
-        status: payload.message ? "error" : "success",
-        message: payload.message,
-      })
-    } catch (error) {
-      setDiscoveryResult({
-        endpointURL: nextEndpointURL,
-        status: "error",
-        message: error instanceof Error ? error.message : "OAuth metadata could not be discovered.",
-      })
-    }
-  }
-
   const submitValues = React.useCallback(
     async (values: McpFormInput) => {
-      setOauthFlowError(undefined)
       setSubmitError(undefined)
       form.clearErrors()
 
@@ -713,7 +1008,7 @@ export function McpSheet({
 
           applyServerErrors(form, nextState)
           if (nextState.error) {
-            setSubmitError(generalErrorMessage(nextState.error))
+            setSubmitError(generalErrorMessage(nextState.error) ?? nextState.error.message)
             return
           }
 
@@ -726,48 +1021,164 @@ export function McpSheet({
             setSubmitted(true)
             setSubmitError(undefined)
             setSuccessMessage(nextState.message)
-            form.reset()
+            form.reset(defaultValues)
             router.refresh()
           }
         })()
       })
     },
-    [form, openOAuthPopup, router, submitMcpAction]
+    [defaultValues, form, openOAuthPopup, router, submitMcpAction]
   )
-  const submitAction = React.useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      void form.handleSubmit(submitValues)(event)
-    },
-    [form, submitValues]
+
+  const discoveryWarningVisible =
+    authMode === "oauth" &&
+    discoveryWarningKey &&
+    discoveryWarningKey !== dismissedDiscoveryWarningKey &&
+    discoveryWarningMessage &&
+    discoveryWarningURL &&
+    oauthQuery.isError
+      ? {
+          key: discoveryWarningKey,
+          message: discoveryWarningMessage,
+        }
+      : undefined
+  const oauthClientCredentialsRequired =
+    Boolean(oauthClientID?.trim()) ||
+    Boolean(oauthClientSecret?.trim()) ||
+    (authMode === "oauth" &&
+      oauthDiscoveryState === "success" &&
+      !oauthRegistrationEndpoint?.trim())
+  const oauthAdvancedRequiredFields = React.useMemo(
+    () =>
+      new Set<OauthAdvancedFieldName>(
+        authMode !== "oauth"
+          ? []
+          : oauthDiscoveryState === "manual"
+            ? ["oauth_issuer", "oauth_authorization_endpoint", "oauth_token_endpoint"]
+            : oauthDiscoveryState === "success"
+              ? [
+                  ...(!oauthIssuer?.trim() ? (["oauth_issuer"] as const) : []),
+                  ...(!oauthAuthorizationEndpoint?.trim()
+                    ? (["oauth_authorization_endpoint"] as const)
+                    : []),
+                  ...(!oauthTokenEndpoint?.trim() ? (["oauth_token_endpoint"] as const) : []),
+                ]
+              : []
+      ),
+    [authMode, oauthAuthorizationEndpoint, oauthDiscoveryState, oauthIssuer, oauthTokenEndpoint]
   )
+  const requiredConditionalFields = React.useMemo(
+    () => [
+      ...(oauthClientCredentialsRequired
+        ? (["oauth_client_id", "oauth_client_secret"] as const)
+        : []),
+      ...oauthAdvancedRequiredFields,
+    ],
+    [oauthAdvancedRequiredFields, oauthClientCredentialsRequired]
+  )
+  const hasOAuthClientCredentialsAttention =
+    authMode === "oauth" &&
+    (oauthClientCredentialsRequired ||
+      Boolean(errors.oauth_client_id) ||
+      Boolean(errors.oauth_client_secret))
+  const hasOAuthAdvancedAttention =
+    authMode === "oauth" &&
+    (oauthAdvancedRequiredFields.size > 0 ||
+      Boolean(discoveryWarningKey && discoveryWarningKey !== dismissedDiscoveryWarningKey) ||
+      oauthAdvancedFields.some((field) => Boolean(errors[field.name])))
+  const previousAccordionAttentionRef = React.useRef({
+    clientCredentials: false,
+    advanced: false,
+  })
+
+  React.useEffect(() => {
+    const previousAttention = previousAccordionAttentionRef.current
+    const nextExpandedAccordions = new Set<string>()
+
+    if (!previousAttention.clientCredentials && hasOAuthClientCredentialsAttention) {
+      nextExpandedAccordions.add(clientCredentialsAccordionItem)
+    }
+
+    if (!previousAttention.advanced && hasOAuthAdvancedAttention) {
+      nextExpandedAccordions.add(advancedAccordionItem)
+    }
+
+    previousAccordionAttentionRef.current = {
+      clientCredentials: hasOAuthClientCredentialsAttention,
+      advanced: hasOAuthAdvancedAttention,
+    }
+
+    if (nextExpandedAccordions.size === 0) {
+      return
+    }
+
+    dispatchAccordion({
+      type: "expand",
+      items: [...nextExpandedAccordions],
+    })
+  }, [hasOAuthAdvancedAttention, hasOAuthClientCredentialsAttention])
+  const previousRequiredConditionalFieldsRef = React.useRef<string>("")
+
+  React.useEffect(() => {
+    const nextRequiredFieldsKey = requiredConditionalFields.join("|")
+    if (previousRequiredConditionalFieldsRef.current === nextRequiredFieldsKey) {
+      return
+    }
+
+    previousRequiredConditionalFieldsRef.current = nextRequiredFieldsKey
+    if (requiredConditionalFields.length === 0) {
+      return
+    }
+
+    void form.trigger(requiredConditionalFields)
+  }, [form, requiredConditionalFields])
+  function onSheetOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      cleanupPopupFlow({
+        closePopup: true,
+        cancelPending: Boolean(oauthPopupFlowId),
+      })
+      form.reset(defaultValues)
+      setSubmitError(undefined)
+      setSuccessMessage(undefined)
+      setSubmitted(false)
+      dispatchAccordion({
+        type: "reset",
+      })
+      setDismissedDiscoveryWarningKey(undefined)
+      setDiscoveryURLOverride(undefined)
+      previousAccordionAttentionRef.current = {
+        clientCredentials: false,
+        advanced: false,
+      }
+      previousRequiredConditionalFieldsRef.current = ""
+    }
+
+    onOpenChangeAction(nextOpen)
+  }
+
+  async function refreshDiscovery() {
+    const valid = await form.trigger("endpoint_url")
+    if (!valid) {
+      return
+    }
+
+    const nextURL = form.getValues("endpoint_url").trim()
+    if (!isHTTPSURL(nextURL)) {
+      return
+    }
+
+    if (nextURL === discoveryURL) {
+      await oauthQuery.refetch()
+      return
+    }
+
+    setDiscoveryURLOverride(nextURL)
+  }
 
   const title = "Connect MCP server"
   const submitLabel =
     mode === "create" ? "Connect" : authMode === "oauth" ? "Save changes" : "Update credential"
-
-  function selectServer(result: McpCatalogResult, onChange: (value: string) => void) {
-    const nextURL = result.kind === "catalog" ? result.server.mcpUrl : result.mcpUrl
-    onChange(nextURL)
-    form.clearErrors("endpoint_url")
-    setServerPickerOpen(false)
-    serverInputRef.current?.focus()
-  }
-
-  function isInServerField(target: EventTarget | null) {
-    if (!(target instanceof Node)) {
-      return false
-    }
-
-    return (
-      serverFieldRef.current?.contains(target) === true ||
-      serverPopoverRef.current?.contains(target) === true
-    )
-  }
-
-  const oauthAdvancedRequiredFields = new Set<OauthAdvancedFieldName>(
-    oauthAdvancedFieldNames.filter((fieldName) => Boolean(errors[fieldName]))
-  )
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
@@ -791,6 +1202,26 @@ export function McpSheet({
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription className="sr-only">{title}</SheetDescription>
         </SheetHeader>
+        {discoveryWarningVisible ? (
+          <Alert variant="warning" className="mx-4 mt-4 w-auto">
+            <CircleAlert className="size-4" />
+            <AlertTitle>Auto-discovery failed</AlertTitle>
+            <AlertDescription>{discoveryWarningVisible.message}</AlertDescription>
+            <AlertAction>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  setDismissedDiscoveryWarningKey(discoveryWarningVisible.key)
+                }}
+                aria-label="Dismiss auto-discovery warning"
+              >
+                <X />
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
         {submitted ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 pb-2">
             <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
@@ -815,29 +1246,25 @@ export function McpSheet({
             </p>
           </div>
         ) : (
-          <form onSubmit={submitAction} className="flex flex-1 flex-col gap-5 px-4 pb-2">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void form.handleSubmit(submitValues)(event)
+            }}
+            className="flex flex-1 flex-col gap-5 px-4 pb-2"
+          >
             <FieldGroup>
-              <Controller
-                name="name"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
-                    <Input
-                      id="mcp-name"
-                      name={field.name}
-                      ref={field.ref}
-                      value={field.value ?? ""}
-                      onBlur={field.onBlur}
-                      onChange={field.onChange}
-                      placeholder="Example MCP"
-                      disabled={mode === "update"}
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                  </Field>
-                )}
-              />
+              <Field data-invalid={Boolean(errors.name)}>
+                <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
+                <Input
+                  id="mcp-name"
+                  placeholder="Example MCP"
+                  disabled={mode === "update"}
+                  aria-invalid={Boolean(errors.name)}
+                  {...form.register("name")}
+                />
+                {errors.name ? <FieldError errors={[errors.name]} /> : null}
+              </Field>
               <Field>
                 <FieldLabel>Type</FieldLabel>
                 <Controller
@@ -848,14 +1275,18 @@ export function McpSheet({
                       <Button
                         type="button"
                         variant={field.value === "oauth" ? "secondary" : "ghost"}
-                        onClick={() => field.onChange("oauth")}
+                        onClick={() => {
+                          field.onChange("oauth")
+                        }}
                       >
                         OAuth
                       </Button>
                       <Button
                         type="button"
                         variant={field.value === "bearer" ? "secondary" : "ghost"}
-                        onClick={() => field.onChange("bearer")}
+                        onClick={() => {
+                          field.onChange("bearer")
+                        }}
                       >
                         Bearer token
                       </Button>
@@ -863,524 +1294,154 @@ export function McpSheet({
                   )}
                 />
               </Field>
-              <Controller
-                name="endpoint_url"
+              <ServerURLField
                 control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="mcp-endpoint-url">MCP Server</FieldLabel>
-                    <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
-                      <PopoverAnchor asChild>
-                        <div ref={serverFieldRef} className="relative">
-                          <SelectedServerIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            id="mcp-endpoint-url"
-                            name={field.name}
-                            ref={(node) => {
-                              field.ref(node)
-                              serverInputRef.current = node
-                            }}
-                            value={field.value ?? ""}
-                            onFocus={() => {
-                              setServerPickerOpen(true)
-                            }}
-                            onBlur={(event) => {
-                              if (isInServerField(event.relatedTarget)) {
-                                return
-                              }
-                              setServerPickerOpen(false)
-                              field.onBlur()
-                            }}
-                            onChange={(event) => {
-                              field.onChange(event)
-                              if (!serverPickerOpen) {
-                                setServerPickerOpen(true)
-                              }
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Escape") {
-                                setServerPickerOpen(false)
-                              }
-                            }}
-                            placeholder="https://example.com/mcp"
-                            className="pr-25 pl-9"
-                            aria-invalid={fieldState.invalid}
-                            aria-expanded={serverPickerOpen}
-                            aria-autocomplete="list"
-                            aria-controls="mcp-endpoint-url-suggestions"
-                            role="combobox"
-                          />
-                          <ChevronDown className="pointer-events-none absolute top-1/2 right-10 size-4 -translate-y-1/2 text-muted-foreground" />
-                          {authMode === "oauth" ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              className="absolute inset-y-0 right-1.5 my-auto"
-                              onClick={() => {
-                                void refreshOAuthDiscovery()
-                              }}
-                              disabled={discoveryState === "loading"}
-                              aria-label="Discover OAuth metadata"
-                            >
-                              {discoveryState === "loading" ? (
-                                <Spinner aria-hidden="true" />
-                              ) : discoveryState === "success" ? (
-                                <Check />
-                              ) : discoveryState === "error" ? (
-                                <X />
-                              ) : (
-                                <RefreshCw />
-                              )}
-                            </Button>
-                          ) : null}
-                        </div>
-                      </PopoverAnchor>
-                      <PopoverContent
-                        ref={serverPopoverRef}
-                        align="start"
-                        className="w-[var(--radix-popper-anchor-width)] p-0"
-                        onCloseAutoFocus={(event) => {
-                          event.preventDefault()
-                        }}
-                        onFocusOutside={(event) => {
-                          if (isInServerField(event.target)) {
-                            event.preventDefault()
-                          }
-                        }}
-                        onInteractOutside={(event) => {
-                          if (isInServerField(event.target)) {
-                            event.preventDefault()
-                          }
-                        }}
-                        onOpenAutoFocus={(event) => {
-                          event.preventDefault()
-                        }}
-                        sideOffset={8}
-                      >
-                        <Command shouldFilter={false}>
-                          <CommandList id="mcp-endpoint-url-suggestions">
-                            <CommandEmpty>
-                              No known MCP servers match. You can still use the typed URL.
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {serverResults.map((result) => {
-                                if (result.kind === "catalog") {
-                                  const Icon = result.server.icon
-                                  return (
-                                    <CommandItem
-                                      key={result.server.mcpUrl}
-                                      value={result.server.mcpUrl}
-                                      className="cursor-pointer"
-                                      onMouseDown={(event) => {
-                                        event.preventDefault()
-                                      }}
-                                      onSelect={() => {
-                                        selectServer(result, field.onChange)
-                                      }}
-                                    >
-                                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
-                                        <Icon />
-                                      </span>
-                                      <span className="min-w-0 flex-1">
-                                        <span className="block truncate font-medium">
-                                          {result.server.name}
-                                        </span>
-                                        <span className="block truncate text-xs text-muted-foreground">
-                                          {result.server.mcpUrl}
-                                        </span>
-                                      </span>
-                                    </CommandItem>
-                                  )
-                                }
-
-                                return (
-                                  <CommandItem
-                                    key={result.mcpUrl}
-                                    value={result.mcpUrl}
-                                    className="cursor-pointer"
-                                    onMouseDown={(event) => {
-                                      event.preventDefault()
-                                    }}
-                                    onSelect={() => {
-                                      selectServer(result, field.onChange)
-                                    }}
-                                  >
-                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
-                                      <Settings2 />
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate font-medium">
-                                        Custom Server
-                                      </span>
-                                      <span className="block truncate text-xs text-muted-foreground">
-                                        {result.mcpUrl}
-                                      </span>
-                                    </span>
-                                  </CommandItem>
-                                )
-                              })}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                  </Field>
-                )}
+                authMode={authMode}
+                endpointError={errors.endpoint_url}
+                discoveryIconState={discoveryIconState}
+                isRefreshingDiscovery={oauthQuery.fetchStatus === "fetching"}
+                discoveryURLOverride={discoveryURLOverride}
+                onDiscoveryURLOverrideChangeAction={setDiscoveryURLOverride}
+                onRefreshDiscoveryAction={() => {
+                  void refreshDiscovery()
+                }}
               />
               {authMode === "oauth" ? (
-                <>
-                  <Accordion
-                    type="multiple"
-                    className="rounded-lg border px-4"
-                    value={expandedAccordions}
-                    onValueChange={setUserExpandedAccordions}
-                  >
-                    <AccordionItem value={clientCredentialsAccordionItem} className="border-none">
-                      <AccordionTrigger className="py-4 hover:no-underline">
-                        <div className="flex items-center gap-2">
-                          <span>OAuth client credentials</span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                            {oauthRequiresClientCredentials ? "Required" : "Optional"}
-                          </span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="[&>div]:h-auto">
-                        <FieldGroup>
-                          <Controller
-                            name="oauth_client_id"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Client ID</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="Client ID"
-                                  required={oauthRequiresClientCredentials}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
+                <Accordion
+                  type="multiple"
+                  className="rounded-lg border px-4"
+                  value={userExpandedAccordions}
+                  onValueChange={(value) => {
+                    dispatchAccordion({
+                      type: "set",
+                      value,
+                    })
+                  }}
+                >
+                  <AccordionItem value={clientCredentialsAccordionItem} className="border-none">
+                    <AccordionTrigger className="py-4 hover:no-underline">
+                      <span>OAuth client credentials</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="[&>div]:h-auto">
+                      <FieldGroup>
+                        <Field data-invalid={Boolean(errors.oauth_client_id)}>
+                          <FieldLabel>Client ID</FieldLabel>
+                          <Input
+                            placeholder="Client ID"
+                            required={oauthClientCredentialsRequired}
+                            aria-invalid={Boolean(errors.oauth_client_id)}
+                            {...form.register("oauth_client_id")}
                           />
-                          <Controller
-                            name="oauth_client_secret"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Client secret</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  type="password"
-                                  placeholder="Client secret"
-                                  required={oauthRequiresClientCredentials}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
+                          {errors.oauth_client_id ? (
+                            <FieldError errors={[errors.oauth_client_id]} />
+                          ) : null}
+                        </Field>
+                        <Field data-invalid={Boolean(errors.oauth_client_secret)}>
+                          <FieldLabel>Client secret</FieldLabel>
+                          <Input
+                            type="password"
+                            placeholder="Client secret"
+                            required={oauthClientCredentialsRequired}
+                            aria-invalid={Boolean(errors.oauth_client_secret)}
+                            {...form.register("oauth_client_secret")}
                           />
-                        </FieldGroup>
-                      </AccordionContent>
-                    </AccordionItem>
-                    <div className="-mx-[calc(1rem+1px)]">
-                      <Separator />
-                    </div>
-                    <AccordionItem value={advancedAccordionItem} className="border-none">
-                      <AccordionTrigger className="py-4 hover:no-underline">
-                        <div className="flex items-center gap-2">
-                          <span>Advanced</span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                            {oauthHasAdvancedError ? "Required" : "Optional"}
-                          </span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="[&>div]:h-auto">
-                        <FieldGroup>
-                          <Controller
-                            name="oauth_issuer"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Issuer</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="https://issuer.example.com"
-                                  required={oauthAdvancedRequiredFields.has("oauth_issuer")}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="oauth_authorization_endpoint"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Authorization endpoint</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="https://issuer.example.com/authorize"
-                                  required={oauthAdvancedRequiredFields.has(
-                                    "oauth_authorization_endpoint"
-                                  )}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="oauth_token_endpoint"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Token endpoint</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="https://issuer.example.com/token"
-                                  required={oauthAdvancedRequiredFields.has("oauth_token_endpoint")}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="oauth_registration_endpoint"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Registration endpoint</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="https://issuer.example.com/register"
-                                  required={oauthAdvancedRequiredFields.has(
-                                    "oauth_registration_endpoint"
-                                  )}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="oauth_resource"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Resource</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="https://example.com/mcp"
-                                  required={oauthAdvancedRequiredFields.has("oauth_resource")}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="oauth_scopes"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Scopes</FieldLabel>
+                          {errors.oauth_client_secret ? (
+                            <FieldError errors={[errors.oauth_client_secret]} />
+                          ) : null}
+                        </Field>
+                      </FieldGroup>
+                    </AccordionContent>
+                  </AccordionItem>
+                  <div className="-mx-[calc(1rem+1px)]">
+                    <Separator />
+                  </div>
+                  <AccordionItem value={advancedAccordionItem} className="border-none">
+                    <AccordionTrigger className="py-4 hover:no-underline">
+                      <span>Advanced</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="[&>div]:h-auto">
+                      <FieldGroup>
+                        {oauthAdvancedFields.map((config) => {
+                          const error = errors[config.name]
+                          const required = oauthAdvancedRequiredFields.has(config.name)
+                          return (
+                            <Field key={config.name} data-invalid={Boolean(error)}>
+                              <FieldLabel>{config.label}</FieldLabel>
+                              {"kind" in config && config.kind === "textarea" ? (
                                 <Textarea
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
                                   rows={3}
-                                  placeholder={"scope:read\nscope:write"}
-                                  required={oauthAdvancedRequiredFields.has("oauth_scopes")}
-                                  aria-invalid={fieldState.invalid}
+                                  placeholder={config.placeholder}
+                                  required={required}
+                                  aria-invalid={Boolean(error)}
+                                  {...form.register(config.name)}
                                 />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="oauth_location_header_name"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Bearer token header name</FieldLabel>
+                              ) : (
                                 <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="Authorization"
-                                  required={oauthAdvancedRequiredFields.has(
-                                    "oauth_location_header_name"
-                                  )}
-                                  aria-invalid={fieldState.invalid}
+                                  placeholder={config.placeholder}
+                                  required={required}
+                                  aria-invalid={Boolean(error)}
+                                  {...form.register(config.name)}
                                 />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="oauth_location_header_prefix"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Bearer token prefix</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="Bearer"
-                                  required={oauthAdvancedRequiredFields.has(
-                                    "oauth_location_header_prefix"
-                                  )}
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                        </FieldGroup>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </>
+                              )}
+                              {error ? <FieldError errors={[error]} /> : null}
+                            </Field>
+                          )
+                        })}
+                      </FieldGroup>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               ) : (
                 <>
-                  <Controller
-                    name="bearer_token"
-                    control={form.control}
-                    render={({ field, fieldState }) => (
-                      <Field data-invalid={fieldState.invalid}>
-                        <FieldLabel htmlFor="mcp-bearer-token">Token</FieldLabel>
-                        <Input
-                          id="mcp-bearer-token"
-                          name={field.name}
-                          ref={field.ref}
-                          value={field.value ?? ""}
-                          onBlur={field.onBlur}
-                          onChange={field.onChange}
-                          placeholder="API key or personal access token"
-                          aria-invalid={fieldState.invalid}
-                        />
-                        {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                      </Field>
-                    )}
-                  />
+                  <Field data-invalid={Boolean(errors.bearer_token)}>
+                    <FieldLabel htmlFor="mcp-bearer-token">Token</FieldLabel>
+                    <Input
+                      id="mcp-bearer-token"
+                      placeholder="API key or personal access token"
+                      aria-invalid={Boolean(errors.bearer_token)}
+                      {...form.register("bearer_token")}
+                    />
+                    {errors.bearer_token ? <FieldError errors={[errors.bearer_token]} /> : null}
+                  </Field>
                   <Accordion
                     type="multiple"
                     className="rounded-lg border px-4"
                     value={userExpandedAccordions}
-                    onValueChange={setUserExpandedAccordions}
+                    onValueChange={(value) => {
+                      dispatchAccordion({
+                        type: "set",
+                        value,
+                      })
+                    }}
                   >
                     <AccordionItem value={advancedAccordionItem} className="border-none">
                       <AccordionTrigger className="py-4 hover:no-underline">
-                        <div className="flex items-center gap-2">
-                          <span>Advanced</span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                            Optional
-                          </span>
-                        </div>
+                        <span>Advanced</span>
                       </AccordionTrigger>
                       <AccordionContent className="[&>div]:h-auto" style={{ animation: "none" }}>
                         <FieldGroup>
-                          <Controller
-                            name="bearer_location_header_name"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Bearer token header name</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="Authorization"
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
-                          <Controller
-                            name="bearer_location_header_prefix"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                              <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Bearer token prefix</FieldLabel>
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value ?? ""}
-                                  onBlur={field.onBlur}
-                                  onChange={field.onChange}
-                                  placeholder="Bearer"
-                                  aria-invalid={fieldState.invalid}
-                                />
-                                {fieldState.invalid ? (
-                                  <FieldError errors={[fieldState.error]} />
-                                ) : null}
-                              </Field>
-                            )}
-                          />
+                          <Field data-invalid={Boolean(errors.bearer_location_header_name)}>
+                            <FieldLabel>Bearer token header name</FieldLabel>
+                            <Input
+                              placeholder="Authorization"
+                              aria-invalid={Boolean(errors.bearer_location_header_name)}
+                              {...form.register("bearer_location_header_name")}
+                            />
+                            {errors.bearer_location_header_name ? (
+                              <FieldError errors={[errors.bearer_location_header_name]} />
+                            ) : null}
+                          </Field>
+                          <Field data-invalid={Boolean(errors.bearer_location_header_prefix)}>
+                            <FieldLabel>Bearer token prefix</FieldLabel>
+                            <Input
+                              placeholder="Bearer"
+                              aria-invalid={Boolean(errors.bearer_location_header_prefix)}
+                              {...form.register("bearer_location_header_prefix")}
+                            />
+                            {errors.bearer_location_header_prefix ? (
+                              <FieldError errors={[errors.bearer_location_header_prefix]} />
+                            ) : null}
+                          </Field>
                         </FieldGroup>
                       </AccordionContent>
                     </AccordionItem>
@@ -1392,49 +1453,41 @@ export function McpSheet({
                 <div className="flex flex-col gap-4">
                   {headerFields.fields.map((item, index) => (
                     <div key={item.id} className="flex items-start gap-4">
-                      <Controller
-                        name={`extra_headers.${index}.key`}
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field className="flex-1" data-invalid={fieldState.invalid}>
-                            <Input
-                              name="extra_header_key"
-                              ref={field.ref}
-                              value={field.value}
-                              onBlur={field.onBlur}
-                              onChange={field.onChange}
-                              placeholder={`Key ${index + 1}`}
-                              aria-invalid={fieldState.invalid}
-                            />
-                            {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                          </Field>
-                        )}
-                      />
-                      <Controller
-                        name={`extra_headers.${index}.value`}
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field className="flex-1" data-invalid={fieldState.invalid}>
-                            <Textarea
-                              name="extra_header_value"
-                              ref={field.ref}
-                              value={field.value}
-                              onBlur={field.onBlur}
-                              onChange={field.onChange}
-                              rows={2}
-                              placeholder={`Value ${index + 1}`}
-                              aria-invalid={fieldState.invalid}
-                            />
-                            {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                          </Field>
-                        )}
-                      />
+                      <Field
+                        className="flex-1"
+                        data-invalid={Boolean(errors.extra_headers?.[index]?.key)}
+                      >
+                        <Input
+                          placeholder={`Key ${index + 1}`}
+                          aria-invalid={Boolean(errors.extra_headers?.[index]?.key)}
+                          {...form.register(`extra_headers.${index}.key`)}
+                        />
+                        {errors.extra_headers?.[index]?.key ? (
+                          <FieldError errors={[errors.extra_headers[index].key]} />
+                        ) : null}
+                      </Field>
+                      <Field
+                        className="flex-1"
+                        data-invalid={Boolean(errors.extra_headers?.[index]?.value)}
+                      >
+                        <Textarea
+                          rows={2}
+                          placeholder={`Value ${index + 1}`}
+                          aria-invalid={Boolean(errors.extra_headers?.[index]?.value)}
+                          {...form.register(`extra_headers.${index}.value`)}
+                        />
+                        {errors.extra_headers?.[index]?.value ? (
+                          <FieldError errors={[errors.extra_headers[index].value]} />
+                        ) : null}
+                      </Field>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="mt-1"
-                        onClick={() => headerFields.remove(index)}
+                        onClick={() => {
+                          headerFields.remove(index)
+                        }}
                       >
                         <Trash2 />
                       </Button>
@@ -1448,35 +1501,31 @@ export function McpSheet({
                       headerFields.append({ key: "", value: "" })
                     }}
                   >
-                    Add item
+                    + Add
                   </Button>
                 </div>
               </Field>
             </FieldGroup>
             {submitError ? (
-              <p
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-              >
-                {submitError}
-              </p>
-            ) : null}
-            {oauthFlowError ? (
-              <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {oauthFlowError}
-              </p>
-            ) : null}
-            {discoveryError ? (
-              <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {discoveryError}
-              </p>
+              <Alert variant="destructive">
+                <CircleAlert className="size-4" />
+                <AlertTitle>Connection failed</AlertTitle>
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
             ) : null}
             <div className="flex justify-end">
               <Button
                 type="submit"
-                disabled={!canSubmit || isPending || oauthPopupFlowId !== undefined}
+                disabled={
+                  !isValid ||
+                  isPending ||
+                  oauthPopupFlowId !== undefined ||
+                  isDiscoveryPendingForCurrentURL
+                }
               >
-                {isPending || oauthPopupFlowId ? <Spinner /> : null}
+                {isPending || oauthPopupFlowId || isDiscoveryPendingForCurrentURL ? (
+                  <Spinner />
+                ) : null}
                 {oauthPopupFlowId
                   ? "Waiting for OAuth"
                   : isPending

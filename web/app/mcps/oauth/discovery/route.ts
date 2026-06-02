@@ -6,6 +6,9 @@ import { NextResponse } from "next/server"
 import * as z from "zod"
 import { discoveredOAuthAuth, type StoredOAuthDiscoveryState } from "@/lib/mcp-oauth"
 
+const manualDiscoveryMessage =
+  "Auto-discovery failed, please fill in the required fields in advanced section manually."
+
 const discoveryRequestSchema = z.object({
   endpointUrl: z.string().url(),
 })
@@ -55,7 +58,7 @@ export async function POST(request: Request) {
   if (!resourceMetadata && !authorizationServerMetadata) {
     return NextResponse.json(
       {
-        message: authorizationError ?? resourceError ?? "OAuth metadata could not be discovered.",
+        message: manualDiscoveryMessage,
       },
       { status: 502 }
     )
@@ -67,10 +70,8 @@ export async function POST(request: Request) {
     authorizationServerMetadata,
   } satisfies StoredOAuthDiscoveryState
   const oauth = discoveredOAuthAuth(discoveryState)
-  const message = [resourceError, authorizationError].filter(Boolean).join(" ")
 
   return NextResponse.json({
     oauth,
-    message: message || undefined,
   })
 }

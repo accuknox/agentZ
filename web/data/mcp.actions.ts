@@ -101,6 +101,14 @@ function mcpFormInput(formData: FormData): McpFormInput {
       value: String(headerValues[index] ?? ""),
     })),
     auth_mode: authModeValue === "bearer" ? "bearer" : "oauth",
+    oauth_discovery_state:
+      formData.get("oauth_discovery_state") === "discovering"
+        ? "discovering"
+        : formData.get("oauth_discovery_state") === "success"
+          ? "success"
+          : formData.get("oauth_discovery_state") === "manual"
+            ? "manual"
+            : "idle",
     bearer_token: String(formData.get("bearer_token") ?? ""),
     oauth_scopes: String(formData.get("oauth_scopes") ?? ""),
     oauth_client_id: String(formData.get("oauth_client_id") ?? ""),

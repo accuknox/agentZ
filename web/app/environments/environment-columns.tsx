@@ -183,7 +183,7 @@ function DeleteEnvironmentDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
             {state.error.message}
           </p>
         ) : null}

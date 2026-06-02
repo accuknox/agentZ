@@ -35,7 +35,7 @@ const columns: TelemetryTableColumn<ProcessTelemetryRow>[] = [
     key: "lastSeen",
     header: "Last Seen",
     className: "min-w-40",
-    render: (row) => <span className="text-sm text-muted-foreground">{row.lastSeen}</span>,
+    render: (row) => <span className="text-muted-foreground text-sm">{row.lastSeen}</span>,
   },
 ]
 

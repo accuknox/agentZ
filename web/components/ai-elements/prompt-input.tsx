@@ -902,12 +902,12 @@ export const PromptInput = ({
         <InputGroup
           className={cn(
             "overflow-hidden",
-            isDraggingFiles && "border-primary ring-3 ring-primary/20"
+            isDraggingFiles && "border-primary ring-primary/20 ring-3"
           )}
         >
           {children}
           {isDraggingFiles ? (
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-background/90 text-sm font-medium text-primary backdrop-blur-sm">
+            <div className="border-primary bg-background/90 text-primary pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium backdrop-blur-sm">
               Drop files to attach
             </div>
           ) : null}
@@ -1119,7 +1119,7 @@ export const PromptInputButton = ({
       <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent side={side}>
         {tooltipContent}
-        {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
+        {shortcut && <span className="text-muted-foreground ml-2">{shortcut}</span>}
       </TooltipContent>
     </Tooltip>
   )
@@ -1227,7 +1227,7 @@ export const PromptInputSelectTrigger = ({
 }: PromptInputSelectTriggerProps) => (
   <SelectTrigger
     className={cn(
-      "border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors",
+      "text-muted-foreground border-none bg-transparent font-medium shadow-none transition-colors",
       "hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground",
       className
     )}
@@ -1294,7 +1294,7 @@ export type PromptInputTabLabelProps = HTMLAttributes<HTMLHeadingElement>
 export const PromptInputTabLabel = ({ className, ...props }: PromptInputTabLabelProps) => (
   // Content provided via children in props
   // oxlint-disable-next-line eslint-plugin-jsx-a11y(heading-has-content)
-  <h3 className={cn("mb-2 px-3 font-medium text-muted-foreground text-xs", className)} {...props} />
+  <h3 className={cn("text-muted-foreground mb-2 px-3 text-xs font-medium", className)} {...props} />
 )
 
 export type PromptInputTabBodyProps = HTMLAttributes<HTMLDivElement>
@@ -1307,7 +1307,7 @@ export type PromptInputTabItemProps = HTMLAttributes<HTMLDivElement>
 
 export const PromptInputTabItem = ({ className, ...props }: PromptInputTabItemProps) => (
   <div
-    className={cn("flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent", className)}
+    className={cn("hover:bg-accent flex items-center gap-2 px-3 py-2 text-xs", className)}
     {...props}
   />
 )

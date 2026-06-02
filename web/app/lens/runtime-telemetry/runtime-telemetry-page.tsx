@@ -203,18 +203,18 @@ function Filters({
 }
 
 function FiltersSkeleton() {
-  return <div className="h-15 border-b bg-muted/20" />
+  return <div className="bg-muted/20 h-15 border-b" />
 }
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="m-6 rounded-md bg-destructive/5 p-4 text-sm text-destructive">{message}</div>
+    <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">{message}</div>
   )
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
       {message}
     </div>
   )

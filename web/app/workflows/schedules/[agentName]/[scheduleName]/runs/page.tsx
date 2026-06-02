@@ -120,7 +120,7 @@ function RunsTableSkeleton() {
 
 function FiltersSkeleton() {
   return (
-    <div className="border-b bg-background px-6 py-2">
+    <div className="bg-background border-b px-6 py-2">
       <div className="flex min-h-14 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-64" />
@@ -133,6 +133,6 @@ function FiltersSkeleton() {
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="m-6 rounded-md bg-destructive/5 p-4 text-sm text-destructive">{message}</div>
+    <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">{message}</div>
   )
 }

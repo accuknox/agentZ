@@ -286,7 +286,7 @@ function CustomAnswerInput({
     <Input
       autoFocus
       aria-label="Custom answer"
-      className="h-9 rounded-none border-x-0 border-t-0 border-b border-border bg-transparent px-2 shadow-none focus-visible:ring-0"
+      className="border-border h-9 rounded-none border-x-0 border-t-0 border-b bg-transparent px-2 shadow-none focus-visible:ring-0"
       disabled={disabled}
       onBlur={(event) => onCommit(event.target.value)}
       onChange={(event) => setValue(event.target.value)}
@@ -624,14 +624,14 @@ function QuestionDock({
 
   return (
     <div className="mx-auto w-full px-4 lg:w-4/5 lg:px-0">
-      <div className="border-l-2 border-primary bg-card">
+      <div className="border-primary bg-card border-l-2">
         <div className="flex flex-col gap-4 px-4 py-3">
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
-                <div className="font-medium text-foreground text-sm">{question.header}</div>
+                <div className="text-foreground text-sm font-medium">{question.header}</div>
               </div>
-              <div className="font-mono text-[11px] text-muted-foreground">
+              <div className="text-muted-foreground font-mono text-[11px]">
                 {localState.questionIndex + 1}/{total}
               </div>
             </div>
@@ -780,17 +780,17 @@ function PermissionDock({
 
   return (
     <div className="mx-auto w-full px-4 lg:w-4/5 lg:px-0">
-      <div className="border-l-2 border-primary bg-card">
+      <div className="border-primary bg-card border-l-2">
         <div className="flex flex-col gap-4 px-4 py-3">
           <div className="flex flex-col gap-2">
-            <div className="font-medium text-foreground text-sm">
+            <div className="text-foreground text-sm font-medium">
               {allowAlways ? "Always allow" : permissionTitle(request)}
             </div>
           </div>
           <div className="text-foreground text-sm">
             {allowAlways ? "Confirm persistent approval" : permissionDescription(request)}
             {allowAlways ? (
-              <div className="mt-1 text-muted-foreground text-xs">
+              <div className="text-muted-foreground mt-1 text-xs">
                 {request.always.length === 1 && request.always[0] === "*"
                   ? `Allow ${request.permission} until restart.`
                   : "Allow these patterns until restart."}
@@ -802,7 +802,7 @@ function PermissionDock({
               <FieldLegend>Patterns</FieldLegend>
               <div className="grid gap-2">
                 {request.patterns.map((pattern) => (
-                  <div className="px-0 py-1 font-mono text-sm text-foreground" key={pattern}>
+                  <div className="text-foreground px-0 py-1 font-mono text-sm" key={pattern}>
                     - {pattern}
                   </div>
                 ))}
@@ -814,7 +814,7 @@ function PermissionDock({
               <FieldLegend>Always-allow scope</FieldLegend>
               <div className="grid gap-2">
                 {request.always.map((pattern) => (
-                  <div className="px-0 py-1 font-mono text-sm text-foreground" key={pattern}>
+                  <div className="text-foreground px-0 py-1 font-mono text-sm" key={pattern}>
                     - {pattern}
                   </div>
                 ))}
@@ -1407,7 +1407,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                           from="assistant"
                           key={block.key}
                         >
-                          <MessageContent className="w-fit rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive">
+                          <MessageContent className="border-destructive/20 bg-destructive/5 text-destructive w-fit rounded-md border px-3 py-2">
                             <MessageResponse>{block.message.content}</MessageResponse>
                           </MessageContent>
                         </Message>
@@ -1419,7 +1419,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                         <MessageContent
                           className={cn(
                             block.message.status === "failed"
-                              ? "border border-destructive/30 bg-destructive/10 text-destructive"
+                              ? "border-destructive/30 bg-destructive/10 text-destructive border"
                               : undefined,
                             block.message.attachments.length > 0 ? "space-y-3" : undefined
                           )}
@@ -1488,7 +1488,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
                               if (group.type === "tool-group") {
                                 return (
                                   <div
-                                    className="rounded-md bg-muted p-2 dark:bg-card"
+                                    className="bg-muted dark:bg-card rounded-md p-2"
                                     key={group.key}
                                   >
                                     {group.entries.map((entry) => (
@@ -1540,7 +1540,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         <ConversationScrollButton />
       </Conversation>
       <div className="grid shrink-0 gap-4 pt-4">
-        <div className="mx-auto w-full pb-4 lg:w-4/5 lg:px-0 px-4">
+        <div className="mx-auto w-full px-4 pb-4 lg:w-4/5 lg:px-0">
           <PromptInput
             accept={chatAttachmentConfig.accept}
             globalDrop

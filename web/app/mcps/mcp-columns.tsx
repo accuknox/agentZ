@@ -108,7 +108,7 @@ export function createMcpColumns(actions: {
       accessorFn: (row) => row.endpoint.url,
       cell: ({ row }) => (
         <span
-          className="block min-w-0 truncate text-muted-foreground"
+          className="text-muted-foreground block min-w-0 truncate"
           title={row.original.endpoint.url}
         >
           {row.original.endpoint.url}
@@ -277,7 +277,7 @@ function DeleteMcpDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
             {state.error.message}
           </p>
         ) : null}

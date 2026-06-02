@@ -30,7 +30,7 @@ export function WizardPanel({
   stepKey: string | number
 }) {
   return (
-    <div className="relative mt-6 min-h-0 w-full flex-1 overflow-hidden rounded border bg-card">
+    <div className="bg-card relative mt-6 min-h-0 w-full flex-1 overflow-hidden rounded border">
       {panelAdornment}
       <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
         <AnimatePresence custom={direction} mode="wait" initial={false}>

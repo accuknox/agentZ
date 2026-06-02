@@ -162,13 +162,13 @@ function EnvironmentSelect({
         {hasNextPage ? (
           <div
             ref={setSentinel}
-            className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground"
+            className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 text-xs"
           >
             {loading ? <Spinner aria-hidden="true" /> : null}
             {loading ? "Loading environments..." : "Scroll for more environments"}
           </div>
         ) : null}
-        {error ? <div className="px-2 py-1.5 text-xs text-destructive">{error}</div> : null}
+        {error ? <div className="text-destructive px-2 py-1.5 text-xs">{error}</div> : null}
       </SelectContent>
     </Select>
   )
@@ -304,10 +304,10 @@ export function AgentDialog({
           </FieldGroup>
         </form>
         {state.error ? (
-          <div role="alert" className="rounded border border-destructive/40 p-3 text-sm">
-            <p className="font-medium text-destructive">{state.error.message}</p>
+          <div role="alert" className="border-destructive/40 rounded border p-3 text-sm">
+            <p className="text-destructive font-medium">{state.error.message}</p>
             {state.error.errors?.length ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-destructive">
+              <ul className="text-destructive mt-2 list-disc space-y-1 pl-5">
                 {state.error.errors.map((error) => (
                   <li key={`${error.field}-${error.message}`}>
                     {error.field}: {error.message}

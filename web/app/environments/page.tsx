@@ -52,7 +52,7 @@ async function Environments({
 
   if (result.error) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
         {result.error.message}
       </div>
     )
@@ -71,9 +71,9 @@ async function Environments({
 function EnvironmentsSkeleton() {
   return (
     <div className="flex flex-col gap-3 px-4 md:px-6">
-      <div className="h-10 rounded-md bg-muted/20" />
-      <div className="h-10 rounded-md bg-muted/20" />
-      <div className="h-10 rounded-md bg-muted/20" />
+      <div className="bg-muted/20 h-10 rounded-md" />
+      <div className="bg-muted/20 h-10 rounded-md" />
+      <div className="bg-muted/20 h-10 rounded-md" />
     </div>
   )
 }

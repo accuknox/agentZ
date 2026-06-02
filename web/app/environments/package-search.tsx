@@ -89,18 +89,18 @@ function PackageDetail({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+      <dt className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
         <Icon className="size-3.5" />
         {label}
       </dt>
-      <dd className="min-w-0 text-sm text-foreground">{children}</dd>
+      <dd className="text-foreground min-w-0 text-sm">{children}</dd>
     </div>
   )
 }
 
 function PackageMeta({ children, icon: Icon }: { children: React.ReactNode; icon: LucideIcon }) {
   return (
-    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+    <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
       <Icon className="size-3.5 shrink-0" />
       <span className="truncate">{children}</span>
     </span>
@@ -159,7 +159,7 @@ function PackageResult({
     <AccordionItem
       value={attrName}
       className={cn(
-        "group/package-row px-4 data-[state=open]:bg-muted/20",
+        "group/package-row data-[state=open]:bg-muted/20 px-4",
         isSelected && "bg-muted/30"
       )}
     >
@@ -167,24 +167,24 @@ function PackageResult({
         <div className="flex min-w-0 flex-col gap-1.5 text-left">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
             <AccordionTrigger className="w-fit max-w-full flex-none justify-start rounded-none p-0 hover:no-underline **:data-[slot=accordion-trigger-icon]:hidden">
-              <span className="truncate font-mono text-base font-semibold transition-colors hover:text-primary hover:underline">
+              <span className="hover:text-primary truncate font-mono text-base font-semibold transition-colors hover:underline">
                 {label}
               </span>
             </AccordionTrigger>
             {pkg?.package_pversion ? (
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="text-muted-foreground font-mono text-xs">
                 v{pkg.package_pversion}
               </span>
             ) : null}
           </div>
           {pkg ? (
             pkg.package_description ? (
-              <p className="line-clamp-1 text-sm font-normal text-foreground">
+              <p className="text-foreground line-clamp-1 text-sm font-normal">
                 {pkg.package_description}
               </p>
             ) : null
           ) : (
-            <p className="line-clamp-1 text-sm font-normal text-foreground">
+            <p className="text-foreground line-clamp-1 text-sm font-normal">
               Package details are not loaded yet.
             </p>
           )}
@@ -204,9 +204,9 @@ function PackageResult({
           onToggle={onToggle}
         />
       </div>
-      <AccordionContent className="pb-4 pt-4">
+      <AccordionContent className="pt-4 pb-4">
         {!pkg ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Search for this package to load package details.
           </p>
         ) : hasDetails ? (
@@ -220,7 +220,7 @@ function PackageResult({
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="truncate text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground truncate"
                     >
                       {href}
                     </a>
@@ -240,7 +240,7 @@ function PackageResult({
             ) : null}
           </dl>
         ) : (
-          <p className="text-sm text-muted-foreground">No package details available.</p>
+          <p className="text-muted-foreground text-sm">No package details available.</p>
         )}
       </AccordionContent>
     </AccordionItem>
@@ -319,7 +319,7 @@ export function PackageSearch({
   return (
     <div className="flex min-h-0 flex-col gap-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="text-sm text-muted-foreground">{selected.length} selected</div>
+        <div className="text-muted-foreground text-sm">{selected.length} selected</div>
         <Tabs
           value={filter}
           onValueChange={(value) => {
@@ -383,18 +383,18 @@ export function PackageSearch({
       </InputGroup>
 
       {searchDependent && isFetching && packages.length === 0 ? (
-        <div className="flex items-center justify-center gap-2 rounded border py-10 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center justify-center gap-2 rounded border py-10 text-sm">
           <Spinner />
           Searching...
         </div>
       ) : null}
       {searchDependent && hasError ? (
-        <div className="rounded border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded border p-3 text-sm">
           {data?.error?.message ?? "Search failed"}
         </div>
       ) : null}
       {searchDependent && !isFetching && debounced.length < minQueryLength ? (
-        <div className="rounded border py-10 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground rounded border py-10 text-center text-sm">
           Search across 100K packages.
         </div>
       ) : null}
@@ -403,12 +403,12 @@ export function PackageSearch({
       debounced.length >= minQueryLength &&
       rows.length === 0 &&
       !hasError ? (
-        <div className="rounded border py-10 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground rounded border py-10 text-center text-sm">
           No packages found.
         </div>
       ) : null}
       {!searchDependent && rows.length === 0 ? (
-        <div className="rounded border py-10 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground rounded border py-10 text-center text-sm">
           {filter === "installed" ? "No packages installed." : "No packages selected."}
         </div>
       ) : null}
@@ -425,7 +425,7 @@ export function PackageSearch({
               />
             ))}
           </Accordion>
-          <div className="flex flex-col gap-3 px-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-muted-foreground flex flex-col gap-3 px-1 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span>
               {pageStart}-{pageEnd} of {rows.length}
             </span>

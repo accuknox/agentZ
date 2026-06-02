@@ -464,7 +464,7 @@ function AllowedHostsStep({
       {generalError ? (
         <div
           role="alert"
-          className="rounded border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+          className="border-destructive/30 bg-destructive/5 text-destructive rounded border p-3 text-sm"
         >
           <p className="font-medium">{generalError.message}</p>
           {generalError.errors && generalError.errors.length > 0 ? (

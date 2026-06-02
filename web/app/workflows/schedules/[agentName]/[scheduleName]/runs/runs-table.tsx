@@ -210,7 +210,7 @@ export function RunsTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="min-w-0 w-full overflow-hidden border-b">
+      <div className="w-full min-w-0 overflow-hidden border-b">
         <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -559,7 +559,7 @@ function DeleteRunDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
             {state.error.message}
           </p>
         ) : null}

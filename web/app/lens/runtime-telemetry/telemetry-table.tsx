@@ -86,7 +86,7 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-36 w-full text-center text-muted-foreground"
+                  className="text-muted-foreground h-36 w-full text-center"
                 >
                   {emptyText}
                 </TableCell>
@@ -95,8 +95,8 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
           </TableBody>
         </Table>
       </div>
-      <div className="flex w-full flex-col gap-2 border-t bg-muted/10 px-6 py-3 pt-3 md:flex-row md:items-center md:justify-between">
-        <span className="text-xs text-muted-foreground">
+      <div className="bg-muted/10 flex w-full flex-col gap-2 border-t px-6 py-3 pt-3 md:flex-row md:items-center md:justify-between">
+        <span className="text-muted-foreground text-xs">
           {isServerPaginated
             ? hasRows
               ? `${data.length} rows`
@@ -187,7 +187,7 @@ export function TruncateCell({ value, className }: { value: string; className?: 
             {value}
           </span>
         </TooltipTrigger>
-        <TooltipContent className="max-w-120 break-all font-mono text-xs">{value}</TooltipContent>
+        <TooltipContent className="max-w-120 font-mono text-xs break-all">{value}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )

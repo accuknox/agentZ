@@ -142,30 +142,30 @@ async function Secrets({
 }
 
 function FiltersSkeleton() {
-  return <div className="h-15 border-b bg-muted/20" />
+  return <div className="bg-muted/20 h-15 border-b" />
 }
 
 function TableSkeleton() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <div className="h-8 w-full rounded bg-muted/20" />
-      <div className="h-8 w-full rounded bg-muted/20" />
-      <div className="h-8 w-full rounded bg-muted/20" />
-      <div className="h-8 w-full rounded bg-muted/20" />
-      <div className="h-8 w-full rounded bg-muted/20" />
+      <div className="bg-muted/20 h-8 w-full rounded" />
+      <div className="bg-muted/20 h-8 w-full rounded" />
+      <div className="bg-muted/20 h-8 w-full rounded" />
+      <div className="bg-muted/20 h-8 w-full rounded" />
+      <div className="bg-muted/20 h-8 w-full rounded" />
     </div>
   )
 }
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="m-6 rounded-md bg-destructive/5 p-4 text-sm text-destructive">{message}</div>
+    <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">{message}</div>
   )
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
       {message}
     </div>
   )

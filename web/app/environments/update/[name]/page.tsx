@@ -22,7 +22,7 @@ async function UpdateEnvironmentContent({ name }: { name: string }) {
 
   if (environmentResult.error || !environmentResult.environments) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
         {environmentResult.error?.message ?? "Failed to load environment"}
       </div>
     )
@@ -54,9 +54,9 @@ function UpdateEnvironmentSkeleton() {
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 p-4 sm:px-6 sm:pb-6">
       <div className="min-w-0">
-        <div className="h-8 w-56 rounded-md bg-muted/20" />
+        <div className="bg-muted/20 h-8 w-56 rounded-md" />
       </div>
-      <div className="h-96 rounded-md bg-muted/20" />
+      <div className="bg-muted/20 h-96 rounded-md" />
     </main>
   )
 }

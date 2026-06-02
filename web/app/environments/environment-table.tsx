@@ -69,7 +69,7 @@ export function EnvironmentTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="min-w-0 w-full overflow-hidden border-b">
+      <div className="w-full min-w-0 overflow-hidden border-b">
         <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

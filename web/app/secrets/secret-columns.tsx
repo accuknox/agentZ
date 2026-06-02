@@ -63,8 +63,8 @@ export function createSecretColumns(
       cell: ({ row }) => (
         <div className="flex max-w-120 flex-wrap gap-x-2 gap-y-0.5 text-xs">
           {row.original.hosts.map((host, i) => (
-            <span key={host} className="font-mono text-muted-foreground">
-              {i > 0 ? <span className="mr-2 text-border">/</span> : null}
+            <span key={host} className="text-muted-foreground font-mono">
+              {i > 0 ? <span className="text-border mr-2">/</span> : null}
               {host}
             </span>
           ))}
@@ -205,7 +205,7 @@ function DeleteSecretDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
             {state.error.message}
           </p>
         ) : null}

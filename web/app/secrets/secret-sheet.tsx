@@ -245,7 +245,7 @@ export function SecretSheet({
                             <span className="truncate font-mono text-sm">{host}</span>
                             <button
                               type="button"
-                              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+                              className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm transition-colors"
                               onClick={() => removeHost(host)}
                               aria-label={`Remove ${host}`}
                             >
@@ -284,7 +284,7 @@ export function SecretSheet({
             />
           </FieldGroup>
           {generalErrorMessage ? (
-            <p className="shrink-0 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <p className="border-destructive/30 bg-destructive/5 text-destructive shrink-0 rounded-md border p-3 text-sm">
               {generalErrorMessage}
             </p>
           ) : null}

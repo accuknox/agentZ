@@ -63,7 +63,7 @@ export function WorkflowsFilters({
   }
 
   return (
-    <form className="flex min-h-14 flex-col gap-3 border-b bg-background px-6 py-2 sm:flex-row sm:items-center sm:justify-between">
+    <form className="bg-background flex min-h-14 flex-col gap-3 border-b px-6 py-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Controller
           name="agent_name"

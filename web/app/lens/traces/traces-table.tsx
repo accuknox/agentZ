@@ -83,10 +83,10 @@ const columns: ColumnDef<TraceListItem>[] = [
 
       return (
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="font-mono text-xs font-medium text-foreground">
+          <span className="text-foreground font-mono text-xs font-medium">
             {shortLensID(trace.traceId)}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {trace.startedDate} · {trace.startedTime}
           </span>
         </div>
@@ -103,7 +103,7 @@ const columns: ColumnDef<TraceListItem>[] = [
         <div className="flex flex-col gap-1.5">
           <div className="flex items-baseline gap-4">
             <span className="text-sm font-medium">{trace.duration}</span>
-            <span className="text-xs text-muted-foreground">Ended {trace.endedTime}</span>
+            <span className="text-muted-foreground text-xs">Ended {trace.endedTime}</span>
           </div>
           <WaterfallProgress trace={trace} />
         </div>
@@ -141,13 +141,13 @@ const columns: ColumnDef<TraceListItem>[] = [
 
       return (
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
             <span>{formatCompactNumber(trace.inputTokens)} in</span>
             <span>{formatCompactNumber(trace.outputTokens)} out</span>
           </div>
-          <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-            <span className="h-full bg-chart-1" style={{ width: `${inputWidth}%` }} />
-            <span className="h-full bg-chart-4" style={{ width: `${outputWidth}%` }} />
+          <div className="bg-muted flex h-1.5 overflow-hidden rounded-full">
+            <span className="bg-chart-1 h-full" style={{ width: `${inputWidth}%` }} />
+            <span className="bg-chart-4 h-full" style={{ width: `${outputWidth}%` }} />
           </div>
           <span className="sr-only">{formatCompactNumber(trace.totalTokens)} tokens</span>
         </div>
@@ -295,7 +295,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
 
   if (error) {
     return (
-      <div className="rounded-md bg-destructive/5 p-4 text-sm text-destructive">
+      <div className="bg-destructive/5 text-destructive rounded-md p-4 text-sm">
         {error.message}
       </div>
     )
@@ -303,7 +303,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
 
   if (!data) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
         No traces
       </div>
     )
@@ -312,7 +312,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
   return (
     <Sheet open={selectedTrace !== undefined} onOpenChange={(open) => !open && closeTrace()}>
       <div className="flex flex-col">
-        <div className="overflow-x-auto border-b bg-background">
+        <div className="bg-background overflow-x-auto border-b">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -334,7 +334,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
                     key={row.id}
                     role="button"
                     tabIndex={0}
-                    className="group relative border-b bg-background hover:bg-muted/30 focus-visible:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="group bg-background hover:bg-muted/30 focus-visible:bg-muted/40 focus-visible:ring-ring relative border-b focus-visible:ring-2 focus-visible:outline-none"
                     onClick={() => selectTrace(row.original)}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") {
@@ -356,7 +356,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-48 text-center text-muted-foreground"
+                    className="text-muted-foreground h-48 text-center"
                   >
                     No traces
                   </TableCell>
@@ -366,7 +366,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
           </Table>
         </div>
         <div className="flex h-12 w-full items-center gap-3 px-6">
-          <span className="text-xs text-muted-foreground">{data.traces.length} rows</span>
+          <span className="text-muted-foreground text-xs">{data.traces.length} rows</span>
           <TracePagination hasNextPage={data.hasNextPage} nextPageToken={data.nextPageToken} />
         </div>
       </div>
@@ -448,14 +448,14 @@ function TraceInspector({
   return (
     <SheetContent
       aria-describedby={undefined}
-      className="data-[side=right]:w-full data-[side=right]:max-w-full gap-0 overflow-y-auto overflow-x-hidden border-l bg-background p-0 text-sm shadow-2xl sm:max-w-none! md:w-[89vw]! lg:w-[84vw]! lg:overflow-hidden [&_svg]:size-4"
+      className="bg-background gap-0 overflow-x-hidden overflow-y-auto border-l p-0 text-sm shadow-2xl data-[side=right]:w-full data-[side=right]:max-w-full sm:max-w-none! md:w-[89vw]! lg:w-[84vw]! lg:overflow-hidden [&_svg]:size-4"
     >
       <SheetHeader>
-        <SheetTitle className="truncate font-mono text-md">
+        <SheetTitle className="text-md truncate font-mono">
           {trace?.traceId ? `Trace ID: ${trace?.traceId}` : "Trace inspector"}
         </SheetTitle>
       </SheetHeader>
-      <div className="flex flex-col bg-background lg:min-h-0 lg:flex-1 lg:grid lg:grid-rows-[auto_1fr]">
+      <div className="bg-background flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-rows-[auto_1fr]">
         <Tabs
           value={tab}
           onValueChange={(v) => onTabChange(v as TraceInspectorTab)}
@@ -555,7 +555,7 @@ function SpansInspectorContent({
 
   if (error) {
     return (
-      <div className="m-6 rounded-md bg-destructive/5 p-4 text-sm text-destructive">
+      <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">
         {error.message}
       </div>
     )
@@ -567,9 +567,9 @@ function SpansInspectorContent({
 
   return (
     <div className="bg-background lg:h-full lg:overflow-hidden">
-      <div className="flex flex-col lg:h-full lg:min-h-0 lg:grid lg:min-w-245 lg:grid-cols-[34%_66%]">
-        <aside className="min-h-0 border-b bg-background lg:border-r lg:border-b-0">
-          <div className="flex h-10 items-center justify-between bg-muted/10 px-4 lg:px-5">
+      <div className="flex flex-col lg:grid lg:h-full lg:min-h-0 lg:min-w-245 lg:grid-cols-[34%_66%]">
+        <aside className="bg-background min-h-0 border-b lg:border-r lg:border-b-0">
+          <div className="bg-muted/10 flex h-10 items-center justify-between px-4 lg:px-5">
             <div className="text-sm font-medium">Spans ({data.spans.length})</div>
             <div className="flex items-center gap-2">
               <Button
@@ -608,11 +608,11 @@ function SpansInspectorContent({
                 />
               ))
             ) : (
-              <div className="px-4 py-10 text-sm text-muted-foreground lg:px-5">No spans</div>
+              <div className="text-muted-foreground px-4 py-10 text-sm lg:px-5">No spans</div>
             )}
           </div>
         </aside>
-        <section className="min-h-0 bg-background">
+        <section className="bg-background min-h-0">
           <SpanDetailViewer
             trace={trace}
             span={selectedSpan}
@@ -641,7 +641,7 @@ function SpanTreeRow({
     <button
       type="button"
       className={cn(
-        "relative flex w-full flex-col border-l-4 border-transparent py-2 pr-4 text-left hover:bg-muted/35 lg:pr-5",
+        "hover:bg-muted/35 relative flex w-full flex-col border-l-4 border-transparent py-2 pr-4 text-left lg:pr-5",
         selected && "border-primary/55 bg-muted/55"
       )}
       style={{ paddingLeft: indent }}
@@ -649,14 +649,14 @@ function SpanTreeRow({
     >
       <div className="flex min-w-0 items-center gap-2">
         <span
-          className={cn("flex size-4 shrink-0 items-center justify-center text-muted-foreground")}
+          className={cn("text-muted-foreground flex size-4 shrink-0 items-center justify-center")}
         >
           <SpanKindIcon span={span} />
         </span>
         <span className="truncate text-sm font-medium">{span.displayName}</span>
         {span.hasError ? <CircleAlert className="text-destructive" /> : null}
       </div>
-      <div className="ml-6 mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground lg:gap-3 [&_svg]:size-3.5">
+      <div className="text-muted-foreground mt-0.5 ml-6 flex flex-wrap items-center gap-2 text-xs lg:gap-3 [&_svg]:size-3.5">
         <span className="inline-flex items-center gap-1">
           <Clock />
           {span.duration}
@@ -664,7 +664,7 @@ function SpanTreeRow({
         {span.totalTokens > 0 ? <span>{formatCompactNumber(span.totalTokens)} tokens</span> : null}
         <span className="font-mono">{shortLensID(span.spanId)}</span>
       </div>
-      <div className="ml-6 mt-1.5 h-0.5 rounded-full bg-border">
+      <div className="bg-border mt-1.5 ml-6 h-0.5 rounded-full">
         <div
           className={cn("h-full rounded-full", spanTimelineClass(span))}
           style={{
@@ -706,14 +706,14 @@ function SpanDetailViewer({
 
   return (
     <div className="flex flex-col lg:h-full">
-      <div className="flex h-10 items-center justify-between bg-muted/10 px-4 lg:px-5 [&_svg]:size-4">
+      <div className="bg-muted/10 flex h-10 items-center justify-between px-4 lg:px-5 [&_svg]:size-4">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="text-sm text-muted-foreground">Inspect:</span>
+          <span className="text-muted-foreground text-sm">Inspect:</span>
           <span className="truncate text-sm font-medium">{title}</span>
         </div>
       </div>
       <div className="overflow-auto px-4 py-4 lg:min-h-0 lg:flex-1 lg:px-6">
-        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground lg:gap-4 [&_svg]:size-4">
+        <div className="text-muted-foreground mb-5 flex flex-wrap items-center gap-3 text-sm lg:gap-4 [&_svg]:size-4">
           <span className="inline-flex items-center gap-1">
             <Calendar />
             {span?.startLabel ?? trace?.startedDate}
@@ -726,7 +726,7 @@ function SpanDetailViewer({
         </div>
         {span && span.spanType !== "agent" ? <InspectorTokenMeter span={span} /> : null}
         {error ? (
-          <div className="rounded-md bg-destructive/5 p-4 text-sm text-destructive">
+          <div className="bg-destructive/5 text-destructive rounded-md p-4 text-sm">
             {error.message}
           </div>
         ) : pending ? (
@@ -821,10 +821,10 @@ function SpanJSONSections({
 function JSONTextPanel({ title, code }: { title: string; code: string }) {
   return (
     <section>
-      <div className="flex items-center justify-between my-2">
+      <div className="my-2 flex items-center justify-between">
         {title === "Error" ? (
-          <div className="text-sm font-medium text-destructive">
-            <ServerCrash className="inline-block mr-1.5" />
+          <div className="text-destructive text-sm font-medium">
+            <ServerCrash className="mr-1.5 inline-block" />
             <span>{title}</span>
           </div>
         ) : (
@@ -836,7 +836,7 @@ function JSONTextPanel({ title, code }: { title: string; code: string }) {
           code={code}
           language="json"
           showLineNumbers={true}
-          className="border-0 bg-muted/20"
+          className="bg-muted/20 border-0"
         />
       </div>
     </section>
@@ -854,18 +854,18 @@ function InspectorTokenMeter({ span }: { span: SpanListItem }) {
   const outputWidth = percentOf(span.outputTokens, span.totalTokens)
 
   return (
-    <section className="mb-5 rounded-md bg-muted/10 p-4">
+    <section className="bg-muted/10 mb-5 rounded-md p-4">
       <div className="mb-3 flex items-center justify-between gap-3 text-xs">
-        <span className="font-medium text-foreground">
+        <span className="text-foreground font-medium">
           {formatCompactNumber(span.totalTokens)} total
         </span>
       </div>
-      <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+      <div className="bg-muted flex h-1.5 overflow-hidden rounded-full">
         <span className="bg-chart-1" style={{ width: `${inputWidth}%` }} />
         <span className="bg-chart-3" style={{ width: `${cachedWidth}%` }} />
         <span className="bg-chart-4" style={{ width: `${outputWidth}%` }} />
       </div>
-      <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3 sm:gap-3">
+      <div className="text-muted-foreground mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3 sm:gap-3">
         <TokenLegend colorClass="bg-chart-1" label="Input" value={span.inputTokens} />
         <TokenLegend colorClass="bg-chart-3" label="Cached" value={span.cachedInputTokens} />
         <TokenLegend colorClass="bg-chart-4" label="Output" value={span.outputTokens} />
@@ -930,7 +930,7 @@ function RuntimeTelemetryContent({
 
   if (error) {
     return (
-      <div className="m-6 rounded-md bg-destructive/5 p-4 text-sm text-destructive">
+      <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">
         {error.message}
       </div>
     )
@@ -949,7 +949,7 @@ function RuntimeTelemetryContent({
     <Tabs
       value={telemetryTab}
       onValueChange={(v) => onTabChange(v as RuntimeTelemetryTab)}
-      className="flex h-full min-h-0 flex-col mt-4"
+      className="mt-4 flex h-full min-h-0 flex-col"
     >
       <TabsList variant="line" className="overflow-auto overflow-y-hidden px-2">
         <TabsTrigger value="process" className="gap-2 px-4">
@@ -1027,7 +1027,7 @@ function RuntimeTelemetrySkeleton({
           ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col mt-4">
+    <div className="mt-4 flex h-full min-h-0 flex-col">
       <Tabs value={telemetryTab} className="flex h-full min-h-0 flex-col">
         <TabsList variant="line" className="overflow-x-auto px-2">
           <TabsTrigger value="process" className="gap-2 px-4" disabled>
@@ -1287,7 +1287,7 @@ function JSONPanel({ title, rows }: { title: string; rows: [string, string][] })
 
 function InspectorSkeleton() {
   return (
-    <div className="grid h-full grid-cols-[360px_1fr] bg-background">
+    <div className="bg-background grid h-full grid-cols-[360px_1fr]">
       <div className="border-r p-4">
         <Skeleton className="h-10 w-40" />
         <div className="mt-5 flex flex-col gap-3">
@@ -1366,7 +1366,7 @@ function WaterfallProgress({ trace }: { trace: TraceListItem }) {
   return (
     <Progress
       value={trace.cumulativeDurationPercent}
-      className="trace-waterfall-progress h-1.5 **:data-[slot=progress-indicator]:bg-foreground"
+      className="trace-waterfall-progress **:data-[slot=progress-indicator]:bg-foreground h-1.5"
       style={
         {
           "--waterfall-delay": `${trace.waterfallDelayMs}ms`,

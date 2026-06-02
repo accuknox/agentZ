@@ -496,7 +496,7 @@ const ServerURLField = React.memo(function ServerURLField({
       <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
         <PopoverAnchor asChild>
           <div ref={serverFieldRef} className="relative">
-            <SelectedServerIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <SelectedServerIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
               id="mcp-endpoint-url"
               name={field.name}
@@ -537,7 +537,7 @@ const ServerURLField = React.memo(function ServerURLField({
               aria-controls="mcp-endpoint-url-suggestions"
               role="combobox"
             />
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2" />
             {authMode === "oauth" ? (
               <Button
                 type="button"
@@ -604,12 +604,12 @@ const ServerURLField = React.memo(function ServerURLField({
                           selectServer(result)
                         }}
                       >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+                        <span className="bg-background flex size-8 shrink-0 items-center justify-center rounded-md border">
                           <Icon />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{result.server.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">
+                          <span className="text-muted-foreground block truncate text-xs">
                             {result.server.mcpUrl}
                           </span>
                         </span>
@@ -629,12 +629,12 @@ const ServerURLField = React.memo(function ServerURLField({
                         selectServer(result)
                       }}
                     >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+                      <span className="bg-background flex size-8 shrink-0 items-center justify-center rounded-md border">
                         <Settings2 />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">Custom Server</span>
-                        <span className="block truncate text-xs text-muted-foreground">
+                        <span className="text-muted-foreground block truncate text-xs">
                           {result.mcpUrl}
                         </span>
                       </span>
@@ -1224,10 +1224,10 @@ export function McpSheet({
         ) : null}
         {submitted ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 pb-2">
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
-              <Check className="size-6 text-primary" />
+            <div className="bg-primary/10 flex size-12 items-center justify-center rounded-full">
+              <Check className="text-primary size-6" />
             </div>
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-center text-sm">
               {successMessage ??
                 `MCP server connection has been ${mode === "create" ? "created" : "updated"} successfully.`}
             </p>

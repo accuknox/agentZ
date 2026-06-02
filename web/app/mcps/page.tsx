@@ -73,7 +73,7 @@ function TableSkeleton() {
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+    <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-4 text-sm">
       {message}
     </div>
   )

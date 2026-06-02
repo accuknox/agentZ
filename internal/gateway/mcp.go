@@ -110,8 +110,8 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 	conn.Spec = spec
 	setMCPConnectionSecretRef(name, &conn.Spec)
 
-	mcpconnwebhook.NormalizeSpec(&conn.Spec)
-	if err := mcpconnwebhook.ValidateResource(conn); err != nil {
+	mcpconnwebhook.ApplyDefaults(&conn.Spec)
+	if err := mcpconnwebhook.Validate(conn); err != nil {
 		writeError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
@@ -175,8 +175,8 @@ func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, na
 		}
 		conn.Spec = spec
 		setMCPConnectionSecretRef(name, &conn.Spec)
-		mcpconnwebhook.NormalizeSpec(&conn.Spec)
-		if err := mcpconnwebhook.ValidateResource(conn); err != nil {
+		mcpconnwebhook.ApplyDefaults(&conn.Spec)
+		if err := mcpconnwebhook.Validate(conn); err != nil {
 			return err
 		}
 

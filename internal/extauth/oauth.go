@@ -178,12 +178,20 @@ func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPC
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, nil, fmt.Errorf("read oauth refresh response: %w", errCredentialUnavailable)
+		return nil, nil, fmt.Errorf(
+			"read oauth refresh response: %v: %w",
+			err,
+			errCredentialUnavailable,
+		)
 	}
 
 	var tokenResp tokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, nil, fmt.Errorf("decode oauth refresh response: %w", errCredentialUnavailable)
+		return nil, nil, fmt.Errorf(
+			"decode oauth refresh response: %v: %w",
+			err,
+			errCredentialUnavailable,
+		)
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
@@ -286,7 +294,12 @@ func (s *Service) readSecretRecord(ctx context.Context, path string, key string,
 
 	secret, err := s.kv.Get(secretCtx, path)
 	if err != nil {
-		return fmt.Errorf("read openbao secret %q: %w", path, errCredentialUnavailable)
+		return fmt.Errorf(
+			"read openbao secret %q: %v: %w",
+			path,
+			err,
+			errCredentialUnavailable,
+		)
 	}
 	if secret == nil || secret.Data == nil {
 		return fmt.Errorf("openbao secret %q is missing data: %w", path, errCredentialUnavailable)
@@ -313,7 +326,12 @@ func (s *Service) writeSecretRecord(ctx context.Context, path string, key string
 
 	current, err := s.kv.Get(secretCtx, path)
 	if err != nil {
-		return fmt.Errorf("read openbao secret %q before write: %w", path, errCredentialUnavailable)
+		return fmt.Errorf(
+			"read openbao secret %q before write: %v: %w",
+			path,
+			err,
+			errCredentialUnavailable,
+		)
 	}
 
 	data := map[string]any{}
@@ -328,7 +346,12 @@ func (s *Service) writeSecretRecord(ctx context.Context, path string, key string
 	data[key] = string(payload)
 
 	if _, err := s.kv.Put(secretCtx, path, data); err != nil {
-		return fmt.Errorf("write openbao secret %q: %w", path, errCredentialUnavailable)
+		return fmt.Errorf(
+			"write openbao secret %q: %v: %w",
+			path,
+			err,
+			errCredentialUnavailable,
+		)
 	}
 	return nil
 }

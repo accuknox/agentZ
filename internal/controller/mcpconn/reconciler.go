@@ -19,7 +19,6 @@ package mcpconn
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -142,11 +141,15 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		state := clawarmorv1alpha1.MCPConnectionStateAccepted
-		if requiresExtAuth && (extAuth == nil || !extAuth.ready) {
-			state = clawarmorv1alpha1.MCPConnectionStateDegraded
-		}
-		err = r.updateStatus(ctx, conn, state, nil, extAuth, requiresExtAuth, nil)
+		err = r.updateStatus(
+			ctx,
+			conn,
+			clawarmorv1alpha1.MCPConnectionStateAccepted,
+			nil,
+			extAuth,
+			false,
+			nil,
+		)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("update accepted status: %w", err)
 		}
@@ -474,13 +477,16 @@ func resolveAuthMode(auth *clawarmorv1alpha1.MCPConnectionAuth) string {
 }
 
 func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
-	refs, err := r.referencingEnvironments(ctx, conn.Namespace, conn.Name)
+	envs := &clawarmorv1alpha1.EnvironmentList{}
+	err := r.List(ctx, envs, client.InNamespace(conn.Namespace))
 	if err != nil {
-		return fmt.Errorf("list referencing environments for auth policy cleanup: %w", err)
+		return fmt.Errorf("list namespace environments for auth policy cleanup: %w", err)
 	}
-	for _, env := range refs {
+
+	policies := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace)
+	for _, env := range envs.Items {
 		name := mcp.EnvironmentAuthPolicyName(env.Name, conn.Name)
-		err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace).Delete(
+		err := policies.Delete(
 			ctx,
 			name,
 			metav1.DeleteOptions{},
@@ -542,19 +548,13 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawa
 		r.OpenBaoK8sAuthTokenPath,
 	)
 	if err != nil {
-		slog.WarnContext(ctx, "skip mcp openbao cleanup", slog.Any("err", err))
-		return nil
+		return fmt.Errorf("create openbao client for mcp cleanup: %w", err)
 	}
 
 	path := "mcp-connections/" + conn.Name
 	err = baoClient.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
 	if err != nil {
-		slog.WarnContext(
-			ctx,
-			"delete mcp connection secret metadata",
-			slog.String("path", path),
-			slog.Any("err", err),
-		)
+		return fmt.Errorf("delete mcp connection secret metadata %q: %w", path, err)
 	}
 	return nil
 }

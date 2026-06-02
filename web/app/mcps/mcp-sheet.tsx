@@ -201,6 +201,9 @@ const oauthDiscoveryResponseSchema = z.object({
   default_scopes: z.array(z.string()).optional(),
   supported_scopes: z.array(z.string()).optional(),
 })
+const oauthDiscoveryErrorSchema = z.object({
+  message: z.string(),
+})
 
 type OauthAdvancedFieldName = (typeof oauthAdvancedFields)[number]["name"]
 type ServerErrorField = (typeof serverErrorFields)[number]
@@ -252,14 +255,15 @@ const oauthDiscoveryQueryOptions = (endpointURL: string) =>
         }),
         signal,
       })
-      const payload = oauthDiscoveryResponseSchema.parse(await response.json())
+      const payload = await response.json()
 
       if (!response.ok) {
-        throw new Error(discoveryErrorMessage)
+        const parsedError = oauthDiscoveryErrorSchema.safeParse(payload)
+        throw new Error(parsedError.success ? parsedError.data.message : discoveryErrorMessage)
       }
 
       return {
-        ...payload,
+        ...oauthDiscoveryResponseSchema.parse(payload),
         endpointURL,
       } satisfies OAuthDiscoveryResponse
     },
@@ -728,7 +732,8 @@ export function McpSheet({
   submitMcpAction: SubmitMcpAction
 }) {
   const router = useRouter()
-  const [isPending, startTransition] = React.useTransition()
+  const [isRefreshing, startTransition] = React.useTransition()
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const defaultValues = React.useMemo(() => formDefaults(connection), [connection])
   const form = useForm<McpFormInput>({
     resolver: zodResolver(mcpFormSchema),
@@ -1057,35 +1062,40 @@ export function McpSheet({
       form.clearErrors()
 
       const formData = formDataFromValues(values)
-      startTransition(() => {
-        void (async () => {
-          const nextState = await submitMcpAction({}, formData)
-          if (!mountedRef.current) {
-            return
-          }
+      setIsSubmitting(true)
+      try {
+        const nextState = await submitMcpAction({}, formData)
+        if (!mountedRef.current) {
+          return
+        }
 
-          applyServerErrors(form, nextState)
-          if (nextState.error) {
-            setSubmitError(generalErrorMessage(nextState.error) ?? nextState.error.message)
-            return
-          }
+        applyServerErrors(form, nextState)
+        if (nextState.error) {
+          setSubmitError(generalErrorMessage(nextState.error) ?? nextState.error.message)
+          return
+        }
 
-          if ("oauth" in nextState && nextState.oauth) {
-            openOAuthPopup(nextState.oauth)
-            return
-          }
+        if ("oauth" in nextState && nextState.oauth) {
+          openOAuthPopup(nextState.oauth)
+          return
+        }
 
-          if (nextState.success) {
-            setSubmitted(true)
-            setSubmitError(undefined)
-            setSuccessMessage(nextState.message)
-            form.reset(defaultValues)
+        if (nextState.success) {
+          setSubmitted(true)
+          setSubmitError(undefined)
+          setSuccessMessage(nextState.message)
+          form.reset(defaultValues)
+          startTransition(() => {
             router.refresh()
-          }
-        })()
-      })
+          })
+        }
+      } finally {
+        if (mountedRef.current) {
+          setIsSubmitting(false)
+        }
+      }
     },
-    [defaultValues, form, openOAuthPopup, router, submitMcpAction]
+    [defaultValues, form, openOAuthPopup, router, startTransition, submitMcpAction]
   )
 
   const discoveryWarningVisible =
@@ -1582,17 +1592,21 @@ export function McpSheet({
                 type="submit"
                 disabled={
                   !isValid ||
-                  isPending ||
+                  isSubmitting ||
+                  isRefreshing ||
                   oauthPopupFlowId !== undefined ||
                   isDiscoveryPendingForCurrentURL
                 }
               >
-                {isPending || oauthPopupFlowId || isDiscoveryPendingForCurrentURL ? (
+                {isSubmitting ||
+                isRefreshing ||
+                oauthPopupFlowId ||
+                isDiscoveryPendingForCurrentURL ? (
                   <Spinner />
                 ) : null}
                 {oauthPopupFlowId
                   ? "Waiting for OAuth"
-                  : isPending
+                  : isSubmitting || isRefreshing
                     ? `${submitLabel}ing`
                     : submitLabel}
               </Button>

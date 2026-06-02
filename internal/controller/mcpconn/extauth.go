@@ -49,38 +49,33 @@ type extAuthPolicyData struct {
 	MetadataPath string
 }
 
-func (r *MCPConnectionReconciler) listNamespaceConnections(ctx context.Context, ns string) ([]clawarmorv1alpha1.MCPConnection, error) {
+func (r *MCPConnectionReconciler) extAuthConnections(ctx context.Context, ns string) ([]clawarmorv1alpha1.MCPConnection, error) {
 	list := &clawarmorv1alpha1.MCPConnectionList{}
-	err := r.List(ctx, list, client.InNamespace(ns))
-	if err != nil {
+	if err := r.List(ctx, list, client.InNamespace(ns)); err != nil {
 		return nil, fmt.Errorf("list mcp connections: %w", err)
 	}
 	slices.SortFunc(list.Items, func(a, b clawarmorv1alpha1.MCPConnection) int {
 		return strings.Compare(a.Name, b.Name)
 	})
-	return list.Items, nil
-}
 
-func (r *MCPConnectionReconciler) extAuthConnections(ctx context.Context, ns string) ([]clawarmorv1alpha1.MCPConnection, error) {
-	conns, err := r.listNamespaceConnections(ctx, ns)
-	if err != nil {
-		return nil, err
+	envs := &clawarmorv1alpha1.EnvironmentList{}
+	if err := r.List(ctx, envs, client.InNamespace(ns)); err != nil {
+		return nil, fmt.Errorf("list environments for ext auth: %w", err)
 	}
 
-	active := make([]clawarmorv1alpha1.MCPConnection, 0, len(conns))
-	for _, conn := range conns {
+	referenced := make(map[string]struct{})
+	for _, env := range envs.Items {
+		for _, name := range mcp.MCPConnectionRefNames(&env) {
+			referenced[name] = struct{}{}
+		}
+	}
+
+	active := make([]clawarmorv1alpha1.MCPConnection, 0, len(list.Items))
+	for _, conn := range list.Items {
 		if conn.Spec.Auth == nil {
 			continue
 		}
-		refs, err := r.referencingEnvironments(ctx, conn.Namespace, conn.Name)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"list referencing environments for %s: %w",
-				conn.Name,
-				err,
-			)
-		}
-		if len(refs) == 0 {
+		if _, ok := referenced[conn.Name]; !ok {
 			continue
 		}
 		active = append(active, conn)
@@ -172,7 +167,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthServiceAccount(ctx context.Con
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, sa, func() error {
-		sa.Labels = cloneLabels(labels)
+		sa.Labels = maps.Clone(labels)
 		sa.OwnerReferences = ownerRefs
 		return nil
 	})
@@ -192,7 +187,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthRole(ctx context.Context, ns s
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
-		role.Labels = cloneLabels(labels)
+		role.Labels = maps.Clone(labels)
 		role.OwnerReferences = ownerRefs
 		role.Rules = []rbacv1.PolicyRule{
 			{
@@ -224,7 +219,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthRoleBinding(ctx context.Contex
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, roleBinding, func() error {
-		roleBinding.Labels = cloneLabels(labels)
+		roleBinding.Labels = maps.Clone(labels)
 		roleBinding.OwnerReferences = ownerRefs
 		roleBinding.RoleRef = rbacv1.RoleRef{
 			APIGroup: rbacv1.GroupName,
@@ -254,10 +249,10 @@ func (r *MCPConnectionReconciler) reconcileExtAuthService(ctx context.Context, n
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, svc, func() error {
-		svc.Labels = cloneLabels(labels)
+		svc.Labels = maps.Clone(labels)
 		svc.OwnerReferences = ownerRefs
 		svc.Spec = corev1.ServiceSpec{
-			Selector: cloneLabels(labels),
+			Selector: maps.Clone(labels),
 			Ports: []corev1.ServicePort{{
 				Name:        "grpc",
 				Port:        mcp.ExtAuthPort,
@@ -301,16 +296,16 @@ func (r *MCPConnectionReconciler) reconcileExtAuthDeployment(ctx context.Context
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, deployment, func() error {
-		deployment.Labels = cloneLabels(labels)
+		deployment.Labels = maps.Clone(labels)
 		deployment.OwnerReferences = ownerRefs
 		deployment.Spec = appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: cloneLabels(labels),
+				MatchLabels: maps.Clone(labels),
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: cloneLabels(labels),
+					Labels: maps.Clone(labels),
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName:            mcp.ExtAuthServiceName,
@@ -362,7 +357,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthPolicy(ctx context.Context, ns
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
-		policy.Labels = cloneLabels(labels)
+		policy.Labels = maps.Clone(labels)
 		policy.OwnerReferences = ownerRefs
 		policy.Spec = &ciliumapi.Rule{
 			EndpointSelector: ciliumapi.NewESFromLabels(
@@ -535,7 +530,7 @@ func (r *MCPConnectionReconciler) deleteExtAuthRuntime(ctx context.Context, ns s
 		return fmt.Errorf("delete ext auth service account: %w", err)
 	}
 
-	if strings.TrimSpace(r.OpenBaoAddr) == "" || strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
+	if strings.TrimSpace(r.managerOpenBaoAddr()) == "" || strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
 		return nil
 	}
 
@@ -560,12 +555,6 @@ func (r *MCPConnectionReconciler) deleteExtAuthRuntime(ctx context.Context, ns s
 	}
 
 	return nil
-}
-
-func cloneLabels(labels map[string]string) map[string]string {
-	cloned := make(map[string]string, len(labels))
-	maps.Copy(cloned, labels)
-	return cloned
 }
 
 func (r *MCPConnectionReconciler) managerOpenBaoAddr() string {

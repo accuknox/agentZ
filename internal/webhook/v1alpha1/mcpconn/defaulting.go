@@ -45,8 +45,8 @@ func NewDefaulter() *Defaulter {
 	return &Defaulter{}
 }
 
-// NormalizeSpec applies gateway- and webhook-shared MCPConnection defaults.
-func NormalizeSpec(spec *clawarmorv1alpha1.MCPConnectionSpec) {
+// ApplyDefaults fills MCPConnection spec defaults shared by the gateway and webhook.
+func ApplyDefaults(spec *clawarmorv1alpha1.MCPConnectionSpec) {
 	if spec == nil {
 		return
 	}
@@ -73,7 +73,7 @@ func NormalizeSpec(spec *clawarmorv1alpha1.MCPConnectionSpec) {
 
 // Default applies defaults to an MCPConnection resource.
 func (d *Defaulter) Default(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
-	NormalizeSpec(&conn.Spec)
+	ApplyDefaults(&conn.Spec)
 	return nil
 }
 

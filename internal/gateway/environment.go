@@ -94,7 +94,14 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.Packages != nil {
 		rawPackages = *req.Packages
 	}
-	packages := normalizePackages(rawPackages)
+	packages := make([]string, 0, len(rawPackages))
+	for _, pkg := range rawPackages {
+		pkg = strings.TrimSpace(pkg)
+		if pkg == "" {
+			continue
+		}
+		packages = append(packages, pkg)
+	}
 
 	var rawAllowedHosts []string
 	if req.AllowedHosts != nil {
@@ -110,7 +117,16 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.McpConnectionRefs != nil {
 		rawMCPConnectionRefs = *req.McpConnectionRefs
 	}
-	mcpConnectionRefs := normalizeMCPConnectionRefs(rawMCPConnectionRefs)
+	mcpConnectionRefs := make([]clawarmorv1alpha1.MCPConnectionRef, 0, len(rawMCPConnectionRefs))
+	for _, ref := range rawMCPConnectionRefs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			continue
+		}
+		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
+			Name: name,
+		})
+	}
 
 	env := &clawarmorv1alpha1.Environment{
 		TypeMeta: metav1.TypeMeta{
@@ -211,7 +227,24 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		writeAllowedHostsError(w, r, err)
 		return
 	}
-	mcpConnectionRefs := normalizeMCPConnectionRefs(req.McpConnectionRefs)
+	mcpConnectionRefs := make([]clawarmorv1alpha1.MCPConnectionRef, 0, len(req.McpConnectionRefs))
+	for _, ref := range req.McpConnectionRefs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			continue
+		}
+		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
+			Name: name,
+		})
+	}
+	packages := make([]string, 0, len(req.Packages))
+	for _, pkg := range req.Packages {
+		pkg = strings.TrimSpace(pkg)
+		if pkg == "" {
+			continue
+		}
+		packages = append(packages, pkg)
+	}
 
 	var updated *clawarmorv1alpha1.Environment
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -223,7 +256,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 			return getErr
 		}
 
-		env.Spec.Packages = normalizePackages(req.Packages)
+		env.Spec.Packages = packages
 		env.Spec.AllowedHosts = allowedHosts
 		env.Spec.MCPConnectionRefs = mcpConnectionRefs
 
@@ -331,29 +364,6 @@ func validatePackageList(packages []string) []gatewayapi.FieldError {
 		}
 	}
 	return fields
-}
-
-func normalizePackages(raw []string) []string {
-	packages := []string{}
-	for _, p := range raw {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			packages = append(packages, p)
-		}
-	}
-	return packages
-}
-
-func normalizeMCPConnectionRefs(raw []gatewayapi.MCPConnectionRef) []clawarmorv1alpha1.MCPConnectionRef {
-	refs := []clawarmorv1alpha1.MCPConnectionRef{}
-	for _, ref := range raw {
-		name := strings.TrimSpace(ref.Name)
-		if name == "" {
-			continue
-		}
-		refs = append(refs, clawarmorv1alpha1.MCPConnectionRef{Name: name})
-	}
-	return refs
 }
 
 func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewayapi.FieldError {

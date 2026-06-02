@@ -58,19 +58,37 @@ func NewValidator(kubeClient client.Client) *Validator {
 	return &Validator{kubeClient: kubeClient}
 }
 
-// ValidateResource validates one MCPConnection resource.
-func ValidateResource(conn *clawarmorv1alpha1.MCPConnection) error {
-	return validateMCPConnection(conn)
+// Validate checks one MCPConnection resource against the admission rules.
+func Validate(conn *clawarmorv1alpha1.MCPConnection) error {
+	fields := field.ErrorList{}
+	specPath := field.NewPath("spec")
+
+	fields = append(fields, validateEndpoint(conn.Spec.Endpoint, specPath.Child("endpoint"))...)
+	fields = append(fields, validateAuth(conn.Spec.Auth, specPath.Child("auth"))...)
+	fields = append(fields, validateAuthHeaderConflicts(
+		conn.Spec.Endpoint.Headers,
+		conn.Spec.Auth,
+		specPath,
+	)...)
+
+	if len(fields) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(
+		conn.GroupVersionKind().GroupKind(),
+		conn.Name,
+		fields,
+	)
 }
 
 // ValidateCreate validates MCPConnection creation.
 func (v *Validator) ValidateCreate(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
-	return nil, ValidateResource(conn)
+	return nil, Validate(conn)
 }
 
 // ValidateUpdate validates MCPConnection updates.
 func (v *Validator) ValidateUpdate(_ context.Context, _, newConn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
-	return nil, ValidateResource(newConn)
+	return nil, Validate(newConn)
 }
 
 // ValidateDelete validates MCPConnection deletion.
@@ -98,28 +116,6 @@ func (v *Validator) ValidateDelete(ctx context.Context, conn *clawarmorv1alpha1.
 		names = append(names, env.Name)
 	}
 	return nil, fmt.Errorf("mcp connection is referenced by environments: %s", strings.Join(names, ", "))
-}
-
-func validateMCPConnection(conn *clawarmorv1alpha1.MCPConnection) error {
-	fields := field.ErrorList{}
-	specPath := field.NewPath("spec")
-
-	fields = append(fields, validateEndpoint(conn.Spec.Endpoint, specPath.Child("endpoint"))...)
-	fields = append(fields, validateAuth(conn.Spec.Auth, specPath.Child("auth"))...)
-	fields = append(fields, validateAuthHeaderConflicts(
-		conn.Spec.Endpoint.Headers,
-		conn.Spec.Auth,
-		specPath,
-	)...)
-
-	if len(fields) == 0 {
-		return nil
-	}
-	return apierrors.NewInvalid(
-		conn.GroupVersionKind().GroupKind(),
-		conn.Name,
-		fields,
-	)
 }
 
 func validateEndpoint(endpoint clawarmorv1alpha1.MCPConnectionEndpoint, path *field.Path) field.ErrorList {

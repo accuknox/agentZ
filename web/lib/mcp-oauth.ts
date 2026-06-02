@@ -505,45 +505,36 @@ export function oauthCookieOptions() {
   }
 }
 
-function oauthError(input: {
-  code: OAuthFlowErrorCode
-  message: string
-  flowId?: string
-  field?: OAuthErrorFieldName
-}): OAuthFlowError {
-  return input
-}
-
-function normalizeOAuthError(error: unknown, fallback: OAuthFlowErrorCode): OAuthFlowError {
+function oauthFlowErrorFrom(error: unknown, fallback: OAuthFlowErrorCode): OAuthFlowError {
   if (error instanceof OAuthError) {
     if (
       error.code === OAuthErrorCode.InvalidClient &&
       error.message.includes("Client ID and client secret are required")
     ) {
-      return oauthError({
+      return {
         code: "manual_client_credentials_required",
         field: oauthErrorFieldNames[0],
         message:
           "This MCP server requires client credentials for re-authorization. Enter the client ID and client secret to continue.",
-      })
+      }
     }
-    return oauthError({
+    return {
       code: fallback,
       message: error.message,
-    })
+    }
   }
 
   if (error instanceof Error) {
-    return oauthError({
+    return {
       code: fallback,
       message: error.message,
-    })
+    }
   }
 
-  return oauthError({
+  return {
     code: fallback,
     message: "OAuth flow could not be completed.",
-  })
+  }
 }
 
 function registrationPayload(clientInformation: OAuthClientInformationMixed) {
@@ -562,14 +553,6 @@ function registrationPayload(clientInformation: OAuthClientInformationMixed) {
     return undefined
   }
   return parsed.data satisfies JsonObject
-}
-
-function incompleteOAuthError(flowId: string, message: string): OAuthFlowError {
-  return oauthError({
-    code: "oauth_not_ready",
-    flowId,
-    message,
-  })
 }
 
 export async function beginOAuthFlow(
@@ -612,17 +595,22 @@ export async function beginOAuthFlow(
     if (result !== "REDIRECT" || !runtime.authorizationUrl || !runtime.codeVerifier) {
       return {
         ok: false,
-        error: incompleteOAuthError(flowId, "OAuth authorization redirect could not be started."),
+        error: {
+          code: "oauth_not_ready",
+          flowId,
+          message: "OAuth authorization redirect could not be started.",
+        },
       }
     }
 
     if (!runtime.clientInformation) {
       return {
         ok: false,
-        error: incompleteOAuthError(
+        error: {
+          code: "oauth_not_ready",
           flowId,
-          "OAuth client registration did not produce client information."
-        ),
+          message: "OAuth client registration did not produce client information.",
+        },
       }
     }
 
@@ -646,11 +634,11 @@ export async function beginOAuthFlow(
     if (sealed.length > oauthPendingCookieBudget) {
       return {
         ok: false,
-        error: oauthError({
+        error: {
           code: "cookie_too_large",
           flowId,
           message: "OAuth flow could not be started because the pending state is too large.",
-        }),
+        },
       }
     }
 
@@ -665,7 +653,7 @@ export async function beginOAuthFlow(
     return {
       ok: false,
       error: {
-        ...normalizeOAuthError(error, "oauth_start_failed"),
+        ...oauthFlowErrorFrom(error, "oauth_start_failed"),
         flowId,
       },
     }
@@ -680,21 +668,26 @@ export async function completeOAuthFlow(input: {
   if (!stateParam) {
     return {
       ok: false,
-      error: oauthError({
+      error: {
         code: "callback_missing_state",
         flowId: input.pending.flowId,
         message: "OAuth callback is missing state.",
-      }),
+      },
     }
   }
-  if (!timingSafeEqual(Buffer.from(stateParam), Buffer.from(input.pending.state))) {
+  const callbackState = Buffer.from(stateParam)
+  const pendingState = Buffer.from(input.pending.state)
+  if (
+    callbackState.length !== pendingState.length ||
+    !timingSafeEqual(callbackState, pendingState)
+  ) {
     return {
       ok: false,
-      error: oauthError({
+      error: {
         code: "callback_state_invalid",
         flowId: input.pending.flowId,
         message: "OAuth callback state is invalid.",
-      }),
+      },
     }
   }
 
@@ -705,20 +698,20 @@ export async function completeOAuthFlow(input: {
     if (error) {
       return {
         ok: false,
-        error: oauthError({
+        error: {
           code: "callback_provider_error",
           flowId: input.pending.flowId,
           message: description ? `${error}: ${description}` : error,
-        }),
+        },
       }
     }
     return {
       ok: false,
-      error: oauthError({
+      error: {
         code: "callback_missing_code",
         flowId: input.pending.flowId,
         message: "OAuth callback is missing code.",
-      }),
+      },
     }
   }
 
@@ -745,7 +738,11 @@ export async function completeOAuthFlow(input: {
     if (result !== "AUTHORIZED" || !runtime.tokens || !runtime.discoveryState) {
       return {
         ok: false,
-        error: incompleteOAuthError(input.pending.flowId, "OAuth callback could not be completed."),
+        error: {
+          code: "oauth_not_ready",
+          flowId: input.pending.flowId,
+          message: "OAuth callback could not be completed.",
+        },
       }
     }
 
@@ -784,7 +781,7 @@ export async function completeOAuthFlow(input: {
     return {
       ok: false,
       error: {
-        ...normalizeOAuthError(error, "oauth_complete_failed"),
+        ...oauthFlowErrorFrom(error, "oauth_complete_failed"),
         flowId: input.pending.flowId,
       },
     }

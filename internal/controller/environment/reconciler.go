@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -186,6 +187,13 @@ func (r *Reconciler) environmentsForMCPConnection(ctx context.Context, obj clien
 		client.MatchingFields{mcp.EnvironmentByMCPConnectionIndex: conn.Name},
 	)
 	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"list environments for mcp connection",
+			slog.String("namespace", conn.Namespace),
+			slog.String("mcpConnection", conn.Name),
+			slog.Any("err", err),
+		)
 		return nil
 	}
 

@@ -18,7 +18,7 @@ export const secretHostSchema = z
   .trim()
   .min(1, "Host is required")
   .max(253, "Host must be at most 253 characters")
-  .transform(normalizeSecretHost)
+  .transform(parseSecretHost)
 
 export const secretHostsInputSchema = z
   .string()
@@ -44,8 +44,8 @@ export const secretFormInputSchema = z.object({
 
 const domainLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/
 
-function normalizeSecretHost(value: string, ctx: z.RefinementCtx) {
-  const host = normalizeHost(value, true)
+function parseSecretHost(value: string, ctx: z.RefinementCtx) {
+  const host = parseHost(value, true)
   if (!host) {
     ctx.addIssue({
       code: "custom",
@@ -56,8 +56,8 @@ function normalizeSecretHost(value: string, ctx: z.RefinementCtx) {
   return host
 }
 
-function normalizeEnvironmentHost(value: string, ctx: z.RefinementCtx) {
-  const host = normalizeHost(value, false)
+function parseEnvironmentHost(value: string, ctx: z.RefinementCtx) {
+  const host = parseHost(value, false)
   if (!host) {
     ctx.addIssue({
       code: "custom",
@@ -68,30 +68,30 @@ function normalizeEnvironmentHost(value: string, ctx: z.RefinementCtx) {
   return host
 }
 
-function normalizeHost(value: string, allowIP: boolean) {
+function parseHost(value: string, allowIP: boolean) {
   const host = value.trim()
-  if (isCIDR(host)) {
-    return normalizeCIDR(host)
+  if (ipaddr.isValidCIDR(host)) {
+    return canonicalCIDR(host)
   }
-  if (isIP(host)) {
+  if (ipaddr.isValid(host)) {
     return allowIP ? host : undefined
   }
   if (host.startsWith("*.")) {
-    const domain = normalizeDomain(host.slice(2))
+    const domain = canonicalDomain(host.slice(2))
     return domain ? `*.${domain}` : undefined
   }
   if (host.includes("*")) {
     return undefined
   }
-  return normalizeDomain(host)
+  return canonicalDomain(host)
 }
 
-function normalizeDomain(value: string) {
+function canonicalDomain(value: string) {
   const domain = value.trim().replace(/\.$/, "")
   if (domain.length === 0 || domain.length > 253 || domain.includes("..")) {
     return undefined
   }
-  if (isIP(domain)) {
+  if (ipaddr.isValid(domain)) {
     return undefined
   }
   if (!domain.split(".").every((label) => domainLabelPattern.test(label))) {
@@ -100,15 +100,7 @@ function normalizeDomain(value: string) {
   return domain.toLowerCase()
 }
 
-function isIP(value: string) {
-  return ipaddr.isValid(value)
-}
-
-function isCIDR(value: string) {
-  return ipaddr.isValidCIDR(value)
-}
-
-function normalizeCIDR(value: string) {
+function canonicalCIDR(value: string) {
   const [addr, bits] = ipaddr.parseCIDR(value)
   return `${addr.toString()}/${bits}`
 }
@@ -132,7 +124,7 @@ export const environmentAllowedHostSchema = z
   .trim()
   .min(1, "Host is required")
   .max(253, "Host must be at most 253 characters")
-  .transform(normalizeEnvironmentHost)
+  .transform(parseEnvironmentHost)
 
 export const createAgentSimpleFormSchema = z.object({
   name: agentNameSchema,

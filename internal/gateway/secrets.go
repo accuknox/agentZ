@@ -27,7 +27,7 @@ const (
 	agentSecretPage   = 200
 )
 
-type normalizedSecretEntry struct {
+type validatedSecretEntry struct {
 	key   string
 	value string
 	hosts []string
@@ -92,7 +92,7 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 		return
 	}
 
-	entries, fields := normalizeSecretEntries(req.Secrets)
+	entries, fields := validateSecretEntries(req.Secrets)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -130,8 +130,8 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 	})
 }
 
-func normalizeSecretEntries(raw []gatewayapi.SecretEntry) ([]normalizedSecretEntry, []gatewayapi.FieldError) {
-	entries := make([]normalizedSecretEntry, 0, len(raw))
+func validateSecretEntries(raw []gatewayapi.SecretEntry) ([]validatedSecretEntry, []gatewayapi.FieldError) {
+	entries := make([]validatedSecretEntry, 0, len(raw))
 	fields := make([]gatewayapi.FieldError, 0, len(raw))
 	for i, entry := range raw {
 		key := strings.TrimSpace(entry.Key)
@@ -173,7 +173,7 @@ func normalizeSecretEntries(raw []gatewayapi.SecretEntry) ([]normalizedSecretEnt
 			continue
 		}
 
-		entries = append(entries, normalizedSecretEntry{
+		entries = append(entries, validatedSecretEntry{
 			key:   key,
 			value: entry.Value,
 			hosts: hosts,

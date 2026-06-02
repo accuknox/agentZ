@@ -564,7 +564,7 @@ const ServerURLField = React.memo(function ServerURLField({
         <PopoverContent
           ref={serverPopoverRef}
           align="start"
-          className="w-[var(--radix-popper-anchor-width)] p-0"
+          className="w-(--radix-popper-anchor-width) p-0"
           onCloseAutoFocus={(event) => {
             event.preventDefault()
           }}
@@ -1225,20 +1225,7 @@ export function McpSheet({
         {submitted ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 pb-2">
             <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-primary"
-              >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
+              <Check className="size-6 text-primary" />
             </div>
             <p className="text-center text-sm text-muted-foreground">
               {successMessage ??
@@ -1352,7 +1339,7 @@ export function McpSheet({
                       </FieldGroup>
                     </AccordionContent>
                   </AccordionItem>
-                  <div className="-mx-[calc(1rem+1px)]">
+                  <div className="-mx-4.25">
                     <Separator />
                   </div>
                   <AccordionItem value={advancedAccordionItem} className="border-none">

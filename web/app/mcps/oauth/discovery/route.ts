@@ -7,10 +7,10 @@ import * as z from "zod"
 import { discoveredOAuthAuth, type StoredOAuthDiscoveryState } from "@/lib/mcp-oauth"
 
 const manualDiscoveryMessage =
-  "Auto-discovery failed, please fill in the required fields in advanced section manually."
+  "Auto-discovery failed. If the MCP server supports OAuth, please fill in the required fields in advanced section manually."
 
 const discoveryRequestSchema = z.object({
-  endpointUrl: z.string().url(),
+  endpointUrl: z.url(),
 })
 
 export async function POST(request: Request) {
@@ -30,32 +30,21 @@ export async function POST(request: Request) {
 
   let resourceMetadata: StoredOAuthDiscoveryState["resourceMetadata"]
   let authorizationServerUrl = fallbackAuthorizationServerUrl
-  let resourceError: string | undefined
 
   try {
     resourceMetadata = await discoverOAuthProtectedResourceMetadata(serverUrl)
     authorizationServerUrl =
       resourceMetadata.authorization_servers?.[0] ?? fallbackAuthorizationServerUrl
-  } catch (error) {
-    resourceError =
-      error instanceof Error
-        ? error.message
-        : "Protected resource metadata could not be discovered."
+  } catch {
+    // Ignore protected resource discovery failures and fall back to
+    // authorization server discovery from the endpoint origin.
   }
 
   let authorizationServerMetadata: StoredOAuthDiscoveryState["authorizationServerMetadata"]
-  let authorizationError: string | undefined
 
   try {
     authorizationServerMetadata = await discoverAuthorizationServerMetadata(authorizationServerUrl)
-  } catch (error) {
-    authorizationError =
-      error instanceof Error
-        ? error.message
-        : "Authorization server metadata could not be discovered."
-  }
-
-  if (!resourceMetadata && !authorizationServerMetadata) {
+  } catch {
     return NextResponse.json(
       {
         message: manualDiscoveryMessage,

@@ -16,6 +16,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -30,6 +31,12 @@ type mcpProbeOutcome struct {
 	reason        string
 	message       string
 }
+
+const (
+	mcpProbeAttempts      = 3
+	mcpProbeBackoffStart  = 100 * time.Millisecond
+	mcpProbeBackoffFactor = 2.0
+)
 
 type probeRoundTripper struct {
 	base   http.RoundTripper
@@ -91,6 +98,47 @@ func (s *Service) probeMCPConnections(ctx context.Context) error {
 }
 
 func (s *Service) probeMCPConnection(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) mcpProbeOutcome {
+	outcome := mcpProbeOutcome{
+		lastProbeTime: metav1.NewTime(time.Now().UTC()),
+		healthy:       false,
+		reason:        internalmcp.ReasonInternalError,
+		message:       "ext auth probe failed",
+	}
+	backoff := wait.Backoff{
+		Duration: mcpProbeBackoffStart,
+		Factor:   mcpProbeBackoffFactor,
+		Steps:    mcpProbeAttempts,
+	}
+
+	err := wait.ExponentialBackoffWithContext(
+		ctx,
+		backoff,
+		func(ctx context.Context) (bool, error) {
+			outcome = s.probeMCPConnectionOnce(ctx, conn)
+			outcome.lastProbeTime = metav1.NewTime(time.Now().UTC())
+			if outcome.healthy {
+				return true, nil
+			}
+			if outcome.reason == internalmcp.ReasonCredentialsInvalid {
+				return false, errors.New(outcome.message)
+			}
+			return false, nil
+		},
+	)
+	if err == nil || errors.Is(err, wait.ErrWaitTimeout) {
+		return outcome
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		outcome.reason = internalmcp.ReasonInternalError
+		outcome.message = err.Error()
+		return outcome
+	}
+
+	return outcome
+}
+
+func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) mcpProbeOutcome {
 	outcome := mcpProbeOutcome{
 		lastProbeTime: metav1.NewTime(time.Now().UTC()),
 		healthy:       false,

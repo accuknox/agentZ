@@ -366,31 +366,53 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
       mcpConnectionRefs: initialMcpConnectionRefs,
     },
   })
-  const selected = useWatch({
+  const watchedSelected = useWatch({
     control: form.control,
     name: "mcpConnectionRefs",
     defaultValue: initialMcpConnectionRefs,
   })
+  const selected = React.useMemo(() => watchedSelected ?? [], [watchedSelected])
   const selectedNames = React.useMemo(() => new Set(selected), [selected])
-  const connections = mcpConnections.toSorted((a, b) => a.name.localeCompare(b.name))
+  const connections = React.useMemo(
+    () => mcpConnections.toSorted((a, b) => a.name.localeCompare(b.name)),
+    [mcpConnections]
+  )
   const [sorting, setSorting] = React.useState<SortingState>(defaultMcpSorting)
   const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
+  const setSelected = React.useCallback(
+    (name: string, checked: boolean) => {
+      const current = form.getValues("mcpConnectionRefs") ?? []
+      const next = new Set(current)
+
+      if (checked) {
+        next.add(name)
+      } else {
+        next.delete(name)
+      }
+
+      const nextRefs = Array.from(next).toSorted((a, b) => a.localeCompare(b))
+      if (
+        current.length === nextRefs.length &&
+        current.every((value, index) => value === nextRefs[index])
+      ) {
+        return
+      }
+
+      form.setValue("mcpConnectionRefs", nextRefs, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    },
+    [form]
+  )
+
   const columns = React.useMemo(
     () =>
       createMcpSelectionColumns({
         selectedNames,
-        onCheckedChange: (name, checked) => {
-          const nextRefs = checked
-            ? [...selected, name].toSorted((a, b) => a.localeCompare(b))
-            : selected.filter((item) => item !== name)
-
-          form.setValue("mcpConnectionRefs", nextRefs, {
-            shouldDirty: true,
-            shouldValidate: true,
-          })
-        },
+        onCheckedChange: setSelected,
       }),
-    [form, selected, selectedNames]
+    [selectedNames, setSelected]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

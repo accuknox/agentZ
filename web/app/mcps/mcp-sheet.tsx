@@ -53,8 +53,8 @@ import {
   mcpFormSchema,
   type McpFormInput,
 } from "@/data/mcp.schema"
-import type { McpConnection } from "@/lib/gateway/client"
-import { authModeOf } from "@/lib/mcp"
+import { getMcpConnection } from "@/lib/gateway/client"
+import type { McpConnectionDetail, McpConnectionSummary } from "@/lib/gateway/client"
 import {
   oauthBroadcastChannelName,
   oauthWindowMessageSource,
@@ -272,6 +272,20 @@ const oauthDiscoveryQueryOptions = (endpointURL: string) =>
     retry: false,
   })
 
+const mcpConnectionQueryOptions = (name: string) =>
+  queryOptions({
+    queryKey: ["mcp-connection", name],
+    queryFn: async () => {
+      const result = await getMcpConnection({
+        path: { name },
+      })
+      if (result.error) {
+        throw new Error(result.error.message)
+      }
+      return result.data
+    },
+  })
+
 function useDebouncedValue<T>(value: T, delay: number) {
   const [debounced, setDebounced] = React.useState(value)
 
@@ -311,12 +325,17 @@ function accordionReducer(state: string[], action: AccordionAction) {
   return [...next]
 }
 
-function formDefaults(connection?: McpConnection): McpFormInput {
+function formDefaults(connection?: McpConnectionDetail): McpFormInput {
   if (!connection) {
     return defaultFormValues
   }
 
-  const authMode = authModeOf(connection)
+  const authMode =
+    connection.auth.bearer !== undefined
+      ? "bearer"
+      : connection.auth.oauth !== undefined
+        ? "oauth"
+        : "none"
   const oauthDefaults = formOAuthDefaults(connection)
   const bearerDefaults = formBearerDefaults(connection)
   return {
@@ -331,7 +350,7 @@ function formDefaults(connection?: McpConnection): McpFormInput {
       value,
     })),
     auth_mode: authMode === "bearer" ? "bearer" : "oauth",
-    oauth_discovery_state: "idle",
+    oauth_discovery_state: authMode === "oauth" ? "manual" : "idle",
     bearer_token: "",
     oauth_scopes: oauthDefaults.oauth_scopes,
     oauth_client_id: "",
@@ -414,68 +433,6 @@ function formDataFromValues(values: McpFormInput) {
   }
 
   return formData
-}
-
-function formValuesFromDOM(formData: FormData, fallback: McpFormInput): McpFormInput {
-  const values: McpFormInput = {
-    ...fallback,
-    extra_headers: [],
-  }
-  const scalarValues = values as Record<(typeof scalarFormDataFields)[number], string | undefined>
-
-  for (const fieldName of scalarFormDataFields) {
-    const fieldValue = formData.get(fieldName)
-    if (fieldValue === null) {
-      continue
-    }
-
-    scalarValues[fieldName] = String(fieldValue)
-  }
-
-  const extraHeaders = new Map<number, { key?: string; value?: string }>()
-  for (const [fieldName, fieldValue] of formData.entries()) {
-    const match = /^extra_headers\.(\d+)\.(key|value)$/.exec(fieldName)
-    if (!match) {
-      continue
-    }
-
-    const index = Number(match[1])
-    if (!Number.isInteger(index)) {
-      continue
-    }
-
-    const header = extraHeaders.get(index) ?? {}
-    header[match[2] as ExtraHeaderFieldKey] = String(fieldValue)
-    extraHeaders.set(index, header)
-  }
-
-  values.extra_headers = [...extraHeaders.entries()]
-    .sort(([left], [right]) => left - right)
-    .map(([, header]) => ({
-      key: header.key ?? "",
-      value: header.value ?? "",
-    }))
-
-  return values
-}
-
-function applyFormValues(form: ReturnType<typeof useForm<McpFormInput>>, values: McpFormInput) {
-  form.setValue("extra_headers", values.extra_headers)
-
-  for (const fieldName of scalarFormDataFields) {
-    form.setValue(fieldName, values[fieldName] ?? "")
-  }
-}
-
-function applyDiscoveredOAuthValues(
-  form: ReturnType<typeof useForm<McpFormInput>>,
-  values: Record<OauthAdvancedFieldName, string>
-) {
-  for (const fieldName of oauthAdvancedFields.map((field) => field.name)) {
-    form.setValue(fieldName, values[fieldName], {
-      shouldValidate: true,
-    })
-  }
 }
 
 const ServerURLField = React.memo(function ServerURLField({
@@ -726,7 +683,7 @@ export function McpSheet({
   submitMcpAction,
 }: {
   mode: "create" | "update"
-  connection?: McpConnection
+  connection?: McpConnectionSummary
   open: boolean
   onOpenChangeAction: (open: boolean) => void
   submitMcpAction: SubmitMcpAction
@@ -734,7 +691,13 @@ export function McpSheet({
   const router = useRouter()
   const [isRefreshing, startTransition] = React.useTransition()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const defaultValues = React.useMemo(() => formDefaults(connection), [connection])
+  const connectionName = connection?.name ?? ""
+  const connectionQuery = useQuery({
+    ...mcpConnectionQueryOptions(connectionName),
+    enabled: mode === "update" && open && connectionName !== "",
+  })
+  const detail = mode === "update" ? connectionQuery.data : undefined
+  const defaultValues = React.useMemo(() => formDefaults(detail), [detail])
   const form = useForm<McpFormInput>({
     resolver: zodResolver(mcpFormSchema),
     mode: "onBlur",
@@ -782,19 +745,27 @@ export function McpSheet({
   const [userExpandedAccordions, dispatchAccordion] = React.useReducer(accordionReducer, [])
   const [dismissedDiscoveryWarningKey, setDismissedDiscoveryWarningKey] = React.useState<string>()
   const [discoveryURLOverride, setDiscoveryURLOverride] = React.useState<string>()
-  const [endpointURL, setEndpointURL] = React.useState(defaultValues.endpoint_url)
+  const [hasTriggeredDiscovery, setHasTriggeredDiscovery] = React.useState(mode === "create")
   const popupRef = React.useRef<Window | null>(null)
   const popupPollRef = React.useRef<number | null>(null)
   const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
   const mountedRef = React.useRef(true)
   const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
+  const endpointURL = useWatch({
+    control: form.control,
+    name: "endpoint_url",
+    defaultValue: defaultValues.endpoint_url,
+  })
   const trimmedEndpointURL = endpointURL.trim()
   const debouncedEndpointURL = useDebouncedValue(trimmedEndpointURL, discoveryDebounceMs)
   const validEndpointURL = isHTTPSURL(trimmedEndpointURL)
-  const discoveryURL = discoveryURLOverride ?? debouncedEndpointURL
+  const shouldAutoDiscover = mode === "create"
+  const discoveryURL = shouldAutoDiscover
+    ? (discoveryURLOverride ?? debouncedEndpointURL)
+    : (discoveryURLOverride ?? "")
   const oauthQuery = useQuery({
     ...oauthDiscoveryQueryOptions(discoveryURL),
-    enabled: authMode === "oauth" && isHTTPSURL(discoveryURL),
+    enabled: authMode === "oauth" && hasTriggeredDiscovery && isHTTPSURL(discoveryURL),
   })
   const oauthDiscoveryData = oauthQuery.data?.oauth
   const discoveredDefaultScopes = oauthQuery.data?.default_scopes
@@ -818,7 +789,10 @@ export function McpSheet({
   const discoveryWarningMessage =
     oauthQuery.error instanceof Error ? oauthQuery.error.message : undefined
   const discoveryWarningURL =
-    authMode === "oauth" && isCurrentDiscoveryTarget && isHTTPSURL(discoveryURL)
+    authMode === "oauth" &&
+    hasTriggeredDiscovery &&
+    isCurrentDiscoveryTarget &&
+    isHTTPSURL(discoveryURL)
       ? discoveryURL
       : undefined
   const discoveryWarningKey =
@@ -827,6 +801,7 @@ export function McpSheet({
       : undefined
   const isDiscoveryPendingForCurrentURL =
     authMode === "oauth" &&
+    hasTriggeredDiscovery &&
     validEndpointURL &&
     (!isCurrentDiscoveryTarget || oauthQuery.fetchStatus === "fetching")
   const currentDiscoveryState =
@@ -838,9 +813,11 @@ export function McpSheet({
           ? "manual"
           : isCurrentDiscoveryResult && oauthQuery.isSuccess
             ? "success"
-            : "idle"
+            : mode === "update"
+              ? "manual"
+              : "idle"
   const discoveryIconState =
-    authMode !== "oauth" || !validEndpointURL || !isCurrentDiscoveryTarget
+    authMode !== "oauth" || !validEndpointURL || !isCurrentDiscoveryTarget || !hasTriggeredDiscovery
       ? "idle"
       : oauthQuery.fetchStatus === "fetching"
         ? "loading"
@@ -900,23 +877,6 @@ export function McpSheet({
   }, [defaultValues, form, open])
 
   React.useEffect(() => {
-    const unsubscribe = form.subscribe({
-      name: "endpoint_url",
-      exact: true,
-      formState: {
-        values: true,
-      },
-      callback: ({ values }) => {
-        setEndpointURL(values.endpoint_url ?? "")
-      },
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [form])
-
-  React.useEffect(() => {
     for (const fieldName of conditionalFormFields) {
       form.register(fieldName)
     }
@@ -938,7 +898,7 @@ export function McpSheet({
       return
     }
 
-    applyDiscoveredOAuthValues(form, {
+    const discoveredValues = {
       oauth_issuer: oauthDiscoveryData.issuer ?? "",
       oauth_authorization_endpoint: oauthDiscoveryData.authorization_endpoint ?? "",
       oauth_token_endpoint: oauthDiscoveryData.token_endpoint ?? "",
@@ -947,7 +907,13 @@ export function McpSheet({
       oauth_scopes: discoveredDefaultScopes?.join("\n") ?? "",
       oauth_location_header_name: oauthDiscoveryData.location?.header?.name ?? "Authorization",
       oauth_location_header_prefix: oauthDiscoveryData.location?.header?.prefix ?? "Bearer",
-    })
+    } satisfies Record<OauthAdvancedFieldName, string>
+
+    for (const fieldName of oauthAdvancedFields.map((field) => field.name)) {
+      form.setValue(fieldName, discoveredValues[fieldName], {
+        shouldValidate: true,
+      })
+    }
   }, [
     authMode,
     form,
@@ -1215,6 +1181,7 @@ export function McpSheet({
       })
       setDismissedDiscoveryWarningKey(undefined)
       setDiscoveryURLOverride(undefined)
+      setHasTriggeredDiscovery(mode === "create")
       previousAccordionAttentionRef.current = {
         clientCredentials: false,
         advanced: false,
@@ -1236,6 +1203,7 @@ export function McpSheet({
       return
     }
 
+    setHasTriggeredDiscovery(true)
     if (nextURL === discoveryURL) {
       await oauthQuery.refetch()
       return
@@ -1247,6 +1215,9 @@ export function McpSheet({
   const title = "Connect MCP server"
   const submitLabel =
     mode === "create" ? "Connect" : authMode === "oauth" ? "Save changes" : "Update credential"
+  const isLoadingDetail = mode === "update" && open && connectionQuery.isPending && !detail
+  const detailError =
+    connectionQuery.error instanceof Error ? connectionQuery.error.message : undefined
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
@@ -1290,7 +1261,19 @@ export function McpSheet({
             </AlertAction>
           </Alert>
         ) : null}
-        {submitted ? (
+        {isLoadingDetail ? (
+          <div className="flex flex-1 items-center justify-center px-4 pb-2">
+            <Spinner />
+          </div>
+        ) : detailError ? (
+          <div className="px-4 pb-2">
+            <Alert variant="destructive">
+              <CircleAlert className="size-4" />
+              <AlertTitle>Connection could not be loaded</AlertTitle>
+              <AlertDescription>{detailError}</AlertDescription>
+            </Alert>
+          </div>
+        ) : submitted ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 pb-2">
             <div className="bg-primary/10 flex size-12 items-center justify-center rounded-full">
               <Check className="text-primary size-6" />
@@ -1302,22 +1285,9 @@ export function McpSheet({
           </div>
         ) : (
           <form
-            onSubmit={async (event) => {
-              event.preventDefault()
-              const nextValues = formValuesFromDOM(
-                new FormData(event.currentTarget),
-                form.getValues()
-              )
-
-              applyFormValues(form, nextValues)
-
-              const valid = await form.trigger()
-              if (!valid) {
-                return
-              }
-
-              await submitValues(nextValues)
-            }}
+            onSubmit={form.handleSubmit(async (values) => {
+              await submitValues(values)
+            })}
             className="flex flex-1 flex-col gap-5 px-4 pb-2"
           >
             <FieldGroup>
@@ -1390,6 +1360,12 @@ export function McpSheet({
                       <span>OAuth client credentials</span>
                     </AccordionTrigger>
                     <AccordionContent className="[&>div]:h-auto">
+                      {mode === "update" ? (
+                        <FieldDescription>
+                          Updating an OAuth connection always starts a fresh OAuth flow. Enter new
+                          client credentials here only when this provider requires them.
+                        </FieldDescription>
+                      ) : null}
                       <FieldGroup>
                         <Field data-invalid={Boolean(errors.oauth_client_id)}>
                           <FieldLabel>Client ID</FieldLabel>
@@ -1469,8 +1445,14 @@ export function McpSheet({
                 <>
                   <Field data-invalid={Boolean(errors.bearer_token)}>
                     <FieldLabel htmlFor="mcp-bearer-token">Token</FieldLabel>
+                    {mode === "update" ? (
+                      <FieldDescription>
+                        Updating a bearer connection requires a new API token.
+                      </FieldDescription>
+                    ) : null}
                     <Input
                       id="mcp-bearer-token"
+                      type="password"
                       placeholder="API key or personal access token"
                       aria-invalid={Boolean(errors.bearer_token)}
                       {...form.register("bearer_token")}

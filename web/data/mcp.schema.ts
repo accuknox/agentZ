@@ -1,7 +1,7 @@
 import * as z from "zod"
 import type {
   JsonObject,
-  McpConnection,
+  McpConnectionDetail,
   McpConnectionAuthLocation,
   McpConnectionHeaderLocation,
 } from "@/lib/gateway/client"
@@ -429,7 +429,7 @@ export function formAuthLocation(input?: McpConnectionAuthLocation) {
   }
 }
 
-export function formOAuthDefaults(connection?: McpConnection) {
+export function formOAuthDefaults(connection?: McpConnectionDetail) {
   const oauth = connection?.auth?.oauth
   const location = formAuthLocation(oauth?.location)
 
@@ -445,7 +445,7 @@ export function formOAuthDefaults(connection?: McpConnection) {
   }
 }
 
-export function formBearerDefaults(connection?: McpConnection) {
+export function formBearerDefaults(connection?: McpConnectionDetail) {
   const location = formAuthLocation(connection?.auth?.bearer?.location)
 
   return {

@@ -12,11 +12,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react"
-import type {
-  McpConnection,
-  McpConnectionCondition,
-  McpConnectionState,
-} from "@/lib/gateway/client"
+import type { McpConnectionLifecycle, McpConnectionSummary } from "@/lib/gateway/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,7 +33,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { authModeOf } from "@/lib/mcp"
 import type { DeleteMcpFormState, McpFormState } from "@/data/mcp.actions"
 import { findMcpServerByURL, mcpFallbackIcon } from "./catalog"
 import { McpSheet } from "./mcp-sheet"
@@ -53,13 +48,13 @@ const mcpStatusMeta = {
     label: "Ready",
     variant: "success",
   },
-  Degraded: {
+  Error: {
     icon: XCircle,
-    label: "Degraded",
+    label: "Error",
     variant: "destructive",
   },
 } satisfies Record<
-  McpConnectionState,
+  McpConnectionLifecycle,
   {
     icon: React.ComponentType<React.ComponentProps<"svg">>
     label: string
@@ -74,7 +69,7 @@ export function createMcpColumns(actions: {
     state: DeleteMcpFormState,
     formData: FormData
   ) => Promise<DeleteMcpFormState>
-}): ColumnDef<McpConnection>[] {
+}): ColumnDef<McpConnectionSummary>[] {
   return [
     {
       accessorKey: "name",
@@ -93,25 +88,25 @@ export function createMcpColumns(actions: {
     {
       id: "auth_mode",
       header: "Auth type",
-      accessorFn: (row) => authModeOf(row),
-      cell: ({ row }) => <span className="capitalize">{authModeOf(row.original)}</span>,
+      accessorFn: (row) => row.auth_mode.toLowerCase(),
+      cell: ({ row }) => <span className="capitalize">{row.original.auth_mode.toLowerCase()}</span>,
     },
     {
       id: "status",
       header: "Status",
-      accessorFn: (row) => row.status.state ?? "Accepted",
+      accessorFn: (row) => row.status,
       cell: ({ row }) => <McpStatusBadge connection={row.original} />,
     },
     {
       id: "endpoint",
       header: "Endpoint",
-      accessorFn: (row) => row.endpoint.url,
+      accessorFn: (row) => row.endpoint_url,
       cell: ({ row }) => (
         <span
           className="text-muted-foreground block min-w-0 truncate"
-          title={row.original.endpoint.url}
+          title={row.original.endpoint_url}
         >
-          {row.original.endpoint.url}
+          {row.original.endpoint_url}
         </span>
       ),
     },
@@ -143,8 +138,8 @@ export function createMcpColumns(actions: {
   ]
 }
 
-function McpNameCell({ connection }: { connection: McpConnection }) {
-  const server = findMcpServerByURL(connection.endpoint.url)
+function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
+  const server = findMcpServerByURL(connection.endpoint_url)
   const Icon = server?.icon ?? mcpFallbackIcon
 
   return (
@@ -155,18 +150,9 @@ function McpNameCell({ connection }: { connection: McpConnection }) {
   )
 }
 
-function McpStatusBadge({ connection }: { connection: McpConnection }) {
-  const state = connection.status.state ?? "Accepted"
+function McpStatusBadge({ connection }: { connection: McpConnectionSummary }) {
+  const state = connection.status
   const meta = mcpStatusMeta[state]
-  const conditionTypesByState = {
-    Accepted: "Accepted",
-    Ready: "Ready",
-    Degraded: "Degraded",
-  } satisfies Record<McpConnectionState, McpConnectionCondition["type"]>
-  const matchingType = conditionTypesByState[state]
-  const condition =
-    connection.status.conditions.find((item) => item.type === matchingType) ??
-    connection.status.conditions.find((item) => item.message.length > 0)
   const badge = (
     <Badge variant={meta.variant}>
       <meta.icon data-icon="inline-start" />
@@ -174,14 +160,14 @@ function McpStatusBadge({ connection }: { connection: McpConnection }) {
     </Badge>
   )
 
-  if (condition === undefined || condition.message.length === 0) {
+  if (!connection.message) {
     return badge
   }
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{badge}</TooltipTrigger>
-      <TooltipContent>{condition.message}</TooltipContent>
+      <TooltipContent>{connection.message}</TooltipContent>
     </Tooltip>
   )
 }
@@ -191,7 +177,7 @@ function McpActions({
   submitMcpAction,
   deleteMcpAction,
 }: {
-  connection: McpConnection
+  connection: McpConnectionSummary
   submitMcpAction: (_: McpFormState, formData: FormData) => Promise<McpFormState>
   deleteMcpAction: (
     name: string,
@@ -247,7 +233,7 @@ function DeleteMcpDialog({
   open,
   setOpen,
 }: {
-  connection: McpConnection
+  connection: McpConnectionSummary
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,

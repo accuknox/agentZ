@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { experimental_streamedQuery as streamedQuery } from "@tanstack/react-query"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import {
   flexRender,
   getCoreRowModel,
@@ -8,7 +10,11 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import type { McpConnection } from "@/lib/gateway/client"
+import {
+  watchMcpConnections,
+  type McpConnectionSummary,
+  type WatchMcpConnectionsEvent,
+} from "@/lib/gateway/client"
 import { useTokenPagination } from "@/app/lens/traces/client-utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,6 +38,51 @@ const columnClassName: Record<string, string> = {
   actions: "w-14",
 }
 
+const watchMcpConnectionsQueryOptions = (
+  connectionNames: string[],
+  mcpConnections: McpConnectionSummary[]
+) =>
+  queryOptions({
+    queryKey: ["watchMcpConnections", connectionNames] as const,
+    enabled: connectionNames.length > 0,
+    placeholderData: mcpConnections,
+    queryFn: streamedQuery<
+      WatchMcpConnectionsEvent,
+      McpConnectionSummary[],
+      readonly ["watchMcpConnections", string[]]
+    >({
+      initialValue: mcpConnections,
+      reducer: (rows, event) => {
+        const byName = new Map(rows.map((row) => [row.name, row]))
+
+        for (const connection of event.mcp_connections) {
+          if (!byName.has(connection.name)) {
+            continue
+          }
+          byName.set(connection.name, connection)
+        }
+
+        return rows.map((row) => byName.get(row.name) ?? row)
+      },
+      refetchMode: "reset",
+      streamFn: async ({ signal }) => {
+        const result = await watchMcpConnections({
+          body: {
+            names: connectionNames,
+          },
+          signal,
+        })
+        return result.stream
+      },
+    }),
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: false,
+    retry: true,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    staleTime: Infinity,
+  })
+
 export function McpTable({
   mcpConnections,
   hasNextPage,
@@ -39,7 +90,7 @@ export function McpTable({
   submitMcpAction,
   deleteMcpAction,
 }: {
-  mcpConnections: McpConnection[]
+  mcpConnections: McpConnectionSummary[]
   hasNextPage: boolean
   nextPageToken: string
   submitMcpAction: (_: McpFormState, formData: FormData) => Promise<McpFormState>
@@ -53,6 +104,12 @@ export function McpTable({
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "age", desc: true }])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const connectionNames = React.useMemo(
+    () => mcpConnections.map((connection) => connection.name),
+    [mcpConnections]
+  )
+  const query = useQuery(watchMcpConnectionsQueryOptions(connectionNames, mcpConnections))
+  const rows = query.data ?? mcpConnections
   const columns = React.useMemo(
     () =>
       createMcpColumns({
@@ -64,7 +121,7 @@ export function McpTable({
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data: mcpConnections,
+    data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),

@@ -21,15 +21,17 @@ import (
 )
 
 const (
-	EnvironmentByMCPConnectionIndex       = "spec.mcpConnectionRefs.name"
-	MCPConnectionFinalizer                = "clawarmor.accuknox.com/mcpconnection"
-	EnvironmentFinalizer                  = "clawarmor.accuknox.com/environment-protection"
-	GatewayClassName                      = "agentgateway"
-	GatewayName                           = "mcp"
-	ExtAuthServiceName                    = "extauth"
-	ExtAuthRolePrefix                     = "extauth-"
-	ExtAuthPort                     int32 = 18081
-	AppProtocolMCP                        = "agentgateway.dev/mcp"
+	EnvironmentByMCPConnectionIndex = "spec.mcpConnectionRefs.name"
+	MCPConnectionFinalizer          = "clawarmor.accuknox.com/mcpconnection"
+	EnvironmentFinalizer            = "clawarmor.accuknox.com/environment-protection"
+	// SecretPathPrefix is the OpenBao prefix for MCP credential records.
+	SecretPathPrefix         = "mcp-connections/"
+	GatewayClassName         = "agentgateway"
+	GatewayName              = "mcp"
+	ExtAuthServiceName       = "extauth"
+	ExtAuthRolePrefix        = "extauth-"
+	ExtAuthPort        int32 = 18081
+	AppProtocolMCP           = "agentgateway.dev/mcp"
 	// AgentgatewayParametersName is the name of the AgentgatewayParameters
 	// resource that configures the Gateway proxy Service type.
 	AgentgatewayParametersName = "mcp-clusterip"
@@ -105,6 +107,11 @@ func EnvironmentRouteName(name string) string {
 // EnvironmentRoutePath returns the route path exposed for one environment.
 func EnvironmentRoutePath(name string) string {
 	return "/mcp/" + name
+}
+
+// SecretPath returns the OpenBao path for one MCP credential record.
+func SecretPath(name string) string {
+	return SecretPathPrefix + name
 }
 
 // ManagedRef returns a status reference for one namespaced object.

@@ -123,6 +123,10 @@ import type {
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WatchMcpConnectionsData,
+  WatchMcpConnectionsErrors,
+  WatchMcpConnectionsResponse,
+  WatchMcpConnectionsResponses,
   WatchWorkflowRunsData,
   WatchWorkflowRunsErrors,
   WatchWorkflowRunsResponse,
@@ -180,6 +184,7 @@ import {
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
+  zWatchMcpConnectionsBody,
   zWatchWorkflowRunsBody,
   zWatchWorkflowRunsPath,
 } from "./zod.gen"
@@ -1131,6 +1136,36 @@ export const listMcpConnections = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     url: "/api/mcp-connection/list",
     ...options,
+  })
+
+/**
+ * Watch MCP connection status changes.
+ *
+ * Returns an SSE stream. Each event data payload is a JSON object matching WatchMCPConnectionsEvent. If names is omitted or empty, all MCP connections are watched.
+ *
+ */
+export const watchMcpConnections = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchMcpConnectionsData, ThrowOnError, WatchMcpConnectionsResponse>
+) =>
+  (options?.client ?? client).sse.post<
+    WatchMcpConnectionsResponses,
+    WatchMcpConnectionsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWatchMcpConnectionsBody.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    url: "/api/mcp-connection/watch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
   })
 
 /**

@@ -177,6 +177,10 @@ type MCPConnectionStatus struct {
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
+	// LastProbeTime is the most recent time an observer completed an MCP probe.
+	// +optional
+	LastProbeTime *metav1.Time `json:"lastProbeTime,omitempty"`
+
 	// ObservedGeneration is the latest reconciled generation.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`

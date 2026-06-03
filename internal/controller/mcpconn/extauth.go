@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	extAuthConditionType = "ExtAuthReady"
+	extAuthConditionType = mcp.ConditionExtAuthReady
 	extAuthLabelName     = "clawarmor-extauth"
 	extAuthTokenPath     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 )
@@ -58,24 +58,9 @@ func (r *MCPConnectionReconciler) extAuthConnections(ctx context.Context, ns str
 		return strings.Compare(a.Name, b.Name)
 	})
 
-	envs := &clawarmorv1alpha1.EnvironmentList{}
-	if err := r.List(ctx, envs, client.InNamespace(ns)); err != nil {
-		return nil, fmt.Errorf("list environments for ext auth: %w", err)
-	}
-
-	referenced := make(map[string]struct{})
-	for _, env := range envs.Items {
-		for _, name := range mcp.MCPConnectionRefNames(&env) {
-			referenced[name] = struct{}{}
-		}
-	}
-
 	active := make([]clawarmorv1alpha1.MCPConnection, 0, len(list.Items))
 	for _, conn := range list.Items {
-		if conn.Spec.Auth == nil {
-			continue
-		}
-		if _, ok := referenced[conn.Name]; !ok {
+		if !conn.DeletionTimestamp.IsZero() {
 			continue
 		}
 		active = append(active, conn)
@@ -198,7 +183,12 @@ func (r *MCPConnectionReconciler) reconcileExtAuthRole(ctx context.Context, ns s
 			{
 				APIGroups: []string{"clawarmor.accuknox.com"},
 				Resources: []string{"agents", "envs", "mcpconnections"},
-				Verbs:     []string{"get"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{"clawarmor.accuknox.com"},
+				Resources: []string{"mcpconnections/status"},
+				Verbs:     []string{"get", "update", "patch"},
 			},
 		}
 		return nil
@@ -444,8 +434,8 @@ func (r *MCPConnectionReconciler) reconcileExtAuthOpenBao(ctx context.Context, n
 
 func renderExtAuthPolicy(mount string) (string, error) {
 	data := extAuthPolicyData{
-		DataPath:     fmt.Sprintf("%s/data/mcp-connections/*", strings.Trim(mount, "/")),
-		MetadataPath: fmt.Sprintf("%s/metadata/mcp-connections/*", strings.Trim(mount, "/")),
+		DataPath:     fmt.Sprintf("%s/data/%s*", strings.Trim(mount, "/"), mcp.SecretPathPrefix),
+		MetadataPath: fmt.Sprintf("%s/metadata/%s*", strings.Trim(mount, "/"), mcp.SecretPathPrefix),
 	}
 
 	var out bytes.Buffer

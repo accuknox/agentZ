@@ -1,11 +1,11 @@
 import { cacheLife, cacheTag } from "next/cache"
 import { listMcpConnections, type ListMcpConnectionsData } from "@/lib/gateway/client"
-import type { Error, McpConnection } from "@/lib/gateway/client"
+import type { Error, McpConnectionSummary } from "@/lib/gateway/client"
 import { mcpsTag } from "@/data/cache"
 
 export type ListMcpConnectionsQueryResponse =
   | {
-      mcpConnections: McpConnection[]
+      mcpConnections: McpConnectionSummary[]
       nextPageToken: string
       hasNextPage: boolean
       error: undefined

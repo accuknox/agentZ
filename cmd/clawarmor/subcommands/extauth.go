@@ -77,6 +77,16 @@ var extAuthServeCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.DurationFlag{
+			Name:  "mcp-probe-interval",
+			Usage: "Interval between MCP health probe cycles",
+			Value: extauth.DefaultMCPProbeInterval,
+		},
+		&cli.DurationFlag{
+			Name:  "mcp-probe-timeout",
+			Usage: "Timeout for one MCP health probe",
+			Value: extauth.DefaultMCPProbeTimeout,
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return extauth.Serve(ctx, extauth.Config{
@@ -87,6 +97,8 @@ var extAuthServeCmd = &cli.Command{
 			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
 			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
 			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
+			MCPProbeInterval:        c.Duration("mcp-probe-interval"),
+			MCPProbeTimeout:         c.Duration("mcp-probe-timeout"),
 		})
 	},
 }

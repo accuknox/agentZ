@@ -41,6 +41,10 @@ const (
 	DefaultListenAddr = ":18081"
 	// DefaultNamespace is the default namespace for MCP resources.
 	DefaultNamespace = "default"
+	// DefaultMCPProbeInterval bounds how often MCP health is refreshed.
+	DefaultMCPProbeInterval = 30 * time.Second
+	// DefaultMCPProbeTimeout bounds one end-to-end MCP probe.
+	DefaultMCPProbeTimeout = 10 * time.Second
 
 	managedLabelKey       = "clawarmor.accuknox.com/managed"
 	managedLabelValue     = "true"
@@ -67,12 +71,16 @@ type Config struct {
 	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
 	OpenBaoK8sAuthTokenPath string
+	MCPProbeInterval        time.Duration
+	MCPProbeTimeout         time.Duration
 }
 
 // Serve starts the Envoy-compatible ext-auth gRPC service.
 func Serve(ctx context.Context, cfg Config) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	if strings.TrimSpace(cfg.OpenBaoAddr) == "" {
 		return fmt.Errorf("openbao addr is required")
@@ -82,6 +90,12 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	if strings.TrimSpace(cfg.OpenBaoK8sAuthRole) == "" {
 		return fmt.Errorf("openbao k8s auth role is required")
+	}
+	if cfg.MCPProbeInterval <= 0 {
+		return fmt.Errorf("mcp probe interval must be greater than zero")
+	}
+	if cfg.MCPProbeTimeout <= 0 {
+		return fmt.Errorf("mcp probe timeout must be greater than zero")
 	}
 
 	addr := strings.TrimSpace(cfg.Addr)
@@ -134,10 +148,12 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	svc := &Service{
-		namespace: namespace,
-		kube:      kubeClient,
-		kubeCore:  kubeCore,
-		kv:        baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		namespace:     namespace,
+		probeInterval: cfg.MCPProbeInterval,
+		probeTimeout:  cfg.MCPProbeTimeout,
+		kube:          kubeClient,
+		kubeCore:      kubeCore,
+		kv:            baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 		http: &http.Client{
 			Timeout: httpClientTimeout,
 		},
@@ -158,6 +174,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		)
 		errCh <- srv.Serve(lis)
 	}()
+	go svc.runMCPProbes(ctx)
 
 	select {
 	case <-ctx.Done():
@@ -190,12 +207,14 @@ func Serve(ctx context.Context, cfg Config) error {
 type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
-	namespace string
-	kube      ctrlclient.Client
-	kubeCore  kubernetes.Interface
-	kv        *baoapi.KVv2
-	http      *http.Client
-	sf        singleflight.Group
+	namespace     string
+	probeInterval time.Duration
+	probeTimeout  time.Duration
+	kube          ctrlclient.Client
+	kubeCore      kubernetes.Interface
+	kv            *baoapi.KVv2
+	http          *http.Client
+	sf            singleflight.Group
 }
 
 var _ authv3.AuthorizationServer = (*Service)(nil)

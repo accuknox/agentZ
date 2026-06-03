@@ -59,8 +59,7 @@ import {
 } from "@/data/environment.actions"
 import * as z from "zod"
 import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
-import type { McpConnection } from "@/lib/gateway/client"
-import { authModeOf } from "@/lib/mcp"
+import type { McpConnectionSummary } from "@/lib/gateway/client"
 import { findMcpServerByURL, mcpFallbackIcon } from "@/app/mcps/catalog"
 import { PackageSearch } from "./package-search"
 
@@ -81,7 +80,7 @@ type EnvironmentWizardProps = {
   initialAllowedHosts?: string[]
   initialMcpConnectionRefs?: string[]
   initialPackages?: string[]
-  mcpConnections: McpConnection[]
+  mcpConnections: McpConnectionSummary[]
   mode: EnvironmentWizardMode
 }
 
@@ -102,7 +101,7 @@ type AllowedHostsStepProps = {
 
 type McpStepProps = {
   initialMcpConnectionRefs: string[]
-  mcpConnections: McpConnection[]
+  mcpConnections: McpConnectionSummary[]
   onNext: (mcpConnectionRefs: string[]) => void
   onPrev: () => void
 }
@@ -262,8 +261,8 @@ function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
   )
 }
 
-function McpNameCell({ connection }: { connection: McpConnection }) {
-  const server = findMcpServerByURL(connection.endpoint.url)
+function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
+  const server = findMcpServerByURL(connection.endpoint_url)
   const Icon = server?.icon ?? mcpFallbackIcon
 
   return (
@@ -289,7 +288,7 @@ function createMcpSelectionColumns({
 }: {
   selectedNames: ReadonlySet<string>
   onCheckedChange: (name: string, checked: boolean) => void
-}): ColumnDef<McpConnection>[] {
+}): ColumnDef<McpConnectionSummary>[] {
   return [
     {
       accessorKey: "name",
@@ -308,19 +307,19 @@ function createMcpSelectionColumns({
     {
       id: "auth_mode",
       header: "Auth type",
-      accessorFn: (row) => authModeOf(row),
-      cell: ({ row }) => <span className="capitalize">{authModeOf(row.original)}</span>,
+      accessorFn: (row) => row.auth_mode.toLowerCase(),
+      cell: ({ row }) => <span className="capitalize">{row.original.auth_mode.toLowerCase()}</span>,
     },
     {
       id: "endpoint",
       header: "Endpoint",
-      accessorFn: (row) => row.endpoint.url,
+      accessorFn: (row) => row.endpoint_url,
       cell: ({ row }) => (
         <span
           className="text-muted-foreground block min-w-0 truncate"
-          title={row.original.endpoint.url}
+          title={row.original.endpoint_url}
         >
-          {row.original.endpoint.url}
+          {row.original.endpoint_url}
         </span>
       ),
     },

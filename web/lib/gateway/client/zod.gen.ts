@@ -754,57 +754,48 @@ export const zMcpConnectionAuth = z.object({
   oauth: zMcpConnectionOAuthAuth.optional(),
 })
 
-export const zMcpConnectionManagedResourceRef = z.object({
-  namespace: z.string().min(1),
-  name: z.string().min(1),
-})
+export const zMcpConnectionLifecycle = z.enum(["Accepted", "Ready", "Error"])
 
-export const zMcpConnectionCondition = z.object({
-  type: z.string().min(1),
-  status: z.string().min(1),
-  reason: z.string(),
-  message: z.string(),
-  observed_generation: z.coerce
-    .bigint()
-    .min(BigInt("-9223372036854775808"), {
-      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
-    })
-    .max(BigInt("9223372036854775807"), {
-      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-    }),
-  last_transition_time: z.iso.datetime(),
-})
+export const zMcpConnectionReason = z.enum([
+  "Ready",
+  "ProbePending",
+  "Unreachable",
+  "InvalidCredentials",
+  "ProtocolError",
+  "InternalError",
+])
 
-export const zMcpConnectionState = z.enum(["Accepted", "Ready", "Degraded"])
-
-export const zMcpConnectionStatus = z.object({
-  observed_generation: z.coerce
-    .bigint()
-    .min(BigInt("-9223372036854775808"), {
-      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
-    })
-    .max(BigInt("9223372036854775807"), {
-      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-    }),
-  state: zMcpConnectionState.optional(),
-  conditions: z.array(zMcpConnectionCondition),
-  service_ref: zMcpConnectionManagedResourceRef.optional(),
-  auth_policy_ref: zMcpConnectionManagedResourceRef.optional(),
-  ext_auth_service_ref: zMcpConnectionManagedResourceRef.optional(),
-  ext_auth_deployment_ref: zMcpConnectionManagedResourceRef.optional(),
-})
-
-export const zMcpConnection = z.object({
+export const zMcpConnectionDetail = z.object({
   name: zMcpConnectionName,
   endpoint: zMcpConnectionEndpoint,
-  auth: zMcpConnectionAuth.optional(),
+  auth: zMcpConnectionAuth,
   created_at: z.iso.datetime(),
-  status: zMcpConnectionStatus,
+  status: zMcpConnectionLifecycle,
+  reason: zMcpConnectionReason,
+  message: z.string(),
+})
+
+export const zMcpConnectionSummary = z.object({
+  name: zMcpConnectionName,
+  auth_mode: z.string(),
+  endpoint_url: z.string(),
+  created_at: z.iso.datetime(),
+  status: zMcpConnectionLifecycle,
+  reason: zMcpConnectionReason,
+  message: z.string(),
 })
 
 export const zListMcpConnectionsResponse = z.object({
-  mcp_connections: z.array(zMcpConnection),
+  mcp_connections: z.array(zMcpConnectionSummary),
   next_page_token: z.string(),
+})
+
+export const zWatchMcpConnectionsRequest = z.object({
+  names: z.array(zMcpConnectionName).optional(),
+})
+
+export const zWatchMcpConnectionsEvent = z.object({
+  mcp_connections: z.array(zMcpConnectionSummary),
 })
 
 export const zCreateMcpConnectionRequest = z.object({
@@ -1285,7 +1276,7 @@ export const zCreateMcpConnectionBody = zCreateMcpConnectionRequest
 /**
  * MCPConnection created.
  */
-export const zCreateMcpConnectionResponse = zMcpConnection
+export const zCreateMcpConnectionResponse = zMcpConnectionDetail
 
 export const zDeleteMcpConnectionPath = z.object({
   name: zMcpConnectionName,
@@ -1303,7 +1294,7 @@ export const zGetMcpConnectionPath = z.object({
 /**
  * MCPConnection.
  */
-export const zGetMcpConnectionResponse = zMcpConnection
+export const zGetMcpConnectionResponse = zMcpConnectionDetail
 
 export const zUpdateMcpConnectionBody = zUpdateMcpConnectionRequest
 
@@ -1314,7 +1305,7 @@ export const zUpdateMcpConnectionPath = z.object({
 /**
  * MCPConnection updated.
  */
-export const zUpdateMcpConnectionResponse = zMcpConnection
+export const zUpdateMcpConnectionResponse = zMcpConnectionDetail
 
 export const zListMcpConnectionsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
@@ -1325,6 +1316,13 @@ export const zListMcpConnectionsQuery = z.object({
  * Paginated MCPConnections.
  */
 export const zListMcpConnectionsResponse2 = zListMcpConnectionsResponse
+
+export const zWatchMcpConnectionsBody = zWatchMcpConnectionsRequest
+
+/**
+ * Stream of MCP connection updates.
+ */
+export const zWatchMcpConnectionsResponse = zWatchMcpConnectionsEvent
 
 export const zDeleteMcpConnectionCredentialsPath = z.object({
   name: zMcpConnectionName,

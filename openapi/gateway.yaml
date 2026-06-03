@@ -607,7 +607,7 @@ components:
       properties:
         mcp_connections:
           items:
-            $ref: '#/components/schemas/MCPConnection'
+            $ref: '#/components/schemas/MCPConnectionSummary'
           type: array
         next_page_token:
           type: string
@@ -723,26 +723,6 @@ components:
       - workflow_schedules
       - next_page_token
       type: object
-    MCPConnection:
-      additionalProperties: false
-      properties:
-        auth:
-          $ref: '#/components/schemas/MCPConnectionAuth'
-        created_at:
-          format: date-time
-          type: string
-        endpoint:
-          $ref: '#/components/schemas/MCPConnectionEndpoint'
-        name:
-          $ref: '#/components/schemas/MCPConnectionName'
-        status:
-          $ref: '#/components/schemas/MCPConnectionStatus'
-      required:
-      - name
-      - endpoint
-      - created_at
-      - status
-      type: object
     MCPConnectionAuth:
       additionalProperties: false
       properties:
@@ -776,33 +756,6 @@ components:
       required:
       - token
       type: object
-    MCPConnectionCondition:
-      additionalProperties: false
-      properties:
-        last_transition_time:
-          format: date-time
-          type: string
-        message:
-          type: string
-        observed_generation:
-          format: int64
-          type: integer
-        reason:
-          type: string
-        status:
-          minLength: 1
-          type: string
-        type:
-          minLength: 1
-          type: string
-      required:
-      - type
-      - status
-      - reason
-      - message
-      - observed_generation
-      - last_transition_time
-      type: object
     MCPConnectionCookieLocation:
       additionalProperties: false
       properties:
@@ -811,6 +764,33 @@ components:
           type: string
       required:
       - name
+      type: object
+    MCPConnectionDetail:
+      additionalProperties: false
+      properties:
+        auth:
+          $ref: '#/components/schemas/MCPConnectionAuth'
+        created_at:
+          format: date-time
+          type: string
+        endpoint:
+          $ref: '#/components/schemas/MCPConnectionEndpoint'
+        message:
+          type: string
+        name:
+          $ref: '#/components/schemas/MCPConnectionName'
+        reason:
+          $ref: '#/components/schemas/MCPConnectionReason'
+        status:
+          $ref: '#/components/schemas/MCPConnectionLifecycle'
+      required:
+      - name
+      - endpoint
+      - auth
+      - created_at
+      - status
+      - reason
+      - message
       type: object
     MCPConnectionEndpoint:
       additionalProperties: false
@@ -844,19 +824,12 @@ components:
       required:
       - name
       type: object
-    MCPConnectionManagedResourceRef:
-      additionalProperties: false
-      properties:
-        name:
-          minLength: 1
-          type: string
-        namespace:
-          minLength: 1
-          type: string
-      required:
-      - namespace
-      - name
-      type: object
+    MCPConnectionLifecycle:
+      enum:
+      - Accepted
+      - Ready
+      - Error
+      type: string
     MCPConnectionName:
       description: MCPConnection resource name.
       maxLength: 32
@@ -919,6 +892,15 @@ components:
       required:
       - name
       type: object
+    MCPConnectionReason:
+      enum:
+      - Ready
+      - ProbePending
+      - Unreachable
+      - InvalidCredentials
+      - ProtocolError
+      - InternalError
+      type: string
     MCPConnectionRef:
       additionalProperties: false
       properties:
@@ -927,35 +909,32 @@ components:
       required:
       - name
       type: object
-    MCPConnectionState:
-      enum:
-      - Accepted
-      - Ready
-      - Degraded
-      type: string
-    MCPConnectionStatus:
+    MCPConnectionSummary:
       additionalProperties: false
       properties:
-        auth_policy_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-        conditions:
-          items:
-            $ref: '#/components/schemas/MCPConnectionCondition'
-          type: array
-        ext_auth_deployment_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-        ext_auth_service_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-        observed_generation:
-          format: int64
-          type: integer
-        service_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-        state:
-          $ref: '#/components/schemas/MCPConnectionState'
+        auth_mode:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        endpoint_url:
+          type: string
+        message:
+          type: string
+        name:
+          $ref: '#/components/schemas/MCPConnectionName'
+        reason:
+          $ref: '#/components/schemas/MCPConnectionReason'
+        status:
+          $ref: '#/components/schemas/MCPConnectionLifecycle'
       required:
-      - observed_generation
-      - conditions
+      - name
+      - auth_mode
+      - endpoint_url
+      - created_at
+      - status
+      - reason
+      - message
       type: object
     NetworkObservabilityEvent:
       additionalProperties: false
@@ -9720,6 +9699,24 @@ components:
           type: array
           uniqueItems: true
       type: object
+    WatchMCPConnectionsEvent:
+      additionalProperties: false
+      properties:
+        mcp_connections:
+          items:
+            $ref: '#/components/schemas/MCPConnectionSummary'
+          type: array
+      required:
+      - mcp_connections
+      type: object
+    WatchMCPConnectionsRequest:
+      additionalProperties: false
+      properties:
+        names:
+          items:
+            $ref: '#/components/schemas/MCPConnectionName'
+          type: array
+      type: object
     WatchWorkflowRunsEvent:
       additionalProperties: false
       properties:
@@ -10503,7 +10500,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MCPConnection'
+                $ref: '#/components/schemas/MCPConnectionDetail'
           description: MCPConnection created.
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -10542,7 +10539,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MCPConnection'
+                $ref: '#/components/schemas/MCPConnectionDetail'
           description: MCPConnection.
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -10568,7 +10565,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MCPConnection'
+                $ref: '#/components/schemas/MCPConnectionDetail'
           description: MCPConnection updated.
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -10642,6 +10639,31 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: List paginated MCPConnection resources.
+      tags:
+      - mcp-connections
+  /api/mcp-connection/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each event data payload is a JSON object matching WatchMCPConnectionsEvent. If names is omitted or empty, all MCP connections are watched.
+      operationId: watchMCPConnections
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchMCPConnectionsRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchMCPConnectionsEvent'
+          description: Stream of MCP connection updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch MCP connection status changes.
       tags:
       - mcp-connections
   /api/opencode/{agentName}/agent:

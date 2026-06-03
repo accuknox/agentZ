@@ -13,16 +13,27 @@ import (
 
 	baoapi "github.com/openbao/openbao/api/v2"
 	"golang.org/x/oauth2"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	"github.com/accuknox/clawarmor/internal/mcp"
+	internalmcp "github.com/accuknox/clawarmor/internal/mcp"
 	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
+
+const mcpInternalErrorMessage = "Internal error"
+
+func writeMCPAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
+	if err != nil && err.Status >= http.StatusInternalServerError {
+		err.Message = mcpInternalErrorMessage
+	}
+	writeError(w, r, err)
+}
 
 // ListMCPConnections handles GET /api/mcp-connection/list.
 func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, params gatewayapi.ListMCPConnectionsParams) {
@@ -36,34 +47,134 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 
-	var connList clawarmorv1alpha1.MCPConnectionList
-	err := s.k8sClient.List(r.Context(), &connList, ctrlclient.InNamespace(s.cfg.Namespace))
+	items, err := s.listMCPConnectionSummaries(r.Context(), nil)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list mcp connections: %w", err))
+		writeMCPInternalError(w, r, err)
 		return
 	}
-
-	items := make([]gatewayapi.MCPConnection, 0, len(connList.Items))
-	for _, conn := range connList.Items {
-		items = append(items, mcpConnectionFromCRD(conn))
-	}
-	slices.SortFunc(items, func(a, b gatewayapi.MCPConnection) int {
-		return strings.Compare(a.Name, b.Name)
-	})
 
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
 
-	page := items[start:end]
-	next := ""
+	resp := gatewayapi.ListMCPConnectionsResponse{
+		McpConnections: items[start:end],
+		NextPageToken:  "",
+	}
 	if end < len(items) {
-		next = encodeOffsetToken(end)
+		resp.NextPageToken = encodeOffsetToken(end)
 	}
 
-	writeJSON(w, http.StatusOK, gatewayapi.ListMCPConnectionsResponse{
-		McpConnections: page,
-		NextPageToken:  next,
-	})
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// WatchMCPConnections handles POST /api/mcp-connection/watch.
+func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.WatchMCPConnectionsRequest
+	if r.Body != nil {
+		if !decodeJSONBody(w, r, &req, true) {
+			return
+		}
+	}
+
+	names := []string{}
+	if req.Names != nil {
+		names = make([]string, 0, len(*req.Names))
+		for _, rawName := range *req.Names {
+			name := strings.TrimSpace(rawName)
+			fields := validateMCPConnectionName(name, "names")
+			if len(fields) > 0 {
+				writeError(w, r, newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					fields...,
+				))
+				return
+			}
+			names = append(names, name)
+		}
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeMCPInternalError(w, r, errors.New("streaming is unavailable"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	prev := map[string]gatewayapi.MCPConnectionSummary{}
+	send := func(items []gatewayapi.MCPConnectionSummary) bool {
+		if len(items) == 0 {
+			return true
+		}
+
+		raw, err := json.Marshal(gatewayapi.WatchMCPConnectionsEvent{
+			McpConnections: items,
+		})
+		if err != nil {
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	writeChanges := func() bool {
+		items, err := s.listMCPConnectionSummaries(r.Context(), names)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return false
+			}
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+
+		changed := make([]gatewayapi.MCPConnectionSummary, 0, len(items))
+		for _, item := range items {
+			prevItem, ok := prev[item.Name]
+			if ok &&
+				prevItem.Name == item.Name &&
+				prevItem.AuthMode == item.AuthMode &&
+				prevItem.EndpointUrl == item.EndpointUrl &&
+				prevItem.CreatedAt.Equal(item.CreatedAt) &&
+				prevItem.Status == item.Status &&
+				prevItem.Reason == item.Reason &&
+				prevItem.Message == item.Message {
+				continue
+			}
+			prev[item.Name] = item
+			changed = append(changed, item)
+		}
+		return send(changed)
+	}
+
+	if !writeChanges() {
+		return
+	}
+
+	ticker := time.NewTicker(statusPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			if !writeChanges() {
+				return
+			}
+		}
+	}
 }
 
 // CreateMCPConnection handles POST /api/mcp-connection.
@@ -96,6 +207,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 			Namespace: s.cfg.Namespace,
 		},
 	}
+
 	spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, req.Auth)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -112,16 +224,15 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 	if err := mcpconnwebhook.Validate(conn); err != nil {
-		writeError(w, r, mapKubeHTTPError("create mcp connection", err))
+		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
-
 	if err := s.k8sClient.Create(r.Context(), conn); err != nil {
-		writeError(w, r, mapKubeHTTPError("create mcp connection", err))
+		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, mcpConnectionFromCRD(*conn))
+	writeJSON(w, http.StatusCreated, s.mcpConnectionDetail(*conn))
 }
 
 // GetMCPConnection handles GET /api/mcp-connection/{name}.
@@ -130,8 +241,7 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 	if !ok {
 		return
 	}
-
-	writeJSON(w, http.StatusOK, mcpConnectionFromCRD(*conn))
+	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(*conn))
 }
 
 // UpdateMCPConnection handles PUT /api/mcp-connection/{name}.
@@ -179,7 +289,6 @@ func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, na
 		if err := mcpconnwebhook.Validate(conn); err != nil {
 			return err
 		}
-
 		if err := s.k8sClient.Update(r.Context(), conn); err != nil {
 			return err
 		}
@@ -188,14 +297,14 @@ func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, na
 	})
 	if err != nil {
 		if apiErr, ok := errors.AsType[*apiError](err); ok {
-			writeError(w, r, apiErr)
+			writeMCPAPIError(w, r, apiErr)
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("update mcp connection", err))
+		writeMCPAPIError(w, r, mapKubeHTTPError("update mcp connection", err))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, mcpConnectionFromCRD(updated))
+	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(updated))
 }
 
 // DeleteMCPConnection handles DELETE /api/mcp-connection/{name}.
@@ -207,7 +316,7 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 
 	referrers, err := s.referencingEnvironments(r.Context(), conn.Name)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list environment references: %w", err))
+		writeMCPInternalError(w, r, fmt.Errorf("list environment references: %w", err))
 		return
 	}
 	if len(referrers) > 0 {
@@ -225,11 +334,15 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	}
 
 	if err := s.k8sClient.Delete(r.Context(), conn); err != nil {
-		writeError(w, r, mapKubeHTTPError("delete mcp connection", err))
+		writeMCPAPIError(w, r, mapKubeHTTPError("delete mcp connection", err))
 		return
 	}
 	if err := s.deleteMCPConnectionCredentials(r.Context(), *conn); err != nil {
-		writeError(w, r, mapOpenBaoError(err))
+		writeMCPAPIError(w, r, mapOpenBaoError(err))
+		return
+	}
+	if err := s.waitForMCPConnectionDeletion(r.Context(), conn.Name); err != nil {
+		writeMCPInternalError(w, r, err)
 		return
 	}
 
@@ -275,7 +388,7 @@ func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		record := mcp.BearerSecretRecord{
+		record := internalmcp.BearerSecretRecord{
 			Token:     strings.TrimSpace(req.Bearer.Token),
 			UpdatedAt: now,
 		}
@@ -290,9 +403,8 @@ func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.Bearer.SecretRef, record)
-		if err != nil {
-			writeError(w, r, mapOpenBaoError(err))
+		if err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.Bearer.SecretRef, record); err != nil {
+			writeMCPAPIError(w, r, mapOpenBaoError(err))
 			return
 		}
 	case req.Oauth != nil && req.Bearer == nil:
@@ -310,18 +422,12 @@ func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		var clientID string
+		record := internalmcp.OAuthSecretRecord{UpdatedAt: now}
 		if req.Oauth.ClientId != nil {
-			clientID = strings.TrimSpace(*req.Oauth.ClientId)
+			record.ClientID = strings.TrimSpace(*req.Oauth.ClientId)
 		}
-		var clientSecret string
 		if req.Oauth.ClientSecret != nil {
-			clientSecret = *req.Oauth.ClientSecret
-		}
-		record := mcp.OAuthSecretRecord{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			UpdatedAt:    now,
+			record.ClientSecret = *req.Oauth.ClientSecret
 		}
 		if req.Oauth.Scopes != nil {
 			record.Scopes = append([]string{}, (*req.Oauth.Scopes)...)
@@ -329,32 +435,25 @@ func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Req
 		record.Registration = cloneJSONObject(req.Oauth.Registration)
 		record.Revocation = cloneJSONObject(req.Oauth.Revocation)
 
-		var accessToken string
+		token := oauth2.Token{}
 		if req.Oauth.AccessToken != nil {
-			accessToken = *req.Oauth.AccessToken
+			token.AccessToken = *req.Oauth.AccessToken
 		}
-		var tokenType string
 		if req.Oauth.TokenType != nil {
-			tokenType = strings.TrimSpace(*req.Oauth.TokenType)
+			token.TokenType = strings.TrimSpace(*req.Oauth.TokenType)
 		}
-		var refreshToken string
 		if req.Oauth.RefreshToken != nil {
-			refreshToken = *req.Oauth.RefreshToken
-		}
-		token := oauth2.Token{
-			AccessToken:  accessToken,
-			TokenType:    tokenType,
-			RefreshToken: refreshToken,
+			token.RefreshToken = *req.Oauth.RefreshToken
 		}
 		if req.Oauth.ExpiresAt != nil {
 			token.Expiry = req.Oauth.ExpiresAt.UTC()
 		}
-		if token.AccessToken != "" || token.RefreshToken != "" || !token.Expiry.IsZero() || token.TokenType != "" {
+		if token.AccessToken != "" || token.RefreshToken != "" || token.TokenType != "" || !token.Expiry.IsZero() {
 			record.Token = &token
 		}
-		err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.OAuth.SecretRef, record)
-		if err != nil {
-			writeError(w, r, mapOpenBaoError(err))
+
+		if err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.OAuth.SecretRef, record); err != nil {
+			writeMCPAPIError(w, r, mapOpenBaoError(err))
 			return
 		}
 	default:
@@ -380,12 +479,10 @@ func (s *Service) DeleteMCPConnectionCredentials(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-
 	if err := s.deleteMCPConnectionCredentials(r.Context(), *conn); err != nil {
-		writeError(w, r, mapOpenBaoError(err))
+		writeMCPAPIError(w, r, mapOpenBaoError(err))
 		return
 	}
-
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -405,12 +502,173 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 
 	conn := &clawarmorv1alpha1.MCPConnection{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: s.cfg.Namespace}
-	err := s.k8sClient.Get(r.Context(), key, conn)
-	if err != nil {
-		writeError(w, r, mapKubeHTTPError("get mcp connection", err))
+	if err := s.k8sClient.Get(r.Context(), key, conn); err != nil {
+		writeMCPAPIError(w, r, mapKubeHTTPError("get mcp connection", err))
 		return nil, false
 	}
 	return conn, true
+}
+
+func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
+	var list clawarmorv1alpha1.MCPConnectionList
+	if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+		return nil, fmt.Errorf("list mcp connections: %w", err)
+	}
+
+	items := make([]gatewayapi.MCPConnectionSummary, 0, len(list.Items))
+	for _, conn := range list.Items {
+		if len(names) > 0 && !slices.Contains(names, conn.Name) {
+			continue
+		}
+		items = append(items, s.mcpConnectionSummary(conn))
+	}
+	slices.SortFunc(items, func(a, b gatewayapi.MCPConnectionSummary) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return items, nil
+}
+
+func (s *Service) mcpConnectionSummary(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
+	status, reason, message := s.mcpConnectionStatus(conn)
+	return gatewayapi.MCPConnectionSummary{
+		Name:        conn.Name,
+		AuthMode:    conn.Status.AuthMode,
+		EndpointUrl: conn.Spec.Endpoint.URL,
+		CreatedAt:   conn.CreationTimestamp.Time,
+		Status:      status,
+		Reason:      reason,
+		Message:     message,
+	}
+}
+
+func (s *Service) mcpConnectionDetail(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
+	headers := map[string]string{}
+	maps.Copy(headers, conn.Spec.Endpoint.Headers)
+
+	endpoint := gatewayapi.MCPConnectionEndpoint{
+		Url:                conn.Spec.Endpoint.URL,
+		InsecureSkipVerify: conn.Spec.Endpoint.InsecureSkipVerify,
+		Headers:            headers,
+	}
+	if conn.Spec.Endpoint.Timeout != nil {
+		timeout := conn.Spec.Endpoint.Timeout.Duration.String()
+		endpoint.Timeout = &timeout
+	}
+
+	auth := gatewayapi.MCPConnectionAuth{}
+	if conn.Spec.Auth != nil && conn.Spec.Auth.Bearer != nil {
+		auth.Bearer = &gatewayapi.MCPConnectionBearerAuth{
+			Location: authLocationToResponse(conn.Spec.Auth.Bearer.Location),
+		}
+	}
+	if conn.Spec.Auth != nil && conn.Spec.Auth.OAuth != nil {
+		auth.Oauth = &gatewayapi.MCPConnectionOAuthAuth{
+			Location: authLocationToResponse(conn.Spec.Auth.OAuth.Location),
+		}
+		if conn.Spec.Auth.OAuth.Issuer != "" {
+			value := conn.Spec.Auth.OAuth.Issuer
+			auth.Oauth.Issuer = &value
+		}
+		if conn.Spec.Auth.OAuth.AuthorizationEndpoint != "" {
+			value := conn.Spec.Auth.OAuth.AuthorizationEndpoint
+			auth.Oauth.AuthorizationEndpoint = &value
+		}
+		if conn.Spec.Auth.OAuth.TokenEndpoint != "" {
+			value := conn.Spec.Auth.OAuth.TokenEndpoint
+			auth.Oauth.TokenEndpoint = &value
+		}
+		if conn.Spec.Auth.OAuth.RegistrationEndpoint != "" {
+			value := conn.Spec.Auth.OAuth.RegistrationEndpoint
+			auth.Oauth.RegistrationEndpoint = &value
+		}
+		if conn.Spec.Auth.OAuth.Resource != "" {
+			value := conn.Spec.Auth.OAuth.Resource
+			auth.Oauth.Resource = &value
+		}
+		if len(conn.Spec.Auth.OAuth.Scopes) > 0 {
+			scopes := append([]string{}, conn.Spec.Auth.OAuth.Scopes...)
+			auth.Oauth.Scopes = &scopes
+		}
+	}
+
+	status, reason, message := s.mcpConnectionStatus(conn)
+	return gatewayapi.MCPConnectionDetail{
+		Name:      conn.Name,
+		CreatedAt: conn.CreationTimestamp.Time,
+		Endpoint:  endpoint,
+		Auth:      auth,
+		Status:    status,
+		Reason:    reason,
+		Message:   message,
+	}
+}
+
+func (s *Service) mcpConnectionStatus(conn clawarmorv1alpha1.MCPConnection) (gatewayapi.MCPConnectionLifecycle, gatewayapi.MCPConnectionReason, string) {
+	accepted := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionAccepted)
+	degraded := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionDegraded)
+	probeHealthy := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProbeHealthy)
+	unreachable := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionConnectionUnreachable)
+	credentialsInvalid := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionCredentialsInvalid)
+	protocolError := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProtocolError)
+
+	if conn.Status.State == clawarmorv1alpha1.MCPConnectionStateDegraded ||
+		(accepted != nil && accepted.Status == metav1.ConditionFalse) ||
+		(degraded != nil && degraded.Status == metav1.ConditionTrue) {
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, mcpInternalErrorMessage
+	}
+	if conn.Status.LastProbeTime == nil ||
+		time.Since(conn.Status.LastProbeTime.Time) > s.cfg.MCPProbeStaleAfter ||
+		probeHealthy == nil ||
+		probeHealthy.Status == metav1.ConditionUnknown {
+		return gatewayapi.MCPConnectionLifecycleAccepted, gatewayapi.MCPConnectionReasonProbePending, "Status check pending"
+	}
+
+	if probeHealthy.Status == metav1.ConditionTrue {
+		return gatewayapi.MCPConnectionLifecycleReady, gatewayapi.MCPConnectionReasonReady, "Ready"
+	}
+
+	switch {
+	case unreachable != nil && unreachable.Status == metav1.ConditionTrue:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonUnreachable, "Server unreachable"
+	case credentialsInvalid != nil && credentialsInvalid.Status == metav1.ConditionTrue:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInvalidCredentials, "Credentials invalid"
+	case protocolError != nil && protocolError.Status == metav1.ConditionTrue:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonProtocolError, "Protocol error"
+	default:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, mcpInternalErrorMessage
+	}
+}
+
+func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string) error {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		conn := &clawarmorv1alpha1.MCPConnection{}
+		key := ctrlclient.ObjectKey{Namespace: s.cfg.Namespace, Name: name}
+		err := s.k8sClient.Get(ctx, key, conn)
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("wait for mcp connection deletion: %w", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for mcp connection deletion: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func writeMCPInternalError(w http.ResponseWriter, r *http.Request, err error) {
+	writeError(w, r, newAPIError(
+		http.StatusInternalServerError,
+		"internal_error",
+		mcpInternalErrorMessage,
+		err,
+	))
 }
 
 func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, auth *gatewayapi.MCPConnectionAuth) (clawarmorv1alpha1.MCPConnectionSpec, []gatewayapi.FieldError) {
@@ -444,33 +702,23 @@ func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, aut
 		}
 	}
 	if auth.Oauth != nil {
-		var issuer string
-		if auth.Oauth.Issuer != nil {
-			issuer = strings.TrimSpace(*auth.Oauth.Issuer)
-		}
-		var authorizationEndpoint string
-		if auth.Oauth.AuthorizationEndpoint != nil {
-			authorizationEndpoint = strings.TrimSpace(*auth.Oauth.AuthorizationEndpoint)
-		}
-		var tokenEndpoint string
-		if auth.Oauth.TokenEndpoint != nil {
-			tokenEndpoint = strings.TrimSpace(*auth.Oauth.TokenEndpoint)
-		}
-		var registrationEndpoint string
-		if auth.Oauth.RegistrationEndpoint != nil {
-			registrationEndpoint = strings.TrimSpace(*auth.Oauth.RegistrationEndpoint)
-		}
-		var resource string
-		if auth.Oauth.Resource != nil {
-			resource = strings.TrimSpace(*auth.Oauth.Resource)
-		}
 		spec.Auth.OAuth = &clawarmorv1alpha1.MCPConnectionOAuthAuth{
-			Issuer:                issuer,
-			AuthorizationEndpoint: authorizationEndpoint,
-			TokenEndpoint:         tokenEndpoint,
-			RegistrationEndpoint:  registrationEndpoint,
-			Resource:              resource,
-			Location:              authLocationFromRequest(auth.Oauth.Location),
+			Location: authLocationFromRequest(auth.Oauth.Location),
+		}
+		if auth.Oauth.Issuer != nil {
+			spec.Auth.OAuth.Issuer = strings.TrimSpace(*auth.Oauth.Issuer)
+		}
+		if auth.Oauth.AuthorizationEndpoint != nil {
+			spec.Auth.OAuth.AuthorizationEndpoint = strings.TrimSpace(*auth.Oauth.AuthorizationEndpoint)
+		}
+		if auth.Oauth.TokenEndpoint != nil {
+			spec.Auth.OAuth.TokenEndpoint = strings.TrimSpace(*auth.Oauth.TokenEndpoint)
+		}
+		if auth.Oauth.RegistrationEndpoint != nil {
+			spec.Auth.OAuth.RegistrationEndpoint = strings.TrimSpace(*auth.Oauth.RegistrationEndpoint)
+		}
+		if auth.Oauth.Resource != nil {
+			spec.Auth.OAuth.Resource = strings.TrimSpace(*auth.Oauth.Resource)
 		}
 		if auth.Oauth.Scopes != nil {
 			spec.Auth.OAuth.Scopes = append([]string{}, (*auth.Oauth.Scopes)...)
@@ -479,7 +727,6 @@ func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, aut
 	if spec.Auth.Bearer == nil && spec.Auth.OAuth == nil {
 		spec.Auth = nil
 	}
-
 	return spec, nil
 }
 
@@ -490,128 +737,18 @@ func authLocationFromRequest(location *gatewayapi.MCPConnectionAuthLocation) *cl
 
 	out := &clawarmorv1alpha1.MCPConnectionAuthLocation{}
 	if location.Header != nil {
-		out.Header = &clawarmorv1alpha1.MCPConnectionHeaderLocation{
-			Name: strings.TrimSpace(location.Header.Name),
-		}
+		out.Header = &clawarmorv1alpha1.MCPConnectionHeaderLocation{Name: strings.TrimSpace(location.Header.Name)}
 		if location.Header.Prefix != nil {
 			prefix := strings.TrimSpace(*location.Header.Prefix)
 			out.Header.Prefix = &prefix
 		}
 	}
 	if location.QueryParameter != nil {
-		out.QueryParameter = &clawarmorv1alpha1.MCPConnectionQueryParameterLocation{
-			Name: strings.TrimSpace(location.QueryParameter.Name),
-		}
+		out.QueryParameter = &clawarmorv1alpha1.MCPConnectionQueryParameterLocation{Name: strings.TrimSpace(location.QueryParameter.Name)}
 	}
 	if location.Cookie != nil {
-		out.Cookie = &clawarmorv1alpha1.MCPConnectionCookieLocation{
-			Name: strings.TrimSpace(location.Cookie.Name),
-		}
+		out.Cookie = &clawarmorv1alpha1.MCPConnectionCookieLocation{Name: strings.TrimSpace(location.Cookie.Name)}
 	}
-	return out
-}
-
-func mcpConnectionFromCRD(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnection {
-	headers := map[string]string{}
-	maps.Copy(headers, conn.Spec.Endpoint.Headers)
-
-	endpoint := gatewayapi.MCPConnectionEndpoint{
-		Url:                conn.Spec.Endpoint.URL,
-		InsecureSkipVerify: conn.Spec.Endpoint.InsecureSkipVerify,
-		Headers:            headers,
-	}
-	if conn.Spec.Endpoint.Timeout != nil {
-		timeout := conn.Spec.Endpoint.Timeout.Duration.String()
-		endpoint.Timeout = &timeout
-	}
-
-	status := gatewayapi.MCPConnectionStatus{
-		ObservedGeneration: conn.Status.ObservedGeneration,
-		Conditions:         []gatewayapi.MCPConnectionCondition{},
-	}
-	if conn.Status.State != "" {
-		state := gatewayapi.MCPConnectionState(conn.Status.State)
-		status.State = &state
-	}
-	for _, cond := range conn.Status.Conditions {
-		status.Conditions = append(status.Conditions, gatewayapi.MCPConnectionCondition{
-			Type:               cond.Type,
-			Status:             string(cond.Status),
-			Reason:             cond.Reason,
-			Message:            cond.Message,
-			ObservedGeneration: cond.ObservedGeneration,
-			LastTransitionTime: cond.LastTransitionTime.Time,
-		})
-	}
-	if conn.Status.ServiceRef != nil {
-		status.ServiceRef = &gatewayapi.MCPConnectionManagedResourceRef{
-			Namespace: conn.Status.ServiceRef.Namespace,
-			Name:      conn.Status.ServiceRef.Name,
-		}
-	}
-	if conn.Status.AuthPolicyRef != nil {
-		status.AuthPolicyRef = &gatewayapi.MCPConnectionManagedResourceRef{
-			Namespace: conn.Status.AuthPolicyRef.Namespace,
-			Name:      conn.Status.AuthPolicyRef.Name,
-		}
-	}
-	if conn.Status.ExtAuthServiceRef != nil {
-		status.ExtAuthServiceRef = &gatewayapi.MCPConnectionManagedResourceRef{
-			Namespace: conn.Status.ExtAuthServiceRef.Namespace,
-			Name:      conn.Status.ExtAuthServiceRef.Name,
-		}
-	}
-	if conn.Status.ExtAuthDeploymentRef != nil {
-		status.ExtAuthDeploymentRef = &gatewayapi.MCPConnectionManagedResourceRef{
-			Namespace: conn.Status.ExtAuthDeploymentRef.Namespace,
-			Name:      conn.Status.ExtAuthDeploymentRef.Name,
-		}
-	}
-
-	out := gatewayapi.MCPConnection{
-		Name:      conn.Name,
-		Endpoint:  endpoint,
-		CreatedAt: conn.CreationTimestamp.Time,
-		Status:    status,
-	}
-	if conn.Spec.Auth != nil {
-		out.Auth = &gatewayapi.MCPConnectionAuth{}
-		if conn.Spec.Auth.Bearer != nil {
-			out.Auth.Bearer = &gatewayapi.MCPConnectionBearerAuth{
-				Location: authLocationToResponse(conn.Spec.Auth.Bearer.Location),
-			}
-		}
-		if conn.Spec.Auth.OAuth != nil {
-			out.Auth.Oauth = &gatewayapi.MCPConnectionOAuthAuth{
-				Location: authLocationToResponse(conn.Spec.Auth.OAuth.Location),
-			}
-			if conn.Spec.Auth.OAuth.Issuer != "" {
-				value := conn.Spec.Auth.OAuth.Issuer
-				out.Auth.Oauth.Issuer = &value
-			}
-			if conn.Spec.Auth.OAuth.AuthorizationEndpoint != "" {
-				value := conn.Spec.Auth.OAuth.AuthorizationEndpoint
-				out.Auth.Oauth.AuthorizationEndpoint = &value
-			}
-			if conn.Spec.Auth.OAuth.TokenEndpoint != "" {
-				value := conn.Spec.Auth.OAuth.TokenEndpoint
-				out.Auth.Oauth.TokenEndpoint = &value
-			}
-			if conn.Spec.Auth.OAuth.RegistrationEndpoint != "" {
-				value := conn.Spec.Auth.OAuth.RegistrationEndpoint
-				out.Auth.Oauth.RegistrationEndpoint = &value
-			}
-			if conn.Spec.Auth.OAuth.Resource != "" {
-				value := conn.Spec.Auth.OAuth.Resource
-				out.Auth.Oauth.Resource = &value
-			}
-			if conn.Spec.Auth.OAuth.Scopes != nil {
-				scopes := append([]string{}, conn.Spec.Auth.OAuth.Scopes...)
-				out.Auth.Oauth.Scopes = &scopes
-			}
-		}
-	}
-
 	return out
 }
 
@@ -622,23 +759,17 @@ func authLocationToResponse(location *clawarmorv1alpha1.MCPConnectionAuthLocatio
 
 	out := &gatewayapi.MCPConnectionAuthLocation{}
 	if location.Header != nil {
-		out.Header = &gatewayapi.MCPConnectionHeaderLocation{
-			Name: location.Header.Name,
-		}
+		out.Header = &gatewayapi.MCPConnectionHeaderLocation{Name: location.Header.Name}
 		if location.Header.Prefix != nil {
 			prefix := *location.Header.Prefix
 			out.Header.Prefix = &prefix
 		}
 	}
 	if location.QueryParameter != nil {
-		out.QueryParameter = &gatewayapi.MCPConnectionQueryParameterLocation{
-			Name: location.QueryParameter.Name,
-		}
+		out.QueryParameter = &gatewayapi.MCPConnectionQueryParameterLocation{Name: location.QueryParameter.Name}
 	}
 	if location.Cookie != nil {
-		out.Cookie = &gatewayapi.MCPConnectionCookieLocation{
-			Name: location.Cookie.Name,
-		}
+		out.Cookie = &gatewayapi.MCPConnectionCookieLocation{Name: location.Cookie.Name}
 	}
 	return out
 }
@@ -646,23 +777,13 @@ func authLocationToResponse(location *clawarmorv1alpha1.MCPConnectionAuthLocatio
 func validateMCPConnectionName(name string, fieldName string) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
 	if name == "" {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   fieldName,
-			Message: "required",
-		})
-		return fields
+		return append(fields, gatewayapi.FieldError{Field: fieldName, Message: "required"})
 	}
 	if len(name) > 32 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   fieldName,
-			Message: "must be at most 32 characters",
-		})
+		fields = append(fields, gatewayapi.FieldError{Field: fieldName, Message: "must be at most 32 characters"})
 	}
 	for _, msg := range validation.IsDNS1123Label(name) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   fieldName,
-			Message: msg,
-		})
+		fields = append(fields, gatewayapi.FieldError{Field: fieldName, Message: msg})
 	}
 	return fields
 }
@@ -673,7 +794,7 @@ func (s *Service) referencingEnvironments(ctx context.Context, connectionName st
 		return nil, err
 	}
 
-	var referrers []string
+	referrers := []string{}
 	for _, env := range envList.Items {
 		for _, ref := range env.Spec.MCPConnectionRefs {
 			if ref.Name != connectionName {
@@ -703,6 +824,37 @@ func (s *Service) putMCPConnectionSecret(ctx context.Context, ref clawarmorv1alp
 		return err
 	}
 	return nil
+}
+
+func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
+	if spec == nil || spec.Auth == nil {
+		return
+	}
+
+	path := internalmcp.SecretPath(name)
+	if spec.Auth.Bearer != nil {
+		spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+			Path: path,
+			Key:  "bearer",
+		}
+	}
+	if spec.Auth.OAuth != nil {
+		spec.Auth.OAuth.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+			Path: path,
+			Key:  "oauth",
+		}
+	}
+}
+
+func cloneJSONObject(in *gatewayapi.JSONObject) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(*in))
+	for key, value := range *in {
+		out[key] = value
+	}
+	return out
 }
 
 func (s *Service) deleteMCPConnectionCredentials(ctx context.Context, conn clawarmorv1alpha1.MCPConnection) error {
@@ -756,34 +908,4 @@ func (s *Service) readMCPConnectionSecretData(ctx context.Context, path string) 
 	data := make(map[string]any, len(secret.Data))
 	maps.Copy(data, secret.Data)
 	return data, nil
-}
-
-func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
-	if spec.Auth == nil {
-		return
-	}
-	if spec.Auth.Bearer != nil {
-		spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
-			Path: "mcp-connections/" + name,
-			Key:  "credentials",
-		}
-	}
-	if spec.Auth.OAuth != nil {
-		spec.Auth.OAuth.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
-			Path: "mcp-connections/" + name,
-			Key:  "credentials",
-		}
-	}
-}
-
-func cloneJSONObject(raw *gatewayapi.JSONObject) map[string]any {
-	if raw == nil {
-		return nil
-	}
-
-	value := make(map[string]any, len(*raw))
-	for key, item := range *raw {
-		value[key] = item
-	}
-	return value
 }

@@ -314,6 +314,10 @@ spec:
                 - name
                 - namespace
                 type: object
+              lastProbeTime:
+                description: LastProbeTime is the most recent time an observer completed an MCP probe.
+                format: date-time
+                type: string
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.
                 format: int64

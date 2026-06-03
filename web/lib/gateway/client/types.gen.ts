@@ -594,12 +594,24 @@ export type McpConnectionRef = {
   name: McpConnectionName
 }
 
-export type McpConnection = {
+export type McpConnectionDetail = {
   name: McpConnectionName
   endpoint: McpConnectionEndpoint
-  auth?: McpConnectionAuth
+  auth: McpConnectionAuth
   created_at: string
-  status: McpConnectionStatus
+  status: McpConnectionLifecycle
+  reason: McpConnectionReason
+  message: string
+}
+
+export type McpConnectionSummary = {
+  name: McpConnectionName
+  auth_mode: string
+  endpoint_url: string
+  created_at: string
+  status: McpConnectionLifecycle
+  reason: McpConnectionReason
+  message: string
 }
 
 export type McpConnectionEndpoint = {
@@ -649,35 +661,27 @@ export type McpConnectionCookieLocation = {
   name: string
 }
 
-export type McpConnectionManagedResourceRef = {
-  namespace: string
-  name: string
-}
+export type McpConnectionLifecycle = "Accepted" | "Ready" | "Error"
 
-export type McpConnectionCondition = {
-  type: string
-  status: string
-  reason: string
-  message: string
-  observed_generation: number
-  last_transition_time: string
-}
-
-export type McpConnectionState = "Accepted" | "Ready" | "Degraded"
-
-export type McpConnectionStatus = {
-  observed_generation: number
-  state?: McpConnectionState
-  conditions: Array<McpConnectionCondition>
-  service_ref?: McpConnectionManagedResourceRef
-  auth_policy_ref?: McpConnectionManagedResourceRef
-  ext_auth_service_ref?: McpConnectionManagedResourceRef
-  ext_auth_deployment_ref?: McpConnectionManagedResourceRef
-}
+export type McpConnectionReason =
+  | "Ready"
+  | "ProbePending"
+  | "Unreachable"
+  | "InvalidCredentials"
+  | "ProtocolError"
+  | "InternalError"
 
 export type ListMcpConnectionsResponse = {
-  mcp_connections: Array<McpConnection>
+  mcp_connections: Array<McpConnectionSummary>
   next_page_token: string
+}
+
+export type WatchMcpConnectionsRequest = {
+  names?: Array<McpConnectionName>
+}
+
+export type WatchMcpConnectionsEvent = {
+  mcp_connections: Array<McpConnectionSummary>
 }
 
 export type CreateMcpConnectionRequest = {
@@ -2277,7 +2281,7 @@ export type CreateMcpConnectionResponses = {
   /**
    * MCPConnection created.
    */
-  201: McpConnection
+  201: McpConnectionDetail
 }
 
 export type CreateMcpConnectionResponse =
@@ -2359,7 +2363,7 @@ export type GetMcpConnectionResponses = {
   /**
    * MCPConnection.
    */
-  200: McpConnection
+  200: McpConnectionDetail
 }
 
 export type GetMcpConnectionResponse = GetMcpConnectionResponses[keyof GetMcpConnectionResponses]
@@ -2401,7 +2405,7 @@ export type UpdateMcpConnectionResponses = {
   /**
    * MCPConnection updated.
    */
-  200: McpConnection
+  200: McpConnectionDetail
 }
 
 export type UpdateMcpConnectionResponse =
@@ -2445,6 +2449,36 @@ export type ListMcpConnectionsResponses = {
 
 export type ListMcpConnectionsResponse2 =
   ListMcpConnectionsResponses[keyof ListMcpConnectionsResponses]
+
+export type WatchMcpConnectionsData = {
+  body?: WatchMcpConnectionsRequest
+  path?: never
+  query?: never
+  url: "/api/mcp-connection/watch"
+}
+
+export type WatchMcpConnectionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchMcpConnectionsError = WatchMcpConnectionsErrors[keyof WatchMcpConnectionsErrors]
+
+export type WatchMcpConnectionsResponses = {
+  /**
+   * Stream of MCP connection updates.
+   */
+  200: WatchMcpConnectionsEvent
+}
+
+export type WatchMcpConnectionsResponse =
+  WatchMcpConnectionsResponses[keyof WatchMcpConnectionsResponses]
 
 export type DeleteMcpConnectionCredentialsData = {
   body?: never

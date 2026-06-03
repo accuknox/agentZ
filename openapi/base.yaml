@@ -974,7 +974,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MCPConnection'
+                $ref: '#/components/schemas/MCPConnectionDetail'
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -995,7 +995,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MCPConnection'
+                $ref: '#/components/schemas/MCPConnectionDetail'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1020,7 +1020,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MCPConnection'
+                $ref: '#/components/schemas/MCPConnectionDetail'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1062,6 +1062,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListMCPConnectionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/mcp-connection/watch:
+    post:
+      operationId: watchMCPConnections
+      summary: Watch MCP connection status changes.
+      description: >
+        Returns an SSE stream. Each event data payload is a JSON object matching
+        WatchMCPConnectionsEvent. If names is omitted or empty, all MCP
+        connections are watched.
+      tags: [mcp-connections]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchMCPConnectionsRequest'
+      responses:
+        '200':
+          description: Stream of MCP connection updates.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchMCPConnectionsEvent'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -2888,7 +2915,7 @@ components:
           $ref: '#/components/schemas/MCPConnectionName'
       required: [name]
 
-    MCPConnection:
+    MCPConnectionDetail:
       type: object
       additionalProperties: false
       properties:
@@ -2902,8 +2929,33 @@ components:
           type: string
           format: date-time
         status:
-          $ref: '#/components/schemas/MCPConnectionStatus'
-      required: [name, endpoint, created_at, status]
+          $ref: '#/components/schemas/MCPConnectionLifecycle'
+        reason:
+          $ref: '#/components/schemas/MCPConnectionReason'
+        message:
+          type: string
+      required: [name, endpoint, auth, created_at, status, reason, message]
+
+    MCPConnectionSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/MCPConnectionName'
+        auth_mode:
+          type: string
+        endpoint_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MCPConnectionLifecycle'
+        reason:
+          $ref: '#/components/schemas/MCPConnectionReason'
+        message:
+          type: string
+      required: [name, auth_mode, endpoint_url, created_at, status, reason, message]
 
     MCPConnectionEndpoint:
       type: object
@@ -3002,66 +3054,13 @@ components:
           minLength: 1
       required: [name]
 
-    MCPConnectionManagedResourceRef:
-      type: object
-      additionalProperties: false
-      properties:
-        namespace:
-          type: string
-          minLength: 1
-        name:
-          type: string
-          minLength: 1
-      required: [namespace, name]
-
-    MCPConnectionCondition:
-      type: object
-      additionalProperties: false
-      properties:
-        type:
-          type: string
-          minLength: 1
-        status:
-          type: string
-          minLength: 1
-        reason:
-          type: string
-        message:
-          type: string
-        observed_generation:
-          type: integer
-          format: int64
-        last_transition_time:
-          type: string
-          format: date-time
-      required: [type, status, reason, message, observed_generation, last_transition_time]
-
-    MCPConnectionState:
+    MCPConnectionLifecycle:
       type: string
-      enum: [Accepted, Ready, Degraded]
+      enum: [Accepted, Ready, Error]
 
-    MCPConnectionStatus:
-      type: object
-      additionalProperties: false
-      properties:
-        observed_generation:
-          type: integer
-          format: int64
-        state:
-          $ref: '#/components/schemas/MCPConnectionState'
-        conditions:
-          type: array
-          items:
-            $ref: '#/components/schemas/MCPConnectionCondition'
-        service_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-        auth_policy_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-        ext_auth_service_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-        ext_auth_deployment_ref:
-          $ref: '#/components/schemas/MCPConnectionManagedResourceRef'
-      required: [observed_generation, conditions]
+    MCPConnectionReason:
+      type: string
+      enum: [Ready, ProbePending, Unreachable, InvalidCredentials, ProtocolError, InternalError]
 
     ListMCPConnectionsResponse:
       type: object
@@ -3070,10 +3069,27 @@ components:
         mcp_connections:
           type: array
           items:
-            $ref: '#/components/schemas/MCPConnection'
+            $ref: '#/components/schemas/MCPConnectionSummary'
         next_page_token:
           type: string
       required: [mcp_connections, next_page_token]
+    WatchMCPConnectionsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        names:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionName'
+    WatchMCPConnectionsEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        mcp_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionSummary'
+      required: [mcp_connections]
 
     CreateMCPConnectionRequest:
       type: object

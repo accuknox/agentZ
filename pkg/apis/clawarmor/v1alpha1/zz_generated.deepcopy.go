@@ -577,6 +577,10 @@ func (in *MCPConnectionStatus) DeepCopyInto(out *MCPConnectionStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.LastProbeTime != nil {
+		in, out := &in.LastProbeTime, &out.LastProbeTime
+		*out = (*in).DeepCopy()
+	}
 	if in.ServiceRef != nil {
 		in, out := &in.ServiceRef, &out.ServiceRef
 		*out = new(MCPConnectionManagedResourceRef)

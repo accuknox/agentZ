@@ -11,4 +11,6 @@ const (
 
 const (
 	statusPollInterval = time.Second
+	// DefaultMCPProbeStaleAfter bounds how long an MCP probe remains fresh.
+	DefaultMCPProbeStaleAfter = 90 * time.Second
 )

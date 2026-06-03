@@ -225,18 +225,11 @@ func (s *Service) probeToken(ctx context.Context, conn *clawarmorv1alpha1.MCPCon
 		return strings.TrimSpace(record.Token), auth.Location, nil
 	}
 	if conn.Spec.Auth.OAuth != nil {
-		auth := conn.Spec.Auth.OAuth
-		if auth.SecretRef == nil {
-			return "", nil, fmt.Errorf("oauth secret ref is missing: %w", errCredentialUnavailable)
-		}
-		record, err := s.readOAuthRecord(ctx, *auth.SecretRef)
+		token, location, _, err := s.resolveOAuthAccessToken(ctx, conn)
 		if err != nil {
 			return "", nil, err
 		}
-		if record.Token == nil {
-			return "", auth.Location, nil
-		}
-		return strings.TrimSpace(record.Token.AccessToken), auth.Location, nil
+		return strings.TrimSpace(token), location, nil
 	}
 	return "", nil, fmt.Errorf("mcp connection %q has no supported auth mode: %w", conn.Name, errCredentialUnavailable)
 }

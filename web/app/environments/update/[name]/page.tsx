@@ -33,12 +33,20 @@ async function UpdateEnvironmentContent({ name }: { name: string }) {
     notFound()
   }
 
+  const wizardKey = JSON.stringify({
+    name: env.name,
+    packages: env.packages ?? [],
+    allowedHosts: env.allowed_hosts ?? [],
+    mcpConnectionRefs: env.mcp_connection_refs.map((ref) => ref.name),
+  })
+
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 p-4 sm:px-6 sm:pb-6">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-normal">Update environment</h1>
       </div>
       <EnvironmentWizard
+        key={wizardKey}
         mode="update"
         initialName={env.name}
         initialPackages={env.packages ?? []}

@@ -33,6 +33,7 @@ import (
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	baoclient "github.com/accuknox/clawarmor/internal/openbao"
+	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -373,7 +374,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		), attrs
 	}
 
-	header, err := s.resolveInjectedHeader(ctx, conn, &attrs)
+	injection, err := s.resolveInjectedRequest(ctx, conn, &attrs)
 	if err != nil {
 		return denyDecision(
 			codes.Unavailable,
@@ -384,7 +385,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		), attrs
 	}
 
-	return allowDecision(header.name, header.value), attrs
+	return allowDecision(injection), attrs
 }
 
 func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, environmentName, connName string) (string, error) {
@@ -503,51 +504,46 @@ func (s *Service) loadConnection(ctx context.Context, namespace, name string) (*
 	return conn, nil
 }
 
-type injectedHeader struct {
-	name  string
-	value string
+type injectedRequest struct {
+	headers         []*corev3.HeaderValueOption
+	queryParameters []*corev3.QueryParameter
 }
 
-func (s *Service) resolveInjectedHeader(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, attrs *requestAttrs) (injectedHeader, error) {
+func (s *Service) resolveInjectedRequest(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, attrs *requestAttrs) (injectedRequest, error) {
+	conn = conn.DeepCopy()
+	mcpconnwebhook.ApplyDefaults(&conn.Spec)
+
 	if conn.Spec.Auth == nil {
-		return injectedHeader{}, fmt.Errorf("mcp connection %q has no auth mode: %w", conn.Name, errCredentialUnavailable)
+		return injectedRequest{}, fmt.Errorf("mcp connection %q has no auth mode: %w", conn.Name, errCredentialUnavailable)
 	}
 
 	switch {
 	case conn.Spec.Auth.Bearer != nil:
-		return s.resolveBearerHeader(ctx, conn)
+		return s.resolveBearerRequest(ctx, conn)
 	case conn.Spec.Auth.OAuth != nil:
-		return s.resolveOAuthHeader(ctx, conn, attrs)
+		return s.resolveOAuthRequest(ctx, conn, attrs)
 	default:
-		return injectedHeader{}, fmt.Errorf("mcp connection %q has no supported auth mode: %w", conn.Name, errCredentialUnavailable)
+		return injectedRequest{}, fmt.Errorf("mcp connection %q has no supported auth mode: %w", conn.Name, errCredentialUnavailable)
 	}
 }
 
-func (s *Service) resolveBearerHeader(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (injectedHeader, error) {
+func (s *Service) resolveBearerRequest(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (injectedRequest, error) {
 	auth := conn.Spec.Auth.Bearer
 	if auth == nil || auth.SecretRef == nil {
-		return injectedHeader{}, fmt.Errorf("bearer secret ref is missing: %w", errCredentialUnavailable)
-	}
-
-	location, err := headerLocation(auth.Location)
-	if err != nil {
-		return injectedHeader{}, err
+		return injectedRequest{}, fmt.Errorf("bearer secret ref is missing: %w", errCredentialUnavailable)
 	}
 
 	record, err := s.readBearerRecord(ctx, *auth.SecretRef)
 	if err != nil {
-		return injectedHeader{}, err
+		return injectedRequest{}, err
 	}
 
 	token := strings.TrimSpace(record.Token)
 	if token == "" {
-		return injectedHeader{}, fmt.Errorf("bearer token is missing: %w", errCredentialUnavailable)
+		return injectedRequest{}, fmt.Errorf("bearer token is missing: %w", errCredentialUnavailable)
 	}
 
-	return injectedHeader{
-		name:  location.name,
-		value: prefixedValue(location.prefix, token),
-	}, nil
+	return injectionForLocation(auth.Location, token)
 }
 
 func requestHTTP(attrs *authv3.AttributeContext) *authv3.AttributeContext_HttpRequest {
@@ -581,7 +577,7 @@ type authHeaderLocation struct {
 }
 
 func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (authHeaderLocation, error) {
-	if location == nil || location.Header == nil {
+	if location == nil {
 		return authHeaderLocation{
 			name:   "Authorization",
 			prefix: "Bearer",
@@ -589,6 +585,12 @@ func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (auth
 	}
 	if location.QueryParameter != nil || location.Cookie != nil {
 		return authHeaderLocation{}, fmt.Errorf("only header auth locations are supported: %w", errCredentialUnavailable)
+	}
+	if location.Header == nil {
+		return authHeaderLocation{
+			name:   "Authorization",
+			prefix: "Bearer",
+		}, nil
 	}
 
 	name := strings.TrimSpace(location.Header.Name)
@@ -615,21 +617,60 @@ func prefixedValue(prefix string, token string) string {
 	return prefix + " " + token
 }
 
-func allowDecision(headerName, headerValue string) checkDecision {
+func injectionForLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation, token string) (injectedRequest, error) {
+	if location == nil || location.Header != nil {
+		header, err := headerLocation(location)
+		if err != nil {
+			return injectedRequest{}, err
+		}
+		return injectedRequest{
+			headers: []*corev3.HeaderValueOption{{
+				Header: &corev3.HeaderValue{
+					Key:   header.name,
+					Value: prefixedValue(header.prefix, token),
+				},
+			}},
+		}, nil
+	}
+
+	if location.QueryParameter != nil {
+		return injectedRequest{
+			queryParameters: []*corev3.QueryParameter{{
+				Key:   location.QueryParameter.Name,
+				Value: token,
+			}},
+		}, nil
+	}
+
+	if location.Cookie != nil {
+		return injectedRequest{
+			headers: []*corev3.HeaderValueOption{{
+				Header: &corev3.HeaderValue{
+					Key:   "Cookie",
+					Value: (&http.Cookie{Name: location.Cookie.Name, Value: token}).String(),
+				},
+			}},
+		}, nil
+	}
+
+	return injectedRequest{}, fmt.Errorf("auth location is empty: %w", errCredentialUnavailable)
+}
+
+func allowDecision(injection injectedRequest) checkDecision {
+	okResp := &authv3.OkHttpResponse{
+		Headers: injection.headers,
+	}
+	if len(injection.queryParameters) > 0 {
+		okResp.QueryParametersToSet = injection.queryParameters
+	}
+
 	return checkDecision{
 		response: &authv3.CheckResponse{
 			Status: &statuspb.Status{
 				Code: int32(codes.OK),
 			},
 			HttpResponse: &authv3.CheckResponse_OkResponse{
-				OkResponse: &authv3.OkHttpResponse{
-					Headers: []*corev3.HeaderValueOption{{
-						Header: &corev3.HeaderValue{
-							Key:   headerName,
-							Value: headerValue,
-						},
-					}},
-				},
+				OkResponse: okResp,
 			},
 		},
 		outcome: "allow",

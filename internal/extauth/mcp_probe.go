@@ -20,6 +20,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	internalmcp "github.com/accuknox/clawarmor/internal/mcp"
+	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -162,6 +163,9 @@ func (s *Service) probeMCPConnection(ctx context.Context, conn *clawarmorv1alpha
 }
 
 func (s *Service) probeTransport(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (*probeRoundTripper, error) {
+	conn = conn.DeepCopy()
+	mcpconnwebhook.ApplyDefaults(&conn.Spec)
+
 	header := http.Header{}
 	query := url.Values{}
 	var cookie *http.Cookie

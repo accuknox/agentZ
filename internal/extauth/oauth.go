@@ -29,28 +29,20 @@ type tokenResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-func (s *Service) resolveOAuthHeader(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, attrs *requestAttrs) (injectedHeader, error) {
+func (s *Service) resolveOAuthRequest(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, attrs *requestAttrs) (injectedRequest, error) {
 	auth := conn.Spec.Auth.OAuth
 	if auth == nil || auth.SecretRef == nil {
-		return injectedHeader{}, fmt.Errorf("oauth secret ref is missing: %w", errCredentialUnavailable)
-	}
-
-	location, err := headerLocation(auth.Location)
-	if err != nil {
-		return injectedHeader{}, err
+		return injectedRequest{}, fmt.Errorf("oauth secret ref is missing: %w", errCredentialUnavailable)
 	}
 
 	record, err := s.readOAuthRecord(ctx, *auth.SecretRef)
 	if err != nil {
-		return injectedHeader{}, err
+		return injectedRequest{}, err
 	}
 
 	token := record.Token
 	if oauthTokenUsable(token, time.Now().UTC()) {
-		return injectedHeader{
-			name:  location.name,
-			value: prefixedValue(location.prefix, token.AccessToken),
-		}, nil
+		return injectionForLocation(auth.Location, token.AccessToken)
 	}
 
 	attrs.refreshAttempted = true
@@ -58,23 +50,20 @@ func (s *Service) resolveOAuthHeader(ctx context.Context, conn *clawarmorv1alpha
 		return s.refreshOAuthToken(ctx, conn)
 	})
 	if err != nil {
-		return injectedHeader{}, err
+		return injectedRequest{}, err
 	}
 
 	refreshed, ok := result.(*mcp.OAuthSecretRecord)
 	if !ok {
-		return injectedHeader{}, fmt.Errorf("unexpected oauth refresh result type %T: %w", result, errCredentialUnavailable)
+		return injectedRequest{}, fmt.Errorf("unexpected oauth refresh result type %T: %w", result, errCredentialUnavailable)
 	}
 
 	if refreshed.Token == nil || strings.TrimSpace(refreshed.Token.AccessToken) == "" {
-		return injectedHeader{}, fmt.Errorf("refreshed oauth token is missing access token: %w", errCredentialUnavailable)
+		return injectedRequest{}, fmt.Errorf("refreshed oauth token is missing access token: %w", errCredentialUnavailable)
 	}
 
 	attrs.refreshSucceeded = true
-	return injectedHeader{
-		name:  location.name,
-		value: prefixedValue(location.prefix, refreshed.Token.AccessToken),
-	}, nil
+	return injectionForLocation(auth.Location, refreshed.Token.AccessToken)
 }
 
 func (s *Service) refreshOAuthToken(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (*mcp.OAuthSecretRecord, error) {

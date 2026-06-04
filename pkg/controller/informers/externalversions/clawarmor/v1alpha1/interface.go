@@ -25,6 +25,10 @@ import (
 type Interface interface {
 	// Agents returns a AgentInformer.
 	Agents() AgentInformer
+	// Environments returns a EnvironmentInformer.
+	Environments() EnvironmentInformer
+	// MCPConnections returns a MCPConnectionInformer.
+	MCPConnections() MCPConnectionInformer
 	// WorkflowRuns returns a WorkflowRunInformer.
 	WorkflowRuns() WorkflowRunInformer
 	// WorkflowSchedules returns a WorkflowScheduleInformer.
@@ -45,6 +49,16 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // Agents returns a AgentInformer.
 func (v *version) Agents() AgentInformer {
 	return &agentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Environments returns a EnvironmentInformer.
+func (v *version) Environments() EnvironmentInformer {
+	return &environmentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// MCPConnections returns a MCPConnectionInformer.
+func (v *version) MCPConnections() MCPConnectionInformer {
+	return &mCPConnectionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // WorkflowRuns returns a WorkflowRunInformer.

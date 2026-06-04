@@ -33,11 +33,16 @@ async function UpdateEnvironmentContent({ name }: { name: string }) {
     notFound()
   }
 
+  const mcpConnectionRefs = env.mcp_connection_refs.map((ref) => ({
+    name: ref.name,
+    enabledTools: ref.enabled_tools ?? [],
+  }))
+
   const wizardKey = JSON.stringify({
     name: env.name,
     packages: env.packages ?? [],
     allowedHosts: env.allowed_hosts ?? [],
-    mcpConnectionRefs: env.mcp_connection_refs.map((ref) => ref.name),
+    mcpConnectionRefs,
   })
 
   return (
@@ -51,7 +56,7 @@ async function UpdateEnvironmentContent({ name }: { name: string }) {
         initialName={env.name}
         initialPackages={env.packages ?? []}
         initialAllowedHosts={env.allowed_hosts ?? []}
-        initialMcpConnectionRefs={env.mcp_connection_refs.map((ref) => ref.name)}
+        initialMcpConnectionRefs={mcpConnectionRefs}
         mcpConnections={mcpResult.mcpConnections ?? []}
       />
     </main>

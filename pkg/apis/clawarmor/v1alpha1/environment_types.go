@@ -22,6 +22,10 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type MCPConnectionRef struct {
 	// Name is the local name of the referenced MCPConnection.
 	Name string `json:"name"`
+
+	// EnabledTools lists the upstream MCP tool names exposed through this
+	// environment for the referenced connection.
+	EnabledTools []string `json:"enabledTools"`
 }
 
 // EnvironmentSpec defines the desired state of Environment.
@@ -70,6 +74,7 @@ type EnvironmentStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+// +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=envs

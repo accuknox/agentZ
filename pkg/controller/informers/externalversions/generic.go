@@ -54,6 +54,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=clawarmor, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("agents"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Agents().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("environments"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Environments().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("mcpconnections"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().MCPConnections().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowruns"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().WorkflowRuns().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowschedules"):

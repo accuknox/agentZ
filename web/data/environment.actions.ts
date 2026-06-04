@@ -46,12 +46,33 @@ export async function listEnvironmentsAction(
 }
 
 function environmentFormValues(formData: FormData) {
+  const refsByName = new Map<string, { name: string; enabledTools: string[] }>()
+  for (const value of formData.getAll("mcpConnectionRefs")) {
+    const name = String(value)
+    refsByName.set(name, {
+      name,
+      enabledTools: [],
+    })
+  }
+  for (const value of formData.getAll("mcpEnabledTool")) {
+    const [name, toolName] = String(value).split("\u0000")
+    if (!name || !toolName) {
+      continue
+    }
+    const ref = refsByName.get(name)
+    if (!ref) {
+      continue
+    }
+    ref.enabledTools.push(toolName)
+  }
+
   return {
     packages: formData.getAll("packages").map((p) => String(p)),
     allowedHosts: formData.getAll("allowedHosts").map((h) => String(h)),
-    mcpConnectionRefs: formData
-      .getAll("mcpConnectionRefs")
-      .map((name): McpConnectionRef => ({ name: String(name) })),
+    mcpConnectionRefs: [...refsByName.values()].map((ref) => ({
+      name: ref.name,
+      enabledTools: ref.enabledTools,
+    })),
   }
 }
 
@@ -71,12 +92,17 @@ function invalidEnvironmentForm(error: z.ZodError): CreateEnvironmentFormState {
 function environmentPayload(data: {
   packages: string[]
   allowedHosts: string[]
-  mcpConnectionRefs: McpConnectionRef[]
+  mcpConnectionRefs: Array<{ name: string; enabledTools: string[] }>
 }) {
   return {
     packages: data.packages,
     allowed_hosts: data.allowedHosts,
-    mcp_connection_refs: data.mcpConnectionRefs,
+    mcp_connection_refs: data.mcpConnectionRefs.map(
+      (ref): McpConnectionRef => ({
+        name: ref.name,
+        enabled_tools: ref.enabledTools,
+      })
+    ),
   }
 }
 

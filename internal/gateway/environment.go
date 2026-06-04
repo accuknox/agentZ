@@ -1,10 +1,12 @@
 package gateway
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
@@ -123,9 +125,29 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			continue
 		}
+		enabledTools := make([]string, 0, len(ref.EnabledTools))
+		for _, rawToolName := range ref.EnabledTools {
+			toolName := strings.TrimSpace(rawToolName)
+			if toolName == "" {
+				continue
+			}
+			enabledTools = append(enabledTools, toolName)
+		}
 		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
-			Name: name,
+			Name:         name,
+			EnabledTools: enabledTools,
 		})
+	}
+	fields = s.validateEnvironmentMCPConnections(r.Context(), mcpConnectionRefs)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
 	}
 
 	env := &clawarmorv1alpha1.Environment{
@@ -233,8 +255,17 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		if name == "" {
 			continue
 		}
+		enabledTools := make([]string, 0, len(ref.EnabledTools))
+		for _, rawToolName := range ref.EnabledTools {
+			toolName := strings.TrimSpace(rawToolName)
+			if toolName == "" {
+				continue
+			}
+			enabledTools = append(enabledTools, toolName)
+		}
 		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
-			Name: name,
+			Name:         name,
+			EnabledTools: enabledTools,
 		})
 	}
 	packages := make([]string, 0, len(req.Packages))
@@ -244,6 +275,17 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 			continue
 		}
 		packages = append(packages, pkg)
+	}
+	fields = s.validateEnvironmentMCPConnections(r.Context(), mcpConnectionRefs)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
 	}
 
 	var updated *clawarmorv1alpha1.Environment
@@ -298,7 +340,8 @@ func environmentFromCRD(env clawarmorv1alpha1.Environment, referenced bool) gate
 		mcpConnectionRefs = make([]gatewayapi.MCPConnectionRef, 0, len(env.Spec.MCPConnectionRefs))
 		for _, ref := range env.Spec.MCPConnectionRefs {
 			mcpConnectionRefs = append(mcpConnectionRefs, gatewayapi.MCPConnectionRef{
-				Name: ref.Name,
+				Name:         ref.Name,
+				EnabledTools: ref.EnabledTools,
 			})
 		}
 	}
@@ -386,6 +429,102 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 			continue
 		}
 		seen[name] = i
+
+		if len(ref.EnabledTools) == 0 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].enabled_tools", i),
+				Message: "must contain at least one tool",
+			})
+			continue
+		}
+
+		seenTools := map[string]int{}
+		for toolIndex, rawToolName := range ref.EnabledTools {
+			toolName := strings.TrimSpace(rawToolName)
+			if toolName == "" {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   fmt.Sprintf("mcp_connection_refs[%d].enabled_tools[%d]", i, toolIndex),
+					Message: "must not be empty",
+				})
+				continue
+			}
+			if firstToolIndex, ok := seenTools[toolName]; ok {
+				fields = append(fields, gatewayapi.FieldError{
+					Field: fmt.Sprintf(
+						"mcp_connection_refs[%d].enabled_tools[%d]",
+						i,
+						toolIndex,
+					),
+					Message: fmt.Sprintf(
+						"duplicate value %q first seen at index %d",
+						toolName,
+						firstToolIndex,
+					),
+				})
+				continue
+			}
+			seenTools[toolName] = toolIndex
+		}
+	}
+	return fields
+}
+
+func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []clawarmorv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
+	fields := []gatewayapi.FieldError{}
+	for i, ref := range refs {
+		conn := &clawarmorv1alpha1.MCPConnection{}
+		key := ctrlclient.ObjectKey{
+			Namespace: s.cfg.Namespace,
+			Name:      ref.Name,
+		}
+		err := s.k8sClient.Get(ctx, key, conn)
+		if apierrors.IsNotFound(err) {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: fmt.Sprintf("mcp connection %q was not found", ref.Name),
+			})
+			continue
+		}
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: fmt.Sprintf("failed to load mcp connection %q", ref.Name),
+			})
+			continue
+		}
+		if !conn.Status.ToolCatalogReady {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].enabled_tools", i),
+				Message: fmt.Sprintf("mcp connection %q tool catalog is not ready", ref.Name),
+			})
+			continue
+		}
+
+		toolNames := make(map[string]struct{}, len(conn.Status.Tools))
+		for _, tool := range conn.Status.Tools {
+			toolName := strings.TrimSpace(tool.Name)
+			if toolName == "" {
+				continue
+			}
+			toolNames[toolName] = struct{}{}
+		}
+		for toolIndex, toolName := range ref.EnabledTools {
+			if _, ok := toolNames[toolName]; ok {
+				continue
+			}
+			fields = append(fields, gatewayapi.FieldError{
+				Field: fmt.Sprintf(
+					"mcp_connection_refs[%d].enabled_tools[%d]",
+					i,
+					toolIndex,
+				),
+				Message: fmt.Sprintf(
+					"tool %q is not exposed by mcp connection %q",
+					toolName,
+					ref.Name,
+				),
+			})
+		}
 	}
 	return fields
 }

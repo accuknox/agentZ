@@ -69,10 +69,18 @@ spec:
                 items:
                   description: MCPConnectionRef references one MCPConnection in the same namespace.
                   properties:
+                    enabledTools:
+                      description: |-
+                        EnabledTools lists the upstream MCP tool names exposed through this
+                        environment for the referenced connection.
+                      items:
+                        type: string
+                      type: array
                     name:
                       description: Name is the local name of the referenced MCPConnection.
                       type: string
                   required:
+                  - enabledTools
                   - name
                   type: object
                 type: array

@@ -171,6 +171,15 @@ type MCPConnectionStatus struct {
 	// +optional
 	AuthMode string `json:"authMode,omitempty"`
 
+	// ToolCatalogReady reports whether the most recent probe discovered the
+	// upstream tool catalog successfully.
+	// +optional
+	ToolCatalogReady bool `json:"toolCatalogReady,omitempty"`
+
+	// Tools lists the most recently discovered upstream MCP tools.
+	// +optional
+	Tools []MCPConnectionTool `json:"tools,omitempty"`
+
 	// Conditions represent the current state of the MCPConnection resource.
 	// +listType=map
 	// +listMapKey=type
@@ -219,6 +228,12 @@ type MCPConnectionManagedResourceRef struct {
 	Name string `json:"name"`
 }
 
+// MCPConnectionTool describes one discovered upstream MCP tool.
+type MCPConnectionTool struct {
+	// Name is the upstream MCP tool name.
+	Name string `json:"name"`
+}
+
 // SetCondition adds or updates one MCPConnection condition.
 func (s *MCPConnectionStatus) SetCondition(cond metav1.Condition) {
 	cond.LastTransitionTime = metav1.Now()
@@ -239,6 +254,7 @@ func (s *MCPConnectionStatus) SetCondition(cond metav1.Condition) {
 	s.Conditions = append(s.Conditions, cond)
 }
 
+// +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Auth Mode",type=string,JSONPath=`.status.authMode`,description="Authentication mode"

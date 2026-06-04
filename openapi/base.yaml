@@ -2911,8 +2911,23 @@ components:
       type: object
       additionalProperties: false
       properties:
+        enabled_tools:
+          type: array
+          items:
+            type: string
+            minLength: 1
+          minItems: 1
         name:
           $ref: '#/components/schemas/MCPConnectionName'
+      required: [name, enabled_tools]
+
+    MCPConnectionTool:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
       required: [name]
 
     MCPConnectionDetail:
@@ -2934,7 +2949,13 @@ components:
           $ref: '#/components/schemas/MCPConnectionReason'
         message:
           type: string
-      required: [name, endpoint, auth, created_at, status, reason, message]
+        tool_catalog_ready:
+          type: boolean
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionTool'
+      required: [name, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools]
 
     MCPConnectionSummary:
       type: object
@@ -2955,7 +2976,13 @@ components:
           $ref: '#/components/schemas/MCPConnectionReason'
         message:
           type: string
-      required: [name, auth_mode, endpoint_url, created_at, status, reason, message]
+        tool_catalog_ready:
+          type: boolean
+        tool_count:
+          type: integer
+          format: int64
+          minimum: 0
+      required: [name, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count]
 
     MCPConnectionEndpoint:
       type: object

@@ -669,6 +669,7 @@ export const zDeleteEnvironmentRequest = z.object({
 })
 
 export const zMcpConnectionRef = z.object({
+  enabled_tools: z.array(z.string().min(1)).min(1),
   name: zMcpConnectionName,
 })
 
@@ -707,6 +708,10 @@ export const zUpdateEnvironmentRequest = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
+})
+
+export const zMcpConnectionTool = z.object({
+  name: z.string().min(1),
 })
 
 export const zMcpConnectionEndpoint = z.object({
@@ -773,6 +778,8 @@ export const zMcpConnectionDetail = z.object({
   status: zMcpConnectionLifecycle,
   reason: zMcpConnectionReason,
   message: z.string(),
+  tool_catalog_ready: z.boolean(),
+  tools: z.array(zMcpConnectionTool),
 })
 
 export const zMcpConnectionSummary = z.object({
@@ -783,6 +790,10 @@ export const zMcpConnectionSummary = z.object({
   status: zMcpConnectionLifecycle,
   reason: zMcpConnectionReason,
   message: z.string(),
+  tool_catalog_ready: z.boolean(),
+  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
 })
 
 export const zListMcpConnectionsResponse = z.object({

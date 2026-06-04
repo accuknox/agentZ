@@ -130,7 +130,11 @@ func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPC
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", record.Token.RefreshToken)
-	scopeValue := strings.Join(oauthScopes(auth, record), " ")
+	scopes := auth.Scopes
+	if len(record.Scopes) > 0 {
+		scopes = record.Scopes
+	}
+	scopeValue := strings.Join(scopes, " ")
 	if scopeValue != "" {
 		form.Set("scope", scopeValue)
 	}
@@ -138,9 +142,11 @@ func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPC
 		form.Set("resource", auth.Resource)
 	}
 
-	tokenEndpointAuthMethod := registrationString(record.Registration, "token_endpoint_auth_method")
-	if tokenEndpointAuthMethod == "" {
-		tokenEndpointAuthMethod = "client_secret_basic"
+	tokenEndpointAuthMethod := "client_secret_basic"
+	if value, ok := record.Registration["token_endpoint_auth_method"].(string); ok {
+		if method := strings.TrimSpace(value); method != "" {
+			tokenEndpointAuthMethod = method
+		}
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -235,13 +241,6 @@ func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPC
 	return token, strings.Fields(scope), nil
 }
 
-func oauthScopes(auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, record mcp.OAuthSecretRecord) []string {
-	if len(record.Scopes) > 0 {
-		return record.Scopes
-	}
-	return auth.Scopes
-}
-
 func oauthTokenUsable(token *oauth2.Token, now time.Time) bool {
 	if token == nil {
 		return false
@@ -253,21 +252,6 @@ func oauthTokenUsable(token *oauth2.Token, now time.Time) bool {
 		return true
 	}
 	return token.Expiry.After(now.Add(oauthRefreshGrace))
-}
-
-func registrationString(registration map[string]any, key string) string {
-	if len(registration) == 0 {
-		return ""
-	}
-	value, ok := registration[key]
-	if !ok {
-		return ""
-	}
-	str, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(str)
 }
 
 func (s *Service) readBearerRecord(ctx context.Context, ref clawarmorv1alpha1.MCPConnectionSecretRef) (mcp.BearerSecretRecord, error) {

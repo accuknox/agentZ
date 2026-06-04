@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -268,6 +269,7 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 	return r.ensureAgentgatewayParameters(ctx, namespace)
 }
 
+//nolint:gocyclo
 func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha1.Environment, conns []clawarmorv1alpha1.MCPConnection) error {
 	client := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayBackends(env.Namespace)
 	name := mcp.EnvironmentBackendName(env.Name)
@@ -285,7 +287,94 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		}
 	}
 
+	refsByName := make(map[string]clawarmorv1alpha1.MCPConnectionRef, len(env.Spec.MCPConnectionRefs))
+	for _, ref := range env.Spec.MCPConnectionRefs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			return fmt.Errorf("environment %q has an mcp connection ref with an empty name", env.Name)
+		}
+		if _, ok := refsByName[name]; ok {
+			return fmt.Errorf(
+				"environment %q references mcp connection %q more than once",
+				env.Name,
+				name,
+			)
+		}
+		enabledTools := make([]string, 0, len(ref.EnabledTools))
+		seenTools := make(map[string]struct{}, len(ref.EnabledTools))
+		for _, rawToolName := range ref.EnabledTools {
+			toolName := strings.TrimSpace(rawToolName)
+			if toolName == "" {
+				return fmt.Errorf(
+					"environment %q mcp connection %q has an empty enabled tool name",
+					env.Name,
+					name,
+				)
+			}
+			if _, ok := seenTools[toolName]; ok {
+				return fmt.Errorf(
+					"environment %q mcp connection %q enables tool %q more than once",
+					env.Name,
+					name,
+					toolName,
+				)
+			}
+			seenTools[toolName] = struct{}{}
+			enabledTools = append(enabledTools, toolName)
+		}
+		refsByName[name] = clawarmorv1alpha1.MCPConnectionRef{
+			Name:         name,
+			EnabledTools: enabledTools,
+		}
+	}
+
+	connsByName := make(map[string]clawarmorv1alpha1.MCPConnection, len(conns))
+	for _, conn := range conns {
+		connsByName[conn.Name] = conn
+	}
+	for name, ref := range refsByName {
+		conn, ok := connsByName[name]
+		if !ok {
+			return fmt.Errorf(
+				"environment %q references missing mcp connection %q",
+				env.Name,
+				name,
+			)
+		}
+		if !conn.Status.ToolCatalogReady {
+			return fmt.Errorf(
+				"environment %q mcp connection %q tool catalog is not ready",
+				env.Name,
+				name,
+			)
+		}
+		if len(ref.EnabledTools) == 0 {
+			return fmt.Errorf(
+				"environment %q mcp connection %q has no enabled tools; patch or recreate the Environment",
+				env.Name,
+				name,
+			)
+		}
+
+		toolNames := make(map[string]struct{}, len(conn.Status.Tools))
+		for _, tool := range conn.Status.Tools {
+			toolNames[tool.Name] = struct{}{}
+		}
+		for _, toolName := range ref.EnabledTools {
+			if _, ok := toolNames[toolName]; ok {
+				continue
+			}
+			return fmt.Errorf(
+				"environment %q mcp connection %q enables unknown tool %q",
+				env.Name,
+				name,
+				toolName,
+			)
+		}
+	}
+
 	targets := make([]agentgatewayv1alpha1.McpTargetSelector, 0, len(conns))
+	matchExpressions := make([]agentgatewayshared.CELExpression, 0, len(env.Spec.MCPConnectionRefs))
 	for _, conn := range conns {
 		target, err := mcp.ParseTarget(&conn)
 		if err != nil {
@@ -321,6 +410,20 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 				Policies: policies,
 			},
 		})
+
+		ref, ok := refsByName[conn.Name]
+		if !ok {
+			return fmt.Errorf("mcp connection ref %q is missing from environment spec", conn.Name)
+		}
+		for _, toolName := range ref.EnabledTools {
+			matchExpressions = append(matchExpressions, agentgatewayshared.CELExpression(
+				fmt.Sprintf(
+					`mcp.tool.target == %q && mcp.tool.name == %q`,
+					conn.Name,
+					toolName,
+				),
+			))
+		}
 	}
 
 	obj.Spec = agentgatewayv1alpha1.AgentgatewayBackendSpec{
@@ -330,6 +433,16 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 			// One unhealthy MCP target must not make healthy targets unreachable.
 			// Agentgateway still fails requests when every target is unavailable.
 			FailureMode: agentgatewayv1alpha1.FailOpen,
+		},
+	}
+	obj.Spec.Policies = &agentgatewayv1alpha1.BackendFull{
+		MCP: &agentgatewayv1alpha1.BackendMCP{
+			Authorization: &agentgatewayshared.Authorization{
+				Action: agentgatewayshared.AuthorizationPolicyActionAllow,
+				Policy: agentgatewayshared.AuthorizationPolicy{
+					MatchExpressions: matchExpressions,
+				},
+			},
 		},
 	}
 	if err := ctrl.SetControllerReference(env, obj, r.Scheme); err != nil {
@@ -543,7 +656,7 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 		return fmt.Errorf("marshal service spec overlay: %w", err)
 	}
 
-	obj.Spec = agentgatewayv1alpha1.AgentgatewayParametersSpec{
+	desiredSpec := agentgatewayv1alpha1.AgentgatewayParametersSpec{
 		AgentgatewayParametersOverlays: agentgatewayv1alpha1.AgentgatewayParametersOverlays{
 			Service: &agentgatewayshared.KubernetesResourceOverlay{
 				Spec: &apiextensionsv1.JSON{Raw: specBytes},
@@ -552,15 +665,32 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 	}
 
 	if obj.CreationTimestamp.IsZero() {
+		obj.Spec = desiredSpec
 		if _, err := client.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("create agentgateway parameters: %w", err)
 		}
 		return nil
 	}
-	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
-		return fmt.Errorf("update agentgateway parameters: %w", err)
+
+	if reflect.DeepEqual(obj.Spec, desiredSpec) {
+		return nil
 	}
-	return nil
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := client.Get(ctx, mcp.AgentgatewayParametersName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("get agentgateway parameters for update: %w", err)
+		}
+		if reflect.DeepEqual(current.Spec, desiredSpec) {
+			return nil
+		}
+		current.Spec = desiredSpec
+		_, err = client.Update(ctx, current, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("update agentgateway parameters: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *Reconciler) deleteAgentgatewayParameters(ctx context.Context, namespace string) error {

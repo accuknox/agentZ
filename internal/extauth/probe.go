@@ -30,6 +30,7 @@ type mcpProbeOutcome struct {
 	healthy       bool
 	reason        string
 	message       string
+	tools         []clawarmorv1alpha1.MCPConnectionTool
 }
 
 const (
@@ -73,6 +74,44 @@ func (s *Service) runMCPProbes(ctx context.Context) {
 	}
 }
 
+func (s *Service) runProbeQueue(ctx context.Context) {
+	for {
+		name, shutdown := s.probeQueue.Get()
+		if shutdown {
+			return
+		}
+
+		_, err, _ := s.sf.Do("probe:"+name, func() (any, error) {
+			conn, getErr := s.mcpConnections.Get(name)
+			if getErr != nil {
+				return nil, ctrlclient.IgnoreNotFound(getErr)
+			}
+			if !conn.DeletionTimestamp.IsZero() {
+				return nil, nil
+			}
+			outcome := s.probeMCPConnection(ctx, conn)
+			s.probeTimesMu.Lock()
+			s.probeTimes[name] = outcome.lastProbeTime.Time
+			s.probeTimesMu.Unlock()
+			if writeErr := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); writeErr != nil {
+				return nil, writeErr
+			}
+			return nil, nil
+		})
+		s.probeQueue.Done(name)
+		if err == nil {
+			continue
+		}
+
+		slog.ErrorContext(
+			ctx,
+			"mcp immediate probe failed",
+			slog.String("mcp_connection", name),
+			slog.Any("error", err),
+		)
+	}
+}
+
 func (s *Service) probeMCPConnections(ctx context.Context) error {
 	var list clawarmorv1alpha1.MCPConnectionList
 	if err := s.kube.List(ctx, &list, ctrlclient.InNamespace(s.namespace)); err != nil {
@@ -83,8 +122,23 @@ func (s *Service) probeMCPConnections(ctx context.Context) error {
 		if !conn.DeletionTimestamp.IsZero() {
 			continue
 		}
+		lastProbeTime := time.Time{}
+		if conn.Status.LastProbeTime != nil {
+			lastProbeTime = conn.Status.LastProbeTime.Time
+		}
+		s.probeTimesMu.Lock()
+		if probeTime, ok := s.probeTimes[conn.Name]; ok && probeTime.After(lastProbeTime) {
+			lastProbeTime = probeTime
+		}
+		s.probeTimesMu.Unlock()
+		if !lastProbeTime.IsZero() && time.Since(lastProbeTime) < s.probeInterval {
+			continue
+		}
 
 		outcome := s.probeMCPConnection(ctx, &conn)
+		s.probeTimesMu.Lock()
+		s.probeTimes[conn.Name] = outcome.lastProbeTime.Time
+		s.probeTimesMu.Unlock()
 		if err := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); err != nil {
 			slog.ErrorContext(
 				ctx,
@@ -125,7 +179,7 @@ func (s *Service) probeMCPConnection(ctx context.Context, conn *clawarmorv1alpha
 			return false, nil
 		},
 	)
-	if err == nil || errors.Is(err, wait.ErrWaitTimeout) {
+	if err == nil || wait.Interrupted(err) {
 		return outcome
 	}
 
@@ -195,13 +249,20 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1a
 		}
 	}()
 
-	if _, err := session.ListTools(reqCtx, nil); err != nil {
+	tools, err := session.ListTools(reqCtx, nil)
+	if err != nil {
 		outcome.reason = classifyProbeError(err, rt.lastStatus)
 		outcome.message = err.Error()
 		rt.logHTTPExchange(ctx, slog.LevelWarn, "mcp list_tools http exchange",
 			slog.String("probe_reason", outcome.reason),
 		)
 		return outcome
+	}
+	outcome.tools = make([]clawarmorv1alpha1.MCPConnectionTool, 0, len(tools.Tools))
+	for _, tool := range tools.Tools {
+		outcome.tools = append(outcome.tools, clawarmorv1alpha1.MCPConnectionTool{
+			Name: strings.TrimSpace(tool.Name),
+		})
 	}
 
 	outcome.healthy = true
@@ -322,6 +383,8 @@ func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name strin
 		}
 
 		conn.Status.LastProbeTime = &outcome.lastProbeTime
+		conn.Status.ToolCatalogReady = outcome.healthy
+		conn.Status.Tools = outcome.tools
 		status := metav1.ConditionFalse
 		if outcome.healthy {
 			status = metav1.ConditionTrue

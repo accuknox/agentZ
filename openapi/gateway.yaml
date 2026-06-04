@@ -783,6 +783,12 @@ components:
           $ref: '#/components/schemas/MCPConnectionReason'
         status:
           $ref: '#/components/schemas/MCPConnectionLifecycle'
+        tool_catalog_ready:
+          type: boolean
+        tools:
+          items:
+            $ref: '#/components/schemas/MCPConnectionTool'
+          type: array
       required:
       - name
       - endpoint
@@ -791,6 +797,8 @@ components:
       - status
       - reason
       - message
+      - tool_catalog_ready
+      - tools
       type: object
     MCPConnectionEndpoint:
       additionalProperties: false
@@ -904,10 +912,17 @@ components:
     MCPConnectionRef:
       additionalProperties: false
       properties:
+        enabled_tools:
+          items:
+            minLength: 1
+            type: string
+          minItems: 1
+          type: array
         name:
           $ref: '#/components/schemas/MCPConnectionName'
       required:
       - name
+      - enabled_tools
       type: object
     MCPConnectionSummary:
       additionalProperties: false
@@ -927,6 +942,12 @@ components:
           $ref: '#/components/schemas/MCPConnectionReason'
         status:
           $ref: '#/components/schemas/MCPConnectionLifecycle'
+        tool_catalog_ready:
+          type: boolean
+        tool_count:
+          format: int64
+          minimum: 0
+          type: integer
       required:
       - name
       - auth_mode
@@ -935,6 +956,17 @@ components:
       - status
       - reason
       - message
+      - tool_catalog_ready
+      - tool_count
+      type: object
+    MCPConnectionTool:
+      additionalProperties: false
+      properties:
+        name:
+          minLength: 1
+          type: string
+      required:
+      - name
       type: object
     NetworkObservabilityEvent:
       additionalProperties: false

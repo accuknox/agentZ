@@ -140,14 +140,17 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 		changed := make([]gatewayapi.MCPConnectionSummary, 0, len(items))
 		for _, item := range items {
 			prevItem, ok := prev[item.Name]
-			if ok &&
+			unchanged := ok &&
 				prevItem.Name == item.Name &&
 				prevItem.AuthMode == item.AuthMode &&
 				prevItem.EndpointUrl == item.EndpointUrl &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
 				prevItem.Status == item.Status &&
 				prevItem.Reason == item.Reason &&
-				prevItem.Message == item.Message {
+				prevItem.Message == item.Message &&
+				prevItem.ToolCatalogReady == item.ToolCatalogReady &&
+				prevItem.ToolCount == item.ToolCount
+			if unchanged {
 				continue
 			}
 			prev[item.Name] = item
@@ -531,13 +534,15 @@ func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string
 func (s *Service) mcpConnectionSummary(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
 	status, reason, message := s.mcpConnectionStatus(conn)
 	return gatewayapi.MCPConnectionSummary{
-		Name:        conn.Name,
-		AuthMode:    conn.Status.AuthMode,
-		EndpointUrl: conn.Spec.Endpoint.URL,
-		CreatedAt:   conn.CreationTimestamp.Time,
-		Status:      status,
-		Reason:      reason,
-		Message:     message,
+		Name:             conn.Name,
+		AuthMode:         conn.Status.AuthMode,
+		EndpointUrl:      conn.Spec.Endpoint.URL,
+		CreatedAt:        conn.CreationTimestamp.Time,
+		Status:           status,
+		Reason:           reason,
+		Message:          message,
+		ToolCatalogReady: conn.Status.ToolCatalogReady,
+		ToolCount:        int64(len(conn.Status.Tools)),
 	}
 }
 
@@ -592,14 +597,20 @@ func (s *Service) mcpConnectionDetail(conn clawarmorv1alpha1.MCPConnection) gate
 	}
 
 	status, reason, message := s.mcpConnectionStatus(conn)
+	tools := make([]gatewayapi.MCPConnectionTool, 0, len(conn.Status.Tools))
+	for _, tool := range conn.Status.Tools {
+		tools = append(tools, gatewayapi.MCPConnectionTool{Name: tool.Name})
+	}
 	return gatewayapi.MCPConnectionDetail{
-		Name:      conn.Name,
-		CreatedAt: conn.CreationTimestamp.Time,
-		Endpoint:  endpoint,
-		Auth:      auth,
-		Status:    status,
-		Reason:    reason,
-		Message:   message,
+		Name:             conn.Name,
+		CreatedAt:        conn.CreationTimestamp.Time,
+		Endpoint:         endpoint,
+		Auth:             auth,
+		Status:           status,
+		Reason:           reason,
+		Message:          message,
+		ToolCatalogReady: conn.Status.ToolCatalogReady,
+		Tools:            tools,
 	}
 }
 

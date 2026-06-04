@@ -344,6 +344,23 @@ spec:
                 - Ready
                 - Degraded
                 type: string
+              toolCatalogReady:
+                description: |-
+                  ToolCatalogReady reports whether the most recent probe discovered the
+                  upstream tool catalog successfully.
+                type: boolean
+              tools:
+                description: Tools lists the most recently discovered upstream MCP tools.
+                items:
+                  description: MCPConnectionTool describes one discovered upstream MCP tool.
+                  properties:
+                    name:
+                      description: Name is the upstream MCP tool name.
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
             type: object
         required:
         - spec

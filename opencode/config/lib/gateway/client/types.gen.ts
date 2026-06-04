@@ -591,7 +591,12 @@ export type UpdateEnvironmentRequest = {
 }
 
 export type McpConnectionRef = {
+  enabled_tools: Array<string>
   name: McpConnectionName
+}
+
+export type McpConnectionTool = {
+  name: string
 }
 
 export type McpConnectionDetail = {
@@ -602,6 +607,8 @@ export type McpConnectionDetail = {
   status: McpConnectionLifecycle
   reason: McpConnectionReason
   message: string
+  tool_catalog_ready: boolean
+  tools: Array<McpConnectionTool>
 }
 
 export type McpConnectionSummary = {
@@ -612,6 +619,8 @@ export type McpConnectionSummary = {
   status: McpConnectionLifecycle
   reason: McpConnectionReason
   message: string
+  tool_catalog_ready: boolean
+  tool_count: number
 }
 
 export type McpConnectionEndpoint = {

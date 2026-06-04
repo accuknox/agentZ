@@ -19,6 +19,7 @@ package environment
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -141,14 +142,66 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *clawarmo
 		conn := &clawarmorv1alpha1.MCPConnection{}
 		key := client.ObjectKey{Namespace: env.Namespace, Name: name}
 		err := v.client.Get(ctx, key, conn)
-		if err == nil {
-			continue
-		}
 		if apierrors.IsNotFound(err) {
 			fields = append(fields, field.NotFound(
 				path.Index(i).Child("name"),
 				name,
 			))
+			continue
+		}
+		if err == nil {
+			enabledPath := path.Index(i).Child("enabledTools")
+			if len(ref.EnabledTools) == 0 {
+				fields = append(fields, field.Required(
+					enabledPath,
+					"at least one enabled tool is required",
+				))
+				continue
+			}
+			if !conn.Status.ToolCatalogReady {
+				fields = append(fields, field.Forbidden(
+					enabledPath,
+					fmt.Sprintf("mcp connection %q tool catalog is not ready", name),
+				))
+				continue
+			}
+
+			toolNames := make([]string, 0, len(conn.Status.Tools))
+			for _, tool := range conn.Status.Tools {
+				toolName := strings.TrimSpace(tool.Name)
+				if toolName == "" {
+					continue
+				}
+				toolNames = append(toolNames, toolName)
+			}
+			slices.Sort(toolNames)
+
+			seenTools := map[string]int{}
+			for toolIndex, rawToolName := range ref.EnabledTools {
+				toolName := strings.TrimSpace(rawToolName)
+				if toolName == "" {
+					fields = append(fields, field.Required(
+						enabledPath.Index(toolIndex),
+						"field is required",
+					))
+					continue
+				}
+				if firstToolIndex, ok := seenTools[toolName]; ok {
+					fields = append(fields, field.Duplicate(
+						enabledPath.Index(toolIndex),
+						fmt.Sprintf("%s (first seen at index %d)", toolName, firstToolIndex),
+					))
+					continue
+				}
+				seenTools[toolName] = toolIndex
+				if !slices.Contains(toolNames, toolName) {
+					fields = append(fields, field.NotSupported(
+						enabledPath.Index(toolIndex),
+						toolName,
+						toolNames,
+					))
+				}
+			}
 			continue
 		}
 		fields = append(fields, field.InternalError(

@@ -1,5 +1,6 @@
 "use client"
 
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
 import {
   flexRender,
@@ -15,6 +16,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Box,
+  ChevronDown,
   Globe2,
   Link2,
   PackageSearch as PackageSearchIcon,
@@ -59,7 +61,7 @@ import {
 } from "@/data/environment.actions"
 import * as z from "zod"
 import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
-import type { McpConnectionSummary } from "@/lib/gateway/client"
+import { getMcpConnection, type McpConnectionSummary } from "@/lib/gateway/client"
 import { findMcpServerByURL, mcpFallbackIcon } from "@/app/mcps/catalog"
 import { PackageSearch } from "./package-search"
 
@@ -72,16 +74,21 @@ type EnvironmentIdentity = {
 type EnvironmentWizardData = {
   identity?: EnvironmentIdentity
   packages?: string[]
-  mcps?: string[]
+  mcps?: SelectedMcpConnectionRef[]
 }
 
 type EnvironmentWizardProps = {
   initialName?: string
   initialAllowedHosts?: string[]
-  initialMcpConnectionRefs?: string[]
+  initialMcpConnectionRefs?: SelectedMcpConnectionRef[]
   initialPackages?: string[]
   mcpConnections: McpConnectionSummary[]
   mode: EnvironmentWizardMode
+}
+
+type SelectedMcpConnectionRef = {
+  name: string
+  enabledTools: string[]
 }
 
 type PackageStepProps = {
@@ -93,21 +100,21 @@ type PackageStepProps = {
 type AllowedHostsStepProps = {
   identity: EnvironmentIdentity
   initialAllowedHosts: string[]
-  mcpConnectionRefs: string[]
+  mcpConnectionRefs: SelectedMcpConnectionRef[]
   packages: string[]
   mode: EnvironmentWizardMode
   onPrev: () => void
 }
 
 type McpStepProps = {
-  initialMcpConnectionRefs: string[]
+  initialMcpConnectionRefs: SelectedMcpConnectionRef[]
   mcpConnections: McpConnectionSummary[]
-  onNext: (mcpConnectionRefs: string[]) => void
+  onNext: (mcpConnectionRefs: SelectedMcpConnectionRef[]) => void
   onPrev: () => void
 }
 
 type McpStepValues = {
-  mcpConnectionRefs: string[]
+  mcpConnectionRefs: SelectedMcpConnectionRef[]
 }
 
 const identitySchema = z.object({
@@ -283,11 +290,15 @@ function formatAge(value: string) {
 }
 
 function createMcpSelectionColumns({
+  expandedNames,
   selectedNames,
-  onCheckedChange,
+  onExpandedChange,
+  onSelectedChange,
 }: {
+  expandedNames: ReadonlySet<string>
   selectedNames: ReadonlySet<string>
-  onCheckedChange: (name: string, checked: boolean) => void
+  onExpandedChange: (name: string) => void
+  onSelectedChange: (connection: McpConnectionSummary, checked: boolean) => void
 }): ColumnDef<McpConnectionSummary>[] {
   return [
     {
@@ -302,7 +313,22 @@ function createMcpSelectionColumns({
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <McpNameCell connection={row.original} />,
+      cell: ({ row }) => {
+        const connection = row.original
+
+        return (
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 text-left"
+            onClick={() => onExpandedChange(connection.name)}
+          >
+            <ChevronDown
+              className={`size-4 shrink-0 transition-transform ${expandedNames.has(connection.name) ? "rotate-180" : ""}`}
+            />
+            <McpNameCell connection={connection} />
+          </button>
+        )
+      },
     },
     {
       id: "auth_mode",
@@ -343,20 +369,120 @@ function createMcpSelectionColumns({
       header: "",
       accessorFn: (row) => selectedNames.has(row.name),
       cell: ({ row }) => {
-        const name = row.original.name
+        const connection = row.original
+        const disabled = !connection.tool_catalog_ready
 
         return (
           <div className="flex justify-end">
             <Switch
-              checked={selectedNames.has(name)}
-              aria-label={`Attach ${name}`}
-              onCheckedChange={(checked) => onCheckedChange(name, checked)}
+              checked={selectedNames.has(connection.name)}
+              aria-label={`Attach ${connection.name}`}
+              disabled={disabled}
+              onCheckedChange={(checked) => onSelectedChange(connection, checked)}
             />
           </div>
         )
       },
     },
   ]
+}
+
+function McpToolsRow({
+  connection,
+  selectedRef,
+  onToolsChange,
+}: {
+  connection: McpConnectionSummary
+  selectedRef?: SelectedMcpConnectionRef
+  onToolsChange: (name: string, enabledTools: string[]) => void
+}) {
+  const query = useQuery(
+    queryOptions({
+      queryKey: ["mcpConnection", connection.name],
+      queryFn: async () => {
+        const result = await getMcpConnection({
+          path: { name: connection.name },
+          cache: "no-store",
+        })
+        if (result.error) {
+          throw new Error(result.error.message)
+        }
+        return result.data
+      },
+      staleTime: 30_000,
+    })
+  )
+
+  if (query.isPending) {
+    return (
+      <div className="text-muted-foreground flex items-center gap-2 text-sm">
+        <Spinner />
+        Loading tools...
+      </div>
+    )
+  }
+
+  if (query.isError) {
+    return <div className="text-destructive text-sm">{(query.error as Error).message}</div>
+  }
+
+  const detail = query.data
+  if (!detail.tool_catalog_ready) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Tool discovery is not ready yet. {detail.message}
+      </p>
+    )
+  }
+  if (detail.tools.length === 0) {
+    return <p className="text-muted-foreground text-sm">This MCP connection exposes no tools.</p>
+  }
+
+  const selectedToolNames = new Set(selectedRef?.enabledTools ?? [])
+  return (
+    <div className="space-y-3">
+      <p className="text-muted-foreground text-sm">
+        Enable the tools this environment may expose from <em>{connection.name}</em>.
+      </p>
+
+      <div className="mx-3 grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] overflow-hidden rounded border">
+        {detail.tools.map((tool) => {
+          const handleCheckedChange = (checked: boolean) => {
+            const nextToolNames = new Set(selectedToolNames)
+
+            if (checked) {
+              nextToolNames.add(tool.name)
+            } else {
+              nextToolNames.delete(tool.name)
+            }
+
+            onToolsChange(
+              connection.name,
+              [...nextToolNames].toSorted((a, b) => a.localeCompare(b))
+            )
+          }
+
+          return (
+            <label
+              key={tool.name}
+              className="-mr-px -mb-px flex min-w-0 items-start justify-between gap-3 border px-4 py-3"
+            >
+              <span className="min-w-0">
+                <span className="block font-medium wrap-break-word">{tool.name}</span>
+              </span>
+
+              <Switch
+                checked={selectedToolNames.has(tool.name)}
+                onCheckedChange={handleCheckedChange}
+                aria-label={`Enable ${tool.name}`}
+                className="shrink-0"
+              />
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: McpStepProps) {
@@ -371,28 +497,62 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
     defaultValue: initialMcpConnectionRefs,
   })
   const selected = React.useMemo(() => watchedSelected ?? [], [watchedSelected])
-  const selectedNames = React.useMemo(() => new Set(selected), [selected])
+  const selectedByName = React.useMemo(
+    () => new Map(selected.map((ref) => [ref.name, ref])),
+    [selected]
+  )
+  const selectedNames = React.useMemo(() => new Set(selectedByName.keys()), [selectedByName])
   const connections = React.useMemo(
     () => mcpConnections.toSorted((a, b) => a.name.localeCompare(b.name)),
     [mcpConnections]
   )
   const [sorting, setSorting] = React.useState<SortingState>(defaultMcpSorting)
   const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
-  const setSelected = React.useCallback(
-    (name: string, checked: boolean) => {
-      const current = form.getValues("mcpConnectionRefs") ?? []
-      const next = new Set(current)
+  const [expandedNames, setExpandedNames] = React.useState<string[]>([])
+  const expandedNameSet = React.useMemo(() => new Set(expandedNames), [expandedNames])
 
-      if (checked) {
-        next.add(name)
+  const setSelected = React.useCallback(
+    async (connection: McpConnectionSummary, checked: boolean) => {
+      const current = form.getValues("mcpConnectionRefs") ?? []
+      const next = new Map(current.map((ref) => [ref.name, ref]))
+
+      if (!checked) {
+        next.delete(connection.name)
       } else {
-        next.delete(name)
+        const existing = next.get(connection.name)
+        if (existing) {
+          next.set(connection.name, {
+            name: existing.name,
+            enabledTools: existing.enabledTools.toSorted((a, b) => a.localeCompare(b)),
+          })
+        } else {
+          const result = await getMcpConnection({
+            path: { name: connection.name },
+            cache: "no-store",
+          })
+          if (result.error || !result.data.tool_catalog_ready) {
+            return
+          }
+          next.set(connection.name, {
+            name: connection.name,
+            enabledTools: result.data.tools
+              .map((tool) => tool.name)
+              .toSorted((a, b) => a.localeCompare(b)),
+          })
+        }
       }
 
-      const nextRefs = Array.from(next).toSorted((a, b) => a.localeCompare(b))
+      const nextRefs = [...next.values()].toSorted((a, b) => a.name.localeCompare(b.name))
       if (
         current.length === nextRefs.length &&
-        current.every((value, index) => value === nextRefs[index])
+        current.every(
+          (value, index) =>
+            value.name === nextRefs[index]?.name &&
+            value.enabledTools.length === nextRefs[index]?.enabledTools.length &&
+            value.enabledTools.every(
+              (toolName, toolIndex) => toolName === nextRefs[index]?.enabledTools[toolIndex]
+            )
+        )
       ) {
         return
       }
@@ -404,14 +564,43 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
     },
     [form]
   )
+  const setEnabledTools = React.useCallback(
+    (name: string, enabledTools: string[]) => {
+      const current = form.getValues("mcpConnectionRefs") ?? []
+      const next = current
+        .map((ref) => {
+          if (ref.name !== name) {
+            return ref
+          }
+          return {
+            name,
+            enabledTools,
+          }
+        })
+        .filter((ref) => ref.enabledTools.length > 0)
+
+      form.setValue("mcpConnectionRefs", next, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    },
+    [form]
+  )
 
   const columns = React.useMemo(
     () =>
       createMcpSelectionColumns({
+        expandedNames: expandedNameSet,
         selectedNames,
-        onCheckedChange: setSelected,
+        onExpandedChange: (name) =>
+          setExpandedNames((current) =>
+            current.includes(name) ? current.filter((value) => value !== name) : [...current, name]
+          ),
+        onSelectedChange: (connection, checked) => {
+          void setSelected(connection, checked)
+        },
       }),
-    [selectedNames, setSelected]
+    [expandedNameSet, selectedNames, setSelected]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -432,7 +621,7 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
   return (
     <form
       onSubmit={form.handleSubmit((data) =>
-        onNext(data.mcpConnectionRefs.toSorted((a, b) => a.localeCompare(b)))
+        onNext(data.mcpConnectionRefs.toSorted((a, b) => a.name.localeCompare(b.name)))
       )}
       className="flex min-h-full flex-col gap-5"
     >
@@ -458,16 +647,29 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
             <TableBody>
               {table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={`h-11 py-2 align-middle ${mcpColumnClassName[cell.column.id] ?? "px-4"}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                  <React.Fragment key={row.id}>
+                    <TableRow>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={`h-11 py-2 align-middle ${mcpColumnClassName[cell.column.id] ?? "px-4"}`}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {expandedNameSet.has(row.original.name) ? (
+                      <TableRow>
+                        <TableCell colSpan={columns.length} className="bg-muted/20 px-4 py-4">
+                          <McpToolsRow
+                            connection={row.original}
+                            selectedRef={selectedByName.get(row.original.name)}
+                            onToolsChange={setEnabledTools}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </React.Fragment>
                 ))
               ) : (
                 <TableRow>
@@ -506,7 +708,9 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
         </Button>
-        <Button type="submit">Next</Button>
+        <Button type="submit" disabled={selected.some((ref) => ref.enabledTools.length === 0)}>
+          Next
+        </Button>
       </StepActions>
     </form>
   )
@@ -605,8 +809,18 @@ function AllowedHostsStep({
       {packages.map((pkg) => (
         <input key={pkg} type="hidden" name="packages" value={pkg} />
       ))}
-      {mcpConnectionRefs.map((name) => (
-        <input key={name} type="hidden" name="mcpConnectionRefs" value={name} />
+      {mcpConnectionRefs.map((ref) => (
+        <React.Fragment key={ref.name}>
+          <input type="hidden" name="mcpConnectionRefs" value={ref.name} />
+          {ref.enabledTools.map((toolName) => (
+            <input
+              key={`${ref.name}-${toolName}`}
+              type="hidden"
+              name="mcpEnabledTool"
+              value={`${ref.name}\u0000${toolName}`}
+            />
+          ))}
+        </React.Fragment>
       ))}
       {hosts.map((host) => (
         <input key={host} type="hidden" name="allowedHosts" value={host} />
@@ -723,7 +937,7 @@ export function EnvironmentWizard({
         const data: EnvironmentWizardData = {
           identity: stepper.metadata.get("identity") as EnvironmentIdentity | undefined,
           packages: stepper.metadata.get("packages") as string[] | undefined,
-          mcps: stepper.metadata.get("mcps") as string[] | undefined,
+          mcps: stepper.metadata.get("mcps") as SelectedMcpConnectionRef[] | undefined,
         }
         const goPrev = () => {
           setDirection(-1)

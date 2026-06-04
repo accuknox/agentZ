@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,12 +30,17 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	clawarmorclientset "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
+	clawarmorinformers "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions"
+	clawarmorlisters "github.com/accuknox/clawarmor/pkg/controller/listers/clawarmor/v1alpha1"
 )
 
 const (
@@ -59,6 +65,7 @@ const (
 	kubeRequestTimeout    = 5 * time.Second
 	grpcShutdownTimeout   = 15 * time.Second
 	httpClientTimeout     = 15 * time.Second
+	probeQueueName        = "extauth-mcp-probe"
 )
 
 var errCredentialUnavailable = errors.New("credential unavailable")
@@ -77,9 +84,12 @@ type Config struct {
 }
 
 // Serve starts the Envoy-compatible ext-auth gRPC service.
+//
+//nolint:gocyclo
 func Serve(ctx context.Context, cfg Config) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -131,6 +141,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create kube clientset: %w", err)
 	}
+	clawarmorClient, err := clawarmorclientset.NewForConfig(kubeCfg)
+	if err != nil {
+		return fmt.Errorf("create clawarmor clientset: %w", err)
+	}
 
 	baoClient, err := baoclient.NewClient(
 		ctx,
@@ -158,6 +172,66 @@ func Serve(ctx context.Context, cfg Config) error {
 		http: &http.Client{
 			Timeout: httpClientTimeout,
 		},
+		probeQueue: workqueue.NewTypedWithConfig(workqueue.TypedQueueConfig[string]{
+			Name: probeQueueName,
+		}),
+	}
+
+	informerFactory := clawarmorinformers.NewSharedInformerFactoryWithOptions(
+		clawarmorClient,
+		cfg.MCPProbeInterval,
+		clawarmorinformers.WithNamespace(namespace),
+	)
+	mcpInformer := informerFactory.Clawarmor().V1alpha1().MCPConnections()
+	svc.mcpConnections = mcpInformer.Lister().MCPConnections(namespace)
+	svc.probeTimes = map[string]time.Time{}
+
+	mcpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			conn, ok := obj.(*clawarmorv1alpha1.MCPConnection)
+			if !ok {
+				return
+			}
+			if name := strings.TrimSpace(conn.Name); name != "" {
+				svc.probeQueue.Add(name)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			oldConn, ok := oldObj.(*clawarmorv1alpha1.MCPConnection)
+			if !ok {
+				return
+			}
+			newConn, ok := newObj.(*clawarmorv1alpha1.MCPConnection)
+			if !ok {
+				return
+			}
+			if oldConn.Generation == newConn.Generation {
+				return
+			}
+			if name := strings.TrimSpace(newConn.Name); name != "" {
+				svc.probeQueue.Add(name)
+			}
+		},
+		DeleteFunc: func(obj any) {
+			conn, ok := obj.(*clawarmorv1alpha1.MCPConnection)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				conn, ok = tombstone.Obj.(*clawarmorv1alpha1.MCPConnection)
+				if !ok {
+					return
+				}
+			}
+			svc.probeTimesMu.Lock()
+			delete(svc.probeTimes, conn.Name)
+			svc.probeTimesMu.Unlock()
+		},
+	})
+	informerFactory.Start(ctx.Done())
+	if !cache.WaitForCacheSync(ctx.Done(), mcpInformer.Informer().HasSynced) {
+		return fmt.Errorf("sync mcpconnection informer cache")
 	}
 
 	srv := grpc.NewServer()
@@ -167,6 +241,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	healthpb.RegisterHealthServer(srv, healthSrv)
 	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
+	var bg sync.WaitGroup
 	errCh := make(chan error, 1)
 	go func() {
 		slog.InfoContext(ctx, "starting mcp ext auth service",
@@ -175,7 +250,12 @@ func Serve(ctx context.Context, cfg Config) error {
 		)
 		errCh <- srv.Serve(lis)
 	}()
-	go svc.runMCPProbes(ctx)
+	bg.Go(func() {
+		svc.runMCPProbes(ctx)
+	})
+	bg.Go(func() {
+		svc.runProbeQueue(ctx)
+	})
 
 	select {
 	case <-ctx.Done():
@@ -198,6 +278,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	case err = <-errCh:
 	}
 
+	cancel()
+	svc.probeQueue.ShutDown()
+	bg.Wait()
+
 	if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 		return fmt.Errorf("serve ext auth grpc: %w", err)
 	}
@@ -208,14 +292,18 @@ func Serve(ctx context.Context, cfg Config) error {
 type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
-	namespace     string
-	probeInterval time.Duration
-	probeTimeout  time.Duration
-	kube          ctrlclient.Client
-	kubeCore      kubernetes.Interface
-	kv            *baoapi.KVv2
-	http          *http.Client
-	sf            singleflight.Group
+	namespace      string
+	probeInterval  time.Duration
+	probeTimeout   time.Duration
+	kube           ctrlclient.Client
+	kubeCore       kubernetes.Interface
+	kv             *baoapi.KVv2
+	http           *http.Client
+	sf             singleflight.Group
+	mcpConnections clawarmorlisters.MCPConnectionNamespaceLister
+	probeQueue     workqueue.TypedInterface[string]
+	probeTimes     map[string]time.Time
+	probeTimesMu   sync.Mutex
 }
 
 var _ authv3.AuthorizationServer = (*Service)(nil)
@@ -310,7 +398,11 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		attrs.namespace = ns
 	}
 
-	httpReq := requestHTTP(checkAttrs)
+	request := checkAttrs.GetRequest()
+	var httpReq *authv3.AttributeContext_HttpRequest
+	if request != nil {
+		httpReq = request.GetHttp()
+	}
 	if httpReq == nil {
 		return denyDecision(
 			codes.InvalidArgument,
@@ -546,14 +638,6 @@ func (s *Service) resolveBearerRequest(ctx context.Context, conn *clawarmorv1alp
 	return injectionForLocation(auth.Location, token)
 }
 
-func requestHTTP(attrs *authv3.AttributeContext) *authv3.AttributeContext_HttpRequest {
-	request := attrs.GetRequest()
-	if request == nil {
-		return nil
-	}
-	return request.GetHttp()
-}
-
 func peerAddress(peer *authv3.AttributeContext_Peer) (string, error) {
 	if peer == nil || peer.GetAddress() == nil {
 		return "", fmt.Errorf("peer address is missing")
@@ -609,25 +693,21 @@ func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (auth
 	}, nil
 }
 
-func prefixedValue(prefix string, token string) string {
-	prefix = strings.TrimSpace(prefix)
-	if prefix == "" {
-		return token
-	}
-	return prefix + " " + token
-}
-
 func injectionForLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation, token string) (injectedRequest, error) {
 	if location == nil || location.Header != nil {
 		header, err := headerLocation(location)
 		if err != nil {
 			return injectedRequest{}, err
 		}
+		value := token
+		if prefix := strings.TrimSpace(header.prefix); prefix != "" {
+			value = prefix + " " + token
+		}
 		return injectedRequest{
 			headers: []*corev3.HeaderValueOption{{
 				Header: &corev3.HeaderValue{
 					Key:   header.name,
-					Value: prefixedValue(header.prefix, token),
+					Value: value,
 				},
 			}},
 		}, nil

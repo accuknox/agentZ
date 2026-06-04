@@ -2,30 +2,49 @@
 
 import { AnimatePresence, motion } from "motion/react"
 import type { ReactNode } from "react"
+import type { WizardLayout } from "./types"
 
-const formVariants = {
-  enter: (direction: number) => ({
-    opacity: 0,
-    y: direction > 0 ? 24 : -24,
-  }),
-  center: {
-    opacity: 1,
-    y: 0,
+const panelVariants = {
+  vertical: {
+    enter: (direction: number) => ({
+      opacity: 0,
+      y: direction > 0 ? 24 : -24,
+    }),
+    center: {
+      opacity: 1,
+      y: 0,
+    },
+    exit: (direction: number) => ({
+      opacity: 0,
+      y: direction > 0 ? -24 : 24,
+    }),
   },
-  exit: (direction: number) => ({
-    opacity: 0,
-    y: direction > 0 ? -24 : 24,
-  }),
+  horizontal: {
+    enter: (direction: number) => ({
+      opacity: 0,
+      x: direction > 0 ? 24 : -24,
+    }),
+    center: {
+      opacity: 1,
+      x: 0,
+    },
+    exit: (direction: number) => ({
+      opacity: 0,
+      x: direction > 0 ? -24 : 24,
+    }),
+  },
 }
 
 export function WizardPanel({
   children,
   direction,
+  layout = "vertical",
   panelAdornment,
   stepKey,
 }: {
   children: ReactNode
   direction: number
+  layout?: WizardLayout
   panelAdornment?: ReactNode
   stepKey: string | number
 }) {
@@ -37,7 +56,7 @@ export function WizardPanel({
           <motion.div
             key={stepKey}
             custom={direction}
-            variants={formVariants}
+            variants={panelVariants[layout]}
             initial="enter"
             animate="center"
             exit="exit"

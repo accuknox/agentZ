@@ -33,7 +33,12 @@ export function WizardShell<TStep extends WizardStep>({
           steps={steps}
         />
       </div>
-      <WizardPanel direction={direction} panelAdornment={panelAdornment} stepKey={currentStepId}>
+      <WizardPanel
+        direction={direction}
+        layout={layout}
+        panelAdornment={panelAdornment}
+        stepKey={currentStepId}
+      >
         <div
           id={`wizard-panel-${currentStepId}`}
           role="tabpanel"

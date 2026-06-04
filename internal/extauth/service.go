@@ -49,9 +49,9 @@ const (
 	// DefaultNamespace is the default namespace for MCP resources.
 	DefaultNamespace = "default"
 	// DefaultMCPProbeInterval bounds how often MCP health is refreshed.
-	DefaultMCPProbeInterval = 30 * time.Second
+	DefaultMCPProbeInterval = time.Minute * 2
 	// DefaultMCPProbeTimeout bounds one end-to-end MCP probe.
-	DefaultMCPProbeTimeout = 10 * time.Second
+	DefaultMCPProbeTimeout = 15 * time.Second
 
 	managedLabelKey       = "clawarmor.accuknox.com/managed"
 	managedLabelValue     = "true"

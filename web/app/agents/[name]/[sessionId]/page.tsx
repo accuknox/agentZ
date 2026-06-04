@@ -1,16 +1,21 @@
 import { Suspense } from "react"
 import Chat from "@/components/blocks/chat/chat"
 
-export default function ChatPage({
-  params,
-}: {
-  params: Promise<{ name: string; sessionId: string }>
-}) {
+type ChatPageParams = {
+  name: string
+  sessionId: string
+}
+
+export default function ChatPage({ params }: { params: Promise<ChatPageParams> }) {
   return (
     <Suspense fallback={null}>
-      {params.then(({ name, sessionId }) => (
-        <Chat agentName={name} sessionId={sessionId} />
-      ))}
+      <ChatPageContent params={params} />
     </Suspense>
   )
+}
+
+async function ChatPageContent({ params }: { params: Promise<ChatPageParams> }) {
+  const { name, sessionId } = await params
+
+  return <Chat agentName={name} sessionId={sessionId} />
 }

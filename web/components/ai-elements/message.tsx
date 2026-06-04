@@ -51,10 +51,10 @@ export const MessageContent = ({ children, className, ...props }: MessageContent
     className={cn(
       "is-user:dark flex w-full max-w-full min-w-0 flex-col text-sm",
       "group-[.is-user]:w-fit",
-      "group-[.is-user]:border-chat-user group-[.is-user]:bg-secondary group-[.is-user]:text-foreground group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:rounded-r-none group-[.is-user]:border-r-2 group-[.is-user]:px-4 group-[.is-user]:py-3",
+      "group-[.is-user]:border-primary group-[.is-user]:bg-secondary group-[.is-user]:text-foreground group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:rounded-r-none group-[.is-user]:border-r-2 group-[.is-user]:px-4 group-[.is-user]:py-3",
       "group-[.is-assistant]:text-foreground",
       "group-[.is-assistant]:gap-1",
-      "group-[.is-system-message]:border-chat-error group-[.is-system-message]:w-full group-[.is-system-message]:max-w-full group-[.is-system-message]:rounded-l-none group-[.is-system-message]:rounded-r-none group-[.is-system-message]:border-r-2 group-[.is-system-message]:border-l-2 group-[.is-system-message]:px-4",
+      "group-[.is-system-message]:border-destructive group-[.is-system-message]:w-full group-[.is-system-message]:max-w-full group-[.is-system-message]:rounded-l-none group-[.is-system-message]:rounded-r-none group-[.is-system-message]:border-r-2 group-[.is-system-message]:border-l-2 group-[.is-system-message]:px-4",
       className
     )}
     {...props}

@@ -186,9 +186,9 @@ function toolMetadata(part: ToolPart) {
 function toneClass(tone: ToolTone) {
   switch (tone) {
     case "active":
-      return "text-chat-active"
+      return "text-primary"
     case "error":
-      return "text-chat-error"
+      return "text-destructive"
     default:
       return "text-foreground"
   }
@@ -523,7 +523,7 @@ function Diagnostics({ items }: { items: Diagnostic[] }) {
   return (
     <div className="space-y-1">
       {items.slice(0, 3).map((item, index) => (
-        <div className="text-chat-error flex gap-1.5 text-sm" key={`${item.message}-${index}`}>
+        <div className="text-destructive flex gap-1.5 text-sm" key={`${item.message}-${index}`}>
           <CircleAlertIcon className="mt-0.5 size-3 shrink-0" />
           <div className="min-w-0">
             <span className="font-mono text-xs">
@@ -881,8 +881,8 @@ function TodoTool({ part }: ToolProps) {
           <div className="flex items-start gap-2 text-sm" key={`${item.content}-${index}`}>
             <span
               className={cn("mt-0.5 size-2.5 rounded-full border", {
-                "border-chat-active bg-chat-active": item.status === "completed",
-                "border-chat-neutral": item.status !== "completed",
+                "border-primary bg-primary": item.status === "completed",
+                "border-muted-foreground": item.status !== "completed",
               })}
             />
             <span
@@ -955,7 +955,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="border-chat-neutral/20 flex flex-col gap-1 border-l pl-3">
+        <div className="border-muted-foreground/20 flex flex-col gap-1 border-l pl-3">
           {parts.map((part) => {
             const Icon = toolIcon(part.tool)
             const title = toolTitle(part.tool)

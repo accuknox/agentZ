@@ -6,6 +6,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// SecretRecordKey is the OpenBao field key for stored MCP credentials.
+const SecretRecordKey = "credentials"
+
 // BearerSecretRecord stores one bearer credential in OpenBao.
 type BearerSecretRecord struct {
 	Token     string    `json:"token"`

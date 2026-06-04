@@ -370,12 +370,13 @@ function createMcpSelectionColumns({
       accessorFn: (row) => selectedNames.has(row.name),
       cell: ({ row }) => {
         const connection = row.original
-        const disabled = !connection.tool_catalog_ready
+        const selected = selectedNames.has(connection.name)
+        const disabled = !connection.tool_catalog_ready && !selected
 
         return (
           <div className="flex justify-end">
             <Switch
-              checked={selectedNames.has(connection.name)}
+              checked={selected}
               aria-label={`Attach ${connection.name}`}
               disabled={disabled}
               onCheckedChange={(checked) => onSelectedChange(connection, checked)}
@@ -975,7 +976,7 @@ function AllowedHostsStep({
 }
 
 function StepActions({ children }: { children: React.ReactNode }) {
-  return <div className="mt-auto flex flex-wrap justify-end gap-3 pt-4">{children}</div>
+  return <div className="mt-auto flex flex-wrap justify-end gap-3 pt-4 pb-2">{children}</div>
 }
 
 export function EnvironmentWizard({

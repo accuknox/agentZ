@@ -846,13 +846,13 @@ func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectio
 	if spec.Auth.Bearer != nil {
 		spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
 			Path: path,
-			Key:  "bearer",
+			Key:  internalmcp.SecretRecordKey,
 		}
 	}
 	if spec.Auth.OAuth != nil {
 		spec.Auth.OAuth.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
 			Path: path,
-			Key:  "oauth",
+			Key:  internalmcp.SecretRecordKey,
 		}
 	}
 }

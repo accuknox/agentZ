@@ -456,7 +456,7 @@ function AgentBadge({ status }: { status: AgentStatus }) {
   switch (status) {
     case "PROGRESSING":
       return (
-        <span className="text-chat-interrupted shrink-0">
+        <span className="text-accent shrink-0">
           <Spinner aria-label="Provisioning" className="size-3" />
         </span>
       )
@@ -467,7 +467,7 @@ function AgentBadge({ status }: { status: AgentStatus }) {
         </span>
       )
     case "IDLE":
-      return <BotIcon aria-label="Idle" role="status" className="text-chat-active" />
+      return <BotIcon aria-label="Idle" role="status" className="text-primary" />
     default:
       return <BotIcon aria-label="Unknown" role="status" className="text-destructive" />
   }

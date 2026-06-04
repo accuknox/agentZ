@@ -50,7 +50,6 @@ SELECT
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -86,7 +85,6 @@ SELECT
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -122,6 +120,41 @@ WHERE agent_name = sqlc.arg(agent_name)
 ORDER BY started_at DESC, trace_id DESC, session_id DESC
 LIMIT sqlc.arg(page_size);
 
+-- name: GatewayGetMCPGraph :many
+WITH range_rows AS (
+  SELECT
+    inv.agent_name,
+    inv.mcp_connection_name,
+    inv.tool_name,
+    AVG(CAST(inv.duration_ns AS DOUBLE PRECISION) / 1000000.0) AS avg_latency_ms,
+    COUNT(*) FILTER (WHERE NOT inv.failed)::BIGINT AS success_count,
+    COUNT(*) FILTER (WHERE inv.failed)::BIGINT AS failed_count
+  FROM observer_mcp_tool_invocations inv
+  WHERE inv.agent_name = sqlc.arg(agent_name)
+    AND inv.start_time >= sqlc.arg(start_time_after)
+    AND inv.start_time < sqlc.arg(start_time_before)
+  GROUP BY
+    inv.agent_name,
+    inv.mcp_connection_name,
+    inv.tool_name
+)
+SELECT
+  range_rows.agent_name,
+  range_rows.mcp_connection_name,
+  range_rows.tool_name,
+  range_rows.avg_latency_ms,
+  range_rows.success_count,
+  range_rows.failed_count,
+  observer_mcp_tool_last_called.last_called_at
+FROM range_rows
+LEFT JOIN observer_mcp_tool_last_called
+  ON observer_mcp_tool_last_called.agent_name = range_rows.agent_name
+  AND observer_mcp_tool_last_called.mcp_connection_name = range_rows.mcp_connection_name
+  AND observer_mcp_tool_last_called.tool_name = range_rows.tool_name
+ORDER BY
+  range_rows.mcp_connection_name ASC,
+  range_rows.tool_name ASC;
+
 -- name: GatewayListSpans :many
 SELECT
   id,
@@ -133,7 +166,6 @@ SELECT
   start_time,
   end_time,
   duration_ns,
-  duration_ms,
   name,
   span_class,
   operation_name,
@@ -176,7 +208,6 @@ WITH span_row AS (
     start_time,
     end_time,
     duration_ns,
-    duration_ms,
     name,
     span_class,
     operation_name,
@@ -212,7 +243,6 @@ SELECT
   s.start_time,
   s.end_time,
   s.duration_ns,
-  s.duration_ms,
   s.name,
   s.span_class,
   s.operation_name,

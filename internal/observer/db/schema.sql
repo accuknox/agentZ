@@ -91,7 +91,6 @@ CREATE TABLE observer_traces(
   started_at TIMESTAMPTZ NOT NULL,
   ended_at TIMESTAMPTZ NOT NULL,
   duration_ns BIGINT NOT NULL,
-  duration_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
   span_count BIGINT NOT NULL,
   error_count BIGINT NOT NULL,
   tool_count BIGINT NOT NULL,
@@ -124,7 +123,6 @@ CREATE TABLE observer_trace_sessions(
   started_at TIMESTAMPTZ NOT NULL,
   ended_at TIMESTAMPTZ NOT NULL,
   duration_ns BIGINT NOT NULL,
-  duration_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
   span_count BIGINT NOT NULL,
   error_count BIGINT NOT NULL,
   tool_count BIGINT NOT NULL,
@@ -161,7 +159,6 @@ CREATE TABLE observer_trace_spans(
   start_time TIMESTAMPTZ NOT NULL,
   end_time TIMESTAMPTZ NOT NULL,
   duration_ns BIGINT NOT NULL,
-  duration_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
   name TEXT NOT NULL,
   span_class TEXT NOT NULL DEFAULT '',
   operation_name TEXT NOT NULL DEFAULT '',
@@ -224,3 +221,58 @@ CREATE TABLE observer_trace_span_payloads(
 
 CREATE TABLE observer_trace_span_payloads_default
   PARTITION OF observer_trace_span_payloads DEFAULT;
+
+CREATE TABLE observer_mcp_tool_invocations(
+  id BIGINT GENERATED ALWAYS AS IDENTITY,
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
+  trace_id BYTEA NOT NULL,
+  span_id BYTEA NOT NULL,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  duration_ns BIGINT NOT NULL,
+  mcp_connection_name TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  session_id TEXT NOT NULL DEFAULT '',
+  failed BOOLEAN NOT NULL DEFAULT false,
+  ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(id, start_time),
+  UNIQUE(trace_id, span_id, start_time)
+) PARTITION BY RANGE(start_time);
+
+CREATE TABLE observer_mcp_tool_invocations_default
+  PARTITION OF observer_mcp_tool_invocations DEFAULT;
+
+CREATE INDEX observer_mcp_tool_invocations_agent_time_connection_tool_idx
+  ON observer_mcp_tool_invocations(
+    agent_name,
+    start_time DESC,
+    mcp_connection_name,
+    tool_name
+  );
+
+CREATE INDEX observer_mcp_tool_invocations_agent_connection_tool_time_idx
+  ON observer_mcp_tool_invocations(
+    agent_name,
+    mcp_connection_name,
+    tool_name,
+    start_time DESC
+  );
+
+CREATE INDEX observer_mcp_tool_invocations_time_brin_idx
+  ON observer_mcp_tool_invocations USING BRIN(start_time);
+
+CREATE TABLE observer_mcp_tool_last_called(
+  agent_name TEXT NOT NULL REFERENCES agents(agent_name) ON DELETE CASCADE,
+  mcp_connection_name TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  last_called_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(agent_name, mcp_connection_name, tool_name)
+);
+
+CREATE INDEX observer_mcp_tool_last_called_agent_connection_time_idx
+  ON observer_mcp_tool_last_called(
+    agent_name,
+    mcp_connection_name,
+    last_called_at DESC
+  );

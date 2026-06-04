@@ -67,6 +67,14 @@ components:
       schema:
         format: date-time
         type: string
+    FromDateQuery:
+      description: Inclusive lower bound for MCP tool activity date.
+      in: query
+      name: from
+      required: true
+      schema:
+        format: date
+        type: string
     LimitQuery:
       description: Maximum number of items to return.
       in: query
@@ -123,6 +131,14 @@ components:
       required: false
       schema:
         format: date-time
+        type: string
+    ToDateQuery:
+      description: Inclusive upper bound for MCP tool activity date.
+      in: query
+      name: to
+      required: true
+      schema:
+        format: date
         type: string
     TraceIDQuery:
       description: Lowercase hexadecimal OTLP trace ID.
@@ -978,6 +994,94 @@ components:
       required:
       - name
       - require_consent
+      type: object
+    MCPGraphAgent:
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/AgentName'
+      required:
+      - name
+      type: object
+    MCPGraphConnection:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+      - id
+      - name
+      type: object
+    MCPGraphEdge:
+      additionalProperties: false
+      properties:
+        avg_latency_ms:
+          format: double
+          minimum: 0
+          type: number
+        failed_count:
+          format: int64
+          minimum: 0
+          type: integer
+        kind:
+          enum:
+          - agent_connection
+          - connection_tool
+          type: string
+        last_called_at:
+          format: date-time
+          type: string
+        source:
+          type: string
+        success_count:
+          format: int64
+          minimum: 0
+          type: integer
+        target:
+          type: string
+      required:
+      - source
+      - target
+      - kind
+      type: object
+    MCPGraphResponse:
+      additionalProperties: false
+      properties:
+        agent:
+          $ref: '#/components/schemas/MCPGraphAgent'
+        connections:
+          items:
+            $ref: '#/components/schemas/MCPGraphConnection'
+          type: array
+        edges:
+          items:
+            $ref: '#/components/schemas/MCPGraphEdge'
+          type: array
+        tools:
+          items:
+            $ref: '#/components/schemas/MCPGraphTool'
+          type: array
+      required:
+      - agent
+      - connections
+      - tools
+      - edges
+      type: object
+    MCPGraphTool:
+      additionalProperties: false
+      properties:
+        connection_id:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      required:
+      - id
+      - connection_id
+      - name
       type: object
     NetworkObservabilityEvent:
       additionalProperties: false
@@ -10350,6 +10454,29 @@ paths:
       summary: Update an Environment resource.
       tags:
       - environments
+  /api/lens/mcp/graph:
+    get:
+      operationId: getMCPGraph
+      parameters:
+      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/FromDateQuery'
+      - $ref: '#/components/parameters/ToDateQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPGraphResponse'
+          description: Graph-ready MCP observability for one agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get MCP observability graph data for one agent and date range.
+      tags:
+      - lens
   /api/lens/observability/file/list:
     get:
       operationId: listFileObservability

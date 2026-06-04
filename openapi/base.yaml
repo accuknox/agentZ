@@ -223,6 +223,29 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/lens/mcp/graph:
+    get:
+      operationId: getMCPGraph
+      summary: Get MCP observability graph data for one agent and date range.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/FromDateQuery'
+      - $ref: '#/components/parameters/ToDateQuery'
+      responses:
+        '200':
+          description: Graph-ready MCP observability for one agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPGraphResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/agent/create:
     post:
       operationId: createAgent
@@ -1280,6 +1303,24 @@ components:
       schema:
         type: boolean
         default: false
+
+    FromDateQuery:
+      name: from
+      in: query
+      required: true
+      description: Inclusive lower bound for MCP tool activity date.
+      schema:
+        type: string
+        format: date
+
+    ToDateQuery:
+      name: to
+      in: query
+      required: true
+      description: Inclusive upper bound for MCP tool activity date.
+      schema:
+        type: string
+        format: date
 
   responses:
     BadRequest:
@@ -2357,6 +2398,87 @@ components:
       - output_messages
       - tool_arguments
       - tool_result
+
+    MCPGraphResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        agent:
+          $ref: '#/components/schemas/MCPGraphAgent'
+        connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPGraphConnection'
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPGraphTool'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPGraphEdge'
+      required: [agent, connections, tools, edges]
+
+    MCPGraphAgent:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/AgentName'
+      required: [name]
+
+    MCPGraphConnection:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required: [id, name]
+
+    MCPGraphTool:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        connection_id:
+          type: string
+        name:
+          type: string
+      required: [id, connection_id, name]
+
+    MCPGraphEdge:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+        target:
+          type: string
+        kind:
+          type: string
+          enum: [agent_connection, connection_tool]
+        avg_latency_ms:
+          type: number
+          format: double
+          minimum: 0
+        success_count:
+          type: integer
+          format: int64
+          minimum: 0
+        failed_count:
+          type: integer
+          format: int64
+          minimum: 0
+        last_called_at:
+          type: string
+          format: date-time
+      required:
+      - source
+      - target
+      - kind
 
     SpanDetailResponse:
       type: object

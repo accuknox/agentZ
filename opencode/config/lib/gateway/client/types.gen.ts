@@ -380,6 +380,38 @@ export type SpanPayload = {
   tool_result: JsonValue
 }
 
+export type McpGraphResponse = {
+  agent: McpGraphAgent
+  connections: Array<McpGraphConnection>
+  tools: Array<McpGraphTool>
+  edges: Array<McpGraphEdge>
+}
+
+export type McpGraphAgent = {
+  name: AgentName
+}
+
+export type McpGraphConnection = {
+  id: string
+  name: string
+}
+
+export type McpGraphTool = {
+  id: string
+  connection_id: string
+  name: string
+}
+
+export type McpGraphEdge = {
+  source: string
+  target: string
+  kind: "agent_connection" | "connection_tool"
+  avg_latency_ms?: number
+  success_count?: number
+  failed_count?: number
+  last_called_at?: string
+}
+
 export type SpanDetailResponse = {
   span: SpanDetail
   payload: SpanPayload
@@ -809,6 +841,16 @@ export type ActionQuery = ObservabilityAction
  * When true, returns aggregated events with occurrence counts over the time range.
  */
 export type AggregatedQuery = boolean
+
+/**
+ * Inclusive lower bound for MCP tool activity date.
+ */
+export type FromDateQuery = string
+
+/**
+ * Inclusive upper bound for MCP tool activity date.
+ */
+export type ToDateQuery = string
 
 export type ListAgentsData = {
   body?: never
@@ -1252,6 +1294,52 @@ export type ListNetworkObservabilityResponses = {
 
 export type ListNetworkObservabilityResponse2 =
   ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
+
+export type GetMcpGraphData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Inclusive lower bound for MCP tool activity date.
+     */
+    from: string
+    /**
+     * Inclusive upper bound for MCP tool activity date.
+     */
+    to: string
+  }
+  url: "/api/lens/mcp/graph"
+}
+
+export type GetMcpGraphErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetMcpGraphError = GetMcpGraphErrors[keyof GetMcpGraphErrors]
+
+export type GetMcpGraphResponses = {
+  /**
+   * Graph-ready MCP observability for one agent.
+   */
+  200: McpGraphResponse
+}
+
+export type GetMcpGraphResponse = GetMcpGraphResponses[keyof GetMcpGraphResponses]
 
 export type CreateAgentData = {
   body: CreateAgentRequest

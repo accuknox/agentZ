@@ -382,6 +382,50 @@ export const zListSpansResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zMcpGraphAgent = z.object({
+  name: zAgentName,
+})
+
+export const zMcpGraphConnection = z.object({
+  id: z.string(),
+  name: z.string(),
+})
+
+export const zMcpGraphTool = z.object({
+  id: z.string(),
+  connection_id: z.string(),
+  name: z.string(),
+})
+
+export const zMcpGraphEdge = z.object({
+  source: z.string(),
+  target: z.string(),
+  kind: z.enum(["agent_connection", "connection_tool"]),
+  avg_latency_ms: z.number().gte(0).optional(),
+  success_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  failed_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  last_called_at: z.iso.datetime().optional(),
+})
+
+export const zMcpGraphResponse = z.object({
+  agent: zMcpGraphAgent,
+  connections: z.array(zMcpGraphConnection),
+  tools: z.array(zMcpGraphTool),
+  edges: z.array(zMcpGraphEdge),
+})
+
 export const zProcessObservabilityEvent = z.object({
   id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
@@ -926,6 +970,16 @@ export const zActionQuery = zObservabilityAction
  */
 export const zAggregatedQuery = z.boolean().default(false)
 
+/**
+ * Inclusive lower bound for MCP tool activity date.
+ */
+export const zFromDateQuery = z.iso.date()
+
+/**
+ * Inclusive upper bound for MCP tool activity date.
+ */
+export const zToDateQuery = z.iso.date()
+
 export const zListAgentsQuery = z.object({
   agent_name: z.array(zAgentName).optional(),
   limit: z.int().gte(1).lte(200).optional().default(50),
@@ -1031,6 +1085,17 @@ export const zListNetworkObservabilityQuery = z.object({
  * Paginated network observability events.
  */
 export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
+
+export const zGetMcpGraphQuery = z.object({
+  agent_name: zAgentName,
+  from: z.iso.date(),
+  to: z.iso.date(),
+})
+
+/**
+ * Graph-ready MCP observability for one agent.
+ */
+export const zGetMcpGraphResponse = zMcpGraphResponse
 
 export const zCreateAgentBody = zCreateAgentRequest
 

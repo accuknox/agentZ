@@ -24,6 +24,7 @@ const (
 	EnvironmentByMCPConnectionIndex = "spec.mcpConnectionRefs.name"
 	MCPConnectionFinalizer          = "clawarmor.accuknox.com/mcpconnection"
 	EnvironmentFinalizer            = "clawarmor.accuknox.com/environment-protection"
+	OpenCodeGatewayToolsetName      = "gateway"
 	// SecretPathPrefix is the OpenBao prefix for MCP credential records.
 	SecretPathPrefix         = "mcp-connections/"
 	GatewayClassName         = "agentgateway"

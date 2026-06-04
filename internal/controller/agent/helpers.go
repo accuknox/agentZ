@@ -26,6 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/accuknox/clawarmor/internal/mcp"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -60,7 +61,6 @@ const (
 	sinjectorFinalizer           = "clawarmor.accuknox.com/sinjector"
 	egressPolicySuffix           = "-egress"
 	opencodeConfigSchema         = "https://opencode.ai/config.json"
-	opencodeMCPGatewayToolPrefix = "gateway"
 )
 
 var errImageEmpty = errors.New("agent image must not be empty")
@@ -169,7 +169,7 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	}
 	if envCfg.MCPURL != "" {
 		cfg.MCP = map[string]opencodeMCPRemoteFile{
-			opencodeMCPGatewayToolPrefix: {
+			mcp.OpenCodeGatewayToolsetName: {
 				Type: "remote",
 				URL:  envCfg.MCPURL,
 			},
@@ -177,7 +177,7 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	}
 	if len(envCfg.MCPConsentPermissionIDs) > 0 {
 		for _, permissionID := range envCfg.MCPConsentPermissionIDs {
-			cfg.Permission[opencodeMCPGatewayToolPrefix+"_"+permissionID] = "ask"
+			cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+permissionID] = "ask"
 		}
 	}
 

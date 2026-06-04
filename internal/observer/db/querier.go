@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	InsertMCPToolInvocation(ctx context.Context, arg []InsertMCPToolInvocationParams) *InsertMCPToolInvocationBatchResults
 	InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanParams) *InsertTraceSpanBatchResults
 	InsertTraceSpanPayload(ctx context.Context, arg []InsertTraceSpanPayloadParams) *InsertTraceSpanPayloadBatchResults
 	ListFileEventsBetween(ctx context.Context, arg ListFileEventsBetweenParams) ([]ObserverFileEvent, error)
@@ -16,6 +17,7 @@ type Querier interface {
 	ListProcessEventsBetween(ctx context.Context, arg ListProcessEventsBetweenParams) ([]ObserverProcessEvent, error)
 	RefreshTraceSessionSummary(ctx context.Context, arg []RefreshTraceSessionSummaryParams) *RefreshTraceSessionSummaryBatchResults
 	RefreshTraceSummary(ctx context.Context, traceID [][]byte) *RefreshTraceSummaryBatchResults
+	UpsertMCPToolLastCalled(ctx context.Context, arg []UpsertMCPToolLastCalledParams) *UpsertMCPToolLastCalledBatchResults
 }
 
 var _ Querier = (*Queries)(nil)

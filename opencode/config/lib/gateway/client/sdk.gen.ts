@@ -50,6 +50,9 @@ import type {
   GetMcpConnectionData,
   GetMcpConnectionErrors,
   GetMcpConnectionResponses,
+  GetMcpGraphData,
+  GetMcpGraphErrors,
+  GetMcpGraphResponses,
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
@@ -150,6 +153,7 @@ import {
   zDeleteWorkflowSchedulePath,
   zDeleteWorkflowsPath,
   zGetMcpConnectionPath,
+  zGetMcpGraphQuery,
   zGetSpanDetailQuery,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
@@ -370,6 +374,25 @@ export const listNetworkObservability = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     url: "/api/lens/observability/network/list",
+    ...options,
+  })
+
+/**
+ * Get MCP observability graph data for one agent and date range.
+ */
+export const getMcpGraph = <ThrowOnError extends boolean = false>(
+  options: Options<GetMcpGraphData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetMcpGraphResponses, GetMcpGraphErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zGetMcpGraphQuery,
+        })
+        .parseAsync(data),
+    url: "/api/lens/mcp/graph",
     ...options,
   })
 

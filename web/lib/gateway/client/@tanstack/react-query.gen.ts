@@ -19,6 +19,7 @@ import {
   deleteWorkflows,
   deleteWorkflowSchedule,
   getMcpConnection,
+  getMcpGraph,
   getSpanDetail,
   getWorkflow,
   getWorkflowRun,
@@ -90,6 +91,9 @@ import type {
   GetMcpConnectionData,
   GetMcpConnectionError,
   GetMcpConnectionResponse,
+  GetMcpGraphData,
+  GetMcpGraphError,
+  GetMcpGraphResponse,
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
@@ -398,6 +402,31 @@ export const listNetworkObservabilityOptions = (options: Options<ListNetworkObse
       return data
     },
     queryKey: listNetworkObservabilityQueryKey(options),
+  })
+
+export const getMcpGraphQueryKey = (options: Options<GetMcpGraphData>) =>
+  createQueryKey("getMcpGraph", options)
+
+/**
+ * Get MCP observability graph data for one agent and date range.
+ */
+export const getMcpGraphOptions = (options: Options<GetMcpGraphData>) =>
+  queryOptions<
+    GetMcpGraphResponse,
+    GetMcpGraphError,
+    GetMcpGraphResponse,
+    ReturnType<typeof getMcpGraphQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getMcpGraph({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getMcpGraphQueryKey(options),
   })
 
 /**

@@ -21,6 +21,7 @@ import {
   Link2,
   PackageSearch as PackageSearchIcon,
   Plus,
+  UserCheck,
   X,
 } from "lucide-react"
 import * as React from "react"
@@ -55,6 +56,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   createEnvironmentFormAction,
   updateEnvironmentFormAction,
@@ -88,7 +90,12 @@ type EnvironmentWizardProps = {
 
 type SelectedMcpConnectionRef = {
   name: string
-  enabledTools: string[]
+  tools: SelectedMcpTool[]
+}
+
+type SelectedMcpTool = {
+  name: string
+  requireConsent: boolean
 }
 
 type PackageStepProps = {
@@ -168,11 +175,6 @@ const steps = [
 ] as const
 
 const { Stepper } = defineStepper(...steps)
-
-const canVisitStep = (index: number, currentIndex: number, data: EnvironmentWizardData) => {
-  if (index <= currentIndex) return true
-  return Boolean(data.identity)
-}
 
 function IdentityForm({
   defaultValues,
@@ -280,15 +282,6 @@ function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
   )
 }
 
-function formatAge(value: string) {
-  const d = dayjs(value)
-  if (!d.isValid()) {
-    return "Unknown"
-  }
-
-  return d.fromNow()
-}
-
 function createMcpSelectionColumns({
   expandedNames,
   selectedNames,
@@ -362,7 +355,14 @@ function createMcpSelectionColumns({
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatAge(row.original.created_at),
+      cell: ({ row }) => {
+        const createdAt = dayjs(row.original.created_at)
+        if (!createdAt.isValid()) {
+          return "Unknown"
+        }
+
+        return createdAt.fromNow()
+      },
     },
     {
       id: "attach",
@@ -394,7 +394,7 @@ function McpToolsRow({
 }: {
   connection: McpConnectionSummary
   selectedRef?: SelectedMcpConnectionRef
-  onToolsChange: (name: string, enabledTools: string[]) => void
+  onToolsChange: (name: string, tools: SelectedMcpTool[]) => void
 }) {
   const query = useQuery(
     queryOptions({
@@ -438,45 +438,99 @@ function McpToolsRow({
     return <p className="text-muted-foreground text-sm">This MCP connection exposes no tools.</p>
   }
 
-  const selectedToolNames = new Set(selectedRef?.enabledTools ?? [])
+  const toolsByName = new Map(selectedRef?.tools.map((tool) => [tool.name, tool]) ?? [])
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-sm">
         Enable the tools this environment may expose from <em>{connection.name}</em>.
       </p>
 
-      <div className="mx-3 grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] overflow-hidden rounded border">
+      <div className="mx-3 grid grid-cols-[repeat(auto-fit,minmax(20rem,1fr))] overflow-hidden rounded border">
         {detail.tools.map((tool) => {
-          const handleCheckedChange = (checked: boolean) => {
-            const nextToolNames = new Set(selectedToolNames)
+          const selectedTool = toolsByName.get(tool.name)
+          const selected = Boolean(selectedTool)
+          const consentRequired = selectedTool?.requireConsent ?? false
+          const consentLabel = consentRequired ? "Consent required" : "Consent not required"
+          const consentActionLabel = consentRequired
+            ? `Consent required for ${tool.name}. Click to disable consent requirement.`
+            : `Consent not required for ${tool.name}. Click to require consent.`
 
+          const handleCheckedChange = (checked: boolean) => {
             if (checked) {
-              nextToolNames.add(tool.name)
-            } else {
-              nextToolNames.delete(tool.name)
+              onToolsChange(
+                connection.name,
+                [...toolsByName.values(), { name: tool.name, requireConsent: false }].toSorted(
+                  (a, b) => a.name.localeCompare(b.name)
+                )
+              )
+              return
             }
 
             onToolsChange(
               connection.name,
-              [...nextToolNames].toSorted((a, b) => a.localeCompare(b))
+              [...toolsByName.values()].filter((value) => value.name !== tool.name)
+            )
+          }
+
+          const handleConsentToggle = () => {
+            if (!selectedTool) {
+              return
+            }
+
+            onToolsChange(
+              connection.name,
+              [...toolsByName.values()]
+                .map((value) =>
+                  value.name === tool.name
+                    ? {
+                        name: value.name,
+                        requireConsent: !value.requireConsent,
+                      }
+                    : value
+                )
+                .toSorted((a, b) => a.name.localeCompare(b.name))
             )
           }
 
           return (
             <label
               key={tool.name}
-              className="-mr-px -mb-px flex min-w-0 items-start justify-between gap-3 border px-4 py-3"
+              className="-mr-px -mb-px grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border px-4 py-3"
             >
               <span className="min-w-0">
-                <span className="block font-medium wrap-break-word">{tool.name}</span>
+                <span className="block leading-5 font-medium break-all whitespace-normal">
+                  {tool.name}
+                </span>
               </span>
 
-              <Switch
-                checked={selectedToolNames.has(tool.name)}
-                onCheckedChange={handleCheckedChange}
-                aria-label={`Enable ${tool.name}`}
-                className="shrink-0"
-              />
+              <div className="flex items-center justify-end gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!selectedTool}
+                      onClick={handleConsentToggle}
+                      aria-label={consentActionLabel}
+                      className={
+                        consentRequired
+                          ? "text-primary hover:text-primary"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      <UserCheck className="size-4" aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{consentLabel}</TooltipContent>
+                </Tooltip>
+                <Switch
+                  checked={selected}
+                  onCheckedChange={handleCheckedChange}
+                  aria-label={`Enable ${tool.name}`}
+                  className="shrink-0"
+                />
+              </div>
             </label>
           )
         })}
@@ -523,7 +577,7 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
         if (existing) {
           next.set(connection.name, {
             name: existing.name,
-            enabledTools: existing.enabledTools.toSorted((a, b) => a.localeCompare(b)),
+            tools: existing.tools.toSorted((a, b) => a.name.localeCompare(b.name)),
           })
         } else {
           const result = await getMcpConnection({
@@ -535,9 +589,12 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
           }
           next.set(connection.name, {
             name: connection.name,
-            enabledTools: result.data.tools
-              .map((tool) => tool.name)
-              .toSorted((a, b) => a.localeCompare(b)),
+            tools: result.data.tools
+              .map((tool) => ({
+                name: tool.name,
+                requireConsent: false,
+              }))
+              .toSorted((a, b) => a.name.localeCompare(b.name)),
           })
         }
       }
@@ -548,9 +605,11 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
         current.every(
           (value, index) =>
             value.name === nextRefs[index]?.name &&
-            value.enabledTools.length === nextRefs[index]?.enabledTools.length &&
-            value.enabledTools.every(
-              (toolName, toolIndex) => toolName === nextRefs[index]?.enabledTools[toolIndex]
+            value.tools.length === nextRefs[index]?.tools.length &&
+            value.tools.every(
+              (tool, toolIndex) =>
+                tool.name === nextRefs[index]?.tools[toolIndex]?.name &&
+                tool.requireConsent === nextRefs[index]?.tools[toolIndex]?.requireConsent
             )
         )
       ) {
@@ -565,7 +624,7 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
     [form]
   )
   const setEnabledTools = React.useCallback(
-    (name: string, enabledTools: string[]) => {
+    (name: string, tools: SelectedMcpTool[]) => {
       const current = form.getValues("mcpConnectionRefs") ?? []
       const next = current
         .map((ref) => {
@@ -574,10 +633,10 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
           }
           return {
             name,
-            enabledTools,
+            tools,
           }
         })
-        .filter((ref) => ref.enabledTools.length > 0)
+        .filter((ref) => ref.tools.length > 0)
 
       form.setValue("mcpConnectionRefs", next, {
         shouldDirty: true,
@@ -660,7 +719,10 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
                     </TableRow>
                     {expandedNameSet.has(row.original.name) ? (
                       <TableRow>
-                        <TableCell colSpan={columns.length} className="bg-muted/20 px-4 py-4">
+                        <TableCell
+                          colSpan={columns.length}
+                          className="bg-muted/20 px-4 py-4 whitespace-normal"
+                        >
                           <McpToolsRow
                             connection={row.original}
                             selectedRef={selectedByName.get(row.original.name)}
@@ -708,7 +770,7 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
         </Button>
-        <Button type="submit" disabled={selected.some((ref) => ref.enabledTools.length === 0)}>
+        <Button type="submit" disabled={selected.some((ref) => ref.tools.length === 0)}>
           Next
         </Button>
       </StepActions>
@@ -812,13 +874,17 @@ function AllowedHostsStep({
       {mcpConnectionRefs.map((ref) => (
         <React.Fragment key={ref.name}>
           <input type="hidden" name="mcpConnectionRefs" value={ref.name} />
-          {ref.enabledTools.map((toolName) => (
-            <input
-              key={`${ref.name}-${toolName}`}
-              type="hidden"
-              name="mcpEnabledTool"
-              value={`${ref.name}\u0000${toolName}`}
-            />
+          {ref.tools.map((tool) => (
+            <React.Fragment key={`${ref.name}-${tool.name}`}>
+              <input type="hidden" name="mcpTool" value={`${ref.name}\u0000${tool.name}`} />
+              {tool.requireConsent ? (
+                <input
+                  type="hidden"
+                  name="mcpRequireConsentTool"
+                  value={`${ref.name}\u0000${tool.name}`}
+                />
+              ) : null}
+            </React.Fragment>
           ))}
         </React.Fragment>
       ))}
@@ -956,7 +1022,7 @@ export function EnvironmentWizard({
             direction={direction}
             layout="horizontal"
             canVisitStepAction={(_, index) =>
-              canVisitStep(index, stepper.state.current.index, data)
+              index <= stepper.state.current.index || Boolean(data.identity)
             }
             onStepSelectAction={(step, index) => {
               setDirection(index >= stepper.state.current.index ? 1 : -1)

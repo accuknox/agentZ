@@ -912,17 +912,16 @@ components:
     MCPConnectionRef:
       additionalProperties: false
       properties:
-        enabled_tools:
-          items:
-            minLength: 1
-            type: string
-          minItems: 1
-          type: array
         name:
           $ref: '#/components/schemas/MCPConnectionName'
+        tools:
+          items:
+            $ref: '#/components/schemas/MCPConnectionToolRef'
+          minItems: 1
+          type: array
       required:
       - name
-      - enabled_tools
+      - tools
       type: object
     MCPConnectionSummary:
       additionalProperties: false
@@ -967,6 +966,18 @@ components:
           type: string
       required:
       - name
+      type: object
+    MCPConnectionToolRef:
+      additionalProperties: false
+      properties:
+        name:
+          minLength: 1
+          type: string
+        require_consent:
+          type: boolean
+      required:
+      - name
+      - require_consent
       type: object
     NetworkObservabilityEvent:
       additionalProperties: false

@@ -262,6 +262,7 @@ export type {
   McpConnectionRef,
   McpConnectionSummary,
   McpConnectionTool,
+  McpConnectionToolRef,
   NetworkObservabilityEvent,
   NetworkObservabilityEventAggregated,
   ObservabilityAction,

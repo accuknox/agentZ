@@ -277,30 +277,68 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 		return fmt.Errorf("gateway client is not configured")
 	}
 
+	permission := gatewayapi.OpencodePermissionRuleset{
+		{
+			Action:     gatewayapi.Deny,
+			Permission: "question",
+			Pattern:    "*",
+		},
+		{
+			Action:     gatewayapi.Deny,
+			Permission: "plan_enter",
+			Pattern:    "*",
+		},
+		{
+			Action:     gatewayapi.Deny,
+			Permission: "plan_exit",
+			Pattern:    "*",
+		},
+	}
+
+	agt := &clawarmorv1alpha1.Agent{}
+	agtKey := client.ObjectKey{Name: run.Spec.AgentName, Namespace: run.Namespace}
+	err := r.Get(ctx, agtKey, agt)
+	if err != nil {
+		return fmt.Errorf("get agent %q: %w", run.Spec.AgentName, err)
+	}
+	if agt.Spec.EnvironmentRef != nil {
+		env := &clawarmorv1alpha1.Environment{}
+		envKey := client.ObjectKey{
+			Name:      agt.Spec.EnvironmentRef.Name,
+			Namespace: run.Namespace,
+		}
+		err = r.Get(ctx, envKey, env)
+		if err != nil {
+			return fmt.Errorf(
+				"get environment %q for agent %q: %w",
+				agt.Spec.EnvironmentRef.Name,
+				run.Spec.AgentName,
+				err,
+			)
+		}
+
+		for _, ref := range env.Spec.MCPConnectionRefs {
+			for _, tool := range ref.Tools {
+				if !tool.RequireConsent {
+					continue
+				}
+				permission = append(permission, gatewayapi.OpencodePermissionRule{
+					Action:     gatewayapi.Allow,
+					Permission: ref.Name + "_" + tool.Name,
+					Pattern:    "*",
+				})
+			}
+		}
+	}
+
 	title := "workflowrun/" + run.Namespace + "/" + run.Name
 	createResp, err := r.GatewayClient.SessionCreateWithResponse(
 		ctx,
 		run.Spec.AgentName,
 		nil,
 		gatewayapi.SessionCreateJSONRequestBody{
-			Title: &title,
-			Permission: &gatewayapi.OpencodePermissionRuleset{
-				{
-					Action:     gatewayapi.Deny,
-					Permission: "question",
-					Pattern:    "*",
-				},
-				{
-					Action:     gatewayapi.Deny,
-					Permission: "plan_enter",
-					Pattern:    "*",
-				},
-				{
-					Action:     gatewayapi.Deny,
-					Permission: "plan_exit",
-					Pattern:    "*",
-				},
-			},
+			Title:      &title,
+			Permission: &permission,
 		},
 	)
 	if err != nil {

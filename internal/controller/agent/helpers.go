@@ -60,6 +60,7 @@ const (
 	sinjectorFinalizer           = "clawarmor.accuknox.com/sinjector"
 	egressPolicySuffix           = "-egress"
 	opencodeConfigSchema         = "https://opencode.ai/config.json"
+	opencodeMCPGatewayToolPrefix = "gateway"
 )
 
 var errImageEmpty = errors.New("agent image must not be empty")
@@ -165,10 +166,16 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	}
 	if envCfg.MCPURL != "" {
 		cfg.MCP = map[string]opencodeMCPRemoteFile{
-			"gateway": {
+			opencodeMCPGatewayToolPrefix: {
 				Type: "remote",
 				URL:  envCfg.MCPURL,
 			},
+		}
+	}
+	if len(envCfg.MCPConsentPermissionIDs) > 0 {
+		cfg.Permission = make(map[string]string, len(envCfg.MCPConsentPermissionIDs))
+		for _, permissionID := range envCfg.MCPConsentPermissionIDs {
+			cfg.Permission[opencodeMCPGatewayToolPrefix+"_"+permissionID] = "ask"
 		}
 	}
 
@@ -186,6 +193,7 @@ type opencodeConfigFile struct {
 	Instructions []string                         `json:"instructions,omitempty"`
 	Provider     map[string]opencodeProviderFile  `json:"provider,omitempty"`
 	MCP          map[string]opencodeMCPRemoteFile `json:"mcp,omitempty"`
+	Permission   map[string]string                `json:"permission,omitempty"`
 	Tools        map[string]bool                  `json:"tools,omitempty"`
 }
 

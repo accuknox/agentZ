@@ -300,13 +300,13 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 				name,
 			)
 		}
-		enabledTools := make([]string, 0, len(ref.EnabledTools))
-		seenTools := make(map[string]struct{}, len(ref.EnabledTools))
-		for _, rawToolName := range ref.EnabledTools {
-			toolName := strings.TrimSpace(rawToolName)
+		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		seenTools := make(map[string]struct{}, len(ref.Tools))
+		for _, rawTool := range ref.Tools {
+			toolName := strings.TrimSpace(rawTool.Name)
 			if toolName == "" {
 				return fmt.Errorf(
-					"environment %q mcp connection %q has an empty enabled tool name",
+					"environment %q mcp connection %q has an empty tool name",
 					env.Name,
 					name,
 				)
@@ -320,11 +320,14 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 				)
 			}
 			seenTools[toolName] = struct{}{}
-			enabledTools = append(enabledTools, toolName)
+			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+				Name:           toolName,
+				RequireConsent: rawTool.RequireConsent,
+			})
 		}
 		refsByName[name] = clawarmorv1alpha1.MCPConnectionRef{
-			Name:         name,
-			EnabledTools: enabledTools,
+			Name:  name,
+			Tools: tools,
 		}
 	}
 
@@ -348,7 +351,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 				name,
 			)
 		}
-		if len(ref.EnabledTools) == 0 {
+		if len(ref.Tools) == 0 {
 			return fmt.Errorf(
 				"environment %q mcp connection %q has no enabled tools; patch or recreate the Environment",
 				env.Name,
@@ -360,7 +363,8 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		for _, tool := range conn.Status.Tools {
 			toolNames[tool.Name] = struct{}{}
 		}
-		for _, toolName := range ref.EnabledTools {
+		for _, tool := range ref.Tools {
+			toolName := tool.Name
 			if _, ok := toolNames[toolName]; ok {
 				continue
 			}
@@ -415,12 +419,12 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		if !ok {
 			return fmt.Errorf("mcp connection ref %q is missing from environment spec", conn.Name)
 		}
-		for _, toolName := range ref.EnabledTools {
+		for _, tool := range ref.Tools {
 			matchExpressions = append(matchExpressions, agentgatewayshared.CELExpression(
 				fmt.Sprintf(
 					`mcp.tool.target == %q && mcp.tool.name == %q`,
 					conn.Name,
-					toolName,
+					tool.Name,
 				),
 			))
 		}

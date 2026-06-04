@@ -150,17 +150,17 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *clawarmo
 			continue
 		}
 		if err == nil {
-			enabledPath := path.Index(i).Child("enabledTools")
-			if len(ref.EnabledTools) == 0 {
+			toolsPath := path.Index(i).Child("tools")
+			if len(ref.Tools) == 0 {
 				fields = append(fields, field.Required(
-					enabledPath,
-					"at least one enabled tool is required",
+					toolsPath,
+					"at least one tool is required",
 				))
 				continue
 			}
 			if !conn.Status.ToolCatalogReady {
 				fields = append(fields, field.Forbidden(
-					enabledPath,
+					toolsPath,
 					fmt.Sprintf("mcp connection %q tool catalog is not ready", name),
 				))
 				continue
@@ -177,18 +177,18 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *clawarmo
 			slices.Sort(toolNames)
 
 			seenTools := map[string]int{}
-			for toolIndex, rawToolName := range ref.EnabledTools {
-				toolName := strings.TrimSpace(rawToolName)
+			for toolIndex, tool := range ref.Tools {
+				toolName := strings.TrimSpace(tool.Name)
 				if toolName == "" {
 					fields = append(fields, field.Required(
-						enabledPath.Index(toolIndex),
+						toolsPath.Index(toolIndex).Child("name"),
 						"field is required",
 					))
 					continue
 				}
 				if firstToolIndex, ok := seenTools[toolName]; ok {
 					fields = append(fields, field.Duplicate(
-						enabledPath.Index(toolIndex),
+						toolsPath.Index(toolIndex).Child("name"),
 						fmt.Sprintf("%s (first seen at index %d)", toolName, firstToolIndex),
 					))
 					continue
@@ -196,7 +196,7 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *clawarmo
 				seenTools[toolName] = toolIndex
 				if !slices.Contains(toolNames, toolName) {
 					fields = append(fields, field.NotSupported(
-						enabledPath.Index(toolIndex),
+						toolsPath.Index(toolIndex).Child("name"),
 						toolName,
 						toolNames,
 					))

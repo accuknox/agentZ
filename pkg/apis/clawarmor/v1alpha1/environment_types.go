@@ -23,9 +23,20 @@ type MCPConnectionRef struct {
 	// Name is the local name of the referenced MCPConnection.
 	Name string `json:"name"`
 
-	// EnabledTools lists the upstream MCP tool names exposed through this
-	// environment for the referenced connection.
-	EnabledTools []string `json:"enabledTools"`
+	// Tools lists the upstream MCP tools exposed through this environment
+	// for the referenced connection.
+	Tools []EnvironmentMCPTool `json:"tools"`
+}
+
+// EnvironmentMCPTool describes one upstream MCP tool exposed through an
+// environment.
+type EnvironmentMCPTool struct {
+	// Name is the upstream MCP tool name exposed through this environment.
+	Name string `json:"name"`
+
+	// RequireConsent asks the interactive user to approve this tool before
+	// OpenCode runs it.
+	RequireConsent bool `json:"requireConsent"`
 }
 
 // EnvironmentSpec defines the desired state of Environment.

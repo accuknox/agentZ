@@ -591,8 +591,13 @@ export type UpdateEnvironmentRequest = {
 }
 
 export type McpConnectionRef = {
-  enabled_tools: Array<string>
+  tools: Array<McpConnectionToolRef>
   name: McpConnectionName
+}
+
+export type McpConnectionToolRef = {
+  name: string
+  require_consent: boolean
 }
 
 export type McpConnectionTool = {

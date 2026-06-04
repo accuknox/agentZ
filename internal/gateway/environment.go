@@ -125,17 +125,20 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			continue
 		}
-		enabledTools := make([]string, 0, len(ref.EnabledTools))
-		for _, rawToolName := range ref.EnabledTools {
-			toolName := strings.TrimSpace(rawToolName)
+		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		for _, rawTool := range ref.Tools {
+			toolName := strings.TrimSpace(rawTool.Name)
 			if toolName == "" {
 				continue
 			}
-			enabledTools = append(enabledTools, toolName)
+			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+				Name:           toolName,
+				RequireConsent: rawTool.RequireConsent,
+			})
 		}
 		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
-			Name:         name,
-			EnabledTools: enabledTools,
+			Name:  name,
+			Tools: tools,
 		})
 	}
 	fields = s.validateEnvironmentMCPConnections(r.Context(), mcpConnectionRefs)
@@ -255,17 +258,20 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		if name == "" {
 			continue
 		}
-		enabledTools := make([]string, 0, len(ref.EnabledTools))
-		for _, rawToolName := range ref.EnabledTools {
-			toolName := strings.TrimSpace(rawToolName)
+		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		for _, rawTool := range ref.Tools {
+			toolName := strings.TrimSpace(rawTool.Name)
 			if toolName == "" {
 				continue
 			}
-			enabledTools = append(enabledTools, toolName)
+			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+				Name:           toolName,
+				RequireConsent: rawTool.RequireConsent,
+			})
 		}
 		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
-			Name:         name,
-			EnabledTools: enabledTools,
+			Name:  name,
+			Tools: tools,
 		})
 	}
 	packages := make([]string, 0, len(req.Packages))
@@ -339,9 +345,16 @@ func environmentFromCRD(env clawarmorv1alpha1.Environment, referenced bool) gate
 	if env.Spec.MCPConnectionRefs != nil {
 		mcpConnectionRefs = make([]gatewayapi.MCPConnectionRef, 0, len(env.Spec.MCPConnectionRefs))
 		for _, ref := range env.Spec.MCPConnectionRefs {
+			tools := make([]gatewayapi.MCPConnectionToolRef, 0, len(ref.Tools))
+			for _, tool := range ref.Tools {
+				tools = append(tools, gatewayapi.MCPConnectionToolRef{
+					Name:           tool.Name,
+					RequireConsent: tool.RequireConsent,
+				})
+			}
 			mcpConnectionRefs = append(mcpConnectionRefs, gatewayapi.MCPConnectionRef{
-				Name:         ref.Name,
-				EnabledTools: ref.EnabledTools,
+				Name:  ref.Name,
+				Tools: tools,
 			})
 		}
 	}
@@ -430,20 +443,20 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 		}
 		seen[name] = i
 
-		if len(ref.EnabledTools) == 0 {
+		if len(ref.Tools) == 0 {
 			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("mcp_connection_refs[%d].enabled_tools", i),
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].tools", i),
 				Message: "must contain at least one tool",
 			})
 			continue
 		}
 
 		seenTools := map[string]int{}
-		for toolIndex, rawToolName := range ref.EnabledTools {
-			toolName := strings.TrimSpace(rawToolName)
+		for toolIndex, tool := range ref.Tools {
+			toolName := strings.TrimSpace(tool.Name)
 			if toolName == "" {
 				fields = append(fields, gatewayapi.FieldError{
-					Field:   fmt.Sprintf("mcp_connection_refs[%d].enabled_tools[%d]", i, toolIndex),
+					Field:   fmt.Sprintf("mcp_connection_refs[%d].tools[%d].name", i, toolIndex),
 					Message: "must not be empty",
 				})
 				continue
@@ -451,7 +464,7 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 			if firstToolIndex, ok := seenTools[toolName]; ok {
 				fields = append(fields, gatewayapi.FieldError{
 					Field: fmt.Sprintf(
-						"mcp_connection_refs[%d].enabled_tools[%d]",
+						"mcp_connection_refs[%d].tools[%d].name",
 						i,
 						toolIndex,
 					),
@@ -494,7 +507,7 @@ func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []
 		}
 		if !conn.Status.ToolCatalogReady {
 			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("mcp_connection_refs[%d].enabled_tools", i),
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].tools", i),
 				Message: fmt.Sprintf("mcp connection %q tool catalog is not ready", ref.Name),
 			})
 			continue
@@ -508,13 +521,14 @@ func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []
 			}
 			toolNames[toolName] = struct{}{}
 		}
-		for toolIndex, toolName := range ref.EnabledTools {
+		for toolIndex, tool := range ref.Tools {
+			toolName := tool.Name
 			if _, ok := toolNames[toolName]; ok {
 				continue
 			}
 			fields = append(fields, gatewayapi.FieldError{
 				Field: fmt.Sprintf(
-					"mcp_connection_refs[%d].enabled_tools[%d]",
+					"mcp_connection_refs[%d].tools[%d].name",
 					i,
 					toolIndex,
 				),

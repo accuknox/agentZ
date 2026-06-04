@@ -142,7 +142,14 @@ export const createEnvironmentFormSchema = z.object({
     .array(
       z.object({
         name: z.string().trim().min(1, "MCP connection name is required"),
-        enabledTools: z.array(z.string().trim().min(1, "Tool name is required")).min(1),
+        tools: z
+          .array(
+            z.object({
+              name: z.string().trim().min(1, "Tool name is required"),
+              requireConsent: z.boolean(),
+            })
+          )
+          .min(1),
       })
     )
     .superRefine((refs, ctx) => {
@@ -159,15 +166,15 @@ export const createEnvironmentFormSchema = z.object({
         names.add(ref.name)
 
         const toolNames = new Set<string>()
-        for (const [toolIndex, toolName] of ref.enabledTools.entries()) {
-          if (!toolNames.has(toolName)) {
-            toolNames.add(toolName)
+        for (const [toolIndex, tool] of ref.tools.entries()) {
+          if (!toolNames.has(tool.name)) {
+            toolNames.add(tool.name)
             continue
           }
           ctx.addIssue({
             code: "custom",
             message: "Duplicate enabled tools are not allowed",
-            path: [index, "enabledTools", toolIndex],
+            path: [index, "tools", toolIndex, "name"],
           })
         }
       }
@@ -177,7 +184,7 @@ export const createEnvironmentFormSchema = z.object({
         .toSorted((a, b) => a.name.localeCompare(b.name))
         .map((ref) => ({
           name: ref.name,
-          enabledTools: ref.enabledTools.toSorted((a, b) => a.localeCompare(b)),
+          tools: ref.tools.toSorted((a, b) => a.name.localeCompare(b.name)),
         }))
     ),
   allowedHosts: z

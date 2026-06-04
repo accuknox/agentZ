@@ -35,7 +35,10 @@ async function UpdateEnvironmentContent({ name }: { name: string }) {
 
   const mcpConnectionRefs = env.mcp_connection_refs.map((ref) => ({
     name: ref.name,
-    enabledTools: ref.enabled_tools ?? [],
+    tools: (ref.tools ?? []).map((tool) => ({
+      name: tool.name,
+      requireConsent: tool.require_consent,
+    })),
   }))
 
   const wizardKey = JSON.stringify({

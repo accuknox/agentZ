@@ -668,8 +668,13 @@ export const zDeleteEnvironmentRequest = z.object({
   name: zEnvironmentName,
 })
 
+export const zMcpConnectionToolRef = z.object({
+  name: z.string().min(1),
+  require_consent: z.boolean(),
+})
+
 export const zMcpConnectionRef = z.object({
-  enabled_tools: z.array(z.string().min(1)).min(1),
+  tools: z.array(zMcpConnectionToolRef).min(1),
   name: zMcpConnectionName,
 })
 

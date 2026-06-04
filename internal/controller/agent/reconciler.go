@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -238,18 +239,20 @@ func (r *Reconciler) sinjectorEnabled() bool {
 }
 
 type environmentConfig struct {
-	Packages     []string
-	AllowedHosts []string
-	MCPURL       string
+	Packages                []string
+	AllowedHosts            []string
+	MCPURL                  string
+	MCPConsentPermissionIDs []string
 }
 
 func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alpha1.Agent) (environmentConfig, error) {
 	ref := agt.Spec.EnvironmentRef
 	if ref == nil {
 		return environmentConfig{
-			Packages:     []string{},
-			AllowedHosts: []string{},
-			MCPURL:       "",
+			Packages:                []string{},
+			AllowedHosts:            []string{},
+			MCPURL:                  "",
+			MCPConsentPermissionIDs: []string{},
 		}, nil
 	}
 
@@ -262,10 +265,24 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alp
 	copy(packages, env.Spec.Packages)
 	allowedHosts := make([]string, len(env.Spec.AllowedHosts))
 	copy(allowedHosts, env.Spec.AllowedHosts)
+	mcpConsentPermissionIDs := make([]string, 0, len(env.Spec.MCPConnectionRefs))
+	for _, ref := range env.Spec.MCPConnectionRefs {
+		for _, tool := range ref.Tools {
+			if !tool.RequireConsent {
+				continue
+			}
+			mcpConsentPermissionIDs = append(
+				mcpConsentPermissionIDs,
+				ref.Name+"_"+tool.Name,
+			)
+		}
+	}
+	slices.Sort(mcpConsentPermissionIDs)
 	return environmentConfig{
-		Packages:     packages,
-		AllowedHosts: allowedHosts,
-		MCPURL:       r.environmentMCPURL(ctx, agt.Namespace, env),
+		Packages:                packages,
+		AllowedHosts:            allowedHosts,
+		MCPURL:                  r.environmentMCPURL(ctx, agt.Namespace, env),
+		MCPConsentPermissionIDs: mcpConsentPermissionIDs,
 	}, nil
 }
 

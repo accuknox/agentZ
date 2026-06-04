@@ -34,7 +34,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DeleteMcpFormState, McpFormState } from "@/data/mcp.actions"
-import { findMcpServerByURL, mcpFallbackIcon } from "./catalog"
+import { renderMcpServerIcon } from "./catalog"
 import { McpSheet } from "./mcp-sheet"
 
 const mcpStatusMeta = {
@@ -139,12 +139,12 @@ export function createMcpColumns(actions: {
 }
 
 function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
-  const server = findMcpServerByURL(connection.endpoint_url)
-  const Icon = server?.icon ?? mcpFallbackIcon
-
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      {renderMcpServerIcon(connection.endpoint_url, {
+        "aria-hidden": "true",
+        className: "size-4 shrink-0",
+      })}
       <span className="min-w-0 truncate font-medium">{connection.name}</span>
     </div>
   )

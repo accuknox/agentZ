@@ -97,6 +97,10 @@ function crumbsForSegments(
     return [{ href: "/", label: "Home" }, { label: "Lens" }, { label: "Traces" }]
   }
 
+  if (segments[0] === "lens" && segments[1] === "mcp") {
+    return [{ href: "/", label: "Home" }, { label: "Lens" }, { label: "MCP" }]
+  }
+
   return genericCrumbs(segments)
 }
 
@@ -106,6 +110,7 @@ function genericCrumbs(segments: string[]): Crumb[] {
     "/",
     "/environments",
     "/environments/new",
+    "/lens/mcp",
     "/lens/runtime-telemetry",
     "/lens/traces",
     "/secrets",

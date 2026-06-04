@@ -512,23 +512,33 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 	return conn, true
 }
 
-func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
+// listMCPConnections returns all MCPConnection resources in the service
+// namespace.
+func (s *Service) listMCPConnections(ctx context.Context) ([]clawarmorv1alpha1.MCPConnection, error) {
 	var list clawarmorv1alpha1.MCPConnectionList
 	if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
 		return nil, fmt.Errorf("list mcp connections: %w", err)
 	}
+	return list.Items, nil
+}
 
-	items := make([]gatewayapi.MCPConnectionSummary, 0, len(list.Items))
-	for _, conn := range list.Items {
+func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
+	items, err := s.listMCPConnections(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]gatewayapi.MCPConnectionSummary, 0, len(items))
+	for _, conn := range items {
 		if len(names) > 0 && !slices.Contains(names, conn.Name) {
 			continue
 		}
-		items = append(items, s.mcpConnectionSummary(conn))
+		summaries = append(summaries, s.mcpConnectionSummary(conn))
 	}
-	slices.SortFunc(items, func(a, b gatewayapi.MCPConnectionSummary) int {
+	slices.SortFunc(summaries, func(a, b gatewayapi.MCPConnectionSummary) int {
 		return strings.Compare(a.Name, b.Name)
 	})
-	return items, nil
+	return summaries, nil
 }
 
 func (s *Service) mcpConnectionSummary(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {

@@ -1,6 +1,7 @@
 "use server"
 
 import {
+  getMcpGraph,
   getSpanDetail,
   listFileObservability,
   listNetworkObservability,
@@ -15,6 +16,7 @@ import {
   type FileObservabilityEvent,
   type NetworkObservabilityEvent,
   type GetSpanDetailData,
+  type GetMcpGraphData,
   type JsonValue,
   type ListSpansData,
   type ListTraceSessionsData,
@@ -28,6 +30,7 @@ import type {
   FileTelemetryRow,
   ListSpansActionResponse,
   ListTracesActionResponse,
+  McpGraphActionResponse,
   NetworkTelemetryActionResponse,
   NetworkTelemetryRow,
   ProcessTelemetryActionResponse,
@@ -219,6 +222,17 @@ export async function getSpanDetailAction(
     },
     error: undefined,
   }
+}
+
+export async function getMcpGraphAction(
+  query: GetMcpGraphData["query"]
+): Promise<McpGraphActionResponse> {
+  const result = await getMcpGraph({ query, cache: "no-store" })
+  if (result.error) {
+    return { data: undefined, error: result.error }
+  }
+
+  return { data: result.data, error: undefined }
 }
 
 export async function getRuntimeTelemetryAction({

@@ -389,6 +389,7 @@ export const zMcpGraphAgent = z.object({
 export const zMcpGraphConnection = z.object({
   id: z.string(),
   name: z.string(),
+  server_url: z.url().optional(),
 })
 
 export const zMcpGraphTool = z.object({

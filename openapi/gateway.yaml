@@ -1010,6 +1010,9 @@ components:
           type: string
         name:
           type: string
+        server_url:
+          format: uri
+          type: string
       required:
       - id
       - name

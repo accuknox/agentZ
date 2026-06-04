@@ -2435,6 +2435,9 @@ components:
           type: string
         name:
           type: string
+        server_url:
+          type: string
+          format: uri
       required: [id, name]
 
     MCPGraphTool:

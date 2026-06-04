@@ -64,7 +64,7 @@ import {
 import * as z from "zod"
 import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
 import { getMcpConnection, type McpConnectionSummary } from "@/lib/gateway/client"
-import { findMcpServerByURL, mcpFallbackIcon } from "@/app/mcps/catalog"
+import { renderMcpServerIcon } from "@/app/mcps/catalog"
 import { PackageSearch } from "./package-search"
 
 type EnvironmentWizardMode = "create" | "update"
@@ -271,12 +271,12 @@ function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
 }
 
 function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
-  const server = findMcpServerByURL(connection.endpoint_url)
-  const Icon = server?.icon ?? mcpFallbackIcon
-
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      {renderMcpServerIcon(connection.endpoint_url, {
+        "aria-hidden": "true",
+        className: "size-4 shrink-0",
+      })}
       <span className="min-w-0 truncate font-medium">{connection.name}</span>
     </div>
   )

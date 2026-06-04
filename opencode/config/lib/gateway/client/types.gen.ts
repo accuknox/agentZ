@@ -394,6 +394,7 @@ export type McpGraphAgent = {
 export type McpGraphConnection = {
   id: string
   name: string
+  server_url?: string
 }
 
 export type McpGraphTool = {

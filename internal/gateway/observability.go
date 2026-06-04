@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -342,6 +343,11 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, params gat
 	}
 
 	agentID := mcpGraphAgentNodePrefix + agentName
+	connectionURLs, err := s.mcpConnectionURLsByName(r.Context(), rows)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	connections := make([]gatewayapi.MCPGraphConnection, 0, len(rows))
 	tools := make([]gatewayapi.MCPGraphTool, 0, len(rows))
 	edges := make([]gatewayapi.MCPGraphEdge, 0, len(rows)*2)
@@ -353,10 +359,14 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, params gat
 		if !ok {
 			connectionID = "connection:" + row.McpConnectionName
 			connectionIDs[row.McpConnectionName] = connectionID
-			connections = append(connections, gatewayapi.MCPGraphConnection{
+			connection := gatewayapi.MCPGraphConnection{
 				Id:   connectionID,
 				Name: row.McpConnectionName,
-			})
+			}
+			if serverURL, found := connectionURLs[row.McpConnectionName]; found {
+				connection.ServerUrl = &serverURL
+			}
+			connections = append(connections, connection)
 			edges = append(edges, gatewayapi.MCPGraphEdge{
 				Source: agentID,
 				Target: connectionID,
@@ -399,6 +409,34 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, params gat
 		Tools:       tools,
 		Edges:       edges,
 	})
+}
+
+// mcpConnectionURLsByName returns MCP connection endpoint URLs keyed by
+// resource name for the graph rows currently being rendered.
+func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.GatewayGetMCPGraphRow) (map[string]string, error) {
+	if len(rows) == 0 {
+		return map[string]string{}, nil
+	}
+
+	names := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		names[row.McpConnectionName] = struct{}{}
+	}
+
+	conns, err := s.listMCPConnections(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	urls := make(map[string]string, len(names))
+	for _, conn := range conns {
+		if _, ok := names[conn.Name]; !ok {
+			continue
+		}
+		urls[conn.Name] = conn.Spec.Endpoint.URL
+	}
+
+	return urls, nil
 }
 
 func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListProcessObservabilityParams) {

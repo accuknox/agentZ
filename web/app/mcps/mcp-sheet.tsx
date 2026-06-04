@@ -16,7 +16,12 @@ import {
 } from "react-hook-form"
 import * as z from "zod"
 import { Check, ChevronDown, CircleAlert, RefreshCw, Settings2, Trash2, X } from "lucide-react"
-import { findMcpServerByURL, mcpFallbackIcon, mcpServers, type McpServer } from "@/app/mcps/catalog"
+import {
+  findMcpServerByURL,
+  mcpServers,
+  renderMcpServerIcon,
+  type McpServer,
+} from "@/app/mcps/catalog"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
@@ -462,11 +467,6 @@ const ServerURLField = React.memo(function ServerURLField({
   const serverFieldRef = React.useRef<HTMLDivElement | null>(null)
   const serverInputRef = React.useRef<HTMLInputElement | null>(null)
   const serverPopoverRef = React.useRef<HTMLDivElement | null>(null)
-  const selectedServer = React.useMemo(
-    () => findMcpServerByURL((field.value ?? "").trim()),
-    [field.value]
-  )
-  const SelectedServerIcon = selectedServer?.icon ?? mcpFallbackIcon
   const deferredEndpointURL = React.useDeferredValue((field.value ?? "").trim())
   const serverResults = React.useMemo(() => {
     const query = deferredEndpointURL
@@ -520,7 +520,10 @@ const ServerURLField = React.memo(function ServerURLField({
       <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
         <PopoverAnchor asChild>
           <div ref={serverFieldRef} className="relative">
-            <SelectedServerIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            {renderMcpServerIcon((field.value ?? "").trim(), {
+              className:
+                "text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2",
+            })}
             <Input
               id="mcp-endpoint-url"
               name={field.name}

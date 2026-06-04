@@ -37,7 +37,7 @@ import {
   WordPress,
   Zoom,
 } from "@ridemountainpig/svgl-react"
-import { Globe } from "lucide-react"
+import { Globe, PlugZap } from "lucide-react"
 import type { SVGProps } from "react"
 
 export type McpServer = {
@@ -47,6 +47,7 @@ export type McpServer = {
 }
 
 export const mcpFallbackIcon = Globe
+export const mcpConnectionFallbackIcon = PlugZap
 
 export const mcpServers = [
   {
@@ -919,4 +920,22 @@ export const mcpServers = [
 // findMcpServerByURL returns the catalog entry for an exact MCP endpoint URL.
 export function findMcpServerByURL(mcpURL: string): McpServer | undefined {
   return mcpServers.find((server) => server.mcpUrl === mcpURL)
+}
+
+// iconForMcpServerURL returns the icon for one MCP endpoint URL.
+export function iconForMcpServerURL(
+  mcpURL: string,
+  fallback: React.ComponentType<SVGProps<SVGSVGElement>> = mcpFallbackIcon
+): React.ComponentType<SVGProps<SVGSVGElement>> {
+  return findMcpServerByURL(mcpURL)?.icon ?? fallback
+}
+
+// renderMcpServerIcon renders the icon for one MCP endpoint URL.
+export function renderMcpServerIcon(
+  mcpURL: string,
+  props: SVGProps<SVGSVGElement>,
+  fallback: React.ComponentType<SVGProps<SVGSVGElement>> = mcpFallbackIcon
+) {
+  const Icon = iconForMcpServerURL(mcpURL, fallback)
+  return <Icon {...props} />
 }

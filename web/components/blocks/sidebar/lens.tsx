@@ -43,6 +43,13 @@ export function NavLens() {
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
+              <SidebarMenuSubItem>
+                <SidebarMenuSubButton asChild>
+                  <Link href="/lens/mcp">
+                    <span>MCP</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
             </SidebarMenuSub>
           </CollapsibleContent>
         </SidebarMenuItem>

@@ -19,8 +19,8 @@ import Providers from "./providers"
 const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
 
 export const metadata: Metadata = {
-  title: "Clawarmor",
-  description: "The AI that actually does things - SECURELY.",
+  title: "ClawArmor | AccuKnox",
+  description: "Infra for your AI agents",
   icons: ["/favicon.svg"],
 }
 

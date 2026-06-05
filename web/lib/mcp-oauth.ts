@@ -211,6 +211,7 @@ type RuntimeOAuthState = {
 const oauthCookieName = "clawarmor-mcp-oauth"
 const oauthCookieTTLSeconds = 15 * 60
 const googleAuthorizationHosts = new Set(["accounts.google.com"])
+const dropboxAuthorizationHosts = new Set(["www.dropbox.com", "dropbox.com"])
 
 function secretKeyMaterial() {
   const secret = process.env.MCP_OAUTH_COOKIE_SECRET
@@ -241,7 +242,7 @@ function oauthClientMetadata(): OAuthClientMetadata {
   const url = redirectURI()
   const base = new URL("/", url)
   return {
-    client_name: "ClawArmor MCP Web",
+    client_name: "AccuKnox ClawArmor MCP Gateway",
     redirect_uris: [url.toString()],
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
@@ -252,21 +253,26 @@ function oauthClientMetadata(): OAuthClientMetadata {
 }
 
 function applyProviderAuthorizationURLCompat(authorizationUrl: URL) {
-  if (!googleAuthorizationHosts.has(authorizationUrl.hostname)) {
-    return authorizationUrl
+  if (googleAuthorizationHosts.has(authorizationUrl.hostname)) {
+    if (!authorizationUrl.searchParams.has("access_type")) {
+      authorizationUrl.searchParams.set("access_type", "offline")
+    }
+
+    const promptValues = (authorizationUrl.searchParams.get("prompt") ?? "")
+      .split(" ")
+      .filter(Boolean)
+    if (!promptValues.includes("consent")) {
+      promptValues.push("consent")
+    }
+    authorizationUrl.searchParams.set("prompt", promptValues.join(" "))
   }
 
-  if (!authorizationUrl.searchParams.has("access_type")) {
-    authorizationUrl.searchParams.set("access_type", "offline")
+  if (
+    dropboxAuthorizationHosts.has(authorizationUrl.hostname) &&
+    !authorizationUrl.searchParams.has("token_access_type")
+  ) {
+    authorizationUrl.searchParams.set("token_access_type", "offline")
   }
-
-  const promptValues = (authorizationUrl.searchParams.get("prompt") ?? "")
-    .split(" ")
-    .filter(Boolean)
-  if (!promptValues.includes("consent")) {
-    promptValues.push("consent")
-  }
-  authorizationUrl.searchParams.set("prompt", promptValues.join(" "))
 
   return authorizationUrl
 }

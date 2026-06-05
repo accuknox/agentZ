@@ -77,7 +77,7 @@ export function createEnvironmentColumns(
     {
       accessorFn: (env) => env.mcp_connection_refs.length,
       id: "mcps",
-      header: "MCPs",
+      header: "MCP",
       cell: ({ row }) => {
         const count = row.getValue<number>("mcps")
         return `${count} MCP${count === 1 ? "" : "s"}`

@@ -895,7 +895,8 @@ function AllowedHostsStep({
       <FieldSet>
         <FieldLegend>Allowed hosts</FieldLegend>
         <FieldDescription>
-          Exact domains, leading wildcard domains, and IPv4 or IPv6 CIDR ranges.
+          Exact domains, `*.` single-label wildcards, `**.` deep wildcards, and IPv4 or IPv6 CIDR
+          ranges.
         </FieldDescription>
         <FieldGroup>
           <Field data-invalid={hostFieldInvalid}>

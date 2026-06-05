@@ -8,6 +8,7 @@ import {
   ClickUp,
   Cloudflare,
   Cloudinary,
+  Dropbox,
   Figma,
   GitHubDark,
   Gmail,
@@ -279,6 +280,11 @@ export const mcpServers = [
     name: "Dovetail",
     mcpUrl: "https://dovetail.com/api/mcp",
     icon: Globe,
+  },
+  {
+    name: "Dropbox",
+    mcpUrl: "https://mcp.dropbox.com/mcp",
+    icon: Dropbox,
   },
   {
     name: "Egnyte",

@@ -49,7 +49,7 @@ function parseSecretHost(value: string, ctx: z.RefinementCtx) {
   if (!host) {
     ctx.addIssue({
       code: "custom",
-      message: "Use a hostname, *.hostname, IP address, or CIDR range",
+      message: "Use a hostname, *.hostname, **.hostname, IP address, or CIDR range",
     })
     return z.NEVER
   }
@@ -61,7 +61,7 @@ function parseEnvironmentHost(value: string, ctx: z.RefinementCtx) {
   if (!host) {
     ctx.addIssue({
       code: "custom",
-      message: "Use a hostname, *.hostname, or CIDR range",
+      message: "Use a hostname, *.hostname, **.hostname, or CIDR range",
     })
     return z.NEVER
   }
@@ -75,6 +75,10 @@ function parseHost(value: string, allowIP: boolean) {
   }
   if (ipaddr.isValid(host)) {
     return allowIP ? host : undefined
+  }
+  if (host.startsWith("**.")) {
+    const domain = canonicalDomain(host.slice(3))
+    return domain ? `**.${domain}` : undefined
   }
   if (host.startsWith("*.")) {
     const domain = canonicalDomain(host.slice(2))

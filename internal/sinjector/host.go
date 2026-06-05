@@ -17,6 +17,7 @@ type hostKind int
 const (
 	hostDomain hostKind = iota
 	hostWildcardDomain
+	hostDeepWildcardDomain
 	hostIP
 	hostCIDR
 )
@@ -122,6 +123,19 @@ func parseSecretHost(target string) (secretHost, error) {
 		}, nil
 	}
 
+	if suffix, ok := strings.CutPrefix(target, "**."); ok {
+		suffix = strings.ToLower(suffix)
+		if err := validateHostname(suffix); err != nil {
+			return secretHost{}, fmt.Errorf("invalid wildcard host %q: %w", target, err)
+		}
+		domain := strings.TrimSuffix(suffix, ".")
+		return secretHost{
+			raw:    "**." + domain,
+			kind:   hostDeepWildcardDomain,
+			domain: domain,
+		}, nil
+	}
+
 	if suffix, ok := strings.CutPrefix(target, "*."); ok {
 		suffix = strings.ToLower(suffix)
 		if err := validateHostname(suffix); err != nil {
@@ -152,6 +166,12 @@ func (t secretHost) matches(req requestTarget) bool {
 	case hostDomain:
 		return req.domain == t.domain
 	case hostWildcardDomain:
+		if req.domain == t.domain || !strings.HasSuffix(req.domain, "."+t.domain) {
+			return false
+		}
+		prefix := strings.TrimSuffix(req.domain, "."+t.domain)
+		return !strings.Contains(prefix, ".")
+	case hostDeepWildcardDomain:
 		return req.domain != t.domain && strings.HasSuffix(req.domain, "."+t.domain)
 	case hostIP:
 		return req.addr.IsValid() && req.addr == t.addr

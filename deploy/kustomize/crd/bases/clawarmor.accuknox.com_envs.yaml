@@ -57,8 +57,8 @@ spec:
             properties:
               allowedHosts:
                 description: |-
-                  AllowedHosts lists exact domains, leading-star wildcard domains, and
-                  IPv4/IPv6 CIDRs the referencing Agent pods may reach.
+                  AllowedHosts lists exact domains, leading wildcard domains with "*."
+                  or "**.", and IPv4/IPv6 CIDRs the referencing Agent pods may reach.
                 items:
                   type: string
                 type: array

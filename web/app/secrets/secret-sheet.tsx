@@ -205,7 +205,8 @@ export function SecretSheet({
                   <Field data-invalid={fieldState.invalid || Boolean(hostDraftError)}>
                     <FieldLabel htmlFor="secret-hosts">Hosts</FieldLabel>
                     <FieldDescription className="text-muted-foreground/80">
-                      Exact host, wildcard host, IP, or CIDR. Wildcards match subdomains.
+                      Exact host, wildcard host, IP, or CIDR. Use `*.` for one label and `**.` for
+                      any subdomain depth.
                     </FieldDescription>
                     <input type="hidden" name={field.name} ref={field.ref} value={field.value} />
                     <InputGroup className="h-9">
@@ -224,7 +225,7 @@ export function SecretSheet({
                           event.preventDefault()
                           addHost()
                         }}
-                        placeholder="api.example.com, *.example.com, 10.0.0.0/24"
+                        placeholder="api.example.com, *.example.com, **.example.com, 10.0.0.0/24"
                         className="font-mono"
                         aria-invalid={fieldState.invalid || Boolean(hostDraftError)}
                       />

@@ -18,8 +18,10 @@ const (
 	HostKindCIDR HostKind = "cidr"
 	// HostKindDomain identifies an exact DNS name entry.
 	HostKindDomain HostKind = "domain"
-	// HostKindWildcard identifies a leading-star DNS wildcard entry.
+	// HostKindWildcard identifies a single-label DNS wildcard entry.
 	HostKindWildcard HostKind = "wildcard"
+	// HostKindDeepWildcard identifies a multi-label DNS wildcard entry.
+	HostKindDeepWildcard HostKind = "deep_wildcard"
 )
 
 var errEmptyHost = errors.New("must not be empty")
@@ -70,6 +72,12 @@ func ParseHost(raw string) (Host, error) {
 	}
 
 	value = strings.ToLower(value)
+	if after, ok := strings.CutPrefix(value, "**."); ok {
+		if err := validateDomain(after); err != nil {
+			return Host{}, err
+		}
+		return Host{Kind: HostKindDeepWildcard, Value: "**." + after}, nil
+	}
 	if after, ok := strings.CutPrefix(value, "*."); ok {
 		domain := after
 		if err := validateDomain(domain); err != nil {
@@ -78,7 +86,7 @@ func ParseHost(raw string) (Host, error) {
 		return Host{Kind: HostKindWildcard, Value: "*." + domain}, nil
 	}
 	if strings.Contains(value, "*") {
-		return Host{}, errors.New("wildcards must use leading-star form")
+		return Host{}, errors.New("wildcards must use leading *.|**. form")
 	}
 	if err := validateDomain(value); err != nil {
 		return Host{}, err

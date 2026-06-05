@@ -132,7 +132,7 @@ func buildHostEgressRules(hosts []envutil.Host, includeDNS bool) []ciliumapi.Egr
 		switch host.Kind {
 		case envutil.HostKindDomain:
 			fqdns = append(fqdns, ciliumapi.FQDNSelector{MatchName: host.Value})
-		case envutil.HostKindWildcard:
+		case envutil.HostKindWildcard, envutil.HostKindDeepWildcard:
 			fqdns = append(fqdns, ciliumapi.FQDNSelector{MatchPattern: host.Value})
 		case envutil.HostKindCIDR:
 			cidrs = append(cidrs, ciliumapi.CIDRRule{Cidr: ciliumapi.CIDR(host.Value)})
@@ -156,10 +156,14 @@ func buildHostEgressRules(hosts []envutil.Host, includeDNS bool) []ciliumapi.Egr
 
 func hostMatchesNoProxy(host envutil.Host, noProxy []string) bool {
 	switch host.Kind {
-	case envutil.HostKindDomain, envutil.HostKindWildcard:
+	case envutil.HostKindDomain, envutil.HostKindWildcard,
+		envutil.HostKindDeepWildcard:
 		name := host.Value
 		if host.Kind == envutil.HostKindWildcard {
 			name = strings.TrimPrefix(name, "*.")
+		}
+		if host.Kind == envutil.HostKindDeepWildcard {
+			name = strings.TrimPrefix(name, "**.")
 		}
 		for _, item := range noProxy {
 			item = strings.ToLower(strings.TrimSpace(item))

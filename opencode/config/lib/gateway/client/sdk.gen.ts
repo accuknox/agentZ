@@ -868,7 +868,7 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
 /**
  * Store or overwrite secrets for an agent.
  *
- * Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges.
+ * Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*." or "**.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges. "*." matches exactly one subdomain label, while "**." matches any subdomain depth.
  *
  */
 export const putSecret = <ThrowOnError extends boolean = false>(

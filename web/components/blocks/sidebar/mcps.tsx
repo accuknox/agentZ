@@ -9,9 +9,9 @@ export function NavMCPs() {
     <SidebarMenu>
       <SidebarMenuItem>
         <Link href="/mcps">
-          <SidebarMenuButton tooltip="MCPs">
+          <SidebarMenuButton tooltip="MCP">
             <PlugZap />
-            <span>MCPs</span>
+            <span>MCP</span>
           </SidebarMenuButton>
         </Link>
       </SidebarMenuItem>

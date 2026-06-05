@@ -145,3 +145,56 @@ func TestReplacePlaceholdersLeavesMismatchedHostUnchanged(t *testing.T) {
 		t.Fatalf("got %q, want unchanged text", got)
 	}
 }
+
+func TestSecretHostMatchesWildcardDepth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		target   string
+		hosts    []string
+		expected bool
+	}{
+		{
+			name:     "single wildcard matches one label",
+			target:   "foo.example.com:443",
+			hosts:    []string{"*.example.com"},
+			expected: true,
+		},
+		{
+			name:     "single wildcard rejects deep subdomain",
+			target:   "bar.foo.example.com:443",
+			hosts:    []string{"*.example.com"},
+			expected: false,
+		},
+		{
+			name:     "deep wildcard matches one label",
+			target:   "foo.example.com:443",
+			hosts:    []string{"**.example.com"},
+			expected: true,
+		},
+		{
+			name:     "deep wildcard matches deep subdomain",
+			target:   "bar.foo.example.com:443",
+			hosts:    []string{"**.example.com"},
+			expected: true,
+		},
+		{
+			name:     "wildcards reject apex",
+			target:   "example.com:443",
+			hosts:    []string{"*.example.com", "**.example.com"},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := SecretHostMatches(tc.target, tc.hosts)
+			if got != tc.expected {
+				t.Fatalf("SecretHostMatches(%q, %v) = %v, want %v", tc.target, tc.hosts, got, tc.expected)
+			}
+		})
+	}
+}

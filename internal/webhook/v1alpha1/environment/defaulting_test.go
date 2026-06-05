@@ -13,7 +13,13 @@ func TestDefaulterDefaultNormalizesHosts(t *testing.T) {
 
 	env := &clawarmorv1alpha1.Environment{
 		Spec: clawarmorv1alpha1.EnvironmentSpec{
-			AllowedHosts: []string{" GitHub.com ", "*.GitHub.com", "10.0.0.4/24", "github.com"},
+			AllowedHosts: []string{
+				" GitHub.com ",
+				"*.GitHub.com",
+				"**.GitHub.com",
+				"10.0.0.4/24",
+				"github.com",
+			},
 		},
 	}
 
@@ -22,7 +28,7 @@ func TestDefaulterDefaultNormalizesHosts(t *testing.T) {
 	}
 
 	got := "[" + strings.Join(env.Spec.AllowedHosts, ",") + "]"
-	want := "[github.com,*.github.com,10.0.0.0/24]"
+	want := "[github.com,*.github.com,**.github.com,10.0.0.0/24]"
 	if got != want {
 		t.Fatalf("AllowedHosts = %s, want %s", got, want)
 	}

@@ -304,20 +304,13 @@ func validateAuthLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation,
 			))
 		}
 		if headerName != "" {
-			if _, ok := reservedAuthHeaders[headerName]; ok && headerName != http.CanonicalHeaderKey(defaultAuthHeaderName) {
+			if _, ok := reservedAuthHeaders[headerName]; ok && headerName != http.CanonicalHeaderKey("Authorization") {
 				fields = append(fields, field.Invalid(
 					path.Child("header").Child("name"),
 					location.Header.Name,
 					fmt.Sprintf("header %q is reserved", headerName),
 				))
 			}
-		}
-		if location.Header.Prefix != nil && strings.TrimSpace(*location.Header.Prefix) == "" {
-			fields = append(fields, field.Invalid(
-				path.Child("header").Child("prefix"),
-				*location.Header.Prefix,
-				"prefix must not be empty",
-			))
 		}
 	}
 	if location.QueryParameter != nil {

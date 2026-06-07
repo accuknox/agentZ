@@ -26,11 +26,6 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-const (
-	defaultAuthHeaderName   = "Authorization"
-	defaultAuthHeaderPrefix = "Bearer"
-)
-
 // +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-mcpconnection,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=create;update,versions=v1alpha1,name=mmcpconnection-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Defaulter sets default values for MCPConnection resources.
@@ -62,42 +57,10 @@ func ApplyDefaults(spec *clawarmorv1alpha1.MCPConnectionSpec) {
 	if spec.Auth == nil {
 		return
 	}
-
-	if spec.Auth.Bearer != nil {
-		spec.Auth.Bearer.Location = defaultAuthLocation(spec.Auth.Bearer.Location)
-	}
-	if spec.Auth.OAuth != nil {
-		spec.Auth.OAuth.Location = defaultAuthLocation(spec.Auth.OAuth.Location)
-	}
 }
 
 // Default applies defaults to an MCPConnection resource.
 func (d *Defaulter) Default(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
 	ApplyDefaults(&conn.Spec)
 	return nil
-}
-
-func defaultAuthLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) *clawarmorv1alpha1.MCPConnectionAuthLocation {
-	if location == nil {
-		location = &clawarmorv1alpha1.MCPConnectionAuthLocation{}
-	}
-	if location.Header == nil && location.QueryParameter == nil && location.Cookie == nil {
-		prefix := defaultAuthHeaderPrefix
-		location.Header = &clawarmorv1alpha1.MCPConnectionHeaderLocation{
-			Name:   defaultAuthHeaderName,
-			Prefix: &prefix,
-		}
-		return location
-	}
-	if location.Header == nil {
-		return location
-	}
-	if strings.TrimSpace(location.Header.Name) == "" {
-		location.Header.Name = defaultAuthHeaderName
-	}
-	if location.Header.Prefix == nil {
-		prefix := defaultAuthHeaderPrefix
-		location.Header.Prefix = &prefix
-	}
-	return location
 }

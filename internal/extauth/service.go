@@ -664,7 +664,7 @@ func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (auth
 	if location == nil {
 		return authHeaderLocation{
 			name:   "Authorization",
-			prefix: "Bearer",
+			prefix: "",
 		}, nil
 	}
 	if location.QueryParameter != nil || location.Cookie != nil {
@@ -673,7 +673,7 @@ func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (auth
 	if location.Header == nil {
 		return authHeaderLocation{
 			name:   "Authorization",
-			prefix: "Bearer",
+			prefix: "",
 		}, nil
 	}
 
@@ -682,7 +682,7 @@ func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (auth
 		name = "Authorization"
 	}
 
-	prefix := "Bearer"
+	var prefix string
 	if location.Header.Prefix != nil {
 		prefix = strings.TrimSpace(*location.Header.Prefix)
 	}

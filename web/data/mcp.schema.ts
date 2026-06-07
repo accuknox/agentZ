@@ -3,13 +3,8 @@ import type {
   JsonObject,
   McpConnectionDetail,
   McpConnectionAuthLocation,
-  McpConnectionHeaderLocation,
 } from "@/lib/gateway/client"
-import {
-  zMcpConnectionAuthLocation,
-  zMcpConnectionName,
-  zMcpConnectionOAuthCredentials,
-} from "@/lib/gateway/client/zod.gen"
+import { zMcpConnectionName, zMcpConnectionOAuthCredentials } from "@/lib/gateway/client/zod.gen"
 
 const reservedHeaderNames = new Set([
   "authorization",
@@ -65,7 +60,7 @@ const authLocationHeaderFormSchema = z.object({
   prefix: z
     .string()
     .optional()
-    .transform((value) => value?.trim() || undefined),
+    .transform((value) => (value === undefined ? undefined : value.trim())),
 })
 
 const baseFormSchema = z.object({
@@ -202,12 +197,10 @@ export const mcpFormSchema = baseFormSchema.superRefine((value, ctx) => {
         message: "Token is required",
       })
     }
-    const parsedBearerLocation = zMcpConnectionAuthLocation.safeParse({
-      header: locationHeaderInput(
-        value.bearer_location_header_name,
-        value.bearer_location_header_prefix
-      ),
-    })
+    const parsedBearerLocation = parseAuthLocation(
+      value.bearer_location_header_name,
+      value.bearer_location_header_prefix
+    )
     if (!parsedBearerLocation.success) {
       for (const issue of parsedBearerLocation.error.issues) {
         const path =
@@ -287,12 +280,10 @@ export const mcpFormSchema = baseFormSchema.superRefine((value, ctx) => {
     }
   }
 
-  const parsedOAuthLocation = zMcpConnectionAuthLocation.safeParse({
-    header: locationHeaderInput(
-      value.oauth_location_header_name,
-      value.oauth_location_header_prefix
-    ),
-  })
+  const parsedOAuthLocation = parseAuthLocation(
+    value.oauth_location_header_name,
+    value.oauth_location_header_prefix
+  )
   if (!parsedOAuthLocation.success) {
     for (const issue of parsedOAuthLocation.error.issues) {
       const path =
@@ -344,10 +335,44 @@ function locationHeaderInput(name?: string, prefix?: string) {
     name,
     prefix,
   })
-  if (!parsed.name && !parsed.prefix) {
+  if (!parsed.name && parsed.prefix === undefined) {
     return undefined
   }
-  return parsed satisfies Partial<McpConnectionHeaderLocation>
+  return parsed
+}
+
+function parseAuthLocation(name?: string, prefix?: string) {
+  const header = locationHeaderInput(name, prefix)
+  if (!header) {
+    return {
+      success: true as const,
+      data: undefined,
+    }
+  }
+
+  if (!header.name) {
+    return {
+      success: false as const,
+      error: {
+        issues: [
+          {
+            path: ["header", "name"],
+            message: "Invalid input: expected string, received undefined",
+          },
+        ],
+      },
+    }
+  }
+
+  return {
+    success: true as const,
+    data: {
+      header: {
+        name: header.name,
+        ...(header.prefix !== undefined ? { prefix: header.prefix } : {}),
+      },
+    } satisfies McpConnectionAuthLocation,
+  }
 }
 
 export function parseMcpForm(values: McpFormValues): ParsedMcpForm {
@@ -403,14 +428,14 @@ function authLocationFromHeaderInput(
   name?: string,
   prefix?: string
 ): McpConnectionAuthLocation | undefined {
-  const header = locationHeaderInput(name, prefix)
-  if (!header) {
+  const parsed = parseAuthLocation(name, prefix)
+  if (!parsed.success) {
     return undefined
   }
-
-  return zMcpConnectionAuthLocation.parse({
-    header,
-  })
+  if (!parsed.data) {
+    return undefined
+  }
+  return parsed.data
 }
 
 export function mcpAuthLocation(): McpConnectionAuthLocation {
@@ -424,7 +449,7 @@ export function mcpAuthLocation(): McpConnectionAuthLocation {
 
 export function formAuthLocation(input?: McpConnectionAuthLocation) {
   return {
-    headerName: input?.header?.name ?? "Authorization",
+    headerName: input?.header?.name ?? "",
     headerPrefix: input?.header?.prefix ?? "Bearer",
   }
 }

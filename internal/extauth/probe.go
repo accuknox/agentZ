@@ -217,7 +217,9 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1a
 			Name:    "clawarmor-extauth",
 			Version: "v0.0.1",
 		},
-		nil,
+		&mcpsdk.ClientOptions{
+			Capabilities: &mcpsdk.ClientCapabilities{},
+		},
 	)
 	transport := &mcpsdk.StreamableClientTransport{
 		Endpoint:             conn.Spec.Endpoint.URL,
@@ -288,12 +290,16 @@ func (s *Service) probeTransport(ctx context.Context, conn *clawarmorv1alpha1.MC
 			return nil, fmt.Errorf("mcp credentials are invalid: %w", errCredentialUnavailable)
 		}
 
-		if location != nil && location.Header != nil {
-			value := token
-			if location.Header.Prefix != nil && *location.Header.Prefix != "" {
-				value = strings.TrimSpace(*location.Header.Prefix) + " " + token
+		if location == nil || location.Header != nil {
+			authHeader, err := headerLocation(location)
+			if err != nil {
+				return nil, err
 			}
-			header.Set(location.Header.Name, value)
+			value := token
+			if prefix := strings.TrimSpace(authHeader.prefix); prefix != "" {
+				value = prefix + " " + token
+			}
+			header.Set(authHeader.name, value)
 		}
 		if location != nil && location.QueryParameter != nil {
 			query.Set(location.QueryParameter.Name, token)

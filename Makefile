@@ -60,7 +60,7 @@ run-gateway:
 		--agent-trace-endpoint=172.18.0.1:4317 \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
-		--openbao-k8s-auth-role=clawarmor-gateway \
+		--openbao-k8s-auth-role=gateway \
 		--openbao-k8s-auth-token-path=/tmp/sa-token
 
 # Run agent controller manager
@@ -77,7 +77,7 @@ run-manager:
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
-		--manager-openbao-k8s-auth-role=clawarmor-manager \
+		--manager-openbao-k8s-auth-role=manager \
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=nix-store \
@@ -97,7 +97,7 @@ run-extauth:
 		--namespace=default \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
-		--openbao-k8s-auth-role=clawarmor-extauth \
+		--openbao-k8s-auth-role=extauth \
 		--openbao-k8s-auth-token-path=/tmp/sa-token
 
 # Generate a consolidated YAML with CRDs and deployment.

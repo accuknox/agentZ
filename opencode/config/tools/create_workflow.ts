@@ -1,68 +1,35 @@
 import { tool } from "@opencode-ai/plugin"
 
-import { createWorkflow, type CreateWorkflowRequest } from "../lib/gateway"
-import { zError } from "../lib/gateway"
-import { agentNameFromResourceAttributes, workflowErrorOutput } from "../lib/workflow"
+import { createWorkflow, type CreateWorkflowRequest, zError } from "../lib/gateway"
+import { zCreateWorkflowBody } from "../lib/gateway/client/zod.gen"
+import {
+  agentNameFromResourceAttributes,
+  formatRequestValidationError,
+  validateWorkflowDefinition,
+  workflowErrorOutput,
+} from "../lib/workflow"
 
-const workflowInputSchema = tool.schema
-  .object({
-    type: tool.schema.enum(["string", "integer", "number", "boolean"]),
-    description: tool.schema.string().min(1).max(1024).optional(),
-    required: tool.schema.boolean(),
-    default: tool.schema
-      .union([tool.schema.string(), tool.schema.number(), tool.schema.boolean()])
-      .optional(),
-    enum: tool.schema
-      .array(tool.schema.union([tool.schema.string(), tool.schema.number(), tool.schema.boolean()]))
-      .min(1)
-      .optional(),
-    minLength: tool.schema.number().int().min(0).max(2048).optional(),
-    maxLength: tool.schema.number().int().min(0).max(2048).optional(),
-    pattern: tool.schema.string().min(1).max(1024).optional(),
-    format: tool.schema.enum(["email", "uri", "uuid", "date", "date-time"]).optional(),
-    minimum: tool.schema.number().optional(),
-    maximum: tool.schema.number().optional(),
-    exclusiveMinimum: tool.schema.number().optional(),
-    exclusiveMaximum: tool.schema.number().optional(),
-    multipleOf: tool.schema.number().gt(0).optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (
-      value.minLength !== undefined &&
-      value.maxLength !== undefined &&
-      value.minLength > value.maxLength
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["minLength"],
-        message: "minLength must be less than or equal to maxLength",
-      })
-    }
-
-    if (
-      value.minimum !== undefined &&
-      value.maximum !== undefined &&
-      value.minimum > value.maximum
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["minimum"],
-        message: "minimum must be less than or equal to maximum",
-      })
-    }
-
-    if (
-      value.exclusiveMinimum !== undefined &&
-      value.exclusiveMaximum !== undefined &&
-      value.exclusiveMinimum >= value.exclusiveMaximum
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["exclusiveMinimum"],
-        message: "exclusiveMinimum must be less than exclusiveMaximum",
-      })
-    }
-  })
+const workflowInputSchema = tool.schema.object({
+  type: tool.schema.enum(["string", "integer", "number", "boolean"]),
+  description: tool.schema.string().min(1).max(1024).optional(),
+  required: tool.schema.boolean(),
+  default: tool.schema
+    .union([tool.schema.string(), tool.schema.number(), tool.schema.boolean()])
+    .optional(),
+  enum: tool.schema
+    .array(tool.schema.union([tool.schema.string(), tool.schema.number(), tool.schema.boolean()]))
+    .min(1)
+    .optional(),
+  minLength: tool.schema.number().int().min(0).max(2048).optional(),
+  maxLength: tool.schema.number().int().min(0).max(2048).optional(),
+  pattern: tool.schema.string().min(1).max(1024).optional(),
+  format: tool.schema.enum(["email", "uri", "uuid", "date", "date-time"]).optional(),
+  minimum: tool.schema.number().optional(),
+  maximum: tool.schema.number().optional(),
+  exclusiveMinimum: tool.schema.number().optional(),
+  exclusiveMaximum: tool.schema.number().optional(),
+  multipleOf: tool.schema.number().gt(0).optional(),
+})
 
 const createWorkflowArgs = {
   inputs: tool.schema
@@ -71,7 +38,6 @@ const createWorkflowArgs = {
     .describe(
       "Optional flat object keyed by input name. " +
         "Each value must be a typed schema object with explicit fields like type, required, default, and enum. " +
-        "String and numeric bounds must be ordered correctly. " +
         'Plain strings like {target_url: "string"} and extra JSON Schema metadata are NOT valid.'
     ),
   workflow_name: tool.schema
@@ -129,7 +95,7 @@ const createWorkflowArgs = {
     )
     .describe(
       "Directed edges between nodes. Use branch_label for branch names. " +
-        "When a node has multiple outgoing edges, every outgoing edge must define a non-empty condition_summary."
+        "When a node has multiple outgoing edges, every outgoing edge must define a non-empty branch_label and condition_summary."
     ),
 }
 
@@ -151,10 +117,6 @@ Authoring rules:
 - Each inputs entry must be a schema object with at least type and required.
 - Each inputs entry may use only these keys: type, description, required, default, enum, minLength, maxLength, pattern, format, minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf.
 - Supported input types are scalar only: string, integer, number, and boolean.
-- If both minLength and maxLength are set, minLength must be less than or equal to maxLength.
-- If both minimum and maximum are set, minimum must be less than or equal to maximum.
-- If both exclusiveMinimum and exclusiveMaximum are set, exclusiveMinimum must be less than exclusiveMaximum.
-- multipleOf must be greater than 0.
 - required belongs inside each inputs.<name> schema object. Do not use top-level JSON Schema required arrays inside one input definition.
 - Nested object or array input schemas are NOT supported.
 - Extra JSON Schema metadata such as $schema, title, properties, items, additionalProperties, oneOf, anyOf, or allOf is NOT supported and may fail metaschema validation.
@@ -170,10 +132,10 @@ Authoring rules:
 Branching semantics:
 - Use multiple outgoing edges when the next step depends on a decision or observed outcome.
 - Keep branch conditions on edges, not inside node instructions.
-- If a node has multiple outgoing edges, each outgoing edge must have a non-empty condition_summary.
+- If a node has multiple outgoing edges, each outgoing edge must have a non-empty branch_label and condition_summary.
 - Do not use an unlabeled default edge from a branching node.
 
-If the service reports workflow_name already in use, inform the user that you are renaming the workflow, choose a new DNS-label workflow_name yourself, and retry.
+If the service reports workflow_name already in use, surface the conflict. Do not rename the workflow automatically.
 
 Example:
 {
@@ -273,7 +235,11 @@ export default tool({
         title: "Workflow creation unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return "Could not derive clawarmor.agent_name from OPENCODE_RESOURCE_ATTRIBUTES. Configure the agent runtime to inject that resource attribute before using create_workflow."
+      return (
+        "Could not derive clawarmor.agent_name from " +
+        "OPENCODE_RESOURCE_ATTRIBUTES. Configure the agent runtime to inject " +
+        "that resource attribute before using create_workflow."
+      )
     }
 
     context.metadata({
@@ -284,10 +250,46 @@ export default tool({
       },
     })
 
-    const body = {
+    const bodyInput = {
       agent_name: agentName,
       ...args,
     } satisfies CreateWorkflowRequest
+
+    const bodyResult = zCreateWorkflowBody.safeParse(bodyInput)
+    if (!bodyResult.success) {
+      const issues = bodyResult.error.issues.map((issue) => ({
+        path: issue.path.length > 0 ? issue.path.join(".") : "request",
+        message: issue.message,
+      }))
+      context.metadata({
+        title: "Workflow creation failed",
+        metadata: {
+          agent_name: agentName,
+          workflow_name: args.workflow_name,
+          reason: "invalid_request_body",
+          issues,
+        },
+      })
+      return formatRequestValidationError("Workflow creation request validation failed.", issues)
+    }
+
+    const body = bodyResult.data
+    const validationIssues = validateWorkflowDefinition(body)
+    if (validationIssues.length > 0) {
+      context.metadata({
+        title: "Workflow creation failed",
+        metadata: {
+          agent_name: agentName,
+          workflow_name: body.workflow_name,
+          reason: "invalid_workflow_definition",
+          issues: validationIssues,
+        },
+      })
+      return formatRequestValidationError(
+        "Workflow definition validation failed.",
+        validationIssues
+      )
+    }
 
     const result = await createWorkflow({
       body,
@@ -303,7 +305,11 @@ export default tool({
           edge_count: result.data.edges.length,
         },
       })
-      return `Created workflow ${result.data.workflow_name} for agent ${result.data.agent_name} with ${result.data.nodes.length} nodes and ${result.data.edges.length} edges.`
+      return (
+        `Created workflow ${result.data.workflow_name} for agent ` +
+        `${result.data.agent_name} with ${result.data.nodes.length} nodes ` +
+        `and ${result.data.edges.length} edges.`
+      )
     }
 
     const error = zError.safeParse(result.error)
@@ -312,17 +318,30 @@ export default tool({
         title: "Workflow creation failed",
         metadata: { agent_name: agentName, reason: "unexpected_error" },
       })
-      return `Workflow creation failed for agent ${agentName}, and the service returned an unexpected error shape.`
+      return (
+        `Workflow creation failed for agent ${agentName}, and the service ` +
+        "returned an unexpected error shape."
+      )
     }
 
     context.metadata({
       title: "Workflow creation failed",
       metadata: {
         agent_name: agentName,
+        workflow_name: args.workflow_name,
         code: error.data.code,
         errors: error.data.errors ?? [],
       },
     })
+
+    if (error.data.code === "already_exists") {
+      return (
+        `Workflow ${args.workflow_name} already exists for agent ${agentName}. ` +
+        "Choose a new workflow_name or delete the existing workflow before " +
+        "recreating it."
+      )
+    }
+
     return workflowErrorOutput(error.data)
   },
 })

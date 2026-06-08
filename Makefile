@@ -73,7 +73,6 @@ run-manager:
 		--enable-webhooks=false \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
-		--sinjector-image=$(IMAGE) \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \

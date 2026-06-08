@@ -75,7 +75,6 @@ var (
 	gatewayURL                                       string
 	nixStorePVC                                      string
 	agentInitImage                                   string
-	sinjectorImage                                   string
 	openBaoAddr                                      string
 	managerOpenBaoAddr                               string
 	openBaoSecretMountPath                           string
@@ -255,17 +254,9 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:        "sinjector-image",
-			Usage:       "Container image for secret injection proxy pods",
-			Destination: &sinjectorImage,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-
-		&cli.StringFlag{
 			Name:        "openbao-addr",
 			Usage:       "OpenBao server address",
+			Value:       "http://openbao.openbao.svc.cluster.local:8200",
 			Destination: &openBaoAddr,
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -283,6 +274,7 @@ var managerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:        "openbao-secret-mount-path",
 			Usage:       "OpenBao KV v2 secret engine mount path",
+			Value:       "kv",
 			Destination: &openBaoSecretMountPath,
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -309,6 +301,7 @@ var managerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:        "manager-openbao-k8s-auth-role",
 			Usage:       "OpenBao Kubernetes auth role for controller-manager provisioning",
+			Value:       "manager",
 			Destination: &managerOpenBaoK8sAuthRole,
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -326,6 +319,7 @@ var managerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:        "sinjector-ca-secret-name",
 			Usage:       "Shared cert-manager Secret containing SIP CA cert/key/bundle",
+			Value:       "sinjector",
 			Destination: &sinjectorCASecretName,
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -416,7 +410,7 @@ var managerCmd = &cli.Command{
 
 		if len(webhookCertPath) > 0 {
 			setupLog.Info(
-				"Initializing webhook certificate watcher using provided certificates",
+				"initializing webhook certificate watcher using provided certificates",
 				"webhook-cert-path", webhookCertPath,
 				"webhook-cert-name", webhookCertName,
 				"webhook-cert-key", webhookCertKey,
@@ -458,7 +452,7 @@ var managerCmd = &cli.Command{
 		//
 		if len(metricsCertPath) > 0 {
 			setupLog.Info(
-				"Initializing metrics certificate watcher using provided certificates",
+				"initializing metrics certificate watcher using provided certificates",
 				"metrics-cert-path", metricsCertPath,
 				"metrics-cert-name", metricsCertName,
 				"metrics-cert-key", metricsCertKey,
@@ -495,18 +489,18 @@ var managerCmd = &cli.Command{
 				defaultNamespaces[strings.TrimSpace(ns)] = cache.Config{}
 			}
 			mgrOptions.Cache = cache.Options{DefaultNamespaces: defaultNamespaces}
-			setupLog.Info("Watching namespace(s)", "namespaces", watchNamespace)
+			setupLog.Info("watching namespace(s)", "namespaces", watchNamespace)
 		}
 
 		restCfg, err := ctrl.GetConfig()
 		if err != nil {
-			setupLog.Error(err, "Failed to load Kubernetes config")
+			setupLog.Error(err, "failed to load Kubernetes config")
 			os.Exit(1)
 		}
 
 		mgr, err := ctrl.NewManager(restCfg, mgrOptions)
 		if err != nil {
-			setupLog.Error(err, "Failed to start manager")
+			setupLog.Error(err, "failed to start manager")
 			os.Exit(1)
 		}
 		err = mcp.IndexEnvironmentMCPConnections(
@@ -514,19 +508,36 @@ var managerCmd = &cli.Command{
 			mgr.GetFieldIndexer(),
 		)
 		if err != nil {
-			setupLog.Error(err, "Failed to register shared field index", "index", mcp.EnvironmentByMCPConnectionIndex)
+			setupLog.Error(
+				err,
+				"failed to register shared field index",
+				"index", mcp.EnvironmentByMCPConnectionIndex,
+			)
 			os.Exit(1)
 		}
 
 		gwClient, err := gatewayapi.NewClientWithResponses(gatewayURL, gatewayapi.WithHTTPClient(&http.Client{}))
 		if err != nil {
-			setupLog.Error(err, "Failed to create gateway client", "gatewayURL", gatewayURL)
+			setupLog.Error(
+				err,
+				"failed to create gateway client",
+				"gatewayURL", gatewayURL,
+			)
 			os.Exit(1)
 		}
 		agClient, err := agentgatewayclientset.NewForConfig(restCfg)
 		if err != nil {
-			setupLog.Error(err, "Failed to create agentgateway clientset")
+			setupLog.Error(err, "failed to create agentgateway clientset")
 			os.Exit(1)
+		}
+		if openBaoAddr == "" {
+			return fmt.Errorf("openbao addr is required")
+		}
+		if openBaoSecretMountPath == "" {
+			return fmt.Errorf("openbao secret mount path is required")
+		}
+		if sinjectorCASecretName == "" {
+			return fmt.Errorf("sinjector ca secret name is required")
 		}
 
 		runtimeConfig := agent.RuntimeConfig{
@@ -534,7 +545,6 @@ var managerCmd = &cli.Command{
 			GatewayURL:                       gatewayURL,
 			SharedNixPVC:                     nixStorePVC,
 			AgentInitImage:                   agentInitImage,
-			SinjectorImage:                   sinjectorImage,
 			OpenBaoAddr:                      openBaoAddr,
 			ManagerOpenBaoAddr:               managerOpenBaoAddr,
 			OpenBaoSecretMountPath:           openBaoSecretMountPath,
@@ -542,6 +552,7 @@ var managerCmd = &cli.Command{
 			SinjectorOpenBaoK8sAuthTokenPath: sinjectorOpenBaoK8sAuthTokenPath,
 			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
 			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
+			SinjectorImage:                   controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,
 			SinjectorCASecretKeyKey:          sinjectorCASecretKeyKey,
@@ -551,22 +562,10 @@ var managerCmd = &cli.Command{
 			AgentCABundlePath:                agentCABundlePath,
 		}
 
-		var bao agent.OpenBaoProvisioner
-		if sinjectorImage != "" {
-			if openBaoAddr == "" {
-				return fmt.Errorf("openbao addr is required when sinjector is enabled")
-			}
-			if openBaoSecretMountPath == "" {
-				return fmt.Errorf("openbao secret mount path is required when sinjector is enabled")
-			}
-			if sinjectorCASecretName == "" {
-				return fmt.Errorf("sinjector ca secret name is required when sinjector is enabled")
-			}
-			bao, err = agent.NewOpenBaoProvisioner(ctx, runtimeConfig)
-			if err != nil {
-				setupLog.Error(err, "Failed to create OpenBao provisioner")
-				os.Exit(1)
-			}
+		bao, err := agent.NewOpenBaoProvisioner(ctx, runtimeConfig)
+		if err != nil {
+			setupLog.Error(err, "failed to create OpenBao provisioner")
+			os.Exit(1)
 		}
 
 		reconciler := &agent.Reconciler{
@@ -576,7 +575,7 @@ var managerCmd = &cli.Command{
 			Bao:    bao,
 		}
 		if err := reconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "Failed to create controller", "controller", "Agent")
+			setupLog.Error(err, "failed to create controller", "controller", "Agent")
 			os.Exit(1)
 		}
 
@@ -586,7 +585,7 @@ var managerCmd = &cli.Command{
 			AgentGateway: agClient,
 		}
 		if err := envReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "Failed to create controller", "controller", "Environment")
+			setupLog.Error(err, "failed to create controller", "controller", "Environment")
 			os.Exit(1)
 		}
 
@@ -595,23 +594,23 @@ var managerCmd = &cli.Command{
 				AgentDefaultImage: agentImage,
 			})
 			if err != nil {
-				setupLog.Error(err, "Failed to create webhook", "webhook", "Agent")
+				setupLog.Error(err, "failed to create webhook", "webhook", "Agent")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupEnvironmentWebhookWithManager(mgr); err != nil {
-				setupLog.Error(err, "Failed to create webhook", "webhook", "Environment")
+				setupLog.Error(err, "failed to create webhook", "webhook", "Environment")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient); err != nil {
-				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowSchedule")
+				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowSchedule")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr, gwClient); err != nil {
-				setupLog.Error(err, "Failed to create webhook", "webhook", "WorkflowRun")
+				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowRun")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupMCPConnectionWebhookWithManager(mgr, mgr.GetClient()); err != nil {
-				setupLog.Error(err, "Failed to create webhook", "webhook", "MCPConnection")
+				setupLog.Error(err, "failed to create webhook", "webhook", "MCPConnection")
 				os.Exit(1)
 			}
 		}
@@ -622,7 +621,7 @@ var managerCmd = &cli.Command{
 			ControllerImage: controllerImage,
 		}
 		if err := workflowScheduleReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "Failed to create controller", "controller", "WorkflowSchedule")
+			setupLog.Error(err, "failed to create controller", "controller", "WorkflowSchedule")
 			os.Exit(1)
 		}
 
@@ -631,7 +630,7 @@ var managerCmd = &cli.Command{
 			GatewayClient: gwClient,
 		}
 		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "Failed to create controller", "controller", "WorkflowRun")
+			setupLog.Error(err, "failed to create controller", "controller", "WorkflowRun")
 			os.Exit(1)
 		}
 
@@ -648,24 +647,24 @@ var managerCmd = &cli.Command{
 			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "Failed to create controller", "controller", "MCPConnection")
+			setupLog.Error(err, "failed to create controller", "controller", "MCPConnection")
 			os.Exit(1)
 		}
 
 		// +kubebuilder:scaffold:builder
 
 		if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-			setupLog.Error(err, "Failed to set up health check")
+			setupLog.Error(err, "failed to set up health check")
 			os.Exit(1)
 		}
 		if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-			setupLog.Error(err, "Failed to set up ready check")
+			setupLog.Error(err, "failed to set up ready check")
 			os.Exit(1)
 		}
 
 		setupLog.Info("Starting manager")
 		if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-			setupLog.Error(err, "Failed to run manager")
+			setupLog.Error(err, "failed to run manager")
 			os.Exit(1)
 		}
 

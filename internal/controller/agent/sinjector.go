@@ -19,7 +19,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"maps"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -45,18 +44,18 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alp
 	if err := r.reconcileServiceAccount(ctx, agt, sipName, sipLabels); err != nil {
 		return err
 	}
-
-	if r.Bao != nil {
-		err := r.Bao.ProvisionSinjector(ctx, r.Config, SinjectorOpenBaoOptions{
-			Namespace:          agt.Namespace,
-			ServiceAccountName: sipName,
-			RoleName:           sinjectorName(agt),
-			PolicyName:         sinjectorName(agt),
-			AgentName:          agt.Name,
-		})
-		if err != nil {
-			return err
-		}
+	if r.Bao == nil {
+		return fmt.Errorf("openbao provisioner is not configured")
+	}
+	err := r.Bao.ProvisionSinjector(ctx, r.Config, SinjectorOpenBaoOptions{
+		Namespace:          agt.Namespace,
+		ServiceAccountName: sipName,
+		RoleName:           sinjectorName(agt),
+		PolicyName:         sinjectorName(agt),
+		AgentName:          agt.Name,
+	})
+	if err != nil {
+		return err
 	}
 
 	if err := r.reconcileSinjectorService(ctx, agt); err != nil {
@@ -73,8 +72,7 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alp
 
 func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
 	if r.Bao == nil {
-		slog.WarnContext(ctx, "openbao provisioner is not configured for sinjector cleanup")
-		return nil
+		return fmt.Errorf("openbao provisioner is not configured")
 	}
 	return r.Bao.CleanupSinjector(ctx, r.Config, SinjectorOpenBaoOptions{
 		Namespace:          agt.Namespace,
@@ -82,33 +80,6 @@ func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *clawarmorv1alpha
 		RoleName:           sinjectorName(agt),
 		PolicyName:         sinjectorName(agt),
 	})
-}
-
-func (r *Reconciler) deleteSinjectorResources(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
-	ns := agt.Namespace
-	name := sinjectorName(agt)
-
-	dep := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
-	if err := r.Delete(ctx, dep); err != nil && !apierr.IsNotFound(err) {
-		return fmt.Errorf("delete sinjector deployment: %w", err)
-	}
-
-	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
-	if err := r.Delete(ctx, svc); err != nil && !apierr.IsNotFound(err) {
-		return fmt.Errorf("delete sinjector service: %w", err)
-	}
-
-	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
-	if err := r.Delete(ctx, sa); err != nil && !apierr.IsNotFound(err) {
-		return fmt.Errorf("delete sinjector serviceaccount: %w", err)
-	}
-
-	policy := &ciliumv2.CiliumNetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
-	if err := r.Delete(ctx, policy); err != nil && !apierr.IsNotFound(err) {
-		return fmt.Errorf("delete sinjector network policy: %w", err)
-	}
-
-	return nil
 }
 
 func (r *Reconciler) reconcileServiceAccount(ctx context.Context, agt *clawarmorv1alpha1.Agent, name string, labels map[string]string) error {
@@ -187,7 +158,9 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 	if err != nil {
 		return err
 	}
-	egress := buildHostEgressRules(uniqueHosts(hosts), true)
+	dnsHosts := append([]envutil.Host{}, hosts...)
+	dnsHosts = append(dnsHosts, hostForEndpoint(r.Config.OpenBaoAddr)...)
+	egress := buildHostEgressRules(uniqueHosts(hosts), uniqueHosts(dnsHosts))
 	egress = append(egress, openBaoEgressRule())
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = sinjectorName(agt)
@@ -280,19 +253,9 @@ func openBaoEgressRule() ciliumapi.EgressRule {
 }
 
 func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *appsv1.Deployment {
-	image := r.Config.SinjectorImage
-	if image == "" {
-		image = r.Config.AgentDefaultImage
-	}
 	labels := sinjectorLabels(agt)
 	podLabels := make(map[string]string, len(labels))
 	maps.Copy(podLabels, labels)
-	replicas := int32(1)
-	grace := int64(5)
-	certKey := r.Config.SinjectorCASecretCertKey
-	keyKey := r.Config.SinjectorCASecretKeyKey
-	certPath := r.Config.SinjectorCACertPath
-	keyPath := r.Config.SinjectorCAKeyPath
 
 	args := []string{
 		"sinjector",
@@ -303,8 +266,8 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 		"--openbao-k8s-auth-role", sinjectorName(agt),
 		"--openbao-k8s-auth-mount-path", r.Config.OpenBaoK8sAuthMountPath,
 		"--openbao-k8s-auth-token-path", r.Config.SinjectorOpenBaoK8sAuthTokenPath,
-		"--ca-cert-path", certPath,
-		"--ca-key-path", keyPath,
+		"--ca-cert-path", r.Config.SinjectorCACertPath,
+		"--ca-key-path", r.Config.SinjectorCAKeyPath,
 	}
 
 	return &appsv1.Deployment{
@@ -315,7 +278,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 			Annotations: agt.Annotations,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
+			Replicas: new(int32(1)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: sinjectorSelectorLabels(agt),
 			},
@@ -327,7 +290,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 				Spec: corev1.PodSpec{
 					ServiceAccountName:            sinjectorName(agt),
 					AutomountServiceAccountToken:  new(true),
-					TerminationGracePeriodSeconds: &grace,
+					TerminationGracePeriodSeconds: new(int64(5)),
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(true),
 						SeccompProfile: &corev1.SeccompProfile{
@@ -340,15 +303,15 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 							Secret: &corev1.SecretVolumeSource{
 								SecretName: r.Config.SinjectorCASecretName,
 								Items: []corev1.KeyToPath{
-									{Key: certKey, Path: "tls.crt"},
-									{Key: keyKey, Path: "tls.key"},
+									{Key: r.Config.SinjectorCASecretCertKey, Path: "tls.crt"},
+									{Key: r.Config.SinjectorCASecretKeyKey, Path: "tls.key"},
 								},
 							},
 						},
 					}},
 					Containers: []corev1.Container{{
 						Name:            "sinjector",
-						Image:           image,
+						Image:           r.Config.SinjectorImage,
 						ImagePullPolicy: agt.Spec.ImagePullPolicy,
 						Args:            args,
 						Ports: []corev1.ContainerPort{{

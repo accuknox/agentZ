@@ -4,10 +4,10 @@ set -euo pipefail
 
 readonly nixpkgs_ref='github:NixOS/nixpkgs/549bd84d6279f9852cae6225e372cc67fb91a4c1'
 readonly nixpkgs_path_file='/etc/clawarmor/nixpkgs.path'
-readonly agent_root='/mnt/nix'
-readonly agent_store_root='/mnt/nix/nix'
-readonly agent_profile_link='/mnt/nix/profile'
-readonly agent_cache_key_file='/mnt/nix/.clawarmor-env-key'
+readonly agent_root="${CLAWARMOR_NIX_ROOT:-/mnt/nix}"
+readonly agent_store_root="${agent_root}/nix"
+readonly agent_profile_link="${agent_root}/profile"
+readonly agent_cache_key_file="${agent_root}/.clawarmor-env-key"
 readonly link_root='/tmp/nix-link'
 readonly runtime_store='/runtime-nix-store'
 readonly cache_schema='clawarmor-nix-init-v2-bin-only'
@@ -16,13 +16,9 @@ readonly shared_cache_meta_dir='/nix-shared/.clawarmor-nix-init/envs'
 readonly shared_cache_lock_dir='/nix-shared/.clawarmor-nix-init/locks'
 readonly shared_cache_uri='file:///nix-shared?compression=none'
 readonly shared_cache_substituter='file:///nix-shared?compression=none&priority=100'
+readonly mode="${1:-prepare-agent-store}"
 
 shared_lock_path=''
-
-if [[ -z "${NIX_PACKAGES:-}" ]]; then
-    echo "NIX_PACKAGES env var is required"
-    exit 1
-fi
 
 declare -a packages=()
 
@@ -40,6 +36,10 @@ parse_packages() {
     local item
     local trimmed
 
+    if [[ -z "${NIX_PACKAGES:-}" ]]; then
+        return 1
+    fi
+
     while IFS= read -r item; do
         trimmed="$(trim "$item")"
         if [[ -z "$trimmed" ]]; then
@@ -56,6 +56,8 @@ parse_packages() {
     mapfile -t packages < <(
         printf '%s\n' "${packages[@]}" | LC_ALL=C sort -u
     )
+
+    return 0
 }
 
 configure_nix() {
@@ -215,13 +217,6 @@ link_runtime_store() {
     shopt -u nullglob
 }
 
-stage_agent_links() {
-    mkdir -p "$link_root"
-    ln -sfn "$agent_store_root/store" "$link_root/store"
-    ln -sfn "$agent_profile_link" "$link_root/profile"
-    link_runtime_store
-}
-
 ensure_shared_cache_dirs() {
     mkdir -p \
         "$shared_cache_root" \
@@ -334,21 +329,23 @@ restore_from_shared_cache_if_present() {
     return 0
 }
 
-main() {
+prepare_agent_store() {
     local cache_key
     local env_path
     local expected_env_path
     local nixpkgs_path
 
-    parse_packages
     configure_nix
+    if ! parse_packages; then
+        reset_agent_store
+        return
+    fi
 
     nixpkgs_path="$(read_nixpkgs_path)"
     cache_key="$(build_cache_key "$nixpkgs_path")"
     expected_env_path="$(eval_env_path)"
 
     if reuse_agent_env "$cache_key" "$expected_env_path"; then
-        stage_agent_links
         return
     fi
 
@@ -358,7 +355,6 @@ main() {
         if restore_from_shared_cache_if_present \
             "$cache_key" \
             "$expected_env_path"; then
-            stage_agent_links
             return
         fi
 
@@ -366,7 +362,6 @@ main() {
             restore_from_shared_cache_if_present \
                 "$cache_key" \
                 "$expected_env_path"
-            stage_agent_links
             return
         fi
     fi
@@ -381,8 +376,52 @@ main() {
     if [[ -n "${NIX_SHARED_PVC:-}" ]]; then
         persist_shared_env "$cache_key" "$env_path"
     fi
+}
 
-    stage_agent_links
+prepare_home() {
+    mkdir -p /pvc/home /pvc/nix
+}
+
+stage_runtime() {
+    local profile_target
+
+    mkdir -p "$link_root"
+    if [[ ! -d "$agent_store_root/store" ]]; then
+        echo "agent store is not prepared"
+        exit 1
+    fi
+    if [[ ! -L "$agent_profile_link" ]]; then
+        echo "agent profile link is not prepared"
+        exit 1
+    fi
+
+    profile_target="$(readlink "$agent_profile_link")"
+    if [[ -z "$profile_target" ]]; then
+        echo "agent profile link target is empty"
+        exit 1
+    fi
+
+    ln -sfn "$agent_store_root/store" "$link_root/store"
+    ln -sfn "$profile_target" "$link_root/profile"
+    link_runtime_store
+}
+
+main() {
+    case "$mode" in
+        prepare-agent-store)
+            prepare_agent_store
+            ;;
+        prepare-home)
+            prepare_home
+            ;;
+        stage-runtime)
+            stage_runtime
+            ;;
+        *)
+            echo "unknown mode: $mode"
+            exit 1
+            ;;
+    esac
 }
 
 main

@@ -54,7 +54,13 @@ const (
 	nixLinkStage                 = "/tmp/nix-link"
 	nixInitImage                 = "murtazau/clawarmor-init:latest"
 	homeInitName                 = "home-init"
+	agentRuntimeUID              = int64(1000)
+	agentRuntimeGID              = int64(1000)
 	nixPkgEnv                    = "NIX_PACKAGES"
+	packageJobNameSuffix         = "-packages"
+	packageJobHashAnnotation     = "clawarmor.accuknox.com/package-job-hash"
+	packageJobRootVolume         = "nix-agent-root"
+	packageJobSharedVolume       = "nix-shared"
 	sinjectorNameSuffix          = "-sinjector"
 	sinjectorCAVolume            = "sinjector-ca"
 	sinjectorCAMountPath         = "/etc/clawarmor/sinjector-ca"
@@ -63,7 +69,10 @@ const (
 	opencodeConfigSchema         = "https://opencode.ai/config.json"
 )
 
-var errImageEmpty = errors.New("agent image must not be empty")
+var (
+	errImageEmpty       = errors.New("agent image must not be empty")
+	errPackageJobFailed = errors.New("package job failed")
+)
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
@@ -71,10 +80,10 @@ type RuntimeConfig struct {
 	GatewayURL                       string
 	SharedNixPVC                     string
 	AgentInitImage                   string
-	SinjectorImage                   string
 	OpenBaoAddr                      string
 	ManagerOpenBaoAddr               string
 	OpenBaoSecretMountPath           string
+	SinjectorImage                   string
 	SinjectorCASecretName            string
 	SinjectorCASecretCertKey         string
 	SinjectorCASecretKeyKey          string
@@ -95,6 +104,20 @@ func selectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 		"clawarmor.accuknox.com/agent":   agt.Name,
 		"clawarmor.accuknox.com/managed": "true",
 	}
+}
+
+func packageJobLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
+	labels := make(map[string]string, len(agt.Labels)+4)
+	maps.Copy(labels, agt.Labels)
+	labels["app.kubernetes.io/name"] = "clawarmor-agent-packages"
+	labels["app.kubernetes.io/instance"] = agt.Name
+	labels["clawarmor.accuknox.com/agent-package-job"] = agt.Name
+	labels["clawarmor.accuknox.com/managed"] = "true"
+	return labels
+}
+
+func packageJobName(agt *clawarmorv1alpha1.Agent) string {
+	return agt.Name + packageJobNameSuffix
 }
 
 func sinjectorSelectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
@@ -221,10 +244,24 @@ type configHashInput struct {
 	Packages []string        `json:"packages"`
 }
 
+type packageJobHashInput struct {
+	Image    string   `json:"image"`
+	Packages []string `json:"packages"`
+}
+
 func configHash(opencodeCfg []byte, env []corev1.EnvVar, packages []string) string {
 	hashInput, _ := json.Marshal(configHashInput{
 		Config:   opencodeCfg,
 		Env:      env,
+		Packages: packages,
+	})
+	sum := sha256.Sum256(hashInput)
+	return fmt.Sprintf("%x", sum)
+}
+
+func packageJobHash(image string, packages []string) string {
+	hashInput, _ := json.Marshal(packageJobHashInput{
+		Image:    strings.TrimSpace(image),
 		Packages: packages,
 	})
 	sum := sha256.Sum256(hashInput)

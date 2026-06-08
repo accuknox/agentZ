@@ -45,6 +45,12 @@ const (
 const (
 	// ReasonConfigInvalid indicates the Agent spec cannot produce a runtime.
 	ReasonConfigInvalid = "ConfigInvalid"
+	// ReasonPackageJobCreating indicates the package preparation Job is not created yet.
+	ReasonPackageJobCreating = "PackageJobCreating"
+	// ReasonPackageJobRunning indicates the package preparation Job is still running.
+	ReasonPackageJobRunning = "PackageJobRunning"
+	// ReasonPackageJobFailed indicates the package preparation Job failed.
+	ReasonPackageJobFailed = "PackageJobFailed"
 	// ReasonDeploymentCreating indicates the deployment is being created.
 	ReasonDeploymentCreating = "DeploymentCreating"
 	// ReasonDeploymentUpdating indicates the deployment is rolling out.

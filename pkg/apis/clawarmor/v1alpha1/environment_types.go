@@ -41,10 +41,9 @@ type EnvironmentMCPTool struct {
 
 // EnvironmentSpec defines the desired state of Environment.
 type EnvironmentSpec struct {
-	// Packages lists nix packages (e.g. "python3", "nodejs_22",
-	// "ripgrep") to install into referencing Agent pods. Each entry is
-	// prefixed with nixpkgs# automatically. Leave empty to skip nix init
-	// container bootstrapping.
+	// Packages lists nix packages (e.g. "python3", "nodejs_22", "ripgrep") to
+	// install into referencing Agent runtimes. Each entry is prefixed with
+	// nixpkgs# automatically.
 	// +optional
 	Packages []string `json:"packages,omitempty"`
 

@@ -128,6 +128,20 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1al
 	return nil
 }
 
+func (r *Reconciler) deleteDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agt.Name,
+			Namespace: agt.Namespace,
+		},
+	}
+	err := r.Delete(ctx, deployment)
+	if err != nil && !apierr.IsNotFound(err) {
+		return fmt.Errorf("delete deployment: %w", err)
+	}
+	return nil
+}
+
 func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -183,19 +197,20 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			},
 		},
 	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      nixAgentVolume,
+		MountPath: "/home/clawarmor",
+		SubPath:   nixHomeSubPath,
+	})
 	initContainers = append(initContainers, corev1.Container{
 		Name:            homeInitName,
 		Image:           agentInitImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command: []string{
-			"/bin/bash",
-			"-lc",
-			"mkdir -p /pvc/home /pvc/nix",
-		},
+		Args:            []string{"prepare-home"},
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: new(false),
-			RunAsUser:                new(int64(1000)),
-			RunAsGroup:               new(int64(1000)),
+			RunAsUser:                new(agentRuntimeUID),
+			RunAsGroup:               new(agentRuntimeGID),
 			RunAsNonRoot:             new(true),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -205,11 +220,6 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			Name:      nixAgentVolume,
 			MountPath: nixVolumeRootMount,
 		}},
-	})
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      nixAgentVolume,
-		MountPath: "/home/clawarmor",
-		SubPath:   nixHomeSubPath,
 	})
 
 	if mountConfig {
@@ -230,26 +240,24 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 		})
 	}
 
-	if r.sinjectorEnabled() {
-		bundleKey := r.Config.SinjectorCASecretBundleKey
-		volumes = append(volumes, corev1.Volume{
-			Name: sinjectorCAVolume,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: r.Config.SinjectorCASecretName,
-					Items: []corev1.KeyToPath{{
-						Key:  bundleKey,
-						Path: "ca.crt",
-					}},
-				},
+	bundleKey := r.Config.SinjectorCASecretBundleKey
+	volumes = append(volumes, corev1.Volume{
+		Name: sinjectorCAVolume,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: r.Config.SinjectorCASecretName,
+				Items: []corev1.KeyToPath{{
+					Key:  bundleKey,
+					Path: "ca.crt",
+				}},
 			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      sinjectorCAVolume,
-			MountPath: sinjectorCAMountPath,
-			ReadOnly:  true,
-		})
-	}
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      sinjectorCAVolume,
+		MountPath: sinjectorCAMountPath,
+		ReadOnly:  true,
+	})
 
 	if len(packages) > 0 {
 		volumes = append(volumes,
@@ -266,15 +274,6 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 				},
 			},
 		)
-		initVolumeMounts := []corev1.VolumeMount{
-			{Name: nixAgentVolume, MountPath: nixAgentMount, SubPath: nixStoreSubPath},
-			{Name: nixLinkVolume, MountPath: nixLinkStage},
-			{Name: nixRuntimeStoreVolume, MountPath: nixRuntimeStageMount},
-		}
-		initEnv := []corev1.EnvVar{
-			{Name: nixPkgEnv, Value: strings.Join(packages, ",")},
-		}
-
 		initContainers = append(initContainers, corev1.Container{
 			Name:            "nix-store-init",
 			Image:           image,
@@ -282,8 +281,9 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			Command: []string{
 				"/bin/sh",
 				"-lc",
-				// Seed the shared runtime store with the agent image's own closures
-				// before nix-init links package closures into the same namespace.
+				// Seed the runtime store with the agent image's own closures
+				// before the runtime init links prepared package closures into
+				// the same namespace.
 				"cp -a /nix/store/. " + nixRuntimeStageMount + "/",
 			},
 			SecurityContext: &corev1.SecurityContext{
@@ -300,29 +300,11 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 				MountPath: nixRuntimeStageMount,
 			}},
 		})
-
-		if r.Config.SharedNixPVC != "" {
-			volumes = append(volumes, corev1.Volume{
-				Name: "nix-shared",
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: r.Config.SharedNixPVC,
-					},
-				},
-			})
-			initVolumeMounts = append(initVolumeMounts,
-				corev1.VolumeMount{Name: "nix-shared", MountPath: "/nix-shared"},
-			)
-			initEnv = append(initEnv,
-				corev1.EnvVar{Name: "NIX_SHARED_PVC", Value: r.Config.SharedNixPVC},
-			)
-		}
-
 		initContainers = append(initContainers, corev1.Container{
-			Name:            "nix-init",
+			Name:            "nix-runtime-init",
 			Image:           agentInitImage,
 			ImagePullPolicy: corev1.PullIfNotPresent,
-			Env:             initEnv,
+			Args:            []string{"stage-runtime"},
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: new(false),
 				RunAsUser:                new(int64(0)),
@@ -330,10 +312,14 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 				RunAsNonRoot:             new(false),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
-					Add:  []corev1.Capability{"DAC_OVERRIDE"},
 				},
 			},
-			VolumeMounts: initVolumeMounts,
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: nixAgentVolume, MountPath: nixVolumeRootMount},
+				{Name: nixAgentVolume, MountPath: nixAgentMount, SubPath: nixStoreSubPath},
+				{Name: nixLinkVolume, MountPath: nixLinkStage},
+				{Name: nixRuntimeStoreVolume, MountPath: nixRuntimeStageMount},
+			},
 		})
 
 		volumeMounts = append(volumeMounts,
@@ -382,7 +368,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 					AutomountServiceAccountToken: new(false),
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(true),
-						FSGroup:      new(int64(1000)),
+						FSGroup:      new(agentRuntimeGID),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
@@ -412,8 +398,8 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: new(false),
 								ReadOnlyRootFilesystem:   new(false),
-								RunAsUser:                new(int64(1000)),
-								RunAsGroup:               new(int64(1000)),
+								RunAsUser:                new(agentRuntimeUID),
+								RunAsGroup:               new(agentRuntimeGID),
 								RunAsNonRoot:             new(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},
@@ -444,19 +430,17 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 			Value: opencodeConfigDir + "/" + opencodeConfigKey,
 		})
 	}
-	if r.sinjectorEnabled() {
-		noProxyValue := strings.Join(noProxy, ",")
-		forced = append(forced,
-			corev1.EnvVar{Name: "https_proxy", Value: proxy},
-			corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
-			corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
-			corev1.EnvVar{Name: "NO_PROXY", Value: noProxyValue},
-			corev1.EnvVar{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
-			corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
-			corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
-			corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
-		)
-	}
+	noProxyValue := strings.Join(noProxy, ",")
+	forced = append(forced,
+		corev1.EnvVar{Name: "https_proxy", Value: proxy},
+		corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
+		corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
+		corev1.EnvVar{Name: "NO_PROXY", Value: noProxyValue},
+		corev1.EnvVar{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
+		corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+		corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+		corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+	)
 	var telemetryURL string
 	if telemetryEndpoint != "" {
 		telemetryURL = "http://" + telemetryEndpoint

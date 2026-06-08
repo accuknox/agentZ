@@ -1,10 +1,13 @@
 package gateway
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,6 +15,8 @@ import (
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 )
+
+const mcpGraphAgentNodePrefix = "agent:"
 
 // ListTraces handles GET /api/lens/trace/list.
 func (s *Service) ListTraces(w http.ResponseWriter, r *http.Request, params gatewayapi.ListTracesParams) {
@@ -68,7 +73,7 @@ func (s *Service) ListTraces(w http.ResponseWriter, r *http.Request, params gate
 			StartedAt:         row.StartedAt,
 			EndedAt:           row.EndedAt,
 			DurationNs:        row.DurationNs,
-			DurationMs:        row.DurationMs,
+			DurationMs:        float64(row.DurationNs) / float64(time.Millisecond),
 			SpanCount:         row.SpanCount,
 			ErrorCount:        row.ErrorCount,
 			ToolCount:         row.ToolCount,
@@ -156,7 +161,7 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, para
 			StartedAt:         row.StartedAt,
 			EndedAt:           row.EndedAt,
 			DurationNs:        row.DurationNs,
-			DurationMs:        row.DurationMs,
+			DurationMs:        float64(row.DurationNs) / float64(time.Millisecond),
 			SpanCount:         row.SpanCount,
 			ErrorCount:        row.ErrorCount,
 			ToolCount:         row.ToolCount,
@@ -292,6 +297,146 @@ func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, 
 // ListNetworkObservability handles GET /api/lens/observability/network/list.
 func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListNetworkObservabilityParams) {
 	s.listNetworkObservability(w, r, params)
+}
+
+// GetMCPGraph handles GET /api/lens/mcp/graph.
+func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, params gatewayapi.GetMCPGraphParams) {
+	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+	if !ok {
+		return
+	}
+	exists, err := s.queries.GatewayAgentExists(r.Context(), agentName)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if !exists {
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
+		return
+	}
+
+	startTime := params.From.UTC()
+	endTime := params.To.Time.UTC().Add(24 * time.Hour)
+	if !startTime.Before(endTime) {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"from must be before or equal to to",
+			errBadRequest,
+		))
+		return
+	}
+
+	rows, err := s.queries.GatewayGetMCPGraph(r.Context(), gatewaydb.GatewayGetMCPGraphParams{
+		AgentName:       agentName,
+		StartTimeAfter:  startTime,
+		StartTimeBefore: endTime,
+	})
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	agentID := mcpGraphAgentNodePrefix + agentName
+	connectionURLs, err := s.mcpConnectionURLsByName(r.Context(), rows)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	connections := make([]gatewayapi.MCPGraphConnection, 0, len(rows))
+	tools := make([]gatewayapi.MCPGraphTool, 0, len(rows))
+	edges := make([]gatewayapi.MCPGraphEdge, 0, len(rows)*2)
+	connectionIDs := make(map[string]string, len(rows))
+	toolIDs := make(map[string]string, len(rows))
+
+	for _, row := range rows {
+		connectionID, ok := connectionIDs[row.McpConnectionName]
+		if !ok {
+			connectionID = "connection:" + row.McpConnectionName
+			connectionIDs[row.McpConnectionName] = connectionID
+			connection := gatewayapi.MCPGraphConnection{
+				Id:   connectionID,
+				Name: row.McpConnectionName,
+			}
+			if serverURL, found := connectionURLs[row.McpConnectionName]; found {
+				connection.ServerUrl = &serverURL
+			}
+			connections = append(connections, connection)
+			edges = append(edges, gatewayapi.MCPGraphEdge{
+				Source: agentID,
+				Target: connectionID,
+				Kind:   gatewayapi.AgentConnection,
+			})
+		}
+
+		toolKey := row.McpConnectionName + "\x00" + row.ToolName
+		toolID, ok := toolIDs[toolKey]
+		if !ok {
+			toolID = fmt.Sprintf("tool:%s:%s", row.McpConnectionName, row.ToolName)
+			toolIDs[toolKey] = toolID
+			tools = append(tools, gatewayapi.MCPGraphTool{
+				Id:           toolID,
+				ConnectionId: connectionID,
+				Name:         row.ToolName,
+			})
+		}
+
+		edge := gatewayapi.MCPGraphEdge{
+			Source:       connectionID,
+			Target:       toolID,
+			Kind:         gatewayapi.ConnectionTool,
+			AvgLatencyMs: &row.AvgLatencyMs,
+			SuccessCount: &row.SuccessCount,
+			FailedCount:  &row.FailedCount,
+		}
+		if row.LastCalledAt.Valid {
+			lastCalledAt := row.LastCalledAt.Time.UTC()
+			edge.LastCalledAt = &lastCalledAt
+		}
+		edges = append(edges, edge)
+	}
+
+	writeJSON(w, http.StatusOK, gatewayapi.MCPGraphResponse{
+		Agent: gatewayapi.MCPGraphAgent{
+			Name: agentName,
+		},
+		Connections: connections,
+		Tools:       tools,
+		Edges:       edges,
+	})
+}
+
+// mcpConnectionURLsByName returns MCP connection endpoint URLs keyed by
+// resource name for the graph rows currently being rendered.
+func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.GatewayGetMCPGraphRow) (map[string]string, error) {
+	if len(rows) == 0 {
+		return map[string]string{}, nil
+	}
+
+	names := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		names[row.McpConnectionName] = struct{}{}
+	}
+
+	conns, err := s.listMCPConnections(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	urls := make(map[string]string, len(names))
+	for _, conn := range conns {
+		if _, ok := names[conn.Name]; !ok {
+			continue
+		}
+		urls[conn.Name] = conn.Spec.Endpoint.URL
+	}
+
+	return urls, nil
 }
 
 func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListProcessObservabilityParams) {
@@ -593,7 +738,7 @@ func spanFromListRow(row gatewaydb.GatewayListSpansRow) gatewayapi.Span {
 		StartTime:         row.StartTime,
 		EndTime:           row.EndTime,
 		DurationNs:        row.DurationNs,
-		DurationMs:        row.DurationMs,
+		DurationMs:        float64(row.DurationNs) / float64(time.Millisecond),
 		Name:              row.Name,
 		SpanClass:         row.SpanClass,
 		OperationName:     row.OperationName,
@@ -628,7 +773,7 @@ func spanDetailFromRow(w http.ResponseWriter, r *http.Request, row gatewaydb.Gat
 		CachedInputTokens:  row.CachedInputTokens,
 		CachedWriteTokens:  row.CachedWriteTokens,
 		CostUsd:            row.CostUsd,
-		DurationMs:         row.DurationMs,
+		DurationMs:         float64(row.DurationNs) / float64(time.Millisecond),
 		DurationNs:         row.DurationNs,
 		EndTime:            row.EndTime,
 		ErrorMessage:       row.ErrorMessage,

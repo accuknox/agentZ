@@ -15,6 +15,8 @@ tags:
   description: Session secret management APIs.
 - name: environments
   description: Environment resource management APIs.
+- name: mcp-connections
+  description: MCPConnection resource and credential management APIs.
 - name: workflows
   description: Workflow definition management APIs.
 - name: workflow-schedules
@@ -214,6 +216,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListNetworkObservabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/lens/mcp/graph:
+    get:
+      operationId: getMCPGraph
+      summary: Get MCP observability graph data for one agent and date range.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/FromDateQuery'
+      - $ref: '#/components/parameters/ToDateQuery'
+      responses:
+        '200':
+          description: Graph-ready MCP observability for one agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPGraphResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -782,8 +807,9 @@ paths:
         destinations.
         Keys may contain alphanumeric characters and underscores, up to 128
         characters. Values are limited to 48 KB each. Hosts may be exact
-        hostnames, wildcard hostnames with a leading "*.", exact IPv4/IPv6
-        addresses, or IPv4/IPv6 CIDR ranges.
+        hostnames, wildcard hostnames with a leading "*." or "**.", exact
+        IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges. "*." matches exactly
+        one subdomain label, while "**." matches any subdomain depth.
       tags: [secrets]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -955,6 +981,185 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/mcp-connection:
+    post:
+      operationId: createMCPConnection
+      summary: Create an MCPConnection resource.
+      tags: [mcp-connections]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMCPConnectionRequest'
+      responses:
+        '201':
+          description: MCPConnection created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPConnectionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/mcp-connection/{name}:
+    get:
+      operationId: getMCPConnection
+      summary: Get an MCPConnection resource.
+      tags: [mcp-connections]
+      parameters:
+      - $ref: '#/components/parameters/MCPConnectionNamePath'
+      responses:
+        '200':
+          description: MCPConnection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPConnectionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: updateMCPConnection
+      summary: Replace an MCPConnection resource spec.
+      tags: [mcp-connections]
+      parameters:
+      - $ref: '#/components/parameters/MCPConnectionNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMCPConnectionRequest'
+      responses:
+        '200':
+          description: MCPConnection updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPConnectionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteMCPConnection
+      summary: Delete an MCPConnection resource.
+      tags: [mcp-connections]
+      parameters:
+      - $ref: '#/components/parameters/MCPConnectionNamePath'
+      responses:
+        '204':
+          description: MCPConnection deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/mcp-connection/list:
+    get:
+      operationId: listMCPConnections
+      summary: List paginated MCPConnection resources.
+      tags: [mcp-connections]
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated MCPConnections.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMCPConnectionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/mcp-connection/watch:
+    post:
+      operationId: watchMCPConnections
+      summary: Watch MCP connection status changes.
+      description: >
+        Returns an SSE stream. Each event data payload is a JSON object matching
+        WatchMCPConnectionsEvent. If names is omitted or empty, all MCP
+        connections are watched.
+      tags: [mcp-connections]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchMCPConnectionsRequest'
+      responses:
+        '200':
+          description: Stream of MCP connection updates.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchMCPConnectionsEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/mcp-connection/{name}/credentials:
+    post:
+      operationId: setMCPConnectionCredentials
+      summary: Set MCPConnection credentials.
+      tags: [mcp-connections]
+      parameters:
+      - $ref: '#/components/parameters/MCPConnectionNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetMCPConnectionCredentialsRequest'
+      responses:
+        '204':
+          description: MCPConnection credentials stored.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteMCPConnectionCredentials
+      summary: Remove MCPConnection credentials.
+      tags: [mcp-connections]
+      parameters:
+      - $ref: '#/components/parameters/MCPConnectionNamePath'
+      responses:
+        '204':
+          description: MCPConnection credentials removed.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   parameters:
     AgentNameQuery:
@@ -980,6 +1185,14 @@ components:
       description: Environment name.
       schema:
         $ref: '#/components/schemas/EnvironmentName'
+
+    MCPConnectionNamePath:
+      name: name
+      in: path
+      required: true
+      description: MCPConnection name.
+      schema:
+        $ref: '#/components/schemas/MCPConnectionName'
 
     AgentNameFilterQuery:
       name: agent_name
@@ -1092,6 +1305,24 @@ components:
         type: boolean
         default: false
 
+    FromDateQuery:
+      name: from
+      in: query
+      required: true
+      description: Inclusive lower bound for MCP tool activity date.
+      schema:
+        type: string
+        format: date
+
+    ToDateQuery:
+      name: to
+      in: query
+      required: true
+      description: Inclusive upper bound for MCP tool activity date.
+      schema:
+        type: string
+        format: date
+
   responses:
     BadRequest:
       description: Request validation failed.
@@ -1155,6 +1386,13 @@ components:
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
       description: Environment resource name.
+
+    MCPConnectionName:
+      type: string
+      minLength: 1
+      maxLength: 32
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+      description: MCPConnection resource name.
 
     WorkflowName:
       type: string
@@ -2162,6 +2400,90 @@ components:
       - tool_arguments
       - tool_result
 
+    MCPGraphResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        agent:
+          $ref: '#/components/schemas/MCPGraphAgent'
+        connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPGraphConnection'
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPGraphTool'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPGraphEdge'
+      required: [agent, connections, tools, edges]
+
+    MCPGraphAgent:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/AgentName'
+      required: [name]
+
+    MCPGraphConnection:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        server_url:
+          type: string
+          format: uri
+      required: [id, name]
+
+    MCPGraphTool:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        connection_id:
+          type: string
+        name:
+          type: string
+      required: [id, connection_id, name]
+
+    MCPGraphEdge:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+        target:
+          type: string
+        kind:
+          type: string
+          enum: [agent_connection, connection_tool]
+        avg_latency_ms:
+          type: number
+          format: double
+          minimum: 0
+        success_count:
+          type: integer
+          format: int64
+          minimum: 0
+        failed_count:
+          type: integer
+          format: int64
+          minimum: 0
+        last_called_at:
+          type: string
+          format: date-time
+      required:
+      - source
+      - target
+      - kind
+
     SpanDetailResponse:
       type: object
       additionalProperties: false
@@ -2504,6 +2826,11 @@ components:
         additionalProperties:
           $ref: '#/components/schemas/JSONValue'
 
+    JSONObject:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/JSONValue'
+
     SecretKey:
       type: string
       minLength: 1
@@ -2522,8 +2849,9 @@ components:
       maxLength: 253
       description: >
         Allowed request host. Use an exact hostname, wildcard hostname with a
-        leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range.
-        Wildcards match any subdomain depth and do not match the apex domain.
+        leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR
+        range. "*." matches exactly one subdomain label, while "**." matches
+        any subdomain depth. Wildcards do not match the apex domain.
 
     SecretEntry:
       type: object
@@ -2620,6 +2948,10 @@ components:
           items:
             type: string
             minLength: 1
+        mcp_connection_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
         created_at:
           type: string
           format: date-time
@@ -2638,7 +2970,7 @@ components:
             referenced_by_agent:
               type: boolean
           required: [package_count, allowed_host_count, referenced_by_agent]
-      required: [name, packages, allowed_hosts, created_at, metadata]
+      required: [name, packages, allowed_hosts, mcp_connection_refs, created_at, metadata]
 
     ListEnvironmentsResponse:
       type: object
@@ -2668,6 +3000,10 @@ components:
           items:
             type: string
             minLength: 1
+        mcp_connection_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
       required: [name]
 
     DeleteEnvironmentRequest:
@@ -2692,4 +3028,296 @@ components:
           items:
             type: string
             minLength: 1
-      required: [packages, allowed_hosts]
+        mcp_connection_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionRef'
+      required: [packages, allowed_hosts, mcp_connection_refs]
+
+    MCPConnectionRef:
+      type: object
+      additionalProperties: false
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionToolRef'
+          minItems: 1
+        name:
+          $ref: '#/components/schemas/MCPConnectionName'
+      required: [name, tools]
+
+    MCPConnectionToolRef:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        require_consent:
+          type: boolean
+      required: [name, require_consent]
+
+    MCPConnectionTool:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+      required: [name]
+
+    MCPConnectionDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/MCPConnectionName'
+        endpoint:
+          $ref: '#/components/schemas/MCPConnectionEndpoint'
+        auth:
+          $ref: '#/components/schemas/MCPConnectionAuth'
+        created_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MCPConnectionLifecycle'
+        reason:
+          $ref: '#/components/schemas/MCPConnectionReason'
+        message:
+          type: string
+        tool_catalog_ready:
+          type: boolean
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionTool'
+      required: [name, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools]
+
+    MCPConnectionSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/MCPConnectionName'
+        auth_mode:
+          type: string
+        endpoint_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MCPConnectionLifecycle'
+        reason:
+          $ref: '#/components/schemas/MCPConnectionReason'
+        message:
+          type: string
+        tool_catalog_ready:
+          type: boolean
+        tool_count:
+          type: integer
+          format: int64
+          minimum: 0
+      required: [name, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count]
+
+    MCPConnectionEndpoint:
+      type: object
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          minLength: 1
+        timeout:
+          type: string
+          minLength: 1
+        insecure_skip_verify:
+          type: boolean
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+      required: [url, insecure_skip_verify, headers]
+
+    MCPConnectionAuth:
+      type: object
+      additionalProperties: false
+      properties:
+        bearer:
+          $ref: '#/components/schemas/MCPConnectionBearerAuth'
+        oauth:
+          $ref: '#/components/schemas/MCPConnectionOAuthAuth'
+
+    MCPConnectionBearerAuth:
+      type: object
+      additionalProperties: false
+      properties:
+        location:
+          $ref: '#/components/schemas/MCPConnectionAuthLocation'
+
+    MCPConnectionOAuthAuth:
+      type: object
+      additionalProperties: false
+      properties:
+        issuer:
+          type: string
+        authorization_endpoint:
+          type: string
+        token_endpoint:
+          type: string
+        registration_endpoint:
+          type: string
+        resource:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        location:
+          $ref: '#/components/schemas/MCPConnectionAuthLocation'
+
+    MCPConnectionAuthLocation:
+      type: object
+      additionalProperties: false
+      properties:
+        header:
+          $ref: '#/components/schemas/MCPConnectionHeaderLocation'
+        query_parameter:
+          $ref: '#/components/schemas/MCPConnectionQueryParameterLocation'
+        cookie:
+          $ref: '#/components/schemas/MCPConnectionCookieLocation'
+
+    MCPConnectionHeaderLocation:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        prefix:
+          type: string
+          minLength: 1
+      required: [name]
+
+    MCPConnectionQueryParameterLocation:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+      required: [name]
+
+    MCPConnectionCookieLocation:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+      required: [name]
+
+    MCPConnectionLifecycle:
+      type: string
+      enum: [Accepted, Ready, Error]
+
+    MCPConnectionReason:
+      type: string
+      enum: [Ready, ProbePending, Unreachable, InvalidCredentials, ProtocolError, InternalError]
+
+    ListMCPConnectionsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        mcp_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionSummary'
+        next_page_token:
+          type: string
+      required: [mcp_connections, next_page_token]
+    WatchMCPConnectionsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        names:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionName'
+    WatchMCPConnectionsEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        mcp_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPConnectionSummary'
+      required: [mcp_connections]
+
+    CreateMCPConnectionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/MCPConnectionName'
+        endpoint:
+          $ref: '#/components/schemas/MCPConnectionEndpoint'
+        auth:
+          $ref: '#/components/schemas/MCPConnectionAuth'
+      required: [name, endpoint]
+
+    UpdateMCPConnectionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        endpoint:
+          $ref: '#/components/schemas/MCPConnectionEndpoint'
+        auth:
+          $ref: '#/components/schemas/MCPConnectionAuth'
+      required: [endpoint]
+
+    SetMCPConnectionCredentialsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        bearer:
+          $ref: '#/components/schemas/MCPConnectionBearerCredentials'
+        oauth:
+          $ref: '#/components/schemas/MCPConnectionOAuthCredentials'
+
+    MCPConnectionBearerCredentials:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 1
+      required: [token]
+
+    MCPConnectionOAuthCredentials:
+      type: object
+      additionalProperties: false
+      properties:
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        refresh_token:
+          type: string
+        access_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        token_type:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        registration:
+          $ref: '#/components/schemas/JSONObject'
+        revocation:
+          $ref: '#/components/schemas/JSONObject'

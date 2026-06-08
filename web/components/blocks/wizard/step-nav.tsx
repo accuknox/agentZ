@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { WizardStep } from "./types"
+import type { WizardLayout, WizardStep } from "./types"
 
 export function WizardStepNav<TStep extends WizardStep>({
   canVisitStepAction,
@@ -13,7 +13,7 @@ export function WizardStepNav<TStep extends WizardStep>({
 }: {
   canVisitStepAction: (step: TStep, index: number) => boolean
   currentIndex: number
-  layout?: "vertical" | "horizontal"
+  layout?: WizardLayout
   onStepSelectAction: (step: TStep, index: number) => void
   steps: readonly TStep[]
 }) {
@@ -73,7 +73,7 @@ export function WizardStepNav<TStep extends WizardStep>({
                   aria-hidden="true"
                   data-status={status}
                   className={cn(
-                    "bg-muted transition-all duration-300 ease-in-out data-[status=success]:bg-primary data-disabled:opacity-50",
+                    "bg-muted data-[status=success]:bg-primary transition-all duration-300 ease-in-out data-disabled:opacity-50",
                     layout === "vertical" ? "hidden h-full w-0.5 md:block" : "h-0.5 w-full"
                   )}
                 />

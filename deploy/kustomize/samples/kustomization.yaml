@@ -4,4 +4,5 @@ resources:
 - clawarmor_v1alpha1_environment.yaml
 - clawarmor_v1alpha1_workflowschedule.yaml
 - clawarmor_v1alpha1_workflowrun.yaml
+- clawarmor_v1alpha1_mcpconnection.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

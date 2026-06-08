@@ -68,7 +68,6 @@ type traceSpanEvent struct {
 	startTime          time.Time
 	endTime            time.Time
 	durationNS         int64
-	durationMS         float64
 	name               string
 	spanClass          string
 	operationName      string
@@ -87,6 +86,7 @@ type traceSpanEvent struct {
 	resourceAttributes []byte
 	spanAttributes     []byte
 	payload            traceSpanPayload
+	mcpToolCall        *mcpToolCallEvent
 }
 
 type traceSpanPayload struct {
@@ -94,6 +94,20 @@ type traceSpanPayload struct {
 	outputMessages []byte
 	toolArguments  []byte
 	toolResult     []byte
+	toolError      []byte
+}
+
+type mcpToolCallEvent struct {
+	agentName         string
+	traceID           []byte
+	spanID            []byte
+	startTime         time.Time
+	endTime           time.Time
+	durationNS        int64
+	mcpConnectionName string
+	toolName          string
+	sessionID         string
+	failed            bool
 }
 
 type batch struct {

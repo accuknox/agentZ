@@ -165,7 +165,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+          "text-muted-foreground hover:text-foreground flex w-full items-center gap-2 text-sm transition-colors",
           className
         )}
         {...props}
@@ -193,8 +193,12 @@ const streamdownPlugins = { cjk, code, math, mermaid }
 export const ReasoningContent = memo(({ className, children, ...props }: ReasoningContentProps) => (
   <CollapsibleContent
     className={cn(
-      "mt-4 rounded-l-none border-l-2 border-chat-neutral pl-4 text-sm",
-      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+      "border-muted-foreground/45 mt-4 rounded-l-none border-l pl-4 text-sm",
+      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground data-[state=closed]:animate-out data-[state=open]:animate-in outline-none",
+      "[&_blockquote]:border-muted-foreground/35 [&_blockquote]:border-l [&_blockquote]:pl-4",
+      "[&_ol]:ml-6 [&_ol]:list-outside [&_ol]:list-decimal [&_ol]:space-y-1",
+      "[&_ul]:ml-6 [&_ul]:list-outside [&_ul]:list-disc [&_ul]:space-y-1",
+      "[&_li]:pl-1",
       "data-[state=closed]:border-l-0 data-[state=closed]:pl-0",
       className
     )}

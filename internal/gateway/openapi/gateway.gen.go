@@ -20,6 +20,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for AgentStatus.
@@ -29,6 +30,29 @@ const (
 	IDLE        AgentStatus = "IDLE"
 	PROGRESSING AgentStatus = "PROGRESSING"
 	UNSPECIFIED AgentStatus = "UNSPECIFIED"
+)
+
+// Defines values for MCPConnectionLifecycle.
+const (
+	MCPConnectionLifecycleAccepted MCPConnectionLifecycle = "Accepted"
+	MCPConnectionLifecycleError    MCPConnectionLifecycle = "Error"
+	MCPConnectionLifecycleReady    MCPConnectionLifecycle = "Ready"
+)
+
+// Defines values for MCPConnectionReason.
+const (
+	MCPConnectionReasonInternalError      MCPConnectionReason = "InternalError"
+	MCPConnectionReasonInvalidCredentials MCPConnectionReason = "InvalidCredentials"
+	MCPConnectionReasonProbePending       MCPConnectionReason = "ProbePending"
+	MCPConnectionReasonProtocolError      MCPConnectionReason = "ProtocolError"
+	MCPConnectionReasonReady              MCPConnectionReason = "Ready"
+	MCPConnectionReasonUnreachable        MCPConnectionReason = "Unreachable"
+)
+
+// Defines values for MCPGraphEdgeKind.
+const (
+	AgentConnection MCPGraphEdgeKind = "agent_connection"
+	ConnectionTool  MCPGraphEdgeKind = "connection_tool"
 )
 
 // Defines values for ObservabilityAction.
@@ -350,11 +374,21 @@ type CreateAgentRequest struct {
 
 // CreateEnvironmentRequest defines model for CreateEnvironmentRequest.
 type CreateEnvironmentRequest struct {
-	AllowedHosts *[]string `json:"allowed_hosts,omitempty"`
+	AllowedHosts      *[]string           `json:"allowed_hosts,omitempty"`
+	McpConnectionRefs *[]MCPConnectionRef `json:"mcp_connection_refs,omitempty"`
 
 	// Name Environment resource name.
 	Name     EnvironmentName `json:"name"`
 	Packages *[]string       `json:"packages,omitempty"`
+}
+
+// CreateMCPConnectionRequest defines model for CreateMCPConnectionRequest.
+type CreateMCPConnectionRequest struct {
+	Auth     *MCPConnectionAuth    `json:"auth,omitempty"`
+	Endpoint MCPConnectionEndpoint `json:"endpoint"`
+
+	// Name MCPConnection resource name.
+	Name MCPConnectionName `json:"name"`
 }
 
 // CreateWorkflowRequest defines model for CreateWorkflowRequest.
@@ -411,9 +445,10 @@ type DeleteWorkflowsRequest struct {
 
 // Environment defines model for Environment.
 type Environment struct {
-	AllowedHosts []string  `json:"allowed_hosts"`
-	CreatedAt    time.Time `json:"created_at"`
-	Metadata     struct {
+	AllowedHosts      []string           `json:"allowed_hosts"`
+	CreatedAt         time.Time          `json:"created_at"`
+	McpConnectionRefs []MCPConnectionRef `json:"mcp_connection_refs"`
+	Metadata          struct {
 		AllowedHostCount  int32 `json:"allowed_host_count"`
 		PackageCount      int32 `json:"package_count"`
 		ReferencedByAgent bool  `json:"referenced_by_agent"`
@@ -468,6 +503,9 @@ type FileObservabilityEventAggregated struct {
 	Source            string              `json:"source"`
 }
 
+// JSONObject defines model for JSONObject.
+type JSONObject map[string]JSONValue
+
 // JSONValue defines model for JSONValue.
 type JSONValue struct {
 	union json.RawMessage
@@ -509,6 +547,12 @@ type ListFileObservabilityResponse struct {
 // ListFileObservabilityResponse_Events_Item defines model for ListFileObservabilityResponse.events.Item.
 type ListFileObservabilityResponse_Events_Item struct {
 	union json.RawMessage
+}
+
+// ListMCPConnectionsResponse defines model for ListMCPConnectionsResponse.
+type ListMCPConnectionsResponse struct {
+	McpConnections []MCPConnectionSummary `json:"mcp_connections"`
+	NextPageToken  string                 `json:"next_page_token"`
 }
 
 // ListNetworkObservabilityResponse defines model for ListNetworkObservabilityResponse.
@@ -567,6 +611,175 @@ type ListWorkflowRunsResponse struct {
 type ListWorkflowSchedulesResponse struct {
 	NextPageToken     string             `json:"next_page_token"`
 	WorkflowSchedules []WorkflowSchedule `json:"workflow_schedules"`
+}
+
+// MCPConnectionAuth defines model for MCPConnectionAuth.
+type MCPConnectionAuth struct {
+	Bearer *MCPConnectionBearerAuth `json:"bearer,omitempty"`
+	Oauth  *MCPConnectionOAuthAuth  `json:"oauth,omitempty"`
+}
+
+// MCPConnectionAuthLocation defines model for MCPConnectionAuthLocation.
+type MCPConnectionAuthLocation struct {
+	Cookie         *MCPConnectionCookieLocation         `json:"cookie,omitempty"`
+	Header         *MCPConnectionHeaderLocation         `json:"header,omitempty"`
+	QueryParameter *MCPConnectionQueryParameterLocation `json:"query_parameter,omitempty"`
+}
+
+// MCPConnectionBearerAuth defines model for MCPConnectionBearerAuth.
+type MCPConnectionBearerAuth struct {
+	Location *MCPConnectionAuthLocation `json:"location,omitempty"`
+}
+
+// MCPConnectionBearerCredentials defines model for MCPConnectionBearerCredentials.
+type MCPConnectionBearerCredentials struct {
+	Token string `json:"token"`
+}
+
+// MCPConnectionCookieLocation defines model for MCPConnectionCookieLocation.
+type MCPConnectionCookieLocation struct {
+	Name string `json:"name"`
+}
+
+// MCPConnectionDetail defines model for MCPConnectionDetail.
+type MCPConnectionDetail struct {
+	Auth      MCPConnectionAuth     `json:"auth"`
+	CreatedAt time.Time             `json:"created_at"`
+	Endpoint  MCPConnectionEndpoint `json:"endpoint"`
+	Message   string                `json:"message"`
+
+	// Name MCPConnection resource name.
+	Name             MCPConnectionName      `json:"name"`
+	Reason           MCPConnectionReason    `json:"reason"`
+	Status           MCPConnectionLifecycle `json:"status"`
+	ToolCatalogReady bool                   `json:"tool_catalog_ready"`
+	Tools            []MCPConnectionTool    `json:"tools"`
+}
+
+// MCPConnectionEndpoint defines model for MCPConnectionEndpoint.
+type MCPConnectionEndpoint struct {
+	Headers            map[string]string `json:"headers"`
+	InsecureSkipVerify bool              `json:"insecure_skip_verify"`
+	Timeout            *string           `json:"timeout,omitempty"`
+	Url                string            `json:"url"`
+}
+
+// MCPConnectionHeaderLocation defines model for MCPConnectionHeaderLocation.
+type MCPConnectionHeaderLocation struct {
+	Name   string  `json:"name"`
+	Prefix *string `json:"prefix,omitempty"`
+}
+
+// MCPConnectionLifecycle defines model for MCPConnectionLifecycle.
+type MCPConnectionLifecycle string
+
+// MCPConnectionName MCPConnection resource name.
+type MCPConnectionName = string
+
+// MCPConnectionOAuthAuth defines model for MCPConnectionOAuthAuth.
+type MCPConnectionOAuthAuth struct {
+	AuthorizationEndpoint *string                    `json:"authorization_endpoint,omitempty"`
+	Issuer                *string                    `json:"issuer,omitempty"`
+	Location              *MCPConnectionAuthLocation `json:"location,omitempty"`
+	RegistrationEndpoint  *string                    `json:"registration_endpoint,omitempty"`
+	Resource              *string                    `json:"resource,omitempty"`
+	Scopes                *[]string                  `json:"scopes,omitempty"`
+	TokenEndpoint         *string                    `json:"token_endpoint,omitempty"`
+}
+
+// MCPConnectionOAuthCredentials defines model for MCPConnectionOAuthCredentials.
+type MCPConnectionOAuthCredentials struct {
+	AccessToken  *string     `json:"access_token,omitempty"`
+	ClientId     *string     `json:"client_id,omitempty"`
+	ClientSecret *string     `json:"client_secret,omitempty"`
+	ExpiresAt    *time.Time  `json:"expires_at,omitempty"`
+	RefreshToken *string     `json:"refresh_token,omitempty"`
+	Registration *JSONObject `json:"registration,omitempty"`
+	Revocation   *JSONObject `json:"revocation,omitempty"`
+	Scopes       *[]string   `json:"scopes,omitempty"`
+	TokenType    *string     `json:"token_type,omitempty"`
+}
+
+// MCPConnectionQueryParameterLocation defines model for MCPConnectionQueryParameterLocation.
+type MCPConnectionQueryParameterLocation struct {
+	Name string `json:"name"`
+}
+
+// MCPConnectionReason defines model for MCPConnectionReason.
+type MCPConnectionReason string
+
+// MCPConnectionRef defines model for MCPConnectionRef.
+type MCPConnectionRef struct {
+	// Name MCPConnection resource name.
+	Name  MCPConnectionName      `json:"name"`
+	Tools []MCPConnectionToolRef `json:"tools"`
+}
+
+// MCPConnectionSummary defines model for MCPConnectionSummary.
+type MCPConnectionSummary struct {
+	AuthMode    string    `json:"auth_mode"`
+	CreatedAt   time.Time `json:"created_at"`
+	EndpointUrl string    `json:"endpoint_url"`
+	Message     string    `json:"message"`
+
+	// Name MCPConnection resource name.
+	Name             MCPConnectionName      `json:"name"`
+	Reason           MCPConnectionReason    `json:"reason"`
+	Status           MCPConnectionLifecycle `json:"status"`
+	ToolCatalogReady bool                   `json:"tool_catalog_ready"`
+	ToolCount        int64                  `json:"tool_count"`
+}
+
+// MCPConnectionTool defines model for MCPConnectionTool.
+type MCPConnectionTool struct {
+	Name string `json:"name"`
+}
+
+// MCPConnectionToolRef defines model for MCPConnectionToolRef.
+type MCPConnectionToolRef struct {
+	Name           string `json:"name"`
+	RequireConsent bool   `json:"require_consent"`
+}
+
+// MCPGraphAgent defines model for MCPGraphAgent.
+type MCPGraphAgent struct {
+	Name AgentName `json:"name"`
+}
+
+// MCPGraphConnection defines model for MCPGraphConnection.
+type MCPGraphConnection struct {
+	Id        string  `json:"id"`
+	Name      string  `json:"name"`
+	ServerUrl *string `json:"server_url,omitempty"`
+}
+
+// MCPGraphEdge defines model for MCPGraphEdge.
+type MCPGraphEdge struct {
+	AvgLatencyMs *float64         `json:"avg_latency_ms,omitempty"`
+	FailedCount  *int64           `json:"failed_count,omitempty"`
+	Kind         MCPGraphEdgeKind `json:"kind"`
+	LastCalledAt *time.Time       `json:"last_called_at,omitempty"`
+	Source       string           `json:"source"`
+	SuccessCount *int64           `json:"success_count,omitempty"`
+	Target       string           `json:"target"`
+}
+
+// MCPGraphEdgeKind defines model for MCPGraphEdge.Kind.
+type MCPGraphEdgeKind string
+
+// MCPGraphResponse defines model for MCPGraphResponse.
+type MCPGraphResponse struct {
+	Agent       MCPGraphAgent        `json:"agent"`
+	Connections []MCPGraphConnection `json:"connections"`
+	Edges       []MCPGraphEdge       `json:"edges"`
+	Tools       []MCPGraphTool       `json:"tools"`
+}
+
+// MCPGraphTool defines model for MCPGraphTool.
+type MCPGraphTool struct {
+	ConnectionId string `json:"connection_id"`
+	Id           string `json:"id"`
+	Name         string `json:"name"`
 }
 
 // NetworkObservabilityEvent defines model for NetworkObservabilityEvent.
@@ -1371,7 +1584,7 @@ type SecretEntry struct {
 	Value SecretValue `json:"value"`
 }
 
-// SecretHost Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+// SecretHost Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly one subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
 type SecretHost = string
 
 // SecretKey Secret key name. Alphanumeric and underscores only.
@@ -1389,6 +1602,12 @@ type SecretListItem struct {
 
 // SecretValue Secret value. Max 48 KB.
 type SecretValue = string
+
+// SetMCPConnectionCredentialsRequest defines model for SetMCPConnectionCredentialsRequest.
+type SetMCPConnectionCredentialsRequest struct {
+	Bearer *MCPConnectionBearerCredentials `json:"bearer,omitempty"`
+	Oauth  *MCPConnectionOAuthCredentials  `json:"oauth,omitempty"`
+}
 
 // Span defines model for Span.
 type Span struct {
@@ -1548,8 +1767,15 @@ type UpdateAgentRequest struct {
 
 // UpdateEnvironmentRequest defines model for UpdateEnvironmentRequest.
 type UpdateEnvironmentRequest struct {
-	AllowedHosts []string `json:"allowed_hosts"`
-	Packages     []string `json:"packages"`
+	AllowedHosts      []string           `json:"allowed_hosts"`
+	McpConnectionRefs []MCPConnectionRef `json:"mcp_connection_refs"`
+	Packages          []string           `json:"packages"`
+}
+
+// UpdateMCPConnectionRequest defines model for UpdateMCPConnectionRequest.
+type UpdateMCPConnectionRequest struct {
+	Auth     *MCPConnectionAuth    `json:"auth,omitempty"`
+	Endpoint MCPConnectionEndpoint `json:"endpoint"`
 }
 
 // UpdateWorkflowScheduleRequest defines model for UpdateWorkflowScheduleRequest.
@@ -1574,6 +1800,16 @@ type WatchAgentsEvent struct {
 // WatchAgentsRequest defines model for WatchAgentsRequest.
 type WatchAgentsRequest struct {
 	AgentNames *[]AgentName `json:"agent_names,omitempty"`
+}
+
+// WatchMCPConnectionsEvent defines model for WatchMCPConnectionsEvent.
+type WatchMCPConnectionsEvent struct {
+	McpConnections []MCPConnectionSummary `json:"mcp_connections"`
+}
+
+// WatchMCPConnectionsRequest defines model for WatchMCPConnectionsRequest.
+type WatchMCPConnectionsRequest struct {
+	Names *[]MCPConnectionName `json:"names,omitempty"`
 }
 
 // WatchWorkflowRunsEvent defines model for WatchWorkflowRunsEvent.
@@ -1777,8 +2013,14 @@ type EventTimeAfterQuery = time.Time
 // EventTimeBeforeQuery defines model for EventTimeBeforeQuery.
 type EventTimeBeforeQuery = time.Time
 
+// FromDateQuery defines model for FromDateQuery.
+type FromDateQuery = openapi_types.Date
+
 // LimitQuery defines model for LimitQuery.
 type LimitQuery = int32
+
+// MCPConnectionNamePath MCPConnection resource name.
+type MCPConnectionNamePath = MCPConnectionName
 
 // PageTokenQuery defines model for PageTokenQuery.
 type PageTokenQuery = string
@@ -1794,6 +2036,9 @@ type StartedAfterQuery = time.Time
 
 // StartedBeforeQuery defines model for StartedBeforeQuery.
 type StartedBeforeQuery = time.Time
+
+// ToDateQuery defines model for ToDateQuery.
+type ToDateQuery = openapi_types.Date
 
 // TraceIDQuery Lowercase hexadecimal OTLP trace ID.
 type TraceIDQuery = TraceID
@@ -1829,6 +2074,18 @@ type ListEnvironmentsParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
+// GetMCPGraphParams defines parameters for GetMCPGraph.
+type GetMCPGraphParams struct {
+	// AgentName Agent name.
+	AgentName AgentNameQuery `form:"agent_name" json:"agent_name"`
+
+	// From Inclusive lower bound for MCP tool activity date.
+	From FromDateQuery `form:"from" json:"from"`
+
+	// To Inclusive upper bound for MCP tool activity date.
+	To ToDateQuery `form:"to" json:"to"`
 }
 
 // ListFileObservabilityParams defines parameters for ListFileObservability.
@@ -1967,6 +2224,15 @@ type ListTraceSessionsParams struct {
 
 	// StartedBefore Inclusive upper bound for trace start time.
 	StartedBefore *StartedBeforeQuery `form:"started_before,omitempty" json:"started_before,omitempty"`
+}
+
+// ListMCPConnectionsParams defines parameters for ListMCPConnections.
+type ListMCPConnectionsParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
 }
 
 // SessionListParams defines parameters for SessionList.
@@ -2334,6 +2600,18 @@ type DeleteEnvironmentJSONRequestBody = DeleteEnvironmentRequest
 
 // UpdateEnvironmentJSONRequestBody defines body for UpdateEnvironment for application/json ContentType.
 type UpdateEnvironmentJSONRequestBody = UpdateEnvironmentRequest
+
+// CreateMCPConnectionJSONRequestBody defines body for CreateMCPConnection for application/json ContentType.
+type CreateMCPConnectionJSONRequestBody = CreateMCPConnectionRequest
+
+// WatchMCPConnectionsJSONRequestBody defines body for WatchMCPConnections for application/json ContentType.
+type WatchMCPConnectionsJSONRequestBody = WatchMCPConnectionsRequest
+
+// UpdateMCPConnectionJSONRequestBody defines body for UpdateMCPConnection for application/json ContentType.
+type UpdateMCPConnectionJSONRequestBody = UpdateMCPConnectionRequest
+
+// SetMCPConnectionCredentialsJSONRequestBody defines body for SetMCPConnectionCredentials for application/json ContentType.
+type SetMCPConnectionCredentialsJSONRequestBody = SetMCPConnectionCredentialsRequest
 
 // SessionCreateJSONRequestBody defines body for SessionCreate for application/json ContentType.
 type SessionCreateJSONRequestBody SessionCreateJSONBody
@@ -3851,6 +4129,9 @@ type ClientInterface interface {
 
 	UpdateEnvironment(ctx context.Context, name EnvironmentNamePath, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetMCPGraph request
+	GetMCPGraph(ctx context.Context, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListFileObservability request
 	ListFileObservability(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3871,6 +4152,38 @@ type ClientInterface interface {
 
 	// ListTraceSessions request
 	ListTraceSessions(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateMCPConnectionWithBody request with any body
+	CreateMCPConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateMCPConnection(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListMCPConnections request
+	ListMCPConnections(ctx context.Context, params *ListMCPConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WatchMCPConnectionsWithBody request with any body
+	WatchMCPConnectionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WatchMCPConnections(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteMCPConnection request
+	DeleteMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetMCPConnection request
+	GetMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateMCPConnectionWithBody request with any body
+	UpdateMCPConnectionWithBody(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateMCPConnection(ctx context.Context, name MCPConnectionNamePath, body UpdateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteMCPConnectionCredentials request
+	DeleteMCPConnectionCredentials(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetMCPConnectionCredentialsWithBody request with any body
+	SetMCPConnectionCredentialsWithBody(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SetMCPConnectionCredentials(ctx context.Context, name MCPConnectionNamePath, body SetMCPConnectionCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SessionList request
 	SessionList(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4237,6 +4550,18 @@ func (c *Client) UpdateEnvironment(ctx context.Context, name EnvironmentNamePath
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetMCPGraph(ctx context.Context, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMCPGraphRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListFileObservability(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListFileObservabilityRequest(c.Server, params)
 	if err != nil {
@@ -4311,6 +4636,150 @@ func (c *Client) ListTraces(ctx context.Context, params *ListTracesParams, reqEd
 
 func (c *Client) ListTraceSessions(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListTraceSessionsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMCPConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMCPConnectionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMCPConnection(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMCPConnectionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListMCPConnections(ctx context.Context, params *ListMCPConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListMCPConnectionsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WatchMCPConnectionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchMCPConnectionsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WatchMCPConnections(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchMCPConnectionsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMCPConnectionRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMCPConnectionRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateMCPConnectionWithBody(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateMCPConnectionRequestWithBody(c.Server, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateMCPConnection(ctx context.Context, name MCPConnectionNamePath, body UpdateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateMCPConnectionRequest(c.Server, name, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteMCPConnectionCredentials(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMCPConnectionCredentialsRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetMCPConnectionCredentialsWithBody(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetMCPConnectionCredentialsRequestWithBody(c.Server, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetMCPConnectionCredentials(ctx context.Context, name MCPConnectionNamePath, body SetMCPConnectionCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetMCPConnectionCredentialsRequest(c.Server, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5529,6 +5998,75 @@ func NewUpdateEnvironmentRequestWithBody(server string, name EnvironmentNamePath
 	return req, nil
 }
 
+// NewGetMCPGraphRequest generates requests for GetMCPGraph
+func NewGetMCPGraphRequest(server string, params *GetMCPGraphParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/lens/mcp/graph")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, params.AgentName); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "from", runtime.ParamLocationQuery, params.From); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "to", runtime.ParamLocationQuery, params.To); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListFileObservabilityRequest generates requests for ListFileObservability
 func NewListFileObservabilityRequest(server string, params *ListFileObservabilityParams) (*http.Request, error) {
 	var err error
@@ -6340,6 +6878,347 @@ func NewListTraceSessionsRequest(server string, params *ListTraceSessionsParams)
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCreateMCPConnectionRequest calls the generic CreateMCPConnection builder with application/json body
+func NewCreateMCPConnectionRequest(server string, body CreateMCPConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateMCPConnectionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateMCPConnectionRequestWithBody generates requests for CreateMCPConnection with any type of body
+func NewCreateMCPConnectionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListMCPConnectionsRequest generates requests for ListMCPConnections
+func NewListMCPConnectionsRequest(server string, params *ListMCPConnectionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection/list")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWatchMCPConnectionsRequest calls the generic WatchMCPConnections builder with application/json body
+func NewWatchMCPConnectionsRequest(server string, body WatchMCPConnectionsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWatchMCPConnectionsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewWatchMCPConnectionsRequestWithBody generates requests for WatchMCPConnections with any type of body
+func NewWatchMCPConnectionsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection/watch")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteMCPConnectionRequest generates requests for DeleteMCPConnection
+func NewDeleteMCPConnectionRequest(server string, name MCPConnectionNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetMCPConnectionRequest generates requests for GetMCPConnection
+func NewGetMCPConnectionRequest(server string, name MCPConnectionNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateMCPConnectionRequest calls the generic UpdateMCPConnection builder with application/json body
+func NewUpdateMCPConnectionRequest(server string, name MCPConnectionNamePath, body UpdateMCPConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateMCPConnectionRequestWithBody(server, name, "application/json", bodyReader)
+}
+
+// NewUpdateMCPConnectionRequestWithBody generates requests for UpdateMCPConnection with any type of body
+func NewUpdateMCPConnectionRequestWithBody(server string, name MCPConnectionNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteMCPConnectionCredentialsRequest generates requests for DeleteMCPConnectionCredentials
+func NewDeleteMCPConnectionCredentialsRequest(server string, name MCPConnectionNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection/%s/credentials", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetMCPConnectionCredentialsRequest calls the generic SetMCPConnectionCredentials builder with application/json body
+func NewSetMCPConnectionCredentialsRequest(server string, name MCPConnectionNamePath, body SetMCPConnectionCredentialsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetMCPConnectionCredentialsRequestWithBody(server, name, "application/json", bodyReader)
+}
+
+// NewSetMCPConnectionCredentialsRequestWithBody generates requests for SetMCPConnectionCredentials with any type of body
+func NewSetMCPConnectionCredentialsRequestWithBody(server string, name MCPConnectionNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/mcp-connection/%s/credentials", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -9773,6 +10652,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateEnvironmentWithResponse(ctx context.Context, name EnvironmentNamePath, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnvironmentResp, error)
 
+	// GetMCPGraphWithResponse request
+	GetMCPGraphWithResponse(ctx context.Context, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error)
+
 	// ListFileObservabilityWithResponse request
 	ListFileObservabilityWithResponse(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*ListFileObservabilityResp, error)
 
@@ -9793,6 +10675,38 @@ type ClientWithResponsesInterface interface {
 
 	// ListTraceSessionsWithResponse request
 	ListTraceSessionsWithResponse(ctx context.Context, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*ListTraceSessionsResp, error)
+
+	// CreateMCPConnectionWithBodyWithResponse request with any body
+	CreateMCPConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error)
+
+	CreateMCPConnectionWithResponse(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error)
+
+	// ListMCPConnectionsWithResponse request
+	ListMCPConnectionsWithResponse(ctx context.Context, params *ListMCPConnectionsParams, reqEditors ...RequestEditorFn) (*ListMCPConnectionsResp, error)
+
+	// WatchMCPConnectionsWithBodyWithResponse request with any body
+	WatchMCPConnectionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error)
+
+	WatchMCPConnectionsWithResponse(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error)
+
+	// DeleteMCPConnectionWithResponse request
+	DeleteMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionResp, error)
+
+	// GetMCPConnectionWithResponse request
+	GetMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*GetMCPConnectionResp, error)
+
+	// UpdateMCPConnectionWithBodyWithResponse request with any body
+	UpdateMCPConnectionWithBodyWithResponse(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateMCPConnectionResp, error)
+
+	UpdateMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, body UpdateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateMCPConnectionResp, error)
+
+	// DeleteMCPConnectionCredentialsWithResponse request
+	DeleteMCPConnectionCredentialsWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionCredentialsResp, error)
+
+	// SetMCPConnectionCredentialsWithBodyWithResponse request with any body
+	SetMCPConnectionCredentialsWithBodyWithResponse(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetMCPConnectionCredentialsResp, error)
+
+	SetMCPConnectionCredentialsWithResponse(ctx context.Context, name MCPConnectionNamePath, body SetMCPConnectionCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetMCPConnectionCredentialsResp, error)
 
 	// SessionListWithResponse request
 	SessionListWithResponse(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*SessionListResp, error)
@@ -10187,6 +11101,31 @@ func (r UpdateEnvironmentResp) StatusCode() int {
 	return 0
 }
 
+type GetMCPGraphResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MCPGraphResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMCPGraphResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMCPGraphResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListFileObservabilityResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10356,6 +11295,204 @@ func (r ListTraceSessionsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListTraceSessionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateMCPConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *MCPConnectionDetail
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateMCPConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateMCPConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListMCPConnectionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListMCPConnectionsResponse
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListMCPConnectionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListMCPConnectionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WatchMCPConnectionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r WatchMCPConnectionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WatchMCPConnectionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteMCPConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteMCPConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteMCPConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetMCPConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MCPConnectionDetail
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMCPConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMCPConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateMCPConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MCPConnectionDetail
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateMCPConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateMCPConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteMCPConnectionCredentialsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteMCPConnectionCredentialsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteMCPConnectionCredentialsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SetMCPConnectionCredentialsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r SetMCPConnectionCredentialsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetMCPConnectionCredentialsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11576,6 +12713,15 @@ func (c *ClientWithResponses) UpdateEnvironmentWithResponse(ctx context.Context,
 	return ParseUpdateEnvironmentResp(rsp)
 }
 
+// GetMCPGraphWithResponse request returning *GetMCPGraphResp
+func (c *ClientWithResponses) GetMCPGraphWithResponse(ctx context.Context, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error) {
+	rsp, err := c.GetMCPGraph(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMCPGraphResp(rsp)
+}
+
 // ListFileObservabilityWithResponse request returning *ListFileObservabilityResp
 func (c *ClientWithResponses) ListFileObservabilityWithResponse(ctx context.Context, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*ListFileObservabilityResp, error) {
 	rsp, err := c.ListFileObservability(ctx, params, reqEditors...)
@@ -11637,6 +12783,110 @@ func (c *ClientWithResponses) ListTraceSessionsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseListTraceSessionsResp(rsp)
+}
+
+// CreateMCPConnectionWithBodyWithResponse request with arbitrary body returning *CreateMCPConnectionResp
+func (c *ClientWithResponses) CreateMCPConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error) {
+	rsp, err := c.CreateMCPConnectionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMCPConnectionResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateMCPConnectionWithResponse(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error) {
+	rsp, err := c.CreateMCPConnection(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMCPConnectionResp(rsp)
+}
+
+// ListMCPConnectionsWithResponse request returning *ListMCPConnectionsResp
+func (c *ClientWithResponses) ListMCPConnectionsWithResponse(ctx context.Context, params *ListMCPConnectionsParams, reqEditors ...RequestEditorFn) (*ListMCPConnectionsResp, error) {
+	rsp, err := c.ListMCPConnections(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListMCPConnectionsResp(rsp)
+}
+
+// WatchMCPConnectionsWithBodyWithResponse request with arbitrary body returning *WatchMCPConnectionsResp
+func (c *ClientWithResponses) WatchMCPConnectionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error) {
+	rsp, err := c.WatchMCPConnectionsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchMCPConnectionsResp(rsp)
+}
+
+func (c *ClientWithResponses) WatchMCPConnectionsWithResponse(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error) {
+	rsp, err := c.WatchMCPConnections(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchMCPConnectionsResp(rsp)
+}
+
+// DeleteMCPConnectionWithResponse request returning *DeleteMCPConnectionResp
+func (c *ClientWithResponses) DeleteMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionResp, error) {
+	rsp, err := c.DeleteMCPConnection(ctx, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteMCPConnectionResp(rsp)
+}
+
+// GetMCPConnectionWithResponse request returning *GetMCPConnectionResp
+func (c *ClientWithResponses) GetMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*GetMCPConnectionResp, error) {
+	rsp, err := c.GetMCPConnection(ctx, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMCPConnectionResp(rsp)
+}
+
+// UpdateMCPConnectionWithBodyWithResponse request with arbitrary body returning *UpdateMCPConnectionResp
+func (c *ClientWithResponses) UpdateMCPConnectionWithBodyWithResponse(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateMCPConnectionResp, error) {
+	rsp, err := c.UpdateMCPConnectionWithBody(ctx, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateMCPConnectionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, body UpdateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateMCPConnectionResp, error) {
+	rsp, err := c.UpdateMCPConnection(ctx, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateMCPConnectionResp(rsp)
+}
+
+// DeleteMCPConnectionCredentialsWithResponse request returning *DeleteMCPConnectionCredentialsResp
+func (c *ClientWithResponses) DeleteMCPConnectionCredentialsWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionCredentialsResp, error) {
+	rsp, err := c.DeleteMCPConnectionCredentials(ctx, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteMCPConnectionCredentialsResp(rsp)
+}
+
+// SetMCPConnectionCredentialsWithBodyWithResponse request with arbitrary body returning *SetMCPConnectionCredentialsResp
+func (c *ClientWithResponses) SetMCPConnectionCredentialsWithBodyWithResponse(ctx context.Context, name MCPConnectionNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetMCPConnectionCredentialsResp, error) {
+	rsp, err := c.SetMCPConnectionCredentialsWithBody(ctx, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetMCPConnectionCredentialsResp(rsp)
+}
+
+func (c *ClientWithResponses) SetMCPConnectionCredentialsWithResponse(ctx context.Context, name MCPConnectionNamePath, body SetMCPConnectionCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetMCPConnectionCredentialsResp, error) {
+	rsp, err := c.SetMCPConnectionCredentials(ctx, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetMCPConnectionCredentialsResp(rsp)
 }
 
 // SessionListWithResponse request returning *SessionListResp
@@ -12583,6 +13833,53 @@ func ParseUpdateEnvironmentResp(rsp *http.Response) (*UpdateEnvironmentResp, err
 	return response, nil
 }
 
+// ParseGetMCPGraphResp parses an HTTP response from a GetMCPGraphWithResponse call
+func ParseGetMCPGraphResp(rsp *http.Response) (*GetMCPGraphResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMCPGraphResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MCPGraphResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListFileObservabilityResp parses an HTTP response from a ListFileObservabilityWithResponse call
 func ParseListFileObservabilityResp(rsp *http.Response) (*ListFileObservabilityResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -12899,6 +14196,368 @@ func ParseListTraceSessionsResp(rsp *http.Response) (*ListTraceSessionsResp, err
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateMCPConnectionResp parses an HTTP response from a CreateMCPConnectionWithResponse call
+func ParseCreateMCPConnectionResp(rsp *http.Response) (*CreateMCPConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateMCPConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest MCPConnectionDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListMCPConnectionsResp parses an HTTP response from a ListMCPConnectionsWithResponse call
+func ParseListMCPConnectionsResp(rsp *http.Response) (*ListMCPConnectionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListMCPConnectionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListMCPConnectionsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWatchMCPConnectionsResp parses an HTTP response from a WatchMCPConnectionsWithResponse call
+func ParseWatchMCPConnectionsResp(rsp *http.Response) (*WatchMCPConnectionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WatchMCPConnectionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteMCPConnectionResp parses an HTTP response from a DeleteMCPConnectionWithResponse call
+func ParseDeleteMCPConnectionResp(rsp *http.Response) (*DeleteMCPConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteMCPConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMCPConnectionResp parses an HTTP response from a GetMCPConnectionWithResponse call
+func ParseGetMCPConnectionResp(rsp *http.Response) (*GetMCPConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMCPConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MCPConnectionDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateMCPConnectionResp parses an HTTP response from a UpdateMCPConnectionWithResponse call
+func ParseUpdateMCPConnectionResp(rsp *http.Response) (*UpdateMCPConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateMCPConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MCPConnectionDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteMCPConnectionCredentialsResp parses an HTTP response from a DeleteMCPConnectionCredentialsWithResponse call
+func ParseDeleteMCPConnectionCredentialsResp(rsp *http.Response) (*DeleteMCPConnectionCredentialsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteMCPConnectionCredentialsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetMCPConnectionCredentialsResp parses an HTTP response from a SetMCPConnectionCredentialsWithResponse call
+func ParseSetMCPConnectionCredentialsResp(rsp *http.Response) (*SetMCPConnectionCredentialsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetMCPConnectionCredentialsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -14758,6 +16417,9 @@ type ServerInterface interface {
 	// Update an Environment resource.
 	// (POST /api/environment/update/{name})
 	UpdateEnvironment(w http.ResponseWriter, r *http.Request, name EnvironmentNamePath)
+	// Get MCP observability graph data for one agent and date range.
+	// (GET /api/lens/mcp/graph)
+	GetMCPGraph(w http.ResponseWriter, r *http.Request, params GetMCPGraphParams)
 	// List paginated file observability events.
 	// (GET /api/lens/observability/file/list)
 	ListFileObservability(w http.ResponseWriter, r *http.Request, params ListFileObservabilityParams)
@@ -14779,6 +16441,30 @@ type ServerInterface interface {
 	// List paginated per-session trace summaries.
 	// (GET /api/lens/trace/session/list)
 	ListTraceSessions(w http.ResponseWriter, r *http.Request, params ListTraceSessionsParams)
+	// Create an MCPConnection resource.
+	// (POST /api/mcp-connection)
+	CreateMCPConnection(w http.ResponseWriter, r *http.Request)
+	// List paginated MCPConnection resources.
+	// (GET /api/mcp-connection/list)
+	ListMCPConnections(w http.ResponseWriter, r *http.Request, params ListMCPConnectionsParams)
+	// Watch MCP connection status changes.
+	// (POST /api/mcp-connection/watch)
+	WatchMCPConnections(w http.ResponseWriter, r *http.Request)
+	// Delete an MCPConnection resource.
+	// (DELETE /api/mcp-connection/{name})
+	DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath)
+	// Get an MCPConnection resource.
+	// (GET /api/mcp-connection/{name})
+	GetMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath)
+	// Replace an MCPConnection resource spec.
+	// (PUT /api/mcp-connection/{name})
+	UpdateMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath)
+	// Remove MCPConnection credentials.
+	// (DELETE /api/mcp-connection/{name}/credentials)
+	DeleteMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath)
+	// Set MCPConnection credentials.
+	// (POST /api/mcp-connection/{name}/credentials)
+	SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath)
 	// List sessions
 	// (GET /api/opencode/{agentName}/session)
 	SessionList(w http.ResponseWriter, r *http.Request, agentName string, params SessionListParams)
@@ -14971,6 +16657,12 @@ func (_ Unimplemented) UpdateEnvironment(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Get MCP observability graph data for one agent and date range.
+// (GET /api/lens/mcp/graph)
+func (_ Unimplemented) GetMCPGraph(w http.ResponseWriter, r *http.Request, params GetMCPGraphParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List paginated file observability events.
 // (GET /api/lens/observability/file/list)
 func (_ Unimplemented) ListFileObservability(w http.ResponseWriter, r *http.Request, params ListFileObservabilityParams) {
@@ -15010,6 +16702,54 @@ func (_ Unimplemented) ListTraces(w http.ResponseWriter, r *http.Request, params
 // List paginated per-session trace summaries.
 // (GET /api/lens/trace/session/list)
 func (_ Unimplemented) ListTraceSessions(w http.ResponseWriter, r *http.Request, params ListTraceSessionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create an MCPConnection resource.
+// (POST /api/mcp-connection)
+func (_ Unimplemented) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List paginated MCPConnection resources.
+// (GET /api/mcp-connection/list)
+func (_ Unimplemented) ListMCPConnections(w http.ResponseWriter, r *http.Request, params ListMCPConnectionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Watch MCP connection status changes.
+// (POST /api/mcp-connection/watch)
+func (_ Unimplemented) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete an MCPConnection resource.
+// (DELETE /api/mcp-connection/{name})
+func (_ Unimplemented) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get an MCPConnection resource.
+// (GET /api/mcp-connection/{name})
+func (_ Unimplemented) GetMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace an MCPConnection resource spec.
+// (PUT /api/mcp-connection/{name})
+func (_ Unimplemented) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove MCPConnection credentials.
+// (DELETE /api/mcp-connection/{name}/credentials)
+func (_ Unimplemented) DeleteMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set MCPConnection credentials.
+// (POST /api/mcp-connection/{name}/credentials)
+func (_ Unimplemented) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -15473,6 +17213,70 @@ func (siw *ServerInterfaceWrapper) UpdateEnvironment(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateEnvironment(w, r, name)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMCPGraph operation middleware
+func (siw *ServerInterfaceWrapper) GetMCPGraph(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMCPGraphParams
+
+	// ------------- Required query parameter "agent_name" -------------
+
+	if paramValue := r.URL.Query().Get("agent_name"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_name"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "agent_name", r.URL.Query(), &params.AgentName)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "from" -------------
+
+	if paramValue := r.URL.Query().Get("from"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	if paramValue := r.URL.Query().Get("to"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMCPGraph(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -15988,6 +17792,194 @@ func (siw *ServerInterfaceWrapper) ListTraceSessions(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListTraceSessions(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMCPConnection operation middleware
+func (siw *ServerInterfaceWrapper) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMCPConnection(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMCPConnections operation middleware
+func (siw *ServerInterfaceWrapper) ListMCPConnections(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMCPConnectionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMCPConnections(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WatchMCPConnections operation middleware
+func (siw *ServerInterfaceWrapper) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WatchMCPConnections(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteMCPConnection operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMCPConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name MCPConnectionNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteMCPConnection(w, r, name)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMCPConnection operation middleware
+func (siw *ServerInterfaceWrapper) GetMCPConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name MCPConnectionNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMCPConnection(w, r, name)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMCPConnection operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMCPConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name MCPConnectionNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMCPConnection(w, r, name)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteMCPConnectionCredentials operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMCPConnectionCredentials(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name MCPConnectionNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteMCPConnectionCredentials(w, r, name)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetMCPConnectionCredentials operation middleware
+func (siw *ServerInterfaceWrapper) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name MCPConnectionNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetMCPConnectionCredentials(w, r, name)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -18243,6 +20235,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/environment/update/{name}", wrapper.UpdateEnvironment)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/lens/mcp/graph", wrapper.GetMCPGraph)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/observability/file/list", wrapper.ListFileObservability)
 	})
 	r.Group(func(r chi.Router) {
@@ -18262,6 +20257,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/trace/session/list", wrapper.ListTraceSessions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/mcp-connection", wrapper.CreateMCPConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/mcp-connection/list", wrapper.ListMCPConnections)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/mcp-connection/watch", wrapper.WatchMCPConnections)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/mcp-connection/{name}", wrapper.DeleteMCPConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/mcp-connection/{name}", wrapper.GetMCPConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/mcp-connection/{name}", wrapper.UpdateMCPConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/mcp-connection/{name}/credentials", wrapper.DeleteMCPConnectionCredentials)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/mcp-connection/{name}/credentials", wrapper.SetMCPConnectionCredentials)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/opencode/{agentName}/session", wrapper.SessionList)
@@ -18402,233 +20421,260 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"U9J3fN5utz5L0Yn36+ev/z8AAP//eaU4h+sjAgA=",
+	"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",
+	"/xkctOKIWwIA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -18,10 +18,12 @@ package v1alpha1
 
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	agentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/agent"
 	environmentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/environment"
+	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
 	workflowrunwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowrun"
 	workflowschedulewebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowschedule"
 )
@@ -47,4 +49,9 @@ func SetupWorkflowScheduleWebhookWithManager(mgr ctrl.Manager, gatewayClient *ga
 // SetupWorkflowRunWebhookWithManager registers the WorkflowRun webhook.
 func SetupWorkflowRunWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses) error {
 	return workflowrunwebhook.RegisterWithManager(mgr, gatewayClient)
+}
+
+// SetupMCPConnectionWebhookWithManager registers the MCPConnection webhook.
+func SetupMCPConnectionWebhookWithManager(mgr ctrl.Manager, kubeClient client.Client) error {
+	return mcpconnwebhook.RegisterWithManager(mgr, kubeClient)
 }

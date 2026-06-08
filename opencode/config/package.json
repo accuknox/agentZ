@@ -3,7 +3,8 @@
   "scripts": {
     "lint": "eslint",
     "format": "prettier . --write",
-    "gen:openapi-client": "openapi-ts"
+    "gen:openapi-client": "openapi-ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.15.6",

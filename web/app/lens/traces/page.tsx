@@ -197,11 +197,11 @@ async function Traces({
 }
 
 function TracesFiltersSkeleton() {
-  return <div className="h-15 border-b bg-muted/20" />
+  return <div className="bg-muted/20 h-15 border-b" />
 }
 
 function ErrorPanel({ message }: { message: string }) {
-  return <div className="rounded-md bg-destructive/5 p-4 text-sm text-destructive">{message}</div>
+  return <div className="bg-destructive/5 text-destructive rounded-md p-4 text-sm">{message}</div>
 }
 
 async function getTraceScope({

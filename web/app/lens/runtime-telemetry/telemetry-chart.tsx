@@ -23,9 +23,9 @@ export function TelemetryChart({ data }: TelemetryChartProps) {
   }))
 
   return (
-    <section className="flex flex-col gap-2 py-3 px-6">
+    <section className="flex flex-col gap-2 px-6 py-3">
       <div className="flex items-center justify-end">
-        <span className="text-xs text-muted-foreground">{data.total} events</span>
+        <span className="text-muted-foreground text-xs">{data.total} events</span>
       </div>
       <ChartContainer config={chartConfig} className="aspect-auto h-40 w-full">
         <BarChart
@@ -66,11 +66,11 @@ function TelemetryChartTooltip({ active, payload }: TooltipContentProps) {
   }
 
   return (
-    <div className="grid min-w-32 gap-2 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+    <div className="border-border/50 bg-background grid min-w-32 gap-2 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
       <div className="font-medium">{point.label}</div>
       <div className="flex items-center justify-between gap-4">
         <span className="text-muted-foreground">Events</span>
-        <span className="font-mono font-medium text-foreground tabular-nums">
+        <span className="text-foreground font-mono font-medium tabular-nums">
           {point.count.toLocaleString()}
         </span>
       </div>

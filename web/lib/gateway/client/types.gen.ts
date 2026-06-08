@@ -29,6 +29,11 @@ export type AgentName = string
 export type EnvironmentName = string
 
 /**
+ * MCPConnection resource name.
+ */
+export type McpConnectionName = string
+
+/**
  * Workflow name scoped to one agent.
  */
 export type WorkflowName = string
@@ -375,6 +380,39 @@ export type SpanPayload = {
   tool_result: JsonValue
 }
 
+export type McpGraphResponse = {
+  agent: McpGraphAgent
+  connections: Array<McpGraphConnection>
+  tools: Array<McpGraphTool>
+  edges: Array<McpGraphEdge>
+}
+
+export type McpGraphAgent = {
+  name: AgentName
+}
+
+export type McpGraphConnection = {
+  id: string
+  name: string
+  server_url?: string
+}
+
+export type McpGraphTool = {
+  id: string
+  connection_id: string
+  name: string
+}
+
+export type McpGraphEdge = {
+  source: string
+  target: string
+  kind: "agent_connection" | "connection_tool"
+  avg_latency_ms?: number
+  success_count?: number
+  failed_count?: number
+  last_called_at?: string
+}
+
 export type SpanDetailResponse = {
   span: SpanDetail
   payload: SpanPayload
@@ -497,6 +535,10 @@ export type JsonValue =
       [key: string]: JsonValue
     }
 
+export type JsonObject = {
+  [key: string]: JsonValue
+}
+
 /**
  * Secret key name. Alphanumeric and underscores only.
  */
@@ -508,7 +550,7 @@ export type SecretKey = string
 export type SecretValue = string
 
 /**
- * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly one subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
  *
  */
 export type SecretHost = string
@@ -550,6 +592,7 @@ export type Environment = {
   name: EnvironmentName
   packages: Array<string>
   allowed_hosts: Array<string>
+  mcp_connection_refs: Array<McpConnectionRef>
   created_at: string
   metadata: {
     package_count: number
@@ -567,6 +610,7 @@ export type CreateEnvironmentRequest = {
   name: EnvironmentName
   packages?: Array<string>
   allowed_hosts?: Array<string>
+  mcp_connection_refs?: Array<McpConnectionRef>
 }
 
 export type DeleteEnvironmentRequest = {
@@ -576,6 +620,147 @@ export type DeleteEnvironmentRequest = {
 export type UpdateEnvironmentRequest = {
   packages: Array<string>
   allowed_hosts: Array<string>
+  mcp_connection_refs: Array<McpConnectionRef>
+}
+
+export type McpConnectionRef = {
+  tools: Array<McpConnectionToolRef>
+  name: McpConnectionName
+}
+
+export type McpConnectionToolRef = {
+  name: string
+  require_consent: boolean
+}
+
+export type McpConnectionTool = {
+  name: string
+}
+
+export type McpConnectionDetail = {
+  name: McpConnectionName
+  endpoint: McpConnectionEndpoint
+  auth: McpConnectionAuth
+  created_at: string
+  status: McpConnectionLifecycle
+  reason: McpConnectionReason
+  message: string
+  tool_catalog_ready: boolean
+  tools: Array<McpConnectionTool>
+}
+
+export type McpConnectionSummary = {
+  name: McpConnectionName
+  auth_mode: string
+  endpoint_url: string
+  created_at: string
+  status: McpConnectionLifecycle
+  reason: McpConnectionReason
+  message: string
+  tool_catalog_ready: boolean
+  tool_count: number
+}
+
+export type McpConnectionEndpoint = {
+  url: string
+  timeout?: string
+  insecure_skip_verify: boolean
+  headers: {
+    [key: string]: string
+  }
+}
+
+export type McpConnectionAuth = {
+  bearer?: McpConnectionBearerAuth
+  oauth?: McpConnectionOAuthAuth
+}
+
+export type McpConnectionBearerAuth = {
+  location?: McpConnectionAuthLocation
+}
+
+export type McpConnectionOAuthAuth = {
+  issuer?: string
+  authorization_endpoint?: string
+  token_endpoint?: string
+  registration_endpoint?: string
+  resource?: string
+  scopes?: Array<string>
+  location?: McpConnectionAuthLocation
+}
+
+export type McpConnectionAuthLocation = {
+  header?: McpConnectionHeaderLocation
+  query_parameter?: McpConnectionQueryParameterLocation
+  cookie?: McpConnectionCookieLocation
+}
+
+export type McpConnectionHeaderLocation = {
+  name: string
+  prefix?: string
+}
+
+export type McpConnectionQueryParameterLocation = {
+  name: string
+}
+
+export type McpConnectionCookieLocation = {
+  name: string
+}
+
+export type McpConnectionLifecycle = "Accepted" | "Ready" | "Error"
+
+export type McpConnectionReason =
+  | "Ready"
+  | "ProbePending"
+  | "Unreachable"
+  | "InvalidCredentials"
+  | "ProtocolError"
+  | "InternalError"
+
+export type ListMcpConnectionsResponse = {
+  mcp_connections: Array<McpConnectionSummary>
+  next_page_token: string
+}
+
+export type WatchMcpConnectionsRequest = {
+  names?: Array<McpConnectionName>
+}
+
+export type WatchMcpConnectionsEvent = {
+  mcp_connections: Array<McpConnectionSummary>
+}
+
+export type CreateMcpConnectionRequest = {
+  name: McpConnectionName
+  endpoint: McpConnectionEndpoint
+  auth?: McpConnectionAuth
+}
+
+export type UpdateMcpConnectionRequest = {
+  endpoint: McpConnectionEndpoint
+  auth?: McpConnectionAuth
+}
+
+export type SetMcpConnectionCredentialsRequest = {
+  bearer?: McpConnectionBearerCredentials
+  oauth?: McpConnectionOAuthCredentials
+}
+
+export type McpConnectionBearerCredentials = {
+  token: string
+}
+
+export type McpConnectionOAuthCredentials = {
+  client_id?: string
+  client_secret?: string
+  refresh_token?: string
+  access_token?: string
+  expires_at?: string
+  token_type?: string
+  scopes?: Array<string>
+  registration?: JsonObject
+  revocation?: JsonObject
 }
 
 /**
@@ -592,6 +777,11 @@ export type AgentNamePath = AgentName
  * Environment name.
  */
 export type EnvironmentNamePath = EnvironmentName
+
+/**
+ * MCPConnection name.
+ */
+export type McpConnectionNamePath = McpConnectionName
 
 /**
  * Optional agent name filters. Repeat the query parameter for multiple agents.
@@ -652,6 +842,16 @@ export type ActionQuery = ObservabilityAction
  * When true, returns aggregated events with occurrence counts over the time range.
  */
 export type AggregatedQuery = boolean
+
+/**
+ * Inclusive lower bound for MCP tool activity date.
+ */
+export type FromDateQuery = string
+
+/**
+ * Inclusive upper bound for MCP tool activity date.
+ */
+export type ToDateQuery = string
 
 export type ListAgentsData = {
   body?: never
@@ -1095,6 +1295,52 @@ export type ListNetworkObservabilityResponses = {
 
 export type ListNetworkObservabilityResponse2 =
   ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
+
+export type GetMcpGraphData = {
+  body?: never
+  path?: never
+  query: {
+    /**
+     * Agent name.
+     */
+    agent_name: AgentName
+    /**
+     * Inclusive lower bound for MCP tool activity date.
+     */
+    from: string
+    /**
+     * Inclusive upper bound for MCP tool activity date.
+     */
+    to: string
+  }
+  url: "/api/lens/mcp/graph"
+}
+
+export type GetMcpGraphErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetMcpGraphError = GetMcpGraphErrors[keyof GetMcpGraphErrors]
+
+export type GetMcpGraphResponses = {
+  /**
+   * Graph-ready MCP observability for one agent.
+   */
+  200: McpGraphResponse
+}
+
+export type GetMcpGraphResponse = GetMcpGraphResponses[keyof GetMcpGraphResponses]
 
 export type CreateAgentData = {
   body: CreateAgentRequest
@@ -2109,3 +2355,318 @@ export type UpdateEnvironmentResponses = {
 }
 
 export type UpdateEnvironmentResponse = UpdateEnvironmentResponses[keyof UpdateEnvironmentResponses]
+
+export type CreateMcpConnectionData = {
+  body: CreateMcpConnectionRequest
+  path?: never
+  query?: never
+  url: "/api/mcp-connection"
+}
+
+export type CreateMcpConnectionErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateMcpConnectionError = CreateMcpConnectionErrors[keyof CreateMcpConnectionErrors]
+
+export type CreateMcpConnectionResponses = {
+  /**
+   * MCPConnection created.
+   */
+  201: McpConnectionDetail
+}
+
+export type CreateMcpConnectionResponse =
+  CreateMcpConnectionResponses[keyof CreateMcpConnectionResponses]
+
+export type DeleteMcpConnectionData = {
+  body?: never
+  path: {
+    /**
+     * MCPConnection name.
+     */
+    name: McpConnectionName
+  }
+  query?: never
+  url: "/api/mcp-connection/{name}"
+}
+
+export type DeleteMcpConnectionErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteMcpConnectionError = DeleteMcpConnectionErrors[keyof DeleteMcpConnectionErrors]
+
+export type DeleteMcpConnectionResponses = {
+  /**
+   * MCPConnection deleted.
+   */
+  204: void
+}
+
+export type DeleteMcpConnectionResponse =
+  DeleteMcpConnectionResponses[keyof DeleteMcpConnectionResponses]
+
+export type GetMcpConnectionData = {
+  body?: never
+  path: {
+    /**
+     * MCPConnection name.
+     */
+    name: McpConnectionName
+  }
+  query?: never
+  url: "/api/mcp-connection/{name}"
+}
+
+export type GetMcpConnectionErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetMcpConnectionError = GetMcpConnectionErrors[keyof GetMcpConnectionErrors]
+
+export type GetMcpConnectionResponses = {
+  /**
+   * MCPConnection.
+   */
+  200: McpConnectionDetail
+}
+
+export type GetMcpConnectionResponse = GetMcpConnectionResponses[keyof GetMcpConnectionResponses]
+
+export type UpdateMcpConnectionData = {
+  body: UpdateMcpConnectionRequest
+  path: {
+    /**
+     * MCPConnection name.
+     */
+    name: McpConnectionName
+  }
+  query?: never
+  url: "/api/mcp-connection/{name}"
+}
+
+export type UpdateMcpConnectionErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateMcpConnectionError = UpdateMcpConnectionErrors[keyof UpdateMcpConnectionErrors]
+
+export type UpdateMcpConnectionResponses = {
+  /**
+   * MCPConnection updated.
+   */
+  200: McpConnectionDetail
+}
+
+export type UpdateMcpConnectionResponse =
+  UpdateMcpConnectionResponses[keyof UpdateMcpConnectionResponses]
+
+export type ListMcpConnectionsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/mcp-connection/list"
+}
+
+export type ListMcpConnectionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListMcpConnectionsError = ListMcpConnectionsErrors[keyof ListMcpConnectionsErrors]
+
+export type ListMcpConnectionsResponses = {
+  /**
+   * Paginated MCPConnections.
+   */
+  200: ListMcpConnectionsResponse
+}
+
+export type ListMcpConnectionsResponse2 =
+  ListMcpConnectionsResponses[keyof ListMcpConnectionsResponses]
+
+export type WatchMcpConnectionsData = {
+  body?: WatchMcpConnectionsRequest
+  path?: never
+  query?: never
+  url: "/api/mcp-connection/watch"
+}
+
+export type WatchMcpConnectionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchMcpConnectionsError = WatchMcpConnectionsErrors[keyof WatchMcpConnectionsErrors]
+
+export type WatchMcpConnectionsResponses = {
+  /**
+   * Stream of MCP connection updates.
+   */
+  200: WatchMcpConnectionsEvent
+}
+
+export type WatchMcpConnectionsResponse =
+  WatchMcpConnectionsResponses[keyof WatchMcpConnectionsResponses]
+
+export type DeleteMcpConnectionCredentialsData = {
+  body?: never
+  path: {
+    /**
+     * MCPConnection name.
+     */
+    name: McpConnectionName
+  }
+  query?: never
+  url: "/api/mcp-connection/{name}/credentials"
+}
+
+export type DeleteMcpConnectionCredentialsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteMcpConnectionCredentialsError =
+  DeleteMcpConnectionCredentialsErrors[keyof DeleteMcpConnectionCredentialsErrors]
+
+export type DeleteMcpConnectionCredentialsResponses = {
+  /**
+   * MCPConnection credentials removed.
+   */
+  204: void
+}
+
+export type DeleteMcpConnectionCredentialsResponse =
+  DeleteMcpConnectionCredentialsResponses[keyof DeleteMcpConnectionCredentialsResponses]
+
+export type SetMcpConnectionCredentialsData = {
+  body: SetMcpConnectionCredentialsRequest
+  path: {
+    /**
+     * MCPConnection name.
+     */
+    name: McpConnectionName
+  }
+  query?: never
+  url: "/api/mcp-connection/{name}/credentials"
+}
+
+export type SetMcpConnectionCredentialsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type SetMcpConnectionCredentialsError =
+  SetMcpConnectionCredentialsErrors[keyof SetMcpConnectionCredentialsErrors]
+
+export type SetMcpConnectionCredentialsResponses = {
+  /**
+   * MCPConnection credentials stored.
+   */
+  204: void
+}
+
+export type SetMcpConnectionCredentialsResponse =
+  SetMcpConnectionCredentialsResponses[keyof SetMcpConnectionCredentialsResponses]

@@ -28,6 +28,8 @@ import (
 type ClawarmorV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	AgentsGetter
+	EnvironmentsGetter
+	MCPConnectionsGetter
 	WorkflowRunsGetter
 	WorkflowSchedulesGetter
 }
@@ -39,6 +41,14 @@ type ClawarmorV1alpha1Client struct {
 
 func (c *ClawarmorV1alpha1Client) Agents(namespace string) AgentInterface {
 	return newAgents(c, namespace)
+}
+
+func (c *ClawarmorV1alpha1Client) Environments(namespace string) EnvironmentInterface {
+	return newEnvironments(c, namespace)
+}
+
+func (c *ClawarmorV1alpha1Client) MCPConnections(namespace string) MCPConnectionInterface {
+	return newMCPConnections(c, namespace)
 }
 
 func (c *ClawarmorV1alpha1Client) WorkflowRuns(namespace string) WorkflowRunInterface {

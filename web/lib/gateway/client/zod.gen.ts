@@ -44,6 +44,15 @@ export const zEnvironmentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
+ * MCPConnection resource name.
+ */
+export const zMcpConnectionName = z
+  .string()
+  .min(1)
+  .max(32)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+/**
  * Workflow name scoped to one agent.
  */
 export const zWorkflowName = z
@@ -373,6 +382,51 @@ export const zListSpansResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zMcpGraphAgent = z.object({
+  name: zAgentName,
+})
+
+export const zMcpGraphConnection = z.object({
+  id: z.string(),
+  name: z.string(),
+  server_url: z.url().optional(),
+})
+
+export const zMcpGraphTool = z.object({
+  id: z.string(),
+  connection_id: z.string(),
+  name: z.string(),
+})
+
+export const zMcpGraphEdge = z.object({
+  source: z.string(),
+  target: z.string(),
+  kind: z.enum(["agent_connection", "connection_tool"]),
+  avg_latency_ms: z.number().gte(0).optional(),
+  success_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  failed_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  last_called_at: z.iso.datetime().optional(),
+})
+
+export const zMcpGraphResponse = z.object({
+  agent: zMcpGraphAgent,
+  connections: z.array(zMcpGraphConnection),
+  tools: z.array(zMcpGraphTool),
+  edges: z.array(zMcpGraphEdge),
+})
+
 export const zProcessObservabilityEvent = z.object({
   id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
@@ -600,6 +654,8 @@ export const zSpanDetailResponse = z.object({
   payload: zSpanPayload,
 })
 
+export const zJsonObject = z.record(z.string(), zJsonValue)
+
 /**
  * Secret key name. Alphanumeric and underscores only.
  */
@@ -615,7 +671,7 @@ export const zSecretKey = z
 export const zSecretValue = z.string().max(49152)
 
 /**
- * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. Wildcards match any subdomain depth and do not match the apex domain.
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly one subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
  *
  */
 export const zSecretHost = z.string().min(1).max(253)
@@ -653,10 +709,25 @@ export const zListSecretsResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zDeleteEnvironmentRequest = z.object({
+  name: zEnvironmentName,
+})
+
+export const zMcpConnectionToolRef = z.object({
+  name: z.string().min(1),
+  require_consent: z.boolean(),
+})
+
+export const zMcpConnectionRef = z.object({
+  tools: z.array(zMcpConnectionToolRef).min(1),
+  name: zMcpConnectionName,
+})
+
 export const zEnvironment = z.object({
   name: zEnvironmentName,
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
+  mcp_connection_refs: z.array(zMcpConnectionRef),
   created_at: z.iso.datetime(),
   metadata: z.object({
     package_count: z
@@ -680,15 +751,144 @@ export const zCreateEnvironmentRequest = z.object({
   name: zEnvironmentName,
   packages: z.array(z.string().min(1)).optional(),
   allowed_hosts: z.array(z.string().min(1)).optional(),
-})
-
-export const zDeleteEnvironmentRequest = z.object({
-  name: zEnvironmentName,
+  mcp_connection_refs: z.array(zMcpConnectionRef).optional(),
 })
 
 export const zUpdateEnvironmentRequest = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
+  mcp_connection_refs: z.array(zMcpConnectionRef),
+})
+
+export const zMcpConnectionTool = z.object({
+  name: z.string().min(1),
+})
+
+export const zMcpConnectionEndpoint = z.object({
+  url: z.string().min(1),
+  timeout: z.string().min(1).optional(),
+  insecure_skip_verify: z.boolean(),
+  headers: z.record(z.string(), z.string()),
+})
+
+export const zMcpConnectionHeaderLocation = z.object({
+  name: z.string().min(1),
+  prefix: z.string().min(1).optional(),
+})
+
+export const zMcpConnectionQueryParameterLocation = z.object({
+  name: z.string().min(1),
+})
+
+export const zMcpConnectionCookieLocation = z.object({
+  name: z.string().min(1),
+})
+
+export const zMcpConnectionAuthLocation = z.object({
+  header: zMcpConnectionHeaderLocation.optional(),
+  query_parameter: zMcpConnectionQueryParameterLocation.optional(),
+  cookie: zMcpConnectionCookieLocation.optional(),
+})
+
+export const zMcpConnectionBearerAuth = z.object({
+  location: zMcpConnectionAuthLocation.optional(),
+})
+
+export const zMcpConnectionOAuthAuth = z.object({
+  issuer: z.string().optional(),
+  authorization_endpoint: z.string().optional(),
+  token_endpoint: z.string().optional(),
+  registration_endpoint: z.string().optional(),
+  resource: z.string().optional(),
+  scopes: z.array(z.string().min(1)).optional(),
+  location: zMcpConnectionAuthLocation.optional(),
+})
+
+export const zMcpConnectionAuth = z.object({
+  bearer: zMcpConnectionBearerAuth.optional(),
+  oauth: zMcpConnectionOAuthAuth.optional(),
+})
+
+export const zMcpConnectionLifecycle = z.enum(["Accepted", "Ready", "Error"])
+
+export const zMcpConnectionReason = z.enum([
+  "Ready",
+  "ProbePending",
+  "Unreachable",
+  "InvalidCredentials",
+  "ProtocolError",
+  "InternalError",
+])
+
+export const zMcpConnectionDetail = z.object({
+  name: zMcpConnectionName,
+  endpoint: zMcpConnectionEndpoint,
+  auth: zMcpConnectionAuth,
+  created_at: z.iso.datetime(),
+  status: zMcpConnectionLifecycle,
+  reason: zMcpConnectionReason,
+  message: z.string(),
+  tool_catalog_ready: z.boolean(),
+  tools: z.array(zMcpConnectionTool),
+})
+
+export const zMcpConnectionSummary = z.object({
+  name: zMcpConnectionName,
+  auth_mode: z.string(),
+  endpoint_url: z.string(),
+  created_at: z.iso.datetime(),
+  status: zMcpConnectionLifecycle,
+  reason: zMcpConnectionReason,
+  message: z.string(),
+  tool_catalog_ready: z.boolean(),
+  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+})
+
+export const zListMcpConnectionsResponse = z.object({
+  mcp_connections: z.array(zMcpConnectionSummary),
+  next_page_token: z.string(),
+})
+
+export const zWatchMcpConnectionsRequest = z.object({
+  names: z.array(zMcpConnectionName).optional(),
+})
+
+export const zWatchMcpConnectionsEvent = z.object({
+  mcp_connections: z.array(zMcpConnectionSummary),
+})
+
+export const zCreateMcpConnectionRequest = z.object({
+  name: zMcpConnectionName,
+  endpoint: zMcpConnectionEndpoint,
+  auth: zMcpConnectionAuth.optional(),
+})
+
+export const zUpdateMcpConnectionRequest = z.object({
+  endpoint: zMcpConnectionEndpoint,
+  auth: zMcpConnectionAuth.optional(),
+})
+
+export const zMcpConnectionBearerCredentials = z.object({
+  token: z.string().min(1),
+})
+
+export const zMcpConnectionOAuthCredentials = z.object({
+  client_id: z.string().optional(),
+  client_secret: z.string().optional(),
+  refresh_token: z.string().optional(),
+  access_token: z.string().optional(),
+  expires_at: z.iso.datetime().optional(),
+  token_type: z.string().optional(),
+  scopes: z.array(z.string().min(1)).optional(),
+  registration: zJsonObject.optional(),
+  revocation: zJsonObject.optional(),
+})
+
+export const zSetMcpConnectionCredentialsRequest = z.object({
+  bearer: zMcpConnectionBearerCredentials.optional(),
+  oauth: zMcpConnectionOAuthCredentials.optional(),
 })
 
 /**
@@ -705,6 +905,11 @@ export const zAgentNamePath = zAgentName
  * Environment name.
  */
 export const zEnvironmentNamePath = zEnvironmentName
+
+/**
+ * MCPConnection name.
+ */
+export const zMcpConnectionNamePath = zMcpConnectionName
 
 /**
  * Optional agent name filters. Repeat the query parameter for multiple agents.
@@ -765,6 +970,16 @@ export const zActionQuery = zObservabilityAction
  * When true, returns aggregated events with occurrence counts over the time range.
  */
 export const zAggregatedQuery = z.boolean().default(false)
+
+/**
+ * Inclusive lower bound for MCP tool activity date.
+ */
+export const zFromDateQuery = z.iso.date()
+
+/**
+ * Inclusive upper bound for MCP tool activity date.
+ */
+export const zToDateQuery = z.iso.date()
 
 export const zListAgentsQuery = z.object({
   agent_name: z.array(zAgentName).optional(),
@@ -871,6 +1086,17 @@ export const zListNetworkObservabilityQuery = z.object({
  * Paginated network observability events.
  */
 export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
+
+export const zGetMcpGraphQuery = z.object({
+  agent_name: zAgentName,
+  from: z.iso.date(),
+  to: z.iso.date(),
+})
+
+/**
+ * Graph-ready MCP observability for one agent.
+ */
+export const zGetMcpGraphResponse = zMcpGraphResponse
 
 export const zCreateAgentBody = zCreateAgentRequest
 
@@ -1126,3 +1352,76 @@ export const zUpdateEnvironmentPath = z.object({
  * Environment updated.
  */
 export const zUpdateEnvironmentResponse = zEnvironment
+
+export const zCreateMcpConnectionBody = zCreateMcpConnectionRequest
+
+/**
+ * MCPConnection created.
+ */
+export const zCreateMcpConnectionResponse = zMcpConnectionDetail
+
+export const zDeleteMcpConnectionPath = z.object({
+  name: zMcpConnectionName,
+})
+
+/**
+ * MCPConnection deleted.
+ */
+export const zDeleteMcpConnectionResponse = z.void()
+
+export const zGetMcpConnectionPath = z.object({
+  name: zMcpConnectionName,
+})
+
+/**
+ * MCPConnection.
+ */
+export const zGetMcpConnectionResponse = zMcpConnectionDetail
+
+export const zUpdateMcpConnectionBody = zUpdateMcpConnectionRequest
+
+export const zUpdateMcpConnectionPath = z.object({
+  name: zMcpConnectionName,
+})
+
+/**
+ * MCPConnection updated.
+ */
+export const zUpdateMcpConnectionResponse = zMcpConnectionDetail
+
+export const zListMcpConnectionsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated MCPConnections.
+ */
+export const zListMcpConnectionsResponse2 = zListMcpConnectionsResponse
+
+export const zWatchMcpConnectionsBody = zWatchMcpConnectionsRequest
+
+/**
+ * Stream of MCP connection updates.
+ */
+export const zWatchMcpConnectionsResponse = zWatchMcpConnectionsEvent
+
+export const zDeleteMcpConnectionCredentialsPath = z.object({
+  name: zMcpConnectionName,
+})
+
+/**
+ * MCPConnection credentials removed.
+ */
+export const zDeleteMcpConnectionCredentialsResponse = z.void()
+
+export const zSetMcpConnectionCredentialsBody = zSetMcpConnectionCredentialsRequest
+
+export const zSetMcpConnectionCredentialsPath = z.object({
+  name: zMcpConnectionName,
+})
+
+/**
+ * MCPConnection credentials stored.
+ */
+export const zSetMcpConnectionCredentialsResponse = z.void()

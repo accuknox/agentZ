@@ -9,6 +9,7 @@ import {
   updateEnvironment,
   type Error,
   type ListEnvironmentsData,
+  type McpConnectionRef,
 } from "@/lib/gateway/client"
 import { createEnvironmentFormSchema } from "@/data/schema"
 import type {
@@ -45,39 +46,46 @@ export async function listEnvironmentsAction(
 }
 
 function environmentFormValues(formData: FormData) {
+  const refsByName = new Map<
+    string,
+    {
+      name: string
+      tools: Array<{ name: string; requireConsent: boolean }>
+    }
+  >()
+  for (const value of formData.getAll("mcpConnectionRefs")) {
+    const name = String(value)
+    refsByName.set(name, {
+      name,
+      tools: [],
+    })
+  }
+  const consentByTool = new Set(
+    formData.getAll("mcpRequireConsentTool").map((value) => String(value))
+  )
+  for (const value of formData.getAll("mcpTool")) {
+    const [name, toolName] = String(value).split("\u0000")
+    if (!name || !toolName) {
+      continue
+    }
+    const ref = refsByName.get(name)
+    if (!ref) {
+      continue
+    }
+    ref.tools.push({
+      name: toolName,
+      requireConsent: consentByTool.has(`${name}\u0000${toolName}`),
+    })
+  }
+
   return {
     packages: formData.getAll("packages").map((p) => String(p)),
     allowedHosts: formData.getAll("allowedHosts").map((h) => String(h)),
+    mcpConnectionRefs: [...refsByName.values()].map((ref) => ({
+      name: ref.name,
+      tools: ref.tools,
+    })),
   }
-}
-
-function invalidEnvironmentForm(error: z.ZodError): CreateEnvironmentFormState {
-  return {
-    error: {
-      code: "INVALID_FORM",
-      message: "Environment configuration is invalid",
-      errors: error.issues.map((issue) => ({
-        field: issue.path.join("."),
-        message: issue.message,
-      })),
-    },
-  }
-}
-
-function environmentPayload(data: { packages: string[]; allowedHosts: string[] }) {
-  return {
-    packages: data.packages,
-    allowed_hosts: data.allowedHosts,
-  }
-}
-
-async function finishEnvironmentMutation(error?: Error): Promise<CreateEnvironmentFormState> {
-  if (error) {
-    return { error }
-  }
-
-  updateTag(environmentsTag)
-  redirect("/environments")
 }
 
 export async function deleteEnvironmentFormAction(
@@ -133,17 +141,41 @@ export async function createEnvironmentFormAction(
   })
 
   if (!parsed.success) {
-    return invalidEnvironmentForm(parsed.error)
+    return {
+      error: {
+        code: "INVALID_FORM",
+        message: "Environment configuration is invalid",
+        errors: parsed.error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
+    }
   }
 
   const result = await createEnvironment({
     body: {
       name: parsed.data.name,
-      ...environmentPayload(parsed.data),
+      packages: parsed.data.packages,
+      allowed_hosts: parsed.data.allowedHosts,
+      mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
+        (ref): McpConnectionRef => ({
+          name: ref.name,
+          tools: ref.tools.map((tool) => ({
+            name: tool.name,
+            require_consent: tool.requireConsent,
+          })),
+        })
+      ),
     },
   })
 
-  return finishEnvironmentMutation(result.error)
+  if (result.error) {
+    return { error: result.error }
+  }
+
+  updateTag(environmentsTag)
+  redirect("/environments")
 }
 
 export async function updateEnvironmentFormAction(
@@ -156,13 +188,39 @@ export async function updateEnvironmentFormAction(
     .safeParse(environmentFormValues(formData))
 
   if (!parsed.success) {
-    return invalidEnvironmentForm(parsed.error)
+    return {
+      error: {
+        code: "INVALID_FORM",
+        message: "Environment configuration is invalid",
+        errors: parsed.error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
+    }
   }
 
   const result = await updateEnvironment({
-    body: environmentPayload(parsed.data),
+    body: {
+      packages: parsed.data.packages,
+      allowed_hosts: parsed.data.allowedHosts,
+      mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
+        (ref): McpConnectionRef => ({
+          name: ref.name,
+          tools: ref.tools.map((tool) => ({
+            name: tool.name,
+            require_consent: tool.requireConsent,
+          })),
+        })
+      ),
+    },
     path: { name },
   })
 
-  return finishEnvironmentMutation(result.error)
+  if (result.error) {
+    return { error: result.error }
+  }
+
+  updateTag(environmentsTag)
+  redirect("/environments")
 }

@@ -13,7 +13,24 @@ spec:
     singular: environment
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Number of nix packages
+      jsonPath: .status.packageCount
+      name: Packages
+      type: integer
+    - description: Number of allowed hosts
+      jsonPath: .status.allowedHostCount
+      name: Allowed Hosts
+      type: integer
+    - description: Number of MCP connection references
+      jsonPath: .status.mcpRefCount
+      name: MCPs
+      type: integer
+    - description: Age of the Environment
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Environment is the Schema for the envs API.
@@ -40,17 +57,53 @@ spec:
             properties:
               allowedHosts:
                 description: |-
-                  AllowedHosts lists exact domains, leading-star wildcard domains, and
-                  IPv4/IPv6 CIDRs the referencing Agent pods may reach.
+                  AllowedHosts lists exact domains, leading wildcard domains with "*."
+                  or "**.", and IPv4/IPv6 CIDRs the referencing Agent pods may reach.
                 items:
                   type: string
                 type: array
+              mcpConnectionRefs:
+                description: |-
+                  MCPConnectionRefs lists external MCP connections exposed in this
+                  environment in order.
+                items:
+                  description: MCPConnectionRef references one MCPConnection in the same namespace.
+                  properties:
+                    name:
+                      description: Name is the local name of the referenced MCPConnection.
+                      type: string
+                    tools:
+                      description: |-
+                        Tools lists the upstream MCP tools exposed through this environment
+                        for the referenced connection.
+                      items:
+                        description: |-
+                          EnvironmentMCPTool describes one upstream MCP tool exposed through an
+                          environment.
+                        properties:
+                          name:
+                            description: Name is the upstream MCP tool name exposed through this environment.
+                            type: string
+                          requireConsent:
+                            description: |-
+                              RequireConsent asks the interactive user to approve this tool before
+                              OpenCode runs it.
+                            type: boolean
+                        required:
+                        - name
+                        - requireConsent
+                        type: object
+                      type: array
+                  required:
+                  - name
+                  - tools
+                  type: object
+                type: array
               packages:
                 description: |-
-                  Packages lists nix packages (e.g. "python3", "nodejs_22",
-                  "ripgrep") to install into referencing Agent pods. Each entry is
-                  prefixed with nixpkgs# automatically. Leave empty to skip nix init
-                  container bootstrapping.
+                  Packages lists nix packages (e.g. "python3", "nodejs_22", "ripgrep") to
+                  install into referencing Agent runtimes. Each entry is prefixed with
+                  nixpkgs# automatically.
                 items:
                   type: string
                 type: array
@@ -58,6 +111,9 @@ spec:
           status:
             description: status defines the observed state of Environment
             properties:
+              allowedHostCount:
+                description: AllowedHostCount is the number of allowed hosts configured.
+                type: integer
               conditions:
                 description: |-
                   conditions represent the current state of the Environment resource.
@@ -126,6 +182,16 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              mcpRefCount:
+                description: MCPRefCount is the number of MCP connection references configured.
+                type: integer
+              packageCount:
+                description: PackageCount is the number of nix packages configured.
+                type: integer
+            required:
+            - allowedHostCount
+            - mcpRefCount
+            - packageCount
             type: object
         required:
         - spec

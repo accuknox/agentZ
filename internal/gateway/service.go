@@ -48,6 +48,7 @@ type Config struct {
 	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
 	OpenBaoK8sAuthTokenPath string
+	MCPProbeStaleAfter      time.Duration
 }
 
 // Service implements the agent gateway HTTP API.
@@ -126,6 +127,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	if strings.TrimSpace(cfg.OpenBaoK8sAuthRole) == "" {
 		return fmt.Errorf("openbao k8s auth role is required")
+	}
+	if cfg.MCPProbeStaleAfter <= 0 {
+		return fmt.Errorf("mcp probe stale after is required")
 	}
 
 	resolver, err := newResolver(ctx, cfg.Namespace, cfg.TargetOverride)
@@ -252,8 +256,7 @@ func requestLog(next http.Handler) http.Handler {
 			slog.LogAttrs(r.Context(), slog.LevelError, "gateway request completed", attrs...)
 			return
 		}
-		if rec.status >= http.StatusBadRequest &&
-			slog.Default().Enabled(r.Context(), slog.LevelDebug) {
+		if rec.status >= http.StatusBadRequest && slog.Default().Enabled(r.Context(), slog.LevelDebug) {
 			slog.LogAttrs(r.Context(), slog.LevelDebug, "gateway request completed", attrs...)
 			return
 		}

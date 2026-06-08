@@ -186,9 +186,9 @@ function toolMetadata(part: ToolPart) {
 function toneClass(tone: ToolTone) {
   switch (tone) {
     case "active":
-      return "text-chat-active"
+      return "text-primary"
     case "error":
-      return "text-chat-error"
+      return "text-destructive"
     default:
       return "text-foreground"
   }
@@ -416,11 +416,11 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
     <div className="flex min-w-0 items-center gap-2">
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2 leading-tight">
-          <div className={cn("shrink-0 font-medium text-sm", toneClass(tone))}>{title}</div>
+          <div className={cn("shrink-0 text-sm font-medium", toneClass(tone))}>{title}</div>
           {arg ? (
             href ? (
               <Link
-                className="truncate font-mono text-muted-foreground text-sm underline-offset-2 hover:underline"
+                className="text-muted-foreground truncate font-mono text-sm underline-offset-2 hover:underline"
                 href={href}
                 onClick={(event) => event.stopPropagation()}
                 target="_blank"
@@ -428,7 +428,7 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
                 {arg}
               </Link>
             ) : (
-              <div className="truncate font-mono text-muted-foreground text-sm">{arg}</div>
+              <div className="text-muted-foreground truncate font-mono text-sm">{arg}</div>
             )
           ) : null}
           {pending && Icon ? <Icon aria-hidden className="size-3 shrink-0" /> : null}
@@ -461,7 +461,7 @@ function ToolCard({
               <div className="min-w-0 flex-1">
                 <TriggerLine {...{ ...trigger, action: undefined }} />
               </div>
-              <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+              <span className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
                 {open ? (
                   <ChevronDownIcon className="size-3.5" />
                 ) : (
@@ -474,7 +474,7 @@ function ToolCard({
         {trigger.action ? <div className="ml-2 shrink-0">{trigger.action}</div> : null}
       </div>
       <CollapsibleContent>
-        <div className="space-y-1 border-l-2 border-muted-foreground/20 pt-1 pl-3">{children}</div>
+        <div className="border-muted-foreground/20 space-y-1 border-l-2 pt-1 pl-3">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   )
@@ -506,7 +506,7 @@ function LoadedFiles({ files }: { files: string[] }) {
   if (files.length === 0) return null
 
   return (
-    <div className="space-y-1 text-muted-foreground text-sm">
+    <div className="text-muted-foreground space-y-1 text-sm">
       {files.map((path) => (
         <div className="flex items-center gap-1.5" key={path}>
           <ChevronRightIcon className="size-3 shrink-0" />
@@ -523,7 +523,7 @@ function Diagnostics({ items }: { items: Diagnostic[] }) {
   return (
     <div className="space-y-1">
       {items.slice(0, 3).map((item, index) => (
-        <div className="flex gap-1.5 text-chat-error text-sm" key={`${item.message}-${index}`}>
+        <div className="text-destructive flex gap-1.5 text-sm" key={`${item.message}-${index}`}>
           <CircleAlertIcon className="mt-0.5 size-3 shrink-0" />
           <div className="min-w-0">
             <span className="font-mono text-xs">
@@ -632,7 +632,7 @@ function WebfetchTool({ part }: ToolProps) {
 
   return (
     <ToolCard
-      action={url ? <ExternalLinkIcon className="size-3.5 text-muted-foreground" /> : null}
+      action={url ? <ExternalLinkIcon className="text-muted-foreground size-3.5" /> : null}
       hideDetails
       href={url}
       pending={part.state.status === "pending" || part.state.status === "running"}
@@ -660,7 +660,7 @@ function WebsearchTool({ part }: ToolProps) {
       <div className="space-y-1">
         {links.map((url) => (
           <Link
-            className="block truncate text-primary text-sm underline-offset-2 hover:underline"
+            className="text-primary block truncate text-sm underline-offset-2 hover:underline"
             href={url}
             key={url}
             target="_blank"
@@ -779,9 +779,9 @@ function PatchFileCard({ file }: { file: ToolFile }) {
     <AccordionItem value={file.relativePath}>
       <AccordionTrigger className="gap-3 py-1.5 hover:no-underline">
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-sm">{fileName(file.relativePath)}</div>
+          <div className="truncate text-sm font-medium">{fileName(file.relativePath)}</div>
           {file.relativePath.includes("/") ? (
-            <div className="truncate text-muted-foreground text-xs">
+            <div className="text-muted-foreground truncate text-xs">
               {directoryName(file.relativePath)}
             </div>
           ) : null}
@@ -791,7 +791,7 @@ function PatchFileCard({ file }: { file: ToolFile }) {
       <AccordionContent>
         {body ? (
           <ToolDetailText>
-            <pre className="overflow-auto whitespace-pre-wrap wrap-break-word font-mono text-xs">
+            <pre className="overflow-auto font-mono text-xs wrap-break-word whitespace-pre-wrap">
               {body}
             </pre>
           </ToolDetailText>
@@ -842,7 +842,7 @@ function QuestionsTool({ part }: ToolProps) {
       <div className="space-y-1">
         {inputQuestions.map((question, index) => (
           <div className="space-y-0.5" key={`${question.header}-${index}`}>
-            <div className="font-medium text-sm">{question.question}</div>
+            <div className="text-sm font-medium">{question.question}</div>
             <div className="text-muted-foreground text-sm">
               {(answers[index] ?? []).join(", ") || "No answer"}
             </div>
@@ -881,8 +881,8 @@ function TodoTool({ part }: ToolProps) {
           <div className="flex items-start gap-2 text-sm" key={`${item.content}-${index}`}>
             <span
               className={cn("mt-0.5 size-2.5 rounded-full border", {
-                "border-chat-active bg-chat-active": item.status === "completed",
-                "border-chat-neutral": item.status !== "completed",
+                "border-primary bg-primary": item.status === "completed",
+                "border-muted-foreground": item.status !== "completed",
               })}
             />
             <span
@@ -944,7 +944,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                 tone={pending ? "active" : "neutral"}
               />
             </div>
-            <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+            <span className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
               {open ? (
                 <ChevronDownIcon className="size-3.5" />
               ) : (
@@ -955,7 +955,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="flex flex-col gap-1 border-chat-neutral/20 border-l pl-3">
+        <div className="border-muted-foreground/20 flex flex-col gap-1 border-l pl-3">
           {parts.map((part) => {
             const Icon = toolIcon(part.tool)
             const title = toolTitle(part.tool)
@@ -974,19 +974,19 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
 
             return (
               <div className="flex items-center gap-2 text-sm" key={part.id}>
-                <Icon className="size-3 shrink-0 text-muted-foreground" />
+                <Icon className="text-muted-foreground size-3 shrink-0" />
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-baseline gap-2">
                     <div
                       className={cn(
-                        "shrink-0 font-medium text-sm",
+                        "shrink-0 text-sm font-medium",
                         toneClass(toolStateTone(part.state.status))
                       )}
                     >
                       {title}
                     </div>
                     {arg ? (
-                      <div className="truncate font-mono text-muted-foreground text-sm">
+                      <div className="text-muted-foreground truncate font-mono text-sm">
                         {truncate(arg)}
                       </div>
                     ) : null}

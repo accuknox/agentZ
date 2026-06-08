@@ -31,6 +31,14 @@ func (c *FakeClawarmorV1alpha1) Agents(namespace string) v1alpha1.AgentInterface
 	return newFakeAgents(c, namespace)
 }
 
+func (c *FakeClawarmorV1alpha1) Environments(namespace string) v1alpha1.EnvironmentInterface {
+	return newFakeEnvironments(c, namespace)
+}
+
+func (c *FakeClawarmorV1alpha1) MCPConnections(namespace string) v1alpha1.MCPConnectionInterface {
+	return newFakeMCPConnections(c, namespace)
+}
+
 func (c *FakeClawarmorV1alpha1) WorkflowRuns(namespace string) v1alpha1.WorkflowRunInterface {
 	return newFakeWorkflowRuns(c, namespace)
 }

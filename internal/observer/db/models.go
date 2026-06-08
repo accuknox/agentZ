@@ -28,6 +28,44 @@ type ObserverFileEvent struct {
 	Source            string    `json:"source"`
 }
 
+type ObserverMcpToolInvocation struct {
+	ID                int64     `json:"id"`
+	AgentName         string    `json:"agent_name"`
+	TraceID           []byte    `json:"trace_id"`
+	SpanID            []byte    `json:"span_id"`
+	StartTime         time.Time `json:"start_time"`
+	EndTime           time.Time `json:"end_time"`
+	DurationNs        int64     `json:"duration_ns"`
+	McpConnectionName string    `json:"mcp_connection_name"`
+	ToolName          string    `json:"tool_name"`
+	SessionID         string    `json:"session_id"`
+	Failed            bool      `json:"failed"`
+	IngestedAt        time.Time `json:"ingested_at"`
+}
+
+type ObserverMcpToolInvocationsDefault struct {
+	ID                int64     `json:"id"`
+	AgentName         string    `json:"agent_name"`
+	TraceID           []byte    `json:"trace_id"`
+	SpanID            []byte    `json:"span_id"`
+	StartTime         time.Time `json:"start_time"`
+	EndTime           time.Time `json:"end_time"`
+	DurationNs        int64     `json:"duration_ns"`
+	McpConnectionName string    `json:"mcp_connection_name"`
+	ToolName          string    `json:"tool_name"`
+	SessionID         string    `json:"session_id"`
+	Failed            bool      `json:"failed"`
+	IngestedAt        time.Time `json:"ingested_at"`
+}
+
+type ObserverMcpToolLastCalled struct {
+	AgentName         string    `json:"agent_name"`
+	McpConnectionName string    `json:"mcp_connection_name"`
+	ToolName          string    `json:"tool_name"`
+	LastCalledAt      time.Time `json:"last_called_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 type ObserverNetworkEvent struct {
 	ID                int64     `json:"id"`
 	AgentName         string    `json:"agent_name"`
@@ -64,7 +102,6 @@ type ObserverTrace struct {
 	StartedAt         time.Time `json:"started_at"`
 	EndedAt           time.Time `json:"ended_at"`
 	DurationNs        int64     `json:"duration_ns"`
-	DurationMs        float64   `json:"duration_ms"`
 	SpanCount         int64     `json:"span_count"`
 	ErrorCount        int64     `json:"error_count"`
 	ToolCount         int64     `json:"tool_count"`
@@ -86,7 +123,6 @@ type ObserverTraceSession struct {
 	StartedAt         time.Time `json:"started_at"`
 	EndedAt           time.Time `json:"ended_at"`
 	DurationNs        int64     `json:"duration_ns"`
-	DurationMs        float64   `json:"duration_ms"`
 	SpanCount         int64     `json:"span_count"`
 	ErrorCount        int64     `json:"error_count"`
 	ToolCount         int64     `json:"tool_count"`
@@ -110,7 +146,6 @@ type ObserverTraceSpan struct {
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
-	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
 	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`
@@ -161,7 +196,6 @@ type ObserverTraceSpansDefault struct {
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
-	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
 	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`

@@ -90,6 +90,86 @@ func (q *Queries) GatewayGetAgent(ctx context.Context, agentName string) (Agent,
 	return i, err
 }
 
+const gatewayGetMCPGraph = `-- name: GatewayGetMCPGraph :many
+WITH range_rows AS (
+  SELECT
+    inv.agent_name,
+    inv.mcp_connection_name,
+    inv.tool_name,
+    AVG(CAST(inv.duration_ns AS DOUBLE PRECISION) / 1000000.0) AS avg_latency_ms,
+    COUNT(*) FILTER (WHERE NOT inv.failed)::BIGINT AS success_count,
+    COUNT(*) FILTER (WHERE inv.failed)::BIGINT AS failed_count
+  FROM observer_mcp_tool_invocations inv
+  WHERE inv.agent_name = $1
+    AND inv.start_time >= $2
+    AND inv.start_time < $3
+  GROUP BY
+    inv.agent_name,
+    inv.mcp_connection_name,
+    inv.tool_name
+)
+SELECT
+  range_rows.agent_name,
+  range_rows.mcp_connection_name,
+  range_rows.tool_name,
+  range_rows.avg_latency_ms,
+  range_rows.success_count,
+  range_rows.failed_count,
+  observer_mcp_tool_last_called.last_called_at
+FROM range_rows
+LEFT JOIN observer_mcp_tool_last_called
+  ON observer_mcp_tool_last_called.agent_name = range_rows.agent_name
+  AND observer_mcp_tool_last_called.mcp_connection_name = range_rows.mcp_connection_name
+  AND observer_mcp_tool_last_called.tool_name = range_rows.tool_name
+ORDER BY
+  range_rows.mcp_connection_name ASC,
+  range_rows.tool_name ASC
+`
+
+type GatewayGetMCPGraphParams struct {
+	AgentName       string    `json:"agent_name"`
+	StartTimeAfter  time.Time `json:"start_time_after"`
+	StartTimeBefore time.Time `json:"start_time_before"`
+}
+
+type GatewayGetMCPGraphRow struct {
+	AgentName         string             `json:"agent_name"`
+	McpConnectionName string             `json:"mcp_connection_name"`
+	ToolName          string             `json:"tool_name"`
+	AvgLatencyMs      float64            `json:"avg_latency_ms"`
+	SuccessCount      int64              `json:"success_count"`
+	FailedCount       int64              `json:"failed_count"`
+	LastCalledAt      pgtype.Timestamptz `json:"last_called_at"`
+}
+
+func (q *Queries) GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error) {
+	rows, err := q.db.Query(ctx, gatewayGetMCPGraph, arg.AgentName, arg.StartTimeAfter, arg.StartTimeBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayGetMCPGraphRow{}
+	for rows.Next() {
+		var i GatewayGetMCPGraphRow
+		if err := rows.Scan(
+			&i.AgentName,
+			&i.McpConnectionName,
+			&i.ToolName,
+			&i.AvgLatencyMs,
+			&i.SuccessCount,
+			&i.FailedCount,
+			&i.LastCalledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayGetSpanDetail = `-- name: GatewayGetSpanDetail :one
 WITH span_row AS (
   SELECT
@@ -102,7 +182,6 @@ WITH span_row AS (
     start_time,
     end_time,
     duration_ns,
-    duration_ms,
     name,
     span_class,
     operation_name,
@@ -138,7 +217,6 @@ SELECT
   s.start_time,
   s.end_time,
   s.duration_ns,
-  s.duration_ms,
   s.name,
   s.span_class,
   s.operation_name,
@@ -184,7 +262,6 @@ type GatewayGetSpanDetailRow struct {
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
-	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
 	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`
@@ -222,7 +299,6 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 		&i.StartTime,
 		&i.EndTime,
 		&i.DurationNs,
-		&i.DurationMs,
 		&i.Name,
 		&i.SpanClass,
 		&i.OperationName,
@@ -842,7 +918,6 @@ SELECT
   start_time,
   end_time,
   duration_ns,
-  duration_ms,
   name,
   span_class,
   operation_name,
@@ -893,7 +968,6 @@ type GatewayListSpansRow struct {
 	StartTime         time.Time `json:"start_time"`
 	EndTime           time.Time `json:"end_time"`
 	DurationNs        int64     `json:"duration_ns"`
-	DurationMs        float64   `json:"duration_ms"`
 	Name              string    `json:"name"`
 	SpanClass         string    `json:"span_class"`
 	OperationName     string    `json:"operation_name"`
@@ -938,7 +1012,6 @@ func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansPara
 			&i.StartTime,
 			&i.EndTime,
 			&i.DurationNs,
-			&i.DurationMs,
 			&i.Name,
 			&i.SpanClass,
 			&i.OperationName,
@@ -975,7 +1048,6 @@ SELECT
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -1051,7 +1123,6 @@ func (q *Queries) GatewayListTraceSessions(ctx context.Context, arg GatewayListT
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.DurationNs,
-			&i.DurationMs,
 			&i.SpanCount,
 			&i.ErrorCount,
 			&i.ToolCount,
@@ -1082,7 +1153,6 @@ SELECT
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -1144,7 +1214,6 @@ func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesPa
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.DurationNs,
-			&i.DurationMs,
 			&i.SpanCount,
 			&i.ErrorCount,
 			&i.ToolCount,

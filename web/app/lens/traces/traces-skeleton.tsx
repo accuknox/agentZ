@@ -11,14 +11,14 @@ import {
 export function TracesSkeleton() {
   return (
     <div className="flex flex-col">
-      <div className="overflow-x-auto border-b bg-background">
+      <div className="bg-background overflow-x-auto border-b">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-40 w-[20%]">Trace</TableHead>
-              <TableHead className="min-w-52 w-[22%]">Duration</TableHead>
-              <TableHead className="min-w-72 w-[36%]">Execution</TableHead>
-              <TableHead className="min-w-48 w-[22%]">Tokens</TableHead>
+              <TableHead className="w-[20%] min-w-40">Trace</TableHead>
+              <TableHead className="w-[22%] min-w-52">Duration</TableHead>
+              <TableHead className="w-[36%] min-w-72">Execution</TableHead>
+              <TableHead className="w-[22%] min-w-48">Tokens</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -57,7 +57,7 @@ export function TracesSkeleton() {
       </div>
       <div className="flex h-12 w-full items-center gap-3 px-6">
         <Skeleton className="h-4 w-16" />
-        <div className="flex gap-2 ml-auto">
+        <div className="ml-auto flex gap-2">
           <Skeleton className="h-8 w-20" />
           <Skeleton className="h-8 w-16" />
         </div>

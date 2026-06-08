@@ -1,9 +1,20 @@
 FROM nixos/nix:2.32.8 AS nix
 
+ARG NIXPKGS_REF=github:NixOS/nixpkgs/549bd84d6279f9852cae6225e372cc67fb91a4c1
+
+RUN nix --extra-experimental-features 'nix-command flakes' \
+    flake prefetch "$NIXPKGS_REF" >/dev/null && \
+    nix --extra-experimental-features 'nix-command flakes' \
+        eval --raw --impure \
+        --expr "(builtins.getFlake \"$NIXPKGS_REF\").outPath" \
+        >/tmp/clawarmor-nixpkgs.path
+
+
 FROM debian:trixie-slim
 
 COPY --from=nix /nix /nix
 COPY --from=nix /etc/nix /etc/nix
+COPY --from=nix /tmp/clawarmor-nixpkgs.path /etc/clawarmor/nixpkgs.path
 
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates bash coreutils xz-utils && rm -rf /var/lib/apt/lists/*
 

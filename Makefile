@@ -17,7 +17,7 @@ all: generate lint build
 generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
-	oapi-codegen --include-tags agents,lens,secrets,environments,workflows,workflow-schedules,session -config oapi-codegen.gateway.yaml openapi/gateway.yaml
+	oapi-codegen --include-tags agents,lens,secrets,environments,mcp-connections,workflows,workflow-schedules,session -config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./pkg/apis/...;./internal/controller/...;./internal/webhook/..." \
@@ -60,7 +60,7 @@ run-gateway:
 		--agent-trace-endpoint=172.18.0.1:4317 \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
-		--openbao-k8s-auth-role=clawarmor-gateway \
+		--openbao-k8s-auth-role=gateway \
 		--openbao-k8s-auth-token-path=/tmp/sa-token
 
 # Run agent controller manager
@@ -73,20 +73,31 @@ run-manager:
 		--enable-webhooks=false \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
-		--sinjector-image=$(IMAGE) \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
-		--manager-openbao-k8s-auth-role=clawarmor-manager \
+		--manager-openbao-k8s-auth-role=manager \
 		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector \
-		--nix-store-pvc=clawarmor-nix-store \
+		--nix-store-pvc=nix-store \
 		--gateway-url=http://172.18.0.1:8090
 
 # Run observer
 .PHONY: run-observer
 run-observer:
 	go run ./cmd/clawarmor observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
+
+# Run MCP ext-auth service
+.PHONY: run-extauth
+run-extauth:
+	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	go run ./cmd/clawarmor extauth serve \
+		--addr 0.0.0.0:18081 \
+		--namespace=default \
+		--openbao-addr=http://localhost:8200 \
+		--openbao-secret-mount-path=kv \
+		--openbao-k8s-auth-role=extauth \
+		--openbao-k8s-auth-token-path=/tmp/sa-token
 
 # Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer

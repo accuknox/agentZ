@@ -1,7 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
 
 import { getWorkflow, zError } from "./gateway"
-import { workflowErrorOutput } from "./workflow"
+import { formatRequestValidationError, workflowErrorOutput } from "./workflow"
 import {
   formatWorkflowInputValidationError,
   validateWorkflowRuntimeInputs,
@@ -70,13 +70,16 @@ export async function validateWorkflowScheduleInputs(
   }
 }
 
-export function formatToolValidationError(issues: Array<{ path: PropertyKey[]; message: string }>) {
-  const lines = ["Workflow schedule request validation failed."]
-  for (const issue of issues) {
-    const path = issue.path.length > 0 ? issue.path.join(".") : "request"
-    lines.push(`${path}: ${issue.message}`)
-  }
-  return lines.join("\n")
+export function formatScheduleRequestValidationError(
+  issues: Array<{ path: PropertyKey[]; message: string }>
+) {
+  return formatRequestValidationError(
+    "Workflow schedule request validation failed.",
+    issues.map((issue) => ({
+      path: issue.path.length > 0 ? issue.path.join(".") : "request",
+      message: issue.message,
+    }))
+  )
 }
 
 function buildJSONValueSchema() {

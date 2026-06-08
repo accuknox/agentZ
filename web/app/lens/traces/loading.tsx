@@ -8,7 +8,7 @@ export default function Loading() {
       <div className="flex items-center justify-between px-6">
         <Skeleton className="h-6 w-20" />
       </div>
-      <div className="h-15 border-b bg-muted/20" />
+      <div className="bg-muted/20 h-15 border-b" />
       <TracesChartSkeleton />
       <TracesSkeleton />
     </main>

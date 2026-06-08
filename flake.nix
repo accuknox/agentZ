@@ -1,5 +1,5 @@
 {
-  description = "The AI that actually does things - SECURELY.";
+  description = "Infra for your AI agents";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
@@ -179,6 +179,7 @@
               yamllint
               yaml-language-server
               setup-envtest
+              grpcurl
             ];
           };
         });

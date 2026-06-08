@@ -17,6 +17,94 @@ var (
 	ErrBatchAlreadyClosed = errors.New("batch already closed")
 )
 
+const insertMCPToolInvocation = `-- name: InsertMCPToolInvocation :batchexec
+INSERT INTO observer_mcp_tool_invocations(
+  agent_name,
+  trace_id,
+  span_id,
+  start_time,
+  end_time,
+  duration_ns,
+  mcp_connection_name,
+  tool_name,
+  session_id,
+  failed
+) VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9,
+  $10
+)
+ON CONFLICT(trace_id, span_id, start_time) DO NOTHING
+`
+
+type InsertMCPToolInvocationBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type InsertMCPToolInvocationParams struct {
+	AgentName         string    `json:"agent_name"`
+	TraceID           []byte    `json:"trace_id"`
+	SpanID            []byte    `json:"span_id"`
+	StartTime         time.Time `json:"start_time"`
+	EndTime           time.Time `json:"end_time"`
+	DurationNs        int64     `json:"duration_ns"`
+	McpConnectionName string    `json:"mcp_connection_name"`
+	ToolName          string    `json:"tool_name"`
+	SessionID         string    `json:"session_id"`
+	Failed            bool      `json:"failed"`
+}
+
+func (q *Queries) InsertMCPToolInvocation(ctx context.Context, arg []InsertMCPToolInvocationParams) *InsertMCPToolInvocationBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.AgentName,
+			a.TraceID,
+			a.SpanID,
+			a.StartTime,
+			a.EndTime,
+			a.DurationNs,
+			a.McpConnectionName,
+			a.ToolName,
+			a.SessionID,
+			a.Failed,
+		}
+		batch.Queue(insertMCPToolInvocation, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &InsertMCPToolInvocationBatchResults{br, len(arg), false}
+}
+
+func (b *InsertMCPToolInvocationBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *InsertMCPToolInvocationBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const insertTraceSpan = `-- name: InsertTraceSpan :batchexec
 INSERT INTO observer_trace_spans(
   agent_name,
@@ -27,7 +115,6 @@ INSERT INTO observer_trace_spans(
   start_time,
   end_time,
   duration_ns,
-  duration_ms,
   name,
   span_class,
   operation_name,
@@ -70,8 +157,7 @@ INSERT INTO observer_trace_spans(
   $22,
   $23,
   $24,
-  $25,
-  $26
+  $25
 )
 ON CONFLICT(trace_id, span_id, start_time) DO NOTHING
 `
@@ -91,7 +177,6 @@ type InsertTraceSpanParams struct {
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	DurationNs         int64     `json:"duration_ns"`
-	DurationMs         float64   `json:"duration_ms"`
 	Name               string    `json:"name"`
 	SpanClass          string    `json:"span_class"`
 	OperationName      string    `json:"operation_name"`
@@ -123,7 +208,6 @@ func (q *Queries) InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanPara
 			a.StartTime,
 			a.EndTime,
 			a.DurationNs,
-			a.DurationMs,
 			a.Name,
 			a.SpanClass,
 			a.OperationName,
@@ -254,7 +338,6 @@ INSERT INTO observer_trace_sessions(
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -282,10 +365,6 @@ INSERT INTO observer_trace_sessions(
   GREATEST(
     0,
     (EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000000000)::BIGINT
-  ),
-  GREATEST(
-    0,
-    EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000
   ),
   COUNT(*)::BIGINT,
   COUNT(*) FILTER (
@@ -320,7 +399,6 @@ ON CONFLICT(trace_id, session_id) DO UPDATE SET
   started_at = EXCLUDED.started_at,
   ended_at = EXCLUDED.ended_at,
   duration_ns = EXCLUDED.duration_ns,
-  duration_ms = EXCLUDED.duration_ms,
   span_count = EXCLUDED.span_count,
   error_count = EXCLUDED.error_count,
   tool_count = EXCLUDED.tool_count,
@@ -387,7 +465,6 @@ INSERT INTO observer_traces(
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -414,10 +491,6 @@ INSERT INTO observer_traces(
   GREATEST(
     0,
     (EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000000000)::BIGINT
-  ),
-  GREATEST(
-    0,
-    EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000
   ),
   COUNT(*)::BIGINT,
   COUNT(*) FILTER (
@@ -451,7 +524,6 @@ ON CONFLICT(trace_id) DO UPDATE SET
   started_at = EXCLUDED.started_at,
   ended_at = EXCLUDED.ended_at,
   duration_ns = EXCLUDED.duration_ns,
-  duration_ms = EXCLUDED.duration_ms,
   span_count = EXCLUDED.span_count,
   error_count = EXCLUDED.error_count,
   tool_count = EXCLUDED.tool_count,
@@ -500,6 +572,77 @@ func (b *RefreshTraceSummaryBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *RefreshTraceSummaryBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertMCPToolLastCalled = `-- name: UpsertMCPToolLastCalled :batchexec
+INSERT INTO observer_mcp_tool_last_called(
+  agent_name,
+  mcp_connection_name,
+  tool_name,
+  last_called_at,
+  updated_at
+) VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  now()
+)
+ON CONFLICT(agent_name, mcp_connection_name, tool_name) DO UPDATE SET
+  last_called_at = GREATEST(
+    observer_mcp_tool_last_called.last_called_at,
+    EXCLUDED.last_called_at
+  ),
+  updated_at = now()
+`
+
+type UpsertMCPToolLastCalledBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertMCPToolLastCalledParams struct {
+	AgentName         string    `json:"agent_name"`
+	McpConnectionName string    `json:"mcp_connection_name"`
+	ToolName          string    `json:"tool_name"`
+	LastCalledAt      time.Time `json:"last_called_at"`
+}
+
+func (q *Queries) UpsertMCPToolLastCalled(ctx context.Context, arg []UpsertMCPToolLastCalledParams) *UpsertMCPToolLastCalledBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.AgentName,
+			a.McpConnectionName,
+			a.ToolName,
+			a.LastCalledAt,
+		}
+		batch.Queue(upsertMCPToolLastCalled, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertMCPToolLastCalledBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertMCPToolLastCalledBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertMCPToolLastCalledBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

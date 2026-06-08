@@ -138,7 +138,7 @@ async function WorkflowContent({
 
 function FiltersSkeleton() {
   return (
-    <div className="border-b bg-background px-6 py-2">
+    <div className="bg-background border-b px-6 py-2">
       <div className="flex min-h-14 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-64" />
@@ -151,20 +151,20 @@ function FiltersSkeleton() {
 
 function CanvasSkeleton() {
   return (
-    <div className="relative flex min-h-0 flex-1 overflow-hidden border-t bg-sidebar">
+    <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t">
       <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
-      <div className="absolute left-4 top-4 z-10 w-sm max-w-sm rounded-md border bg-card p-1">
+      <div className="bg-card absolute top-4 left-4 z-10 w-sm max-w-sm rounded-md border p-1">
         <div className="flex items-start gap-2 rounded-sm px-3 py-2">
           <Skeleton className="h-4 w-56 max-w-full" />
           <Skeleton className="mt-0.5 size-4 rounded-sm" />
         </div>
       </div>
-      <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-px overflow-hidden rounded-md border bg-card p-1">
+      <div className="bg-card absolute bottom-4 left-4 z-10 flex flex-col gap-px overflow-hidden rounded-md border p-1">
         <Skeleton className="size-6.5 rounded-sm" />
         <Skeleton className="size-6.5 rounded-sm" />
         <Skeleton className="size-6.5 rounded-sm" />
       </div>
-      <div className="absolute left-9 right-10 top-[53%] -translate-y-1/2">
+      <div className="absolute top-[53%] right-10 left-9 -translate-y-1/2">
         <div className="flex min-w-max items-center gap-12">
           <WorkflowNodeSkeleton widthClassName="w-36" />
           <WorkflowNodeSkeleton widthClassName="w-36" />
@@ -188,9 +188,9 @@ function WorkflowNodeSkeleton({
   return (
     <div className="relative shrink-0">
       {isLast ? null : (
-        <div className="absolute left-full top-1/2 ml-2.5 h-px w-9 -translate-y-1/2 bg-sidebar-ring/45" />
+        <div className="bg-sidebar-ring/45 absolute top-1/2 left-full ml-2.5 h-px w-9 -translate-y-1/2" />
       )}
-      <div className={`rounded-sm border bg-card/95 p-1.5 shadow-sm ${widthClassName}`}>
+      <div className={`bg-card/95 rounded-sm border p-1.5 shadow-sm ${widthClassName}`}>
         <div className="space-y-1.5">
           <div className="space-y-1.5">
             <Skeleton className="h-2 w-12" />
@@ -218,13 +218,13 @@ function WorkflowNodeSkeleton({
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="m-6 rounded-md bg-destructive/5 p-4 text-sm text-destructive">{message}</div>
+    <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">{message}</div>
   )
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
       {message}
     </div>
   )

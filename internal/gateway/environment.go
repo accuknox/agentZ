@@ -1,10 +1,12 @@
 package gateway
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
@@ -94,7 +96,14 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.Packages != nil {
 		rawPackages = *req.Packages
 	}
-	packages := normalizePackages(rawPackages)
+	packages := make([]string, 0, len(rawPackages))
+	for _, pkg := range rawPackages {
+		pkg = strings.TrimSpace(pkg)
+		if pkg == "" {
+			continue
+		}
+		packages = append(packages, pkg)
+	}
 
 	var rawAllowedHosts []string
 	if req.AllowedHosts != nil {
@@ -103,6 +112,44 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	allowedHosts, err := envutil.NormalizeHostList(rawAllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)
+		return
+	}
+
+	var rawMCPConnectionRefs []gatewayapi.MCPConnectionRef
+	if req.McpConnectionRefs != nil {
+		rawMCPConnectionRefs = *req.McpConnectionRefs
+	}
+	mcpConnectionRefs := make([]clawarmorv1alpha1.MCPConnectionRef, 0, len(rawMCPConnectionRefs))
+	for _, ref := range rawMCPConnectionRefs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			continue
+		}
+		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		for _, rawTool := range ref.Tools {
+			toolName := strings.TrimSpace(rawTool.Name)
+			if toolName == "" {
+				continue
+			}
+			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+				Name:           toolName,
+				RequireConsent: rawTool.RequireConsent,
+			})
+		}
+		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
+			Name:  name,
+			Tools: tools,
+		})
+	}
+	fields = s.validateEnvironmentMCPConnections(r.Context(), mcpConnectionRefs)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -116,8 +163,9 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 			Namespace: s.cfg.Namespace,
 		},
 		Spec: clawarmorv1alpha1.EnvironmentSpec{
-			Packages:     packages,
-			AllowedHosts: allowedHosts,
+			Packages:          packages,
+			AllowedHosts:      allowedHosts,
+			MCPConnectionRefs: mcpConnectionRefs,
 		},
 	}
 
@@ -204,6 +252,47 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		writeAllowedHostsError(w, r, err)
 		return
 	}
+	mcpConnectionRefs := make([]clawarmorv1alpha1.MCPConnectionRef, 0, len(req.McpConnectionRefs))
+	for _, ref := range req.McpConnectionRefs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			continue
+		}
+		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		for _, rawTool := range ref.Tools {
+			toolName := strings.TrimSpace(rawTool.Name)
+			if toolName == "" {
+				continue
+			}
+			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+				Name:           toolName,
+				RequireConsent: rawTool.RequireConsent,
+			})
+		}
+		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
+			Name:  name,
+			Tools: tools,
+		})
+	}
+	packages := make([]string, 0, len(req.Packages))
+	for _, pkg := range req.Packages {
+		pkg = strings.TrimSpace(pkg)
+		if pkg == "" {
+			continue
+		}
+		packages = append(packages, pkg)
+	}
+	fields = s.validateEnvironmentMCPConnections(r.Context(), mcpConnectionRefs)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
 
 	var updated *clawarmorv1alpha1.Environment
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -215,8 +304,9 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 			return getErr
 		}
 
-		env.Spec.Packages = normalizePackages(req.Packages)
+		env.Spec.Packages = packages
 		env.Spec.AllowedHosts = allowedHosts
+		env.Spec.MCPConnectionRefs = mcpConnectionRefs
 
 		if updateErr := s.k8sClient.Update(r.Context(), env); updateErr != nil {
 			return updateErr
@@ -251,11 +341,29 @@ func environmentFromCRD(env clawarmorv1alpha1.Environment, referenced bool) gate
 	if env.Spec.AllowedHosts != nil {
 		allowedHosts = env.Spec.AllowedHosts
 	}
+	mcpConnectionRefs := []gatewayapi.MCPConnectionRef{}
+	if env.Spec.MCPConnectionRefs != nil {
+		mcpConnectionRefs = make([]gatewayapi.MCPConnectionRef, 0, len(env.Spec.MCPConnectionRefs))
+		for _, ref := range env.Spec.MCPConnectionRefs {
+			tools := make([]gatewayapi.MCPConnectionToolRef, 0, len(ref.Tools))
+			for _, tool := range ref.Tools {
+				tools = append(tools, gatewayapi.MCPConnectionToolRef{
+					Name:           tool.Name,
+					RequireConsent: tool.RequireConsent,
+				})
+			}
+			mcpConnectionRefs = append(mcpConnectionRefs, gatewayapi.MCPConnectionRef{
+				Name:  ref.Name,
+				Tools: tools,
+			})
+		}
+	}
 	out := gatewayapi.Environment{
-		Name:         env.Name,
-		Packages:     packages,
-		AllowedHosts: allowedHosts,
-		CreatedAt:    env.CreationTimestamp.Time,
+		Name:              env.Name,
+		Packages:          packages,
+		AllowedHosts:      allowedHosts,
+		McpConnectionRefs: mcpConnectionRefs,
+		CreatedAt:         env.CreationTimestamp.Time,
 	}
 	out.Metadata.PackageCount = int32(len(packages))
 	out.Metadata.AllowedHostCount = int32(len(allowedHosts))
@@ -269,11 +377,16 @@ func validateCreateEnvironmentRequest(req gatewayapi.CreateEnvironmentRequest) (
 	if req.Packages != nil {
 		fields = append(fields, validatePackageList(*req.Packages)...)
 	}
+	if req.McpConnectionRefs != nil {
+		fields = append(fields, validateMCPConnectionRefList(*req.McpConnectionRefs)...)
+	}
 	return name, fields
 }
 
 func validateUpdateEnvironmentRequest(req gatewayapi.UpdateEnvironmentRequest) []gatewayapi.FieldError {
-	return validatePackageList(req.Packages)
+	fields := validatePackageList(req.Packages)
+	fields = append(fields, validateMCPConnectionRefList(req.McpConnectionRefs)...)
+	return fields
 }
 
 func validateEnvironmentName(name string) []gatewayapi.FieldError {
@@ -309,15 +422,125 @@ func validatePackageList(packages []string) []gatewayapi.FieldError {
 	return fields
 }
 
-func normalizePackages(raw []string) []string {
-	packages := []string{}
-	for _, p := range raw {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			packages = append(packages, p)
+func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewayapi.FieldError {
+	fields := []gatewayapi.FieldError{}
+	seen := map[string]int{}
+	for i, ref := range refs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: "must not be empty",
+			})
+			continue
+		}
+		if first, ok := seen[name]; ok {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: fmt.Sprintf("duplicate value %q first seen at index %d", name, first),
+			})
+			continue
+		}
+		seen[name] = i
+
+		if len(ref.Tools) == 0 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].tools", i),
+				Message: "must contain at least one tool",
+			})
+			continue
+		}
+
+		seenTools := map[string]int{}
+		for toolIndex, tool := range ref.Tools {
+			toolName := strings.TrimSpace(tool.Name)
+			if toolName == "" {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   fmt.Sprintf("mcp_connection_refs[%d].tools[%d].name", i, toolIndex),
+					Message: "must not be empty",
+				})
+				continue
+			}
+			if firstToolIndex, ok := seenTools[toolName]; ok {
+				fields = append(fields, gatewayapi.FieldError{
+					Field: fmt.Sprintf(
+						"mcp_connection_refs[%d].tools[%d].name",
+						i,
+						toolIndex,
+					),
+					Message: fmt.Sprintf(
+						"duplicate value %q first seen at index %d",
+						toolName,
+						firstToolIndex,
+					),
+				})
+				continue
+			}
+			seenTools[toolName] = toolIndex
 		}
 	}
-	return packages
+	return fields
+}
+
+func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []clawarmorv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
+	fields := []gatewayapi.FieldError{}
+	for i, ref := range refs {
+		conn := &clawarmorv1alpha1.MCPConnection{}
+		key := ctrlclient.ObjectKey{
+			Namespace: s.cfg.Namespace,
+			Name:      ref.Name,
+		}
+		err := s.k8sClient.Get(ctx, key, conn)
+		if apierrors.IsNotFound(err) {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: fmt.Sprintf("mcp connection %q was not found", ref.Name),
+			})
+			continue
+		}
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
+				Message: fmt.Sprintf("failed to load mcp connection %q", ref.Name),
+			})
+			continue
+		}
+		if !conn.Status.ToolCatalogReady {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].tools", i),
+				Message: fmt.Sprintf("mcp connection %q tool catalog is not ready", ref.Name),
+			})
+			continue
+		}
+
+		toolNames := make(map[string]struct{}, len(conn.Status.Tools))
+		for _, tool := range conn.Status.Tools {
+			toolName := strings.TrimSpace(tool.Name)
+			if toolName == "" {
+				continue
+			}
+			toolNames[toolName] = struct{}{}
+		}
+		for toolIndex, tool := range ref.Tools {
+			toolName := tool.Name
+			if _, ok := toolNames[toolName]; ok {
+				continue
+			}
+			fields = append(fields, gatewayapi.FieldError{
+				Field: fmt.Sprintf(
+					"mcp_connection_refs[%d].tools[%d].name",
+					i,
+					toolIndex,
+				),
+				Message: fmt.Sprintf(
+					"tool %q is not exposed by mcp connection %q",
+					toolName,
+					ref.Name,
+				),
+			})
+		}
+	}
+	return fields
 }
 
 func writeAllowedHostsError(w http.ResponseWriter, r *http.Request, err error) {

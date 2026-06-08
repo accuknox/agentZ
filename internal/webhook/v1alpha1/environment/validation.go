@@ -19,6 +19,8 @@ package environment
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -49,13 +51,13 @@ func NewValidator(c client.Client) *Validator {
 }
 
 // ValidateCreate validates Environment creation.
-func (v *Validator) ValidateCreate(_ context.Context, env *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
-	return nil, validateAllowedHosts(env)
+func (v *Validator) ValidateCreate(ctx context.Context, env *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
+	return nil, v.validateEnvironment(ctx, env)
 }
 
 // ValidateUpdate validates Environment updates.
-func (v *Validator) ValidateUpdate(_ context.Context, _, newEnv *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
-	return nil, validateAllowedHosts(newEnv)
+func (v *Validator) ValidateUpdate(ctx context.Context, _, newEnv *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
+	return nil, v.validateEnvironment(ctx, newEnv)
 }
 
 // ValidateDelete validates Environment deletion.
@@ -65,12 +67,7 @@ func (v *Validator) ValidateDelete(ctx context.Context, env *clawarmorv1alpha1.E
 		return nil, nil
 	}
 
-	agentName, err := envutil.ReferencingAgentName(
-		ctx,
-		v.client,
-		env.Namespace,
-		env.Name,
-	)
+	agentName, err := envutil.ReferencingAgentName(ctx, v.client, env.Namespace, env.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +86,18 @@ func (v *Validator) ValidateDelete(ctx context.Context, env *clawarmorv1alpha1.E
 	)
 }
 
-func validateAllowedHosts(env *clawarmorv1alpha1.Environment) error {
-	var fields field.ErrorList
+func (v *Validator) validateEnvironment(ctx context.Context, env *clawarmorv1alpha1.Environment) error {
+	fields := validateAllowedHostFields(env)
+	fields = append(fields, v.validateMCPConnectionRefs(ctx, env)...)
+	if len(fields) == 0 {
+		return nil
+	}
+
+	return apierrors.NewInvalid(env.GroupVersionKind().GroupKind(), env.Name, fields)
+}
+
+func validateAllowedHostFields(env *clawarmorv1alpha1.Environment) field.ErrorList {
+	fields := field.ErrorList{}
 	path := field.NewPath("spec").Child("allowedHosts")
 	for i, entry := range env.Spec.AllowedHosts {
 		if _, err := envutil.ParseHost(entry); err != nil {
@@ -101,8 +108,107 @@ func validateAllowedHosts(env *clawarmorv1alpha1.Environment) error {
 			))
 		}
 	}
-	if len(fields) == 0 {
-		return nil
+	return fields
+}
+
+func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *clawarmorv1alpha1.Environment) field.ErrorList {
+	fields := field.ErrorList{}
+	path := field.NewPath("spec").Child("mcpConnectionRefs")
+	seen := map[string]int{}
+
+	for i, ref := range env.Spec.MCPConnectionRefs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			fields = append(fields, field.Required(
+				path.Index(i).Child("name"),
+				"field is required",
+			))
+			continue
+		}
+
+		if first, ok := seen[name]; ok {
+			fields = append(fields, field.Duplicate(
+				path.Index(i).Child("name"),
+				fmt.Sprintf("%s (first seen at index %d)", name, first),
+			))
+			continue
+		}
+		seen[name] = i
+
+		if v.client == nil {
+			continue
+		}
+
+		conn := &clawarmorv1alpha1.MCPConnection{}
+		key := client.ObjectKey{Namespace: env.Namespace, Name: name}
+		err := v.client.Get(ctx, key, conn)
+		if apierrors.IsNotFound(err) {
+			fields = append(fields, field.NotFound(
+				path.Index(i).Child("name"),
+				name,
+			))
+			continue
+		}
+		if err == nil {
+			toolsPath := path.Index(i).Child("tools")
+			if len(ref.Tools) == 0 {
+				fields = append(fields, field.Required(
+					toolsPath,
+					"at least one tool is required",
+				))
+				continue
+			}
+			if !conn.Status.ToolCatalogReady {
+				fields = append(fields, field.Forbidden(
+					toolsPath,
+					fmt.Sprintf("mcp connection %q tool catalog is not ready", name),
+				))
+				continue
+			}
+
+			toolNames := make([]string, 0, len(conn.Status.Tools))
+			for _, tool := range conn.Status.Tools {
+				toolName := strings.TrimSpace(tool.Name)
+				if toolName == "" {
+					continue
+				}
+				toolNames = append(toolNames, toolName)
+			}
+			slices.Sort(toolNames)
+
+			seenTools := map[string]int{}
+			for toolIndex, tool := range ref.Tools {
+				toolName := strings.TrimSpace(tool.Name)
+				if toolName == "" {
+					fields = append(fields, field.Required(
+						toolsPath.Index(toolIndex).Child("name"),
+						"field is required",
+					))
+					continue
+				}
+				if firstToolIndex, ok := seenTools[toolName]; ok {
+					fields = append(fields, field.Duplicate(
+						toolsPath.Index(toolIndex).Child("name"),
+						fmt.Sprintf("%s (first seen at index %d)", toolName, firstToolIndex),
+					))
+					continue
+				}
+				seenTools[toolName] = toolIndex
+				if !slices.Contains(toolNames, toolName) {
+					fields = append(fields, field.NotSupported(
+						toolsPath.Index(toolIndex).Child("name"),
+						toolName,
+						toolNames,
+					))
+				}
+			}
+			continue
+		}
+		fields = append(fields, field.InternalError(
+			path.Index(i).Child("name"),
+			fmt.Errorf("get mcpconnection %q: %w", name, err),
+		))
 	}
-	return apierrors.NewInvalid(env.GroupVersionKind().GroupKind(), env.Name, fields)
+
+	return fields
 }

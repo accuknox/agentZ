@@ -144,7 +144,7 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   if (error) {
     return (
       <SidebarMenuSubItem key="error">
-        <p className="text-sm text-destructive">{error.message}</p>
+        <p className="text-destructive text-sm">{error.message}</p>
       </SidebarMenuSubItem>
     )
   }
@@ -236,12 +236,12 @@ function AgentSessionsItem({
               ) : null}
               {query.isError ? (
                 <SidebarMenuSubItem key="error">
-                  <p className="text-sm text-destructive">{query.error.message}</p>
+                  <p className="text-destructive text-sm">{query.error.message}</p>
                 </SidebarMenuSubItem>
               ) : null}
               {!query.isPending && !query.isError && displaySessions.length === 0 ? (
                 <SidebarMenuSubItem key="empty">
-                  <p className="text-sm text-muted-foreground">No sessions</p>
+                  <p className="text-muted-foreground text-sm">No sessions</p>
                 </SidebarMenuSubItem>
               ) : null}
               {displaySessions.map((session) => (
@@ -328,7 +328,7 @@ function SessionItem({
         isActive={path === href}
       >
         <Link className="flex min-w-0 flex-1 items-center" href={href}>
-          <span className="truncate text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground group-hover/menu-sub-button:text-inherit">
+          <span className="text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground truncate group-hover/menu-sub-button:text-inherit">
             {session.title}
           </span>
         </Link>
@@ -350,7 +350,7 @@ function SessionItem({
             </DialogDescription>
           </DialogHeader>
           {error ? (
-            <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
               {error.message}
             </p>
           ) : null}
@@ -456,18 +456,18 @@ function AgentBadge({ status }: { status: AgentStatus }) {
   switch (status) {
     case "PROGRESSING":
       return (
-        <span className="shrink-0 text-chat-interrupted">
+        <span className="text-accent shrink-0">
           <Spinner aria-label="Provisioning" className="size-3" />
         </span>
       )
     case "DEGRADED":
       return (
-        <span className="shrink-0 text-destructive">
+        <span className="text-destructive shrink-0">
           <Spinner aria-label="Degraded" className="size-3" />
         </span>
       )
     case "IDLE":
-      return <BotIcon aria-label="Idle" role="status" className="text-chat-active" />
+      return <BotIcon aria-label="Idle" role="status" className="text-primary" />
     default:
       return <BotIcon aria-label="Unknown" role="status" className="text-destructive" />
   }

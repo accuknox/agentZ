@@ -7,7 +7,7 @@ export function TeamSwitcher() {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton size="lg">
-          <Link href="/" className="flex justify-between items-center gap-2">
+          <Link href="/" className="flex items-center justify-between gap-2">
             <Avatar className="h-8 w-8">
               <AvatarImage src="/emblem.svg" />
             </Avatar>

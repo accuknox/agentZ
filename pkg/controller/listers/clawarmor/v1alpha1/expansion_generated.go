@@ -25,6 +25,22 @@ type AgentListerExpansion interface{}
 // AgentNamespaceLister.
 type AgentNamespaceListerExpansion interface{}
 
+// EnvironmentListerExpansion allows custom methods to be added to
+// EnvironmentLister.
+type EnvironmentListerExpansion interface{}
+
+// EnvironmentNamespaceListerExpansion allows custom methods to be added to
+// EnvironmentNamespaceLister.
+type EnvironmentNamespaceListerExpansion interface{}
+
+// MCPConnectionListerExpansion allows custom methods to be added to
+// MCPConnectionLister.
+type MCPConnectionListerExpansion interface{}
+
+// MCPConnectionNamespaceListerExpansion allows custom methods to be added to
+// MCPConnectionNamespaceLister.
+type MCPConnectionNamespaceListerExpansion interface{}
+
 // WorkflowRunListerExpansion allows custom methods to be added to
 // WorkflowRunLister.
 type WorkflowRunListerExpansion interface{}

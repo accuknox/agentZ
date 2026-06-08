@@ -77,7 +77,7 @@ export function SecretTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="min-w-0 w-full overflow-hidden border-b">
+      <div className="w-full min-w-0 overflow-hidden border-b">
         <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -102,7 +102,7 @@ export function SecretTable({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id]}`}
+                      className={`h-11 px-4 py-1.5 align-middle ${columnClassName[cell.column.id]}`}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>

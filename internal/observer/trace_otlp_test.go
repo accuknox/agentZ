@@ -9,7 +9,7 @@ import (
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
-func TestNormalizeTraceRequestExtractsGenAIPayloads(t *testing.T) {
+func TestTraceEventsFromOTLPRequestExtractsGenAIPayloads(t *testing.T) {
 	t.Parallel()
 
 	const agentName = "agent-sample"
@@ -38,7 +38,7 @@ func TestNormalizeTraceRequestExtractsGenAIPayloads(t *testing.T) {
 		}},
 	}
 
-	events, rejected := normalizeTraceRequest(req)
+	events, rejected := traceEventsFromOTLPRequest(req)
 	if rejected != 0 {
 		t.Fatalf("rejected = %d, want 0", rejected)
 	}
@@ -90,7 +90,7 @@ func TestNormalizeTraceRequestExtractsGenAIPayloads(t *testing.T) {
 	}
 }
 
-func TestNormalizeTraceRequestExtractsToolPayloadsOnlyForToolSpans(t *testing.T) {
+func TestTraceEventsFromOTLPRequestExtractsToolPayloadsOnlyForToolSpans(t *testing.T) {
 	t.Parallel()
 
 	const agentName = "agent-sample"
@@ -114,7 +114,7 @@ func TestNormalizeTraceRequestExtractsToolPayloadsOnlyForToolSpans(t *testing.T)
 		}},
 	}
 
-	events, rejected := normalizeTraceRequest(req)
+	events, rejected := traceEventsFromOTLPRequest(req)
 	if rejected != 0 {
 		t.Fatalf("rejected = %d, want 0", rejected)
 	}
@@ -131,9 +131,12 @@ func TestNormalizeTraceRequestExtractsToolPayloadsOnlyForToolSpans(t *testing.T)
 	if string(ev.payload.toolResult) != `"done"` {
 		t.Fatalf("toolResult = %s, want %q", ev.payload.toolResult, `"done"`)
 	}
+	if string(ev.payload.toolError) != null {
+		t.Fatalf("toolError = %s, want null", ev.payload.toolError)
+	}
 }
 
-func TestNormalizeTraceRequestDoesNotExtractLLMPayloadsForSessionSpans(t *testing.T) {
+func TestTraceEventsFromOTLPRequestDoesNotExtractLLMPayloadsForSessionSpans(t *testing.T) {
 	t.Parallel()
 
 	const agentName = "agent-sample"
@@ -156,7 +159,7 @@ func TestNormalizeTraceRequestDoesNotExtractLLMPayloadsForSessionSpans(t *testin
 		}},
 	}
 
-	events, rejected := normalizeTraceRequest(req)
+	events, rejected := traceEventsFromOTLPRequest(req)
 	if rejected != 0 {
 		t.Fatalf("rejected = %d, want 0", rejected)
 	}
@@ -172,6 +175,146 @@ func TestNormalizeTraceRequestDoesNotExtractLLMPayloadsForSessionSpans(t *testin
 	}
 	if string(ev.payload.outputMessages) != null {
 		t.Fatalf("outputMessages = %s, want null", ev.payload.outputMessages)
+	}
+}
+
+func TestTraceEventsFromOTLPRequestExtractsOpenCodeGatewayToolInvocation(t *testing.T) {
+	t.Parallel()
+
+	req := &tracev1.ExportTraceServiceRequest{
+		ResourceSpans: []*tracepb.ResourceSpans{{
+			Resource: &resourcepb.Resource{
+				Attributes: []*commonpb.KeyValue{
+					stringKV(attrClawArmorAgentName, "agent-sample"),
+				},
+			},
+			ScopeSpans: []*tracepb.ScopeSpans{{
+				Spans: []*tracepb.Span{newTestOTLPSpan([]*commonpb.KeyValue{
+					stringKV(attrSessionID, "ses_123"),
+					stringKV(attrSpanKind, "TOOL"),
+					stringKV(attrToolName, "gateway_atlassian_atlassianUserInfo"),
+					stringKV(attrToolParameters, `{"account":"self"}`),
+					stringKV(attrOutputValue, `{"name":"murtaza"}`),
+				})},
+			}},
+		}},
+	}
+
+	events, rejected := traceEventsFromOTLPRequest(req)
+	if rejected != 0 {
+		t.Fatalf("rejected = %d, want 0", rejected)
+	}
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(events))
+	}
+
+	call := events[0].mcpToolCall
+	if call == nil {
+		t.Fatal("mcpToolCall = nil, want populated tool call")
+	}
+	if call.mcpConnectionName != "atlassian" {
+		t.Fatalf("mcpConnectionName = %q, want atlassian", call.mcpConnectionName)
+	}
+	if call.toolName != "atlassianUserInfo" {
+		t.Fatalf("toolName = %q, want atlassianUserInfo", call.toolName)
+	}
+}
+
+func TestTraceEventsFromOTLPRequestMarksMCPToolInvocationFailedFromToolError(t *testing.T) {
+	t.Parallel()
+
+	req := &tracev1.ExportTraceServiceRequest{
+		ResourceSpans: []*tracepb.ResourceSpans{{
+			Resource: &resourcepb.Resource{
+				Attributes: []*commonpb.KeyValue{
+					stringKV(attrClawArmorAgentName, "agent-sample"),
+				},
+			},
+			ScopeSpans: []*tracepb.ScopeSpans{{
+				Spans: []*tracepb.Span{newTestOTLPSpan([]*commonpb.KeyValue{
+					stringKV(attrSessionID, "ses_123"),
+					stringKV(attrSpanKind, "TOOL"),
+					stringKV(attrToolName, "gateway_github_create_issue"),
+					stringKV(attrToolError, `{"message":"boom"}`),
+				})},
+			}},
+		}},
+	}
+
+	events, rejected := traceEventsFromOTLPRequest(req)
+	if rejected != 0 {
+		t.Fatalf("rejected = %d, want 0", rejected)
+	}
+	if !events[0].mcpToolCall.failed {
+		t.Fatal("failed = false, want true")
+	}
+	if string(events[0].payload.toolError) != `{"message":"boom"}` {
+		t.Fatalf("toolError = %s", events[0].payload.toolError)
+	}
+}
+
+func TestTraceEventsFromOTLPRequestSkipsNonMCPToolInvocation(t *testing.T) {
+	t.Parallel()
+
+	req := &tracev1.ExportTraceServiceRequest{
+		ResourceSpans: []*tracepb.ResourceSpans{{
+			Resource: &resourcepb.Resource{
+				Attributes: []*commonpb.KeyValue{
+					stringKV(attrClawArmorAgentName, "agent-sample"),
+				},
+			},
+			ScopeSpans: []*tracepb.ScopeSpans{{
+				Spans: []*tracepb.Span{newTestOTLPSpan([]*commonpb.KeyValue{
+					stringKV(attrSessionID, "ses_123"),
+					stringKV(attrSpanKind, "TOOL"),
+					stringKV(attrToolName, "bash"),
+				})},
+			}},
+		}},
+	}
+
+	events, rejected := traceEventsFromOTLPRequest(req)
+	if rejected != 0 {
+		t.Fatalf("rejected = %d, want 0", rejected)
+	}
+	if events[0].mcpToolCall != nil {
+		t.Fatal("mcpToolCall != nil, want nil")
+	}
+}
+
+func TestTraceEventsFromOTLPRequestExtractsGatewayToolInvocationWithHyphenatedConnection(t *testing.T) {
+	t.Parallel()
+
+	req := &tracev1.ExportTraceServiceRequest{
+		ResourceSpans: []*tracepb.ResourceSpans{{
+			Resource: &resourcepb.Resource{
+				Attributes: []*commonpb.KeyValue{
+					stringKV(attrClawArmorAgentName, "agent-sample"),
+				},
+			},
+			ScopeSpans: []*tracepb.ScopeSpans{{
+				Spans: []*tracepb.Span{newTestOTLPSpan([]*commonpb.KeyValue{
+					stringKV(attrSessionID, "ses_123"),
+					stringKV(attrSpanKind, "TOOL"),
+					stringKV(attrToolName, "gateway_github-enterprise_list_issues"),
+				})},
+			}},
+		}},
+	}
+
+	events, rejected := traceEventsFromOTLPRequest(req)
+	if rejected != 0 {
+		t.Fatalf("rejected = %d, want 0", rejected)
+	}
+	call := events[0].mcpToolCall
+	if call == nil {
+		t.Fatal("mcpToolCall = nil, want populated tool call")
+	}
+	if call.mcpConnectionName != "github-enterprise" {
+		t.Fatalf("mcpConnectionName = %q, want github-enterprise", call.mcpConnectionName)
+	}
+	if call.toolName != "list_issues" {
+		t.Fatalf("toolName = %q, want list_issues", call.toolName)
 	}
 }
 

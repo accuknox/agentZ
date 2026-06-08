@@ -205,7 +205,8 @@ export function SecretSheet({
                   <Field data-invalid={fieldState.invalid || Boolean(hostDraftError)}>
                     <FieldLabel htmlFor="secret-hosts">Hosts</FieldLabel>
                     <FieldDescription className="text-muted-foreground/80">
-                      Exact host, wildcard host, IP, or CIDR. Wildcards match subdomains.
+                      Exact host, wildcard host, IP, or CIDR. Use `*.` for one label and `**.` for
+                      any subdomain depth.
                     </FieldDescription>
                     <input type="hidden" name={field.name} ref={field.ref} value={field.value} />
                     <InputGroup className="h-9">
@@ -224,7 +225,7 @@ export function SecretSheet({
                           event.preventDefault()
                           addHost()
                         }}
-                        placeholder="api.example.com, *.example.com, 10.0.0.0/24"
+                        placeholder="api.example.com, *.example.com, **.example.com, 10.0.0.0/24"
                         className="font-mono"
                         aria-invalid={fieldState.invalid || Boolean(hostDraftError)}
                       />
@@ -245,7 +246,7 @@ export function SecretSheet({
                             <span className="truncate font-mono text-sm">{host}</span>
                             <button
                               type="button"
-                              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+                              className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm transition-colors"
                               onClick={() => removeHost(host)}
                               aria-label={`Remove ${host}`}
                             >
@@ -284,7 +285,7 @@ export function SecretSheet({
             />
           </FieldGroup>
           {generalErrorMessage ? (
-            <p className="shrink-0 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <p className="border-destructive/30 bg-destructive/5 text-destructive shrink-0 rounded-md border p-3 text-sm">
               {generalErrorMessage}
             </p>
           ) : null}

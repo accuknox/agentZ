@@ -150,10 +150,12 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 	q := observerdb.New(tx)
 	spans := make([]observerdb.InsertTraceSpanParams, 0, len(traces))
 	payloads := make([]observerdb.InsertTraceSpanPayloadParams, 0, len(traces))
+	mcpInvocations := make([]observerdb.InsertMCPToolInvocationParams, 0, len(traces))
 	traceIDs := make([][]byte, 0, len(traces))
 	traceSessions := make([]observerdb.RefreshTraceSessionSummaryParams, 0, len(traces))
 	seenTraceIDs := make(map[string]struct{}, len(traces))
 	seenTraceSessions := make(map[string]struct{}, len(traces))
+	mcpLastCalledByKey := make(map[string]observerdb.UpsertMCPToolLastCalledParams, len(traces))
 	for _, ev := range traces {
 		spans = append(spans, observerdb.InsertTraceSpanParams{
 			AgentName:          ev.agentName,
@@ -164,7 +166,6 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 			StartTime:          ev.startTime,
 			EndTime:            ev.endTime,
 			DurationNs:         ev.durationNS,
-			DurationMs:         ev.durationMS,
 			Name:               ev.name,
 			SpanClass:          ev.spanClass,
 			OperationName:      ev.operationName,
@@ -193,6 +194,33 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 			ToolArguments:  p.toolArguments,
 			ToolResult:     p.toolResult,
 		})
+		if ev.mcpToolCall != nil {
+			call := ev.mcpToolCall
+			mcpInvocations = append(mcpInvocations, observerdb.InsertMCPToolInvocationParams{
+				AgentName:         call.agentName,
+				TraceID:           call.traceID,
+				SpanID:            call.spanID,
+				StartTime:         call.startTime,
+				EndTime:           call.endTime,
+				DurationNs:        call.durationNS,
+				McpConnectionName: call.mcpConnectionName,
+				ToolName:          call.toolName,
+				SessionID:         call.sessionID,
+				Failed:            call.failed,
+			})
+
+			lastCalledKey := call.agentName + "\x00" + call.mcpConnectionName + "\x00" + call.toolName
+			lastCalled := observerdb.UpsertMCPToolLastCalledParams{
+				AgentName:         call.agentName,
+				McpConnectionName: call.mcpConnectionName,
+				ToolName:          call.toolName,
+				LastCalledAt:      call.startTime,
+			}
+			current, ok := mcpLastCalledByKey[lastCalledKey]
+			if !ok || call.startTime.After(current.LastCalledAt) {
+				mcpLastCalledByKey[lastCalledKey] = lastCalled
+			}
+		}
 
 		traceKey := string(ev.traceID)
 		if _, ok := seenTraceIDs[traceKey]; !ok {
@@ -228,6 +256,33 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 	})
 	if batchErr != nil {
 		return fmt.Errorf("insert trace span payloads: %w", batchErr)
+	}
+
+	mcpLastCalled := make([]observerdb.UpsertMCPToolLastCalledParams, 0, len(mcpLastCalledByKey))
+	for _, item := range mcpLastCalledByKey {
+		mcpLastCalled = append(mcpLastCalled, item)
+	}
+
+	if len(mcpInvocations) > 0 {
+		q.InsertMCPToolInvocation(ctx, mcpInvocations).Exec(func(_ int, err error) {
+			if err != nil && batchErr == nil {
+				batchErr = err
+			}
+		})
+		if batchErr != nil {
+			return fmt.Errorf("insert mcp tool invocations: %w", batchErr)
+		}
+	}
+
+	if len(mcpLastCalled) > 0 {
+		q.UpsertMCPToolLastCalled(ctx, mcpLastCalled).Exec(func(_ int, err error) {
+			if err != nil && batchErr == nil {
+				batchErr = err
+			}
+		})
+		if batchErr != nil {
+			return fmt.Errorf("upsert mcp tool last-called summary: %w", batchErr)
+		}
 	}
 
 	q.RefreshTraceSummary(ctx, traceIDs).Exec(func(_ int, err error) {

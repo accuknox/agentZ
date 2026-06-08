@@ -6,13 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/accuknox/clawarmor/internal/mcp"
 	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -46,7 +45,9 @@ const (
 	attrErrorType    = "error.type"
 	attrErrorMessage = "error.message"
 
-	null = "null"
+	null        = "null"
+	statusOK    = "OK"
+	statusError = "ERROR"
 
 	spanClassSession = "session"
 	spanClassLLM     = "llm"
@@ -104,7 +105,7 @@ func runOTLPTraceReceiver(ctx context.Context, cfg Config, out chan<- event, s *
 }
 
 func (r *traceReceiver) Export(ctx context.Context, req *tracev1.ExportTraceServiceRequest) (*tracev1.ExportTraceServiceResponse, error) {
-	events, rejected := normalizeTraceRequest(req)
+	events, rejected := traceEventsFromOTLPRequest(req)
 	for _, ev := range events {
 		if err := sendEvent(ctx, r.out, event{trace: &ev}); err != nil {
 			return nil, err
@@ -117,7 +118,7 @@ func (r *traceReceiver) Export(ctx context.Context, req *tracev1.ExportTraceServ
 	return &tracev1.ExportTraceServiceResponse{}, nil
 }
 
-func normalizeTraceRequest(req *tracev1.ExportTraceServiceRequest) ([]traceSpanEvent, int) {
+func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest) ([]traceSpanEvent, int) {
 	if req == nil {
 		return nil, 0
 	}
@@ -128,7 +129,7 @@ func normalizeTraceRequest(req *tracev1.ExportTraceServiceRequest) ([]traceSpanE
 		resourceAttrs := attrsMap(rs.GetResource().GetAttributes())
 		for _, ss := range rs.GetScopeSpans() {
 			for _, sp := range ss.GetSpans() {
-				ev, err := normalizeTraceSpan(sp, resourceAttrs)
+				ev, err := traceEventFromOTLPSpan(sp, resourceAttrs)
 				if err != nil {
 					rejected++
 					continue
@@ -140,7 +141,7 @@ func normalizeTraceRequest(req *tracev1.ExportTraceServiceRequest) ([]traceSpanE
 	return events, rejected
 }
 
-func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSpanEvent, error) {
+func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) (traceSpanEvent, error) {
 	if sp == nil || len(sp.GetTraceId()) != 16 || len(sp.GetSpanId()) != 8 {
 		return traceSpanEvent{}, errTraceAgentNameMissing
 	}
@@ -160,7 +161,6 @@ func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSp
 	start := unixNano(sp.GetStartTimeUnixNano())
 	end := unixNano(sp.GetEndTimeUnixNano())
 	durationNS := max(end.Sub(start).Nanoseconds(), 0)
-	durationMS := float64(durationNS) / float64(time.Millisecond)
 
 	spanClass, operationName := classifySpan(sp.GetName(), spanAttrs)
 	status := statusCode(sp.GetStatus())
@@ -169,20 +169,33 @@ func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSp
 		errorMessage = sp.GetStatus().GetMessage()
 	}
 
-	model := firstNonEmpty(
-		stringAttr(spanAttrs, attrLLMModelName),
-		stringAttr(spanAttrs, "gen_ai.response.model"),
-		stringAttr(spanAttrs, "gen_ai.request.model"),
-	)
-
-	toolName := firstNonEmpty(
-		stringAttr(spanAttrs, attrToolName),
-		stringAttr(spanAttrs, "gen_ai.tool.name"),
-	)
+	model := attrString(spanAttrs, attrLLMModelName)
+	toolName := attrString(spanAttrs, attrToolName)
 
 	payload, strippedAttrs := extractSpanPayload(spanClass, spanAttrs)
 	resourceJSON := jsonObject(resourceAttrsForStorage(resourceAttrs))
 	spanJSON := jsonObject(strippedAttrs)
+	var mcpToolCall *mcpToolCallEvent
+	if spanClass == spanClassTool && toolName != "" {
+		prefix := mcp.OpenCodeGatewayToolsetName + "_"
+		if rest, ok := strings.CutPrefix(toolName, prefix); ok {
+			connectionName, toolName, ok := strings.Cut(rest, "_")
+			if ok && connectionName != "" && toolName != "" {
+				mcpToolCall = &mcpToolCallEvent{
+					agentName:         agentName,
+					traceID:           cloneBytes(sp.GetTraceId()),
+					spanID:            cloneBytes(sp.GetSpanId()),
+					startTime:         start,
+					endTime:           end,
+					durationNS:        durationNS,
+					mcpConnectionName: connectionName,
+					toolName:          toolName,
+					sessionID:         sessionID,
+					failed:            status == statusError || hasPayloadValue(payload.toolError),
+				}
+			}
+		}
+	}
 
 	return traceSpanEvent{
 		agentName:          agentName,
@@ -193,7 +206,6 @@ func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSp
 		startTime:          start,
 		endTime:            end,
 		durationNS:         durationNS,
-		durationMS:         durationMS,
 		name:               sp.GetName(),
 		spanClass:          spanClass,
 		operationName:      operationName,
@@ -203,27 +215,28 @@ func normalizeTraceSpan(sp *tracepb.Span, resourceAttrs map[string]any) (traceSp
 		errorMessage:       errorMessage,
 		model:              model,
 		toolName:           toolName,
-		inputTokens:        intAttr(spanAttrs, attrLLMTokenPrompt),
-		outputTokens:       intAttr(spanAttrs, attrLLMTokenCompletion),
-		cachedInputTokens:  intAttr(spanAttrs, attrLLMTokenCacheRead),
-		cachedWriteTokens:  intAttr(spanAttrs, attrLLMTokenCacheWrite),
-		costUSD:            floatAttr(spanAttrs, attrLLMCostTotal),
-		llmFinishReason:    stringAttr(spanAttrs, attrLLMFinishReason),
+		inputTokens:        attrInt64(spanAttrs, attrLLMTokenPrompt),
+		outputTokens:       attrInt64(spanAttrs, attrLLMTokenCompletion),
+		cachedInputTokens:  attrInt64(spanAttrs, attrLLMTokenCacheRead),
+		cachedWriteTokens:  attrInt64(spanAttrs, attrLLMTokenCacheWrite),
+		costUSD:            attrFloat64(spanAttrs, attrLLMCostTotal),
+		llmFinishReason:    attrString(spanAttrs, attrLLMFinishReason),
 		resourceAttributes: resourceJSON,
 		spanAttributes:     spanJSON,
 		payload:            payload,
+		mcpToolCall:        mcpToolCall,
 	}, nil
 }
 
-func resourceAttrsForStorage(attrs map[string]any) map[string]any {
-	out := cloneMap(attrs)
+func resourceAttrsForStorage(attrs map[string]*commonpb.AnyValue) map[string]any {
+	out := attrsForStorage(attrs)
 	delete(out, "os.type")
 	delete(out, "host.arch")
 	return out
 }
 
-func extractSpanPayload(spanClass string, attrs map[string]any) (traceSpanPayload, map[string]any) {
-	out := cloneMap(attrs)
+func extractSpanPayload(spanClass string, attrs map[string]*commonpb.AnyValue) (traceSpanPayload, map[string]any) {
+	out := attrsForStorage(attrs)
 	inputMessages := []byte(null)
 	outputMessages := []byte(null)
 	if spanClass == spanClassLLM {
@@ -233,19 +246,11 @@ func extractSpanPayload(spanClass string, attrs map[string]any) (traceSpanPayloa
 
 	toolArguments := []byte(null)
 	toolResult := []byte(null)
+	toolError := []byte(null)
 	if spanClass == spanClassTool {
 		toolArguments = extractJSONPayload(out, attrToolParameters)
-		if string(toolArguments) == null {
-			toolArguments = extractJSONPayload(out, "gen_ai.tool.call.arguments")
-		}
-
 		toolResult = extractJSONPayload(out, attrOutputValue)
-		if string(toolResult) == null {
-			toolResult = extractJSONPayload(out, "gen_ai.tool.call.result")
-		}
-		if string(toolResult) == null {
-			toolResult = extractJSONPayload(out, attrToolError)
-		}
+		toolError = extractJSONPayload(out, attrToolError)
 
 		delete(out, attrInputValue)
 		delete(out, attrInputMimeType)
@@ -257,6 +262,7 @@ func extractSpanPayload(spanClass string, attrs map[string]any) (traceSpanPayloa
 		outputMessages: outputMessages,
 		toolArguments:  toolArguments,
 		toolResult:     toolResult,
+		toolError:      toolError,
 	}, out
 }
 
@@ -266,11 +272,11 @@ func extractJSONPayload(attrs map[string]any, key string) []byte {
 		return []byte(null)
 	}
 	delete(attrs, key)
-	return jsonPayload(v)
+	return jsonValue(v)
 }
 
-func classifySpan(name string, attrs map[string]any) (string, string) {
-	switch strings.ToUpper(stringAttr(attrs, attrSpanKind)) {
+func classifySpan(name string, attrs map[string]*commonpb.AnyValue) (string, string) {
+	switch strings.ToUpper(attrString(attrs, attrSpanKind)) {
 	case "AGENT":
 		return spanClassSession, operationSession
 	case "LLM":
@@ -291,7 +297,7 @@ func classifySpan(name string, attrs map[string]any) (string, string) {
 	}
 }
 
-func requiredStringAttr(first, second map[string]any, key string, err error) (string, error) {
+func requiredStringAttr(first, second map[string]*commonpb.AnyValue, key string, err error) (string, error) {
 	v := strings.TrimSpace(firstStringAttr(first, second, key))
 	if v == "" {
 		return "", err
@@ -299,13 +305,13 @@ func requiredStringAttr(first, second map[string]any, key string, err error) (st
 	return v, nil
 }
 
-func attrsMap(attrs []*commonpb.KeyValue) map[string]any {
-	out := make(map[string]any, len(attrs))
+func attrsMap(attrs []*commonpb.KeyValue) map[string]*commonpb.AnyValue {
+	out := make(map[string]*commonpb.AnyValue, len(attrs))
 	for _, attr := range attrs {
-		if attr == nil || attr.Key == "" {
+		if attr == nil || attr.Key == "" || attr.Value == nil {
 			continue
 		}
-		out[attr.Key] = anyValue(attr.Value)
+		out[attr.Key] = attr.Value
 	}
 	return out
 }
@@ -333,25 +339,28 @@ func anyValue(v *commonpb.AnyValue) any {
 		}
 		return out
 	case *commonpb.AnyValue_KvlistValue:
-		return attrsMap(x.KvlistValue.GetValues())
+		out := make(map[string]any, len(x.KvlistValue.GetValues()))
+		for _, item := range x.KvlistValue.GetValues() {
+			if item == nil || item.Key == "" || item.Value == nil {
+				continue
+			}
+			out[item.Key] = anyValue(item.Value)
+		}
+		return out
 	default:
 		return nil
 	}
 }
 
-func jsonPayload(v any) []byte {
+func jsonValue(v any) []byte {
 	if v == nil {
 		return []byte(null)
 	}
-	switch x := v.(type) {
-	case string:
-		if json.Valid([]byte(x)) {
-			return []byte(x)
-		}
-	case []byte:
-		if json.Valid(x) {
-			return x
-		}
+	if raw, ok := v.([]byte); ok && json.Valid(raw) {
+		return raw
+	}
+	if s, ok := v.(string); ok && json.Valid([]byte(s)) {
+		return []byte(s)
 	}
 	return mustJSON(v)
 }
@@ -371,76 +380,59 @@ func mustJSON(v any) []byte {
 	return data
 }
 
-func firstStringAttr(first, second map[string]any, key string) string {
-	if v := stringAttr(first, key); v != "" {
+func firstStringAttr(first, second map[string]*commonpb.AnyValue, key string) string {
+	if v := attrString(first, key); v != "" {
 		return v
 	}
-	return stringAttr(second, key)
+	return attrString(second, key)
 }
 
-func stringAttr(attrs map[string]any, key string) string {
-	switch v := attrs[key].(type) {
-	case string:
-		return v
-	case fmt.Stringer:
-		return v.String()
-	case int64:
-		return strconv.FormatInt(v, 10)
-	case float64:
-		return strconv.FormatFloat(v, 'f', -1, 64)
-	case bool:
-		return strconv.FormatBool(v)
-	default:
+func attrString(attrs map[string]*commonpb.AnyValue, key string) string {
+	v, ok := attrs[key]
+	if !ok || v == nil {
 		return ""
 	}
+	x, ok := v.Value.(*commonpb.AnyValue_StringValue)
+	if !ok {
+		return ""
+	}
+	return x.StringValue
 }
 
-func intAttr(attrs map[string]any, key string) int64 {
-	switch v := attrs[key].(type) {
-	case int64:
-		return v
-	case int:
-		return int64(v)
-	case float64:
-		return int64(v)
-	case string:
-		n, _ := strconv.ParseInt(v, 10, 64)
-		return n
+func attrInt64(attrs map[string]*commonpb.AnyValue, key string) int64 {
+	v, ok := attrs[key]
+	if !ok || v == nil {
+		return 0
+	}
+	x, ok := v.Value.(*commonpb.AnyValue_IntValue)
+	if !ok {
+		return 0
+	}
+	return x.IntValue
+}
+
+func attrFloat64(attrs map[string]*commonpb.AnyValue, key string) float64 {
+	v, ok := attrs[key]
+	if !ok || v == nil {
+		return 0
+	}
+
+	switch x := v.Value.(type) {
+	case *commonpb.AnyValue_DoubleValue:
+		return x.DoubleValue
+	case *commonpb.AnyValue_IntValue:
+		return float64(x.IntValue)
 	default:
 		return 0
 	}
 }
 
-func floatAttr(attrs map[string]any, key string) float64 {
-	switch v := attrs[key].(type) {
-	case float64:
-		return v
-	case int64:
-		return float64(v)
-	case int:
-		return float64(v)
-	case string:
-		n, _ := strconv.ParseFloat(v, 64)
-		return n
-	default:
-		return 0
+func attrsForStorage(attrs map[string]*commonpb.AnyValue) map[string]any {
+	out := make(map[string]any, len(attrs))
+	for key, value := range attrs {
+		out[key] = anyValue(value)
 	}
-}
-
-func cloneMap(in map[string]any) map[string]any {
-	out := make(map[string]any, len(in))
-	maps.Copy(out, in)
 	return out
-}
-
-func firstNonEmpty(items ...string) string {
-	for _, item := range items {
-		item = strings.TrimSpace(item)
-		if item != "" {
-			return item
-		}
-	}
-	return ""
 }
 
 func unixNano(v uint64) time.Time {
@@ -473,9 +465,9 @@ func statusCode(status *tracepb.Status) string {
 	}
 	switch status.GetCode() {
 	case tracepb.Status_STATUS_CODE_OK:
-		return "OK"
+		return statusOK
 	case tracepb.Status_STATUS_CODE_ERROR:
-		return "ERROR"
+		return statusError
 	default:
 		return ""
 	}
@@ -488,4 +480,12 @@ func cloneBytes(in []byte) []byte {
 	out := make([]byte, len(in))
 	copy(out, in)
 	return out
+}
+
+func hasPayloadValue(raw []byte) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	return trimmed != "" && trimmed != null
 }

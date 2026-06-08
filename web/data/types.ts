@@ -1,4 +1,10 @@
-import type { Agent, Environment, Error, WorkflowInputs } from "@/lib/gateway/client"
+import type {
+  Agent,
+  Environment,
+  Error,
+  McpGraphResponse,
+  WorkflowInputs,
+} from "@/lib/gateway/client"
 
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
@@ -211,6 +217,16 @@ export type ListTracesActionResponse =
 export type TraceChartActionResponse =
   | {
       data: TraceChartActionData
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: Error
+    }
+
+export type McpGraphActionResponse =
+  | {
+      data: McpGraphResponse
       error: undefined
     }
   | {

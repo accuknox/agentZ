@@ -1,0 +1,932 @@
+package gateway
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"maps"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+
+	baoapi "github.com/openbao/openbao/api/v2"
+	"golang.org/x/oauth2"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/util/retry"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	internalmcp "github.com/accuknox/clawarmor/internal/mcp"
+	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+)
+
+const mcpInternalErrorMessage = "Internal error"
+
+func writeMCPAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
+	if err != nil && err.Status >= http.StatusInternalServerError {
+		err.Message = mcpInternalErrorMessage
+	}
+	writeError(w, r, err)
+}
+
+// ListMCPConnections handles GET /api/mcp-connection/list.
+func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, params gatewayapi.ListMCPConnectionsParams) {
+	limit, ok := validLimit(w, r, params.Limit)
+	if !ok {
+		return
+	}
+
+	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
+
+	items, err := s.listMCPConnectionSummaries(r.Context(), nil)
+	if err != nil {
+		writeMCPInternalError(w, r, err)
+		return
+	}
+
+	start := min(offset, len(items))
+	end := min(start+limit, len(items))
+
+	resp := gatewayapi.ListMCPConnectionsResponse{
+		McpConnections: items[start:end],
+		NextPageToken:  "",
+	}
+	if end < len(items) {
+		resp.NextPageToken = encodeOffsetToken(end)
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// WatchMCPConnections handles POST /api/mcp-connection/watch.
+func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.WatchMCPConnectionsRequest
+	if r.Body != nil {
+		if !decodeJSONBody(w, r, &req, true) {
+			return
+		}
+	}
+
+	names := []string{}
+	if req.Names != nil {
+		names = make([]string, 0, len(*req.Names))
+		for _, rawName := range *req.Names {
+			name := strings.TrimSpace(rawName)
+			fields := validateMCPConnectionName(name, "names")
+			if len(fields) > 0 {
+				writeError(w, r, newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					fields...,
+				))
+				return
+			}
+			names = append(names, name)
+		}
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeMCPInternalError(w, r, errors.New("streaming is unavailable"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	prev := map[string]gatewayapi.MCPConnectionSummary{}
+	send := func(items []gatewayapi.MCPConnectionSummary) bool {
+		if len(items) == 0 {
+			return true
+		}
+
+		raw, err := json.Marshal(gatewayapi.WatchMCPConnectionsEvent{
+			McpConnections: items,
+		})
+		if err != nil {
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	writeChanges := func() bool {
+		items, err := s.listMCPConnectionSummaries(r.Context(), names)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return false
+			}
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+
+		changed := make([]gatewayapi.MCPConnectionSummary, 0, len(items))
+		for _, item := range items {
+			prevItem, ok := prev[item.Name]
+			unchanged := ok &&
+				prevItem.Name == item.Name &&
+				prevItem.AuthMode == item.AuthMode &&
+				prevItem.EndpointUrl == item.EndpointUrl &&
+				prevItem.CreatedAt.Equal(item.CreatedAt) &&
+				prevItem.Status == item.Status &&
+				prevItem.Reason == item.Reason &&
+				prevItem.Message == item.Message &&
+				prevItem.ToolCatalogReady == item.ToolCatalogReady &&
+				prevItem.ToolCount == item.ToolCount
+			if unchanged {
+				continue
+			}
+			prev[item.Name] = item
+			changed = append(changed, item)
+		}
+		return send(changed)
+	}
+
+	if !writeChanges() {
+		return
+	}
+
+	ticker := time.NewTicker(statusPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			if !writeChanges() {
+				return
+			}
+		}
+	}
+}
+
+// CreateMCPConnection handles POST /api/mcp-connection.
+func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
+	var req gatewayapi.CreateMCPConnectionRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	fields := validateMCPConnectionName(name, "name")
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	conn := &clawarmorv1alpha1.MCPConnection{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "MCPConnection",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: s.cfg.Namespace,
+		},
+	}
+
+	spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, req.Auth)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+	conn.Spec = spec
+	setMCPConnectionSecretRef(name, &conn.Spec)
+
+	mcpconnwebhook.ApplyDefaults(&conn.Spec)
+	if err := mcpconnwebhook.Validate(conn); err != nil {
+		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
+		return
+	}
+	if err := s.k8sClient.Create(r.Context(), conn); err != nil {
+		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, s.mcpConnectionDetail(*conn))
+}
+
+// GetMCPConnection handles GET /api/mcp-connection/{name}.
+func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
+	conn, ok := s.getMCPConnection(w, r, name)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(*conn))
+}
+
+// UpdateMCPConnection handles PUT /api/mcp-connection/{name}.
+func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
+	var req gatewayapi.UpdateMCPConnectionRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	name = strings.TrimSpace(name)
+	fields := validateMCPConnectionName(name, "name")
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	var updated clawarmorv1alpha1.MCPConnection
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		conn := &clawarmorv1alpha1.MCPConnection{}
+		key := ctrlclient.ObjectKey{Name: name, Namespace: s.cfg.Namespace}
+		err := s.k8sClient.Get(r.Context(), key, conn)
+		if err != nil {
+			return err
+		}
+
+		spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, req.Auth)
+		if len(fields) > 0 {
+			return newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			)
+		}
+		conn.Spec = spec
+		setMCPConnectionSecretRef(name, &conn.Spec)
+		mcpconnwebhook.ApplyDefaults(&conn.Spec)
+		if err := mcpconnwebhook.Validate(conn); err != nil {
+			return err
+		}
+		if err := s.k8sClient.Update(r.Context(), conn); err != nil {
+			return err
+		}
+		updated = *conn
+		return nil
+	})
+	if err != nil {
+		if apiErr, ok := errors.AsType[*apiError](err); ok {
+			writeMCPAPIError(w, r, apiErr)
+			return
+		}
+		writeMCPAPIError(w, r, mapKubeHTTPError("update mcp connection", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(updated))
+}
+
+// DeleteMCPConnection handles DELETE /api/mcp-connection/{name}.
+func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
+	conn, ok := s.getMCPConnection(w, r, name)
+	if !ok {
+		return
+	}
+
+	referrers, err := s.referencingEnvironments(r.Context(), conn.Name)
+	if err != nil {
+		writeMCPInternalError(w, r, fmt.Errorf("list environment references: %w", err))
+		return
+	}
+	if len(referrers) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusConflict,
+			"conflict",
+			"mcp connection is referenced by environments: "+strings.Join(referrers, ", "),
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "name",
+				Message: "referenced by environments: " + strings.Join(referrers, ", "),
+			},
+		))
+		return
+	}
+
+	if err := s.k8sClient.Delete(r.Context(), conn); err != nil {
+		writeMCPAPIError(w, r, mapKubeHTTPError("delete mcp connection", err))
+		return
+	}
+	if err := s.deleteMCPConnectionCredentials(r.Context(), *conn); err != nil {
+		writeMCPAPIError(w, r, mapOpenBaoError(err))
+		return
+	}
+	if err := s.waitForMCPConnectionDeletion(r.Context(), conn.Name); err != nil {
+		writeMCPInternalError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// SetMCPConnectionCredentials handles POST /api/mcp-connection/{name}/credentials.
+func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
+	conn, ok := s.getMCPConnection(w, r, name)
+	if !ok {
+		return
+	}
+
+	var req gatewayapi.SetMCPConnectionCredentialsRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	if conn.Spec.Auth == nil {
+		writeError(w, r, newAPIError(
+			http.StatusConflict,
+			"conflict",
+			"mcp connection has no auth mode configured",
+			errBadRequest,
+		))
+		return
+	}
+
+	now := time.Now().UTC()
+	switch {
+	case req.Bearer != nil && req.Oauth == nil:
+		if conn.Spec.Auth.Bearer == nil || conn.Spec.Auth.Bearer.SecretRef == nil {
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"credential payload is incompatible with current auth mode",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "bearer",
+					Message: "bearer auth is not configured on the connection",
+				},
+			))
+			return
+		}
+
+		record := internalmcp.BearerSecretRecord{
+			Token:     strings.TrimSpace(req.Bearer.Token),
+			UpdatedAt: now,
+		}
+		if record.Token == "" {
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{Field: "bearer.token", Message: "required"},
+			))
+			return
+		}
+
+		if err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.Bearer.SecretRef, record); err != nil {
+			writeMCPAPIError(w, r, mapOpenBaoError(err))
+			return
+		}
+	case req.Oauth != nil && req.Bearer == nil:
+		if conn.Spec.Auth.OAuth == nil || conn.Spec.Auth.OAuth.SecretRef == nil {
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"credential payload is incompatible with current auth mode",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "oauth",
+					Message: "oauth auth is not configured on the connection",
+				},
+			))
+			return
+		}
+
+		record := internalmcp.OAuthSecretRecord{UpdatedAt: now}
+		if req.Oauth.ClientId != nil {
+			record.ClientID = strings.TrimSpace(*req.Oauth.ClientId)
+		}
+		if req.Oauth.ClientSecret != nil {
+			record.ClientSecret = *req.Oauth.ClientSecret
+		}
+		if req.Oauth.Scopes != nil {
+			record.Scopes = append([]string{}, (*req.Oauth.Scopes)...)
+		}
+		record.Registration = cloneJSONObject(req.Oauth.Registration)
+		record.Revocation = cloneJSONObject(req.Oauth.Revocation)
+
+		token := oauth2.Token{}
+		if req.Oauth.AccessToken != nil {
+			token.AccessToken = *req.Oauth.AccessToken
+		}
+		if req.Oauth.TokenType != nil {
+			token.TokenType = strings.TrimSpace(*req.Oauth.TokenType)
+		}
+		if req.Oauth.RefreshToken != nil {
+			token.RefreshToken = *req.Oauth.RefreshToken
+		}
+		if req.Oauth.ExpiresAt != nil {
+			token.Expiry = req.Oauth.ExpiresAt.UTC()
+		}
+		if token.AccessToken != "" || token.RefreshToken != "" || token.TokenType != "" || !token.Expiry.IsZero() {
+			record.Token = &token
+		}
+
+		if err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.OAuth.SecretRef, record); err != nil {
+			writeMCPAPIError(w, r, mapOpenBaoError(err))
+			return
+		}
+	default:
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: "exactly one credential payload must be set",
+			},
+		))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteMCPConnectionCredentials handles DELETE /api/mcp-connection/{name}/credentials.
+func (s *Service) DeleteMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
+	conn, ok := s.getMCPConnection(w, r, name)
+	if !ok {
+		return
+	}
+	if err := s.deleteMCPConnectionCredentials(r.Context(), *conn); err != nil {
+		writeMCPAPIError(w, r, mapOpenBaoError(err))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawName string) (*clawarmorv1alpha1.MCPConnection, bool) {
+	name := strings.TrimSpace(rawName)
+	fields := validateMCPConnectionName(name, "name")
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return nil, false
+	}
+
+	conn := &clawarmorv1alpha1.MCPConnection{}
+	key := ctrlclient.ObjectKey{Name: name, Namespace: s.cfg.Namespace}
+	if err := s.k8sClient.Get(r.Context(), key, conn); err != nil {
+		writeMCPAPIError(w, r, mapKubeHTTPError("get mcp connection", err))
+		return nil, false
+	}
+	return conn, true
+}
+
+// listMCPConnections returns all MCPConnection resources in the service
+// namespace.
+func (s *Service) listMCPConnections(ctx context.Context) ([]clawarmorv1alpha1.MCPConnection, error) {
+	var list clawarmorv1alpha1.MCPConnectionList
+	if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+		return nil, fmt.Errorf("list mcp connections: %w", err)
+	}
+	return list.Items, nil
+}
+
+func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
+	items, err := s.listMCPConnections(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]gatewayapi.MCPConnectionSummary, 0, len(items))
+	for _, conn := range items {
+		if len(names) > 0 && !slices.Contains(names, conn.Name) {
+			continue
+		}
+		summaries = append(summaries, s.mcpConnectionSummary(conn))
+	}
+	slices.SortFunc(summaries, func(a, b gatewayapi.MCPConnectionSummary) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return summaries, nil
+}
+
+func (s *Service) mcpConnectionSummary(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
+	status, reason, message := s.mcpConnectionStatus(conn)
+	return gatewayapi.MCPConnectionSummary{
+		Name:             conn.Name,
+		AuthMode:         conn.Status.AuthMode,
+		EndpointUrl:      conn.Spec.Endpoint.URL,
+		CreatedAt:        conn.CreationTimestamp.Time,
+		Status:           status,
+		Reason:           reason,
+		Message:          message,
+		ToolCatalogReady: conn.Status.ToolCatalogReady,
+		ToolCount:        int64(len(conn.Status.Tools)),
+	}
+}
+
+func (s *Service) mcpConnectionDetail(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
+	headers := map[string]string{}
+	maps.Copy(headers, conn.Spec.Endpoint.Headers)
+
+	endpoint := gatewayapi.MCPConnectionEndpoint{
+		Url:                conn.Spec.Endpoint.URL,
+		InsecureSkipVerify: conn.Spec.Endpoint.InsecureSkipVerify,
+		Headers:            headers,
+	}
+	if conn.Spec.Endpoint.Timeout != nil {
+		timeout := conn.Spec.Endpoint.Timeout.Duration.String()
+		endpoint.Timeout = &timeout
+	}
+
+	auth := gatewayapi.MCPConnectionAuth{}
+	if conn.Spec.Auth != nil && conn.Spec.Auth.Bearer != nil {
+		auth.Bearer = &gatewayapi.MCPConnectionBearerAuth{
+			Location: authLocationToResponse(conn.Spec.Auth.Bearer.Location),
+		}
+	}
+	if conn.Spec.Auth != nil && conn.Spec.Auth.OAuth != nil {
+		auth.Oauth = &gatewayapi.MCPConnectionOAuthAuth{
+			Location: authLocationToResponse(conn.Spec.Auth.OAuth.Location),
+		}
+		if conn.Spec.Auth.OAuth.Issuer != "" {
+			value := conn.Spec.Auth.OAuth.Issuer
+			auth.Oauth.Issuer = &value
+		}
+		if conn.Spec.Auth.OAuth.AuthorizationEndpoint != "" {
+			value := conn.Spec.Auth.OAuth.AuthorizationEndpoint
+			auth.Oauth.AuthorizationEndpoint = &value
+		}
+		if conn.Spec.Auth.OAuth.TokenEndpoint != "" {
+			value := conn.Spec.Auth.OAuth.TokenEndpoint
+			auth.Oauth.TokenEndpoint = &value
+		}
+		if conn.Spec.Auth.OAuth.RegistrationEndpoint != "" {
+			value := conn.Spec.Auth.OAuth.RegistrationEndpoint
+			auth.Oauth.RegistrationEndpoint = &value
+		}
+		if conn.Spec.Auth.OAuth.Resource != "" {
+			value := conn.Spec.Auth.OAuth.Resource
+			auth.Oauth.Resource = &value
+		}
+		if len(conn.Spec.Auth.OAuth.Scopes) > 0 {
+			scopes := append([]string{}, conn.Spec.Auth.OAuth.Scopes...)
+			auth.Oauth.Scopes = &scopes
+		}
+	}
+
+	status, reason, message := s.mcpConnectionStatus(conn)
+	tools := make([]gatewayapi.MCPConnectionTool, 0, len(conn.Status.Tools))
+	for _, tool := range conn.Status.Tools {
+		tools = append(tools, gatewayapi.MCPConnectionTool{Name: tool.Name})
+	}
+	return gatewayapi.MCPConnectionDetail{
+		Name:             conn.Name,
+		CreatedAt:        conn.CreationTimestamp.Time,
+		Endpoint:         endpoint,
+		Auth:             auth,
+		Status:           status,
+		Reason:           reason,
+		Message:          message,
+		ToolCatalogReady: conn.Status.ToolCatalogReady,
+		Tools:            tools,
+	}
+}
+
+func (s *Service) mcpConnectionStatus(conn clawarmorv1alpha1.MCPConnection) (gatewayapi.MCPConnectionLifecycle, gatewayapi.MCPConnectionReason, string) {
+	accepted := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionAccepted)
+	degraded := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionDegraded)
+	probeHealthy := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProbeHealthy)
+	unreachable := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionConnectionUnreachable)
+	credentialsInvalid := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionCredentialsInvalid)
+	protocolError := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProtocolError)
+
+	if conn.Status.State == clawarmorv1alpha1.MCPConnectionStateDegraded ||
+		(accepted != nil && accepted.Status == metav1.ConditionFalse) ||
+		(degraded != nil && degraded.Status == metav1.ConditionTrue) {
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, mcpInternalErrorMessage
+	}
+	if conn.Status.LastProbeTime == nil ||
+		time.Since(conn.Status.LastProbeTime.Time) > s.cfg.MCPProbeStaleAfter ||
+		probeHealthy == nil ||
+		probeHealthy.Status == metav1.ConditionUnknown {
+		return gatewayapi.MCPConnectionLifecycleAccepted, gatewayapi.MCPConnectionReasonProbePending, "Status check pending"
+	}
+
+	if probeHealthy.Status == metav1.ConditionTrue {
+		return gatewayapi.MCPConnectionLifecycleReady, gatewayapi.MCPConnectionReasonReady, "Ready"
+	}
+
+	switch {
+	case unreachable != nil && unreachable.Status == metav1.ConditionTrue:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonUnreachable, "Server unreachable"
+	case credentialsInvalid != nil && credentialsInvalid.Status == metav1.ConditionTrue:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInvalidCredentials, "Credentials invalid"
+	case protocolError != nil && protocolError.Status == metav1.ConditionTrue:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonProtocolError, "Protocol error"
+	default:
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, mcpInternalErrorMessage
+	}
+}
+
+func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string) error {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		conn := &clawarmorv1alpha1.MCPConnection{}
+		key := ctrlclient.ObjectKey{Namespace: s.cfg.Namespace, Name: name}
+		err := s.k8sClient.Get(ctx, key, conn)
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("wait for mcp connection deletion: %w", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for mcp connection deletion: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func writeMCPInternalError(w http.ResponseWriter, r *http.Request, err error) {
+	writeError(w, r, newAPIError(
+		http.StatusInternalServerError,
+		"internal_error",
+		mcpInternalErrorMessage,
+		err,
+	))
+}
+
+func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, auth *gatewayapi.MCPConnectionAuth) (clawarmorv1alpha1.MCPConnectionSpec, []gatewayapi.FieldError) {
+	spec := clawarmorv1alpha1.MCPConnectionSpec{
+		Endpoint: clawarmorv1alpha1.MCPConnectionEndpoint{
+			URL:                strings.TrimSpace(endpoint.Url),
+			InsecureSkipVerify: endpoint.InsecureSkipVerify,
+			Headers:            map[string]string{},
+		},
+	}
+	if endpoint.Timeout != nil {
+		duration, err := time.ParseDuration(strings.TrimSpace(*endpoint.Timeout))
+		if err != nil {
+			return spec, []gatewayapi.FieldError{{
+				Field:   "endpoint.timeout",
+				Message: "must be a valid duration",
+			}}
+		}
+		spec.Endpoint.Timeout = &metav1.Duration{Duration: duration}
+	}
+	maps.Copy(spec.Endpoint.Headers, endpoint.Headers)
+
+	if auth == nil {
+		return spec, nil
+	}
+
+	spec.Auth = &clawarmorv1alpha1.MCPConnectionAuth{}
+	if auth.Bearer != nil {
+		spec.Auth.Bearer = &clawarmorv1alpha1.MCPConnectionBearerAuth{
+			Location: authLocationFromRequest(auth.Bearer.Location),
+		}
+	}
+	if auth.Oauth != nil {
+		spec.Auth.OAuth = &clawarmorv1alpha1.MCPConnectionOAuthAuth{
+			Location: authLocationFromRequest(auth.Oauth.Location),
+		}
+		if auth.Oauth.Issuer != nil {
+			spec.Auth.OAuth.Issuer = strings.TrimSpace(*auth.Oauth.Issuer)
+		}
+		if auth.Oauth.AuthorizationEndpoint != nil {
+			spec.Auth.OAuth.AuthorizationEndpoint = strings.TrimSpace(*auth.Oauth.AuthorizationEndpoint)
+		}
+		if auth.Oauth.TokenEndpoint != nil {
+			spec.Auth.OAuth.TokenEndpoint = strings.TrimSpace(*auth.Oauth.TokenEndpoint)
+		}
+		if auth.Oauth.RegistrationEndpoint != nil {
+			spec.Auth.OAuth.RegistrationEndpoint = strings.TrimSpace(*auth.Oauth.RegistrationEndpoint)
+		}
+		if auth.Oauth.Resource != nil {
+			spec.Auth.OAuth.Resource = strings.TrimSpace(*auth.Oauth.Resource)
+		}
+		if auth.Oauth.Scopes != nil {
+			spec.Auth.OAuth.Scopes = append([]string{}, (*auth.Oauth.Scopes)...)
+		}
+	}
+	if spec.Auth.Bearer == nil && spec.Auth.OAuth == nil {
+		spec.Auth = nil
+	}
+	return spec, nil
+}
+
+func authLocationFromRequest(location *gatewayapi.MCPConnectionAuthLocation) *clawarmorv1alpha1.MCPConnectionAuthLocation {
+	if location == nil {
+		return nil
+	}
+
+	out := &clawarmorv1alpha1.MCPConnectionAuthLocation{}
+	if location.Header != nil {
+		out.Header = &clawarmorv1alpha1.MCPConnectionHeaderLocation{Name: strings.TrimSpace(location.Header.Name)}
+		if location.Header.Prefix != nil {
+			prefix := strings.TrimSpace(*location.Header.Prefix)
+			out.Header.Prefix = &prefix
+		}
+	}
+	if location.QueryParameter != nil {
+		out.QueryParameter = &clawarmorv1alpha1.MCPConnectionQueryParameterLocation{Name: strings.TrimSpace(location.QueryParameter.Name)}
+	}
+	if location.Cookie != nil {
+		out.Cookie = &clawarmorv1alpha1.MCPConnectionCookieLocation{Name: strings.TrimSpace(location.Cookie.Name)}
+	}
+	return out
+}
+
+func authLocationToResponse(location *clawarmorv1alpha1.MCPConnectionAuthLocation) *gatewayapi.MCPConnectionAuthLocation {
+	if location == nil {
+		return nil
+	}
+
+	out := &gatewayapi.MCPConnectionAuthLocation{}
+	if location.Header != nil {
+		out.Header = &gatewayapi.MCPConnectionHeaderLocation{Name: location.Header.Name}
+		if location.Header.Prefix != nil {
+			prefix := *location.Header.Prefix
+			out.Header.Prefix = &prefix
+		}
+	}
+	if location.QueryParameter != nil {
+		out.QueryParameter = &gatewayapi.MCPConnectionQueryParameterLocation{Name: location.QueryParameter.Name}
+	}
+	if location.Cookie != nil {
+		out.Cookie = &gatewayapi.MCPConnectionCookieLocation{Name: location.Cookie.Name}
+	}
+	return out
+}
+
+func validateMCPConnectionName(name string, fieldName string) []gatewayapi.FieldError {
+	fields := []gatewayapi.FieldError{}
+	if name == "" {
+		return append(fields, gatewayapi.FieldError{Field: fieldName, Message: "required"})
+	}
+	if len(name) > 32 {
+		fields = append(fields, gatewayapi.FieldError{Field: fieldName, Message: "must be at most 32 characters"})
+	}
+	for _, msg := range validation.IsDNS1123Label(name) {
+		fields = append(fields, gatewayapi.FieldError{Field: fieldName, Message: msg})
+	}
+	return fields
+}
+
+func (s *Service) referencingEnvironments(ctx context.Context, connectionName string) ([]string, error) {
+	var envList clawarmorv1alpha1.EnvironmentList
+	if err := s.k8sClient.List(ctx, &envList, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+		return nil, err
+	}
+
+	referrers := []string{}
+	for _, env := range envList.Items {
+		for _, ref := range env.Spec.MCPConnectionRefs {
+			if ref.Name != connectionName {
+				continue
+			}
+			referrers = append(referrers, env.Name)
+			break
+		}
+	}
+	slices.Sort(referrers)
+	return referrers, nil
+}
+
+func (s *Service) putMCPConnectionSecret(ctx context.Context, ref clawarmorv1alpha1.MCPConnectionSecretRef, record any) error {
+	data, err := s.readMCPConnectionSecretData(ctx, ref.Path)
+	if err != nil {
+		return err
+	}
+
+	encoded, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("marshal mcp connection secret: %w", err)
+	}
+	data[ref.Key] = string(encoded)
+
+	if _, err := s.baoKV.Put(ctx, ref.Path, data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
+	if spec == nil || spec.Auth == nil {
+		return
+	}
+
+	path := internalmcp.SecretPath(name)
+	if spec.Auth.Bearer != nil {
+		spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+			Path: path,
+			Key:  internalmcp.SecretRecordKey,
+		}
+	}
+	if spec.Auth.OAuth != nil {
+		spec.Auth.OAuth.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+			Path: path,
+			Key:  internalmcp.SecretRecordKey,
+		}
+	}
+}
+
+func cloneJSONObject(in *gatewayapi.JSONObject) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(*in))
+	for key, value := range *in {
+		out[key] = value
+	}
+	return out
+}
+
+func (s *Service) deleteMCPConnectionCredentials(ctx context.Context, conn clawarmorv1alpha1.MCPConnection) error {
+	if conn.Spec.Auth == nil {
+		return nil
+	}
+	if conn.Spec.Auth.Bearer != nil && conn.Spec.Auth.Bearer.SecretRef != nil {
+		return s.deleteMCPConnectionSecret(ctx, *conn.Spec.Auth.Bearer.SecretRef)
+	}
+	if conn.Spec.Auth.OAuth != nil && conn.Spec.Auth.OAuth.SecretRef != nil {
+		return s.deleteMCPConnectionSecret(ctx, *conn.Spec.Auth.OAuth.SecretRef)
+	}
+	return nil
+}
+
+func (s *Service) deleteMCPConnectionSecret(ctx context.Context, ref clawarmorv1alpha1.MCPConnectionSecretRef) error {
+	data, err := s.readMCPConnectionSecretData(ctx, ref.Path)
+	if err != nil {
+		if errors.Is(err, baoapi.ErrSecretNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	delete(data, ref.Key)
+	if len(data) == 0 {
+		if err := s.baoKV.DeleteMetadata(ctx, ref.Path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
+			return err
+		}
+		return nil
+	}
+
+	if _, err := s.baoKV.Put(ctx, ref.Path, data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) readMCPConnectionSecretData(ctx context.Context, path string) (map[string]any, error) {
+	secret, err := s.baoKV.Get(ctx, path)
+	if err != nil {
+		if errors.Is(err, baoapi.ErrSecretNotFound) {
+			return map[string]any{}, nil
+		}
+		return nil, err
+	}
+	if secret == nil || secret.Data == nil {
+		return map[string]any{}, nil
+	}
+
+	data := make(map[string]any, len(secret.Data))
+	maps.Copy(data, secret.Data)
+	return data, nil
+}

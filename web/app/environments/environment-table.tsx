@@ -27,6 +27,7 @@ const columnClassName: Record<string, string> = {
   name: "min-w-40",
   packages: "w-32",
   allowed_hosts: "w-36",
+  mcps: "w-28",
   created_at: "w-44",
   actions: "w-14",
 }
@@ -68,7 +69,7 @@ export function EnvironmentTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="min-w-0 w-full overflow-hidden border-b">
+      <div className="w-full min-w-0 overflow-hidden border-b">
         <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

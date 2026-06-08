@@ -3,7 +3,7 @@ import { tool } from "@opencode-ai/plugin"
 import { createWorkflowSchedule, type CreateWorkflowScheduleRequest, zError } from "../lib/gateway"
 import { zCreateWorkflowScheduleBody } from "../lib/gateway/client/zod.gen"
 import {
-  formatToolValidationError,
+  formatScheduleRequestValidationError,
   jsonValueSchema,
   validateWorkflowScheduleInputs,
 } from "../lib/workflow_schedule"
@@ -122,7 +122,7 @@ export default tool({
           })),
         },
       })
-      return formatToolValidationError(bodyResult.error.issues)
+      return formatScheduleRequestValidationError(bodyResult.error.issues)
     }
 
     const body: CreateWorkflowScheduleRequest = bodyResult.data

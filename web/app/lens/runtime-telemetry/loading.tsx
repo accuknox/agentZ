@@ -9,7 +9,7 @@ export default function Loading() {
       <div className="flex items-center justify-between px-6">
         <Skeleton className="h-6 w-36" />
       </div>
-      <div className="h-15 border-b bg-muted/20" />
+      <div className="bg-muted/20 h-15 border-b" />
       <Tabs value="process" className="flex flex-1 flex-col">
         <div className="border-b px-6">
           <TabsList variant="line" className="h-10 gap-4">

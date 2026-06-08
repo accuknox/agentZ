@@ -28,7 +28,6 @@ INSERT INTO observer_trace_spans(
   start_time,
   end_time,
   duration_ns,
-  duration_ms,
   name,
   span_class,
   operation_name,
@@ -55,7 +54,6 @@ INSERT INTO observer_trace_spans(
   sqlc.arg(start_time),
   sqlc.arg(end_time),
   sqlc.arg(duration_ns),
-  sqlc.arg(duration_ms),
   sqlc.arg(name),
   sqlc.arg(span_class),
   sqlc.arg(operation_name),
@@ -96,6 +94,53 @@ INSERT INTO observer_trace_span_payloads(
 )
 ON CONFLICT(trace_id, span_id, start_time) DO NOTHING;
 
+-- name: InsertMCPToolInvocation :batchexec
+INSERT INTO observer_mcp_tool_invocations(
+  agent_name,
+  trace_id,
+  span_id,
+  start_time,
+  end_time,
+  duration_ns,
+  mcp_connection_name,
+  tool_name,
+  session_id,
+  failed
+) VALUES (
+  sqlc.arg(agent_name),
+  sqlc.arg(trace_id),
+  sqlc.arg(span_id),
+  sqlc.arg(start_time),
+  sqlc.arg(end_time),
+  sqlc.arg(duration_ns),
+  sqlc.arg(mcp_connection_name),
+  sqlc.arg(tool_name),
+  sqlc.arg(session_id),
+  sqlc.arg(failed)
+)
+ON CONFLICT(trace_id, span_id, start_time) DO NOTHING;
+
+-- name: UpsertMCPToolLastCalled :batchexec
+INSERT INTO observer_mcp_tool_last_called(
+  agent_name,
+  mcp_connection_name,
+  tool_name,
+  last_called_at,
+  updated_at
+) VALUES (
+  sqlc.arg(agent_name),
+  sqlc.arg(mcp_connection_name),
+  sqlc.arg(tool_name),
+  sqlc.arg(last_called_at),
+  now()
+)
+ON CONFLICT(agent_name, mcp_connection_name, tool_name) DO UPDATE SET
+  last_called_at = GREATEST(
+    observer_mcp_tool_last_called.last_called_at,
+    EXCLUDED.last_called_at
+  ),
+  updated_at = now();
+
 -- name: RefreshTraceSummary :batchexec
 INSERT INTO observer_traces(
   trace_id,
@@ -104,7 +149,6 @@ INSERT INTO observer_traces(
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -131,10 +175,6 @@ INSERT INTO observer_traces(
   GREATEST(
     0,
     (EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000000000)::BIGINT
-  ),
-  GREATEST(
-    0,
-    EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000
   ),
   COUNT(*)::BIGINT,
   COUNT(*) FILTER (
@@ -168,7 +208,6 @@ ON CONFLICT(trace_id) DO UPDATE SET
   started_at = EXCLUDED.started_at,
   ended_at = EXCLUDED.ended_at,
   duration_ns = EXCLUDED.duration_ns,
-  duration_ms = EXCLUDED.duration_ms,
   span_count = EXCLUDED.span_count,
   error_count = EXCLUDED.error_count,
   tool_count = EXCLUDED.tool_count,
@@ -190,7 +229,6 @@ INSERT INTO observer_trace_sessions(
   started_at,
   ended_at,
   duration_ns,
-  duration_ms,
   span_count,
   error_count,
   tool_count,
@@ -218,10 +256,6 @@ INSERT INTO observer_trace_sessions(
   GREATEST(
     0,
     (EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000000000)::BIGINT
-  ),
-  GREATEST(
-    0,
-    EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000
   ),
   COUNT(*)::BIGINT,
   COUNT(*) FILTER (
@@ -256,7 +290,6 @@ ON CONFLICT(trace_id, session_id) DO UPDATE SET
   started_at = EXCLUDED.started_at,
   ended_at = EXCLUDED.ended_at,
   duration_ns = EXCLUDED.duration_ns,
-  duration_ms = EXCLUDED.duration_ms,
   span_count = EXCLUDED.span_count,
   error_count = EXCLUDED.error_count,
   tool_count = EXCLUDED.tool_count,

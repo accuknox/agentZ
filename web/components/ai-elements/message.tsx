@@ -49,12 +49,12 @@ export type MessageContentProps = HTMLAttributes<HTMLDivElement>
 export const MessageContent = ({ children, className, ...props }: MessageContentProps) => (
   <div
     className={cn(
-      "is-user:dark flex w-full min-w-0 max-w-full flex-col text-sm",
+      "is-user:dark flex w-full max-w-full min-w-0 flex-col text-sm",
       "group-[.is-user]:w-fit",
-      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:rounded-r-none group-[.is-user]:border-r-2 group-[.is-user]:border-chat-user group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
+      "group-[.is-user]:border-primary group-[.is-user]:bg-secondary group-[.is-user]:text-foreground group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:rounded-r-none group-[.is-user]:border-r-2 group-[.is-user]:px-4 group-[.is-user]:py-3",
       "group-[.is-assistant]:text-foreground",
       "group-[.is-assistant]:gap-1",
-      "group-[.is-system-message]:w-full group-[.is-system-message]:max-w-full group-[.is-system-message]:rounded-l-none group-[.is-system-message]:rounded-r-none group-[.is-system-message]:border-l-2 group-[.is-system-message]:border-r-2 group-[.is-system-message]:border-chat-error group-[.is-system-message]:px-4",
+      "group-[.is-system-message]:border-destructive group-[.is-system-message]:w-full group-[.is-system-message]:max-w-full group-[.is-system-message]:rounded-l-none group-[.is-system-message]:rounded-r-none group-[.is-system-message]:border-r-2 group-[.is-system-message]:border-l-2 group-[.is-system-message]:px-4",
       className
     )}
     {...props}
@@ -275,7 +275,7 @@ export const MessageBranchPage = ({ className, ...props }: MessageBranchPageProp
 
   return (
     <ButtonGroupText
-      className={cn("border-none bg-transparent text-muted-foreground shadow-none", className)}
+      className={cn("text-muted-foreground border-none bg-transparent shadow-none", className)}
       {...props}
     >
       {currentBranch + 1} of {totalBranches}
@@ -324,7 +324,7 @@ const MarkdownCode = ({
     if (plainCodeBlocks) {
       return (
         <code
-          className={cn("block whitespace-pre-wrap wrap-break-word font-mono text-sm", className)}
+          className={cn("block font-mono text-sm wrap-break-word whitespace-pre-wrap", className)}
           {...props}
         >
           {trimmedBlockCode}
@@ -344,7 +344,7 @@ const MarkdownCode = ({
   }
 
   return (
-    <code className={cn("rounded bg-muted px-1.5 py-0.5 font-mono text-sm", className)} {...props}>
+    <code className={cn("bg-muted rounded px-1.5 py-0.5 font-mono text-sm", className)} {...props}>
       {children}
     </code>
   )
@@ -363,7 +363,7 @@ const MarkdownPre: FC<ComponentProps<"pre"> & ExtraProps & { plainCodeBlocks?: b
   if (plainCodeBlocks) {
     return (
       <pre
-        className={cn("my-2 overflow-auto whitespace-pre-wrap wrap-break-word", className)}
+        className={cn("my-2 overflow-auto wrap-break-word whitespace-pre-wrap", className)}
         {...props}
       >
         {cloneElement(children as ReactElement<MarkdownCodeElementProps>, {
@@ -403,7 +403,7 @@ const MarkdownParagraph: FC<ComponentProps<"p"> & ExtraProps> = ({
   className,
   ...props
 }) => (
-  <p className={cn("whitespace-pre-line leading-relaxed", className)} {...props}>
+  <p className={cn("leading-relaxed whitespace-pre-line", className)} {...props}>
     {children}
   </p>
 )

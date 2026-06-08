@@ -35,7 +35,7 @@ export const ModelSelectorContent = ({
 }: ModelSelectorContentProps) => (
   <DialogContent
     aria-describedby={undefined}
-    className={cn("outline! border-none! p-0 outline-border! outline-solid!", className)}
+    className={cn("outline-border! border-none! p-0 outline! outline-solid!", className)}
     {...props}
   >
     <DialogTitle className="sr-only">{title}</DialogTitle>
@@ -160,7 +160,7 @@ export type ModelSelectorLogoGroupProps = ComponentProps<"div">
 export const ModelSelectorLogoGroup = ({ className, ...props }: ModelSelectorLogoGroupProps) => (
   <div
     className={cn(
-      "flex shrink-0 items-center -space-x-1 [&>img]:rounded-full [&>img]:bg-background [&>img]:p-px [&>img]:ring-1 dark:[&>img]:bg-foreground",
+      "[&>img]:bg-background dark:[&>img]:bg-foreground flex shrink-0 items-center -space-x-1 [&>img]:rounded-full [&>img]:p-px [&>img]:ring-1",
       className
     )}
     {...props}

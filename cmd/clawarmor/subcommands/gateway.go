@@ -104,6 +104,11 @@ var gatewayServeCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.DurationFlag{
+			Name:  "mcp-probe-stale-after",
+			Usage: "Maximum age of MCP probe results before they are treated as pending",
+			Value: gateway.DefaultMCPProbeStaleAfter,
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return gateway.Serve(ctx, gateway.Config{
@@ -118,6 +123,7 @@ var gatewayServeCmd = &cli.Command{
 			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
 			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
 			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
+			MCPProbeStaleAfter:      c.Duration("mcp-probe-stale-after"),
 		})
 	},
 }

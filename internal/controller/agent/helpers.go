@@ -26,6 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/accuknox/clawarmor/internal/mcp"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -53,7 +54,13 @@ const (
 	nixLinkStage                 = "/tmp/nix-link"
 	nixInitImage                 = "murtazau/clawarmor-init:latest"
 	homeInitName                 = "home-init"
+	agentRuntimeUID              = int64(1000)
+	agentRuntimeGID              = int64(1000)
 	nixPkgEnv                    = "NIX_PACKAGES"
+	packageJobNameSuffix         = "-packages"
+	packageJobHashAnnotation     = "clawarmor.accuknox.com/package-job-hash"
+	packageJobRootVolume         = "nix-agent-root"
+	packageJobSharedVolume       = "nix-shared"
 	sinjectorNameSuffix          = "-sinjector"
 	sinjectorCAVolume            = "sinjector-ca"
 	sinjectorCAMountPath         = "/etc/clawarmor/sinjector-ca"
@@ -62,7 +69,10 @@ const (
 	opencodeConfigSchema         = "https://opencode.ai/config.json"
 )
 
-var errImageEmpty = errors.New("agent image must not be empty")
+var (
+	errImageEmpty       = errors.New("agent image must not be empty")
+	errPackageJobFailed = errors.New("package job failed")
+)
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
@@ -70,10 +80,10 @@ type RuntimeConfig struct {
 	GatewayURL                       string
 	SharedNixPVC                     string
 	AgentInitImage                   string
-	SinjectorImage                   string
 	OpenBaoAddr                      string
 	ManagerOpenBaoAddr               string
 	OpenBaoSecretMountPath           string
+	SinjectorImage                   string
 	SinjectorCASecretName            string
 	SinjectorCASecretCertKey         string
 	SinjectorCASecretKeyKey          string
@@ -94,6 +104,20 @@ func selectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 		"clawarmor.accuknox.com/agent":   agt.Name,
 		"clawarmor.accuknox.com/managed": "true",
 	}
+}
+
+func packageJobLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
+	labels := make(map[string]string, len(agt.Labels)+4)
+	maps.Copy(labels, agt.Labels)
+	labels["app.kubernetes.io/name"] = "clawarmor-agent-packages"
+	labels["app.kubernetes.io/instance"] = agt.Name
+	labels["clawarmor.accuknox.com/agent-package-job"] = agt.Name
+	labels["clawarmor.accuknox.com/managed"] = "true"
+	return labels
+}
+
+func packageJobName(agt *clawarmorv1alpha1.Agent) string {
+	return agt.Name + packageJobNameSuffix
 }
 
 func sinjectorSelectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
@@ -127,9 +151,12 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	return labels
 }
 
-func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) {
+func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]byte, string, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
+		Permission: map[string]opencodePermissionRule{
+			"*": "allow",
+		},
 	}
 	if agt.Spec.Model != "" {
 		cfg.Model = agt.Spec.Model
@@ -163,6 +190,19 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) 
 		deleteWorkflowsToolName:      true,
 		setWorkflowRunStatusToolName: false,
 	}
+	if envCfg.MCPURL != "" {
+		cfg.MCP = map[string]opencodeMCPRemoteFile{
+			mcp.OpenCodeGatewayToolsetName: {
+				Type: "remote",
+				URL:  envCfg.MCPURL,
+			},
+		}
+	}
+	if len(envCfg.MCPConsentPermissionIDs) > 0 {
+		for _, permissionID := range envCfg.MCPConsentPermissionIDs {
+			cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+permissionID] = "ask"
+		}
+	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
@@ -172,12 +212,21 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent) ([]byte, string, error) 
 }
 
 type opencodeConfigFile struct {
-	Schema       string                          `json:"$schema"`
-	Model        string                          `json:"model,omitempty"`
-	SmallModel   string                          `json:"small_model,omitempty"`
-	Instructions []string                        `json:"instructions,omitempty"`
-	Provider     map[string]opencodeProviderFile `json:"provider,omitempty"`
-	Tools        map[string]bool                 `json:"tools,omitempty"`
+	Schema       string                            `json:"$schema"`
+	Model        string                            `json:"model,omitempty"`
+	SmallModel   string                            `json:"small_model,omitempty"`
+	Instructions []string                          `json:"instructions,omitempty"`
+	Provider     map[string]opencodeProviderFile   `json:"provider,omitempty"`
+	MCP          map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
+	Permission   map[string]opencodePermissionRule `json:"permission,omitempty"`
+	Tools        map[string]bool                   `json:"tools,omitempty"`
+}
+
+type opencodePermissionRule string
+
+type opencodeMCPRemoteFile struct {
+	Type string `json:"type"`
+	URL  string `json:"url"`
 }
 
 type opencodeProviderFile struct {
@@ -195,10 +244,24 @@ type configHashInput struct {
 	Packages []string        `json:"packages"`
 }
 
+type packageJobHashInput struct {
+	Image    string   `json:"image"`
+	Packages []string `json:"packages"`
+}
+
 func configHash(opencodeCfg []byte, env []corev1.EnvVar, packages []string) string {
 	hashInput, _ := json.Marshal(configHashInput{
 		Config:   opencodeCfg,
 		Env:      env,
+		Packages: packages,
+	})
+	sum := sha256.Sum256(hashInput)
+	return fmt.Sprintf("%x", sum)
+}
+
+func packageJobHash(image string, packages []string) string {
+	hashInput, _ := json.Marshal(packageJobHashInput{
+		Image:    strings.TrimSpace(image),
 		Packages: packages,
 	})
 	sum := sha256.Sum256(hashInput)

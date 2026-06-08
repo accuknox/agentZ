@@ -75,6 +75,15 @@ export function createEnvironmentColumns(
       },
     },
     {
+      accessorFn: (env) => env.mcp_connection_refs.length,
+      id: "mcps",
+      header: "MCP",
+      cell: ({ row }) => {
+        const count = row.getValue<number>("mcps")
+        return `${count} MCP${count === 1 ? "" : "s"}`
+      },
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button
@@ -174,7 +183,7 @@ function DeleteEnvironmentDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
             {state.error.message}
           </p>
         ) : null}

@@ -74,7 +74,7 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, envCfg 
 	}
 	egress := buildHostEgressRules(
 		r.agentEgressHosts(agt, hosts),
-		r.agentDNSHosts(agt, hosts),
+		r.agentDNSHosts(agt, hosts, envCfg.MCPURL),
 	)
 	if envCfg.MCPURL != "" {
 		egress = append(egress, gatewayMcpEgressRule(agt.Namespace))
@@ -99,10 +99,11 @@ func (r *Reconciler) agentEgressHosts(agt *clawarmorv1alpha1.Agent, hosts []envu
 	return uniqueHosts(hosts)
 }
 
-func (r *Reconciler) agentDNSHosts(agt *clawarmorv1alpha1.Agent, hosts []envutil.Host) []envutil.Host {
+func (r *Reconciler) agentDNSHosts(agt *clawarmorv1alpha1.Agent, hosts []envutil.Host, mcpURL string) []envutil.Host {
 	hosts = append([]envutil.Host{}, hosts...)
 	hosts = append(hosts, r.automaticEgressHosts(agt)...)
 	hosts = append(hosts, hostForEndpoint(r.proxyAddress(agt))...)
+	hosts = append(hosts, hostForEndpoint(mcpURL)...)
 	return uniqueHosts(hosts)
 }
 

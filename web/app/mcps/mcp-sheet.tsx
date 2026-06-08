@@ -693,7 +693,7 @@ export function McpSheet({
 }) {
   const router = useRouter()
   const [isRefreshing, startTransition] = React.useTransition()
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [submitState, submitAction, isSubmitting] = React.useActionState(submitMcpAction, {})
   const connectionName = connection?.name ?? ""
   const connectionQuery = useQuery({
     ...mcpConnectionQueryOptions(connectionName),
@@ -752,7 +752,6 @@ export function McpSheet({
   const popupRef = React.useRef<Window | null>(null)
   const popupPollRef = React.useRef<number | null>(null)
   const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
-  const mountedRef = React.useRef(true)
   const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
   const endpointURL = useWatch({
     control: form.control,
@@ -864,7 +863,6 @@ export function McpSheet({
 
   React.useEffect(() => {
     return () => {
-      mountedRef.current = false
       cleanupPopupFlow({
         closePopup: true,
       })
@@ -1025,47 +1023,63 @@ export function McpSheet({
     [cancelPendingOAuthFlow, cleanupPopupFlow, router]
   )
 
-  const submitValues = React.useCallback(
-    async (values: McpFormInput) => {
-      setSubmitError(undefined)
-      form.clearErrors()
+  React.useEffect(() => {
+    let cancelled = false
 
-      const formData = formDataFromValues(values)
-      setIsSubmitting(true)
-      try {
-        const nextState = await submitMcpAction({}, formData)
-        if (!mountedRef.current) {
+    applyServerErrors(form, submitState)
+
+    if (submitState.error) {
+      const error = submitState.error
+      queueMicrotask(() => {
+        if (cancelled) {
           return
         }
 
-        applyServerErrors(form, nextState)
-        if (nextState.error) {
-          setSubmitError(generalErrorMessage(nextState.error) ?? nextState.error.message)
-          return
-        }
-
-        if ("oauth" in nextState && nextState.oauth) {
-          openOAuthPopup(nextState.oauth)
-          return
-        }
-
-        if (nextState.success) {
-          setSubmitted(true)
-          setSubmitError(undefined)
-          setSuccessMessage(nextState.message)
-          form.reset(defaultValues)
-          startTransition(() => {
-            router.refresh()
-          })
-        }
-      } finally {
-        if (mountedRef.current) {
-          setIsSubmitting(false)
-        }
+        setSubmitError(generalErrorMessage(error) ?? error.message)
+      })
+      return () => {
+        cancelled = true
       }
-    },
-    [defaultValues, form, openOAuthPopup, router, startTransition, submitMcpAction]
-  )
+    }
+
+    if (submitState.oauth) {
+      const oauth = submitState.oauth
+      queueMicrotask(() => {
+        if (cancelled) {
+          return
+        }
+
+        openOAuthPopup(oauth)
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (!submitState.success) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    queueMicrotask(() => {
+      if (cancelled) {
+        return
+      }
+
+      setSubmitted(true)
+      setSubmitError(undefined)
+      setSuccessMessage(submitState.message)
+      form.reset(defaultValues)
+      startTransition(() => {
+        router.refresh()
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [defaultValues, form, openOAuthPopup, router, startTransition, submitState])
 
   const discoveryWarningVisible =
     authMode === "oauth" &&
@@ -1288,9 +1302,19 @@ export function McpSheet({
           </div>
         ) : (
           <form
-            onSubmit={form.handleSubmit(async (values) => {
-              await submitValues(values)
-            })}
+            action={async () => {
+              setSubmitError(undefined)
+              form.clearErrors()
+              const valid = await form.trigger()
+              if (!valid) {
+                return
+              }
+
+              const formData = formDataFromValues(form.getValues())
+              React.startTransition(() => {
+                submitAction(formData)
+              })
+            }}
             className="flex flex-1 flex-col gap-5 px-4 pb-2"
           >
             <FieldGroup>

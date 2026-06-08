@@ -24,6 +24,13 @@ import { mcpsTag } from "@/data/cache"
 
 export type McpFormState =
   | {
+      status?: undefined
+      error?: undefined
+      success?: undefined
+      oauth?: undefined
+      message?: undefined
+    }
+  | {
       error?: GatewayError
       success?: undefined
       oauth?: undefined

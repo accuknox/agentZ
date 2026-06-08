@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sidebar"
 import { BotIcon, ChevronRightIcon, Plus, Trash2 } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
+import { dayjs } from "@/lib/dayjs"
 import {
   watchAgents,
   type Agent,
@@ -324,23 +325,26 @@ function SessionItem({
     <>
       <SidebarMenuSubButton
         asChild
-        className="min-w-0 flex-1 data-[active=true]:bg-transparent data-[active=true]:font-normal"
+        className="min-w-0 flex-1 pr-10 data-[active=true]:font-normal"
         isActive={path === href}
       >
         <Link className="flex min-w-0 flex-1 items-center" href={href}>
-          <span className="text-muted-foreground group-data-[active=true]/menu-sub-button:text-foreground truncate group-hover/menu-sub-button:text-inherit">
+          <span className="group-data-[active=true]/menu-sub-button:text-foreground truncate text-[14px] font-normal group-hover/menu-sub-button:text-inherit">
             {session.title}
           </span>
         </Link>
       </SidebarMenuSubButton>
-      <SidebarMenuAction
+      <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs font-normal group-focus-within/menu-sub-item:opacity-0 group-hover/menu-sub-item:opacity-0">
+        {formatSessionLastActivity(session.updatedAt)}
+      </span>
+      <button
+        type="button"
         aria-label={`Delete ${session.title}`}
-        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-        showOnHover
+        className="text-destructive ring-sidebar-ring hover:bg-destructive/10 hover:text-destructive absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm opacity-0 outline-hidden transition-opacity group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2"
         onClick={() => setOpen(true)}
       >
-        {isPending ? <Spinner className="size-3" /> : <Trash2 />}
-      </SidebarMenuAction>
+        {isPending ? <Spinner className="size-3" /> : <Trash2 size={16} />}
+      </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -471,4 +475,26 @@ function AgentBadge({ status }: { status: AgentStatus }) {
     default:
       return <BotIcon aria-label="Unknown" role="status" className="text-destructive" />
   }
+}
+
+function formatSessionLastActivity(updatedAt: number) {
+  const t = dayjs(updatedAt)
+  const now = dayjs()
+  const minute = now.diff(t, "minute")
+  if (minute < 1) return "now"
+  if (minute < 60) return `${minute}m`
+
+  const hour = now.diff(t, "hour")
+  if (hour < 24) return `${hour}h`
+
+  const day = now.diff(t, "day")
+  if (day < 7) return `${day}d`
+
+  const week = now.diff(t, "week")
+  if (week < 5) return `${week}w`
+
+  const month = now.diff(t, "month")
+  if (month < 12) return `${month}mo`
+
+  return `${now.diff(t, "year")}y`
 }

@@ -140,10 +140,16 @@ func (r *Reconciler) updateStatus(ctx context.Context, env *clawarmorv1alpha1.En
 		if err := r.Get(ctx, key, current); err != nil {
 			return client.IgnoreNotFound(err)
 		}
-		current.Status.PackageCount = len(current.Spec.Packages)
-		current.Status.AllowedHostCount = len(current.Spec.AllowedHosts)
-		current.Status.MCPRefCount = len(current.Spec.MCPConnectionRefs)
-		return r.Status().Update(ctx, current)
+		status := current.Status.DeepCopy()
+		status.PackageCount = len(current.Spec.Packages)
+		status.AllowedHostCount = len(current.Spec.AllowedHosts)
+		status.MCPRefCount = len(current.Spec.MCPConnectionRefs)
+		if reflect.DeepEqual(current.Status, *status) {
+			return nil
+		}
+		patch := client.MergeFrom(current.DeepCopy())
+		current.Status = *status
+		return r.Status().Patch(ctx, current, patch)
 	})
 }
 
@@ -430,6 +436,9 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		}
 	}
 
+	currentSpec := obj.Spec.DeepCopy()
+	currentOwners := slices.Clone(obj.OwnerReferences)
+
 	obj.Spec = agentgatewayv1alpha1.AgentgatewayBackendSpec{
 		MCP: &agentgatewayv1alpha1.MCPBackend{
 			Targets:        targets,
@@ -457,6 +466,10 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		if _, err := client.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("create backend: %w", err)
 		}
+		return nil
+	}
+	if reflect.DeepEqual(currentSpec, obj.Spec) &&
+		reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
 		return nil
 	}
 	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {

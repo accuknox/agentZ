@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -296,6 +297,9 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			}
 		}
 
+		currentSpec := obj.Spec.DeepCopy()
+		currentOwners := slices.Clone(obj.OwnerReferences)
+
 		var transformation *agentgatewayv1alpha1.Transformation
 		if len(conn.Spec.Endpoint.Headers) > 0 {
 			names := slices.Collect(maps.Keys(conn.Spec.Endpoint.Headers))
@@ -362,8 +366,11 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 				return nil, fmt.Errorf("create auth policy %q: %w", name, err)
 			}
 		} else {
-			if _, err := policies.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
-				return nil, fmt.Errorf("update auth policy %q: %w", name, err)
+			if !reflect.DeepEqual(currentSpec, obj.Spec) ||
+				!reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+				if _, err := policies.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
+					return nil, fmt.Errorf("update auth policy %q: %w", name, err)
+				}
 			}
 		}
 
@@ -382,16 +389,17 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawar
 			return client.IgnoreNotFound(err)
 		}
 
-		current.Status.ObservedGeneration = current.Generation
-		current.Status.State = state
-		current.Status.AuthMode = resolveAuthMode(current.Spec.Auth)
-		current.Status.ServiceRef = nil
-		current.Status.AuthPolicyRef = authRef
-		current.Status.ExtAuthServiceRef = nil
-		current.Status.ExtAuthDeploymentRef = nil
+		status := current.Status.DeepCopy()
+		status.ObservedGeneration = current.Generation
+		status.State = state
+		status.AuthMode = resolveAuthMode(current.Spec.Auth)
+		status.ServiceRef = nil
+		status.AuthPolicyRef = authRef
+		status.ExtAuthServiceRef = nil
+		status.ExtAuthDeploymentRef = nil
 		if extAuth != nil {
-			current.Status.ExtAuthServiceRef = extAuth.serviceRef
-			current.Status.ExtAuthDeploymentRef = extAuth.deploymentRef
+			status.ExtAuthServiceRef = extAuth.serviceRef
+			status.ExtAuthDeploymentRef = extAuth.deploymentRef
 		}
 
 		ready := metav1.ConditionFalse
@@ -414,21 +422,21 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawar
 			}
 		}
 
-		current.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               conditionAccepted,
 			Status:             metav1.ConditionTrue,
 			Reason:             reasonAccepted,
 			Message:            "MCPConnection spec accepted",
 			ObservedGeneration: current.Generation,
 		})
-		current.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               conditionReady,
 			Status:             ready,
 			Reason:             readyReason,
 			Message:            readyMessage,
 			ObservedGeneration: current.Generation,
 		})
-		current.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               conditionDegraded,
 			Status:             degraded,
 			Reason:             degradedReason,
@@ -455,9 +463,13 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawar
 			extAuthCondition.Reason = reasonDegraded
 			extAuthCondition.Message = "Ext auth runtime is unavailable"
 		}
-		current.Status.SetCondition(extAuthCondition)
-
-		return r.Status().Update(ctx, current)
+		status.SetCondition(extAuthCondition)
+		if reflect.DeepEqual(current.Status, *status) {
+			return nil
+		}
+		patch := client.MergeFrom(current.DeepCopy())
+		current.Status = *status
+		return r.Status().Patch(ctx, current, patch)
 	})
 }
 

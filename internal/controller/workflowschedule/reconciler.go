@@ -19,8 +19,8 @@ package workflowschedule
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
-	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +35,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-const requeueInterval = 10 * time.Second
+const WorkflowRunByScheduleIndex = "spec.scheduleRef.name"
 
 // Reconciler reconciles a WorkflowSchedule object.
 type Reconciler struct {
@@ -93,7 +93,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("refresh schedule status: %w", err)
 	}
 
-	return ctrl.Result{RequeueAfter: requeueInterval}, nil
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -107,6 +107,25 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&clawarmorv1alpha1.WorkflowRun{}).
 		Named("workflowschedule").
 		Complete(r)
+}
+
+// IndexWorkflowRunsBySchedule registers the WorkflowRun schedule reference index.
+func IndexWorkflowRunsBySchedule(ctx context.Context, idx client.FieldIndexer) error {
+	return idx.IndexField(
+		ctx,
+		&clawarmorv1alpha1.WorkflowRun{},
+		WorkflowRunByScheduleIndex,
+		func(obj client.Object) []string {
+			run, ok := obj.(*clawarmorv1alpha1.WorkflowRun)
+			if !ok {
+				return nil
+			}
+			if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name == "" {
+				return nil
+			}
+			return []string{run.Spec.ScheduleRef.Name}
+		},
+	)
 }
 
 func (r *Reconciler) failSchedule(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule, err error) error {
@@ -226,7 +245,12 @@ func (r *Reconciler) pruneRuns(ctx context.Context, schedule *clawarmorv1alpha1.
 
 func (r *Reconciler) listOwnedRuns(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) ([]clawarmorv1alpha1.WorkflowRun, error) {
 	runList := &clawarmorv1alpha1.WorkflowRunList{}
-	err := r.List(ctx, runList, client.InNamespace(schedule.Namespace))
+	err := r.List(
+		ctx,
+		runList,
+		client.InNamespace(schedule.Namespace),
+		client.MatchingFields{WorkflowRunByScheduleIndex: schedule.Name},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list workflow runs: %w", err)
 	}
@@ -260,8 +284,13 @@ func (r *Reconciler) updateStatus(ctx context.Context, schedule *clawarmorv1alph
 	if err != nil {
 		return err
 	}
+	status := current.Status.DeepCopy()
+	mutate(status)
+	if reflect.DeepEqual(current.Status, *status) {
+		return nil
+	}
 	patch := client.MergeFrom(current.DeepCopy())
-	mutate(&current.Status)
+	current.Status = *status
 	return r.Status().Patch(ctx, current, patch)
 }
 

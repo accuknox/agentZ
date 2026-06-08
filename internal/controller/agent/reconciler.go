@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -40,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/accuknox/clawarmor/internal/envutil"
 	"github.com/accuknox/clawarmor/internal/mcp"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
@@ -324,16 +326,18 @@ func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object
 	}
 
 	agents := &clawarmorv1alpha1.AgentList{}
-	if err := r.List(ctx, agents, client.InNamespace(env.Namespace)); err != nil {
+	err := r.List(
+		ctx,
+		agents,
+		client.InNamespace(env.Namespace),
+		client.MatchingFields{envutil.AgentByEnvironmentIndex: env.Name},
+	)
+	if err != nil {
 		return []reconcile.Request{}
 	}
 
 	requests := []reconcile.Request{}
 	for _, agt := range agents.Items {
-		ref := agt.Spec.EnvironmentRef
-		if ref == nil || ref.Name != env.Name {
-			continue
-		}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      agt.Name,
@@ -410,42 +414,51 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.Namespaced
 			return fmt.Errorf("get deployment: %w", depErr)
 		}
 
-		agt.Status.ServiceName = ""
-		agt.Status.URL = ""
+		status := agt.Status.DeepCopy()
+		status.ServiceName = ""
+		status.URL = ""
 		if svcErr == nil {
-			agt.Status.ServiceName = svc.Name
-			agt.Status.URL = fmt.Sprintf(
+			status.ServiceName = svc.Name
+			status.URL = fmt.Sprintf(
 				"http://%s.%s.svc.cluster.local:%d",
 				svc.Name,
 				svc.Namespace,
 				4096,
 			)
 		}
-		agt.Status.ObservedGeneration = agt.Generation
+		status.ObservedGeneration = agt.Generation
+		writeStatus := func() error {
+			if reflect.DeepEqual(agt.Status, *status) {
+				return nil
+			}
+			patch := client.MergeFrom(agt.DeepCopy())
+			agt.Status = *status
+			return r.Status().Patch(ctx, agt, patch)
+		}
 
 		if job.Name == "" {
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeReady.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobCreating,
 				Message:            "Waiting for package job to be created",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeProgressing.String(),
 				Status:             metav1.ConditionTrue,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobCreating,
 				Message:            "Waiting for package job to be created",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeDegraded.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobCreating,
 				Message:            "Package preparation has not started yet",
 				ObservedGeneration: agt.Generation,
 			})
-			return r.Status().Update(ctx, agt)
+			return writeStatus()
 		}
 
 		failed := findJobCondition(job, batchv1.JobFailed)
@@ -457,128 +470,128 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.Namespaced
 			if message == "" {
 				message = "package preparation job failed"
 			}
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeReady.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobFailed,
 				Message:            "Package preparation job failed",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeProgressing.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobFailed,
 				Message:            "Package preparation job failed",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeDegraded.String(),
 				Status:             metav1.ConditionTrue,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobFailed,
 				Message:            message,
 				ObservedGeneration: agt.Generation,
 			})
-			return r.Status().Update(ctx, agt)
+			return writeStatus()
 		}
 
 		complete := findJobCondition(job, batchv1.JobComplete)
 		if complete == nil || complete.Status != corev1.ConditionTrue {
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeReady.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobRunning,
 				Message:            "Waiting for package job to complete",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeProgressing.String(),
 				Status:             metav1.ConditionTrue,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobRunning,
 				Message:            "Waiting for package job to complete",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeDegraded.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonPackageJobRunning,
 				Message:            "Package preparation is still running",
 				ObservedGeneration: agt.Generation,
 			})
-			return r.Status().Update(ctx, agt)
+			return writeStatus()
 		}
 
 		if dep.Name == "" {
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeProgressing.String(),
 				Status:             metav1.ConditionTrue,
 				Reason:             clawarmorv1alpha1.ReasonDeploymentCreating,
 				Message:            "Waiting for deployment to be created",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeReady.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonDeploymentNotReady,
 				Message:            "Deployment has not been created yet",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeDegraded.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonDeploymentCreating,
 				Message:            "Agent is being created",
 				ObservedGeneration: agt.Generation,
 			})
-			return r.Status().Update(ctx, agt)
+			return writeStatus()
 		}
 
 		if dep.Status.ReadyReplicas > 0 {
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeReady.String(),
 				Status:             metav1.ConditionTrue,
 				Reason:             clawarmorv1alpha1.ReasonDeploymentReady,
 				Message:            "Agent deployment is ready",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeProgressing.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonDeploymentReady,
 				Message:            "Agent deployment is ready",
 				ObservedGeneration: agt.Generation,
 			})
-			agt.Status.SetCondition(metav1.Condition{
+			status.SetCondition(metav1.Condition{
 				Type:               clawarmorv1alpha1.ConditionTypeDegraded.String(),
 				Status:             metav1.ConditionFalse,
 				Reason:             clawarmorv1alpha1.ReasonDeploymentReady,
 				Message:            "Agent deployment is healthy",
 				ObservedGeneration: agt.Generation,
 			})
-			return r.Status().Update(ctx, agt)
+			return writeStatus()
 		}
 
-		agt.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               clawarmorv1alpha1.ConditionTypeReady.String(),
 			Status:             metav1.ConditionFalse,
 			Reason:             clawarmorv1alpha1.ReasonDeploymentNotReady,
 			Message:            "Waiting for agent pods to become ready",
 			ObservedGeneration: agt.Generation,
 		})
-		agt.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               clawarmorv1alpha1.ConditionTypeProgressing.String(),
 			Status:             metav1.ConditionTrue,
 			Reason:             clawarmorv1alpha1.ReasonDeploymentUpdating,
 			Message:            "Waiting for deployment rollout",
 			ObservedGeneration: agt.Generation,
 		})
-		agt.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               clawarmorv1alpha1.ConditionTypeDegraded.String(),
 			Status:             metav1.ConditionFalse,
 			Reason:             clawarmorv1alpha1.ReasonDeploymentUpdating,
 			Message:            "Agent deployment is progressing",
 			ObservedGeneration: agt.Generation,
 		})
-		return r.Status().Update(ctx, agt)
+		return writeStatus()
 	})
 }
 
@@ -590,7 +603,8 @@ func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.Namespaced
 			return client.IgnoreNotFound(err)
 		}
 
-		agt.Status.ObservedGeneration = gen
+		status := agt.Status.DeepCopy()
+		status.ObservedGeneration = gen
 		reason := clawarmorv1alpha1.ReasonReconcileFailed
 		if errors.Is(recErr, errImageEmpty) {
 			reason = clawarmorv1alpha1.ReasonConfigInvalid
@@ -598,27 +612,32 @@ func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.Namespaced
 		if errors.Is(recErr, errPackageJobFailed) {
 			reason = clawarmorv1alpha1.ReasonPackageJobFailed
 		}
-		agt.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               clawarmorv1alpha1.ConditionTypeReady.String(),
 			Status:             metav1.ConditionFalse,
 			Reason:             clawarmorv1alpha1.ReasonReconcileFailed,
 			Message:            "Agent reconcile failed",
 			ObservedGeneration: gen,
 		})
-		agt.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               clawarmorv1alpha1.ConditionTypeProgressing.String(),
 			Status:             metav1.ConditionFalse,
 			Reason:             clawarmorv1alpha1.ReasonReconcileFailed,
 			Message:            "Agent reconcile failed",
 			ObservedGeneration: gen,
 		})
-		agt.Status.SetCondition(metav1.Condition{
+		status.SetCondition(metav1.Condition{
 			Type:               clawarmorv1alpha1.ConditionTypeDegraded.String(),
 			Status:             metav1.ConditionTrue,
 			Reason:             reason,
 			Message:            recErr.Error(),
 			ObservedGeneration: gen,
 		})
-		return r.Status().Update(ctx, agt)
+		if reflect.DeepEqual(agt.Status, *status) {
+			return nil
+		}
+		patch := client.MergeFrom(agt.DeepCopy())
+		agt.Status = *status
+		return r.Status().Patch(ctx, agt, patch)
 	})
 }

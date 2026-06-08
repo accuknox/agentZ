@@ -52,6 +52,7 @@ import (
 	"github.com/accuknox/clawarmor/internal/controller/mcpconn"
 	workflowruncontroller "github.com/accuknox/clawarmor/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/clawarmor/internal/controller/workflowschedule"
+	"github.com/accuknox/clawarmor/internal/envutil"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	"github.com/accuknox/clawarmor/internal/mcp"
 	webhookv1alpha1 "github.com/accuknox/clawarmor/internal/webhook/v1alpha1"
@@ -512,6 +513,30 @@ var managerCmd = &cli.Command{
 				err,
 				"failed to register shared field index",
 				"index", mcp.EnvironmentByMCPConnectionIndex,
+			)
+			os.Exit(1)
+		}
+		err = envutil.IndexAgentsByEnvironment(
+			context.Background(),
+			mgr.GetFieldIndexer(),
+		)
+		if err != nil {
+			setupLog.Error(
+				err,
+				"failed to register shared field index",
+				"index", envutil.AgentByEnvironmentIndex,
+			)
+			os.Exit(1)
+		}
+		err = workflowschedulecontroller.IndexWorkflowRunsBySchedule(
+			context.Background(),
+			mgr.GetFieldIndexer(),
+		)
+		if err != nil {
+			setupLog.Error(
+				err,
+				"failed to register shared field index",
+				"index", workflowschedulecontroller.WorkflowRunByScheduleIndex,
 			)
 			os.Exit(1)
 		}

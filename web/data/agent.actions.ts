@@ -44,6 +44,8 @@ export async function updateAgentFormAction(
 ): Promise<CreateAgentFormState> {
   const parsed = updateAgentSimpleFormSchema.safeParse({
     environmentName: formData.get("environmentName"),
+    model: formData.get("model"),
+    smallModel: formData.get("smallModel"),
   })
   if (!parsed.success) {
     return {
@@ -58,8 +60,19 @@ export async function updateAgentFormAction(
     }
   }
 
+  const opencode =
+    parsed.data.model || parsed.data.smallModel
+      ? {
+          ...(parsed.data.model ? { model: parsed.data.model } : {}),
+          ...(parsed.data.smallModel ? { smallModel: parsed.data.smallModel } : {}),
+        }
+      : undefined
+
   const result = await updateAgent({
-    body: parsed.data,
+    body: {
+      environmentName: parsed.data.environmentName,
+      ...(opencode ? { opencode } : {}),
+    },
     path: { agentName },
   })
   if (result.error) {

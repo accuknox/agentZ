@@ -137,6 +137,8 @@ export const createAgentSimpleFormSchema = z.object({
 
 export const updateAgentSimpleFormSchema = z.object({
   environmentName: environmentNameSchema,
+  model: z.string().trim().min(1).optional(),
+  smallModel: z.string().trim().min(1).optional(),
 })
 
 export const createEnvironmentFormSchema = z.object({

@@ -4,6 +4,25 @@ import Link from "next/link"
 import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  AmazonWebServicesDark,
+  AnthropicDark,
+  CerebrasDark,
+  Cloudflare,
+  GitHubCopilotDark,
+  GitHubDark,
+  Google,
+  Groq,
+  HuggingFace,
+  MistralAI,
+  OpenCodeDark,
+  OpenAIDark,
+  OpenRouterDark,
+  PerplexityAI,
+  TogetherAIDark,
+  VercelDark,
+} from "@ridemountainpig/svgl-react"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +50,8 @@ import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actio
 import { listEnvironmentsAction } from "@/data/environment.actions"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import type { Environment } from "@/lib/gateway/client"
+import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import type { ComponentType, SVGProps } from "react"
 
 type Mode = "create" | "update"
 
@@ -49,16 +70,30 @@ type AgentDialogProps = {
 type AgentSimpleForm = {
   name?: string
   environmentName: string
+  model?: string
+  smallModel?: string
 }
 
-function uniqueEnvironments(environments: Environment[]) {
-  const seen = new Set<string>()
-  return environments.filter((environment) => {
-    if (seen.has(environment.name)) return false
-
-    seen.add(environment.name)
-    return true
-  })
+const providerLogos: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  "amazon-bedrock": AmazonWebServicesDark,
+  anthropic: AnthropicDark,
+  cerebras: CerebrasDark,
+  "cloudflare-workers-ai": Cloudflare,
+  "github-copilot": GitHubCopilotDark,
+  "github-models": GitHubDark,
+  google: Google,
+  "google-vertex": Google,
+  "google-vertex-anthropic": Google,
+  groq: Groq,
+  huggingface: HuggingFace,
+  mistral: MistralAI,
+  opencode: OpenCodeDark,
+  "opencode-go": OpenCodeDark,
+  openai: OpenAIDark,
+  openrouter: OpenRouterDark,
+  perplexity: PerplexityAI,
+  togetherai: TogetherAIDark,
+  vercel: VercelDark,
 }
 
 function EnvironmentSelect({
@@ -84,7 +119,11 @@ function EnvironmentSelect({
   onValueChangeAction: (value: string) => void
   value: string
 }) {
-  const [environments, setEnvironments] = useState(() => uniqueEnvironments(initialEnvironments))
+  const [environments, setEnvironments] = useState(() => {
+    return Array.from(
+      new Map(initialEnvironments.map((environment) => [environment.name, environment])).values()
+    )
+  })
   const [hasNextPage, setHasNextPage] = useState(initialHasNextPage)
   const [nextPageToken, setNextPageToken] = useState(initialNextPageToken)
   const [loading, setLoading] = useState(false)
@@ -106,7 +145,13 @@ function EnvironmentSelect({
       return
     }
 
-    setEnvironments((current) => uniqueEnvironments([...current, ...result.environments]))
+    setEnvironments((current) => {
+      return Array.from(
+        new Map(
+          [...current, ...result.environments].map((environment) => [environment.name, environment])
+        ).values()
+      )
+    })
     setHasNextPage(result.hasNextPage)
     setNextPageToken(result.nextPageToken)
   })
@@ -201,8 +246,94 @@ export function AgentDialog({
       name: agentName ?? "",
       environmentName:
         initialEnvironmentName ?? (mode === "create" ? (environments[0]?.name ?? "") : ""),
+      model: undefined,
+      smallModel: undefined,
     },
   })
+  const modelCatalog = useQuery(
+    queryOptions({
+      queryKey: ["agent", "edit-models", agentName],
+      queryFn: async () => {
+        if (!agentName) {
+          throw new Error("Agent name is required")
+        }
+
+        const client = createAgentOpencodeClientV2(agentName)
+        const [providersResult, configResult] = await Promise.all([
+          client.config.providers(),
+          client.config.get(),
+        ])
+
+        if (providersResult.error || !providersResult.data) {
+          throw new Error("Failed to load providers")
+        }
+        if (configResult.error || !configResult.data) {
+          throw new Error("Failed to load config")
+        }
+
+        const models = providersResult.data.providers.flatMap((provider) => {
+          return Object.values(provider.models).flatMap((model) => {
+            if (!model.id || !provider.id) {
+              return []
+            }
+
+            return [
+              {
+                modelName: model.name ?? model.id,
+                providerID: provider.id,
+                providerName: provider.name,
+                value: `${provider.id}/${model.id}`,
+              },
+            ]
+          })
+        })
+
+        const currentModels = [configResult.data.model, configResult.data.small_model]
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+          .filter((value, index, values) => values.indexOf(value) === index)
+          .flatMap((value) => {
+            if (models.some((model) => model.value === value)) {
+              return []
+            }
+
+            const [providerID, ...modelID] = value.split("/")
+            if (!providerID || modelID.length === 0) {
+              return []
+            }
+
+            return [
+              {
+                modelName: modelID.join("/"),
+                providerID,
+                providerName: providerID,
+                value,
+              },
+            ]
+          })
+
+        return {
+          model: configResult.data.model,
+          models: [...currentModels, ...models],
+          smallModel: configResult.data.small_model,
+        }
+      },
+      enabled: mode === "update" && dialogOpen && !!agentName,
+      staleTime: 60_000,
+    })
+  )
+  const showModelFields = mode === "update"
+
+  useEffect(() => {
+    if (!modelCatalog.data) {
+      return
+    }
+
+    form.reset({
+      ...form.getValues(),
+      model: modelCatalog.data.model,
+      smallModel: modelCatalog.data.smallModel,
+    })
+  }, [form, modelCatalog.data])
 
   const submit = async (formData: FormData) => {
     const valid = await form.trigger()
@@ -230,13 +361,13 @@ export function AgentDialog({
           </Button>
         </DialogTrigger>
       ) : null}
-      <DialogContent>
+      <DialogContent className={mode === "update" ? "sm:max-w-md" : undefined}>
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
           <DialogDescription>
             {mode === "create"
               ? "Create an agent with a name and environment."
-              : "Update the environment for this agent."}
+              : "Update the environment and live model settings for this agent."}
           </DialogDescription>
         </DialogHeader>
         <form id="agent-form-simple" action={submit} className="space-y-5">
@@ -291,16 +422,107 @@ export function AgentDialog({
                       Create an environment <Link href="/environments/new">here</Link> before
                       continuing.
                     </FieldDescription>
-                  ) : mode === "update" ? (
-                    <FieldDescription>
-                      Select the replacement environment explicitly. The current environment is not
-                      available from the list API.
-                    </FieldDescription>
                   ) : null}
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
             />
+            {showModelFields ? (
+              <>
+                <Controller
+                  name="model"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="agent-form-model">Default model</FieldLabel>
+                      <Select
+                        name={field.name}
+                        value={field.value}
+                        disabled={!modelCatalog.data}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger
+                          id="agent-form-model"
+                          onBlur={field.onBlur}
+                          aria-invalid={fieldState.invalid}
+                          className="w-full"
+                        >
+                          <SelectValue placeholder="Select a default model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {modelCatalog.data?.models.map((model) => (
+                              <SelectItem key={model.value} value={model.value}>
+                                <span className="flex items-center gap-2">
+                                  {providerLogos[model.providerID] ? (
+                                    (() => {
+                                      const Logo = providerLogos[model.providerID]
+                                      return <Logo className="size-4 shrink-0" />
+                                    })()
+                                  ) : (
+                                    <span className="text-muted-foreground shrink-0">
+                                      {model.providerName} /
+                                    </span>
+                                  )}
+                                  <span>{model.modelName}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                    </Field>
+                  )}
+                />
+                <Controller
+                  name="smallModel"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="agent-form-small-model">Small model</FieldLabel>
+                      <Select
+                        name={field.name}
+                        value={field.value}
+                        disabled={!modelCatalog.data}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger
+                          id="agent-form-small-model"
+                          onBlur={field.onBlur}
+                          aria-invalid={fieldState.invalid}
+                          className="w-full"
+                        >
+                          <SelectValue placeholder="Select a small model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {modelCatalog.data?.models.map((model) => (
+                              <SelectItem key={model.value} value={model.value}>
+                                <span className="flex items-center gap-2">
+                                  {providerLogos[model.providerID] ? (
+                                    (() => {
+                                      const Logo = providerLogos[model.providerID]
+                                      return <Logo className="size-4 shrink-0" />
+                                    })()
+                                  ) : (
+                                    <span className="text-muted-foreground shrink-0">
+                                      {model.providerName} /
+                                    </span>
+                                  )}
+                                  <span>{model.modelName}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                    </Field>
+                  )}
+                />
+              </>
+            ) : null}
           </FieldGroup>
         </form>
         {state.error ? (

@@ -1,27 +1,26 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { deleteSecretFormAction, putSecretFormAction } from "@/data/secret.actions"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
-import type { ListAgentActionResponse } from "@/data/types"
 import { firstSearchParam } from "@/lib/search-params"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
 import { SecretTable } from "./secret-table"
+
+export const metadata: Metadata = {
+  title: "Secrets",
+}
 
 type SearchParams = {
   page_token?: string | string[]
   agent_name?: string | string[]
 }
 
-export default async function SecretsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>
-}) {
-  const agents = listAgentsCachedQuery()
-
+export default function SecretsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -36,16 +35,15 @@ export default async function SecretsPage({
             </Button>
           }
         >
-          <NewSecretButtonShell agents={agents} putSecretAction={putSecretFormAction} />
+          <NewSecretButtonShell putSecretAction={putSecretFormAction} />
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={searchParams} agents={agents} />
+        <Filters searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={<TableSkeleton />}>
         <Secrets
           searchParams={searchParams}
-          agents={agents}
           deleteSecretAction={deleteSecretFormAction}
           putSecretAction={putSecretFormAction}
         />
@@ -55,12 +53,12 @@ export default async function SecretsPage({
 }
 
 async function NewSecretButtonShell({
-  agents,
   putSecretAction,
 }: {
-  agents: Promise<ListAgentActionResponse>
   putSecretAction: typeof putSecretFormAction
 }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return (
@@ -74,13 +72,9 @@ async function NewSecretButtonShell({
   return <NewSecretButton agentName={result.agents[0].name} putSecretAction={putSecretAction} />
 }
 
-async function Filters({
-  searchParams,
-  agents,
-}: {
-  searchParams: Promise<SearchParams>
-  agents: Promise<ListAgentActionResponse>
-}) {
+async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentName = firstSearchParam(params.agent_name)
   const result = await agents
@@ -98,15 +92,15 @@ async function Filters({
 
 async function Secrets({
   searchParams,
-  agents,
   deleteSecretAction,
   putSecretAction,
 }: {
   searchParams: Promise<SearchParams>
-  agents: Promise<ListAgentActionResponse>
   deleteSecretAction: typeof deleteSecretFormAction
   putSecretAction: typeof putSecretFormAction
 }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentName = firstSearchParam(params.agent_name)
   const pageToken = firstSearchParam(params.page_token)

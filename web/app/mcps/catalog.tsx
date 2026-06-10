@@ -11,11 +11,13 @@ import {
   Dropbox,
   Figma,
   GitHubDark,
+  GitHubLight,
   Gmail,
   GoogleCalendar,
   GoogleCloud,
   GoogleDrive,
   GranolaDark,
+  GranolaLight,
   HuggingFace,
   Linear,
   Microsoft,
@@ -24,16 +26,21 @@ import {
   PDF,
   PayPal,
   PlanetScaleDark,
+  PlanetScaleLight,
   PostHog,
   Postman,
   SanityDark,
+  SanityLight,
   Sentry,
   Slack,
   Stripe,
   Supabase,
   ThreejsDark,
+  ThreejsLight,
   UdemyDark,
+  UdemyLight,
   VercelDark,
+  VercelLight,
   Webflow,
   WordPress,
   Zoom,
@@ -49,6 +56,25 @@ export type McpServer = {
 
 export const mcpFallbackIcon = Globe
 export const mcpConnectionFallbackIcon = PlugZap
+
+function themedIcon(
+  lightThemeIcon: React.ComponentType<SVGProps<SVGSVGElement>>,
+  darkThemeIcon: React.ComponentType<SVGProps<SVGSVGElement>>
+): React.ComponentType<SVGProps<SVGSVGElement>> {
+  return function ThemedIcon(props: SVGProps<SVGSVGElement>) {
+    const LightThemeIcon = lightThemeIcon
+    const DarkThemeIcon = darkThemeIcon
+    const lightClassName = ["dark:hidden", props.className].filter(Boolean).join(" ")
+    const darkClassName = ["hidden dark:block", props.className].filter(Boolean).join(" ")
+
+    return (
+      <>
+        <LightThemeIcon {...props} className={lightClassName} />
+        <DarkThemeIcon {...props} className={darkClassName} />
+      </>
+    )
+  }
+}
 
 export const mcpServers = [
   {
@@ -354,7 +380,7 @@ export const mcpServers = [
   {
     name: "GitHub",
     mcpUrl: "https://api.githubcopilot.com/mcp/",
-    icon: GitHubDark,
+    icon: themedIcon(GitHubDark, GitHubLight),
   },
   {
     name: "Gmail",
@@ -389,7 +415,7 @@ export const mcpServers = [
   {
     name: "Granola",
     mcpUrl: "https://mcp.granola.ai/mcp",
-    icon: GranolaDark,
+    icon: themedIcon(GranolaDark, GranolaLight),
   },
   {
     name: "Guru",
@@ -679,7 +705,7 @@ export const mcpServers = [
   {
     name: "PlanetScale",
     mcpUrl: "https://mcp.pscale.dev/mcp/planetscale",
-    icon: PlanetScaleDark,
+    icon: themedIcon(PlanetScaleDark, PlanetScaleLight),
   },
   {
     name: "Play Sheet Music",
@@ -744,7 +770,7 @@ export const mcpServers = [
   {
     name: "Sanity",
     mcpUrl: "https://mcp.sanity.io",
-    icon: SanityDark,
+    icon: themedIcon(SanityDark, SanityLight),
   },
   {
     name: "Scholar Gateway",
@@ -829,7 +855,7 @@ export const mcpServers = [
   {
     name: "Three.js 3D Viewer",
     mcpUrl: "https://example-server.modelcontextprotocol.io/threejs/mcp",
-    icon: ThreejsDark,
+    icon: themedIcon(ThreejsDark, ThreejsLight),
   },
   {
     name: "Ticket Tailor",
@@ -844,7 +870,7 @@ export const mcpServers = [
   {
     name: "Udemy Business",
     mcpUrl: "https://api.udemy.com/mcp",
-    icon: UdemyDark,
+    icon: themedIcon(UdemyDark, UdemyLight),
   },
   {
     name: "Unthread",
@@ -854,7 +880,7 @@ export const mcpServers = [
   {
     name: "Vercel",
     mcpUrl: "https://mcp.vercel.com/",
-    icon: VercelDark,
+    icon: themedIcon(VercelDark, VercelLight),
   },
   {
     name: "Vibe Prospecting",

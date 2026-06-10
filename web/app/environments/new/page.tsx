@@ -1,15 +1,32 @@
+import type { Metadata } from "next"
+import { Suspense } from "react"
+import { connection } from "next/server"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { EnvironmentWizard } from "../wizard"
 
-export default async function NewEnvironmentPage() {
-  const result = await listMcpConnectionsCachedQuery({ limit: 200 })
+export const metadata: Metadata = {
+  title: "New Environment",
+}
 
+export default function NewEnvironmentPage() {
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 p-4 sm:px-6 sm:pb-6">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-normal">New environment</h1>
       </div>
-      <EnvironmentWizard mode="create" mcpConnections={result.mcpConnections ?? []} />
+      <Suspense fallback={<WizardSkeleton />}>
+        <NewEnvironmentWizard />
+      </Suspense>
     </main>
   )
+}
+
+async function NewEnvironmentWizard() {
+  await connection()
+  const result = await listMcpConnectionsCachedQuery({ limit: 200 })
+  return <EnvironmentWizard mode="create" mcpConnections={result.mcpConnections ?? []} />
+}
+
+function WizardSkeleton() {
+  return <div className="bg-muted/20 h-96 rounded-md" />
 }

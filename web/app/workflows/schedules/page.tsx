@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import { connection } from "next/server"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,6 +18,10 @@ import { NewScheduleButton } from "./new-schedule-button"
 import { SchedulesFilters } from "./schedules-filters"
 import { SchedulesTable } from "./schedules-table"
 
+export const metadata: Metadata = {
+  title: "Workflow Schedules",
+}
+
 type SearchParams = {
   agent_name?: string | string[]
   page_token?: string | string[]
@@ -34,13 +39,7 @@ export const unstable_instant = {
   ],
 }
 
-export default async function SchedulesPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>
-}) {
-  const agents = listAgentsCachedQuery()
-
+export default function SchedulesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -48,26 +47,22 @@ export default async function SchedulesPage({
           <h1 className="text-2xl font-semibold tracking-normal">Schedules</h1>
         </div>
         <Suspense fallback={<HeaderButtonSkeleton />}>
-          <HeaderAction searchParams={searchParams} agents={agents} />
+          <HeaderAction searchParams={searchParams} />
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={searchParams} agents={agents} />
+        <Filters searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={<TableSkeleton />}>
-        <Schedules searchParams={searchParams} agents={agents} />
+        <Schedules searchParams={searchParams} />
       </Suspense>
     </main>
   )
 }
 
-async function Filters({
-  searchParams,
-  agents,
-}: {
-  searchParams: Promise<SearchParams>
-  agents: ReturnType<typeof listAgentsCachedQuery>
-}) {
+async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentsResult = await agents
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
@@ -83,13 +78,9 @@ async function Filters({
   )
 }
 
-async function Schedules({
-  searchParams,
-  agents,
-}: {
-  searchParams: Promise<SearchParams>
-  agents: ReturnType<typeof listAgentsCachedQuery>
-}) {
+async function Schedules({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const params = await searchParams
   const pageToken = firstSearchParam(params.page_token)
   const agentsResult = await agents
@@ -103,7 +94,6 @@ async function Schedules({
     return <EmptyState message="No agents available" />
   }
 
-  await connection()
   const schedulesResult = await listWorkflowSchedulesCachedQuery(selectedAgent.name, {
     limit: 50,
     page_token: pageToken,
@@ -130,13 +120,9 @@ async function Schedules({
   )
 }
 
-async function HeaderAction({
-  searchParams,
-  agents,
-}: {
-  searchParams: Promise<SearchParams>
-  agents: ReturnType<typeof listAgentsCachedQuery>
-}) {
+async function HeaderAction({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentsResult = await agents
   if (agentsResult.error) {
@@ -149,7 +135,6 @@ async function HeaderAction({
     return null
   }
 
-  await connection()
   const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name)
   if (workflowsResult.error || !workflowsResult.summaries) {
     return (

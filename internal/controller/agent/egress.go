@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -72,10 +73,27 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, envCfg 
 	if err != nil {
 		return nil, err
 	}
+	egressHosts := append([]envutil.Host{}, hosts...)
+	dnsHosts := append([]envutil.Host{}, hosts...)
+	if agt.Spec.Telemetry.Enabled {
+		endpointHosts := egressHostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)
+		egressHosts = append(egressHosts, endpointHosts...)
+		dnsHosts = append(dnsHosts, dnsHostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)...)
+	}
+	endpointHosts := egressHostForEndpoint(r.Config.GatewayURL)
+	egressHosts = append(egressHosts, endpointHosts...)
+	dnsHosts = append(dnsHosts, dnsHostForEndpoint(r.Config.GatewayURL)...)
+	dnsHosts = append(dnsHosts, dnsHostForEndpoint(r.proxyAddress(agt))...)
+	dnsHosts = append(dnsHosts, dnsHostForEndpoint(envCfg.MCPURL)...)
+
 	egress := buildHostEgressRules(
-		r.agentEgressHosts(agt, hosts),
-		r.agentDNSHosts(agt, hosts, envCfg.MCPURL),
+		uniqueHosts(egressHosts),
+		uniqueHosts(dnsHosts),
 	)
+	egress = append(egress, serviceEgressRules(
+		r.Config.GatewayURL,
+		agt.Spec.Telemetry.TraceEndpoint,
+	)...)
 	if envCfg.MCPURL != "" {
 		egress = append(egress, gatewayMcpEgressRule(agt.Namespace))
 	}
@@ -91,20 +109,6 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, envCfg 
 		),
 		Egress: egress,
 	}, nil
-}
-
-func (r *Reconciler) agentEgressHosts(agt *clawarmorv1alpha1.Agent, hosts []envutil.Host) []envutil.Host {
-	hosts = append([]envutil.Host{}, hosts...)
-	hosts = append(hosts, r.automaticEgressHosts(agt)...)
-	return uniqueHosts(hosts)
-}
-
-func (r *Reconciler) agentDNSHosts(agt *clawarmorv1alpha1.Agent, hosts []envutil.Host, mcpURL string) []envutil.Host {
-	hosts = append([]envutil.Host{}, hosts...)
-	hosts = append(hosts, r.automaticEgressHosts(agt)...)
-	hosts = append(hosts, hostForEndpoint(r.proxyAddress(agt))...)
-	hosts = append(hosts, hostForEndpoint(mcpURL)...)
-	return uniqueHosts(hosts)
 }
 
 func buildHostEgressRules(hosts []envutil.Host, dnsHosts []envutil.Host) []ciliumapi.EgressRule {
@@ -151,7 +155,15 @@ func uniqueHosts(hosts []envutil.Host) []envutil.Host {
 }
 
 func dnsEgressRule(hosts []envutil.Host) *ciliumapi.EgressRule {
-	dns := dnsMatchers(hosts)
+	dns := make(ciliumapi.PortRulesDNS, 0, len(hosts))
+	for _, host := range hosts {
+		switch host.Kind {
+		case envutil.HostKindDomain:
+			dns = append(dns, ciliumapi.PortRuleDNS{MatchName: host.Value})
+		case envutil.HostKindWildcard, envutil.HostKindDeepWildcard:
+			dns = append(dns, ciliumapi.PortRuleDNS{MatchPattern: host.Value})
+		}
+	}
 	if len(dns) == 0 {
 		return nil
 	}
@@ -182,19 +194,6 @@ func dnsEgressRule(hosts []envutil.Host) *ciliumapi.EgressRule {
 			},
 		}},
 	}
-}
-
-func dnsMatchers(hosts []envutil.Host) ciliumapi.PortRulesDNS {
-	dns := make(ciliumapi.PortRulesDNS, 0, len(hosts))
-	for _, host := range hosts {
-		switch host.Kind {
-		case envutil.HostKindDomain:
-			dns = append(dns, ciliumapi.PortRuleDNS{MatchName: host.Value})
-		case envutil.HostKindWildcard, envutil.HostKindDeepWildcard:
-			dns = append(dns, ciliumapi.PortRuleDNS{MatchPattern: host.Value})
-		}
-	}
-	return dns
 }
 
 func gatewayMcpEgressRule(namespace string) ciliumapi.EgressRule {
@@ -294,16 +293,14 @@ func (r *Reconciler) agentNoProxyHosts(agt *clawarmorv1alpha1.Agent) []string {
 	return hosts
 }
 
-func (r *Reconciler) automaticEgressHosts(agt *clawarmorv1alpha1.Agent) []envutil.Host {
-	var hosts []envutil.Host
-	if agt.Spec.Telemetry.Enabled {
-		hosts = append(hosts, hostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)...)
+func egressHostForEndpoint(endpoint string) []envutil.Host {
+	if _, ok := parseServiceEgressTarget(endpoint); ok {
+		return []envutil.Host{}
 	}
-	hosts = append(hosts, hostForEndpoint(r.Config.GatewayURL)...)
-	return uniqueHosts(hosts)
+	return dnsHostForEndpoint(endpoint)
 }
 
-func hostForEndpoint(endpoint string) []envutil.Host {
+func dnsHostForEndpoint(endpoint string) []envutil.Host {
 	host := endpointHost(endpoint)
 	if host == "" {
 		return []envutil.Host{}
@@ -326,15 +323,8 @@ func hostForEndpoint(endpoint string) []envutil.Host {
 }
 
 func endpointHost(endpoint string) string {
-	raw := strings.TrimSpace(endpoint)
-	if raw == "" {
-		return ""
-	}
-	if !strings.Contains(raw, "://") {
-		raw = "http://" + raw
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil {
+	parsed, ok := parseEndpointURL(endpoint)
+	if !ok {
 		return ""
 	}
 	host := parsed.Hostname()
@@ -343,4 +333,103 @@ func endpointHost(endpoint string) string {
 		return ""
 	}
 	return host
+}
+
+func parseEndpointURL(endpoint string) (*url.URL, bool) {
+	raw := strings.TrimSpace(endpoint)
+	if raw == "" {
+		return nil, false
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil, false
+	}
+	return parsed, true
+}
+
+type serviceEgressTarget struct {
+	name      string
+	namespace string
+	port      string
+}
+
+func serviceEgressRules(endpoints ...string) []ciliumapi.EgressRule {
+	seen := make(map[serviceEgressTarget]struct{}, len(endpoints))
+	rules := make([]ciliumapi.EgressRule, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		target, ok := parseServiceEgressTarget(endpoint)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[target]; exists {
+			continue
+		}
+		seen[target] = struct{}{}
+		rules = append(rules, ciliumapi.EgressRule{
+			EgressCommonRule: ciliumapi.EgressCommonRule{
+				ToEndpoints: []ciliumapi.EndpointSelector{
+					ciliumapi.NewESFromLabels(
+						ciliumlabels.NewLabel(
+							"io.kubernetes.pod.namespace",
+							target.namespace,
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"app.kubernetes.io/name",
+							target.name,
+							ciliumlabels.LabelSourceK8s,
+						),
+					),
+				},
+			},
+			ToPorts: ciliumapi.PortRules{{
+				Ports: []ciliumapi.PortProtocol{{
+					Port:     target.port,
+					Protocol: ciliumapi.ProtoTCP,
+				}},
+			}},
+		})
+	}
+	return rules
+}
+
+func parseServiceEgressTarget(endpoint string) (serviceEgressTarget, bool) {
+	parsed, ok := parseEndpointURL(endpoint)
+	if !ok {
+		return serviceEgressTarget{}, false
+	}
+
+	host := strings.ToLower(strings.Trim(parsed.Hostname(), "[]"))
+	parts := strings.Split(host, ".")
+	if len(parts) != 5 {
+		return serviceEgressTarget{}, false
+	}
+	if parts[2] != "svc" || parts[3] != "cluster" || parts[4] != "local" {
+		return serviceEgressTarget{}, false
+	}
+	if parts[0] == "" || parts[1] == "" {
+		return serviceEgressTarget{}, false
+	}
+
+	port := parsed.Port()
+	if port == "" {
+		switch strings.ToLower(parsed.Scheme) {
+		case "https":
+			port = "443"
+		default:
+			port = "80"
+		}
+	}
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+		return serviceEgressTarget{}, false
+	}
+
+	return serviceEgressTarget{
+		name:      parts[0],
+		namespace: parts[1],
+		port:      port,
+	}, true
 }

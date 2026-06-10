@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "web.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "web.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "web.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "web.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "web.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: web
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
+            - name: MCP_OAUTH_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: MCP_OAUTH_COOKIE_SECRET
+            {{- if .Values.env.nixosSearchESURL }}
+            - name: NIXOS_SEARCH_ES_URL
+              value: {{ .Values.env.nixosSearchESURL | quote }}
+            {{- end }}
+            {{- if .Values.env.nixosSearchESUsername }}
+            - name: NIXOS_SEARCH_ES_USERNAME
+              value: {{ .Values.env.nixosSearchESUsername | quote }}
+            {{- end }}
+            {{- if .Values.env.nixosSearchESSchemaVersion }}
+            - name: NIXOS_SEARCH_ES_SCHEMA_VERSION
+              value: {{ .Values.env.nixosSearchESSchemaVersion | quote }}
+            {{- end }}
+            {{- if .Values.env.nixosSearchESBranch }}
+            - name: NIXOS_SEARCH_ES_BRANCH
+              value: {{ .Values.env.nixosSearchESBranch | quote }}
+            {{- end }}
+            {{- if .Values.secrets.nixosSearchESPassword }}
+            - name: NIXOS_SEARCH_ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: NIXOS_SEARCH_ES_PASSWORD
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

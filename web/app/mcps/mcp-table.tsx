@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { DeleteMcpFormState, McpFormState } from "@/data/mcp.actions"
+import type { DeleteMcpFormState, McpFormState, SubmitMcpFormAction } from "@/data/mcp.actions"
 import { createMcpColumns } from "./mcp-columns"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 
@@ -93,7 +93,7 @@ export function McpTable({
   mcpConnections: McpConnectionSummary[]
   hasNextPage: boolean
   nextPageToken: string
-  submitMcpAction: (_: McpFormState, formData: FormData) => Promise<McpFormState>
+  submitMcpAction: (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,

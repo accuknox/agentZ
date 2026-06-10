@@ -17,6 +17,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 import * as z from "zod"
 import type { JsonObject, McpConnectionAuth } from "@/lib/gateway/client"
 import { mcpAuthLocation, oauthCredentialsFromTokens, type ParsedMcpForm } from "@/data/mcp.schema"
+import { webBaseURL } from "@/lib/gateway/base-url"
 import {
   oauthBroadcastChannelName,
   oauthErrorFieldNames,
@@ -137,6 +138,7 @@ const pendingOAuthStateSchema = z.object({
   flowId: z.string().min(1),
   operation: pendingOAuthOperationSchema,
   state: z.string().min(1),
+  redirectURL: z.string().url().optional(),
   codeVerifier: z.string().min(1),
   discoveryState: oauthDiscoveryStateSchema.optional(),
   clientInformation: oauthClientInformationMixedSchema,
@@ -147,6 +149,7 @@ export type PendingOAuthState = {
   flowId: string
   operation: PendingOAuthOperation
   state: string
+  redirectURL?: string
   codeVerifier: string
   discoveryState?: StoredOAuthDiscoveryState
   clientInformation: OAuthClientInformationMixed
@@ -230,20 +233,15 @@ function bufferFromBase64url(value: string) {
   return Buffer.from(value, "base64url")
 }
 
-function redirectURI() {
-  const origin = process.env.NEXT_PUBLIC_WEB_BASE_URL
-  if (!origin) {
-    throw new Error("NEXT_PUBLIC_WEB_BASE_URL is required for MCP OAuth flows")
-  }
-  return new URL("/mcps/oauth/callback", origin)
+function redirectURL() {
+  return new URL("/mcps/oauth/callback", webBaseURL())
 }
 
-function oauthClientMetadata(): OAuthClientMetadata {
-  const url = redirectURI()
-  const base = new URL("/", url)
+function oauthClientMetadata(redirectURL: URL): OAuthClientMetadata {
+  const base = new URL("/", redirectURL)
   return {
     client_name: "AccuKnox ClawArmor MCP Gateway",
-    redirect_uris: [url.toString()],
+    redirect_uris: [redirectURL.toString()],
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     token_endpoint_auth_method: "client_secret_post",
@@ -400,12 +398,17 @@ async function effectiveDiscoveryState(input: {
   })
 }
 
-function oauthProvider(input: { form: ParsedMcpForm; runtime: RuntimeOAuthState; state: string }) {
-  const metadata = oauthClientMetadata()
+function oauthProvider(input: {
+  form: ParsedMcpForm
+  runtime: RuntimeOAuthState
+  state: string
+  redirectURL: URL
+}) {
+  const metadata = oauthClientMetadata(input.redirectURL)
 
   const provider: OAuthClientProvider = {
     get redirectUrl() {
-      return redirectURI()
+      return input.redirectURL
     },
     get clientMetadata() {
       return metadata
@@ -561,24 +564,25 @@ function registrationPayload(clientInformation: OAuthClientInformationMixed) {
   return parsed.data satisfies JsonObject
 }
 
-export async function beginOAuthFlow(
+export async function beginOAuthFlow(input: {
   operation: PendingOAuthOperation
-): Promise<OAuthResult<BeginOAuthFlowValue>> {
+}): Promise<OAuthResult<BeginOAuthFlowValue>> {
   const state = randomBytes(24).toString("base64url")
   const flowId = randomBytes(18).toString("base64url")
+  const oauthRedirectURL = redirectURL()
   try {
     const runtime: RuntimeOAuthState = {
       discoveryState: await effectiveDiscoveryState({
-        form: operation.form,
+        form: input.operation.form,
       }),
     }
-    if (requiresManualClientInput(operation.form)) {
+    if (requiresManualClientInput(input.operation.form)) {
       if (!runtime.discoveryState) {
-        runtime.discoveryState = await discoverOAuthServerInfo(operation.form.endpoint.url)
+        runtime.discoveryState = await discoverOAuthServerInfo(input.operation.form.endpoint.url)
       }
 
       runtime.discoveryState = await effectiveDiscoveryState({
-        form: operation.form,
+        form: input.operation.form,
         discoveryState: runtime.discoveryState,
       })
       if (!runtime.discoveryState?.authorizationServerMetadata?.registration_endpoint) {
@@ -589,14 +593,15 @@ export async function beginOAuthFlow(
       }
     }
     const provider = oauthProvider({
-      form: operation.form,
+      form: input.operation.form,
       runtime,
+      redirectURL: oauthRedirectURL,
       state,
     })
 
     const result = await auth(provider, {
-      serverUrl: operation.form.endpoint.url,
-      scope: operation.form.oauth.scopes?.join(" "),
+      serverUrl: input.operation.form.endpoint.url,
+      scope: input.operation.form.oauth.scopes?.join(" "),
     })
     if (result !== "REDIRECT" || !runtime.authorizationUrl || !runtime.codeVerifier) {
       return {
@@ -623,8 +628,11 @@ export async function beginOAuthFlow(
     const pending = {
       version: 1,
       flowId,
-      operation,
+      operation: input.operation,
       state,
+      // Reuse the exact redirect URL on the callback exchange because the
+      // incoming request URL may reflect an internal proxy address.
+      redirectURL: oauthRedirectURL.toString(),
       codeVerifier: runtime.codeVerifier,
       // Persist only compact discovery identifiers. The callback rebuilds
       // the effective discovery state from these identifiers plus form values.
@@ -670,6 +678,9 @@ export async function completeOAuthFlow(input: {
   pending: PendingOAuthState
   callbackURL: URL
 }): Promise<OAuthResult<CompleteOAuthFlowValue>> {
+  const callbackRedirectURL = input.pending.redirectURL
+    ? new URL(input.pending.redirectURL)
+    : redirectURL()
   const stateParam = input.callbackURL.searchParams.get("state")
   if (!stateParam) {
     return {
@@ -733,6 +744,7 @@ export async function completeOAuthFlow(input: {
     const provider = oauthProvider({
       form: input.pending.operation.form,
       runtime,
+      redirectURL: callbackRedirectURL,
       state: input.pending.state,
     })
 

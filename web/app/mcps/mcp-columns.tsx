@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { DeleteMcpFormState, McpFormState } from "@/data/mcp.actions"
+import type { DeleteMcpFormState, McpFormState, SubmitMcpFormAction } from "@/data/mcp.actions"
 import { renderMcpServerIcon } from "./catalog"
 import { McpSheet } from "./mcp-sheet"
 
@@ -63,7 +63,7 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
-  submitMcpAction: (_: McpFormState, formData: FormData) => Promise<McpFormState>
+  submitMcpAction: (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,
@@ -153,6 +153,7 @@ function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
 function McpStatusBadge({ connection }: { connection: McpConnectionSummary }) {
   const state = connection.status
   const meta = mcpStatusMeta[state]
+  const message = connection.message.trim()
   const badge = (
     <Badge variant={meta.variant}>
       <meta.icon data-icon="inline-start" />
@@ -160,14 +161,14 @@ function McpStatusBadge({ connection }: { connection: McpConnectionSummary }) {
     </Badge>
   )
 
-  if (!connection.message) {
+  if (!message) {
     return badge
   }
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{badge}</TooltipTrigger>
-      <TooltipContent>{connection.message}</TooltipContent>
+      <TooltipContent>{message}</TooltipContent>
     </Tooltip>
   )
 }
@@ -178,7 +179,7 @@ function McpActions({
   deleteMcpAction,
 }: {
   connection: McpConnectionSummary
-  submitMcpAction: (_: McpFormState, formData: FormData) => Promise<McpFormState>
+  submitMcpAction: (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,

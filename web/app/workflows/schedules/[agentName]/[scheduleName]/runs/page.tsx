@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import { connection } from "next/server"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,6 +20,18 @@ type RunsParams = {
   scheduleName: string
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<RunsParams>
+}): Promise<Metadata> {
+  const { scheduleName } = await params
+
+  return {
+    title: `Workflow Runs: ${scheduleName}`,
+  }
+}
+
 export default function ScheduledWorkflowRunsPage({
   params,
   searchParams,
@@ -26,8 +39,6 @@ export default function ScheduledWorkflowRunsPage({
   params: Promise<RunsParams>
   searchParams: Promise<RunsSearchParams>
 }) {
-  const agents = listAgentsCachedQuery()
-
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -36,7 +47,7 @@ export default function ScheduledWorkflowRunsPage({
         </div>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters agents={agents} params={params} />
+        <Filters params={params} />
       </Suspense>
       <Suspense fallback={<RunsTableSkeleton />}>
         <Runs params={params} searchParams={searchParams} />
@@ -45,13 +56,9 @@ export default function ScheduledWorkflowRunsPage({
   )
 }
 
-async function Filters({
-  agents,
-  params,
-}: {
-  agents: ReturnType<typeof listAgentsCachedQuery>
-  params: Promise<RunsParams>
-}) {
+async function Filters({ params }: { params: Promise<RunsParams> }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const [{ agentName, scheduleName }, agentsResult] = await Promise.all([params, agents])
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
     return <FiltersSkeleton />

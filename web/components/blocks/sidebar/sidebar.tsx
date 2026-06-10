@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { connection } from "next/server"
 import { NavAgents, NavAgentsSkeleton } from "./agents"
 import { NavUser } from "./user"
 import { TeamSwitcher } from "./team-switcher"
@@ -11,19 +12,16 @@ import {
   SidebarRail,
   SidebarGroupLabel,
 } from "@/components/ui/sidebar"
-import type { ListAgentActionResponse } from "@/data/types"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
 import { NavEnvironments } from "./environments"
 import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
 
-export function AppSidebar({
-  agents,
-  ...props
-}: React.ComponentProps<typeof Sidebar> & {
-  agents: Promise<ListAgentActionResponse>
-}) {
+export async function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -46,9 +44,9 @@ export function AppSidebar({
           </Suspense>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      {/*<SidebarFooter>
         <NavUser user={{ email: "murtaza@accuknox.com", name: "Murtaza U" }} />
-      </SidebarFooter>
+      </SidebarFooter>*/}
       <SidebarRail />
     </Sidebar>
   )

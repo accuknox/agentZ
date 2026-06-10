@@ -8,3 +8,4 @@ exclude:
 - .ref/
 - web/
 - opencode/
+- deploy/helm/

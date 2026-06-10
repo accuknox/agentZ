@@ -158,6 +158,8 @@ function renderEntries(parts: Part[], textByPart: Record<string, string>): Rende
 
   for (const part of parts) {
     if (part.type === "text") {
+      if ("synthetic" in part && part.synthetic === true) continue
+
       flushTools()
 
       const content = textByPart[part.id] ?? part.text
@@ -169,6 +171,8 @@ function renderEntries(parts: Part[], textByPart: Record<string, string>): Rende
     }
 
     if (part.type === "reasoning") {
+      if ("synthetic" in part && part.synthetic === true) continue
+
       flushText()
       flushTools()
 

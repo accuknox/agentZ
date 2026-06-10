@@ -32,6 +32,7 @@ rules:
   - agentgateway.dev
   resources:
   - agentgatewaybackends
+  - agentgatewayparameters
   - agentgatewaypolicies
   verbs:
   - create
@@ -113,6 +114,7 @@ rules:
   - clawarmor.accuknox.com
   resources:
   - agents/status
+  - envs/status
   - mcpconnections/status
   - workflowruns/status
   - workflowschedules/status

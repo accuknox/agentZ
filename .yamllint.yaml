@@ -3,6 +3,7 @@ ignore:
 - .ref/
 - web/
 - opencode/
+- deploy/helm/
 rules:
   indentation:
     indent-sequences: false

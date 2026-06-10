@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "manager.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+    control-plane: controller-manager
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "manager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "manager.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "manager.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/clawarmor"]
+          args:
+            - manager
+            - --log-level={{ .Values.config.logLevel }}
+            - --log-format={{ .Values.config.logFormat }}
+            - --metrics-bind-address={{ .Values.config.metricsBindAddress }}
+            - --health-probe-bind-address={{ .Values.config.healthProbeBindAddress }}
+            - --metrics-secure={{ .Values.config.metricsSecure }}
+            - --enable-http2={{ .Values.config.enableHTTP2 }}
+            - --controller-image={{ .Values.config.controllerImage }}
+            - --gateway-url={{ .Values.config.gatewayURL }}
+            - --openbao-addr={{ .Values.config.openBaoAddr }}
+            - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}
+            - --openbao-k8s-auth-mount-path={{ .Values.config.openBaoK8sAuthMountPath }}
+            - --sinjector-openbao-k8s-auth-token-path={{ .Values.config.sinjectorOpenBaoK8sAuthTokenPath }}
+            - --manager-openbao-k8s-auth-role={{ .Values.config.managerOpenBaoK8sAuthRole }}
+            - --manager-openbao-k8s-auth-token-path={{ .Values.config.managerOpenBaoK8sAuthTokenPath }}
+            - --sinjector-ca-secret-name={{ .Values.config.sinjectorCASecretName }}
+            - --sinjector-ca-secret-cert-key={{ .Values.config.sinjectorCASecretCertKey }}
+            - --sinjector-ca-secret-key-key={{ .Values.config.sinjectorCASecretKeyKey }}
+            - --sinjector-ca-secret-bundle-key={{ .Values.config.sinjectorCASecretBundleKey }}
+            - --sinjector-ca-cert-path={{ .Values.config.sinjectorCACertPath }}
+            - --sinjector-ca-key-path={{ .Values.config.sinjectorCAKeyPath }}
+            - --agent-ca-bundle-path={{ .Values.config.agentCABundlePath }}
+            {{- if .Values.config.leaderElect }}
+            - --leader-elect
+            {{- end }}
+            {{- if .Values.config.logWithSource }}
+            - --log-with-source
+            {{- end }}
+            {{- if .Values.config.agentImage }}
+            - --agent-image={{ .Values.config.agentImage }}
+            {{- end }}
+            {{- if .Values.config.agentInitImage }}
+            - --agent-init-image={{ .Values.config.agentInitImage }}
+            {{- end }}
+            {{- if .Values.config.managerOpenBaoAddr }}
+            - --manager-openbao-addr={{ .Values.config.managerOpenBaoAddr }}
+            {{- end }}
+            {{- if .Values.config.nixStorePVC }}
+            - --nix-store-pvc={{ .Values.config.nixStorePVC }}
+            {{- end }}
+            {{- if .Values.config.watchNamespace }}
+            - --watch-namespace={{ .Values.config.watchNamespace }}
+            {{- end }}
+            - --enable-webhooks={{ .Values.config.enableWebhooks }}
+            {{- if .Values.config.enableWebhooks }}
+            - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+            {{- end }}
+            {{- range .Values.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- if .Values.config.enableWebhooks }}
+          ports:
+            - containerPort: {{ .Values.service.webhook.targetPort }}
+              name: webhook-server
+              protocol: TCP
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ trimPrefix ":" .Values.config.healthProbeBindAddress | int }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ trimPrefix ":" .Values.config.healthProbeBindAddress | int }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.config.enableWebhooks }}
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: webhook-certs
+              readOnly: true
+          {{- end }}
+      {{- if .Values.config.enableWebhooks }}
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: {{ .Values.certManager.webhookSecretName }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

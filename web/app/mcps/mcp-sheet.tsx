@@ -51,7 +51,7 @@ import {
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
-import type { McpFormState } from "@/data/mcp.actions"
+import { type McpFormState, type SubmitMcpFormAction } from "@/data/mcp.actions"
 import {
   formBearerDefaults,
   formOAuthDefaults,
@@ -67,7 +67,9 @@ import {
   type OAuthPopupMessage,
 } from "@/lib/mcp-oauth-shared"
 
-type SubmitMcpAction = (_: McpFormState, formData: FormData) => Promise<McpFormState>
+type SubmitMcpAction = (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
+
+const initialSubmitState: McpFormState = {}
 
 const defaultFormValues: McpFormInput = {
   mode: "create",
@@ -425,21 +427,6 @@ function generalErrorMessage(error: McpFormState["error"]) {
   return hasGeneralError ? error.message : undefined
 }
 
-function formDataFromValues(values: McpFormInput) {
-  const formData = new FormData()
-
-  for (const fieldName of scalarFormDataFields) {
-    formData.set(fieldName, values[fieldName] ?? "")
-  }
-
-  for (const header of values.extra_headers) {
-    formData.append("extra_header_key", header.key)
-    formData.append("extra_header_value", header.value)
-  }
-
-  return formData
-}
-
 const ServerURLField = React.memo(function ServerURLField({
   control,
   authMode,
@@ -693,7 +680,10 @@ export function McpSheet({
 }) {
   const router = useRouter()
   const [isRefreshing, startTransition] = React.useTransition()
-  const [submitState, submitAction, isSubmitting] = React.useActionState(submitMcpAction, {})
+  const [submitState, submitAction, isSubmitting] = React.useActionState(
+    submitMcpAction,
+    initialSubmitState
+  )
   const connectionName = connection?.name ?? ""
   const connectionQuery = useQuery({
     ...mcpConnectionQueryOptions(connectionName),
@@ -742,7 +732,7 @@ export function McpSheet({
     oauthTokenEndpoint = defaultValues.oauth_token_endpoint,
   ] = oauthFields
   const [oauthPopupFlowId, setOauthPopupFlowId] = React.useState<string>()
-  const [submitError, setSubmitError] = React.useState<string>()
+  const [clientSubmitError, setClientSubmitError] = React.useState<string>()
   const [successMessage, setSuccessMessage] = React.useState<string>()
   const [submitted, setSubmitted] = React.useState(false)
   const [userExpandedAccordions, dispatchAccordion] = React.useReducer(accordionReducer, [])
@@ -753,6 +743,8 @@ export function McpSheet({
   const popupPollRef = React.useRef<number | null>(null)
   const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
   const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
+  const handledPopupFlowIdRef = React.useRef<string | undefined>(undefined)
+  const shouldResetSubmitStateRef = React.useRef(false)
   const endpointURL = useWatch({
     control: form.control,
     name: "endpoint_url",
@@ -836,6 +828,16 @@ export function McpSheet({
     }).catch(() => {})
   }, [])
 
+  const resetSubmitState = React.useCallback(() => {
+    shouldResetSubmitStateRef.current = false
+    handledPopupFlowIdRef.current = undefined
+    startTransition(() => {
+      submitAction({
+        type: "reset",
+      })
+    })
+  }, [startTransition, submitAction])
+
   const cleanupPopupFlow = React.useCallback(
     (options?: { closePopup?: boolean; cancelPending?: boolean }) => {
       const handler = messageHandlerRef.current
@@ -868,6 +870,16 @@ export function McpSheet({
       })
     }
   }, [cleanupPopupFlow])
+
+  React.useLayoutEffect(() => {
+    return () => {
+      if (!shouldResetSubmitStateRef.current) {
+        return
+      }
+
+      resetSubmitState()
+    }
+  }, [resetSubmitState])
 
   React.useEffect(() => {
     if (!open) {
@@ -937,7 +949,7 @@ export function McpSheet({
 
   const openOAuthPopup = React.useCallback(
     (oauth: { flowId: string; url: string }) => {
-      setSubmitError(undefined)
+      setClientSubmitError(undefined)
       setSuccessMessage(undefined)
       let completed = false
 
@@ -965,7 +977,7 @@ export function McpSheet({
         finishPopupFlow()
 
         if (message.status === "success") {
-          setSubmitError(undefined)
+          setClientSubmitError(undefined)
           setSuccessMessage(message.message)
           setSubmitted(true)
           startTransition(() => {
@@ -974,7 +986,7 @@ export function McpSheet({
           return
         }
 
-        setSubmitError(message.message)
+        setClientSubmitError(message.message)
       }
 
       function onWindowMessage(event: MessageEvent<unknown>) {
@@ -1001,7 +1013,7 @@ export function McpSheet({
       )
       if (!popup) {
         finishPopupFlow()
-        setSubmitError("OAuth popup was blocked by the browser. Allow popups and try again.")
+        setClientSubmitError("OAuth popup was blocked by the browser. Allow popups and try again.")
         return
       }
 
@@ -1017,69 +1029,50 @@ export function McpSheet({
         }
         finishPopupFlow()
         cancelPendingOAuthFlow()
-        setSubmitError("OAuth popup was closed before authentication completed.")
+        setClientSubmitError("OAuth popup was closed before authentication completed.")
       }, 400)
     },
     [cancelPendingOAuthFlow, cleanupPopupFlow, router]
   )
 
   React.useEffect(() => {
-    let cancelled = false
+    if (!open) {
+      return
+    }
 
     applyServerErrors(form, submitState)
 
     if (submitState.error) {
-      const error = submitState.error
-      queueMicrotask(() => {
-        if (cancelled) {
-          return
-        }
-
-        setSubmitError(generalErrorMessage(error) ?? error.message)
-      })
-      return () => {
-        cancelled = true
-      }
+      shouldResetSubmitStateRef.current = true
+      return
     }
 
     if (submitState.oauth) {
-      const oauth = submitState.oauth
-      queueMicrotask(() => {
-        if (cancelled) {
-          return
-        }
-
-        openOAuthPopup(oauth)
-      })
-      return () => {
-        cancelled = true
-      }
-    }
-
-    if (!submitState.success) {
-      return () => {
-        cancelled = true
-      }
-    }
-
-    queueMicrotask(() => {
-      if (cancelled) {
+      if (handledPopupFlowIdRef.current === submitState.oauth.flowId) {
         return
       }
 
+      handledPopupFlowIdRef.current = submitState.oauth.flowId
+      shouldResetSubmitStateRef.current = true
+      openOAuthPopup(submitState.oauth)
+      return
+    }
+
+    if (!submitState.success) {
+      return
+    }
+
+    shouldResetSubmitStateRef.current = true
+    queueMicrotask(() => {
       setSubmitted(true)
-      setSubmitError(undefined)
+      setClientSubmitError(undefined)
       setSuccessMessage(submitState.message)
       form.reset(defaultValues)
       startTransition(() => {
         router.refresh()
       })
     })
-
-    return () => {
-      cancelled = true
-    }
-  }, [defaultValues, form, openOAuthPopup, router, startTransition, submitState])
+  }, [defaultValues, form, open, openOAuthPopup, router, startTransition, submitState])
 
   const discoveryWarningVisible =
     authMode === "oauth" &&
@@ -1093,6 +1086,11 @@ export function McpSheet({
           message: discoveryWarningMessage,
         }
       : undefined
+  const submitError =
+    clientSubmitError ??
+    (submitState.error
+      ? (generalErrorMessage(submitState.error) ?? submitState.error.message)
+      : undefined)
   const oauthClientCredentialsRequired =
     Boolean(oauthClientID?.trim()) ||
     Boolean(oauthClientSecret?.trim()) ||
@@ -1185,12 +1183,13 @@ export function McpSheet({
   }, [form, requiredConditionalFields])
   function onSheetOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
+      shouldResetSubmitStateRef.current = true
       cleanupPopupFlow({
         closePopup: true,
         cancelPending: Boolean(oauthPopupFlowId),
       })
       form.reset(defaultValues)
-      setSubmitError(undefined)
+      setClientSubmitError(undefined)
       setSuccessMessage(undefined)
       setSubmitted(false)
       dispatchAccordion({
@@ -1204,6 +1203,7 @@ export function McpSheet({
         advanced: false,
       }
       previousRequiredConditionalFieldsRef.current = ""
+      resetSubmitState()
     }
 
     onOpenChangeAction(nextOpen)
@@ -1303,16 +1303,27 @@ export function McpSheet({
         ) : (
           <form
             action={async () => {
-              setSubmitError(undefined)
+              setClientSubmitError(undefined)
               form.clearErrors()
               const valid = await form.trigger()
               if (!valid) {
                 return
               }
 
-              const formData = formDataFromValues(form.getValues())
+              const values = form.getValues()
+              const formData = new FormData()
+              for (const fieldName of scalarFormDataFields) {
+                formData.set(fieldName, values[fieldName] ?? "")
+              }
+              for (const header of values.extra_headers) {
+                formData.append("extra_header_key", header.key)
+                formData.append("extra_header_value", header.value)
+              }
               React.startTransition(() => {
-                submitAction(formData)
+                submitAction({
+                  type: "submit",
+                  formData,
+                })
               })
             }}
             className="flex flex-1 flex-col gap-5 px-4 pb-2"

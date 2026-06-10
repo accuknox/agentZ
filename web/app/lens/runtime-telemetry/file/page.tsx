@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { getFileTelemetryAction } from "@/data/lens.actions"
 import type { FileTelemetryActionData } from "@/data/types"
 import { FileTelemetryTable } from "@/app/lens/runtime-telemetry/file-telemetry-table"
@@ -5,6 +6,10 @@ import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
 } from "@/app/lens/runtime-telemetry/runtime-telemetry-page"
+
+export const metadata: Metadata = {
+  title: "File Telemetry",
+}
 
 export default function FilePage({
   searchParams,

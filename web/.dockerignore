@@ -1,0 +1,23 @@
+# Keep the Docker build context small and avoid leaking local-only files.
+.git
+.gitignore
+.next
+node_modules
+coverage
+out
+build
+.vercel
+.ref
+
+# Local environment and logs should not be sent to the builder.
+.env
+.env.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Editor and OS noise.
+.DS_Store
+*.pem
+*.tsbuildinfo

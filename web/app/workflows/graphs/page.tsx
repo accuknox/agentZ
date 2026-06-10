@@ -1,11 +1,17 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import Workflow from "@/components/blocks/workflow/workflow"
 import { Skeleton } from "@/components/ui/skeleton"
+import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
 import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
 import { firstSearchParam } from "@/lib/search-params"
 import { WorkflowsFilters } from "./workflows-filters"
+
+export const metadata: Metadata = {
+  title: "Workflow Graphs",
+}
 
 type SearchParams = {
   agent_name?: string | string[]
@@ -24,13 +30,7 @@ export const unstable_instant = {
   ],
 }
 
-export default async function WorkflowsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>
-}) {
-  const agents = listAgentsCachedQuery()
-
+export default function WorkflowsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -39,22 +39,18 @@ export default async function WorkflowsPage({
         </div>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={searchParams} agents={agents} />
+        <Filters searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={<CanvasSkeleton />}>
-        <WorkflowContent searchParams={searchParams} agents={agents} />
+        <WorkflowContent searchParams={searchParams} />
       </Suspense>
     </main>
   )
 }
 
-async function Filters({
-  searchParams,
-  agents,
-}: {
-  searchParams: Promise<SearchParams>
-  agents: ReturnType<typeof listAgentsCachedQuery>
-}) {
+async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const params = await searchParams
   const selectedAgentName = firstSearchParam(params.agent_name)
   const selectedWorkflowName = firstSearchParam(params.workflow_name)
@@ -82,13 +78,9 @@ async function Filters({
   )
 }
 
-async function WorkflowContent({
-  searchParams,
-  agents,
-}: {
-  searchParams: Promise<SearchParams>
-  agents: ReturnType<typeof listAgentsCachedQuery>
-}) {
+async function WorkflowContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await connection()
+  const agents = listAgentsCachedQuery()
   const params = await searchParams
   const selectedAgentName = firstSearchParam(params.agent_name)
   const selectedWorkflowName = firstSearchParam(params.workflow_name)

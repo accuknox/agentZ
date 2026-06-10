@@ -58,10 +58,11 @@ type Reconciler struct {
 
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/finalizers,verbs=update
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;httproutes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends;agentgatewayparameters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile prevents unsafe deletion and manages namespace MCP runtime.

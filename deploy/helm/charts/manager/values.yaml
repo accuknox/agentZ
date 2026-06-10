@@ -1,0 +1,94 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: murtazau/clawarmor
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+  createUserRoles: true
+
+podAnnotations: {}
+podLabels: {}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+config:
+  logLevel: info
+  logFormat: text
+  logWithSource: false
+  metricsBindAddress: ":8443"
+  healthProbeBindAddress: ":8081"
+  leaderElect: true
+  metricsSecure: true
+  enableHTTP2: false
+  controllerImage: controller:latest
+  agentImage: ""
+  agentInitImage: ""
+  gatewayURL: http://gateway.clawarmor-system.svc.cluster.local:8090
+  nixStorePVC: ""
+  openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
+  managerOpenBaoAddr: ""
+  openBaoSecretMountPath: kv
+  openBaoK8sAuthMountPath: kubernetes
+  sinjectorOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+  managerOpenBaoK8sAuthRole: manager
+  managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+  sinjectorCASecretName: sinjector
+  sinjectorCASecretCertKey: tls.crt
+  sinjectorCASecretKeyKey: tls.key
+  sinjectorCASecretBundleKey: ca.crt
+  sinjectorCACertPath: /etc/clawarmor/sinjector-ca/tls.crt
+  sinjectorCAKeyPath: /etc/clawarmor/sinjector-ca/tls.key
+  agentCABundlePath: /etc/clawarmor/sinjector-ca/ca.crt
+  watchNamespace: ""
+  enableWebhooks: true
+
+service:
+  metrics:
+    enabled: true
+    port: 8443
+  webhook:
+    enabled: true
+    port: 443
+    targetPort: 9443
+
+certManager:
+  enabled: true
+  issuerName: selfsigned-issuer
+  webhookCertificateName: serving-cert
+  webhookSecretName: webhook-server-cert
+
+extraArgs: []

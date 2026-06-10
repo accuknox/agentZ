@@ -1,0 +1,43 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: murtazau/clawarmor-web
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+service:
+  type: ClusterIP
+  port: 3000
+
+env:
+  # Optional NixOS search Elasticsearch endpoint.
+  nixosSearchESURL: ""
+  # Optional NixOS search Elasticsearch username.
+  nixosSearchESUsername: ""
+  # Optional NixOS search schema version.
+  nixosSearchESSchemaVersion: ""
+  # Optional NixOS search branch.
+  nixosSearchESBranch: ""
+
+secrets:
+  # Required secret used to protect MCP OAuth flow cookies.
+  mcpOAuthCookieSecret: ""
+  # Optional NixOS search Elasticsearch password.
+  nixosSearchESPassword: ""

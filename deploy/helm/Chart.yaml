@@ -1,0 +1,23 @@
+apiVersion: v2
+name: clawarmor
+description: Helm umbrella chart for ClawArmor platform services.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: manager
+    version: 0.1.0
+    repository: file://charts/manager
+    condition: manager.enabled
+  - name: gateway
+    version: 0.1.0
+    repository: file://charts/gateway
+    condition: gateway.enabled
+  - name: observer
+    version: 0.1.0
+    repository: file://charts/observer
+    condition: observer.enabled
+  - name: web
+    version: 0.1.0
+    repository: file://charts/web
+    condition: web.enabled

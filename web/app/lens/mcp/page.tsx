@@ -52,8 +52,8 @@ export default async function McpPage({
   searchParams: Promise<McpSearchParams>
 }) {
   const params = await searchParams
-  const agents = listAgentsCachedQuery()
   await connection()
+  const agents = listAgentsCachedQuery()
   const range = mcpDateRange(firstSearchParam(params.from), firstSearchParam(params.to))
   const scope = getMcpScope({
     agents,

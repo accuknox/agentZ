@@ -1,0 +1,48 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: murtazau/clawarmor
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+podAnnotations: {}
+podLabels: {}
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+service:
+  type: ClusterIP
+  port: 8090
+
+config:
+  logLevel: info
+  logFormat: text
+  logWithSource: false
+  namespace: clawarmor-system
+  targetOverride: ""
+  agentImage: ""
+  agentTraceEndpoint: ""
+  openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
+  openBaoSecretMountPath: kv
+  openBaoK8sAuthRole: gateway
+  openBaoK8sAuthMountPath: kubernetes
+  openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+  mcpProbeStaleAfter: 5m
+  postgresDSN: ""
+
+extraArgs: []

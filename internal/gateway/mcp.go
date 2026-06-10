@@ -635,29 +635,53 @@ func (s *Service) mcpConnectionStatus(conn clawarmorv1alpha1.MCPConnection) (gat
 	if conn.Status.State == clawarmorv1alpha1.MCPConnectionStateDegraded ||
 		(accepted != nil && accepted.Status == metav1.ConditionFalse) ||
 		(degraded != nil && degraded.Status == metav1.ConditionTrue) {
-		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, mcpInternalErrorMessage
+		message := statusConditionMessage(mcpInternalErrorMessage, degraded, accepted)
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, message
 	}
 	if conn.Status.LastProbeTime == nil ||
 		time.Since(conn.Status.LastProbeTime.Time) > s.cfg.MCPProbeStaleAfter ||
 		probeHealthy == nil ||
 		probeHealthy.Status == metav1.ConditionUnknown {
-		return gatewayapi.MCPConnectionLifecycleAccepted, gatewayapi.MCPConnectionReasonProbePending, "Status check pending"
+		message := statusConditionMessage("Status check pending", probeHealthy, accepted)
+		return gatewayapi.MCPConnectionLifecycleAccepted, gatewayapi.MCPConnectionReasonProbePending, message
 	}
 
 	if probeHealthy.Status == metav1.ConditionTrue {
-		return gatewayapi.MCPConnectionLifecycleReady, gatewayapi.MCPConnectionReasonReady, "Ready"
+		message := statusConditionMessage("Ready", probeHealthy, accepted)
+		return gatewayapi.MCPConnectionLifecycleReady, gatewayapi.MCPConnectionReasonReady, message
 	}
 
 	switch {
 	case unreachable != nil && unreachable.Status == metav1.ConditionTrue:
-		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonUnreachable, "Server unreachable"
+		message := statusConditionMessage("Server unreachable", unreachable, probeHealthy)
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonUnreachable, message
 	case credentialsInvalid != nil && credentialsInvalid.Status == metav1.ConditionTrue:
-		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInvalidCredentials, "Credentials invalid"
+		message := statusConditionMessage(
+			"Credentials invalid",
+			credentialsInvalid,
+			probeHealthy,
+		)
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInvalidCredentials, message
 	case protocolError != nil && protocolError.Status == metav1.ConditionTrue:
-		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonProtocolError, "Protocol error"
+		message := statusConditionMessage("Protocol error", protocolError, probeHealthy)
+		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonProtocolError, message
 	default:
 		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, mcpInternalErrorMessage
 	}
+}
+
+func statusConditionMessage(fallback string, conditions ...*metav1.Condition) string {
+	for _, cond := range conditions {
+		if cond == nil {
+			continue
+		}
+		message := strings.TrimSpace(cond.Message)
+		if message != "" {
+			return message
+		}
+	}
+
+	return fallback
 }
 
 func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string) error {

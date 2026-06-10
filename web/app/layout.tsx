@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import { connection } from "next/server"
 import { Archivo } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
@@ -19,14 +20,15 @@ import Providers from "./providers"
 const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
 
 export const metadata: Metadata = {
-  title: "ClawArmor | AccuKnox",
+  title: {
+    default: "ClawArmor - AccuKnox",
+    template: "%s | ClawArmor - AccuKnox",
+  },
   description: "Infra for your AI agents",
   icons: ["/favicon.svg"],
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const agents = listAgentsCachedQuery()
-
   return (
     <html
       lang="en"
@@ -35,7 +37,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     >
       <body className="flex h-svh flex-col overflow-hidden">
         <Providers>
-          <AppSidebar agents={agents} />
+          <Suspense fallback={null}>
+            <AppSidebar />
+          </Suspense>
           <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
               <div className="flex items-center gap-2 px-4">
@@ -45,7 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                 />
                 <Suspense fallback={<BreadcrumbFallback />}>
-                  <PageBreadcrumb agents={agents} />
+                  <PageBreadcrumbWrapper />
                 </Suspense>
               </div>
             </header>
@@ -57,6 +61,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </body>
     </html>
   )
+}
+
+async function PageBreadcrumbWrapper() {
+  await connection()
+  const agents = listAgentsCachedQuery()
+  return <PageBreadcrumb agents={agents} />
 }
 
 function BreadcrumbFallback() {

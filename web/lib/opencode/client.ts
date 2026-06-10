@@ -3,18 +3,12 @@ import {
   createOpencodeClient as createOpencodeClientV2,
   type OpencodeClient as OpencodeClientV2,
 } from "@opencode-ai/sdk/v2/client"
+import { gatewayBaseURL } from "@/lib/gateway/base-url"
 
-function gatewayBaseURL() {
-  const baseURL = process.env.NEXT_PUBLIC_GATEWAY_BASE_URL
-  if (!baseURL) {
-    throw new Error("NEXT_PUBLIC_GATEWAY_BASE_URL is not configured")
-  }
+const gatewayBase = gatewayBaseURL()
 
-  return baseURL
-}
-
-function opencodeBaseURL(agentName: string) {
-  return `${gatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`
+function opencodeBaseURL(agentName: string): string {
+  return `${gatewayBase}/api/opencode/${encodeURIComponent(agentName)}`
 }
 
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.

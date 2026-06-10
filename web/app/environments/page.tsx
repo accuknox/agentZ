@@ -1,11 +1,17 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import Link from "next/link"
 import { Plus } from "lucide-react"
+import { connection } from "next/server"
 import { deleteEnvironmentFormAction } from "@/data/environment.actions"
 import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { Button } from "@/components/ui/button"
 import { EnvironmentTable } from "./environment-table"
 import type { DeleteEnvironmentFormState } from "@/data/types"
+
+export const metadata: Metadata = {
+  title: "Environments",
+}
 
 export default function EnvironmentsPage({
   searchParams,
@@ -46,6 +52,7 @@ async function Environments({
     formData: FormData
   ) => Promise<DeleteEnvironmentFormState>
 }) {
+  await connection()
   const params = searchParams ? await searchParams : undefined
   const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
   const result = await listEnvironmentsCachedQuery({ limit: 50, page_token: pageToken })

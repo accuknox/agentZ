@@ -1,0 +1,30 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "gateway.fullname" . }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents", "envs", "mcpconnections", "workflowruns", "workflowschedules"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents/status", "envs/status", "mcpconnections/status", "workflowruns/status", "workflowschedules/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "gateway.fullname" . }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "gateway.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "gateway.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

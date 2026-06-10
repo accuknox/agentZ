@@ -1,0 +1,517 @@
+# Controller manager chart.
+manager:
+  # Enable the ClawArmor controller manager subchart.
+  enabled: true
+
+  # Override the chart name portion of generated resource names.
+  nameOverride: ""
+
+  # Override the full generated resource name.
+  fullnameOverride: ""
+
+  # Number of manager replicas. In practice this is usually 1 with leader
+  # election enabled.
+  replicaCount: 1
+
+  image:
+    # Image repository for the `clawarmor` binary used by the manager pod.
+    repository: murtazau/clawarmor
+
+    # Image tag for the manager image.
+    tag: latest
+
+    # Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+
+  # Image pull secrets used by the manager pod.
+  imagePullSecrets: []
+
+  serviceAccount:
+    # Create a dedicated ServiceAccount for the manager.
+    create: true
+
+    # Explicit ServiceAccount name. Leave empty to use the generated default.
+    name: ""
+
+  rbac:
+    # Create RBAC for the manager.
+    create: true
+
+    # Create the extra viewer/editor/admin Roles for CRD users.
+    # These are not required by the controller itself but mirror the existing
+    # Kubebuilder-style install bundle.
+    createUserRoles: true
+
+  # Extra annotations added to the manager pod template.
+  podAnnotations: {}
+
+  # Extra labels added to the manager pod template.
+  podLabels: {}
+
+  resources:
+    # Resource limits for the manager container.
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+    # Resource requests for the manager container.
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+  # Node selector for manager pods.
+  nodeSelector: {}
+
+  # Tolerations for manager pods.
+  tolerations: []
+
+  # Affinity rules for manager pods.
+  affinity: {}
+
+  podSecurityContext:
+    # Run the pod as a non-root workload.
+    runAsNonRoot: true
+
+    seccompProfile:
+      # Default seccomp profile for the manager pod.
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    # Keep the container filesystem read-only.
+    readOnlyRootFilesystem: true
+
+    # Disallow privilege escalation.
+    allowPrivilegeEscalation: false
+
+    capabilities:
+      # Drop all Linux capabilities from the manager container.
+      drop:
+      - ALL
+
+  config:
+    # Application log level passed to `clawarmor manager`.
+    # Supported values are `debug`, `info`, `warn`, `error`.
+    logLevel: info
+
+    # Application log format.
+    # Supported values are `text`, `json`, `pretty`.
+    logFormat: text
+
+    # Include file and line information in logs.
+    logWithSource: false
+
+    # Secure metrics bind address.
+    metricsBindAddress: ":8443"
+
+    # Health and readiness probe bind address.
+    healthProbeBindAddress: ":8081"
+
+    # Enable leader election for multiple manager replicas.
+    leaderElect: true
+
+    # Serve metrics over TLS-aware controller-runtime metrics server mode.
+    metricsSecure: true
+
+    # Enable HTTP/2.
+    enableHTTP2: false
+
+    # Image used by the manager when it creates workflow schedule jobs.
+    controllerImage: controller:latest
+
+    # Default image used for Agent resources created by the system.
+    agentImage: ""
+
+    # Optional image used for agent init containers.
+    agentInitImage: ""
+
+    # Base URL exposed to agents for gateway-backed workflow tools.
+    gatewayURL: http://gateway:8090
+
+    # Name of the pre-created PVC that backs a shared nix store.
+    # Leave empty when not using that mode.
+    nixStorePVC: ""
+
+    # OpenBao address used by manager-managed workloads.
+    openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
+
+    # Optional alternate OpenBao address used by the manager itself for
+    # provisioning flows.
+    managerOpenBaoAddr: ""
+
+    # KV v2 mount path used for secret storage.
+    openBaoSecretMountPath: kv
+
+    # Kubernetes auth mount path in OpenBao.
+    openBaoK8sAuthMountPath: kubernetes
+
+    # Token path used by sinjector workloads when authenticating to OpenBao.
+    sinjectorOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+    # OpenBao Kubernetes auth role used by the manager.
+    managerOpenBaoK8sAuthRole: manager
+
+    # ServiceAccount token path used by the manager for OpenBao auth.
+    managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+    # Secret name that stores the sinjector CA materials.
+    sinjectorCASecretName: sinjector
+
+    # Secret key that stores the sinjector CA certificate.
+    sinjectorCASecretCertKey: tls.crt
+
+    # Secret key that stores the sinjector CA private key.
+    sinjectorCASecretKeyKey: tls.key
+
+    # Secret key that stores the CA bundle mounted into agents.
+    sinjectorCASecretBundleKey: ca.crt
+
+    # CA certificate path inside the sinjector container.
+    sinjectorCACertPath: /etc/clawarmor/sinjector-ca/tls.crt
+
+    # CA private key path inside the sinjector container.
+    sinjectorCAKeyPath: /etc/clawarmor/sinjector-ca/tls.key
+
+    # CA bundle path mounted into agent containers.
+    agentCABundlePath: /etc/clawarmor/sinjector-ca/ca.crt
+
+    # Namespace or comma-separated namespaces watched by the manager.
+    watchNamespace: ""
+
+    # Enable admission webhooks in the manager process and render the related
+    # Helm webhook resources.
+    enableWebhooks: true
+
+  service:
+    metrics:
+      # Expose the manager metrics Service.
+      enabled: true
+
+      # Service port for metrics.
+      port: 8443
+
+    webhook:
+      # Expose the manager webhook Service.
+      enabled: true
+
+      # Service port for webhook traffic.
+      port: 443
+
+      # Container port used by the webhook server.
+      targetPort: 9443
+
+  certManager:
+    # Render cert-manager resources for manager webhook TLS.
+    enabled: true
+
+    # Issuer name suffix. The chart prefixes this with the release fullname.
+    issuerName: selfsigned-issuer
+
+    # Certificate name suffix for webhook cert issuance.
+    webhookCertificateName: serving-cert
+
+    # Secret name mounted into the manager pod for webhook TLS.
+    webhookSecretName: webhook-server-cert
+
+  # Extra CLI arguments appended to `clawarmor manager`.
+  extraArgs: []
+
+# Gateway API chart.
+gateway:
+  # Enable the gateway subchart.
+  enabled: true
+
+  # Override the chart name portion of generated resource names.
+  nameOverride: ""
+
+  # Override the full generated resource name.
+  fullnameOverride: ""
+
+  # Number of gateway replicas.
+  replicaCount: 1
+
+  image:
+    # Image repository for the gateway workload.
+    repository: murtazau/clawarmor
+
+    # Image tag for the gateway workload.
+    tag: latest
+
+    # Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+
+  # Image pull secrets used by the gateway pod.
+  imagePullSecrets: []
+
+  serviceAccount:
+    # Create a dedicated ServiceAccount for the gateway.
+    create: true
+
+    # Explicit ServiceAccount name. Leave empty to use the generated default.
+    name: ""
+
+  rbac:
+    # Create gateway RBAC for Kubernetes-backed API operations and watches.
+    create: true
+
+  # Extra annotations added to the gateway pod template.
+  podAnnotations: {}
+
+  # Extra labels added to the gateway pod template.
+  podLabels: {}
+
+  # Resource requests and limits for the gateway container.
+  resources: {}
+
+  # Node selector for gateway pods.
+  nodeSelector: {}
+
+  # Tolerations for gateway pods.
+  tolerations: []
+
+  # Affinity rules for gateway pods.
+  affinity: {}
+
+  service:
+    # Kubernetes Service type for the gateway.
+    type: ClusterIP
+
+    # Gateway HTTP port.
+    port: 8090
+
+  config:
+    # Application log level passed to `clawarmor gateway serve`.
+    logLevel: info
+
+    # Application log format.
+    logFormat: text
+
+    # Include file and line information in logs.
+    logWithSource: false
+
+    # Namespace where the gateway resolves and manages ClawArmor resources.
+    namespace: default
+
+    # Optional backend target override for local or special routing scenarios.
+    targetOverride: ""
+
+    # Default agent image used by the gateway when creating Agent resources.
+    agentImage: ""
+
+    # Required OTLP/gRPC endpoint exposed to agents for trace export.
+    # Example: `observer:4317`
+    agentTraceEndpoint: ""
+
+    # OpenBao address used by the gateway.
+    openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
+
+    # OpenBao KV v2 mount path.
+    openBaoSecretMountPath: kv
+
+    # OpenBao Kubernetes auth role used by the gateway.
+    openBaoK8sAuthRole: gateway
+
+    # OpenBao Kubernetes auth mount path.
+    openBaoK8sAuthMountPath: kubernetes
+
+    # ServiceAccount token path used for OpenBao auth.
+    openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+    # Maximum age before MCP probe results are treated as stale.
+    mcpProbeStaleAfter: 5m
+
+    # Required PostgreSQL DSN for gateway state.
+    postgresDSN: ""
+
+  # Extra CLI arguments appended to `clawarmor gateway serve`.
+  extraArgs: []
+
+# Telemetry observer chart.
+observer:
+  # Enable the observer subchart.
+  enabled: true
+
+  # Override the chart name portion of generated resource names.
+  nameOverride: ""
+
+  # Override the full generated resource name.
+  fullnameOverride: ""
+
+  # Number of observer replicas.
+  replicaCount: 1
+
+  image:
+    # Image repository for the observer workload.
+    repository: murtazau/clawarmor
+
+    # Image tag for the observer workload.
+    tag: latest
+
+    # Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+
+  # Image pull secrets used by the observer pod.
+  imagePullSecrets: []
+
+  serviceAccount:
+    # Create a dedicated ServiceAccount for the observer.
+    create: true
+
+    # Explicit ServiceAccount name. Leave empty to use the generated default.
+    name: ""
+
+  rbac:
+    # Create RBAC for observer access to Agents, Services, and EndpointSlices.
+    create: true
+
+  # Extra annotations added to the observer pod template.
+  podAnnotations: {}
+
+  # Extra labels added to the observer pod template.
+  podLabels: {}
+
+  # Resource requests and limits for the observer container.
+  resources: {}
+
+  # Node selector for observer pods.
+  nodeSelector: {}
+
+  # Tolerations for observer pods.
+  tolerations: []
+
+  # Affinity rules for observer pods.
+  affinity: {}
+
+  service:
+    # Kubernetes Service type for the OTLP receiver.
+    type: ClusterIP
+
+    # OTLP/gRPC port exposed by the observer.
+    otlpGrpcPort: 4317
+
+  config:
+    # Application log level passed to `clawarmor observer serve`.
+    logLevel: info
+
+    # Application log format.
+    logFormat: text
+
+    # Include file and line information in logs.
+    logWithSource: false
+
+    # Required PostgreSQL DSN for telemetry storage.
+    postgresDSN: ""
+
+    # KubeArmor relay gRPC address.
+    kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
+
+    # Hubble relay gRPC address.
+    hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
+
+    # Namespace whose managed agents should be observed.
+    namespace: default
+
+    # Max events buffered into one PostgreSQL flush.
+    batchSize: 500
+
+    # Max time between PostgreSQL flushes.
+    flushInterval: 1s
+
+  # Extra CLI arguments appended to `clawarmor observer serve`.
+  extraArgs: []
+
+# Next.js web UI chart.
+web:
+  # Enable the web subchart.
+  enabled: true
+
+  # Override the chart name portion of generated resource names.
+  nameOverride: ""
+
+  # Override the full generated resource name.
+  fullnameOverride: ""
+
+  # Number of web replicas.
+  replicaCount: 1
+
+  image:
+    # Image repository for the built Next.js web application.
+    repository: murtazau/clawarmor-web
+
+    # Image tag for the web workload.
+    tag: latest
+
+    # Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+
+  # Image pull secrets used by the web pod.
+  imagePullSecrets: []
+
+  serviceAccount:
+    # Create a dedicated ServiceAccount for the web app.
+    create: true
+
+    # Explicit ServiceAccount name. Leave empty to use the generated default.
+    name: ""
+
+  # Extra annotations added to the web pod template.
+  podAnnotations: {}
+
+  # Extra labels added to the web pod template.
+  podLabels: {}
+
+  # Resource requests and limits for the web container.
+  resources: {}
+
+  # Node selector for web pods.
+  nodeSelector: {}
+
+  # Tolerations for web pods.
+  tolerations: []
+
+  # Affinity rules for web pods.
+  affinity: {}
+
+  service:
+    # Kubernetes Service type for the web app.
+    type: ClusterIP
+
+    # Container and Service port for the Next.js server.
+    port: 3000
+
+  env:
+    # Optional NixOS search Elasticsearch endpoint.
+    nixosSearchESURL: ""
+
+    # Optional NixOS search Elasticsearch username.
+    nixosSearchESUsername: ""
+
+    # Optional NixOS search schema version.
+    nixosSearchESSchemaVersion: ""
+
+    # Optional NixOS search branch.
+    nixosSearchESBranch: ""
+
+  secrets:
+    # Required secret used to protect MCP OAuth flow cookies.
+    mcpOAuthCookieSecret: ""
+
+    # Optional NixOS search Elasticsearch password.
+    nixosSearchESPassword: ""
+
+# Shared ingress for the web UI and gateway API.
+ingress:
+  # Enable a single ingress that routes `/api` to gateway and `/` to web.
+  enabled: false
+
+  # Optional ingressClassName.
+  className: ""
+
+  # Extra ingress annotations.
+  annotations: {}
+
+  # Host routing rules for the shared ingress.
+  hosts:
+  - host: clawarmor.local
+
+  # TLS blocks passed through directly to the Ingress.
+  tls: []

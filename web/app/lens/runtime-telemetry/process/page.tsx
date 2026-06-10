@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { getProcessTelemetryAction } from "@/data/lens.actions"
 import type { ProcessTelemetryActionData } from "@/data/types"
 import { ProcessTelemetryTable } from "@/app/lens/runtime-telemetry/process-telemetry-table"
@@ -5,6 +6,10 @@ import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
 } from "@/app/lens/runtime-telemetry/runtime-telemetry-page"
+
+export const metadata: Metadata = {
+  title: "Process Telemetry",
+}
 
 export default function ProcessPage({
   searchParams,

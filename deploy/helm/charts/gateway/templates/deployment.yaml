@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gateway.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "gateway.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "gateway.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/clawarmor"]
+          args:
+            - gateway
+            - serve
+            - --log-level={{ .Values.config.logLevel }}
+            - --log-format={{ .Values.config.logFormat }}
+            - "--addr=0.0.0.0:{{ .Values.service.port }}"
+            - --namespace={{ .Values.config.namespace }}
+            - --postgres-dsn={{ required "gateway.config.postgresDSN is required" .Values.config.postgresDSN }}
+            - --agent-trace-endpoint={{ required "gateway.config.agentTraceEndpoint is required" .Values.config.agentTraceEndpoint }}
+            - --openbao-addr={{ .Values.config.openBaoAddr }}
+            - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}
+            - --openbao-k8s-auth-role={{ .Values.config.openBaoK8sAuthRole }}
+            - --openbao-k8s-auth-mount-path={{ .Values.config.openBaoK8sAuthMountPath }}
+            - --openbao-k8s-auth-token-path={{ .Values.config.openBaoK8sAuthTokenPath }}
+            - --mcp-probe-stale-after={{ .Values.config.mcpProbeStaleAfter }}
+            {{- if .Values.config.logWithSource }}
+            - --log-with-source
+            {{- end }}
+            {{- if .Values.config.targetOverride }}
+            - --target-override={{ .Values.config.targetOverride }}
+            {{- end }}
+            {{- if .Values.config.agentImage }}
+            - --agent-image={{ .Values.config.agentImage }}
+            {{- end }}
+            {{- range .Values.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

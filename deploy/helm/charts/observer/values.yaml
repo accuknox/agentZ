@@ -1,0 +1,43 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: murtazau/clawarmor
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+podAnnotations: {}
+podLabels: {}
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+service:
+  type: ClusterIP
+  otlpGrpcPort: 4317
+
+config:
+  logLevel: info
+  logFormat: text
+  logWithSource: false
+  postgresDSN: ""
+  kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
+  hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
+  namespace: clawarmor-system
+  batchSize: 500
+  flushInterval: 1s
+
+extraArgs: []

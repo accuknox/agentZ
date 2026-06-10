@@ -1,0 +1,37 @@
+{{- if .Values.service.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "manager.fullname" . }}-metrics-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+    control-plane: controller-manager
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: {{ .Values.service.metrics.port }}
+      targetPort: {{ .Values.service.metrics.port }}
+      protocol: TCP
+  selector:
+    {{- include "manager.selectorLabels" . | nindent 4 }}
+{{- end }}
+{{- if and .Values.config.enableWebhooks .Values.service.webhook.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "manager.fullname" . }}-webhook-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.webhook.port }}
+      targetPort: {{ .Values.service.webhook.targetPort }}
+      protocol: TCP
+  selector:
+    {{- include "manager.selectorLabels" . | nindent 4 }}
+{{- end }}

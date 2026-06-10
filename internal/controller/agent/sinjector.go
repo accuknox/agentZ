@@ -159,7 +159,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 		return err
 	}
 	dnsHosts := append([]envutil.Host{}, hosts...)
-	dnsHosts = append(dnsHosts, hostForEndpoint(r.Config.OpenBaoAddr)...)
+	dnsHosts = append(dnsHosts, dnsHostForEndpoint(r.Config.OpenBaoAddr)...)
 	egress := buildHostEgressRules(uniqueHosts(hosts), uniqueHosts(dnsHosts))
 	egress = append(egress, openBaoEgressRule())
 	current := &ciliumv2.CiliumNetworkPolicy{}

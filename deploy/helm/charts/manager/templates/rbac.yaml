@@ -1,0 +1,373 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "manager.fullname" . }}-manager-role
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "pods", "serviceaccounts", "services"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+  - apiGroups: ["agentgateway.dev"]
+    resources: ["agentgatewaybackends", "agentgatewayparameters", "agentgatewaypolicies"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/status"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs", "jobs"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents", "mcpconnections", "workflowruns", "workflowschedules"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources:
+      - agents/finalizers
+      - envs/finalizers
+      - mcpconnections/finalizers
+      - workflowruns/finalizers
+      - workflowschedules/finalizers
+    verbs: ["update"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources:
+      - agents/status
+      - envs/status
+      - mcpconnections/status
+      - workflowruns/status
+      - workflowschedules/status
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs"]
+    verbs: ["get", "list", "patch", "update", "watch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways", "httproutes"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings", "roles"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "manager.fullname" . }}-manager-rolebinding
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "manager.fullname" . }}-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "manager.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-leader-election-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "manager.fullname" . }}-leader-election-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "manager.fullname" . }}-leader-election-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "manager.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "manager.fullname" . }}-metrics-auth-role
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "manager.fullname" . }}-metrics-auth-rolebinding
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "manager.fullname" . }}-metrics-auth-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "manager.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "manager.fullname" . }}-metrics-reader
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+{{- if .Values.rbac.createUserRoles }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-agent-admin-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents"]
+    verbs: ["*"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-agent-editor-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-agent-viewer-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["agents/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-environment-admin-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs"]
+    verbs: ["*"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-environment-editor-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-environment-viewer-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-mcpconnection-admin-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["mcpconnections"]
+    verbs: ["*"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["mcpconnections/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-mcpconnection-editor-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["mcpconnections"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["mcpconnections/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-mcpconnection-viewer-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["mcpconnections"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["mcpconnections/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-workflowrun-admin-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowruns"]
+    verbs: ["*"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowruns/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-workflowrun-editor-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowruns"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowruns/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-workflowrun-viewer-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowruns"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowruns/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-workflowschedule-admin-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowschedules"]
+    verbs: ["*"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowschedules/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-workflowschedule-editor-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowschedules"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowschedules/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-workflowschedule-viewer-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowschedules"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowschedules/status"]
+    verbs: ["get"]
+{{- end }}
+{{- end }}

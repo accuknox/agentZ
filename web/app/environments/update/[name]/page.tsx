@@ -1,8 +1,22 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
+import { connection } from "next/server"
 import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { EnvironmentWizard } from "../../wizard"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ name: string }>
+}): Promise<Metadata> {
+  const { name } = await params
+
+  return {
+    title: `Edit Environment: ${name}`,
+  }
+}
 
 export default function UpdateEnvironmentPage({ params }: { params: Promise<{ name: string }> }) {
   return (
@@ -15,6 +29,7 @@ export default function UpdateEnvironmentPage({ params }: { params: Promise<{ na
 }
 
 async function UpdateEnvironmentContent({ name }: { name: string }) {
+  await connection()
   const [environmentResult, mcpResult] = await Promise.all([
     listEnvironmentsCachedQuery({ limit: 200 }),
     listMcpConnectionsCachedQuery({ limit: 200 }),

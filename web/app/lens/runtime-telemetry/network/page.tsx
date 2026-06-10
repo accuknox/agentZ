@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { getNetworkTelemetryAction } from "@/data/lens.actions"
 import type { NetworkTelemetryActionData } from "@/data/types"
 import { NetworkTelemetryTable } from "@/app/lens/runtime-telemetry/network-telemetry-table"
@@ -5,6 +6,10 @@ import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
 } from "@/app/lens/runtime-telemetry/runtime-telemetry-page"
+
+export const metadata: Metadata = {
+  title: "Network Telemetry",
+}
 
 export default function NetworkPage({
   searchParams,

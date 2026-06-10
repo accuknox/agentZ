@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -7,6 +8,10 @@ import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { firstSearchParam } from "@/lib/search-params"
 import { McpTable } from "./mcp-table"
 import { NewMcpButton } from "./new-mcp-button"
+
+export const metadata: Metadata = {
+  title: "MCP Connections",
+}
 
 type SearchParams = {
   page_token?: string | string[]

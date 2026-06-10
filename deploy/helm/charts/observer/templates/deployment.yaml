@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "observer.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "observer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "observer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "observer.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "observer.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: observer
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/clawarmor"]
+          args:
+            - observer
+            - serve
+            - --log-level={{ .Values.config.logLevel }}
+            - --log-format={{ .Values.config.logFormat }}
+            - --postgres-dsn={{ required "observer.config.postgresDSN is required" .Values.config.postgresDSN }}
+            - --kubearmor-relay-addr={{ .Values.config.kubearmorRelayAddr }}
+            - --hubble-relay-addr={{ .Values.config.hubbleRelayAddr }}
+            - "--otlp-trace-grpc-addr=:{{ .Values.service.otlpGrpcPort }}"
+            - --namespace={{ .Values.config.namespace }}
+            - --batch-size={{ .Values.config.batchSize }}
+            - --flush-interval={{ .Values.config.flushInterval }}
+            {{- if .Values.config.logWithSource }}
+            - --log-with-source
+            {{- end }}
+            {{- range .Values.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: otlp-grpc
+              containerPort: {{ .Values.service.otlpGrpcPort }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

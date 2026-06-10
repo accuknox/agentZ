@@ -179,7 +179,7 @@
               yamllint
               yaml-language-server
               setup-envtest
-              grpcurl
+              helm-ls
             ];
           };
         });

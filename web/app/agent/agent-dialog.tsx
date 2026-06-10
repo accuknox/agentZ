@@ -6,24 +6,35 @@ import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   AmazonWebServicesDark,
+  AmazonWebServicesLight,
   AnthropicDark,
+  AnthropicLight,
   CerebrasDark,
+  CerebrasLight,
   Cloudflare,
   GitHubCopilotDark,
+  GitHubCopilotLight,
   GitHubDark,
+  GitHubLight,
   Google,
   Groq,
   HuggingFace,
   MistralAI,
   OpenCodeDark,
-  OpenAIDark,
+  OpenCodeLight,
+  OpenAIDark as OpenAILight,
+  OpenAILight as OpenAIDark,
   OpenRouterDark,
+  OpenRouterLight,
   PerplexityAI,
   TogetherAIDark,
+  TogetherAILight,
   VercelDark,
+  VercelLight,
 } from "@ridemountainpig/svgl-react"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -74,26 +85,38 @@ type AgentSimpleForm = {
   smallModel?: string
 }
 
+function themedIcon(
+  lightThemeIcon: ComponentType<SVGProps<SVGSVGElement>>,
+  darkThemeIcon: ComponentType<SVGProps<SVGSVGElement>>
+): ComponentType<SVGProps<SVGSVGElement>> {
+  return function ThemedIcon(props: SVGProps<SVGSVGElement>) {
+    const { resolvedTheme } = useTheme()
+    const Icon = resolvedTheme === "dark" ? darkThemeIcon : lightThemeIcon
+
+    return <Icon {...props} />
+  }
+}
+
 const providerLogos: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  "amazon-bedrock": AmazonWebServicesDark,
-  anthropic: AnthropicDark,
-  cerebras: CerebrasDark,
+  "amazon-bedrock": themedIcon(AmazonWebServicesDark, AmazonWebServicesLight),
+  anthropic: themedIcon(AnthropicDark, AnthropicLight),
+  cerebras: themedIcon(CerebrasDark, CerebrasLight),
   "cloudflare-workers-ai": Cloudflare,
-  "github-copilot": GitHubCopilotDark,
-  "github-models": GitHubDark,
+  "github-copilot": themedIcon(GitHubCopilotDark, GitHubCopilotLight),
+  "github-models": themedIcon(GitHubDark, GitHubLight),
   google: Google,
   "google-vertex": Google,
   "google-vertex-anthropic": Google,
   groq: Groq,
   huggingface: HuggingFace,
   mistral: MistralAI,
-  opencode: OpenCodeDark,
-  "opencode-go": OpenCodeDark,
-  openai: OpenAIDark,
-  openrouter: OpenRouterDark,
+  opencode: themedIcon(OpenCodeDark, OpenCodeLight),
+  "opencode-go": themedIcon(OpenCodeDark, OpenCodeLight),
+  openai: themedIcon(OpenAIDark, OpenAILight),
+  openrouter: themedIcon(OpenRouterDark, OpenRouterLight),
   perplexity: PerplexityAI,
-  togetherai: TogetherAIDark,
-  vercel: VercelDark,
+  togetherai: themedIcon(TogetherAIDark, TogetherAILight),
+  vercel: themedIcon(VercelDark, VercelLight),
 }
 
 function EnvironmentSelect({

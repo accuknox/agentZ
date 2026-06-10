@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import {
@@ -17,6 +18,10 @@ import {
 } from "@/app/lens/traces/search-params"
 import { TracesSkeleton } from "@/app/lens/traces/traces-skeleton"
 import { TracesTable } from "@/app/lens/traces/traces-table"
+
+export const metadata: Metadata = {
+  title: "Traces",
+}
 
 type TracesSearchParams = {
   agent_name?: string | string[]

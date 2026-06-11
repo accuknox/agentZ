@@ -272,30 +272,32 @@ export function PackageSearch({
     [packages]
   )
   const rows = React.useMemo(() => {
-    if (filter === "installed") {
-      return installed.map((attrName) => ({
-        attrName,
-        pkg: packageByAttrName.get(attrName),
-      }))
+    switch (filter) {
+      case "installed":
+        return installed.map((attrName) => ({
+          attrName,
+          pkg: packageByAttrName.get(attrName),
+        }))
+      case "not-installed":
+        return selected
+          .filter((attrName) => !installedSet.has(attrName))
+          .map((attrName) => ({
+            attrName,
+            pkg: packageByAttrName.get(attrName),
+          }))
+      case "selected":
+        return selected.map((attrName) => ({
+          attrName,
+          pkg: packageByAttrName.get(attrName),
+        }))
+      case "all":
+        return packages.map((pkg) => ({
+          attrName: pkg.package_attr_name,
+          pkg,
+        }))
     }
-    if (filter === "selected") {
-      return selected.map((attrName) => ({
-        attrName,
-        pkg: packageByAttrName.get(attrName),
-      }))
-    }
-
-    return packages
-      .filter((pkg) => {
-        if (filter === "not-installed") return !installedSet.has(pkg.package_attr_name)
-        return true
-      })
-      .map((pkg) => ({
-        attrName: pkg.package_attr_name,
-        pkg,
-      }))
   }, [filter, installed, installedSet, packageByAttrName, packages, selected])
-  const searchDependent = filter === "all" || filter === "not-installed"
+  const searchDependent = filter === "all"
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize))
   const currentPage = Math.min(page, pageCount - 1)
   const pagedRows = rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
@@ -409,7 +411,11 @@ export function PackageSearch({
       ) : null}
       {!searchDependent && rows.length === 0 ? (
         <div className="text-muted-foreground rounded border py-10 text-center text-sm">
-          {filter === "installed" ? "No packages installed." : "No packages selected."}
+          {filter === "installed"
+            ? "No packages installed."
+            : filter === "not-installed"
+              ? "No packages selected that are not already installed."
+              : "No packages selected."}
         </div>
       ) : null}
 

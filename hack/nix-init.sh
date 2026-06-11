@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly nixpkgs_ref='github:NixOS/nixpkgs/549bd84d6279f9852cae6225e372cc67fb91a4c1'
+readonly nixpkgs_ref='github:NixOS/nixpkgs/a799d3e3886da994fa307f817a6bc705ae538eeb'
 readonly nixpkgs_path_file='/etc/clawarmor/nixpkgs.path'
 readonly agent_root="${CLAWARMOR_NIX_ROOT:-/mnt/nix}"
 readonly agent_store_root="${agent_root}/nix"
@@ -203,6 +203,7 @@ trim_agent_store_state() {
 }
 
 link_runtime_store() {
+    local dest
     local path
 
     mkdir -p "$runtime_store"
@@ -212,7 +213,17 @@ link_runtime_store() {
     # into the emptyDir store prepared by the init containers.
     shopt -s nullglob
     for path in "$agent_store_root"/store/*; do
-        ln -sfn "$path" "$runtime_store/$(basename "$path")"
+        dest="$runtime_store/$(basename "$path")"
+
+        # nix-store-init may have already copied this exact store path from
+        # the image. Nix store basenames are content-addressed, so an
+        # existing entry with the same basename is already the correct
+        # runtime path and should not be replaced.
+        if [[ -e "$dest" || -L "$dest" ]]; then
+            continue
+        fi
+
+        ln -s "$path" "$dest"
     done
     shopt -u nullglob
 }

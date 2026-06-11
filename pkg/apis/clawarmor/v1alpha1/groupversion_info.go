@@ -20,8 +20,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
 var (
@@ -30,11 +31,31 @@ var (
 	SchemeGroupVersion = schema.GroupVersion{Group: "clawarmor.accuknox.com", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
-	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
+	SchemeBuilder = &schemeBuilder{GroupVersion: SchemeGroupVersion}
 
 	// AddToScheme adds the types in this group-version to the given scheme.
-	AddToScheme = SchemeBuilder.AddToScheme
+	AddToScheme = SchemeBuilder.schemeBuilder().AddToScheme
 )
+
+// schemeBuilder wraps runtime.SchemeBuilder for kind registration.
+type schemeBuilder struct {
+	GroupVersion schema.GroupVersion
+	runtime.SchemeBuilder
+}
+
+// Register adds objects to the group-version scheme.
+func (b *schemeBuilder) Register(objs ...runtime.Object) error {
+	b.SchemeBuilder = append(b.SchemeBuilder, func(s *runtime.Scheme) error {
+		s.AddKnownTypes(b.GroupVersion, objs...)
+		metav1.AddToGroupVersion(s, b.GroupVersion)
+		return nil
+	})
+	return nil
+}
+
+func (b *schemeBuilder) schemeBuilder() *runtime.SchemeBuilder {
+	return &b.SchemeBuilder
+}
 
 // Kind returns a GroupKind for an unqualified kind.
 func Kind(kind string) schema.GroupKind {

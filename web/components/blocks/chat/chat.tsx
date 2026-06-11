@@ -1125,6 +1125,12 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     })
   }, [clearInvalid, modelStorageReady, models])
 
+  const extractErrMsg = (
+    error:
+      | { data?: { message?: string }; message?: string; _tag?: unknown; name?: unknown }
+      | undefined
+  ) => error?.data?.message ?? error?.message
+
   const { isPending: isQuestionPending, mutateAsync: submitQuestionAnswer } = useMutation({
     mutationFn: async (answers: QuestionAnswer[]) => {
       if (!questionRequest) {
@@ -1137,7 +1143,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       })
 
       if (result.error || result.data !== true) {
-        throw new Error(result.error?.data?.message ?? "Failed to answer question")
+        throw new Error(extractErrMsg(result.error) ?? "Failed to answer question")
       }
     },
   })
@@ -1153,7 +1159,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       })
 
       if (result.error || result.data !== true) {
-        throw new Error(result.error?.data?.message ?? "Failed to reject question")
+        throw new Error(extractErrMsg(result.error) ?? "Failed to reject question")
       }
     },
   })
@@ -1170,7 +1176,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       })
 
       if (result.error || result.data !== true) {
-        throw new Error(result.error?.data?.message ?? "Failed to respond to permission")
+        throw new Error(extractErrMsg(result.error) ?? "Failed to respond to permission")
       }
     },
   })

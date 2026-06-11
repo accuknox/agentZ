@@ -34,8 +34,13 @@ type SendMessageResult = {
   sessionID: string
 }
 
-function sdkErrorMessage(error: { data?: { message?: string } } | undefined, fallback: string) {
-  return error?.data?.message ?? fallback
+function sdkErrorMessage(
+  error:
+    | { data?: { message?: string }; message?: string; _tag?: unknown; name?: unknown }
+    | undefined,
+  fallback: string
+) {
+  return error?.data?.message ?? error?.message ?? fallback
 }
 
 export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: boolean) {

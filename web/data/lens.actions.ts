@@ -941,14 +941,14 @@ function operationLabel(span: Span) {
   }
 
   if (span.tool_name) {
-    return titleLabel(span.tool_name)
+    return span.tool_name
   }
 
   if (span.model) {
     return "Model call"
   }
 
-  return titleLabel(span.operation_name || span.name)
+  return span.operation_name || span.name
 }
 
 function displayName(span: Span) {
@@ -957,22 +957,14 @@ function displayName(span: Span) {
   }
 
   if (span.tool_name) {
-    return titleLabel(span.tool_name)
+    return span.tool_name
   }
 
   if (span.model) {
     return "Model call"
   }
 
-  return titleLabel(span.name)
-}
-
-function titleLabel(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (match) => match.toUpperCase())
+  return span.name
 }
 
 function spanType(span: Span): SpanListItem["spanType"] {

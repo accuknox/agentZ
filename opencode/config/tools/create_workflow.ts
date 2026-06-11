@@ -69,12 +69,12 @@ const createWorkflowArgs = {
         instructions: tool.schema.string().min(1).max(16384),
         goal: tool.schema.string().min(1).max(2048),
         done_criteria: tool.schema.string().min(1).max(2048),
-        preferred_tools: tool.schema.array(tool.schema.string().min(1).max(128)),
+        preferred_tools: tool.schema.array(tool.schema.string().min(1).max(128)).optional(),
       })
     )
     .min(1)
     .describe(
-      "All workflow nodes. Each node must define concrete instructions, goal, done_criteria, and preferred_tools."
+      "All workflow nodes. Each node must define concrete instructions, goal, done_criteria and optionally preferred_tools."
     ),
   edges: tool.schema
     .array(
@@ -124,7 +124,7 @@ Authoring rules:
 - Every node.name must also be a DNS label and unique within the workflow.
 - The graph must be connected and acyclic.
 - The graph must have at least one start node and at least one terminal node.
-- preferred_tools should list the concrete OpenCode tools or MCP tools the node should prefer.
+- preferred_tools is optional. Include it to provide helpful directions to future you.
 - branch_label names the branch shown to humans, for example approved, needs-info, or blocked.
 - condition_summary is the plain-language branch condition shown to humans and the executor.
 - For straight-line transitions, leave branch_label and condition_summary as empty strings.
@@ -183,8 +183,7 @@ Example:
       "name": "clarify",
       "instructions": "Gather the missing information needed to continue investigation.",
       "goal": "Unblock reproduction.",
-      "done_criteria": "The missing inputs are enumerated for the user.",
-      "preferred_tools": ["question"]
+      "done_criteria": "The missing inputs are enumerated for the user."
     }
   ],
   "edges": [

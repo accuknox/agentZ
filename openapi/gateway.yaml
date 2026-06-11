@@ -10056,7 +10056,6 @@ components:
       - instructions
       - goal
       - done_criteria
-      - preferred_tools
       type: object
     WorkflowNodeName:
       description: Stable workflow node identifier.

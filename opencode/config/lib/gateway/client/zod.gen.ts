@@ -150,7 +150,7 @@ export const zWorkflowNode = z.object({
   instructions: z.string().min(1).max(16384),
   goal: z.string().min(1).max(2048),
   done_criteria: z.string().min(1).max(2048),
-  preferred_tools: z.array(z.string().min(1).max(128)),
+  preferred_tools: z.array(z.string().min(1).max(128)).optional(),
 })
 
 export const zWorkflowEdge = z.object({

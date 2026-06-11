@@ -279,9 +279,10 @@ func Get(ctx context.Context, pool *pgxpool.Pool, agtName string, wfName string)
 
 	nodes := make([]gatewayapi.WorkflowNode, 0, len(nodeRows))
 	for _, nodeRow := range nodeRows {
-		var preferredTools []string
-		if tools := preferredToolsByNode[nodeRow.NodeName]; tools != nil {
-			preferredTools = slices.Clone(tools)
+		var preferredTools *[]string
+		if toolNames := preferredToolsByNode[nodeRow.NodeName]; toolNames != nil {
+			clonedToolNames := slices.Clone(toolNames)
+			preferredTools = &clonedToolNames
 		}
 
 		nodes = append(nodes, gatewayapi.WorkflowNode{
@@ -338,12 +339,14 @@ func marshalNodes(nodes []gatewayapi.WorkflowNode) ([]byte, []byte, error) {
 			DoneCriteria: node.DoneCriteria,
 		})
 
-		for toolIndex, tool := range node.PreferredTools {
-			preferredTools = append(preferredTools, storedPreferredTool{
-				NodeName: node.Name,
-				Ordinal:  int32(toolIndex),
-				ToolName: tool,
-			})
+		if node.PreferredTools != nil {
+			for toolIndex, toolName := range *node.PreferredTools {
+				preferredTools = append(preferredTools, storedPreferredTool{
+					NodeName: node.Name,
+					Ordinal:  int32(toolIndex),
+					ToolName: toolName,
+				})
+			}
 		}
 	}
 

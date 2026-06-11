@@ -205,7 +205,7 @@ function workflowToMarkdown(workflow: Workflow) {
     lines.push(`- Execution position: ${index + 1}`)
     lines.push(`- Goal: ${node.goal}`)
     lines.push(`- Done criteria: ${node.done_criteria}`)
-    lines.push(`- Preferred tools: ${joinNames(node.preferred_tools)}`)
+    lines.push(`- Preferred tools: ${joinNames(node.preferred_tools ?? [])}`)
     lines.push(`- Incoming transitions: ${joinTransitions(incomingByNode.get(node.name) ?? [])}`)
     lines.push(`- Outgoing transitions: ${joinTransitions(outgoingByNode.get(node.name) ?? [])}`)
     lines.push("")

@@ -207,7 +207,7 @@ export type WorkflowNode = {
   instructions: string
   goal: string
   done_criteria: string
-  preferred_tools: Array<string>
+  preferred_tools?: Array<string>
 }
 
 export type WorkflowEdge = {

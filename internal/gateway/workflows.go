@@ -73,8 +73,10 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 		node.Goal = strings.TrimSpace(node.Goal)
 		node.DoneCriteria = strings.TrimSpace(node.DoneCriteria)
 
-		for toolIndex := range node.PreferredTools {
-			node.PreferredTools[toolIndex] = strings.TrimSpace(node.PreferredTools[toolIndex])
+		if node.PreferredTools != nil {
+			for toolIndex, toolName := range *node.PreferredTools {
+				(*node.PreferredTools)[toolIndex] = strings.TrimSpace(toolName)
+			}
 		}
 	}
 

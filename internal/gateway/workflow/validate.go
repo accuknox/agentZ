@@ -172,24 +172,26 @@ func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.F
 			})
 		}
 
-		seenTools := make(map[string]struct{}, len(node.PreferredTools))
-		for toolIndex, tool := range node.PreferredTools {
-			field := fieldPrefix + ".preferred_tools." + strconv.Itoa(toolIndex)
-			if tool == "" {
-				fields = append(fields, gatewayapi.FieldError{
-					Field:   field,
-					Message: "must not be empty",
-				})
-				continue
+		if node.PreferredTools != nil {
+			seenTools := make(map[string]struct{}, len(*node.PreferredTools))
+			for toolIndex, toolName := range *node.PreferredTools {
+				field := fieldPrefix + ".preferred_tools." + strconv.Itoa(toolIndex)
+				if toolName == "" {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   field,
+						Message: "must not be empty",
+					})
+					continue
+				}
+				if _, exists := seenTools[toolName]; exists {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   field,
+						Message: "must be unique within the node",
+					})
+					continue
+				}
+				seenTools[toolName] = struct{}{}
 			}
-			if _, exists := seenTools[tool]; exists {
-				fields = append(fields, gatewayapi.FieldError{
-					Field:   field,
-					Message: "must be unique within the node",
-				})
-				continue
-			}
-			seenTools[tool] = struct{}{}
 		}
 	}
 

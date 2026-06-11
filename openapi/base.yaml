@@ -1889,7 +1889,6 @@ components:
       - instructions
       - goal
       - done_criteria
-      - preferred_tools
 
     WorkflowEdge:
       type: object

@@ -254,8 +254,9 @@ function PreferredTools({
   tools: WorkflowNode["preferred_tools"]
   compact?: boolean
 }) {
-  const visibleTools = compact ? tools.slice(0, compactPreferredToolLimit) : tools
-  const overflowCount = compact ? Math.max(tools.length - compactPreferredToolLimit, 0) : 0
+  const preferredTools = tools ?? []
+  const visibleTools = compact ? preferredTools.slice(0, compactPreferredToolLimit) : preferredTools
+  const overflowCount = compact ? Math.max(preferredTools.length - compactPreferredToolLimit, 0) : 0
 
   return (
     <div className={compact ? "contents" : "flex flex-col gap-2"}>
@@ -265,7 +266,7 @@ function PreferredTools({
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        {tools.length > 0 ? (
+        {preferredTools.length > 0 ? (
           <>
             {compact ? (
               <span

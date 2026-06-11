@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,6 +33,7 @@ import {
 } from "@ridemountainpig/svgl-react"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import {
@@ -254,6 +254,7 @@ export function AgentDialog({
   trigger,
 }: AgentDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
+  const router = useRouter()
   const dialogOpen = open ?? internalOpen
   const hasEnvironments = environments.length > 0
   const formAction =
@@ -366,14 +367,13 @@ export function AgentDialog({
     })
   }
 
+  const onOpenChange = (nextOpen: boolean) => {
+    setInternalOpen(nextOpen)
+    onOpenChangeAction?.(nextOpen)
+  }
+
   return (
-    <Dialog
-      open={dialogOpen}
-      onOpenChange={(nextOpen) => {
-        setInternalOpen(nextOpen)
-        onOpenChangeAction?.(nextOpen)
-      }}
-    >
+    <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
       {trigger ? (
         <DialogTrigger asChild>{trigger}</DialogTrigger>
       ) : mode === "create" ? (
@@ -442,8 +442,18 @@ export function AgentDialog({
                   />
                   {!hasEnvironments ? (
                     <FieldDescription>
-                      Create an environment <Link href="/environments/new">here</Link> before
-                      continuing.
+                      Create an environment{" "}
+                      <button
+                        type="button"
+                        className="text-foreground underline"
+                        onClick={() => {
+                          onOpenChange(false)
+                          router.push("/environments/new")
+                        }}
+                      >
+                        here
+                      </button>{" "}
+                      before continuing.
                     </FieldDescription>
                   ) : null}
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}

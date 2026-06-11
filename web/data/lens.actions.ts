@@ -50,7 +50,8 @@ import type {
   TraceSessionFilterItem,
 } from "@/data/types"
 import { dayjs } from "@/lib/dayjs"
-import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
 
 const maxChartPoints = 25
 const chartSourceLimit = 100
@@ -79,7 +80,11 @@ type TraceSummary = Pick<
 export async function listTraceSessionsAction(
   query: ListTraceSessionsData["query"]
 ): Promise<ListTracesActionResponse> {
-  const result = await listTraceSessions({ query, cache: "no-store" })
+  const result = await listTraceSessions({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -102,6 +107,7 @@ export async function getTraceChartAction(
 ): Promise<TraceChartActionResponse> {
   if (query.session_id) {
     const result = await listTraceSessions({
+      client: gatewayServerClient,
       query: {
         agent_name: query.agent_name,
         session_id: query.session_id,
@@ -128,6 +134,7 @@ export async function getTraceChartAction(
   }
 
   const result = await listTraces({
+    client: gatewayServerClient,
     query: {
       agent_name: query.agent_name,
       started_after: query.started_after,
@@ -172,7 +179,11 @@ export async function listTraceSessionFilterAction({
 export async function listSpansAction(
   query: ListSpansData["query"]
 ): Promise<ListSpansActionResponse> {
-  const result = await listSpans({ query, cache: "no-store" })
+  const result = await listSpans({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -192,7 +203,11 @@ export async function listSpansAction(
 export async function getSpanDetailAction(
   query: GetSpanDetailData["query"]
 ): Promise<SpanDetailActionResponse> {
-  const result = await getSpanDetail({ query, cache: "no-store" })
+  const result = await getSpanDetail({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -227,7 +242,11 @@ export async function getSpanDetailAction(
 export async function getMcpGraphAction(
   query: GetMcpGraphData["query"]
 ): Promise<McpGraphActionResponse> {
-  const result = await getMcpGraph({ query, cache: "no-store" })
+  const result = await getMcpGraph({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -252,9 +271,21 @@ export async function getRuntimeTelemetryAction({
     event_time_before: isoDateTimeParam(started_before),
   }
   const [processes, files, networks] = await Promise.all([
-    listProcessObservability({ query, cache: "no-store" }),
-    listFileObservability({ query, cache: "no-store" }),
-    listNetworkObservability({ query, cache: "no-store" }),
+    listProcessObservability({
+      query,
+      cache: "no-store",
+      client: gatewayServerClient,
+    }),
+    listFileObservability({
+      query,
+      cache: "no-store",
+      client: gatewayServerClient,
+    }),
+    listNetworkObservability({
+      query,
+      cache: "no-store",
+      client: gatewayServerClient,
+    }),
   ])
   if (processes.error) {
     return { data: undefined, error: processes.error }
@@ -309,7 +340,11 @@ export async function getRuntimeTelemetryTabAction({
   }
 
   if (tab === "process") {
-    const result = await listProcessObservability({ query, cache: "no-store" })
+    const result = await listProcessObservability({
+      query,
+      cache: "no-store",
+      client: gatewayServerClient,
+    })
     if (result.error) {
       return { data: undefined, error: result.error }
     }
@@ -328,7 +363,11 @@ export async function getRuntimeTelemetryTabAction({
   }
 
   if (tab === "file") {
-    const result = await listFileObservability({ query, cache: "no-store" })
+    const result = await listFileObservability({
+      query,
+      cache: "no-store",
+      client: gatewayServerClient,
+    })
     if (result.error) {
       return { data: undefined, error: result.error }
     }
@@ -344,7 +383,11 @@ export async function getRuntimeTelemetryTabAction({
     }
   }
 
-  const result = await listNetworkObservability({ query, cache: "no-store" })
+  const result = await listNetworkObservability({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -478,7 +521,11 @@ export async function getProcessTelemetryAction({
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
 
-  const result = await listProcessObservability({ query, cache: "no-store" })
+  const result = await listProcessObservability({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -519,7 +566,11 @@ export async function getFileTelemetryAction({
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
 
-  const result = await listFileObservability({ query, cache: "no-store" })
+  const result = await listFileObservability({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
@@ -560,7 +611,11 @@ export async function getNetworkTelemetryAction({
     event_time_before: event_time_before ? isoDateTimeParam(event_time_before) : undefined,
   }
 
-  const result = await listNetworkObservability({ query, cache: "no-store" })
+  const result = await listNetworkObservability({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { data: undefined, error: result.error }
   }

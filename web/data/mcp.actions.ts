@@ -21,6 +21,7 @@ import {
 } from "@/lib/mcp-oauth"
 import { oauthErrorFieldNames } from "@/lib/mcp-oauth-shared"
 import { mcpsTag } from "@/data/cache"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 export type McpFormState =
   | {
@@ -112,12 +113,14 @@ async function persistBearerMutation(
         endpoint: form.endpoint,
         auth,
       },
+      client: gatewayServerClient,
     })
     if (createResult.error) {
       return createResult.error
     }
   } else {
     const updateResult = await updateMcpConnection({
+      client: gatewayServerClient,
       path: { name: form.currentName ?? form.name },
       body: {
         endpoint: form.endpoint,
@@ -134,6 +137,7 @@ async function persistBearerMutation(
   }
 
   const credentialsResult = await setMcpConnectionCredentials({
+    client: gatewayServerClient,
     path: { name: form.currentName ?? form.name },
     body: {
       bearer: {
@@ -283,6 +287,7 @@ export async function deleteMcpFormAction(
   }
 
   const result = await deleteMcpConnection({
+    client: gatewayServerClient,
     path: { name: parsedName.data },
   })
   if (result.error) {

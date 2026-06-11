@@ -1,6 +1,6 @@
 "use server"
 
-import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
 import type { DeleteSessionFormState } from "@/data/types"
 
 // deleteAgentSessionAction deletes one OpenCode session for a single agent.

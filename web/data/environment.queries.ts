@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 import { listEnvironments, type ListEnvironmentsData } from "@/lib/gateway/client"
 import type { ListEnvironmentActionResponse } from "@/data/types"
 import { environmentsTag } from "@/data/cache"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function listEnvironmentsCachedQuery(
   query?: ListEnvironmentsData["query"]
@@ -11,7 +12,7 @@ export async function listEnvironmentsCachedQuery(
   cacheLife("hours")
   cacheTag(environmentsTag)
 
-  const result = await listEnvironments({ query })
+  const result = await listEnvironments({ query, client: gatewayServerClient })
   if (result.error) {
     return {
       environments: undefined,

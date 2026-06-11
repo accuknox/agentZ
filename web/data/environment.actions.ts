@@ -19,11 +19,16 @@ import type {
 } from "@/data/types"
 import type * as z from "zod"
 import { environmentsTag } from "@/data/cache"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function listEnvironmentsAction(
   query?: ListEnvironmentsData["query"]
 ): Promise<ListEnvironmentActionResponse> {
-  const result = await listEnvironments({ query, cache: "no-store" })
+  const result = await listEnvironments({
+    query,
+    cache: "no-store",
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return {
       environments: undefined,
@@ -96,6 +101,7 @@ export async function deleteEnvironmentFormAction(
   let pageToken = ""
   for (;;) {
     const listResult = await listEnvironments({
+      client: gatewayServerClient,
       query: { limit: 200, page_token: pageToken || undefined },
       cache: "no-store",
     })
@@ -122,7 +128,10 @@ export async function deleteEnvironmentFormAction(
     }
   }
 
-  const result = await deleteEnvironment({ body: { name } })
+  const result = await deleteEnvironment({
+    body: { name },
+    client: gatewayServerClient,
+  })
   if (result.error) {
     return { error: result.error }
   }
@@ -154,6 +163,7 @@ export async function createEnvironmentFormAction(
   }
 
   const result = await createEnvironment({
+    client: gatewayServerClient,
     body: {
       name: parsed.data.name,
       packages: parsed.data.packages,
@@ -201,6 +211,7 @@ export async function updateEnvironmentFormAction(
   }
 
   const result = await updateEnvironment({
+    client: gatewayServerClient,
     body: {
       packages: parsed.data.packages,
       allowed_hosts: parsed.data.allowedHosts,

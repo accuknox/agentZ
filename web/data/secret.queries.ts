@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 import { listSecrets } from "@/lib/gateway/client"
 import type { Error, SecretListItem } from "@/lib/gateway/client"
 import { agentSecretsTag, secretsTag } from "@/data/cache"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 export type ListSecretsQueryResponse =
   | {
@@ -27,6 +28,7 @@ export async function listSecretsCachedQuery(
   cacheTag(secretsTag, agentSecretsTag(agentName))
 
   const result = await listSecrets({
+    client: gatewayServerClient,
     path: { agentName },
     query,
   })

@@ -1,15 +1,20 @@
-const gatewayOrigin = process.env.NEXT_PUBLIC_GATEWAY_BASE_URL?.trim()
-const webOrigin = process.env.NEXT_PUBLIC_WEB_BASE_URL?.trim()
+/**
+ * trimTrailingSlash keeps configured origins stable for URL composition.
+ */
+function trimTrailingSlash(value: string): string {
+  return value.endsWith("/") ? value.slice(0, -1) : value
+}
 
 /**
- * gatewayBaseURL returns the configured gateway origin.
+ * gatewayBaseURL returns the public gateway origin used by browser code.
  */
 export function gatewayBaseURL(): string {
+  const gatewayOrigin = process.env.NEXT_PUBLIC_GATEWAY_BASE_URL?.trim()
   if (!gatewayOrigin) {
     throw new Error("NEXT_PUBLIC_GATEWAY_BASE_URL is not configured")
   }
 
-  return gatewayOrigin.endsWith("/") ? gatewayOrigin.slice(0, -1) : gatewayOrigin
+  return trimTrailingSlash(gatewayOrigin)
 }
 
 /**
@@ -20,8 +25,9 @@ export function gatewayBaseURL(): string {
  * that use a single public host do not fail at runtime.
  */
 export function webBaseURL(): string {
+  const webOrigin = process.env.NEXT_PUBLIC_WEB_BASE_URL?.trim()
   if (webOrigin) {
-    return webOrigin.endsWith("/") ? webOrigin.slice(0, -1) : webOrigin
+    return trimTrailingSlash(webOrigin)
   }
 
   return gatewayBaseURL()

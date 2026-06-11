@@ -27,6 +27,8 @@ service:
   port: 3000
 
 env:
+  # Optional internal gateway base URL used only by server-side web requests.
+  gatewayInternalBaseURL: ""
   # Optional NixOS search Elasticsearch endpoint.
   nixosSearchESURL: ""
   # Optional NixOS search Elasticsearch username.

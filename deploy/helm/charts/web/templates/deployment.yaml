@@ -39,6 +39,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "web.fullname" . }}
                   key: MCP_OAUTH_COOKIE_SECRET
+            {{- if .Values.env.gatewayInternalBaseURL }}
+            - name: GATEWAY_INTERNAL_BASE_URL
+              value: {{ .Values.env.gatewayInternalBaseURL | quote }}
+            {{- end }}
             {{- if .Values.env.nixosSearchESURL }}
             - name: NIXOS_SEARCH_ES_URL
               value: {{ .Values.env.nixosSearchESURL | quote }}

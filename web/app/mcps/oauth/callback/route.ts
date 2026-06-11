@@ -15,6 +15,7 @@ import {
   oauthCookieOptions,
   openPendingOAuthState,
 } from "@/lib/mcp-oauth"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 function htmlResponse(body: string) {
   return new Response(body, {
@@ -83,12 +84,14 @@ export async function GET(request: Request) {
           endpoint: pending.operation.form.endpoint,
           auth: result.value.auth,
         },
+        client: gatewayServerClient,
       })
       if (createResult.error) {
         throw new Error(createResult.error.message)
       }
 
       const credentialsResult = await setMcpConnectionCredentials({
+        client: gatewayServerClient,
         path: { name: pending.operation.form.name },
         body: {
           oauth: result.value.credentials,
@@ -96,6 +99,7 @@ export async function GET(request: Request) {
       })
       if (credentialsResult.error) {
         const deleteResult = await deleteMcpConnection({
+          client: gatewayServerClient,
           path: { name: pending.operation.form.name },
         })
         if (deleteResult.error) {
@@ -108,6 +112,7 @@ export async function GET(request: Request) {
       }
     } else {
       const currentResult = await getMcpConnection({
+        client: gatewayServerClient,
         path: { name: pending.operation.name },
         cache: "no-store",
       })
@@ -117,6 +122,7 @@ export async function GET(request: Request) {
 
       const previous = currentResult.data
       const updateResult = await updateMcpConnection({
+        client: gatewayServerClient,
         path: { name: pending.operation.name },
         body: {
           endpoint: pending.operation.form.endpoint,
@@ -128,6 +134,7 @@ export async function GET(request: Request) {
       }
 
       const credentialsResult = await setMcpConnectionCredentials({
+        client: gatewayServerClient,
         path: { name: pending.operation.name },
         body: {
           oauth: result.value.credentials,
@@ -135,6 +142,7 @@ export async function GET(request: Request) {
       })
       if (credentialsResult.error) {
         const rollbackResult = await updateMcpConnection({
+          client: gatewayServerClient,
           path: { name: pending.operation.name },
           body: {
             endpoint: previous.endpoint,

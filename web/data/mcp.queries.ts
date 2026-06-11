@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 import { listMcpConnections, type ListMcpConnectionsData } from "@/lib/gateway/client"
 import type { Error, McpConnectionSummary } from "@/lib/gateway/client"
 import { mcpsTag } from "@/data/cache"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 export type ListMcpConnectionsQueryResponse =
   | {
@@ -25,7 +26,7 @@ export async function listMcpConnectionsCachedQuery(
   cacheLife("minutes")
   cacheTag(mcpsTag)
 
-  const result = await listMcpConnections({ query })
+  const result = await listMcpConnections({ query, client: gatewayServerClient })
   if (result.error) {
     return {
       mcpConnections: undefined,

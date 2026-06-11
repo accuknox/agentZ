@@ -6,6 +6,7 @@ import { deleteSecret, listSecrets, putSecret } from "@/lib/gateway/client"
 import type { Error } from "@/lib/gateway/client"
 import { zSecretKey } from "@/lib/gateway/client/zod.gen"
 import { agentSecretsTag, secretsTag } from "@/data/cache"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 import { secretHostsInputSchema, secretValueSchema } from "./schema"
 import type { DeleteSecretFormState, PutSecretFormState } from "./types"
 
@@ -15,6 +16,7 @@ async function fetchAllSecretKeys(agentName: string): Promise<string[] | Error> 
 
   while (true) {
     const result = await listSecrets({
+      client: gatewayServerClient,
       path: { agentName },
       query: { limit: 200, page_token: pageToken },
       cache: "no-store",
@@ -114,6 +116,7 @@ export async function putSecretFormAction(
   }
 
   const result = await putSecret({
+    client: gatewayServerClient,
     path: { agentName },
     body: {
       secrets: [{ key: parsedKey.data, value: parsedValue.data, hosts: parsedHosts.data }],
@@ -151,6 +154,7 @@ export async function deleteSecretFormAction(
   }
 
   const result = await deleteSecret({
+    client: gatewayServerClient,
     path: { agentName },
     body: {
       keys: [parsedKey.data],

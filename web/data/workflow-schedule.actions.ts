@@ -22,6 +22,7 @@ import type {
   UpdateWorkflowScheduleFormState,
   WorkflowInputSchemaResult,
 } from "@/data/types"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 type ParsedScheduleForm = {
   data: CreateWorkflowScheduleFormValues
@@ -41,6 +42,7 @@ export async function createWorkflowScheduleFormAction(
   }
 
   const result = await createWorkflowSchedule({
+    client: gatewayServerClient,
     body: createWorkflowScheduleRequest(agentName, parsed),
   })
   if (result.error) {
@@ -55,6 +57,7 @@ export async function getWorkflowInputSchemaAction(
   workflowName: string
 ): Promise<WorkflowInputSchemaResult> {
   const result = await getWorkflow({
+    client: gatewayServerClient,
     path: {
       agentName,
       workflowName,
@@ -86,6 +89,7 @@ export async function updateWorkflowScheduleFormAction(
   }
 
   const result = await updateWorkflowSchedule({
+    client: gatewayServerClient,
     path: {
       agentName,
       name: nameResult.data,
@@ -118,6 +122,7 @@ export async function deleteWorkflowScheduleFormAction(
   }
 
   const result = await deleteWorkflowSchedule({
+    client: gatewayServerClient,
     path: {
       agentName,
       name: nameResult.data,
@@ -166,6 +171,7 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
   }
 
   const workflowResult = await getWorkflow({
+    client: gatewayServerClient,
     path: {
       agentName,
       workflowName: values.workflow_name,

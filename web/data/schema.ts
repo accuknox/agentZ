@@ -10,6 +10,7 @@ export const secretKeySchema = z
 
 export const secretValueSchema = z
   .string()
+  .trim()
   .min(1, "Secret value is required")
   .max(49152, "Secret value must be at most 48 KB")
 

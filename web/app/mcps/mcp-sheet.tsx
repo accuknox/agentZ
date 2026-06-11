@@ -1302,7 +1302,8 @@ export function McpSheet({
           </div>
         ) : (
           <form
-            action={async () => {
+            onSubmit={async (event) => {
+              event.preventDefault()
               setClientSubmitError(undefined)
               form.clearErrors()
               const valid = await form.trigger()

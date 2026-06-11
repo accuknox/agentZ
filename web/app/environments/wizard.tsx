@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react"
 import * as React from "react"
-import { startTransition, useActionState, useState } from "react"
+import { startTransition, useActionState, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { dayjs } from "@/lib/dayjs"
 import { WizardShell } from "@/components/blocks/wizard"
@@ -77,6 +77,11 @@ type EnvironmentWizardData = {
   identity?: EnvironmentIdentity
   packages?: string[]
   mcps?: SelectedMcpConnectionRef[]
+  allowedHosts?: AllowedHostsDraft
+}
+
+type AllowedHostsDraft = AllowedHostsStepValues & {
+  draft: string
 }
 
 type EnvironmentWizardProps = {
@@ -99,7 +104,8 @@ type SelectedMcpTool = {
 }
 
 type PackageStepProps = {
-  initialPackages: string[]
+  installedPackages: string[]
+  selectedPackages: string[]
   onPrev: () => void
   onNext: (packages: string[]) => void
 }
@@ -107,9 +113,11 @@ type PackageStepProps = {
 type AllowedHostsStepProps = {
   identity: EnvironmentIdentity
   initialAllowedHosts: string[]
+  initialDraft: string
   mcpConnectionRefs: SelectedMcpConnectionRef[]
   packages: string[]
   mode: EnvironmentWizardMode
+  onAllowedHostsChangeAction: (data: AllowedHostsDraft) => void
   onPrev: () => void
 }
 
@@ -139,6 +147,17 @@ type PackageStepValues = {
 }
 
 type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
+
+const formIdByStep = {
+  identity: "environment-form-identity",
+  packages: "environment-form-packages",
+  mcps: "environment-form-mcps",
+  allowedHosts: "environment-form-allowed-hosts",
+} as const
+
+type StepId = (typeof steps)[number]["id"]
+
+type NavigationRequest = { kind: "prev" } | { kind: "step"; step: StepId; index: number }
 
 const mcpColumnClassName: Record<string, string> = {
   name: "w-40",
@@ -179,10 +198,12 @@ const { Stepper } = defineStepper(...steps)
 function IdentityForm({
   defaultValues,
   lockName,
+  onAdvanceAction,
   onNext,
 }: {
   defaultValues: EnvironmentIdentity
   lockName: boolean
+  onAdvanceAction: () => void
   onNext: (data: EnvironmentIdentity) => void
 }) {
   const form = useForm<EnvironmentIdentity>({
@@ -227,31 +248,40 @@ function IdentityForm({
         />
       </FieldGroup>
       <StepActions>
-        <Button type="submit">Next</Button>
+        <Button type="submit" onClick={onAdvanceAction}>
+          Next
+        </Button>
       </StepActions>
     </form>
   )
 }
 
-function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
+function PackageStep({
+  installedPackages,
+  selectedPackages,
+  onAdvanceAction,
+  onNext,
+  onPrev,
+}: PackageStepProps & { onAdvanceAction: () => void }) {
   const form = useForm<PackageStepValues>({
     defaultValues: {
-      packages: initialPackages,
+      packages: selectedPackages,
     },
   })
   const selected = useWatch({
     control: form.control,
     name: "packages",
-    defaultValue: initialPackages,
+    defaultValue: selectedPackages,
   })
 
   return (
     <form
+      id={formIdByStep.packages}
       onSubmit={form.handleSubmit((data) => onNext(data.packages))}
       className="flex min-h-full flex-col gap-5"
     >
       <PackageSearch
-        installed={initialPackages}
+        installed={installedPackages}
         selected={selected}
         onSelectedChangeAction={(packages) =>
           form.setValue("packages", packages, {
@@ -264,7 +294,9 @@ function PackageStep({ initialPackages, onNext, onPrev }: PackageStepProps) {
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
         </Button>
-        <Button type="submit">Next</Button>
+        <Button type="submit" onClick={onAdvanceAction}>
+          Next
+        </Button>
       </StepActions>
     </form>
   )
@@ -540,7 +572,13 @@ function McpToolsRow({
   )
 }
 
-function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: McpStepProps) {
+function McpStep({
+  initialMcpConnectionRefs,
+  mcpConnections,
+  onAdvanceAction,
+  onNext,
+  onPrev,
+}: McpStepProps & { onAdvanceAction: () => void }) {
   const form = useForm<McpStepValues>({
     defaultValues: {
       mcpConnectionRefs: initialMcpConnectionRefs,
@@ -680,6 +718,7 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
 
   return (
     <form
+      id={formIdByStep.mcps}
       onSubmit={form.handleSubmit((data) =>
         onNext(data.mcpConnectionRefs.toSorted((a, b) => a.name.localeCompare(b.name)))
       )}
@@ -771,7 +810,11 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
         </Button>
-        <Button type="submit" disabled={selected.some((ref) => ref.tools.length === 0)}>
+        <Button
+          type="submit"
+          onClick={onAdvanceAction}
+          disabled={selected.some((ref) => ref.tools.length === 0)}
+        >
           Next
         </Button>
       </StepActions>
@@ -782,12 +825,14 @@ function McpStep({ initialMcpConnectionRefs, mcpConnections, onNext, onPrev }: M
 function AllowedHostsStep({
   identity,
   initialAllowedHosts,
+  initialDraft,
   mcpConnectionRefs,
   packages,
   mode,
+  onAllowedHostsChangeAction,
   onPrev,
 }: AllowedHostsStepProps) {
-  const [draft, setDraft] = React.useState("")
+  const [draft, setDraft] = React.useState(initialDraft)
   const [draftError, setDraftError] = React.useState<string>()
   const formAction =
     mode === "update"
@@ -829,10 +874,14 @@ function AllowedHostsStep({
     }
   }, [form, state.error])
 
-  function setHosts(hosts: string[]) {
-    form.setValue("allowedHosts", hosts, {
+  function setAllowedHostsState(nextHosts: string[], nextDraft: string) {
+    form.setValue("allowedHosts", nextHosts, {
       shouldDirty: true,
       shouldValidate: true,
+    })
+    onAllowedHostsChangeAction({
+      allowedHosts: nextHosts,
+      draft: nextDraft,
     })
   }
 
@@ -844,7 +893,7 @@ function AllowedHostsStep({
     }
 
     const nextHosts = Array.from(new Set([...hosts, parsed.data])).sort()
-    setHosts(nextHosts)
+    setAllowedHostsState(nextHosts, "")
     setDraft("")
     setDraftError(undefined)
     form.clearErrors("allowedHosts")
@@ -867,7 +916,11 @@ function AllowedHostsStep({
   }
 
   return (
-    <form action={submitAction} className="flex min-h-full flex-col gap-5">
+    <form
+      id={formIdByStep.allowedHosts}
+      action={submitAction}
+      className="flex min-h-full flex-col gap-5"
+    >
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (
         <input key={pkg} type="hidden" name="packages" value={pkg} />
@@ -906,8 +959,13 @@ function AllowedHostsStep({
                 id="environment-form-allowed-host"
                 value={draft}
                 onChange={(event) => {
-                  setDraft(event.target.value)
+                  const nextDraft = event.target.value
+                  setDraft(nextDraft)
                   setDraftError(undefined)
+                  onAllowedHostsChangeAction({
+                    allowedHosts: hosts,
+                    draft: nextDraft,
+                  })
                 }}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") return
@@ -934,7 +992,12 @@ function AllowedHostsStep({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setHosts(hosts.filter((item) => item !== host))}
+                  onClick={() =>
+                    setAllowedHostsState(
+                      hosts.filter((item) => item !== host),
+                      draft
+                    )
+                  }
                 >
                   {host}
                   <X data-icon="inline-end" />
@@ -989,6 +1052,7 @@ export function EnvironmentWizard({
   mode,
 }: EnvironmentWizardProps) {
   const [direction, setDirection] = useState(1)
+  const pendingNavigationRef = useRef<NavigationRequest | undefined>(undefined)
   const initialIdentity = { name: initialName }
 
   return (
@@ -998,6 +1062,10 @@ export function EnvironmentWizard({
         identity: initialName ? initialIdentity : undefined,
         packages: initialPackages,
         mcps: initialMcpConnectionRefs,
+        allowedHosts: {
+          allowedHosts: initialAllowedHosts,
+          draft: "",
+        } satisfies AllowedHostsDraft,
       }}
       orientation="horizontal"
     >
@@ -1006,29 +1074,58 @@ export function EnvironmentWizard({
           identity: stepper.metadata.get("identity") as EnvironmentIdentity | undefined,
           packages: stepper.metadata.get("packages") as string[] | undefined,
           mcps: stepper.metadata.get("mcps") as SelectedMcpConnectionRef[] | undefined,
+          allowedHosts: stepper.metadata.get("allowedHosts") as AllowedHostsDraft | undefined,
         }
-        const goPrev = () => {
-          setDirection(-1)
-          stepper.navigation.prev()
+        const currentIndex = stepper.state.current.index
+        const currentStepId = stepper.state.current.data.id
+
+        const completeNavigation = (request?: NavigationRequest) => {
+          if (!request) {
+            setDirection(1)
+            stepper.navigation.next()
+            return
+          }
+
+          if (request.kind === "prev") {
+            setDirection(-1)
+            stepper.navigation.prev()
+            return
+          }
+
+          setDirection(request.index >= currentIndex ? 1 : -1)
+          stepper.navigation.goTo(request.step)
         }
-        const goNext = () => {
-          setDirection(1)
-          stepper.navigation.next()
+
+        const requestNavigation = (request: NavigationRequest) => {
+          if (request.kind === "step" && request.index === currentIndex) {
+            pendingNavigationRef.current = undefined
+            return
+          }
+
+          if (currentStepId === "allowedHosts") {
+            pendingNavigationRef.current = undefined
+            completeNavigation(request)
+            return
+          }
+
+          pendingNavigationRef.current = request
+          const form = document.getElementById(formIdByStep[currentStepId])
+          if (!(form instanceof HTMLFormElement)) {
+            return
+          }
+          form.requestSubmit()
         }
 
         return (
           <WizardShell
             steps={steps}
-            currentIndex={stepper.state.current.index}
-            currentStepId={stepper.state.current.data.id}
+            currentIndex={currentIndex}
+            currentStepId={currentStepId}
             direction={direction}
             layout="horizontal"
-            canVisitStepAction={(_, index) =>
-              index <= stepper.state.current.index || Boolean(data.identity)
-            }
+            canVisitStepAction={(_, index) => index <= currentIndex || Boolean(data.identity)}
             onStepSelectAction={(step, index) => {
-              setDirection(index >= stepper.state.current.index ? 1 : -1)
-              stepper.navigation.goTo(step.id)
+              requestNavigation({ kind: "step", step: step.id, index })
             }}
           >
             {stepper.flow.switch({
@@ -1036,19 +1133,28 @@ export function EnvironmentWizard({
                 <IdentityForm
                   defaultValues={data.identity ?? initialIdentity}
                   lockName={mode === "update"}
+                  onAdvanceAction={() => {
+                    pendingNavigationRef.current = undefined
+                  }}
                   onNext={(identity) => {
                     stepper.metadata.set("identity", identity)
-                    goNext()
+                    completeNavigation(pendingNavigationRef.current)
+                    pendingNavigationRef.current = undefined
                   }}
                 />
               ),
               packages: () => (
                 <PackageStep
-                  initialPackages={data.packages ?? initialPackages}
-                  onPrev={goPrev}
+                  installedPackages={initialPackages}
+                  selectedPackages={data.packages ?? initialPackages}
+                  onAdvanceAction={() => {
+                    pendingNavigationRef.current = undefined
+                  }}
+                  onPrev={() => requestNavigation({ kind: "prev" })}
                   onNext={(packages) => {
                     stepper.metadata.set("packages", packages)
-                    goNext()
+                    completeNavigation(pendingNavigationRef.current)
+                    pendingNavigationRef.current = undefined
                   }}
                 />
               ),
@@ -1056,21 +1162,29 @@ export function EnvironmentWizard({
                 <McpStep
                   initialMcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
                   mcpConnections={mcpConnections}
-                  onPrev={goPrev}
+                  onAdvanceAction={() => {
+                    pendingNavigationRef.current = undefined
+                  }}
+                  onPrev={() => requestNavigation({ kind: "prev" })}
                   onNext={(mcpConnectionRefs) => {
                     stepper.metadata.set("mcps", mcpConnectionRefs)
-                    goNext()
+                    completeNavigation(pendingNavigationRef.current)
+                    pendingNavigationRef.current = undefined
                   }}
                 />
               ),
               allowedHosts: () => (
                 <AllowedHostsStep
                   identity={data.identity!}
-                  initialAllowedHosts={initialAllowedHosts}
+                  initialAllowedHosts={data.allowedHosts?.allowedHosts ?? initialAllowedHosts}
+                  initialDraft={data.allowedHosts?.draft ?? ""}
                   mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
                   packages={data.packages ?? initialPackages}
                   mode={mode}
-                  onPrev={goPrev}
+                  onAllowedHostsChangeAction={(nextData) => {
+                    stepper.metadata.set("allowedHosts", nextData)
+                  }}
+                  onPrev={() => requestNavigation({ kind: "prev" })}
                 />
               ),
             })}

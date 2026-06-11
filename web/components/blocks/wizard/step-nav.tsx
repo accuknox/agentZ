@@ -48,9 +48,11 @@ export function WizardStepNav<TStep extends WizardStep>({
             data-status={status}
           >
             <Button
-              className="size-6 rounded-full lg:size-8 [&_svg:not([class*='size-'])]:size-3.5 lg:[&_svg:not([class*='size-'])]:size-4"
-              variant={isInactive ? "secondary" : "default"}
-              size="icon"
+              className={cn(
+                "grid min-h-0 min-w-0 items-center gap-2 rounded-md p-1 text-left",
+                layout === "vertical" ? "col-span-2 grid-cols-[auto_1fr]" : "grid-cols-[auto_1fr]"
+              )}
+              variant="plain"
               type="button"
               role="tab"
               id={`wizard-step-${step.id}`}
@@ -62,11 +64,20 @@ export function WizardStepNav<TStep extends WizardStep>({
               disabled={disabled}
               onClick={() => onStepSelectAction(step, index)}
             >
-              <Icon />
+              <span
+                className={cn(
+                  "flex size-6 items-center justify-center rounded-full lg:size-8 [&_svg:not([class*='size-'])]:size-3.5 lg:[&_svg:not([class*='size-'])]:size-4",
+                  isInactive
+                    ? "bg-secondary text-secondary-foreground"
+                    : "bg-primary text-primary-foreground"
+                )}
+              >
+                <Icon />
+              </span>
+              <span className="truncate text-sm font-medium group-focus-within:underline group-hover:underline">
+                {step.title}
+              </span>
             </Button>
-            <div className="flex min-w-0 items-center">
-              <h4 className="truncate text-sm font-medium">{step.title}</h4>
-            </div>
             <div className={cn("flex justify-center", layout === "horizontal" && "w-32")}>
               {!isLast && (
                 <div

@@ -189,6 +189,12 @@ func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 			Labels: map[string]string{
 				"clawarmor.accuknox.com/workflow-schedule": schedule.Name,
 			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(
+					schedule,
+					clawarmorv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
+				),
+			},
 		},
 		Spec: clawarmorv1alpha1.WorkflowRunSpec{
 			AgentName:      schedule.Spec.AgentName,
@@ -223,7 +229,10 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 	items := make([]gatewayapi.WorkflowRunSummary, 0, len(list.Items))
 	for i := range list.Items {
 		run := &list.Items[i]
-		if !runMatchesSchedule(run, schedule.Name, schedule.Spec.AgentName) {
+		if run.Spec.AgentName != schedule.Spec.AgentName {
+			continue
+		}
+		if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != schedule.Name {
 			continue
 		}
 		if status != nil && string(*status) != string(run.Status.Phase) {
@@ -262,7 +271,10 @@ func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName
 	if err := k8sClient.Get(ctx, key, run); err != nil {
 		return gatewayapi.WorkflowRunDetail{}, err
 	}
-	if !runMatchesSchedule(run, schedule.Name, schedule.Spec.AgentName) {
+	if run.Spec.AgentName != schedule.Spec.AgentName {
+		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowScheduleRefMismatch
+	}
+	if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != schedule.Name {
 		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowScheduleRefMismatch
 	}
 	return runDetailFromCRD(run), nil
@@ -279,7 +291,10 @@ func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 	if err := k8sClient.Get(ctx, key, run); err != nil {
 		return err
 	}
-	if !runMatchesSchedule(run, schedule.Name, schedule.Spec.AgentName) {
+	if run.Spec.AgentName != schedule.Spec.AgentName {
+		return ErrWorkflowScheduleRefMismatch
+	}
+	if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != schedule.Name {
 		return ErrWorkflowScheduleRefMismatch
 	}
 
@@ -407,16 +422,6 @@ func workflowRunReason(run *clawarmorv1alpha1.WorkflowRun) string {
 		return string(run.Status.Phase)
 	}
 	return clawarmorv1alpha1.WorkflowRunReasonPending
-}
-
-func runMatchesSchedule(run *clawarmorv1alpha1.WorkflowRun, schName string, agtName string) bool {
-	if run.Spec.AgentName != agtName {
-		return false
-	}
-	if run.Spec.ScheduleRef == nil {
-		return false
-	}
-	return run.Spec.ScheduleRef.Name == schName
 }
 
 func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, schName string) (*clawarmorv1alpha1.WorkflowSchedule, error) {

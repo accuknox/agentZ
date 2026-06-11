@@ -162,6 +162,20 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		return gatewayapi.WorkflowSchedule{}, err
 	}
 
+	agt := &clawarmorv1alpha1.Agent{}
+	agtKey := ctrlclient.ObjectKey{
+		Name:      req.AgentName,
+		Namespace: ns,
+	}
+	err = k8sClient.Get(ctx, agtKey, agt)
+	if err != nil {
+		return gatewayapi.WorkflowSchedule{}, fmt.Errorf(
+			"get agent %q: %w",
+			req.AgentName,
+			err,
+		)
+	}
+
 	schedule := &clawarmorv1alpha1.WorkflowSchedule{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
@@ -170,6 +184,12 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
 			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Agent",
+				Name:       agt.Name,
+				UID:        agt.UID,
+			}},
 		},
 	}
 	applyScheduleSpec(&schedule.Spec, req.AgentName, specInput, inputsJSON)

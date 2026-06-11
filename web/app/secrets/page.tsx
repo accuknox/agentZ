@@ -35,7 +35,7 @@ export default function SecretsPage({ searchParams }: { searchParams: Promise<Se
             </Button>
           }
         >
-          <NewSecretButtonShell putSecretAction={putSecretFormAction} />
+          <NewSecretButtonShell searchParams={searchParams} putSecretAction={putSecretFormAction} />
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
@@ -53,12 +53,16 @@ export default function SecretsPage({ searchParams }: { searchParams: Promise<Se
 }
 
 async function NewSecretButtonShell({
+  searchParams,
   putSecretAction,
 }: {
+  searchParams: Promise<SearchParams>
   putSecretAction: typeof putSecretFormAction
 }) {
   await connection()
   const agents = listAgentsCachedQuery()
+  const params = await searchParams
+  const agentName = firstSearchParam(params.agent_name)
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return (
@@ -69,7 +73,15 @@ async function NewSecretButtonShell({
     )
   }
 
-  return <NewSecretButton agentName={result.agents[0].name} putSecretAction={putSecretAction} />
+  const selectedAgent = result.agents.find((agent) => agent.name === agentName) ?? result.agents[0]
+
+  return (
+    <NewSecretButton
+      key={selectedAgent.name}
+      agentName={selectedAgent.name}
+      putSecretAction={putSecretAction}
+    />
+  )
 }
 
 async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -82,12 +94,9 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
     return <FiltersSkeleton />
   }
 
-  return (
-    <SecretsFilters
-      agents={result.agents}
-      selectedAgentName={agentName ?? result.agents[0]?.name}
-    />
-  )
+  const selectedAgent = result.agents.find((agent) => agent.name === agentName) ?? result.agents[0]
+
+  return <SecretsFilters agents={result.agents} selectedAgentName={selectedAgent.name} />
 }
 
 async function Secrets({
@@ -109,12 +118,13 @@ async function Secrets({
     return <ErrorPanel message={agentsResult.error.message} />
   }
 
-  const selected = agentName ?? agentsResult.agents[0]?.name
-  if (!selected) {
+  const selectedAgent =
+    agentsResult.agents.find((agent) => agent.name === agentName) ?? agentsResult.agents[0]
+  if (!selectedAgent) {
     return <EmptyState message="No agents available" />
   }
 
-  const result = await listSecretsCachedQuery(selected, {
+  const result = await listSecretsCachedQuery(selectedAgent.name, {
     limit: 50,
     page_token: pageToken,
   })
@@ -125,7 +135,7 @@ async function Secrets({
 
   return (
     <SecretTable
-      agentName={selected}
+      agentName={selectedAgent.name}
       secrets={result.items}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}

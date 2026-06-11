@@ -51,27 +51,6 @@ export async function selectWorkflowFiltersAction(formData: FormData) {
   )
 }
 
-export async function selectWorkflowSchedulesAgentAction(formData: FormData) {
-  const agentsResult = await listAgentsCachedQuery()
-  if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    redirect("/workflows/schedules")
-  }
-
-  const parsed = workflowFiltersFormSchema.safeParse({
-    agent_name: typeof formData.get("agent_name") === "string" ? formData.get("agent_name") : "",
-    workflow_name: "",
-  })
-  if (!parsed.success) {
-    redirect("/workflows/schedules")
-  }
-
-  const agent =
-    agentsResult.agents.find((currentAgent) => currentAgent.name === parsed.data.agent_name) ??
-    agentsResult.agents[0]
-
-  redirect(workflowSchedulesPath(agent?.name))
-}
-
 export async function selectWorkflowRunsFiltersAction(formData: FormData) {
   const agentsResult = await listAgentsCachedQuery()
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {

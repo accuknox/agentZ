@@ -65,13 +65,18 @@ export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
 
   const agentsResult = await listAgentsCachedQuery()
   const agents = agentsResult.agents ?? []
-  const agentName = agentNameFromUrl ?? agents[0]?.name
+  const selectedAgent = agents.find((agent) => agent.name === agentNameFromUrl) ?? agents[0]
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters agents={agents} selectedAgentName={agentName} from={range.from} to={range.to} />
+        <Filters
+          agents={agents}
+          selectedAgentName={selectedAgent?.name}
+          from={range.from}
+          to={range.to}
+        />
       </Suspense>
       <Tabs value={config.value} className="flex flex-1 flex-col">
         <div className="border-b px-6">
@@ -79,14 +84,14 @@ export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
         </div>
         <div className="flex flex-1 flex-col">
           <TabsContent value={config.value} className="m-0 flex flex-1 flex-col">
-            {!agentName ? (
+            {!selectedAgent ? (
               <EmptyState message="No agents available" />
             ) : (
               <TelemetryContent
                 config={config}
                 pageToken={pageToken}
                 range={range}
-                agentName={agentName}
+                agentName={selectedAgent.name}
               />
             )}
           </TabsContent>

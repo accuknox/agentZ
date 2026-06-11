@@ -73,6 +73,7 @@ async function Filters({ params }: { params: Promise<RunsParams> }) {
 
   return (
     <RunsFilters
+      key={`${agentName}:${scheduleName}`}
       agents={agentsResult.agents}
       selectedAgentName={agentName}
       schedules={schedulesResult.workflowSchedules}

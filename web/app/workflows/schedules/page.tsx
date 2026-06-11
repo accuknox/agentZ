@@ -3,7 +3,6 @@ import { Suspense } from "react"
 import { connection } from "next/server"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { selectWorkflowSchedulesAgentAction } from "@/data/workflow.actions"
 import { triggerWorkflowRunAction } from "@/data/workflow-run.actions"
 import {
   createWorkflowScheduleFormAction,
@@ -69,13 +68,11 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
     return <FiltersSkeleton />
   }
 
-  return (
-    <SchedulesFilters
-      agents={agentsResult.agents}
-      selectedAgentName={resolveAgentName(agentsResult.agents, params.agent_name)}
-      action={selectWorkflowSchedulesAgentAction}
-    />
-  )
+  const agentName = firstSearchParam(params.agent_name)
+  const selectedAgent =
+    agentsResult.agents.find((agent) => agent.name === agentName) ?? agentsResult.agents[0]
+
+  return <SchedulesFilters agents={agentsResult.agents} selectedAgentName={selectedAgent.name} />
 }
 
 async function Schedules({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -88,8 +85,9 @@ async function Schedules({ searchParams }: { searchParams: Promise<SearchParams>
     return <ErrorPanel message={agentsResult.error.message} />
   }
 
-  const selectedAgentName = resolveAgentName(agentsResult.agents, params.agent_name)
-  const selectedAgent = agentsResult.agents?.find((agent) => agent.name === selectedAgentName)
+  const agentName = firstSearchParam(params.agent_name)
+  const selectedAgent =
+    agentsResult.agents?.find((agent) => agent.name === agentName) ?? agentsResult.agents?.[0]
   if (!selectedAgent) {
     return <EmptyState message="No agents available" />
   }
@@ -107,6 +105,7 @@ async function Schedules({ searchParams }: { searchParams: Promise<SearchParams>
 
   return (
     <SchedulesTable
+      key={selectedAgent.name}
       agentName={selectedAgent.name}
       workflows={workflows}
       workflowSchedules={schedulesResult.workflowSchedules}
@@ -129,8 +128,9 @@ async function HeaderAction({ searchParams }: { searchParams: Promise<SearchPara
     return null
   }
 
-  const selectedAgentName = resolveAgentName(agentsResult.agents, params.agent_name)
-  const selectedAgent = agentsResult.agents?.find((agent) => agent.name === selectedAgentName)
+  const agentName = firstSearchParam(params.agent_name)
+  const selectedAgent =
+    agentsResult.agents?.find((agent) => agent.name === agentName) ?? agentsResult.agents?.[0]
   if (!selectedAgent) {
     return null
   }
@@ -149,6 +149,7 @@ async function HeaderAction({ searchParams }: { searchParams: Promise<SearchPara
 
   return (
     <NewScheduleButton
+      key={selectedAgent.name}
       agentName={selectedAgent.name}
       workflows={workflowsResult.summaries}
       createWorkflowScheduleAction={createWorkflowScheduleFormAction}
@@ -197,16 +198,4 @@ function EmptyState({ message }: { message: string }) {
       {message}
     </div>
   )
-}
-
-function resolveAgentName(
-  agents: Awaited<ReturnType<typeof listAgentsCachedQuery>>["agents"],
-  param?: string | string[]
-) {
-  if (!agents || agents.length === 0) {
-    return undefined
-  }
-
-  const agentName = firstSearchParam(param)
-  return agents.find((agent) => agent.name === agentName)?.name ?? agents[0].name
 }

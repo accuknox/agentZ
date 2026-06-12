@@ -49,11 +49,7 @@ export function createEnvironmentColumns(
       cell: ({ row }) => {
         const env = row.original
 
-        return (
-          <Link href={`/environments/update/${env.name}`} className="font-medium hover:underline">
-            {env.name}
-          </Link>
-        )
+        return <span className="font-medium">{env.name}</span>
       },
     },
     {
@@ -119,7 +115,11 @@ function EnvironmentActions({
   const referenced = env.metadata.referenced_by_agent
 
   return (
-    <div className="flex justify-end">
+    <div
+      className="flex justify-end"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8">

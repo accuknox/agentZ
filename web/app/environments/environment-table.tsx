@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "@bprogress/next/app"
 import {
   flexRender,
   getCoreRowModel,
@@ -51,6 +52,7 @@ export function EnvironmentTable({
 
   const [sorting, setSorting] = React.useState<SortingState>([])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const router = useRouter()
   const columns = React.useMemo(
     () => createEnvironmentColumns(deleteEnvironmentAction),
     [deleteEnvironmentAction]
@@ -90,7 +92,24 @@ export function EnvironmentTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => {
+                    router.push(`/environments/update/${encodeURIComponent(row.original.name)}`)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return
+                    }
+
+                    event.preventDefault()
+                    router.push(`/environments/update/${encodeURIComponent(row.original.name)}`)
+                  }}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}

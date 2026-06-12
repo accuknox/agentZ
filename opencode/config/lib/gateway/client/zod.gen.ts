@@ -193,7 +193,6 @@ export const zWorkflowInputSchema = z.object({
 export const zWorkflowInputs = z.record(z.string(), zWorkflowInputSchema)
 
 export const zCreateWorkflowRequest = z.object({
-  agent_name: zAgentName,
   workflow_name: zWorkflowName,
   title: z.string().min(1).max(256),
   summary: z.string().min(1).max(4096),
@@ -212,10 +211,6 @@ export const zWorkflow = z.object({
   edges: z.array(zWorkflowEdge),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
-})
-
-export const zDeleteAgentRequest = z.object({
-  agent_name: zAgentName,
 })
 
 export const zDeleteWorkflowsRequest = z.object({
@@ -613,8 +608,6 @@ export const zWorkflowRunDetail = z.object({
 
 export const zCreateWorkflowScheduleRequest = z.object({
   name: zWorkflowScheduleName,
-  agent_name: zAgentName,
-  workflow_name: zWorkflowName,
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
   inputs: zJsonValue.optional(),
@@ -625,7 +618,6 @@ export const zCreateWorkflowScheduleRequest = z.object({
 })
 
 export const zUpdateWorkflowScheduleRequest = z.object({
-  workflow_name: zWorkflowName,
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
   inputs: zJsonValue.optional(),
@@ -707,10 +699,6 @@ export const zDeleteSecretsRequest = z.object({
 export const zListSecretsResponse = z.object({
   items: z.array(zSecretListItem),
   next_page_token: z.string(),
-})
-
-export const zDeleteEnvironmentRequest = z.object({
-  name: zEnvironmentName,
 })
 
 export const zMcpConnectionToolRef = z.object({
@@ -859,17 +847,6 @@ export const zWatchMcpConnectionsEvent = z.object({
   mcp_connections: z.array(zMcpConnectionSummary),
 })
 
-export const zCreateMcpConnectionRequest = z.object({
-  name: zMcpConnectionName,
-  endpoint: zMcpConnectionEndpoint,
-  auth: zMcpConnectionAuth.optional(),
-})
-
-export const zUpdateMcpConnectionRequest = z.object({
-  endpoint: zMcpConnectionEndpoint,
-  auth: zMcpConnectionAuth.optional(),
-})
-
 export const zMcpConnectionBearerCredentials = z.object({
   token: z.string().min(1),
 })
@@ -886,9 +863,22 @@ export const zMcpConnectionOAuthCredentials = z.object({
   revocation: zJsonObject.optional(),
 })
 
-export const zSetMcpConnectionCredentialsRequest = z.object({
+export const zMcpConnectionCredentials = z.object({
   bearer: zMcpConnectionBearerCredentials.optional(),
   oauth: zMcpConnectionOAuthCredentials.optional(),
+})
+
+export const zCreateMcpConnectionRequest = z.object({
+  name: zMcpConnectionName,
+  endpoint: zMcpConnectionEndpoint,
+  auth: zMcpConnectionAuth,
+  credentials: zMcpConnectionCredentials,
+})
+
+export const zUpdateMcpConnectionRequest = z.object({
+  endpoint: zMcpConnectionEndpoint,
+  auth: zMcpConnectionAuth,
+  credentials: zMcpConnectionCredentials,
 })
 
 /**
@@ -992,112 +982,6 @@ export const zListAgentsQuery = z.object({
  */
 export const zListAgentsResponse2 = zListAgentsResponse
 
-export const zListTracesQuery = z.object({
-  agent_name: zAgentName,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  started_after: z.iso.datetime().optional(),
-  started_before: z.iso.datetime().optional(),
-})
-
-/**
- * Paginated trace summaries.
- */
-export const zListTracesResponse2 = zListTracesResponse
-
-export const zListTraceSessionsQuery = z.object({
-  agent_name: zAgentName,
-  session_id: z.string().min(1).optional(),
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  started_after: z.iso.datetime().optional(),
-  started_before: z.iso.datetime().optional(),
-})
-
-/**
- * Paginated per-session trace summaries.
- */
-export const zListTraceSessionsResponse2 = zListTraceSessionsResponse
-
-export const zListSpansQuery = z.object({
-  agent_name: zAgentName,
-  trace_id: zTraceId,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated spans for a trace.
- */
-export const zListSpansResponse2 = zListSpansResponse
-
-export const zGetSpanDetailQuery = z.object({
-  agent_name: zAgentName,
-  trace_id: zTraceId,
-  span_id: zSpanId,
-})
-
-/**
- * Span detail with payload and correlated events.
- */
-export const zGetSpanDetailResponse = zSpanDetailResponse
-
-export const zListProcessObservabilityQuery = z.object({
-  agent_name: zAgentName,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  event_time_after: z.iso.datetime().optional(),
-  event_time_before: z.iso.datetime().optional(),
-  action: zObservabilityAction.optional(),
-  aggregated: z.boolean().optional().default(false),
-})
-
-/**
- * Paginated process observability events.
- */
-export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
-
-export const zListFileObservabilityQuery = z.object({
-  agent_name: zAgentName,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  event_time_after: z.iso.datetime().optional(),
-  event_time_before: z.iso.datetime().optional(),
-  action: zObservabilityAction.optional(),
-  aggregated: z.boolean().optional().default(false),
-})
-
-/**
- * Paginated file observability events.
- */
-export const zListFileObservabilityResponse2 = zListFileObservabilityResponse
-
-export const zListNetworkObservabilityQuery = z.object({
-  agent_name: zAgentName,
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  event_time_after: z.iso.datetime().optional(),
-  event_time_before: z.iso.datetime().optional(),
-  action: zObservabilityAction.optional(),
-  aggregated: z.boolean().optional().default(false),
-})
-
-/**
- * Paginated network observability events.
- */
-export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
-
-export const zGetMcpGraphQuery = z.object({
-  agent_name: zAgentName,
-  from: z.iso.date(),
-  to: z.iso.date(),
-})
-
-/**
- * Graph-ready MCP observability for one agent.
- */
-export const zGetMcpGraphResponse = zMcpGraphResponse
-
 export const zCreateAgentBody = zCreateAgentRequest
 
 /**
@@ -1105,164 +989,14 @@ export const zCreateAgentBody = zCreateAgentRequest
  */
 export const zCreateAgentResponse = zAgent
 
-export const zDeleteAgentBody = zDeleteAgentRequest
+export const zDeleteAgentPath = z.object({
+  agentName: zAgentName,
+})
 
 /**
  * Agent was deleted.
  */
 export const zDeleteAgentResponse = z.void()
-
-export const zCreateWorkflowBody = zCreateWorkflowRequest
-
-/**
- * Workflow created.
- */
-export const zCreateWorkflowResponse = zWorkflow
-
-export const zDeleteWorkflowsBody = zDeleteWorkflowsRequest
-
-export const zDeleteWorkflowsPath = z.object({
-  agentName: zAgentName,
-})
-
-/**
- * Workflows deleted.
- */
-export const zDeleteWorkflowsResponse = z.void()
-
-export const zGetWorkflowPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-})
-
-/**
- * Workflow definition.
- */
-export const zGetWorkflowResponse = zWorkflow
-
-export const zPatchWorkflowRunStatusBody = zPatchWorkflowRunStatusRequest
-
-export const zPatchWorkflowRunStatusPath = z.object({
-  name: zWorkflowRunName,
-})
-
-/**
- * WorkflowRun status updated.
- */
-export const zPatchWorkflowRunStatusResponse = z.void()
-
-export const zListWorkflowSummariesPath = z.object({
-  agentName: zAgentName,
-})
-
-/**
- * Workflow summaries for one agent.
- */
-export const zListWorkflowSummariesResponse = z.array(zWorkflowSummary)
-
-export const zCreateWorkflowScheduleBody = zCreateWorkflowScheduleRequest
-
-/**
- * Workflow schedule created.
- */
-export const zCreateWorkflowScheduleResponse = zWorkflowSchedule
-
-export const zListWorkflowSchedulesPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListWorkflowSchedulesQuery = z.object({
-  workflow_name: zWorkflowName.optional(),
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated workflow schedules for one agent.
- */
-export const zListWorkflowSchedulesResponse2 = zListWorkflowSchedulesResponse
-
-export const zDeleteWorkflowSchedulePath = z.object({
-  agentName: zAgentName,
-  name: zWorkflowScheduleName,
-})
-
-/**
- * Workflow schedule deleted.
- */
-export const zDeleteWorkflowScheduleResponse = z.void()
-
-export const zUpdateWorkflowScheduleBody = zUpdateWorkflowScheduleRequest
-
-export const zUpdateWorkflowSchedulePath = z.object({
-  agentName: zAgentName,
-  name: zWorkflowScheduleName,
-})
-
-/**
- * Workflow schedule updated.
- */
-export const zUpdateWorkflowScheduleResponse = zWorkflowSchedule
-
-export const zCreateWorkflowRunPath = z.object({
-  agentName: zAgentName,
-  name: zWorkflowScheduleName,
-})
-
-/**
- * Workflow run accepted.
- */
-export const zCreateWorkflowRunResponse = zWorkflowRunSummary
-
-export const zListWorkflowRunsPath = z.object({
-  agentName: zAgentName,
-  name: zWorkflowScheduleName,
-})
-
-export const zListWorkflowRunsQuery = z.object({
-  status: zWorkflowRunStatus.optional(),
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated workflow runs for one workflow schedule.
- */
-export const zListWorkflowRunsResponse2 = zListWorkflowRunsResponse
-
-export const zWatchWorkflowRunsBody = zWatchWorkflowRunsRequest
-
-export const zWatchWorkflowRunsPath = z.object({
-  agentName: zAgentName,
-  name: zWorkflowScheduleName,
-})
-
-/**
- * Stream of workflow run updates.
- */
-export const zWatchWorkflowRunsResponse = zWatchWorkflowRunsEvent
-
-export const zDeleteWorkflowRunPath = z.object({
-  agentName: zAgentName,
-  name: zWorkflowScheduleName,
-  runName: zWorkflowRunName,
-})
-
-/**
- * Workflow run deleted.
- */
-export const zDeleteWorkflowRunResponse = z.void()
-
-export const zGetWorkflowRunPath = z.object({
-  agentName: zAgentName,
-  name: zWorkflowScheduleName,
-  runName: zWorkflowRunName,
-})
-
-/**
- * Workflow run details.
- */
-export const zGetWorkflowRunResponse = zWorkflowRunDetail
 
 export const zUpdateAgentBody = zUpdateAgentRequest
 
@@ -1281,6 +1015,133 @@ export const zWatchAgentsBody = zWatchAgentsRequest
  * Stream of agent status changes.
  */
 export const zWatchAgentsResponse = zWatchAgentsEvent
+
+export const zListTraceSessionsPath = z.object({
+  agentName: zAgentName,
+  sessionID: z.string().min(1),
+})
+
+export const zListTraceSessionsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  started_after: z.iso.datetime().optional(),
+  started_before: z.iso.datetime().optional(),
+})
+
+/**
+ * Paginated per-session trace summaries.
+ */
+export const zListTraceSessionsResponse2 = zListTraceSessionsResponse
+
+export const zListSpansPath = z.object({
+  agentName: zAgentName,
+  sessionID: z.string().min(1),
+  traceID: zTraceId,
+})
+
+export const zListSpansQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated spans for a trace.
+ */
+export const zListSpansResponse2 = zListSpansResponse
+
+export const zGetSpanDetailPath = z.object({
+  agentName: zAgentName,
+  sessionID: z.string().min(1),
+  traceID: zTraceId,
+  spanID: zSpanId,
+})
+
+/**
+ * Span detail with payload and correlated events.
+ */
+export const zGetSpanDetailResponse = zSpanDetailResponse
+
+export const zListProcessObservabilityPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListProcessObservabilityQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  event_time_after: z.iso.datetime().optional(),
+  event_time_before: z.iso.datetime().optional(),
+  action: zObservabilityAction.optional(),
+  aggregated: z.boolean().optional().default(false),
+})
+
+/**
+ * Paginated process observability events.
+ */
+export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
+
+export const zListFileObservabilityPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListFileObservabilityQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  event_time_after: z.iso.datetime().optional(),
+  event_time_before: z.iso.datetime().optional(),
+  action: zObservabilityAction.optional(),
+  aggregated: z.boolean().optional().default(false),
+})
+
+/**
+ * Paginated file observability events.
+ */
+export const zListFileObservabilityResponse2 = zListFileObservabilityResponse
+
+export const zListNetworkObservabilityPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListNetworkObservabilityQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+  event_time_after: z.iso.datetime().optional(),
+  event_time_before: z.iso.datetime().optional(),
+  action: zObservabilityAction.optional(),
+  aggregated: z.boolean().optional().default(false),
+})
+
+/**
+ * Paginated network observability events.
+ */
+export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
+
+export const zGetMcpGraphPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zGetMcpGraphQuery = z.object({
+  from: z.iso.date(),
+  to: z.iso.date(),
+})
+
+/**
+ * Graph-ready MCP observability for one agent.
+ */
+export const zGetMcpGraphResponse = zMcpGraphResponse
+
+export const zListSecretsPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListSecretsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated secret keys.
+ */
+export const zListSecretsResponse2 = zListSecretsResponse
 
 export const zPutSecretBody = zPutSecretsRequest
 
@@ -1304,20 +1165,6 @@ export const zDeleteSecretPath = z.object({
  */
 export const zDeleteSecretResponse = z.void()
 
-export const zListSecretsPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListSecretsQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated secret keys.
- */
-export const zListSecretsResponse2 = zListSecretsResponse
-
 export const zListEnvironmentsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
@@ -1335,7 +1182,9 @@ export const zCreateEnvironmentBody = zCreateEnvironmentRequest
  */
 export const zCreateEnvironmentResponse = zEnvironment
 
-export const zDeleteEnvironmentBody = zDeleteEnvironmentRequest
+export const zDeleteEnvironmentPath = z.object({
+  environmentName: zEnvironmentName,
+})
 
 /**
  * Environment deleted.
@@ -1345,13 +1194,23 @@ export const zDeleteEnvironmentResponse = z.void()
 export const zUpdateEnvironmentBody = zUpdateEnvironmentRequest
 
 export const zUpdateEnvironmentPath = z.object({
-  name: zEnvironmentName,
+  environmentName: zEnvironmentName,
 })
 
 /**
  * Environment updated.
  */
 export const zUpdateEnvironmentResponse = zEnvironment
+
+export const zListMcpConnectionsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated MCPConnections.
+ */
+export const zListMcpConnectionsResponse2 = zListMcpConnectionsResponse
 
 export const zCreateMcpConnectionBody = zCreateMcpConnectionRequest
 
@@ -1389,16 +1248,6 @@ export const zUpdateMcpConnectionPath = z.object({
  */
 export const zUpdateMcpConnectionResponse = zMcpConnectionDetail
 
-export const zListMcpConnectionsQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated MCPConnections.
- */
-export const zListMcpConnectionsResponse2 = zListMcpConnectionsResponse
-
 export const zWatchMcpConnectionsBody = zWatchMcpConnectionsRequest
 
 /**
@@ -1406,22 +1255,186 @@ export const zWatchMcpConnectionsBody = zWatchMcpConnectionsRequest
  */
 export const zWatchMcpConnectionsResponse = zWatchMcpConnectionsEvent
 
-export const zDeleteMcpConnectionCredentialsPath = z.object({
-  name: zMcpConnectionName,
+export const zDeleteWorkflowsBody = zDeleteWorkflowsRequest
+
+export const zDeleteWorkflowsPath = z.object({
+  agentName: zAgentName,
 })
 
 /**
- * MCPConnection credentials removed.
+ * Workflows deleted.
  */
-export const zDeleteMcpConnectionCredentialsResponse = z.void()
+export const zDeleteWorkflowsResponse = z.void()
 
-export const zSetMcpConnectionCredentialsBody = zSetMcpConnectionCredentialsRequest
-
-export const zSetMcpConnectionCredentialsPath = z.object({
-  name: zMcpConnectionName,
+export const zListWorkflowSummariesPath = z.object({
+  agentName: zAgentName,
 })
 
 /**
- * MCPConnection credentials stored.
+ * Workflow summaries for one agent.
  */
-export const zSetMcpConnectionCredentialsResponse = z.void()
+export const zListWorkflowSummariesResponse = z.array(zWorkflowSummary)
+
+export const zCreateWorkflowBody = zCreateWorkflowRequest
+
+export const zCreateWorkflowPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Workflow created.
+ */
+export const zCreateWorkflowResponse = zWorkflow
+
+export const zGetWorkflowPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+})
+
+/**
+ * Workflow definition.
+ */
+export const zGetWorkflowResponse = zWorkflow
+
+export const zListAgentWorkflowSchedulesPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListAgentWorkflowSchedulesQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated workflow schedules for one agent.
+ */
+export const zListAgentWorkflowSchedulesResponse = zListWorkflowSchedulesResponse
+
+export const zListWorkflowSchedulesPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+})
+
+export const zListWorkflowSchedulesQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated workflow schedules for one workflow.
+ */
+export const zListWorkflowSchedulesResponse2 = zListWorkflowSchedulesResponse
+
+export const zCreateWorkflowScheduleBody = zCreateWorkflowScheduleRequest
+
+export const zCreateWorkflowSchedulePath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+})
+
+/**
+ * Workflow schedule created.
+ */
+export const zCreateWorkflowScheduleResponse = zWorkflowSchedule
+
+export const zDeleteWorkflowSchedulePath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  scheduleName: zWorkflowScheduleName,
+})
+
+/**
+ * Workflow schedule deleted.
+ */
+export const zDeleteWorkflowScheduleResponse = z.void()
+
+export const zUpdateWorkflowScheduleBody = zUpdateWorkflowScheduleRequest
+
+export const zUpdateWorkflowSchedulePath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  scheduleName: zWorkflowScheduleName,
+})
+
+/**
+ * Workflow schedule updated.
+ */
+export const zUpdateWorkflowScheduleResponse = zWorkflowSchedule
+
+export const zListWorkflowRunsPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  scheduleName: zWorkflowScheduleName,
+})
+
+export const zListWorkflowRunsQuery = z.object({
+  status: zWorkflowRunStatus.optional(),
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated workflow runs for one workflow schedule.
+ */
+export const zListWorkflowRunsResponse2 = zListWorkflowRunsResponse
+
+export const zCreateWorkflowRunPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  scheduleName: zWorkflowScheduleName,
+})
+
+/**
+ * Workflow run accepted.
+ */
+export const zCreateWorkflowRunResponse = zWorkflowRunSummary
+
+export const zWatchWorkflowRunsBody = zWatchWorkflowRunsRequest
+
+export const zWatchWorkflowRunsPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  scheduleName: zWorkflowScheduleName,
+})
+
+/**
+ * Stream of workflow run updates.
+ */
+export const zWatchWorkflowRunsResponse = zWatchWorkflowRunsEvent
+
+export const zDeleteWorkflowRunPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  scheduleName: zWorkflowScheduleName,
+  runName: zWorkflowRunName,
+})
+
+/**
+ * Workflow run deleted.
+ */
+export const zDeleteWorkflowRunResponse = z.void()
+
+export const zGetWorkflowRunPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  scheduleName: zWorkflowScheduleName,
+  runName: zWorkflowRunName,
+})
+
+/**
+ * Workflow run details.
+ */
+export const zGetWorkflowRunResponse = zWorkflowRunDetail
+
+export const zPatchWorkflowRunStatusBody = zPatchWorkflowRunStatusRequest
+
+export const zPatchWorkflowRunStatusPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  runName: zWorkflowRunName,
+})
+
+/**
+ * WorkflowRun status updated.
+ */
+export const zPatchWorkflowRunStatusResponse = z.void()

@@ -282,6 +282,8 @@ components:
       properties:
         auth:
           $ref: '#/components/schemas/MCPConnectionAuth'
+        credentials:
+          $ref: '#/components/schemas/MCPConnectionCredentials'
         endpoint:
           $ref: '#/components/schemas/MCPConnectionEndpoint'
         name:
@@ -289,12 +291,12 @@ components:
       required:
       - name
       - endpoint
+      - auth
+      - credentials
       type: object
     CreateWorkflowRequest:
       additionalProperties: false
       properties:
-        agent_name:
-          $ref: '#/components/schemas/AgentName'
         edges:
           items:
             $ref: '#/components/schemas/WorkflowEdge'
@@ -317,7 +319,6 @@ components:
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
       required:
-      - agent_name
       - workflow_name
       - title
       - summary
@@ -327,8 +328,6 @@ components:
     CreateWorkflowScheduleRequest:
       additionalProperties: false
       properties:
-        agent_name:
-          $ref: '#/components/schemas/AgentName'
         failed_runs_history_limit:
           format: int32
           maximum: 10
@@ -355,30 +354,10 @@ components:
           maximum: 604800
           minimum: 1
           type: integer
-        workflow_name:
-          $ref: '#/components/schemas/WorkflowName'
       required:
       - name
-      - agent_name
-      - workflow_name
       - schedule
       - timeout_seconds
-      type: object
-    DeleteAgentRequest:
-      additionalProperties: false
-      properties:
-        agent_name:
-          $ref: '#/components/schemas/AgentName'
-      required:
-      - agent_name
-      type: object
-    DeleteEnvironmentRequest:
-      additionalProperties: false
-      properties:
-        name:
-          $ref: '#/components/schemas/EnvironmentName'
-      required:
-      - name
       type: object
     DeleteSecretsRequest:
       additionalProperties: false
@@ -780,6 +759,14 @@ components:
           type: string
       required:
       - name
+      type: object
+    MCPConnectionCredentials:
+      additionalProperties: false
+      properties:
+        bearer:
+          $ref: '#/components/schemas/MCPConnectionBearerCredentials'
+        oauth:
+          $ref: '#/components/schemas/MCPConnectionOAuthCredentials'
       type: object
     MCPConnectionDetail:
       additionalProperties: false
@@ -9417,14 +9404,6 @@ components:
       description: Secret value. Max 48 KB.
       maxLength: 49152
       type: string
-    SetMCPConnectionCredentialsRequest:
-      additionalProperties: false
-      properties:
-        bearer:
-          $ref: '#/components/schemas/MCPConnectionBearerCredentials'
-        oauth:
-          $ref: '#/components/schemas/MCPConnectionOAuthCredentials'
-      type: object
     Span:
       additionalProperties: false
       properties:
@@ -9791,10 +9770,14 @@ components:
       properties:
         auth:
           $ref: '#/components/schemas/MCPConnectionAuth'
+        credentials:
+          $ref: '#/components/schemas/MCPConnectionCredentials'
         endpoint:
           $ref: '#/components/schemas/MCPConnectionEndpoint'
       required:
       - endpoint
+      - auth
+      - credentials
       type: object
     UpdateWorkflowScheduleRequest:
       additionalProperties: false
@@ -9823,10 +9806,7 @@ components:
           maximum: 604800
           minimum: 1
           type: integer
-        workflow_name:
-          $ref: '#/components/schemas/WorkflowName'
       required:
-      - workflow_name
       - schedule
       - timeout_seconds
       type: object
@@ -10236,7 +10216,27 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
-  /api/agent/create:
+  /api/agent:
+    get:
+      operationId: listAgents
+      parameters:
+      - $ref: '#/components/parameters/AgentNameFilterQuery'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAgentsResponse'
+          description: Paginated agent summaries.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated agent summaries.
+      tags:
+      - agents
     post:
       description: |
         Creates an agent record and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
@@ -10263,15 +10263,11 @@ paths:
       summary: Create an Agent resource.
       tags:
       - agents
-  /api/agent/delete:
-    post:
+  /api/agent/{agentName}:
+    delete:
       operationId: deleteAgent
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeleteAgentRequest'
-        required: true
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
       responses:
         "204":
           description: Agent was deleted.
@@ -10284,29 +10280,7 @@ paths:
       summary: Delete an Agent resource.
       tags:
       - agents
-  /api/agent/list:
-    get:
-      operationId: listAgents
-      parameters:
-      - $ref: '#/components/parameters/AgentNameFilterQuery'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListAgentsResponse'
-          description: Paginated agent summaries.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List paginated agent summaries.
-      tags:
-      - agents
-  /api/agent/update/{agentName}:
-    post:
+    put:
       description: |
         Updates mutable Agent fields for an existing Agent. The agent name in the path identifies the Agent and is immutable.
       operationId: updateAgent
@@ -10361,7 +10335,26 @@ paths:
       summary: Watch agent status changes.
       tags:
       - agents
-  /api/environment/create:
+  /api/environment:
+    get:
+      operationId: listEnvironments
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEnvironmentsResponse'
+          description: Paginated environments.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated Environment resources.
+      tags:
+      - environments
     post:
       operationId: createEnvironment
       requestBody:
@@ -10386,15 +10379,16 @@ paths:
       summary: Create an Environment resource.
       tags:
       - environments
-  /api/environment/delete:
-    post:
+  /api/environment/{environmentName}:
+    delete:
       operationId: deleteEnvironment
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeleteEnvironmentRequest'
+      parameters:
+      - description: Environment resource name.
+        in: path
+        name: environmentName
         required: true
+        schema:
+          $ref: '#/components/schemas/EnvironmentName'
       responses:
         "204":
           description: Environment deleted.
@@ -10407,33 +10401,17 @@ paths:
       summary: Delete an Environment resource.
       tags:
       - environments
-  /api/environment/list:
-    get:
-      operationId: listEnvironments
-      parameters:
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListEnvironmentsResponse'
-          description: Paginated environments.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List paginated Environment resources.
-      tags:
-      - environments
-  /api/environment/update/{name}:
-    post:
+    put:
       description: |
         Updates the packages list for an existing Environment. The name in the path identifies the Environment.
       operationId: updateEnvironment
       parameters:
-      - $ref: '#/components/parameters/EnvironmentNamePath'
+      - description: Environment resource name.
+        in: path
+        name: environmentName
+        required: true
+        schema:
+          $ref: '#/components/schemas/EnvironmentName'
       requestBody:
         content:
           application/json:
@@ -10456,11 +10434,119 @@ paths:
       summary: Update an Environment resource.
       tags:
       - environments
-  /api/lens/mcp/graph:
+  /api/lens/{agentName}/{sessionID}/trace:
+    get:
+      operationId: listTraceSessions
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Session identifier scoped to one agent.
+        in: path
+        name: sessionID
+        required: true
+        schema:
+          minLength: 1
+          type: string
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/StartedAfterQuery'
+      - $ref: '#/components/parameters/StartedBeforeQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTraceSessionsResponse'
+          description: Paginated per-session trace summaries.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated per-session trace summaries.
+      tags:
+      - lens
+  /api/lens/{agentName}/{sessionID}/trace/{traceID}/span:
+    get:
+      operationId: listSpans
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Session identifier scoped to one agent.
+        in: path
+        name: sessionID
+        required: true
+        schema:
+          minLength: 1
+          type: string
+      - description: Trace identifier scoped to one session.
+        in: path
+        name: traceID
+        required: true
+        schema:
+          $ref: '#/components/schemas/TraceID'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListSpansResponse'
+          description: Paginated spans for a trace.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated spans for a trace.
+      tags:
+      - lens
+  /api/lens/{agentName}/{sessionID}/trace/{traceID}/span/{spanID}:
+    get:
+      operationId: getSpanDetail
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Session identifier scoped to one agent.
+        in: path
+        name: sessionID
+        required: true
+        schema:
+          minLength: 1
+          type: string
+      - description: Trace identifier scoped to one session.
+        in: path
+        name: traceID
+        required: true
+        schema:
+          $ref: '#/components/schemas/TraceID'
+      - description: Span identifier scoped to one trace.
+        in: path
+        name: spanID
+        required: true
+        schema:
+          $ref: '#/components/schemas/SpanID'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpanDetailResponse'
+          description: Span detail with payload and correlated events.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get span details and correlated OS observability.
+      tags:
+      - lens
+  /api/lens/{agentName}/mcp/graph:
     get:
       operationId: getMCPGraph
       parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/FromDateQuery'
       - $ref: '#/components/parameters/ToDateQuery'
       responses:
@@ -10479,11 +10565,11 @@ paths:
       summary: Get MCP observability graph data for one agent and date range.
       tags:
       - lens
-  /api/lens/observability/file/list:
+  /api/lens/{agentName}/observability/file:
     get:
       operationId: listFileObservability
       parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/EventTimeAfterQuery'
@@ -10506,11 +10592,11 @@ paths:
       summary: List paginated file observability events.
       tags:
       - lens
-  /api/lens/observability/network/list:
+  /api/lens/{agentName}/observability/network:
     get:
       operationId: listNetworkObservability
       parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/EventTimeAfterQuery'
@@ -10533,11 +10619,11 @@ paths:
       summary: List paginated network observability events.
       tags:
       - lens
-  /api/lens/observability/process/list:
+  /api/lens/{agentName}/observability/process:
     get:
       operationId: listProcessObservability
       parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
+      - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/EventTimeAfterQuery'
@@ -10560,105 +10646,26 @@ paths:
       summary: List paginated process observability events.
       tags:
       - lens
-  /api/lens/span/detail:
-    get:
-      operationId: getSpanDetail
-      parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
-      - $ref: '#/components/parameters/TraceIDQuery'
-      - $ref: '#/components/parameters/SpanIDQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SpanDetailResponse'
-          description: Span detail with payload and correlated events.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Get span details and correlated OS observability.
-      tags:
-      - lens
-  /api/lens/span/list:
-    get:
-      operationId: listSpans
-      parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
-      - $ref: '#/components/parameters/TraceIDQuery'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListSpansResponse'
-          description: Paginated spans for a trace.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List paginated spans for a trace.
-      tags:
-      - lens
-  /api/lens/trace/list:
-    get:
-      operationId: listTraces
-      parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      - $ref: '#/components/parameters/StartedAfterQuery'
-      - $ref: '#/components/parameters/StartedBeforeQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListTracesResponse'
-          description: Paginated trace summaries.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List paginated trace summaries.
-      tags:
-      - lens
-  /api/lens/trace/session/list:
-    get:
-      operationId: listTraceSessions
-      parameters:
-      - $ref: '#/components/parameters/AgentNameQuery'
-      - $ref: '#/components/parameters/SessionIDQuery'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      - $ref: '#/components/parameters/StartedAfterQuery'
-      - $ref: '#/components/parameters/StartedBeforeQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListTraceSessionsResponse'
-          description: Paginated per-session trace summaries.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List paginated per-session trace summaries.
-      tags:
-      - lens
   /api/mcp-connection:
+    get:
+      operationId: listMCPConnections
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMCPConnectionsResponse'
+          description: Paginated MCPConnections.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated MCPConnection resources.
+      tags:
+      - mcp-connections
     post:
       operationId: createMCPConnection
       requestBody:
@@ -10748,69 +10755,6 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Replace an MCPConnection resource spec.
-      tags:
-      - mcp-connections
-  /api/mcp-connection/{name}/credentials:
-    delete:
-      operationId: deleteMCPConnectionCredentials
-      parameters:
-      - $ref: '#/components/parameters/MCPConnectionNamePath'
-      responses:
-        "204":
-          description: MCPConnection credentials removed.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Remove MCPConnection credentials.
-      tags:
-      - mcp-connections
-    post:
-      operationId: setMCPConnectionCredentials
-      parameters:
-      - $ref: '#/components/parameters/MCPConnectionNamePath'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SetMCPConnectionCredentialsRequest'
-        required: true
-      responses:
-        "204":
-          description: MCPConnection credentials stored.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Set MCPConnection credentials.
-      tags:
-      - mcp-connections
-  /api/mcp-connection/list:
-    get:
-      operationId: listMCPConnections
-      parameters:
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListMCPConnectionsResponse'
-          description: Paginated MCPConnections.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List paginated MCPConnection resources.
       tags:
       - mcp-connections
   /api/mcp-connection/watch:
@@ -18403,32 +18347,7 @@ paths:
         maxLength: 32
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
-  /api/secret/{agentName}/delete:
-    post:
-      description: |
-        Deletes the specified secret keys for the agent. Missing keys are ignored.
-      operationId: deleteSecret
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeleteSecretsRequest'
-        required: true
-      responses:
-        "204":
-          description: Secrets deleted.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Delete secrets for an agent.
-      tags:
-      - secrets
-  /api/secret/{agentName}/list:
+  /api/secret/{agentName}:
     get:
       description: |
         Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
@@ -18453,7 +18372,6 @@ paths:
       summary: List secret keys for an agent.
       tags:
       - secrets
-  /api/secret/{agentName}/put:
     post:
       description: |
         Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*." or "**.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges. "*." matches exactly one subdomain label, while "**." matches any subdomain depth.
@@ -18482,378 +18400,32 @@ paths:
       summary: Store or overwrite secrets for an agent.
       tags:
       - secrets
-  /api/workflow-runs/{name}/status:
-    patch:
+  /api/secret/{agentName}/delete:
+    post:
       description: |
-        Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
-      operationId: patchWorkflowRunStatus
+        Deletes the specified secret keys for the agent. Missing keys are ignored.
+      operationId: deleteSecret
       parameters:
-      - description: WorkflowRun resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowRunName'
+      - $ref: '#/components/parameters/AgentNamePath'
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
+              $ref: '#/components/schemas/DeleteSecretsRequest'
         required: true
       responses:
         "204":
-          description: WorkflowRun status updated.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Set a WorkflowRun terminal status.
-      tags:
-      - workflows
-  /api/workflow-schedules:
-    post:
-      description: |
-        Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
-      operationId: createWorkflowSchedule
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateWorkflowScheduleRequest'
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSchedule'
-          description: Workflow schedule created.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Create a workflow schedule.
-      tags:
-      - workflow-schedules
-  /api/workflow-schedules/{agentName}:
-    get:
-      description: |
-        Lists paginated workflow schedules for one agent. The optional workflow_name query narrows the result to one workflow definition.
-      operationId: listWorkflowSchedules
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: Optional workflow name filter scoped to one agent.
-        in: query
-        name: workflow_name
-        required: false
-        schema:
-          $ref: '#/components/schemas/WorkflowName'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListWorkflowSchedulesResponse'
-          description: Paginated workflow schedules for one agent.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List workflow schedules.
-      tags:
-      - workflow-schedules
-  /api/workflow-schedules/{agentName}/{name}:
-    delete:
-      description: |
-        Deletes one workflow schedule. The agent name in the path must match the referenced schedule, otherwise the gateway returns not found.
-      operationId: deleteWorkflowSchedule
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      responses:
-        "204":
-          description: Workflow schedule deleted.
+          description: Secrets deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: Delete a workflow schedule.
+      summary: Delete secrets for an agent.
       tags:
-      - workflow-schedules
-    put:
-      description: |
-        Replaces all mutable workflow schedule fields for one existing schedule. The schedule name and agent name in the path identify the resource.
-      operationId: updateWorkflowSchedule
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateWorkflowScheduleRequest'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSchedule'
-          description: Workflow schedule updated.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Update a workflow schedule.
-      tags:
-      - workflow-schedules
-  /api/workflow-schedules/{agentName}/{name}/run:
-    post:
-      description: |
-        Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
-      operationId: createWorkflowRun
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      responses:
-        "202":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowRunSummary'
-          description: Workflow run accepted.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Trigger one workflow run from a workflow schedule.
-      tags:
-      - workflow-schedules
-  /api/workflow-schedules/{agentName}/{name}/runs:
-    get:
-      description: |
-        Lists paginated workflow runs created from the addressed WorkflowSchedule.
-      operationId: listWorkflowRuns
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      - description: Optional WorkflowRun phase filter.
-        in: query
-        name: status
-        required: false
-        schema:
-          $ref: '#/components/schemas/WorkflowRunStatus'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListWorkflowRunsResponse'
-          description: Paginated workflow runs for one workflow schedule.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List workflow runs for a workflow schedule.
-      tags:
-      - workflow-schedules
-  /api/workflow-schedules/{agentName}/{name}/runs/{runName}:
-    delete:
-      description: |
-        Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
-      operationId: deleteWorkflowRun
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      - description: WorkflowRun resource name.
-        in: path
-        name: runName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowRunName'
-      responses:
-        "204":
-          description: Workflow run deleted.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Delete one workflow run.
-      tags:
-      - workflow-schedules
-    get:
-      description: |
-        Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
-      operationId: getWorkflowRun
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      - description: WorkflowRun resource name.
-        in: path
-        name: runName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowRunName'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowRunDetail'
-          description: Workflow run details.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Get one workflow run.
-      tags:
-      - workflow-schedules
-  /api/workflow-schedules/{agentName}/{name}/runs/watch:
-    post:
-      description: |
-        Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed WorkflowSchedule are watched.
-      operationId: watchWorkflowRuns
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: name
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WatchWorkflowRunsRequest'
-        required: false
-      responses:
-        "200":
-          content:
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/WatchWorkflowRunsEvent'
-          description: Stream of workflow run updates.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Watch workflow runs for a workflow schedule.
-      tags:
-      - workflow-schedules
-  /api/workflow-summaries/{agentName}:
-    get:
-      description: |
-        Lists saved workflow metadata for a single agent without loading the full workflow graph.
-      operationId: listWorkflowSummaries
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/WorkflowSummary'
-                type: array
-          description: Workflow summaries for one agent.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List workflow summaries.
-      tags:
-      - workflows
-  /api/workflows:
-    post:
-      description: |
-        Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
-      operationId: createWorkflow
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateWorkflowRequest'
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Workflow'
-          description: Workflow created.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Create a workflow definition.
-      tags:
-      - workflows
-  /api/workflows/{agentName}:
+      - secrets
+  /api/workflow/{agentName}:
     delete:
       description: |
         Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
@@ -18878,7 +18450,59 @@ paths:
       summary: Delete workflow definitions.
       tags:
       - workflows
-  /api/workflows/{agentName}/{workflowName}:
+    get:
+      description: |
+        Lists saved workflow metadata for a single agent without loading the full workflow graph.
+      operationId: listWorkflowSummaries
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/WorkflowSummary'
+                type: array
+          description: Workflow summaries for one agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow summaries.
+      tags:
+      - workflows
+    post:
+      description: |
+        Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
+      operationId: createWorkflow
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+          description: Workflow created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create a workflow definition.
+      tags:
+      - workflows
+  /api/workflow/{agentName}/{workflowName}:
     get:
       description: |
         Retrieves a persisted workflow DAG for a single agent. The response preserves the normalized workflow structure so clients can derive a detailed execution playbook from the graph.
@@ -18907,6 +18531,403 @@ paths:
       summary: Get a workflow definition.
       tags:
       - workflows
+  /api/workflow/{agentName}/{workflowName}/run/{runName}/status:
+    patch:
+      description: |
+        Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+      operationId: patchWorkflowRunStatus
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
+        required: true
+      responses:
+        "204":
+          description: WorkflowRun status updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Set a WorkflowRun terminal status.
+      tags:
+      - workflows
+  /api/workflow/{agentName}/{workflowName}/schedule:
+    get:
+      description: |
+        Lists paginated workflow schedules for one workflow definition.
+      operationId: listWorkflowSchedules
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowSchedulesResponse'
+          description: Paginated workflow schedules for one workflow.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow schedules.
+      tags:
+      - workflow-schedules
+    post:
+      description: |
+        Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+      operationId: createWorkflowSchedule
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowScheduleRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSchedule'
+          description: Workflow schedule created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}:
+    delete:
+      description: |
+        Deletes one workflow schedule addressed by agent, workflow, and schedule name.
+      operationId: deleteWorkflowSchedule
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: scheduleName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      responses:
+        "204":
+          description: Workflow schedule deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete a workflow schedule.
+      tags:
+      - workflow-schedules
+    put:
+      description: |
+        Replaces all mutable workflow schedule fields for one existing schedule.
+      operationId: updateWorkflowSchedule
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: scheduleName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkflowScheduleRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSchedule'
+          description: Workflow schedule updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Update a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run:
+    get:
+      description: |
+        Lists paginated workflow runs created from the addressed WorkflowSchedule.
+      operationId: listWorkflowRuns
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: scheduleName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      - description: Optional WorkflowRun phase filter.
+        in: query
+        name: status
+        required: false
+        schema:
+          $ref: '#/components/schemas/WorkflowRunStatus'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowRunsResponse'
+          description: Paginated workflow runs for one workflow schedule.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow runs for a workflow schedule.
+      tags:
+      - workflow-schedules
+    post:
+      description: |
+        Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+      operationId: createWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: scheduleName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunSummary'
+          description: Workflow run accepted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Trigger one workflow run from a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}:
+    delete:
+      description: |
+        Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+      operationId: deleteWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: scheduleName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      responses:
+        "204":
+          description: Workflow run deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete one workflow run.
+      tags:
+      - workflow-schedules
+    get:
+      description: |
+        Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+      operationId: getWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: scheduleName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunDetail'
+          description: Workflow run details.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get one workflow run.
+      tags:
+      - workflow-schedules
+  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed WorkflowSchedule are watched.
+      operationId: watchWorkflowRuns
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to one agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowSchedule resource name.
+        in: path
+        name: scheduleName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchWorkflowRunsRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchWorkflowRunsEvent'
+          description: Stream of workflow run updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch workflow runs for a workflow schedule.
+      tags:
+      - workflow-schedules
+  /api/workflow/{agentName}/schedule:
+    get:
+      description: |
+        Lists paginated workflow schedules for one agent across all workflows.
+      operationId: listAgentWorkflowSchedules
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowSchedulesResponse'
+          description: Paginated workflow schedules for one agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow schedules for one agent.
+      tags:
+      - workflow-schedules
 servers:
 - description: Current origin
   url: /

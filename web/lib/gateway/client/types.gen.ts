@@ -110,7 +110,6 @@ export type CreateAgentRequest = {
 }
 
 export type CreateWorkflowRequest = {
-  agent_name: AgentName
   workflow_name: WorkflowName
   title: string
   summary: string
@@ -173,8 +172,6 @@ export type WorkflowRunDetail = {
 
 export type CreateWorkflowScheduleRequest = {
   name: WorkflowScheduleName
-  agent_name: AgentName
-  workflow_name: WorkflowName
   schedule: string
   time_zone?: string
   inputs?: JsonValue
@@ -185,7 +182,6 @@ export type CreateWorkflowScheduleRequest = {
 }
 
 export type UpdateWorkflowScheduleRequest = {
-  workflow_name: WorkflowName
   schedule: string
   time_zone?: string
   inputs?: JsonValue
@@ -249,10 +245,6 @@ export type WorkflowInputSchema = {
   exclusiveMinimum?: number
   exclusiveMaximum?: number
   multipleOf?: number
-}
-
-export type DeleteAgentRequest = {
-  agent_name: AgentName
 }
 
 export type DeleteWorkflowsRequest = {
@@ -613,10 +605,6 @@ export type CreateEnvironmentRequest = {
   mcp_connection_refs?: Array<McpConnectionRef>
 }
 
-export type DeleteEnvironmentRequest = {
-  name: EnvironmentName
-}
-
 export type UpdateEnvironmentRequest = {
   packages: Array<string>
   allowed_hosts: Array<string>
@@ -734,15 +722,17 @@ export type WatchMcpConnectionsEvent = {
 export type CreateMcpConnectionRequest = {
   name: McpConnectionName
   endpoint: McpConnectionEndpoint
-  auth?: McpConnectionAuth
+  auth: McpConnectionAuth
+  credentials: McpConnectionCredentials
 }
 
 export type UpdateMcpConnectionRequest = {
   endpoint: McpConnectionEndpoint
-  auth?: McpConnectionAuth
+  auth: McpConnectionAuth
+  credentials: McpConnectionCredentials
 }
 
-export type SetMcpConnectionCredentialsRequest = {
+export type McpConnectionCredentials = {
   bearer?: McpConnectionBearerCredentials
   oauth?: McpConnectionOAuthCredentials
 }
@@ -870,7 +860,7 @@ export type ListAgentsData = {
      */
     page_token?: string
   }
-  url: "/api/agent/list"
+  url: "/api/agent"
 }
 
 export type ListAgentsErrors = {
@@ -895,458 +885,11 @@ export type ListAgentsResponses = {
 
 export type ListAgentsResponse2 = ListAgentsResponses[keyof ListAgentsResponses]
 
-export type ListTracesData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for trace start time.
-     */
-    started_after?: string
-    /**
-     * Inclusive upper bound for trace start time.
-     */
-    started_before?: string
-  }
-  url: "/api/lens/trace/list"
-}
-
-export type ListTracesErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListTracesError = ListTracesErrors[keyof ListTracesErrors]
-
-export type ListTracesResponses = {
-  /**
-   * Paginated trace summaries.
-   */
-  200: ListTracesResponse
-}
-
-export type ListTracesResponse2 = ListTracesResponses[keyof ListTracesResponses]
-
-export type ListTraceSessionsData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Optional root session ID.
-     */
-    session_id?: string
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for trace start time.
-     */
-    started_after?: string
-    /**
-     * Inclusive upper bound for trace start time.
-     */
-    started_before?: string
-  }
-  url: "/api/lens/trace/session/list"
-}
-
-export type ListTraceSessionsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListTraceSessionsError = ListTraceSessionsErrors[keyof ListTraceSessionsErrors]
-
-export type ListTraceSessionsResponses = {
-  /**
-   * Paginated per-session trace summaries.
-   */
-  200: ListTraceSessionsResponse
-}
-
-export type ListTraceSessionsResponse2 =
-  ListTraceSessionsResponses[keyof ListTraceSessionsResponses]
-
-export type ListSpansData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Lowercase hexadecimal OTLP trace ID.
-     */
-    trace_id: TraceId
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/lens/span/list"
-}
-
-export type ListSpansErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListSpansError = ListSpansErrors[keyof ListSpansErrors]
-
-export type ListSpansResponses = {
-  /**
-   * Paginated spans for a trace.
-   */
-  200: ListSpansResponse
-}
-
-export type ListSpansResponse2 = ListSpansResponses[keyof ListSpansResponses]
-
-export type GetSpanDetailData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Lowercase hexadecimal OTLP trace ID.
-     */
-    trace_id: TraceId
-    /**
-     * Lowercase hexadecimal OTLP span ID.
-     */
-    span_id: SpanId
-  }
-  url: "/api/lens/span/detail"
-}
-
-export type GetSpanDetailErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type GetSpanDetailError = GetSpanDetailErrors[keyof GetSpanDetailErrors]
-
-export type GetSpanDetailResponses = {
-  /**
-   * Span detail with payload and correlated events.
-   */
-  200: SpanDetailResponse
-}
-
-export type GetSpanDetailResponse = GetSpanDetailResponses[keyof GetSpanDetailResponses]
-
-export type ListProcessObservabilityData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for event time.
-     */
-    event_time_after?: string
-    /**
-     * Inclusive upper bound for event time.
-     */
-    event_time_before?: string
-    /**
-     * Optional observability action filter.
-     */
-    action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
-  }
-  url: "/api/lens/observability/process/list"
-}
-
-export type ListProcessObservabilityErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListProcessObservabilityError =
-  ListProcessObservabilityErrors[keyof ListProcessObservabilityErrors]
-
-export type ListProcessObservabilityResponses = {
-  /**
-   * Paginated process observability events.
-   */
-  200: ListProcessObservabilityResponse
-}
-
-export type ListProcessObservabilityResponse2 =
-  ListProcessObservabilityResponses[keyof ListProcessObservabilityResponses]
-
-export type ListFileObservabilityData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for event time.
-     */
-    event_time_after?: string
-    /**
-     * Inclusive upper bound for event time.
-     */
-    event_time_before?: string
-    /**
-     * Optional observability action filter.
-     */
-    action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
-  }
-  url: "/api/lens/observability/file/list"
-}
-
-export type ListFileObservabilityErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListFileObservabilityError =
-  ListFileObservabilityErrors[keyof ListFileObservabilityErrors]
-
-export type ListFileObservabilityResponses = {
-  /**
-   * Paginated file observability events.
-   */
-  200: ListFileObservabilityResponse
-}
-
-export type ListFileObservabilityResponse2 =
-  ListFileObservabilityResponses[keyof ListFileObservabilityResponses]
-
-export type ListNetworkObservabilityData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-    /**
-     * Inclusive lower bound for event time.
-     */
-    event_time_after?: string
-    /**
-     * Inclusive upper bound for event time.
-     */
-    event_time_before?: string
-    /**
-     * Optional observability action filter.
-     */
-    action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
-  }
-  url: "/api/lens/observability/network/list"
-}
-
-export type ListNetworkObservabilityErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListNetworkObservabilityError =
-  ListNetworkObservabilityErrors[keyof ListNetworkObservabilityErrors]
-
-export type ListNetworkObservabilityResponses = {
-  /**
-   * Paginated network observability events.
-   */
-  200: ListNetworkObservabilityResponse
-}
-
-export type ListNetworkObservabilityResponse2 =
-  ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
-
-export type GetMcpGraphData = {
-  body?: never
-  path?: never
-  query: {
-    /**
-     * Agent name.
-     */
-    agent_name: AgentName
-    /**
-     * Inclusive lower bound for MCP tool activity date.
-     */
-    from: string
-    /**
-     * Inclusive upper bound for MCP tool activity date.
-     */
-    to: string
-  }
-  url: "/api/lens/mcp/graph"
-}
-
-export type GetMcpGraphErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type GetMcpGraphError = GetMcpGraphErrors[keyof GetMcpGraphErrors]
-
-export type GetMcpGraphResponses = {
-  /**
-   * Graph-ready MCP observability for one agent.
-   */
-  200: McpGraphResponse
-}
-
-export type GetMcpGraphResponse = GetMcpGraphResponses[keyof GetMcpGraphResponses]
-
 export type CreateAgentData = {
   body: CreateAgentRequest
   path?: never
   query?: never
-  url: "/api/agent/create"
+  url: "/api/agent"
 }
 
 export type CreateAgentErrors = {
@@ -1376,10 +919,15 @@ export type CreateAgentResponses = {
 export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses]
 
 export type DeleteAgentData = {
-  body: DeleteAgentRequest
-  path?: never
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
   query?: never
-  url: "/api/agent/delete"
+  url: "/api/agent/{agentName}"
 }
 
 export type DeleteAgentErrors = {
@@ -1408,618 +956,6 @@ export type DeleteAgentResponses = {
 
 export type DeleteAgentResponse = DeleteAgentResponses[keyof DeleteAgentResponses]
 
-export type CreateWorkflowData = {
-  body: CreateWorkflowRequest
-  path?: never
-  query?: never
-  url: "/api/workflows"
-}
-
-export type CreateWorkflowErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type CreateWorkflowError = CreateWorkflowErrors[keyof CreateWorkflowErrors]
-
-export type CreateWorkflowResponses = {
-  /**
-   * Workflow created.
-   */
-  201: Workflow
-}
-
-export type CreateWorkflowResponse = CreateWorkflowResponses[keyof CreateWorkflowResponses]
-
-export type DeleteWorkflowsData = {
-  body: DeleteWorkflowsRequest
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-  }
-  query?: never
-  url: "/api/workflows/{agentName}"
-}
-
-export type DeleteWorkflowsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type DeleteWorkflowsError = DeleteWorkflowsErrors[keyof DeleteWorkflowsErrors]
-
-export type DeleteWorkflowsResponses = {
-  /**
-   * Workflows deleted.
-   */
-  204: void
-}
-
-export type DeleteWorkflowsResponse = DeleteWorkflowsResponses[keyof DeleteWorkflowsResponses]
-
-export type GetWorkflowData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * Workflow name scoped to one agent.
-     */
-    workflowName: WorkflowName
-  }
-  query?: never
-  url: "/api/workflows/{agentName}/{workflowName}"
-}
-
-export type GetWorkflowErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type GetWorkflowError = GetWorkflowErrors[keyof GetWorkflowErrors]
-
-export type GetWorkflowResponses = {
-  /**
-   * Workflow definition.
-   */
-  200: Workflow
-}
-
-export type GetWorkflowResponse = GetWorkflowResponses[keyof GetWorkflowResponses]
-
-export type PatchWorkflowRunStatusData = {
-  body: PatchWorkflowRunStatusRequest
-  path: {
-    /**
-     * WorkflowRun resource name.
-     */
-    name: WorkflowRunName
-  }
-  query?: never
-  url: "/api/workflow-runs/{name}/status"
-}
-
-export type PatchWorkflowRunStatusErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type PatchWorkflowRunStatusError =
-  PatchWorkflowRunStatusErrors[keyof PatchWorkflowRunStatusErrors]
-
-export type PatchWorkflowRunStatusResponses = {
-  /**
-   * WorkflowRun status updated.
-   */
-  204: void
-}
-
-export type PatchWorkflowRunStatusResponse =
-  PatchWorkflowRunStatusResponses[keyof PatchWorkflowRunStatusResponses]
-
-export type ListWorkflowSummariesData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-  }
-  query?: never
-  url: "/api/workflow-summaries/{agentName}"
-}
-
-export type ListWorkflowSummariesErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListWorkflowSummariesError =
-  ListWorkflowSummariesErrors[keyof ListWorkflowSummariesErrors]
-
-export type ListWorkflowSummariesResponses = {
-  /**
-   * Workflow summaries for one agent.
-   */
-  200: Array<WorkflowSummary>
-}
-
-export type ListWorkflowSummariesResponse =
-  ListWorkflowSummariesResponses[keyof ListWorkflowSummariesResponses]
-
-export type CreateWorkflowScheduleData = {
-  body: CreateWorkflowScheduleRequest
-  path?: never
-  query?: never
-  url: "/api/workflow-schedules"
-}
-
-export type CreateWorkflowScheduleErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type CreateWorkflowScheduleError =
-  CreateWorkflowScheduleErrors[keyof CreateWorkflowScheduleErrors]
-
-export type CreateWorkflowScheduleResponses = {
-  /**
-   * Workflow schedule created.
-   */
-  201: WorkflowSchedule
-}
-
-export type CreateWorkflowScheduleResponse =
-  CreateWorkflowScheduleResponses[keyof CreateWorkflowScheduleResponses]
-
-export type ListWorkflowSchedulesData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-  }
-  query?: {
-    /**
-     * Optional workflow name filter scoped to one agent.
-     */
-    workflow_name?: WorkflowName
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/workflow-schedules/{agentName}"
-}
-
-export type ListWorkflowSchedulesErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListWorkflowSchedulesError =
-  ListWorkflowSchedulesErrors[keyof ListWorkflowSchedulesErrors]
-
-export type ListWorkflowSchedulesResponses = {
-  /**
-   * Paginated workflow schedules for one agent.
-   */
-  200: ListWorkflowSchedulesResponse
-}
-
-export type ListWorkflowSchedulesResponse2 =
-  ListWorkflowSchedulesResponses[keyof ListWorkflowSchedulesResponses]
-
-export type DeleteWorkflowScheduleData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    name: WorkflowScheduleName
-  }
-  query?: never
-  url: "/api/workflow-schedules/{agentName}/{name}"
-}
-
-export type DeleteWorkflowScheduleErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type DeleteWorkflowScheduleError =
-  DeleteWorkflowScheduleErrors[keyof DeleteWorkflowScheduleErrors]
-
-export type DeleteWorkflowScheduleResponses = {
-  /**
-   * Workflow schedule deleted.
-   */
-  204: void
-}
-
-export type DeleteWorkflowScheduleResponse =
-  DeleteWorkflowScheduleResponses[keyof DeleteWorkflowScheduleResponses]
-
-export type UpdateWorkflowScheduleData = {
-  body: UpdateWorkflowScheduleRequest
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    name: WorkflowScheduleName
-  }
-  query?: never
-  url: "/api/workflow-schedules/{agentName}/{name}"
-}
-
-export type UpdateWorkflowScheduleErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type UpdateWorkflowScheduleError =
-  UpdateWorkflowScheduleErrors[keyof UpdateWorkflowScheduleErrors]
-
-export type UpdateWorkflowScheduleResponses = {
-  /**
-   * Workflow schedule updated.
-   */
-  200: WorkflowSchedule
-}
-
-export type UpdateWorkflowScheduleResponse =
-  UpdateWorkflowScheduleResponses[keyof UpdateWorkflowScheduleResponses]
-
-export type CreateWorkflowRunData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    name: WorkflowScheduleName
-  }
-  query?: never
-  url: "/api/workflow-schedules/{agentName}/{name}/run"
-}
-
-export type CreateWorkflowRunErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type CreateWorkflowRunError = CreateWorkflowRunErrors[keyof CreateWorkflowRunErrors]
-
-export type CreateWorkflowRunResponses = {
-  /**
-   * Workflow run accepted.
-   */
-  202: WorkflowRunSummary
-}
-
-export type CreateWorkflowRunResponse = CreateWorkflowRunResponses[keyof CreateWorkflowRunResponses]
-
-export type ListWorkflowRunsData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    name: WorkflowScheduleName
-  }
-  query?: {
-    /**
-     * Optional WorkflowRun phase filter.
-     */
-    status?: WorkflowRunStatus
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/workflow-schedules/{agentName}/{name}/runs"
-}
-
-export type ListWorkflowRunsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListWorkflowRunsError = ListWorkflowRunsErrors[keyof ListWorkflowRunsErrors]
-
-export type ListWorkflowRunsResponses = {
-  /**
-   * Paginated workflow runs for one workflow schedule.
-   */
-  200: ListWorkflowRunsResponse
-}
-
-export type ListWorkflowRunsResponse2 = ListWorkflowRunsResponses[keyof ListWorkflowRunsResponses]
-
-export type WatchWorkflowRunsData = {
-  body?: WatchWorkflowRunsRequest
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    name: WorkflowScheduleName
-  }
-  query?: never
-  url: "/api/workflow-schedules/{agentName}/{name}/runs/watch"
-}
-
-export type WatchWorkflowRunsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type WatchWorkflowRunsError = WatchWorkflowRunsErrors[keyof WatchWorkflowRunsErrors]
-
-export type WatchWorkflowRunsResponses = {
-  /**
-   * Stream of workflow run updates.
-   */
-  200: WatchWorkflowRunsEvent
-}
-
-export type WatchWorkflowRunsResponse = WatchWorkflowRunsResponses[keyof WatchWorkflowRunsResponses]
-
-export type DeleteWorkflowRunData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    name: WorkflowScheduleName
-    /**
-     * WorkflowRun resource name.
-     */
-    runName: WorkflowRunName
-  }
-  query?: never
-  url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}"
-}
-
-export type DeleteWorkflowRunErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type DeleteWorkflowRunError = DeleteWorkflowRunErrors[keyof DeleteWorkflowRunErrors]
-
-export type DeleteWorkflowRunResponses = {
-  /**
-   * Workflow run deleted.
-   */
-  204: void
-}
-
-export type DeleteWorkflowRunResponse = DeleteWorkflowRunResponses[keyof DeleteWorkflowRunResponses]
-
-export type GetWorkflowRunData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    name: WorkflowScheduleName
-    /**
-     * WorkflowRun resource name.
-     */
-    runName: WorkflowRunName
-  }
-  query?: never
-  url: "/api/workflow-schedules/{agentName}/{name}/runs/{runName}"
-}
-
-export type GetWorkflowRunErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type GetWorkflowRunError = GetWorkflowRunErrors[keyof GetWorkflowRunErrors]
-
-export type GetWorkflowRunResponses = {
-  /**
-   * Workflow run details.
-   */
-  200: WorkflowRunDetail
-}
-
-export type GetWorkflowRunResponse = GetWorkflowRunResponses[keyof GetWorkflowRunResponses]
-
 export type UpdateAgentData = {
   body: UpdateAgentRequest
   path: {
@@ -2029,7 +965,7 @@ export type UpdateAgentData = {
     agentName: AgentName
   }
   query?: never
-  url: "/api/agent/update/{agentName}"
+  url: "/api/agent/{agentName}"
 }
 
 export type UpdateAgentErrors = {
@@ -2091,6 +1027,460 @@ export type WatchAgentsResponses = {
 
 export type WatchAgentsResponse = WatchAgentsResponses[keyof WatchAgentsResponses]
 
+export type ListTraceSessionsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Session identifier scoped to one agent.
+     */
+    sessionID: string
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
+  }
+  url: "/api/lens/{agentName}/{sessionID}/trace"
+}
+
+export type ListTraceSessionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListTraceSessionsError = ListTraceSessionsErrors[keyof ListTraceSessionsErrors]
+
+export type ListTraceSessionsResponses = {
+  /**
+   * Paginated per-session trace summaries.
+   */
+  200: ListTraceSessionsResponse
+}
+
+export type ListTraceSessionsResponse2 =
+  ListTraceSessionsResponses[keyof ListTraceSessionsResponses]
+
+export type ListSpansData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Session identifier scoped to one agent.
+     */
+    sessionID: string
+    /**
+     * Trace identifier scoped to one session.
+     */
+    traceID: TraceId
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/lens/{agentName}/{sessionID}/trace/{traceID}/span"
+}
+
+export type ListSpansErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListSpansError = ListSpansErrors[keyof ListSpansErrors]
+
+export type ListSpansResponses = {
+  /**
+   * Paginated spans for a trace.
+   */
+  200: ListSpansResponse
+}
+
+export type ListSpansResponse2 = ListSpansResponses[keyof ListSpansResponses]
+
+export type GetSpanDetailData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Session identifier scoped to one agent.
+     */
+    sessionID: string
+    /**
+     * Trace identifier scoped to one session.
+     */
+    traceID: TraceId
+    /**
+     * Span identifier scoped to one trace.
+     */
+    spanID: SpanId
+  }
+  query?: never
+  url: "/api/lens/{agentName}/{sessionID}/trace/{traceID}/span/{spanID}"
+}
+
+export type GetSpanDetailErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetSpanDetailError = GetSpanDetailErrors[keyof GetSpanDetailErrors]
+
+export type GetSpanDetailResponses = {
+  /**
+   * Span detail with payload and correlated events.
+   */
+  200: SpanDetailResponse
+}
+
+export type GetSpanDetailResponse = GetSpanDetailResponses[keyof GetSpanDetailResponses]
+
+export type ListProcessObservabilityData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
+  }
+  url: "/api/lens/{agentName}/observability/process"
+}
+
+export type ListProcessObservabilityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListProcessObservabilityError =
+  ListProcessObservabilityErrors[keyof ListProcessObservabilityErrors]
+
+export type ListProcessObservabilityResponses = {
+  /**
+   * Paginated process observability events.
+   */
+  200: ListProcessObservabilityResponse
+}
+
+export type ListProcessObservabilityResponse2 =
+  ListProcessObservabilityResponses[keyof ListProcessObservabilityResponses]
+
+export type ListFileObservabilityData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
+  }
+  url: "/api/lens/{agentName}/observability/file"
+}
+
+export type ListFileObservabilityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListFileObservabilityError =
+  ListFileObservabilityErrors[keyof ListFileObservabilityErrors]
+
+export type ListFileObservabilityResponses = {
+  /**
+   * Paginated file observability events.
+   */
+  200: ListFileObservabilityResponse
+}
+
+export type ListFileObservabilityResponse2 =
+  ListFileObservabilityResponses[keyof ListFileObservabilityResponses]
+
+export type ListNetworkObservabilityData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+    /**
+     * When true, returns aggregated events with occurrence counts over the time range.
+     */
+    aggregated?: boolean
+  }
+  url: "/api/lens/{agentName}/observability/network"
+}
+
+export type ListNetworkObservabilityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListNetworkObservabilityError =
+  ListNetworkObservabilityErrors[keyof ListNetworkObservabilityErrors]
+
+export type ListNetworkObservabilityResponses = {
+  /**
+   * Paginated network observability events.
+   */
+  200: ListNetworkObservabilityResponse
+}
+
+export type ListNetworkObservabilityResponse2 =
+  ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
+
+export type GetMcpGraphData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Inclusive lower bound for MCP tool activity date.
+     */
+    from: string
+    /**
+     * Inclusive upper bound for MCP tool activity date.
+     */
+    to: string
+  }
+  url: "/api/lens/{agentName}/mcp/graph"
+}
+
+export type GetMcpGraphErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetMcpGraphError = GetMcpGraphErrors[keyof GetMcpGraphErrors]
+
+export type GetMcpGraphResponses = {
+  /**
+   * Graph-ready MCP observability for one agent.
+   */
+  200: McpGraphResponse
+}
+
+export type GetMcpGraphResponse = GetMcpGraphResponses[keyof GetMcpGraphResponses]
+
+export type ListSecretsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/secret/{agentName}"
+}
+
+export type ListSecretsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListSecretsError = ListSecretsErrors[keyof ListSecretsErrors]
+
+export type ListSecretsResponses = {
+  /**
+   * Paginated secret keys.
+   */
+  200: ListSecretsResponse
+}
+
+export type ListSecretsResponse2 = ListSecretsResponses[keyof ListSecretsResponses]
+
 export type PutSecretData = {
   body: PutSecretsRequest
   path: {
@@ -2100,7 +1490,7 @@ export type PutSecretData = {
     agentName: AgentName
   }
   query?: never
-  url: "/api/secret/{agentName}/put"
+  url: "/api/secret/{agentName}"
 }
 
 export type PutSecretErrors = {
@@ -2167,53 +1557,6 @@ export type DeleteSecretResponses = {
 
 export type DeleteSecretResponse = DeleteSecretResponses[keyof DeleteSecretResponses]
 
-export type ListSecretsData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-  }
-  query?: {
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/secret/{agentName}/list"
-}
-
-export type ListSecretsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListSecretsError = ListSecretsErrors[keyof ListSecretsErrors]
-
-export type ListSecretsResponses = {
-  /**
-   * Paginated secret keys.
-   */
-  200: ListSecretsResponse
-}
-
-export type ListSecretsResponse2 = ListSecretsResponses[keyof ListSecretsResponses]
-
 export type ListEnvironmentsData = {
   body?: never
   path?: never
@@ -2227,7 +1570,7 @@ export type ListEnvironmentsData = {
      */
     page_token?: string
   }
-  url: "/api/environment/list"
+  url: "/api/environment"
 }
 
 export type ListEnvironmentsErrors = {
@@ -2256,7 +1599,7 @@ export type CreateEnvironmentData = {
   body: CreateEnvironmentRequest
   path?: never
   query?: never
-  url: "/api/environment/create"
+  url: "/api/environment"
 }
 
 export type CreateEnvironmentErrors = {
@@ -2286,10 +1629,15 @@ export type CreateEnvironmentResponses = {
 export type CreateEnvironmentResponse = CreateEnvironmentResponses[keyof CreateEnvironmentResponses]
 
 export type DeleteEnvironmentData = {
-  body: DeleteEnvironmentRequest
-  path?: never
+  body?: never
+  path: {
+    /**
+     * Environment resource name.
+     */
+    environmentName: EnvironmentName
+  }
   query?: never
-  url: "/api/environment/delete"
+  url: "/api/environment/{environmentName}"
 }
 
 export type DeleteEnvironmentErrors = {
@@ -2322,12 +1670,12 @@ export type UpdateEnvironmentData = {
   body: UpdateEnvironmentRequest
   path: {
     /**
-     * Environment name.
+     * Environment resource name.
      */
-    name: EnvironmentName
+    environmentName: EnvironmentName
   }
   query?: never
-  url: "/api/environment/update/{name}"
+  url: "/api/environment/{environmentName}"
 }
 
 export type UpdateEnvironmentErrors = {
@@ -2355,6 +1703,45 @@ export type UpdateEnvironmentResponses = {
 }
 
 export type UpdateEnvironmentResponse = UpdateEnvironmentResponses[keyof UpdateEnvironmentResponses]
+
+export type ListMcpConnectionsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/mcp-connection"
+}
+
+export type ListMcpConnectionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListMcpConnectionsError = ListMcpConnectionsErrors[keyof ListMcpConnectionsErrors]
+
+export type ListMcpConnectionsResponses = {
+  /**
+   * Paginated MCPConnections.
+   */
+  200: ListMcpConnectionsResponse
+}
+
+export type ListMcpConnectionsResponse2 =
+  ListMcpConnectionsResponses[keyof ListMcpConnectionsResponses]
 
 export type CreateMcpConnectionData = {
   body: CreateMcpConnectionRequest
@@ -2514,45 +1901,6 @@ export type UpdateMcpConnectionResponses = {
 export type UpdateMcpConnectionResponse =
   UpdateMcpConnectionResponses[keyof UpdateMcpConnectionResponses]
 
-export type ListMcpConnectionsData = {
-  body?: never
-  path?: never
-  query?: {
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/mcp-connection/list"
-}
-
-export type ListMcpConnectionsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListMcpConnectionsError = ListMcpConnectionsErrors[keyof ListMcpConnectionsErrors]
-
-export type ListMcpConnectionsResponses = {
-  /**
-   * Paginated MCPConnections.
-   */
-  200: ListMcpConnectionsResponse
-}
-
-export type ListMcpConnectionsResponse2 =
-  ListMcpConnectionsResponses[keyof ListMcpConnectionsResponses]
-
 export type WatchMcpConnectionsData = {
   body?: WatchMcpConnectionsRequest
   path?: never
@@ -2583,63 +1931,93 @@ export type WatchMcpConnectionsResponses = {
 export type WatchMcpConnectionsResponse =
   WatchMcpConnectionsResponses[keyof WatchMcpConnectionsResponses]
 
-export type DeleteMcpConnectionCredentialsData = {
+export type DeleteWorkflowsData = {
+  body: DeleteWorkflowsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}"
+}
+
+export type DeleteWorkflowsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteWorkflowsError = DeleteWorkflowsErrors[keyof DeleteWorkflowsErrors]
+
+export type DeleteWorkflowsResponses = {
+  /**
+   * Workflows deleted.
+   */
+  204: void
+}
+
+export type DeleteWorkflowsResponse = DeleteWorkflowsResponses[keyof DeleteWorkflowsResponses]
+
+export type ListWorkflowSummariesData = {
   body?: never
   path: {
     /**
-     * MCPConnection name.
+     * Agent name.
      */
-    name: McpConnectionName
+    agentName: AgentName
   }
   query?: never
-  url: "/api/mcp-connection/{name}/credentials"
+  url: "/api/workflow/{agentName}"
 }
 
-export type DeleteMcpConnectionCredentialsErrors = {
+export type ListWorkflowSummariesErrors = {
   /**
    * Request validation failed.
    */
   400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
   /**
    * Unexpected server error.
    */
   500: Error
 }
 
-export type DeleteMcpConnectionCredentialsError =
-  DeleteMcpConnectionCredentialsErrors[keyof DeleteMcpConnectionCredentialsErrors]
+export type ListWorkflowSummariesError =
+  ListWorkflowSummariesErrors[keyof ListWorkflowSummariesErrors]
 
-export type DeleteMcpConnectionCredentialsResponses = {
+export type ListWorkflowSummariesResponses = {
   /**
-   * MCPConnection credentials removed.
+   * Workflow summaries for one agent.
    */
-  204: void
+  200: Array<WorkflowSummary>
 }
 
-export type DeleteMcpConnectionCredentialsResponse =
-  DeleteMcpConnectionCredentialsResponses[keyof DeleteMcpConnectionCredentialsResponses]
+export type ListWorkflowSummariesResponse =
+  ListWorkflowSummariesResponses[keyof ListWorkflowSummariesResponses]
 
-export type SetMcpConnectionCredentialsData = {
-  body: SetMcpConnectionCredentialsRequest
+export type CreateWorkflowData = {
+  body: CreateWorkflowRequest
   path: {
     /**
-     * MCPConnection name.
+     * Agent name.
      */
-    name: McpConnectionName
+    agentName: AgentName
   }
   query?: never
-  url: "/api/mcp-connection/{name}/credentials"
+  url: "/api/workflow/{agentName}"
 }
 
-export type SetMcpConnectionCredentialsErrors = {
+export type CreateWorkflowErrors = {
   /**
    * Request validation failed.
    */
@@ -2658,15 +2036,604 @@ export type SetMcpConnectionCredentialsErrors = {
   500: Error
 }
 
-export type SetMcpConnectionCredentialsError =
-  SetMcpConnectionCredentialsErrors[keyof SetMcpConnectionCredentialsErrors]
+export type CreateWorkflowError = CreateWorkflowErrors[keyof CreateWorkflowErrors]
 
-export type SetMcpConnectionCredentialsResponses = {
+export type CreateWorkflowResponses = {
   /**
-   * MCPConnection credentials stored.
+   * Workflow created.
+   */
+  201: Workflow
+}
+
+export type CreateWorkflowResponse = CreateWorkflowResponses[keyof CreateWorkflowResponses]
+
+export type GetWorkflowData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}"
+}
+
+export type GetWorkflowErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetWorkflowError = GetWorkflowErrors[keyof GetWorkflowErrors]
+
+export type GetWorkflowResponses = {
+  /**
+   * Workflow definition.
+   */
+  200: Workflow
+}
+
+export type GetWorkflowResponse = GetWorkflowResponses[keyof GetWorkflowResponses]
+
+export type ListAgentWorkflowSchedulesData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/workflow/{agentName}/schedule"
+}
+
+export type ListAgentWorkflowSchedulesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentWorkflowSchedulesError =
+  ListAgentWorkflowSchedulesErrors[keyof ListAgentWorkflowSchedulesErrors]
+
+export type ListAgentWorkflowSchedulesResponses = {
+  /**
+   * Paginated workflow schedules for one agent.
+   */
+  200: ListWorkflowSchedulesResponse
+}
+
+export type ListAgentWorkflowSchedulesResponse =
+  ListAgentWorkflowSchedulesResponses[keyof ListAgentWorkflowSchedulesResponses]
+
+export type ListWorkflowSchedulesData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/workflow/{agentName}/{workflowName}/schedule"
+}
+
+export type ListWorkflowSchedulesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkflowSchedulesError =
+  ListWorkflowSchedulesErrors[keyof ListWorkflowSchedulesErrors]
+
+export type ListWorkflowSchedulesResponses = {
+  /**
+   * Paginated workflow schedules for one workflow.
+   */
+  200: ListWorkflowSchedulesResponse
+}
+
+export type ListWorkflowSchedulesResponse2 =
+  ListWorkflowSchedulesResponses[keyof ListWorkflowSchedulesResponses]
+
+export type CreateWorkflowScheduleData = {
+  body: CreateWorkflowScheduleRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/schedule"
+}
+
+export type CreateWorkflowScheduleErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateWorkflowScheduleError =
+  CreateWorkflowScheduleErrors[keyof CreateWorkflowScheduleErrors]
+
+export type CreateWorkflowScheduleResponses = {
+  /**
+   * Workflow schedule created.
+   */
+  201: WorkflowSchedule
+}
+
+export type CreateWorkflowScheduleResponse =
+  CreateWorkflowScheduleResponses[keyof CreateWorkflowScheduleResponses]
+
+export type DeleteWorkflowScheduleData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    scheduleName: WorkflowScheduleName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}"
+}
+
+export type DeleteWorkflowScheduleErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteWorkflowScheduleError =
+  DeleteWorkflowScheduleErrors[keyof DeleteWorkflowScheduleErrors]
+
+export type DeleteWorkflowScheduleResponses = {
+  /**
+   * Workflow schedule deleted.
    */
   204: void
 }
 
-export type SetMcpConnectionCredentialsResponse =
-  SetMcpConnectionCredentialsResponses[keyof SetMcpConnectionCredentialsResponses]
+export type DeleteWorkflowScheduleResponse =
+  DeleteWorkflowScheduleResponses[keyof DeleteWorkflowScheduleResponses]
+
+export type UpdateWorkflowScheduleData = {
+  body: UpdateWorkflowScheduleRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    scheduleName: WorkflowScheduleName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}"
+}
+
+export type UpdateWorkflowScheduleErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateWorkflowScheduleError =
+  UpdateWorkflowScheduleErrors[keyof UpdateWorkflowScheduleErrors]
+
+export type UpdateWorkflowScheduleResponses = {
+  /**
+   * Workflow schedule updated.
+   */
+  200: WorkflowSchedule
+}
+
+export type UpdateWorkflowScheduleResponse =
+  UpdateWorkflowScheduleResponses[keyof UpdateWorkflowScheduleResponses]
+
+export type ListWorkflowRunsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    scheduleName: WorkflowScheduleName
+  }
+  query?: {
+    /**
+     * Optional WorkflowRun phase filter.
+     */
+    status?: WorkflowRunStatus
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run"
+}
+
+export type ListWorkflowRunsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkflowRunsError = ListWorkflowRunsErrors[keyof ListWorkflowRunsErrors]
+
+export type ListWorkflowRunsResponses = {
+  /**
+   * Paginated workflow runs for one workflow schedule.
+   */
+  200: ListWorkflowRunsResponse
+}
+
+export type ListWorkflowRunsResponse2 = ListWorkflowRunsResponses[keyof ListWorkflowRunsResponses]
+
+export type CreateWorkflowRunData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    scheduleName: WorkflowScheduleName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run"
+}
+
+export type CreateWorkflowRunErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateWorkflowRunError = CreateWorkflowRunErrors[keyof CreateWorkflowRunErrors]
+
+export type CreateWorkflowRunResponses = {
+  /**
+   * Workflow run accepted.
+   */
+  202: WorkflowRunSummary
+}
+
+export type CreateWorkflowRunResponse = CreateWorkflowRunResponses[keyof CreateWorkflowRunResponses]
+
+export type WatchWorkflowRunsData = {
+  body?: WatchWorkflowRunsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    scheduleName: WorkflowScheduleName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch"
+}
+
+export type WatchWorkflowRunsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchWorkflowRunsError = WatchWorkflowRunsErrors[keyof WatchWorkflowRunsErrors]
+
+export type WatchWorkflowRunsResponses = {
+  /**
+   * Stream of workflow run updates.
+   */
+  200: WatchWorkflowRunsEvent
+}
+
+export type WatchWorkflowRunsResponse = WatchWorkflowRunsResponses[keyof WatchWorkflowRunsResponses]
+
+export type DeleteWorkflowRunData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    scheduleName: WorkflowScheduleName
+    /**
+     * WorkflowRun resource name.
+     */
+    runName: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}"
+}
+
+export type DeleteWorkflowRunErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteWorkflowRunError = DeleteWorkflowRunErrors[keyof DeleteWorkflowRunErrors]
+
+export type DeleteWorkflowRunResponses = {
+  /**
+   * Workflow run deleted.
+   */
+  204: void
+}
+
+export type DeleteWorkflowRunResponse = DeleteWorkflowRunResponses[keyof DeleteWorkflowRunResponses]
+
+export type GetWorkflowRunData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowSchedule resource name.
+     */
+    scheduleName: WorkflowScheduleName
+    /**
+     * WorkflowRun resource name.
+     */
+    runName: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}"
+}
+
+export type GetWorkflowRunErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetWorkflowRunError = GetWorkflowRunErrors[keyof GetWorkflowRunErrors]
+
+export type GetWorkflowRunResponses = {
+  /**
+   * Workflow run details.
+   */
+  200: WorkflowRunDetail
+}
+
+export type GetWorkflowRunResponse = GetWorkflowRunResponses[keyof GetWorkflowRunResponses]
+
+export type PatchWorkflowRunStatusData = {
+  body: PatchWorkflowRunStatusRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to one agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowRun resource name.
+     */
+    runName: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/status"
+}
+
+export type PatchWorkflowRunStatusErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type PatchWorkflowRunStatusError =
+  PatchWorkflowRunStatusErrors[keyof PatchWorkflowRunStatusErrors]
+
+export type PatchWorkflowRunStatusResponses = {
+  /**
+   * WorkflowRun status updated.
+   */
+  204: void
+}
+
+export type PatchWorkflowRunStatusResponse =
+  PatchWorkflowRunStatusResponses[keyof PatchWorkflowRunStatusResponses]

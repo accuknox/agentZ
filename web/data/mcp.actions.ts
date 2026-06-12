@@ -6,7 +6,6 @@ import { redirect } from "next/navigation"
 import {
   createMcpConnection,
   deleteMcpConnection,
-  setMcpConnectionCredentials,
   updateMcpConnection,
   type Error as GatewayError,
 } from "@/lib/gateway/client"
@@ -106,12 +105,24 @@ async function persistBearerMutation(
   form: ReturnType<typeof parseMcpForm>
 ): Promise<GatewayError | undefined> {
   const auth = bearerAuth(form)
+  const credentials = form.bearerToken
+    ? {
+        bearer: {
+          token: form.bearerToken,
+        },
+      }
+    : {
+        bearer: {
+          token: "override-required",
+        },
+      }
   if (form.mode === "create") {
     const createResult = await createMcpConnection({
       body: {
         name: form.name,
         endpoint: form.endpoint,
         auth,
+        credentials,
       },
       client: gatewayServerClient,
     })
@@ -125,27 +136,14 @@ async function persistBearerMutation(
       body: {
         endpoint: form.endpoint,
         auth,
+        credentials,
       },
     })
     if (updateResult.error) {
       return updateResult.error
     }
   }
-
-  if (!form.bearerToken) {
-    return undefined
-  }
-
-  const credentialsResult = await setMcpConnectionCredentials({
-    client: gatewayServerClient,
-    path: { name: form.currentName ?? form.name },
-    body: {
-      bearer: {
-        token: form.bearerToken,
-      },
-    },
-  })
-  return credentialsResult.error
+  return undefined
 }
 
 export async function submitMcpFormAction(

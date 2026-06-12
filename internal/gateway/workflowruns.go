@@ -17,20 +17,24 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-// PatchWorkflowRunStatus handles PATCH /api/workflow-runs/{name}/status.
-func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request, name string) {
+// PatchWorkflowRunStatus handles PATCH /api/workflow/{agentName}/{workflowName}/run/{runName}/status.
+func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
 	var req gatewayapi.PatchWorkflowRunStatusRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
 
-	trimmedName := strings.TrimSpace(name)
+	agentName := strings.TrimSpace(agtName)
+	workflowName = strings.TrimSpace(workflowName)
+	runName = strings.TrimSpace(runName)
 	message := ""
 	if req.Message != nil {
 		message = strings.TrimSpace(*req.Message)
 	}
 
-	fields := workflow.ValidateRunStatusRequest(trimmedName, message)
+	fields := workflow.ValidateLookupRequest(agentName, workflowName)
+	fields = append(fields, workflow.ValidateRunName(runName)...)
+	fields = append(fields, workflow.ValidateRunStatusRequest(runName, message)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -46,7 +50,9 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		r.Context(),
 		s.k8sClient,
 		s.cfg.Namespace,
-		trimmedName,
+		agentName,
+		workflowName,
+		runName,
 		req,
 		message,
 	)
@@ -76,12 +82,13 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ListWorkflowRuns handles GET /api/workflow-schedules/{agentName}/{name}/runs.
-func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName, params gatewayapi.ListWorkflowRunsParams) {
+// ListWorkflowRuns handles GET /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run.
+func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, params gatewayapi.ListWorkflowRunsParams) {
 	agtName = strings.TrimSpace(agtName)
-	schName := strings.TrimSpace(name)
+	workflowName = strings.TrimSpace(workflowName)
+	schName := strings.TrimSpace(scheduleName)
 
-	fields := workflow.ValidateRunRoute(agtName, schName)
+	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
 	fields = append(fields, workflow.ValidateRunListStatus(params.Status)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -118,6 +125,7 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		s.k8sClient,
 		s.cfg.Namespace,
 		agtName,
+		workflowName,
 		schName,
 		params.Status,
 		limit,
@@ -144,10 +152,10 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// WatchWorkflowRuns handles POST /api/workflow-schedules/{agentName}/{name}/runs/watch.
+// WatchWorkflowRuns handles POST /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch.
 //
 //nolint:gocyclo
-func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName) {
+func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
 	var req gatewayapi.WatchWorkflowRunsRequest
 	if r.Body != nil {
 		if !decodeJSONBody(w, r, &req, true) {
@@ -156,8 +164,9 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	}
 
 	agtName = strings.TrimSpace(agtName)
-	schName := strings.TrimSpace(name)
-	fields := workflow.ValidateRunRoute(agtName, schName)
+	workflowName = strings.TrimSpace(workflowName)
+	schName := strings.TrimSpace(scheduleName)
+	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
 	fields = append(fields, workflow.ValidateRunWatchNames(req.RunNames)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -175,6 +184,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		s.k8sClient,
 		s.cfg.Namespace,
 		agtName,
+		workflowName,
 		schName,
 		nil,
 		1,
@@ -251,6 +261,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 			s.k8sClient,
 			s.cfg.Namespace,
 			agtName,
+			workflowName,
 			schName,
 			nil,
 			200,
@@ -318,13 +329,14 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	}
 }
 
-// GetWorkflowRun handles GET /api/workflow-schedules/{agentName}/{name}/runs/{runName}.
-func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
+// GetWorkflowRun handles GET /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}.
+func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
 	agtName = strings.TrimSpace(agtName)
-	schName := strings.TrimSpace(name)
+	workflowName = strings.TrimSpace(workflowName)
+	schName := strings.TrimSpace(scheduleName)
 	trimmedRunName := strings.TrimSpace(runName)
 
-	fields := workflow.ValidateRunRoute(agtName, schName)
+	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
 	fields = append(fields, workflow.ValidateRunName(trimmedRunName)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -342,6 +354,7 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 		s.k8sClient,
 		s.cfg.Namespace,
 		agtName,
+		workflowName,
 		schName,
 		trimmedRunName,
 	)
@@ -362,13 +375,14 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	writeJSON(w, http.StatusOK, detail)
 }
 
-// DeleteWorkflowRun handles DELETE /api/workflow-schedules/{agentName}/{name}/runs/{runName}.
-func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
+// DeleteWorkflowRun handles DELETE /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}.
+func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
 	agtName = strings.TrimSpace(agtName)
-	schName := strings.TrimSpace(name)
+	workflowName = strings.TrimSpace(workflowName)
+	schName := strings.TrimSpace(scheduleName)
 	trimmedRunName := strings.TrimSpace(runName)
 
-	fields := workflow.ValidateRunRoute(agtName, schName)
+	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
 	fields = append(fields, workflow.ValidateRunName(trimmedRunName)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -386,6 +400,7 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		s.k8sClient,
 		s.cfg.Namespace,
 		agtName,
+		workflowName,
 		schName,
 		trimmedRunName,
 	)

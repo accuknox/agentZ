@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -18,85 +19,9 @@ import (
 
 const mcpGraphAgentNodePrefix = "agent:"
 
-// ListTraces handles GET /api/lens/trace/list.
-func (s *Service) ListTraces(w http.ResponseWriter, r *http.Request, params gatewayapi.ListTracesParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
-	if !ok {
-		return
-	}
-	limit, ok := validLimit(w, r, params.Limit)
-	if !ok {
-		return
-	}
-	cursor, cursorSet, ok := decodeTracePageToken(w, r, params.PageToken)
-	if !ok {
-		return
-	}
-	cursorTraceID, ok := decodeOptionalTraceCursor(w, r, cursor.TraceID, cursorSet)
-	if !ok {
-		return
-	}
-	startedAfter, startedBefore, ok := traceTimeBounds(w, r, params.StartedAfter, params.StartedBefore)
-	if !ok {
-		return
-	}
-
-	rows, err := s.queries.GatewayListTraces(r.Context(), gatewaydb.GatewayListTracesParams{
-		AgentName:       agentName,
-		StartedAfter:    startedAfter,
-		StartedBefore:   startedBefore,
-		CursorSet:       cursorSet,
-		CursorStartedAt: cursor.StartedAt,
-		CursorTraceID:   cursorTraceID,
-		PageSize:        int32(limit + 1),
-	})
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
-	items := make([]gatewayapi.Trace, 0, limit)
-	var next string
-	for i, row := range rows {
-		if i == limit {
-			last := rows[limit-1]
-			next = encodeCursorPageToken(tracePageCursor{
-				StartedAt: last.StartedAt,
-				TraceID:   hex.EncodeToString(last.TraceID),
-			})
-			break
-		}
-		items = append(items, gatewayapi.Trace{
-			TraceId:           hex.EncodeToString(row.TraceID),
-			AgentName:         row.AgentName,
-			RootSpanId:        hex.EncodeToString(row.RootSpanID),
-			StartedAt:         row.StartedAt,
-			EndedAt:           row.EndedAt,
-			DurationNs:        row.DurationNs,
-			DurationMs:        float64(row.DurationNs) / float64(time.Millisecond),
-			SpanCount:         row.SpanCount,
-			ErrorCount:        row.ErrorCount,
-			ToolCount:         row.ToolCount,
-			ModelCount:        row.ModelCount,
-			InputTokens:       row.InputTokens,
-			OutputTokens:      row.OutputTokens,
-			CachedInputTokens: row.CachedInputTokens,
-			CachedWriteTokens: row.CachedWriteTokens,
-			CostUsd:           row.CostUsd,
-			StatusCode:        row.StatusCode,
-			UpdatedAt:         row.UpdatedAt,
-		})
-	}
-
-	writeJSON(w, http.StatusOK, gatewayapi.ListTracesResponse{
-		Traces:        items,
-		NextPageToken: next,
-	})
-}
-
-// ListTraceSessions handles GET /api/lens/trace/session/list.
-func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, params gatewayapi.ListTraceSessionsParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+// ListTraceSessions handles GET /api/lens/{agentName}/{sessionID}/trace.
+func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, params gatewayapi.ListTraceSessionsParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
@@ -117,17 +42,21 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, para
 		return
 	}
 
-	var sessionID pgtype.Text
-	if params.SessionId != nil {
-		sessionID = pgtype.Text{
-			String: *params.SessionId,
-			Valid:  true,
-		}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "sessionID", Message: "required"},
+		))
+		return
 	}
 
 	rows, err := s.queries.GatewayListTraceSessions(r.Context(), gatewaydb.GatewayListTraceSessionsParams{
 		AgentName:       agentName,
-		SessionID:       sessionID,
+		SessionID:       pgtype.Text{String: sessionID, Valid: true},
 		StartedAfter:    startedAfter,
 		StartedBefore:   startedBefore,
 		CursorSet:       cursorSet,
@@ -182,13 +111,24 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, para
 	})
 }
 
-// ListSpans handles GET /api/lens/span/list.
-func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, params gatewayapi.ListSpansParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+// ListSpans handles GET /api/lens/{agentName}/{sessionID}/trace/{traceID}/span.
+func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, traceID gatewayapi.TraceID, params gatewayapi.ListSpansParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
-	traceID, ok := validTraceID(w, r, params.TraceId)
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "sessionID", Message: "required"},
+		))
+		return
+	}
+	traceIDBytes, ok := validTraceID(w, r, traceID)
 	if !ok {
 		return
 	}
@@ -203,7 +143,7 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, params gatew
 
 	rows, err := s.queries.GatewayListSpans(r.Context(), gatewaydb.GatewayListSpansParams{
 		AgentName:       agentName,
-		TraceID:         traceID,
+		TraceID:         traceIDBytes,
 		CursorSet:       cursorSet,
 		CursorStartTime: cursor.StartTime,
 		CursorID:        cursor.ID,
@@ -234,25 +174,36 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, params gatew
 	})
 }
 
-// GetSpanDetail handles GET /api/lens/span/detail.
-func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, params gatewayapi.GetSpanDetailParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+// GetSpanDetail handles GET /api/lens/{agentName}/{sessionID}/trace/{traceID}/span/{spanID}.
+func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, traceID gatewayapi.TraceID, spanID gatewayapi.SpanID) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
-	traceID, ok := validTraceID(w, r, params.TraceId)
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "sessionID", Message: "required"},
+		))
+		return
+	}
+	traceIDBytes, ok := validTraceID(w, r, traceID)
 	if !ok {
 		return
 	}
-	spanID, ok := validSpanID(w, r, params.SpanId)
+	spanIDBytes, ok := validSpanID(w, r, spanID)
 	if !ok {
 		return
 	}
 
 	row, err := s.queries.GatewayGetSpanDetail(r.Context(), gatewaydb.GatewayGetSpanDetailParams{
 		AgentName: agentName,
-		TraceID:   traceID,
-		SpanID:    spanID,
+		TraceID:   traceIDBytes,
+		SpanID:    spanIDBytes,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -284,24 +235,24 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, params g
 	})
 }
 
-// ListProcessObservability handles GET /api/lens/observability/process/list.
-func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListProcessObservabilityParams) {
-	s.listProcessObservability(w, r, params)
+// ListProcessObservability handles GET /api/lens/{agentName}/observability/process.
+func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListProcessObservabilityParams) {
+	s.listProcessObservability(w, r, agentName, params)
 }
 
-// ListFileObservability handles GET /api/lens/observability/file/list.
-func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListFileObservabilityParams) {
-	s.listFileObservability(w, r, params)
+// ListFileObservability handles GET /api/lens/{agentName}/observability/file.
+func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListFileObservabilityParams) {
+	s.listFileObservability(w, r, agentName, params)
 }
 
-// ListNetworkObservability handles GET /api/lens/observability/network/list.
-func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListNetworkObservabilityParams) {
-	s.listNetworkObservability(w, r, params)
+// ListNetworkObservability handles GET /api/lens/{agentName}/observability/network.
+func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListNetworkObservabilityParams) {
+	s.listNetworkObservability(w, r, agentName, params)
 }
 
-// GetMCPGraph handles GET /api/lens/mcp/graph.
-func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, params gatewayapi.GetMCPGraphParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+// GetMCPGraph handles GET /api/lens/{agentName}/mcp/graph.
+func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.GetMCPGraphParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
@@ -439,8 +390,8 @@ func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.
 	return urls, nil
 }
 
-func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListProcessObservabilityParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListProcessObservabilityParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
@@ -535,8 +486,8 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListFileObservabilityParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListFileObservabilityParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
@@ -631,8 +582,8 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Request, params gatewayapi.ListNetworkObservabilityParams) {
-	agentName, ok := validAgentName(w, r, params.AgentName, "agent_name")
+func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListNetworkObservabilityParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}

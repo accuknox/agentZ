@@ -112,6 +112,7 @@ const runStatusMeta = {
 
 export function RunsTable({
   agentName,
+  workflowName,
   scheduleName,
   workflowRuns,
   hasNextPage,
@@ -119,12 +120,14 @@ export function RunsTable({
   deleteWorkflowRunAction,
 }: {
   agentName: string
+  workflowName: string
   scheduleName: string
   workflowRuns: WorkflowRunSummary[]
   hasNextPage: boolean
   nextPageToken: string
   deleteWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
@@ -140,7 +143,7 @@ export function RunsTable({
       queryFn: streamedQuery<
         WatchWorkflowRunsResponse,
         WorkflowRunSummary[],
-        readonly ["watchWorkflowRuns", string, string, string[]]
+        readonly ["watchWorkflowRuns", string, string, string, string[]]
       >({
         initialValue: workflowRuns,
         reducer: (rows, event) => {
@@ -164,7 +167,8 @@ export function RunsTable({
             },
             path: {
               agentName,
-              name: scheduleName,
+              workflowName,
+              scheduleName,
             },
             signal,
           })
@@ -172,7 +176,13 @@ export function RunsTable({
           return result.stream
         },
       }),
-      queryKey: ["watchWorkflowRuns", agentName, scheduleName, workflowRuns.map((run) => run.name)],
+      queryKey: [
+        "watchWorkflowRuns",
+        agentName,
+        workflowName,
+        scheduleName,
+        workflowRuns.map((run) => run.name),
+      ],
       refetchOnMount: "always",
       refetchOnReconnect: "always",
       refetchOnWindowFocus: false,
@@ -191,9 +201,18 @@ export function RunsTable({
         deleteWorkflowRunAction,
         goPrevious,
         pageRowCount: rows.length,
+        workflowName,
         scheduleName,
       }),
-    [agentName, canGoPrevious, deleteWorkflowRunAction, goPrevious, rows.length, scheduleName]
+    [
+      agentName,
+      canGoPrevious,
+      deleteWorkflowRunAction,
+      goPrevious,
+      rows.length,
+      workflowName,
+      scheduleName,
+    ]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -275,18 +294,21 @@ function createColumns({
   deleteWorkflowRunAction,
   goPrevious,
   pageRowCount,
+  workflowName,
   scheduleName,
 }: {
   agentName: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
   ) => Promise<DeleteWorkflowRunActionState>
   goPrevious: () => void
   pageRowCount: number
+  workflowName: string
   scheduleName: string
 }): ColumnDef<WorkflowRunSummary>[] {
   return [
@@ -355,6 +377,7 @@ function createColumns({
           goPrevious={goPrevious}
           item={row.original}
           isOnlyRow={pageRowCount === 1}
+          workflowName={workflowName}
           scheduleName={scheduleName}
         />
       ),
@@ -391,12 +414,14 @@ function RunActions({
   goPrevious,
   isOnlyRow,
   item,
+  workflowName,
   scheduleName,
 }: {
   agentName: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
@@ -404,6 +429,7 @@ function RunActions({
   goPrevious: () => void
   isOnlyRow: boolean
   item: WorkflowRunSummary
+  workflowName: string
   scheduleName: string
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
@@ -412,7 +438,8 @@ function RunActions({
     ...getWorkflowRunOptions({
       path: {
         agentName,
-        name: scheduleName,
+        workflowName,
+        scheduleName,
         runName: item.name,
       },
     }),
@@ -453,6 +480,7 @@ function RunActions({
         isOnlyRow={isOnlyRow}
         item={item}
         open={deleteOpen}
+        workflowName={workflowName}
         scheduleName={scheduleName}
         setOpen={setDeleteOpen}
       />
@@ -508,6 +536,7 @@ function DeleteRunDialog({
   isOnlyRow,
   item,
   open,
+  workflowName,
   scheduleName,
   setOpen,
 }: {
@@ -515,6 +544,7 @@ function DeleteRunDialog({
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
@@ -523,12 +553,13 @@ function DeleteRunDialog({
   isOnlyRow: boolean
   item: WorkflowRunSummary
   open: boolean
+  workflowName: string
   scheduleName: string
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const router = useRouter()
   const [state, formAction, pending] = React.useActionState(
-    deleteWorkflowRunAction.bind(null, agentName, scheduleName),
+    deleteWorkflowRunAction.bind(null, agentName, workflowName, scheduleName),
     {
       success: false,
       error: undefined,

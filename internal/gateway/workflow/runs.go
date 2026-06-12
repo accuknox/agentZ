@@ -65,10 +65,11 @@ func ValidateRunStatusRequest(name string, message string) []gatewayapi.FieldErr
 	return fields
 }
 
-func ValidateRunRoute(agtName string, schName string) []gatewayapi.FieldError {
-	fields := make([]gatewayapi.FieldError, 0, 2)
+func ValidateRunRoute(agtName string, wfName string, schName string) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, 3)
 	fields = append(fields, validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))...)
-	fields = append(fields, validateScheduleDNSLabel("name", strings.TrimSpace(schName))...)
+	fields = append(fields, validateScheduleDNSLabel("workflowName", strings.TrimSpace(wfName))...)
+	fields = append(fields, validateScheduleDNSLabel("scheduleName", strings.TrimSpace(schName))...)
 	return fields
 }
 
@@ -126,8 +127,8 @@ func ValidateRunWatchNames(runNames *[]gatewayapi.WorkflowRunName) []gatewayapi.
 	return fields
 }
 
-func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string, name string, req gatewayapi.PatchWorkflowRunStatusRequest, msg string) error {
-	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(name)}
+func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, req gatewayapi.PatchWorkflowRunStatusRequest, msg string) error {
+	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	phase := clawarmorv1alpha1.WorkflowRunPhase(req.Phase)
 	var resultErr error
 
@@ -135,6 +136,12 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		current := &clawarmorv1alpha1.WorkflowRun{}
 		if err := k8sClient.Get(ctx, key, current); err != nil {
 			return err
+		}
+		if current.Spec.AgentName != strings.TrimSpace(agtName) {
+			return ErrWorkflowScheduleRefMismatch
+		}
+		if current.Spec.WorkflowName != strings.TrimSpace(wfName) {
+			return ErrWorkflowScheduleRefMismatch
 		}
 
 		if current.Status.Phase.Terminal() {
@@ -172,8 +179,8 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	return resultErr
 }
 
-func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, schName string) (gatewayapi.WorkflowRunSummary, error) {
-	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, schName)
+func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (gatewayapi.WorkflowRunSummary, error) {
+	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
 	if err != nil {
 		return gatewayapi.WorkflowRunSummary{}, err
 	}
@@ -215,8 +222,8 @@ func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 	return runSummaryFromCRD(run), nil
 }
 
-func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, schName string, status *gatewayapi.WorkflowRunStatus, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
-	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, schName)
+func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, status *gatewayapi.WorkflowRunStatus, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
+	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -260,8 +267,8 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 	return items[start:end], nextOffset, nil
 }
 
-func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, schName string, runName string) (gatewayapi.WorkflowRunDetail, error) {
-	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, schName)
+func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, runName string) (gatewayapi.WorkflowRunDetail, error) {
+	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
 	if err != nil {
 		return gatewayapi.WorkflowRunDetail{}, err
 	}
@@ -280,8 +287,8 @@ func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName
 	return runDetailFromCRD(run), nil
 }
 
-func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, schName string, runName string) error {
-	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, schName)
+func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, runName string) error {
+	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
 	if err != nil {
 		return err
 	}
@@ -424,13 +431,16 @@ func workflowRunReason(run *clawarmorv1alpha1.WorkflowRun) string {
 	return clawarmorv1alpha1.WorkflowRunReasonPending
 }
 
-func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, schName string) (*clawarmorv1alpha1.WorkflowSchedule, error) {
+func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (*clawarmorv1alpha1.WorkflowSchedule, error) {
 	schedule := &clawarmorv1alpha1.WorkflowSchedule{}
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(schName)}
 	if err := k8sClient.Get(ctx, key, schedule); err != nil {
 		return nil, err
 	}
 	if schedule.Spec.AgentName != strings.TrimSpace(agtName) {
+		return nil, ErrWorkflowScheduleRefMismatch
+	}
+	if schedule.Spec.WorkflowName != strings.TrimSpace(wfName) {
 		return nil, ErrWorkflowScheduleRefMismatch
 	}
 	return schedule, nil

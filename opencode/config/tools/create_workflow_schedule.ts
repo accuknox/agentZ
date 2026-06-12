@@ -81,13 +81,11 @@ export default tool({
 
     const bodyInput = {
       name: args.name,
-      workflow_name: args.workflow_name,
       schedule: args.schedule.trim(),
       inputs: args.inputs,
       timeout_seconds: args.timeout_seconds,
       successful_runs_history_limit: 3,
       failed_runs_history_limit: 3,
-      agent_name: agentName,
     }
 
     const validation = await validateWorkflowScheduleInputs(
@@ -128,6 +126,10 @@ export default tool({
     const body: CreateWorkflowScheduleRequest = bodyResult.data
 
     const result = await createWorkflowSchedule({
+      path: {
+        agentName,
+        workflowName: args.workflow_name,
+      },
       body,
       throwOnError: false,
     })

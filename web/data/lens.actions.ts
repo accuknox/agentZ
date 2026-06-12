@@ -8,7 +8,6 @@ import {
   listProcessObservability,
   listSpans,
   listTraceSessions,
-  listTraces,
   type ProcessObservabilityEventAggregated,
   type FileObservabilityEventAggregated,
   type NetworkObservabilityEventAggregated,
@@ -20,10 +19,9 @@ import {
   type JsonValue,
   type ListSpansData,
   type ListTraceSessionsData,
-  type ListTracesData,
   type Span,
   type SpanPayload,
-  type Trace,
+  type TraceSession,
 } from "@/lib/gateway/client"
 import type {
   FileTelemetryActionResponse,
@@ -61,7 +59,7 @@ type AggregatedTelemetryEvent = {
   occurrences: number
 }
 type TraceSummary = Pick<
-  Trace,
+  TraceSession,
   | "trace_id"
   | "agent_name"
   | "started_at"
@@ -78,9 +76,11 @@ type TraceSummary = Pick<
 }
 
 export async function listTraceSessionsAction(
-  query: ListTraceSessionsData["query"]
+  path: ListTraceSessionsData["path"],
+  query?: ListTraceSessionsData["query"]
 ): Promise<ListTracesActionResponse> {
   const result = await listTraceSessions({
+    path,
     query,
     cache: "no-store",
     client: gatewayServerClient,
@@ -94,75 +94,42 @@ export async function listTraceSessionsAction(
       traces: traceListItems(result.data.trace_sessions),
       nextPageToken: result.data.next_page_token,
       hasNextPage: result.data.next_page_token.length > 0,
-      limit: query.limit ?? 25,
+      limit: query?.limit ?? 25,
     },
     error: undefined,
   }
 }
 
 export async function getTraceChartAction(
-  query: ListTracesData["query"] & {
-    session_id?: string
-  }
+  path: ListTraceSessionsData["path"],
+  query?: ListTraceSessionsData["query"]
 ): Promise<TraceChartActionResponse> {
-  if (query.session_id) {
-    const result = await listTraceSessions({
-      client: gatewayServerClient,
-      query: {
-        agent_name: query.agent_name,
-        session_id: query.session_id,
-        started_after: query.started_after,
-        started_before: query.started_before,
-        limit: chartSourceLimit,
-      },
-      cache: "no-store",
-    })
-    if (result.error) {
-      return { data: undefined, error: result.error }
-    }
-
-    const points = traceChartPoints(result.data.trace_sessions)
-
-    return {
-      data: {
-        points,
-        total: result.data.trace_sessions.length,
-        granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
-      },
-      error: undefined,
-    }
-  }
-
-  const result = await listTraces({
+  const result = await listTraceSessions({
     client: gatewayServerClient,
-    query: {
-      agent_name: query.agent_name,
-      started_after: query.started_after,
-      started_before: query.started_before,
-      limit: chartSourceLimit,
-    },
+    path,
+    query: { ...query, limit: chartSourceLimit },
     cache: "no-store",
   })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
 
-  const points = traceChartPoints(result.data.traces)
+  const points = traceChartPoints(result.data.trace_sessions)
 
   return {
     data: {
       points,
-      total: result.data.traces.length,
+      total: result.data.trace_sessions.length,
       granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
     },
     error: undefined,
   }
 }
 
-export async function listTraceSessionFilterAction({
-  agent_name,
-}: Pick<ListTraceSessionsData["query"], "agent_name">): Promise<TraceSessionFilterActionResponse> {
-  const client = createAgentOpencodeClient(agent_name)
+export async function listTraceSessionFilterAction(
+  agentName: string
+): Promise<TraceSessionFilterActionResponse> {
+  const client = createAgentOpencodeClient(agentName)
   const sessionListResult = await client.session.list()
   if (!sessionListResult.data) {
     return { data: [], error: undefined }
@@ -177,9 +144,11 @@ export async function listTraceSessionFilterAction({
 }
 
 export async function listSpansAction(
+  path: ListSpansData["path"],
   query: ListSpansData["query"]
 ): Promise<ListSpansActionResponse> {
   const result = await listSpans({
+    path,
     query,
     cache: "no-store",
     client: gatewayServerClient,
@@ -201,10 +170,10 @@ export async function listSpansAction(
 }
 
 export async function getSpanDetailAction(
-  query: GetSpanDetailData["query"]
+  path: GetSpanDetailData["path"]
 ): Promise<SpanDetailActionResponse> {
   const result = await getSpanDetail({
-    query,
+    path,
     cache: "no-store",
     client: gatewayServerClient,
   })
@@ -240,9 +209,11 @@ export async function getSpanDetailAction(
 }
 
 export async function getMcpGraphAction(
+  path: GetMcpGraphData["path"],
   query: GetMcpGraphData["query"]
 ): Promise<McpGraphActionResponse> {
   const result = await getMcpGraph({
+    path,
     query,
     cache: "no-store",
     client: gatewayServerClient,
@@ -264,7 +235,6 @@ export async function getRuntimeTelemetryAction({
   started_before: string
 }): Promise<RuntimeTelemetryActionResponse> {
   const query = {
-    agent_name,
     limit: 25,
     aggregated: false,
     event_time_after: isoDateTimeParam(started_after),
@@ -272,16 +242,19 @@ export async function getRuntimeTelemetryAction({
   }
   const [processes, files, networks] = await Promise.all([
     listProcessObservability({
+      path: { agentName: agent_name },
       query,
       cache: "no-store",
       client: gatewayServerClient,
     }),
     listFileObservability({
+      path: { agentName: agent_name },
       query,
       cache: "no-store",
       client: gatewayServerClient,
     }),
     listNetworkObservability({
+      path: { agentName: agent_name },
       query,
       cache: "no-store",
       client: gatewayServerClient,
@@ -331,7 +304,6 @@ export async function getRuntimeTelemetryTabAction({
   page_token?: string
 }): Promise<RuntimeTelemetryTabActionResponse> {
   const query = {
-    agent_name,
     limit: 25,
     page_token: page_token ?? undefined,
     aggregated: false,
@@ -341,6 +313,7 @@ export async function getRuntimeTelemetryTabAction({
 
   if (tab === "process") {
     const result = await listProcessObservability({
+      path: { agentName: agent_name },
       query,
       cache: "no-store",
       client: gatewayServerClient,
@@ -364,6 +337,7 @@ export async function getRuntimeTelemetryTabAction({
 
   if (tab === "file") {
     const result = await listFileObservability({
+      path: { agentName: agent_name },
       query,
       cache: "no-store",
       client: gatewayServerClient,
@@ -384,6 +358,7 @@ export async function getRuntimeTelemetryTabAction({
   }
 
   const result = await listNetworkObservability({
+    path: { agentName: agent_name },
     query,
     cache: "no-store",
     client: gatewayServerClient,
@@ -513,7 +488,6 @@ export async function getProcessTelemetryAction({
   page_token?: string
 }): Promise<ProcessTelemetryActionResponse> {
   const query = {
-    agent_name,
     limit: defaultPageSize,
     page_token: page_token ?? undefined,
     aggregated: true,
@@ -522,6 +496,7 @@ export async function getProcessTelemetryAction({
   }
 
   const result = await listProcessObservability({
+    path: { agentName: agent_name },
     query,
     cache: "no-store",
     client: gatewayServerClient,
@@ -558,7 +533,6 @@ export async function getFileTelemetryAction({
   page_token?: string
 }): Promise<FileTelemetryActionResponse> {
   const query = {
-    agent_name,
     limit: defaultPageSize,
     page_token: page_token ?? undefined,
     aggregated: true,
@@ -567,6 +541,7 @@ export async function getFileTelemetryAction({
   }
 
   const result = await listFileObservability({
+    path: { agentName: agent_name },
     query,
     cache: "no-store",
     client: gatewayServerClient,
@@ -603,7 +578,6 @@ export async function getNetworkTelemetryAction({
   page_token?: string
 }): Promise<NetworkTelemetryActionResponse> {
   const query = {
-    agent_name,
     limit: defaultPageSize,
     page_token: page_token ?? undefined,
     aggregated: true,
@@ -612,6 +586,7 @@ export async function getNetworkTelemetryAction({
   }
 
   const result = await listNetworkObservability({
+    path: { agentName: agent_name },
     query,
     cache: "no-store",
     client: gatewayServerClient,

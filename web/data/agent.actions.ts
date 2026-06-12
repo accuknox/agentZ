@@ -91,8 +91,8 @@ export async function deleteAgentFormAction(
   _formData: FormData
 ): Promise<DeleteAgentFormState> {
   const result = await deleteAgent({
-    body: { agent_name: agentName },
     client: gatewayServerClient,
+    path: { agentName },
   })
   if (result.error) {
     return { error: result.error }

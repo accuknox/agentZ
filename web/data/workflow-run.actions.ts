@@ -21,6 +21,7 @@ export type TriggerWorkflowRunActionState = {
  */
 export async function deleteWorkflowRunAction(
   agentName: string,
+  workflowName: string,
   scheduleName: string,
   _: DeleteWorkflowRunActionState,
   formData: FormData
@@ -40,7 +41,8 @@ export async function deleteWorkflowRunAction(
     client: gatewayServerClient,
     path: {
       agentName,
-      name: scheduleName,
+      workflowName,
+      scheduleName,
       runName,
     },
   })
@@ -65,6 +67,7 @@ export async function deleteWorkflowRunAction(
  */
 export async function triggerWorkflowRunAction(
   agentName: string,
+  workflowName: string,
   scheduleName: string,
   _: TriggerWorkflowRunActionState,
   formData: FormData
@@ -84,7 +87,8 @@ export async function triggerWorkflowRunAction(
     client: gatewayServerClient,
     path: {
       agentName,
-      name: scheduleName,
+      workflowName,
+      scheduleName,
     },
   })
   if (result.error) {

@@ -23,7 +23,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-// ListAgents handles GET /api/agent/list.
+// ListAgents handles GET /api/agent.
 func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListAgentsParams) {
 	limit := 50
 	if params.Limit != nil {
@@ -68,7 +68,7 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 	})
 }
 
-// CreateAgent handles POST /api/agent/create.
+// CreateAgent handles POST /api/agent.
 //
 //nolint:gocyclo
 func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -220,14 +220,9 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	})
 }
 
-// DeleteAgent handles POST /api/agent/delete.
-func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request) {
-	var req gatewayapi.DeleteAgentRequest
-	if !decodeJSONBody(w, r, &req, false) {
-		return
-	}
-
-	agentName, ok := validAgentName(w, r, req.AgentName, "agent_name")
+// DeleteAgent handles DELETE /api/agent/{agentName}.
+func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}

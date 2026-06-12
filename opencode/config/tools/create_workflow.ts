@@ -222,7 +222,7 @@ Do NOT:
 Successful calls save the workflow for the current agent.
 `.trim()
 
-type CreateWorkflowToolInput = Omit<CreateWorkflowRequest, "agent_name">
+type CreateWorkflowToolInput = CreateWorkflowRequest
 
 export default tool({
   description,
@@ -249,10 +249,7 @@ export default tool({
       },
     })
 
-    const bodyInput = {
-      agent_name: agentName,
-      ...args,
-    } satisfies CreateWorkflowRequest
+    const bodyInput = args satisfies CreateWorkflowRequest
 
     const bodyResult = zCreateWorkflowBody.safeParse(bodyInput)
     if (!bodyResult.success) {
@@ -291,6 +288,7 @@ export default tool({
     }
 
     const result = await createWorkflow({
+      path: { agentName },
       body,
       throwOnError: false,
     })

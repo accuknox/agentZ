@@ -17,7 +17,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-// ListEnvironments handles GET /api/environment/list.
+// ListEnvironments handles GET /api/environment.
 func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, params gatewayapi.ListEnvironmentsParams) {
 	limit := 50
 	if params.Limit != nil {
@@ -73,7 +73,7 @@ func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, param
 	})
 }
 
-// CreateEnvironment handles POST /api/environment/create.
+// CreateEnvironment handles POST /api/environment.
 func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	var req gatewayapi.CreateEnvironmentRequest
 	if !decodeJSONBody(w, r, &req, false) {
@@ -177,14 +177,9 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, environmentFromCRD(*env, false))
 }
 
-// DeleteEnvironment handles POST /api/environment/delete.
-func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
-	var req gatewayapi.DeleteEnvironmentRequest
-	if !decodeJSONBody(w, r, &req, false) {
-		return
-	}
-
-	name := strings.TrimSpace(req.Name)
+// DeleteEnvironment handles DELETE /api/environment/{environmentName}.
+func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request, environmentName gatewayapi.EnvironmentName) {
+	name := strings.TrimSpace(environmentName)
 	if name == "" {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -227,8 +222,8 @@ func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateEnvironment handles POST /api/environment/update/{name}.
-func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name gatewayapi.EnvironmentNamePath) {
+// UpdateEnvironment handles PUT /api/environment/{environmentName}.
+func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, environmentName gatewayapi.EnvironmentName) {
 	var req gatewayapi.UpdateEnvironmentRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -246,7 +241,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, name
 		return
 	}
 
-	envName := strings.TrimSpace(name)
+	envName := strings.TrimSpace(environmentName)
 	allowedHosts, err := envutil.NormalizeHostList(req.AllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)

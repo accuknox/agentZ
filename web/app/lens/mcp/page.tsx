@@ -126,11 +126,10 @@ async function Graph({
     return <EmptyState message="No agents available" />
   }
 
-  const result = await getMcpGraphAction({
-    agent_name: resolvedScope.selectedAgentName,
-    from: range.from,
-    to: range.to,
-  })
+  const result = await getMcpGraphAction(
+    { agentName: resolvedScope.selectedAgentName },
+    { from: range.from, to: range.to }
+  )
   if (result.error) {
     return <ErrorPanel message={result.error.message} />
   }

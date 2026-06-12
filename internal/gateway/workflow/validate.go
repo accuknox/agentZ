@@ -78,12 +78,12 @@ func ValidateDeleteRequest(agtName string, wfNames []string) []gatewayapi.FieldE
 }
 
 //nolint:gocyclo
-func ValidateCreateRequest(req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.FieldError, error) {
+func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.FieldError, error) {
 	fields := make([]gatewayapi.FieldError, 0)
 
-	if !isDNSLabel(req.AgentName, 32) {
+	if !isDNSLabel(agtName, 32) {
 		fields = append(fields, gatewayapi.FieldError{
-			Field:   "agent_name",
+			Field:   "agentName",
 			Message: "must be a valid DNS label",
 		})
 	}

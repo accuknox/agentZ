@@ -43,7 +43,11 @@ export async function createWorkflowScheduleFormAction(
 
   const result = await createWorkflowSchedule({
     client: gatewayServerClient,
-    body: createWorkflowScheduleRequest(agentName, parsed),
+    path: {
+      agentName,
+      workflowName: parsed.data.workflow_name,
+    },
+    body: createWorkflowScheduleRequest(parsed),
   })
   if (result.error) {
     return { error: result.error }
@@ -92,10 +96,10 @@ export async function updateWorkflowScheduleFormAction(
     client: gatewayServerClient,
     path: {
       agentName,
-      name: nameResult.data,
+      workflowName: parsed.data.workflow_name,
+      scheduleName: nameResult.data,
     },
     body: {
-      workflow_name: parsed.data.workflow_name,
       schedule: parsed.data.schedule,
       time_zone: parsed.data.time_zone,
       timeout_seconds: parsed.data.timeout_seconds,
@@ -125,7 +129,8 @@ export async function deleteWorkflowScheduleFormAction(
     client: gatewayServerClient,
     path: {
       agentName,
-      name: nameResult.data,
+      workflowName: stringFormValue(formData.get("workflow_name")),
+      scheduleName: nameResult.data,
     },
   })
   if (result.error) {
@@ -193,11 +198,9 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
   } satisfies ParsedScheduleForm
 }
 
-function createWorkflowScheduleRequest(agentName: string, parsed: ParsedScheduleForm) {
+function createWorkflowScheduleRequest(parsed: ParsedScheduleForm) {
   return {
-    agent_name: agentName,
     name: parsed.data.name,
-    workflow_name: parsed.data.workflow_name,
     schedule: parsed.data.schedule,
     time_zone: parsed.data.time_zone,
     timeout_seconds: parsed.data.timeout_seconds,

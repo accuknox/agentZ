@@ -35,7 +35,7 @@ func writeMCPAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
 	writeError(w, r, err)
 }
 
-// ListMCPConnections handles GET /api/mcp-connection/list.
+// ListMCPConnections handles GET /api/mcp-connection.
 func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, params gatewayapi.ListMCPConnectionsParams) {
 	limit, ok := validLimit(w, r, params.Limit)
 	if !ok {
@@ -211,7 +211,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, req.Auth)
+	spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, &req.Auth)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -224,13 +224,23 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.Spec = spec
 	setMCPConnectionSecretRef(name, &conn.Spec)
+	if err := s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials); err != nil {
+		writeMCPAPIError(w, r, err)
+		return
+	}
 
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 	if err := mcpconnwebhook.Validate(conn); err != nil {
+		if delErr := s.deleteMCPConnectionCredentials(r.Context(), *conn); delErr != nil {
+			err = errors.Join(err, delErr)
+		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
 	if err := s.k8sClient.Create(r.Context(), conn); err != nil {
+		if delErr := s.deleteMCPConnectionCredentials(r.Context(), *conn); delErr != nil {
+			err = errors.Join(err, delErr)
+		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
@@ -276,7 +286,7 @@ func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, na
 			return err
 		}
 
-		spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, req.Auth)
+		spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, &req.Auth)
 		if len(fields) > 0 {
 			return newAPIError(
 				http.StatusBadRequest,
@@ -288,6 +298,9 @@ func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, na
 		}
 		conn.Spec = spec
 		setMCPConnectionSecretRef(name, &conn.Spec)
+		if err := s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials); err != nil {
+			return err
+		}
 		mcpconnwebhook.ApplyDefaults(&conn.Spec)
 		if err := mcpconnwebhook.Validate(conn); err != nil {
 			return err
@@ -299,7 +312,8 @@ func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, na
 		return nil
 	})
 	if err != nil {
-		if apiErr, ok := errors.AsType[*apiError](err); ok {
+		var apiErr *apiError
+		if errors.As(err, &apiErr) {
 			writeMCPAPIError(w, r, apiErr)
 			return
 		}
@@ -349,143 +363,6 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// SetMCPConnectionCredentials handles POST /api/mcp-connection/{name}/credentials.
-func (s *Service) SetMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
-	conn, ok := s.getMCPConnection(w, r, name)
-	if !ok {
-		return
-	}
-
-	var req gatewayapi.SetMCPConnectionCredentialsRequest
-	if !decodeJSONBody(w, r, &req, false) {
-		return
-	}
-
-	if conn.Spec.Auth == nil {
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"conflict",
-			"mcp connection has no auth mode configured",
-			errBadRequest,
-		))
-		return
-	}
-
-	now := time.Now().UTC()
-	switch {
-	case req.Bearer != nil && req.Oauth == nil:
-		if conn.Spec.Auth.Bearer == nil || conn.Spec.Auth.Bearer.SecretRef == nil {
-			writeError(w, r, newAPIError(
-				http.StatusConflict,
-				"conflict",
-				"credential payload is incompatible with current auth mode",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "bearer",
-					Message: "bearer auth is not configured on the connection",
-				},
-			))
-			return
-		}
-
-		record := internalmcp.BearerSecretRecord{
-			Token:     strings.TrimSpace(req.Bearer.Token),
-			UpdatedAt: now,
-		}
-		if record.Token == "" {
-			writeError(w, r, newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "bearer.token", Message: "required"},
-			))
-			return
-		}
-
-		if err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.Bearer.SecretRef, record); err != nil {
-			writeMCPAPIError(w, r, mapOpenBaoError(err))
-			return
-		}
-	case req.Oauth != nil && req.Bearer == nil:
-		if conn.Spec.Auth.OAuth == nil || conn.Spec.Auth.OAuth.SecretRef == nil {
-			writeError(w, r, newAPIError(
-				http.StatusConflict,
-				"conflict",
-				"credential payload is incompatible with current auth mode",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "oauth",
-					Message: "oauth auth is not configured on the connection",
-				},
-			))
-			return
-		}
-
-		record := internalmcp.OAuthSecretRecord{UpdatedAt: now}
-		if req.Oauth.ClientId != nil {
-			record.ClientID = strings.TrimSpace(*req.Oauth.ClientId)
-		}
-		if req.Oauth.ClientSecret != nil {
-			record.ClientSecret = *req.Oauth.ClientSecret
-		}
-		if req.Oauth.Scopes != nil {
-			record.Scopes = append([]string{}, (*req.Oauth.Scopes)...)
-		}
-		record.Registration = cloneJSONObject(req.Oauth.Registration)
-		record.Revocation = cloneJSONObject(req.Oauth.Revocation)
-
-		token := oauth2.Token{}
-		if req.Oauth.AccessToken != nil {
-			token.AccessToken = *req.Oauth.AccessToken
-		}
-		if req.Oauth.TokenType != nil {
-			token.TokenType = strings.TrimSpace(*req.Oauth.TokenType)
-		}
-		if req.Oauth.RefreshToken != nil {
-			token.RefreshToken = *req.Oauth.RefreshToken
-		}
-		if req.Oauth.ExpiresAt != nil {
-			token.Expiry = req.Oauth.ExpiresAt.UTC()
-		}
-		if token.AccessToken != "" || token.RefreshToken != "" || token.TokenType != "" || !token.Expiry.IsZero() {
-			record.Token = &token
-		}
-
-		if err := s.putMCPConnectionSecret(r.Context(), *conn.Spec.Auth.OAuth.SecretRef, record); err != nil {
-			writeMCPAPIError(w, r, mapOpenBaoError(err))
-			return
-		}
-	default:
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "body",
-				Message: "exactly one credential payload must be set",
-			},
-		))
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// DeleteMCPConnectionCredentials handles DELETE /api/mcp-connection/{name}/credentials.
-func (s *Service) DeleteMCPConnectionCredentials(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
-	conn, ok := s.getMCPConnection(w, r, name)
-	if !ok {
-		return
-	}
-	if err := s.deleteMCPConnectionCredentials(r.Context(), *conn); err != nil {
-		writeMCPAPIError(w, r, mapOpenBaoError(err))
-		return
-	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -871,6 +748,131 @@ func (s *Service) putMCPConnectionSecret(ctx context.Context, ref clawarmorv1alp
 	return nil
 }
 
+func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec clawarmorv1alpha1.MCPConnectionSpec, req gatewayapi.MCPConnectionCredentials) *apiError {
+	if spec.Auth == nil {
+		return newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "credentials",
+				Message: "credentials require an auth mode",
+			},
+		)
+	}
+
+	now := time.Now().UTC()
+	switch {
+	case req.Bearer != nil && req.Oauth == nil:
+		if spec.Auth.Bearer == nil || spec.Auth.Bearer.SecretRef == nil {
+			return newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "credentials.bearer",
+					Message: "bearer credentials do not match auth mode",
+				},
+			)
+		}
+
+		token := strings.TrimSpace(req.Bearer.Token)
+		if token == "" {
+			return newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "credentials.bearer.token",
+					Message: "required",
+				},
+			)
+		}
+
+		record := internalmcp.BearerSecretRecord{
+			Token:     token,
+			UpdatedAt: now,
+		}
+		if err := s.putMCPConnectionSecret(ctx, *spec.Auth.Bearer.SecretRef, record); err != nil {
+			return mapOpenBaoError(err)
+		}
+		return nil
+	case req.Oauth != nil && req.Bearer == nil:
+		if spec.Auth.OAuth == nil || spec.Auth.OAuth.SecretRef == nil {
+			return newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "credentials.oauth",
+					Message: "oauth credentials do not match auth mode",
+				},
+			)
+		}
+
+		record := internalmcp.OAuthSecretRecord{UpdatedAt: now}
+		if req.Oauth.ClientId != nil {
+			record.ClientID = strings.TrimSpace(*req.Oauth.ClientId)
+		}
+		if req.Oauth.ClientSecret != nil {
+			record.ClientSecret = *req.Oauth.ClientSecret
+		}
+		if req.Oauth.Scopes != nil {
+			record.Scopes = append([]string{}, (*req.Oauth.Scopes)...)
+		}
+		if req.Oauth.Registration != nil {
+			record.Registration = make(map[string]any, len(*req.Oauth.Registration))
+			for key, value := range *req.Oauth.Registration {
+				record.Registration[key] = value
+			}
+		}
+		if req.Oauth.Revocation != nil {
+			record.Revocation = make(map[string]any, len(*req.Oauth.Revocation))
+			for key, value := range *req.Oauth.Revocation {
+				record.Revocation[key] = value
+			}
+		}
+
+		token := oauth2.Token{}
+		if req.Oauth.AccessToken != nil {
+			token.AccessToken = *req.Oauth.AccessToken
+		}
+		if req.Oauth.TokenType != nil {
+			token.TokenType = strings.TrimSpace(*req.Oauth.TokenType)
+		}
+		if req.Oauth.RefreshToken != nil {
+			token.RefreshToken = *req.Oauth.RefreshToken
+		}
+		if req.Oauth.ExpiresAt != nil {
+			token.Expiry = req.Oauth.ExpiresAt.UTC()
+		}
+		if token.AccessToken != "" || token.RefreshToken != "" ||
+			token.TokenType != "" || !token.Expiry.IsZero() {
+			record.Token = &token
+		}
+
+		if err := s.putMCPConnectionSecret(ctx, *spec.Auth.OAuth.SecretRef, record); err != nil {
+			return mapOpenBaoError(err)
+		}
+		return nil
+	default:
+		return newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "credentials",
+				Message: "exactly one credential payload must be set",
+			},
+		)
+	}
+}
+
 func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
 	if spec == nil || spec.Auth == nil {
 		return
@@ -889,17 +891,6 @@ func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectio
 			Key:  internalmcp.SecretRecordKey,
 		}
 	}
-}
-
-func cloneJSONObject(in *gatewayapi.JSONObject) map[string]any {
-	if in == nil {
-		return nil
-	}
-	out := make(map[string]any, len(*in))
-	for key, value := range *in {
-		out[key] = value
-	}
-	return out
 }
 
 func (s *Service) deleteMCPConnectionCredentials(ctx context.Context, conn clawarmorv1alpha1.MCPConnection) error {

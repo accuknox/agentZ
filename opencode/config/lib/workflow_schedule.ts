@@ -1,6 +1,6 @@
 import { tool } from "@opencode-ai/plugin"
 
-import { getWorkflow, zError } from "./gateway"
+import { getWorkflow, listAgentWorkflowSchedules, zError } from "./gateway"
 import { formatRequestValidationError, workflowErrorOutput } from "./workflow"
 import {
   formatWorkflowInputValidationError,
@@ -80,6 +80,61 @@ export function formatScheduleRequestValidationError(
       message: issue.message,
     }))
   )
+}
+
+export async function listWorkflowSchedulesOnce(agentName: string, scheduleName: string) {
+  const result = await listAgentWorkflowSchedules({
+    path: {
+      agentName,
+    },
+    query: {
+      limit: 200,
+    },
+    throwOnError: false,
+  })
+  if (!result.data) {
+    const error = zError.safeParse(result.error)
+    if (!error.success) {
+      return {
+        ok: false as const,
+        message:
+          `Workflow schedule lookup failed for agent ${agentName}, and the ` +
+          "service returned an unexpected error shape.",
+        metadata: {
+          reason: "workflow_schedule_lookup_failed",
+          code: "unexpected_error",
+        },
+      }
+    }
+
+    return {
+      ok: false as const,
+      message: workflowErrorOutput(error.data),
+      metadata: {
+        reason: "workflow_schedule_lookup_failed",
+        code: error.data.code,
+      },
+    }
+  }
+
+  const schedule = result.data.workflow_schedules.find(
+    (item: (typeof result.data.workflow_schedules)[number]) => item.name === scheduleName
+  )
+  if (!schedule) {
+    return {
+      ok: false as const,
+      message: `Workflow schedule ${scheduleName} was not found for agent ${agentName}.`,
+      metadata: {
+        reason: "workflow_schedule_lookup_failed",
+        code: "not_found",
+      },
+    }
+  }
+
+  return {
+    ok: true as const,
+    value: schedule,
+  }
 }
 
 function buildJSONValueSchema() {

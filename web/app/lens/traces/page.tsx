@@ -155,13 +155,21 @@ async function Chart({
   if (!scope.selectedAgentName) {
     return null
   }
+  const sessionID = scope.selectedSessionId
+  if (!sessionID) {
+    return null
+  }
 
-  const result = await getTraceChartAction({
-    agent_name: scope.selectedAgentName,
-    session_id: scope.selectedSessionId,
-    started_after: range.startedAfter,
-    started_before: range.startedBefore,
-  })
+  const result = await getTraceChartAction(
+    {
+      agentName: scope.selectedAgentName,
+      sessionID,
+    },
+    {
+      started_after: range.startedAfter,
+      started_before: range.startedBefore,
+    }
+  )
   if (result.error) {
     return <ErrorPanel message={result.error.message} />
   }
@@ -189,14 +197,18 @@ async function Traces({
     return <TracesTable data={undefined} error={undefined} />
   }
 
-  const result = await listTraceSessionsAction({
-    agent_name: scope.selectedAgentName,
-    session_id: scope.selectedSessionId,
-    limit,
-    page_token: pageToken,
-    started_after: range.startedAfter,
-    started_before: range.startedBefore,
-  })
+  const result = await listTraceSessionsAction(
+    {
+      agentName: scope.selectedAgentName,
+      sessionID: scope.selectedSessionId,
+    },
+    {
+      limit,
+      page_token: pageToken,
+      started_after: range.startedAfter,
+      started_before: range.startedBefore,
+    }
+  )
 
   return <TracesTable data={result.data} error={result.error} />
 }
@@ -236,9 +248,7 @@ async function getTraceScope({
     }
   }
 
-  const sessionResult = await listTraceSessionFilterAction({
-    agent_name: selectedAgentName,
-  })
+  const sessionResult = await listTraceSessionFilterAction(selectedAgentName)
   if (sessionResult.error) {
     return traceScopeFailure(sessionResult.error)
   }

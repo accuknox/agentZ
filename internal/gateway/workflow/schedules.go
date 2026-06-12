@@ -25,7 +25,6 @@ var ErrScheduleAgentMismatch = errors.New("workflow schedule agent mismatch")
 const defaultRunsHistoryLimit int32 = 3
 
 type scheduleSpecInput struct {
-	workflowName               string
 	schedule                   string
 	timeZone                   *string
 	inputs                     *gatewayapi.JSONValue
@@ -35,9 +34,10 @@ type scheduleSpecInput struct {
 	failedRunsHistoryLimit     *int32
 }
 
-func ValidateScheduleCreateRequest(req *gatewayapi.CreateWorkflowScheduleRequest) []gatewayapi.FieldError {
+func ValidateScheduleCreateRequest(agtName string, wfName string, req *gatewayapi.CreateWorkflowScheduleRequest) []gatewayapi.FieldError {
 	req.Name = strings.TrimSpace(req.Name)
-	req.AgentName = strings.TrimSpace(req.AgentName)
+	agtName = strings.TrimSpace(agtName)
+	wfName = strings.TrimSpace(wfName)
 	var timeZone *string
 	if req.TimeZone != nil {
 		name := strings.TrimSpace(*req.TimeZone)
@@ -46,7 +46,6 @@ func ValidateScheduleCreateRequest(req *gatewayapi.CreateWorkflowScheduleRequest
 		}
 	}
 	specInput := scheduleSpecInput{
-		workflowName:               strings.TrimSpace(req.WorkflowName),
 		schedule:                   strings.TrimSpace(req.Schedule),
 		timeZone:                   timeZone,
 		inputs:                     req.Inputs,
@@ -55,14 +54,13 @@ func ValidateScheduleCreateRequest(req *gatewayapi.CreateWorkflowScheduleRequest
 		successfulRunsHistoryLimit: req.SuccessfulRunsHistoryLimit,
 		failedRunsHistoryLimit:     req.FailedRunsHistoryLimit,
 	}
-	req.WorkflowName = specInput.workflowName
 	req.Schedule = specInput.schedule
 	req.TimeZone = specInput.timeZone
 
-	return validateScheduleRequest(req.AgentName, req.Name, specInput)
+	return validateScheduleRequest(agtName, wfName, req.Name, specInput)
 }
 
-func ValidateScheduleUpdateRequest(agtName string, name string, req *gatewayapi.UpdateWorkflowScheduleRequest) []gatewayapi.FieldError {
+func ValidateScheduleUpdateRequest(agtName string, wfName string, name string, req *gatewayapi.UpdateWorkflowScheduleRequest) []gatewayapi.FieldError {
 	var timeZone *string
 	if req.TimeZone != nil {
 		name := strings.TrimSpace(*req.TimeZone)
@@ -71,7 +69,6 @@ func ValidateScheduleUpdateRequest(agtName string, name string, req *gatewayapi.
 		}
 	}
 	specInput := scheduleSpecInput{
-		workflowName:               strings.TrimSpace(req.WorkflowName),
 		schedule:                   strings.TrimSpace(req.Schedule),
 		timeZone:                   timeZone,
 		inputs:                     req.Inputs,
@@ -80,34 +77,34 @@ func ValidateScheduleUpdateRequest(agtName string, name string, req *gatewayapi.
 		successfulRunsHistoryLimit: req.SuccessfulRunsHistoryLimit,
 		failedRunsHistoryLimit:     req.FailedRunsHistoryLimit,
 	}
-	req.WorkflowName = specInput.workflowName
 	req.Schedule = specInput.schedule
 	req.TimeZone = specInput.timeZone
 
 	return validateScheduleRequest(
 		strings.TrimSpace(agtName),
+		strings.TrimSpace(wfName),
 		strings.TrimSpace(name),
 		specInput,
 	)
 }
 
-func ValidateScheduleLookup(agtName string, name string) []gatewayapi.FieldError {
-	fields := make([]gatewayapi.FieldError, 0, 2)
-	fields = append(fields, validateScheduleDNSLabel("agent_name", strings.TrimSpace(agtName))...)
-	fields = append(fields, validateScheduleDNSLabel("name", strings.TrimSpace(name))...)
+func ValidateScheduleLookup(agtName string, wfName string, name string) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, 3)
+	fields = append(fields, validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))...)
+	fields = append(fields, validateScheduleDNSLabel("workflowName", strings.TrimSpace(wfName))...)
+	fields = append(fields, validateScheduleDNSLabel("scheduleName", strings.TrimSpace(name))...)
 	return fields
 }
 
-func ValidateScheduleList(agtName string, wfName *gatewayapi.WorkflowName) (string, []gatewayapi.FieldError) {
-	agtName = strings.TrimSpace(agtName)
-	fields := validateScheduleDNSLabel("agent_name", agtName)
+func ValidateScheduleList(agtName string, wfName string) []gatewayapi.FieldError {
+	fields := make([]gatewayapi.FieldError, 0, 2)
+	fields = append(fields, validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))...)
+	fields = append(fields, validateScheduleDNSLabel("workflowName", strings.TrimSpace(wfName))...)
+	return fields
+}
 
-	name := ""
-	if wfName != nil {
-		name = strings.TrimSpace(*wfName)
-		fields = append(fields, validateScheduleDNSLabel("workflow_name", name)...)
-	}
-	return name, fields
+func ValidateAgentScheduleList(agtName string) []gatewayapi.FieldError {
+	return validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))
 }
 
 func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
@@ -115,7 +112,7 @@ func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, agtName strin
 	if err != nil {
 		if errors.Is(err, ErrWorkflowNotFound) {
 			return []gatewayapi.FieldError{{
-				Field:   "workflow_name",
+				Field:   "workflowName",
 				Message: "referenced workflow was not found",
 			}}, nil
 		}
@@ -145,9 +142,8 @@ func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, agtName strin
 	return fields, nil
 }
 
-func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
+func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
 	specInput := scheduleSpecInput{
-		workflowName:               req.WorkflowName,
 		schedule:                   req.Schedule,
 		timeZone:                   req.TimeZone,
 		inputs:                     req.Inputs,
@@ -164,14 +160,14 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 
 	agt := &clawarmorv1alpha1.Agent{}
 	agtKey := ctrlclient.ObjectKey{
-		Name:      req.AgentName,
+		Name:      agtName,
 		Namespace: ns,
 	}
 	err = k8sClient.Get(ctx, agtKey, agt)
 	if err != nil {
 		return gatewayapi.WorkflowSchedule{}, fmt.Errorf(
 			"get agent %q: %w",
-			req.AgentName,
+			agtName,
 			err,
 		)
 	}
@@ -192,7 +188,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			}},
 		},
 	}
-	applyScheduleSpec(&schedule.Spec, req.AgentName, specInput, inputsJSON)
+	applyScheduleSpec(&schedule.Spec, agtName, wfName, specInput, inputsJSON)
 
 	if err := k8sClient.Create(ctx, schedule); err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
@@ -243,7 +239,7 @@ func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, 
 	return items[start:end], nextOffset, nil
 }
 
-func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, name string) error {
+func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string) error {
 	schedule := &clawarmorv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
 	if err := k8sClient.Get(ctx, key, schedule); err != nil {
@@ -252,10 +248,13 @@ func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	if schedule.Spec.AgentName != agtName {
 		return ErrScheduleAgentMismatch
 	}
+	if schedule.Spec.WorkflowName != wfName {
+		return ErrScheduleAgentMismatch
+	}
 	return k8sClient.Delete(ctx, schedule)
 }
 
-func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, name string, req gatewayapi.UpdateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
+func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string, req gatewayapi.UpdateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
 	current := &clawarmorv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
 	if err := k8sClient.Get(ctx, key, current); err != nil {
@@ -264,9 +263,11 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	if current.Spec.AgentName != agtName {
 		return gatewayapi.WorkflowSchedule{}, ErrScheduleAgentMismatch
 	}
+	if current.Spec.WorkflowName != wfName {
+		return gatewayapi.WorkflowSchedule{}, ErrScheduleAgentMismatch
+	}
 
 	specInput := scheduleSpecInput{
-		workflowName:               req.WorkflowName,
 		schedule:                   req.Schedule,
 		timeZone:                   req.TimeZone,
 		inputs:                     req.Inputs,
@@ -287,7 +288,7 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			return err
 		}
 
-		applyScheduleSpec(&current.Spec, agtName, specInput, inputsJSON)
+		applyScheduleSpec(&current.Spec, agtName, wfName, specInput, inputsJSON)
 
 		if err := k8sClient.Update(ctx, current); err != nil {
 			return err
@@ -349,11 +350,11 @@ func marshalScheduleInputs(value *gatewayapi.JSONValue) ([]byte, error) {
 	return raw, nil
 }
 
-func validateScheduleRequest(agtName string, name string, specInput scheduleSpecInput) []gatewayapi.FieldError {
+func validateScheduleRequest(agtName string, wfName string, name string, specInput scheduleSpecInput) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 5)
-	fields = append(fields, validateScheduleDNSLabel("agent_name", agtName)...)
-	fields = append(fields, validateScheduleDNSLabel("name", name)...)
-	fields = append(fields, validateScheduleDNSLabel("workflow_name", specInput.workflowName)...)
+	fields = append(fields, validateScheduleDNSLabel("agentName", agtName)...)
+	fields = append(fields, validateScheduleDNSLabel("workflowName", wfName)...)
+	fields = append(fields, validateScheduleDNSLabel("scheduleName", name)...)
 	if specInput.schedule == "" {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "schedule",
@@ -381,9 +382,9 @@ func validateScheduleRequest(agtName string, name string, specInput scheduleSpec
 	return fields
 }
 
-func applyScheduleSpec(spec *clawarmorv1alpha1.WorkflowScheduleSpec, agtName string, specInput scheduleSpecInput, inputsJSON []byte) {
+func applyScheduleSpec(spec *clawarmorv1alpha1.WorkflowScheduleSpec, agtName string, wfName string, specInput scheduleSpecInput, inputsJSON []byte) {
 	spec.AgentName = agtName
-	spec.WorkflowName = specInput.workflowName
+	spec.WorkflowName = wfName
 	spec.Schedule = specInput.schedule
 	spec.TimeZone = ""
 	if specInput.timeZone != nil {

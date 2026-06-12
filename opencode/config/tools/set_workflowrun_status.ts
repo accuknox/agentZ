@@ -1,8 +1,14 @@
 import { tool } from "@opencode-ai/plugin"
 
 import { patchWorkflowRunStatus, type PatchWorkflowRunStatusRequest, zError } from "../lib/gateway"
+import { agentNameFromResourceAttributes } from "../lib/workflow"
 
 const args = {
+  workflow_name: tool.schema
+    .string()
+    .min(1)
+    .max(32)
+    .describe("Workflow resource name that owns this workflow run."),
   workflowrun_name: tool.schema
     .string()
     .min(1)
@@ -25,9 +31,19 @@ export default tool({
   ].join(" "),
   args,
   async execute(input, context) {
+    const agentName = agentNameFromResourceAttributes(process.env.OPENCODE_RESOURCE_ATTRIBUTES)
+    if (!agentName) {
+      return (
+        "Could not derive clawarmor.agent_name from OPENCODE_RESOURCE_ATTRIBUTES. " +
+        "Configure the agent runtime to inject that resource attribute before using set_workflowrun_status."
+      )
+    }
+
     context.metadata({
       title: `Set workflow run ${input.phase.toLowerCase()}`,
       metadata: {
+        agent_name: agentName,
+        workflow_name: input.workflow_name,
         workflowrun_name: input.workflowrun_name,
         phase: input.phase,
       },
@@ -40,7 +56,9 @@ export default tool({
       } satisfies PatchWorkflowRunStatusRequest
       const result = await patchWorkflowRunStatus({
         path: {
-          name: input.workflowrun_name,
+          agentName,
+          workflowName: input.workflow_name,
+          runName: input.workflowrun_name,
         },
         body,
         throwOnError: false,

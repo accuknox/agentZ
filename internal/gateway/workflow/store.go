@@ -62,7 +62,7 @@ func ListSummaries(ctx context.Context, pool *pgxpool.Pool, agtName string) ([]g
 }
 
 // Create stores a workflow and its graph.
-func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
+func Create(ctx context.Context, pool *pgxpool.Pool, agtName string, req gatewayapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("begin tx: %w", err)
@@ -76,7 +76,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 	}
 
 	row, err := queries.WorkflowCreate(ctx, workflowdb.WorkflowCreateParams{
-		AgentName:    req.AgentName,
+		AgentName:    agtName,
 		WorkflowName: req.WorkflowName,
 		Title:        req.Title,
 		Summary:      req.Summary,
@@ -92,7 +92,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 	}
 
 	err = queries.WorkflowCreateNodes(ctx, workflowdb.WorkflowCreateNodesParams{
-		AgentName:    req.AgentName,
+		AgentName:    agtName,
 		WorkflowName: req.WorkflowName,
 		Nodes:        nodesJSON,
 	})
@@ -102,7 +102,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 
 	if len(preferredToolsJSON) > 0 && string(preferredToolsJSON) != "[]" {
 		err := queries.WorkflowCreatePreferredTools(ctx, workflowdb.WorkflowCreatePreferredToolsParams{
-			AgentName:      req.AgentName,
+			AgentName:      agtName,
 			WorkflowName:   req.WorkflowName,
 			PreferredTools: preferredToolsJSON,
 		})
@@ -118,7 +118,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, req gatewayapi.CreateWorkfl
 
 	if len(req.Edges) > 0 {
 		err := queries.WorkflowCreateEdges(ctx, workflowdb.WorkflowCreateEdgesParams{
-			AgentName:    req.AgentName,
+			AgentName:    agtName,
 			WorkflowName: req.WorkflowName,
 			Edges:        edgesJSON,
 		})

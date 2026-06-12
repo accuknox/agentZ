@@ -129,8 +129,8 @@ export async function deleteEnvironmentFormAction(
   }
 
   const result = await deleteEnvironment({
-    body: { name },
     client: gatewayServerClient,
+    path: { environmentName: name },
   })
   if (result.error) {
     return { error: result.error }
@@ -212,6 +212,7 @@ export async function updateEnvironmentFormAction(
 
   const result = await updateEnvironment({
     client: gatewayServerClient,
+    path: { environmentName: name },
     body: {
       packages: parsed.data.packages,
       allowed_hosts: parsed.data.allowedHosts,
@@ -225,7 +226,6 @@ export async function updateEnvironmentFormAction(
         })
       ),
     },
-    path: { name },
   })
 
   if (result.error) {

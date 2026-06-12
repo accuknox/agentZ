@@ -94,10 +94,25 @@ async function Runs({
   const pageToken = firstSearchParam(search.page_token)
 
   await connection()
-  const result = await listWorkflowRunsCachedQuery(agentName, scheduleName, {
-    limit: 25,
-    page_token: pageToken,
-  })
+  const schedulesResult = await listWorkflowSchedulesCachedQuery(agentName, { limit: 200 })
+  if (schedulesResult.error || !schedulesResult.workflowSchedules) {
+    return <ErrorPanel message={schedulesResult.error?.message ?? "Unable to load schedules"} />
+  }
+
+  const schedule = schedulesResult.workflowSchedules.find((item) => item.name === scheduleName)
+  if (!schedule) {
+    return <ErrorPanel message="Workflow schedule not found" />
+  }
+
+  const result = await listWorkflowRunsCachedQuery(
+    agentName,
+    schedule.workflow_name,
+    scheduleName,
+    {
+      limit: 25,
+      page_token: pageToken,
+    }
+  )
   if (result.error) {
     return <ErrorPanel message={result.error.message} />
   }
@@ -105,6 +120,7 @@ async function Runs({
   return (
     <RunsTable
       agentName={agentName}
+      workflowName={schedule.workflow_name}
       scheduleName={scheduleName}
       workflowRuns={result.workflowRuns}
       hasNextPage={result.hasNextPage}

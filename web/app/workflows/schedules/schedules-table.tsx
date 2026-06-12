@@ -90,6 +90,7 @@ export function SchedulesTable({
   ) => Promise<WorkflowInputSchemaResult>
   triggerWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: TriggerWorkflowRunActionState,
     formData: FormData
@@ -235,6 +236,7 @@ function createColumns(
   ) => Promise<WorkflowInputSchemaResult>,
   triggerWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: TriggerWorkflowRunActionState,
     formData: FormData
@@ -350,6 +352,7 @@ function ScheduleActions({
   ) => Promise<WorkflowInputSchemaResult>
   triggerWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: TriggerWorkflowRunActionState,
     formData: FormData
@@ -433,13 +436,14 @@ function RunScheduleDialog({
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
   triggerWorkflowRunAction: (
     agentName: string,
+    workflowName: string,
     scheduleName: string,
     state: TriggerWorkflowRunActionState,
     formData: FormData
   ) => Promise<TriggerWorkflowRunActionState>
 }) {
   const [state, action, pending] = React.useActionState(
-    triggerWorkflowRunAction.bind(null, agentName, item.name),
+    triggerWorkflowRunAction.bind(null, agentName, item.workflow_name, item.name),
     { success: false }
   )
 
@@ -464,6 +468,7 @@ function RunScheduleDialog({
             </Button>
           </DialogClose>
           <form action={action}>
+            <input type="hidden" name="workflow_name" value={item.workflow_name} />
             <input type="hidden" name="schedule_name" value={item.name} />
             <Button type="submit" disabled={pending}>
               {pending ? <Spinner /> : <Play />}
@@ -526,6 +531,7 @@ function DeleteScheduleDialog({
           </DialogClose>
           <form action={action}>
             <input type="hidden" name="name" value={item.name} />
+            <input type="hidden" name="workflow_name" value={item.workflow_name} />
             <Button type="submit" variant="destructive" disabled={pending}>
               {pending ? <Spinner /> : <Trash2 />}
               Delete

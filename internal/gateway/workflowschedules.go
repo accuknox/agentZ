@@ -13,14 +13,16 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-// CreateWorkflowSchedule handles POST /api/workflow-schedules.
-func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request) {
+// CreateWorkflowSchedule handles POST /api/workflow/{agentName}/{workflowName}/schedule.
+func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
 	var req gatewayapi.CreateWorkflowScheduleRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
 
-	fields := workflow.ValidateScheduleCreateRequest(&req)
+	agentName := strings.TrimSpace(agtName)
+	workflowName = strings.TrimSpace(workflowName)
+	fields := workflow.ValidateScheduleCreateRequest(agentName, workflowName, &req)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -35,8 +37,8 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request)
 	fields, err := workflow.ValidateScheduleInputs(
 		r.Context(),
 		s.db,
-		req.AgentName,
-		req.WorkflowName,
+		agentName,
+		workflowName,
 		req.Inputs,
 	)
 	if err != nil {
@@ -58,6 +60,8 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request)
 		r.Context(),
 		s.k8sClient,
 		s.cfg.Namespace,
+		agentName,
+		workflowName,
 		req,
 	)
 	if err != nil {
@@ -68,10 +72,68 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusCreated, resp)
 }
 
-// ListWorkflowSchedules handles GET /api/workflow-schedules/{agentName}.
-func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.ListWorkflowSchedulesParams) {
+// ListAgentWorkflowSchedules handles GET /api/workflow/{agentName}/schedule.
+func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.ListAgentWorkflowSchedulesParams) {
 	agentName := strings.TrimSpace(agtName)
-	workflowName, fields := workflow.ValidateScheduleList(agentName, params.WorkflowName)
+	fields := workflow.ValidateAgentScheduleList(agentName)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	limit := 50
+	if params.Limit != nil {
+		limit = int(*params.Limit)
+	}
+	if limit < 1 || limit > 200 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
+		return
+	}
+
+	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
+
+	items, nextOffset, err := workflow.ListSchedules(
+		r.Context(),
+		s.k8sClient,
+		s.cfg.Namespace,
+		agentName,
+		"",
+		limit,
+		offset,
+	)
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
+		return
+	}
+
+	resp := gatewayapi.ListWorkflowSchedulesResponse{
+		WorkflowSchedules: items,
+	}
+	if nextOffset > 0 {
+		resp.NextPageToken = encodeOffsetToken(nextOffset)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ListWorkflowSchedules handles GET /api/workflow/{agentName}/{workflowName}/schedule.
+func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.ListWorkflowSchedulesParams) {
+	agentName := strings.TrimSpace(agtName)
+	workflowName = strings.TrimSpace(workflowName)
+	fields := workflow.ValidateScheduleList(agentName, workflowName)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -125,11 +187,12 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// DeleteWorkflowSchedule handles DELETE /api/workflow-schedules/{agentName}/{name}.
-func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName) {
+// DeleteWorkflowSchedule handles DELETE /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}.
+func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
 	agentName := strings.TrimSpace(agtName)
-	scheduleName := strings.TrimSpace(name)
-	fields := workflow.ValidateScheduleLookup(agentName, scheduleName)
+	workflowName = strings.TrimSpace(workflowName)
+	scheduleName = strings.TrimSpace(scheduleName)
+	fields := workflow.ValidateScheduleLookup(agentName, workflowName, scheduleName)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -146,6 +209,7 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		s.k8sClient,
 		s.cfg.Namespace,
 		agentName,
+		workflowName,
 		scheduleName,
 	)
 	if err != nil {
@@ -165,17 +229,19 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateWorkflowSchedule handles PUT /api/workflow-schedules/{agentName}/{name}.
-func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName) {
+// UpdateWorkflowSchedule handles PUT /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}.
+func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
 	var req gatewayapi.UpdateWorkflowScheduleRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
 
 	agentName := strings.TrimSpace(agtName)
-	scheduleName := strings.TrimSpace(name)
+	workflowName = strings.TrimSpace(workflowName)
+	scheduleName = strings.TrimSpace(scheduleName)
 	fields := workflow.ValidateScheduleUpdateRequest(
 		agentName,
+		workflowName,
 		scheduleName,
 		&req,
 	)
@@ -194,7 +260,7 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		r.Context(),
 		s.db,
 		agentName,
-		req.WorkflowName,
+		workflowName,
 		req.Inputs,
 	)
 	if err != nil {
@@ -217,6 +283,7 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		s.k8sClient,
 		s.cfg.Namespace,
 		agentName,
+		workflowName,
 		scheduleName,
 		req,
 	)
@@ -237,11 +304,12 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// CreateWorkflowRun handles POST /api/workflow-schedules/{agentName}/{name}/run.
-func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, name gatewayapi.WorkflowScheduleName) {
+// CreateWorkflowRun handles POST /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run.
+func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
 	agtName = strings.TrimSpace(agtName)
-	scheduleName := strings.TrimSpace(name)
-	fields := workflow.ValidateRunRoute(agtName, scheduleName)
+	workflowName = strings.TrimSpace(workflowName)
+	scheduleName = strings.TrimSpace(scheduleName)
+	fields := workflow.ValidateRunRoute(agtName, workflowName, scheduleName)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -258,6 +326,7 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		s.k8sClient,
 		s.cfg.Namespace,
 		agtName,
+		workflowName,
 		scheduleName,
 	)
 	if err != nil {

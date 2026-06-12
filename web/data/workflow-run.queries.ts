@@ -20,7 +20,8 @@ export type ListWorkflowRunsQueryResult =
 
 export async function listWorkflowRunsCachedQuery(
   agentName: ListWorkflowRunsData["path"]["agentName"],
-  scheduleName: ListWorkflowRunsData["path"]["name"],
+  workflowName: ListWorkflowRunsData["path"]["workflowName"],
+  scheduleName: ListWorkflowRunsData["path"]["scheduleName"],
   query?: ListWorkflowRunsData["query"]
 ): Promise<ListWorkflowRunsQueryResult> {
   "use cache"
@@ -32,7 +33,8 @@ export async function listWorkflowRunsCachedQuery(
     client: gatewayServerClient,
     path: {
       agentName,
-      name: scheduleName,
+      workflowName,
+      scheduleName,
     },
     query,
   })

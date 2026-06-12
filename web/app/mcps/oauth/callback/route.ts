@@ -1,13 +1,7 @@
 import { revalidateTag } from "next/cache"
 import { cookies } from "next/headers"
 import { mcpsTag } from "@/data/cache"
-import {
-  createMcpConnection,
-  deleteMcpConnection,
-  getMcpConnection,
-  setMcpConnectionCredentials,
-  updateMcpConnection,
-} from "@/lib/gateway/client"
+import { createMcpConnection, getMcpConnection, updateMcpConnection } from "@/lib/gateway/client"
 import {
   completeOAuthFlow,
   mcpOAuthCookieName,
@@ -83,32 +77,14 @@ export async function GET(request: Request) {
           name: pending.operation.form.name,
           endpoint: pending.operation.form.endpoint,
           auth: result.value.auth,
+          credentials: {
+            oauth: result.value.credentials,
+          },
         },
         client: gatewayServerClient,
       })
       if (createResult.error) {
         throw new Error(createResult.error.message)
-      }
-
-      const credentialsResult = await setMcpConnectionCredentials({
-        client: gatewayServerClient,
-        path: { name: pending.operation.form.name },
-        body: {
-          oauth: result.value.credentials,
-        },
-      })
-      if (credentialsResult.error) {
-        const deleteResult = await deleteMcpConnection({
-          client: gatewayServerClient,
-          path: { name: pending.operation.form.name },
-        })
-        if (deleteResult.error) {
-          console.error("mcp oauth create compensation failed", {
-            flowId: pending.flowId,
-            code: deleteResult.error.code,
-          })
-        }
-        throw new Error(credentialsResult.error.message)
       }
     } else {
       const currentResult = await getMcpConnection({
@@ -127,35 +103,13 @@ export async function GET(request: Request) {
         body: {
           endpoint: pending.operation.form.endpoint,
           auth: result.value.auth,
+          credentials: {
+            oauth: result.value.credentials,
+          },
         },
       })
       if (updateResult.error) {
         throw new Error(updateResult.error.message)
-      }
-
-      const credentialsResult = await setMcpConnectionCredentials({
-        client: gatewayServerClient,
-        path: { name: pending.operation.name },
-        body: {
-          oauth: result.value.credentials,
-        },
-      })
-      if (credentialsResult.error) {
-        const rollbackResult = await updateMcpConnection({
-          client: gatewayServerClient,
-          path: { name: pending.operation.name },
-          body: {
-            endpoint: previous.endpoint,
-            auth: previous.auth,
-          },
-        })
-        if (rollbackResult.error) {
-          console.error("mcp oauth update rollback failed", {
-            flowId: pending.flowId,
-            code: rollbackResult.error.code,
-          })
-        }
-        throw new Error(credentialsResult.error.message)
       }
     }
 

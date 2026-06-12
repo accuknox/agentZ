@@ -13,7 +13,6 @@ import {
   deleteAgent,
   deleteEnvironment,
   deleteMcpConnection,
-  deleteMcpConnectionCredentials,
   deleteSecret,
   deleteWorkflowRun,
   deleteWorkflows,
@@ -24,6 +23,7 @@ import {
   getWorkflow,
   getWorkflowRun,
   listAgents,
+  listAgentWorkflowSchedules,
   listEnvironments,
   listFileObservability,
   listMcpConnections,
@@ -31,7 +31,6 @@ import {
   listProcessObservability,
   listSecrets,
   listSpans,
-  listTraces,
   listTraceSessions,
   listWorkflowRuns,
   listWorkflowSchedules,
@@ -39,7 +38,6 @@ import {
   type Options,
   patchWorkflowRunStatus,
   putSecret,
-  setMcpConnectionCredentials,
   updateAgent,
   updateEnvironment,
   updateMcpConnection,
@@ -70,9 +68,6 @@ import type {
   DeleteEnvironmentData,
   DeleteEnvironmentError,
   DeleteEnvironmentResponse,
-  DeleteMcpConnectionCredentialsData,
-  DeleteMcpConnectionCredentialsError,
-  DeleteMcpConnectionCredentialsResponse,
   DeleteMcpConnectionData,
   DeleteMcpConnectionError,
   DeleteMcpConnectionResponse,
@@ -106,6 +101,9 @@ import type {
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
+  ListAgentWorkflowSchedulesData,
+  ListAgentWorkflowSchedulesError,
+  ListAgentWorkflowSchedulesResponse,
   ListEnvironmentsData,
   ListEnvironmentsError,
   ListEnvironmentsResponse2,
@@ -127,12 +125,9 @@ import type {
   ListSpansData,
   ListSpansError,
   ListSpansResponse2,
-  ListTracesData,
-  ListTracesError,
   ListTraceSessionsData,
   ListTraceSessionsError,
   ListTraceSessionsResponse2,
-  ListTracesResponse2,
   ListWorkflowRunsData,
   ListWorkflowRunsError,
   ListWorkflowRunsResponse2,
@@ -148,9 +143,6 @@ import type {
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
-  SetMcpConnectionCredentialsData,
-  SetMcpConnectionCredentialsError,
-  SetMcpConnectionCredentialsResponse,
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
@@ -229,30 +221,80 @@ export const listAgentsOptions = (options?: Options<ListAgentsData>) =>
     queryKey: listAgentsQueryKey(options),
   })
 
-export const listTracesQueryKey = (options: Options<ListTracesData>) =>
-  createQueryKey("listTraces", options)
-
 /**
- * List paginated trace summaries.
+ * Create an Agent resource.
+ *
+ * Creates an agent record and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
+ *
  */
-export const listTracesOptions = (options: Options<ListTracesData>) =>
-  queryOptions<
-    ListTracesResponse2,
-    ListTracesError,
-    ListTracesResponse2,
-    ReturnType<typeof listTracesQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listTraces({
+export const createAgentMutation = (
+  options?: Partial<Options<CreateAgentData>>
+): UseMutationOptions<CreateAgentResponse, CreateAgentError, Options<CreateAgentData>> => {
+  const mutationOptions: UseMutationOptions<
+    CreateAgentResponse,
+    CreateAgentError,
+    Options<CreateAgentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createAgent({
         ...options,
-        ...queryKey[0],
-        signal,
+        ...fnOptions,
         throwOnError: true,
       })
       return data
     },
-    queryKey: listTracesQueryKey(options),
-  })
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete an Agent resource.
+ */
+export const deleteAgentMutation = (
+  options?: Partial<Options<DeleteAgentData>>
+): UseMutationOptions<DeleteAgentResponse, DeleteAgentError, Options<DeleteAgentData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteAgentResponse,
+    DeleteAgentError,
+    Options<DeleteAgentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteAgent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Update an Agent resource.
+ *
+ * Updates mutable Agent fields for an existing Agent. The agent name in the path identifies the Agent and is immutable.
+ *
+ */
+export const updateAgentMutation = (
+  options?: Partial<Options<UpdateAgentData>>
+): UseMutationOptions<UpdateAgentResponse, UpdateAgentError, Options<UpdateAgentData>> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateAgentResponse,
+    UpdateAgentError,
+    Options<UpdateAgentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateAgent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export const listTraceSessionsQueryKey = (options: Options<ListTraceSessionsData>) =>
   createQueryKey("listTraceSessions", options)
@@ -429,129 +471,24 @@ export const getMcpGraphOptions = (options: Options<GetMcpGraphData>) =>
     queryKey: getMcpGraphQueryKey(options),
   })
 
-/**
- * Create an Agent resource.
- *
- * Creates an agent record and Agent custom resource. The request returns after the Agent resource is created and does not wait for the Agent to become ready.
- *
- */
-export const createAgentMutation = (
-  options?: Partial<Options<CreateAgentData>>
-): UseMutationOptions<CreateAgentResponse, CreateAgentError, Options<CreateAgentData>> => {
-  const mutationOptions: UseMutationOptions<
-    CreateAgentResponse,
-    CreateAgentError,
-    Options<CreateAgentData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await createAgent({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
+export const listSecretsQueryKey = (options: Options<ListSecretsData>) =>
+  createQueryKey("listSecrets", options)
 
 /**
- * Delete an Agent resource.
- */
-export const deleteAgentMutation = (
-  options?: Partial<Options<DeleteAgentData>>
-): UseMutationOptions<DeleteAgentResponse, DeleteAgentError, Options<DeleteAgentData>> => {
-  const mutationOptions: UseMutationOptions<
-    DeleteAgentResponse,
-    DeleteAgentError,
-    Options<DeleteAgentData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await deleteAgent({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Create a workflow definition.
+ * List secret keys for an agent.
  *
- * Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
+ * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
  *
  */
-export const createWorkflowMutation = (
-  options?: Partial<Options<CreateWorkflowData>>
-): UseMutationOptions<CreateWorkflowResponse, CreateWorkflowError, Options<CreateWorkflowData>> => {
-  const mutationOptions: UseMutationOptions<
-    CreateWorkflowResponse,
-    CreateWorkflowError,
-    Options<CreateWorkflowData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await createWorkflow({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Delete workflow definitions.
- *
- * Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
- *
- */
-export const deleteWorkflowsMutation = (
-  options?: Partial<Options<DeleteWorkflowsData>>
-): UseMutationOptions<
-  DeleteWorkflowsResponse,
-  DeleteWorkflowsError,
-  Options<DeleteWorkflowsData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    DeleteWorkflowsResponse,
-    DeleteWorkflowsError,
-    Options<DeleteWorkflowsData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await deleteWorkflows({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-export const getWorkflowQueryKey = (options: Options<GetWorkflowData>) =>
-  createQueryKey("getWorkflow", options)
-
-/**
- * Get a workflow definition.
- *
- * Retrieves a persisted workflow DAG for a single agent. The response preserves the normalized workflow structure so clients can derive a detailed execution playbook from the graph.
- *
- */
-export const getWorkflowOptions = (options: Options<GetWorkflowData>) =>
+export const listSecretsOptions = (options: Options<ListSecretsData>) =>
   queryOptions<
-    GetWorkflowResponse,
-    GetWorkflowError,
-    GetWorkflowResponse,
-    ReturnType<typeof getWorkflowQueryKey>
+    ListSecretsResponse2,
+    ListSecretsError,
+    ListSecretsResponse2,
+    ReturnType<typeof listSecretsQueryKey>
   >({
     queryFn: async ({ queryKey, signal }) => {
-      const { data } = await getWorkflow({
+      const { data } = await listSecrets({
         ...options,
         ...queryKey[0],
         signal,
@@ -559,326 +496,8 @@ export const getWorkflowOptions = (options: Options<GetWorkflowData>) =>
       })
       return data
     },
-    queryKey: getWorkflowQueryKey(options),
+    queryKey: listSecretsQueryKey(options),
   })
-
-/**
- * Set a WorkflowRun terminal status.
- *
- * Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
- *
- */
-export const patchWorkflowRunStatusMutation = (
-  options?: Partial<Options<PatchWorkflowRunStatusData>>
-): UseMutationOptions<
-  PatchWorkflowRunStatusResponse,
-  PatchWorkflowRunStatusError,
-  Options<PatchWorkflowRunStatusData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    PatchWorkflowRunStatusResponse,
-    PatchWorkflowRunStatusError,
-    Options<PatchWorkflowRunStatusData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await patchWorkflowRunStatus({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-export const listWorkflowSummariesQueryKey = (options: Options<ListWorkflowSummariesData>) =>
-  createQueryKey("listWorkflowSummaries", options)
-
-/**
- * List workflow summaries.
- *
- * Lists saved workflow metadata for a single agent without loading the full workflow graph.
- *
- */
-export const listWorkflowSummariesOptions = (options: Options<ListWorkflowSummariesData>) =>
-  queryOptions<
-    ListWorkflowSummariesResponse,
-    ListWorkflowSummariesError,
-    ListWorkflowSummariesResponse,
-    ReturnType<typeof listWorkflowSummariesQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listWorkflowSummaries({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: listWorkflowSummariesQueryKey(options),
-  })
-
-/**
- * Create a workflow schedule.
- *
- * Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
- *
- */
-export const createWorkflowScheduleMutation = (
-  options?: Partial<Options<CreateWorkflowScheduleData>>
-): UseMutationOptions<
-  CreateWorkflowScheduleResponse,
-  CreateWorkflowScheduleError,
-  Options<CreateWorkflowScheduleData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    CreateWorkflowScheduleResponse,
-    CreateWorkflowScheduleError,
-    Options<CreateWorkflowScheduleData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await createWorkflowSchedule({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-export const listWorkflowSchedulesQueryKey = (options: Options<ListWorkflowSchedulesData>) =>
-  createQueryKey("listWorkflowSchedules", options)
-
-/**
- * List workflow schedules.
- *
- * Lists paginated workflow schedules for one agent. The optional workflow_name query narrows the result to one workflow definition.
- *
- */
-export const listWorkflowSchedulesOptions = (options: Options<ListWorkflowSchedulesData>) =>
-  queryOptions<
-    ListWorkflowSchedulesResponse2,
-    ListWorkflowSchedulesError,
-    ListWorkflowSchedulesResponse2,
-    ReturnType<typeof listWorkflowSchedulesQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listWorkflowSchedules({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: listWorkflowSchedulesQueryKey(options),
-  })
-
-/**
- * Delete a workflow schedule.
- *
- * Deletes one workflow schedule. The agent name in the path must match the referenced schedule, otherwise the gateway returns not found.
- *
- */
-export const deleteWorkflowScheduleMutation = (
-  options?: Partial<Options<DeleteWorkflowScheduleData>>
-): UseMutationOptions<
-  DeleteWorkflowScheduleResponse,
-  DeleteWorkflowScheduleError,
-  Options<DeleteWorkflowScheduleData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    DeleteWorkflowScheduleResponse,
-    DeleteWorkflowScheduleError,
-    Options<DeleteWorkflowScheduleData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await deleteWorkflowSchedule({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Update a workflow schedule.
- *
- * Replaces all mutable workflow schedule fields for one existing schedule. The schedule name and agent name in the path identify the resource.
- *
- */
-export const updateWorkflowScheduleMutation = (
-  options?: Partial<Options<UpdateWorkflowScheduleData>>
-): UseMutationOptions<
-  UpdateWorkflowScheduleResponse,
-  UpdateWorkflowScheduleError,
-  Options<UpdateWorkflowScheduleData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    UpdateWorkflowScheduleResponse,
-    UpdateWorkflowScheduleError,
-    Options<UpdateWorkflowScheduleData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await updateWorkflowSchedule({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Trigger one workflow run from a workflow schedule.
- *
- * Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
- *
- */
-export const createWorkflowRunMutation = (
-  options?: Partial<Options<CreateWorkflowRunData>>
-): UseMutationOptions<
-  CreateWorkflowRunResponse,
-  CreateWorkflowRunError,
-  Options<CreateWorkflowRunData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    CreateWorkflowRunResponse,
-    CreateWorkflowRunError,
-    Options<CreateWorkflowRunData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await createWorkflowRun({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-export const listWorkflowRunsQueryKey = (options: Options<ListWorkflowRunsData>) =>
-  createQueryKey("listWorkflowRuns", options)
-
-/**
- * List workflow runs for a workflow schedule.
- *
- * Lists paginated workflow runs created from the addressed WorkflowSchedule.
- *
- */
-export const listWorkflowRunsOptions = (options: Options<ListWorkflowRunsData>) =>
-  queryOptions<
-    ListWorkflowRunsResponse2,
-    ListWorkflowRunsError,
-    ListWorkflowRunsResponse2,
-    ReturnType<typeof listWorkflowRunsQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listWorkflowRuns({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: listWorkflowRunsQueryKey(options),
-  })
-
-/**
- * Delete one workflow run.
- *
- * Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
- *
- */
-export const deleteWorkflowRunMutation = (
-  options?: Partial<Options<DeleteWorkflowRunData>>
-): UseMutationOptions<
-  DeleteWorkflowRunResponse,
-  DeleteWorkflowRunError,
-  Options<DeleteWorkflowRunData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    DeleteWorkflowRunResponse,
-    DeleteWorkflowRunError,
-    Options<DeleteWorkflowRunData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await deleteWorkflowRun({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-export const getWorkflowRunQueryKey = (options: Options<GetWorkflowRunData>) =>
-  createQueryKey("getWorkflowRun", options)
-
-/**
- * Get one workflow run.
- *
- * Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
- *
- */
-export const getWorkflowRunOptions = (options: Options<GetWorkflowRunData>) =>
-  queryOptions<
-    GetWorkflowRunResponse,
-    GetWorkflowRunError,
-    GetWorkflowRunResponse,
-    ReturnType<typeof getWorkflowRunQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await getWorkflowRun({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: getWorkflowRunQueryKey(options),
-  })
-
-/**
- * Update an Agent resource.
- *
- * Updates mutable Agent fields for an existing Agent. The agent name in the path identifies the Agent and is immutable.
- *
- */
-export const updateAgentMutation = (
-  options?: Partial<Options<UpdateAgentData>>
-): UseMutationOptions<UpdateAgentResponse, UpdateAgentError, Options<UpdateAgentData>> => {
-  const mutationOptions: UseMutationOptions<
-    UpdateAgentResponse,
-    UpdateAgentError,
-    Options<UpdateAgentData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await updateAgent({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
 
 /**
  * Store or overwrite secrets for an agent.
@@ -931,34 +550,6 @@ export const deleteSecretMutation = (
   }
   return mutationOptions
 }
-
-export const listSecretsQueryKey = (options: Options<ListSecretsData>) =>
-  createQueryKey("listSecrets", options)
-
-/**
- * List secret keys for an agent.
- *
- * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
- *
- */
-export const listSecretsOptions = (options: Options<ListSecretsData>) =>
-  queryOptions<
-    ListSecretsResponse2,
-    ListSecretsError,
-    ListSecretsResponse2,
-    ReturnType<typeof listSecretsQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listSecrets({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: listSecretsQueryKey(options),
-  })
 
 export const listEnvironmentsQueryKey = (options?: Options<ListEnvironmentsData>) =>
   createQueryKey("listEnvironments", options)
@@ -1069,6 +660,31 @@ export const updateEnvironmentMutation = (
   return mutationOptions
 }
 
+export const listMcpConnectionsQueryKey = (options?: Options<ListMcpConnectionsData>) =>
+  createQueryKey("listMcpConnections", options)
+
+/**
+ * List paginated MCPConnection resources.
+ */
+export const listMcpConnectionsOptions = (options?: Options<ListMcpConnectionsData>) =>
+  queryOptions<
+    ListMcpConnectionsResponse2,
+    ListMcpConnectionsError,
+    ListMcpConnectionsResponse2,
+    ReturnType<typeof listMcpConnectionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listMcpConnections({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listMcpConnectionsQueryKey(options),
+  })
+
 /**
  * Create an MCPConnection resource.
  */
@@ -1175,21 +791,54 @@ export const updateMcpConnectionMutation = (
   return mutationOptions
 }
 
-export const listMcpConnectionsQueryKey = (options?: Options<ListMcpConnectionsData>) =>
-  createQueryKey("listMcpConnections", options)
+/**
+ * Delete workflow definitions.
+ *
+ * Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+ *
+ */
+export const deleteWorkflowsMutation = (
+  options?: Partial<Options<DeleteWorkflowsData>>
+): UseMutationOptions<
+  DeleteWorkflowsResponse,
+  DeleteWorkflowsError,
+  Options<DeleteWorkflowsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkflowsResponse,
+    DeleteWorkflowsError,
+    Options<DeleteWorkflowsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflows({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkflowSummariesQueryKey = (options: Options<ListWorkflowSummariesData>) =>
+  createQueryKey("listWorkflowSummaries", options)
 
 /**
- * List paginated MCPConnection resources.
+ * List workflow summaries.
+ *
+ * Lists saved workflow metadata for a single agent without loading the full workflow graph.
+ *
  */
-export const listMcpConnectionsOptions = (options?: Options<ListMcpConnectionsData>) =>
+export const listWorkflowSummariesOptions = (options: Options<ListWorkflowSummariesData>) =>
   queryOptions<
-    ListMcpConnectionsResponse2,
-    ListMcpConnectionsError,
-    ListMcpConnectionsResponse2,
-    ReturnType<typeof listMcpConnectionsQueryKey>
+    ListWorkflowSummariesResponse,
+    ListWorkflowSummariesError,
+    ListWorkflowSummariesResponse,
+    ReturnType<typeof listWorkflowSummariesQueryKey>
   >({
     queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listMcpConnections({
+      const { data } = await listWorkflowSummaries({
         ...options,
         ...queryKey[0],
         signal,
@@ -1197,26 +846,142 @@ export const listMcpConnectionsOptions = (options?: Options<ListMcpConnectionsDa
       })
       return data
     },
-    queryKey: listMcpConnectionsQueryKey(options),
+    queryKey: listWorkflowSummariesQueryKey(options),
   })
 
 /**
- * Remove MCPConnection credentials.
+ * Create a workflow definition.
+ *
+ * Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
+ *
  */
-export const deleteMcpConnectionCredentialsMutation = (
-  options?: Partial<Options<DeleteMcpConnectionCredentialsData>>
-): UseMutationOptions<
-  DeleteMcpConnectionCredentialsResponse,
-  DeleteMcpConnectionCredentialsError,
-  Options<DeleteMcpConnectionCredentialsData>
-> => {
+export const createWorkflowMutation = (
+  options?: Partial<Options<CreateWorkflowData>>
+): UseMutationOptions<CreateWorkflowResponse, CreateWorkflowError, Options<CreateWorkflowData>> => {
   const mutationOptions: UseMutationOptions<
-    DeleteMcpConnectionCredentialsResponse,
-    DeleteMcpConnectionCredentialsError,
-    Options<DeleteMcpConnectionCredentialsData>
+    CreateWorkflowResponse,
+    CreateWorkflowError,
+    Options<CreateWorkflowData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await deleteMcpConnectionCredentials({
+      const { data } = await createWorkflow({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getWorkflowQueryKey = (options: Options<GetWorkflowData>) =>
+  createQueryKey("getWorkflow", options)
+
+/**
+ * Get a workflow definition.
+ *
+ * Retrieves a persisted workflow DAG for a single agent. The response preserves the normalized workflow structure so clients can derive a detailed execution playbook from the graph.
+ *
+ */
+export const getWorkflowOptions = (options: Options<GetWorkflowData>) =>
+  queryOptions<
+    GetWorkflowResponse,
+    GetWorkflowError,
+    GetWorkflowResponse,
+    ReturnType<typeof getWorkflowQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkflow({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkflowQueryKey(options),
+  })
+
+export const listAgentWorkflowSchedulesQueryKey = (
+  options: Options<ListAgentWorkflowSchedulesData>
+) => createQueryKey("listAgentWorkflowSchedules", options)
+
+/**
+ * List workflow schedules for one agent.
+ *
+ * Lists paginated workflow schedules for one agent across all workflows.
+ *
+ */
+export const listAgentWorkflowSchedulesOptions = (
+  options: Options<ListAgentWorkflowSchedulesData>
+) =>
+  queryOptions<
+    ListAgentWorkflowSchedulesResponse,
+    ListAgentWorkflowSchedulesError,
+    ListAgentWorkflowSchedulesResponse,
+    ReturnType<typeof listAgentWorkflowSchedulesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentWorkflowSchedules({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentWorkflowSchedulesQueryKey(options),
+  })
+
+export const listWorkflowSchedulesQueryKey = (options: Options<ListWorkflowSchedulesData>) =>
+  createQueryKey("listWorkflowSchedules", options)
+
+/**
+ * List workflow schedules.
+ *
+ * Lists paginated workflow schedules for one workflow definition.
+ *
+ */
+export const listWorkflowSchedulesOptions = (options: Options<ListWorkflowSchedulesData>) =>
+  queryOptions<
+    ListWorkflowSchedulesResponse2,
+    ListWorkflowSchedulesError,
+    ListWorkflowSchedulesResponse2,
+    ReturnType<typeof listWorkflowSchedulesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowSchedules({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowSchedulesQueryKey(options),
+  })
+
+/**
+ * Create a workflow schedule.
+ *
+ * Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+ *
+ */
+export const createWorkflowScheduleMutation = (
+  options?: Partial<Options<CreateWorkflowScheduleData>>
+): UseMutationOptions<
+  CreateWorkflowScheduleResponse,
+  CreateWorkflowScheduleError,
+  Options<CreateWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowScheduleResponse,
+    CreateWorkflowScheduleError,
+    Options<CreateWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflowSchedule({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -1228,22 +993,201 @@ export const deleteMcpConnectionCredentialsMutation = (
 }
 
 /**
- * Set MCPConnection credentials.
+ * Delete a workflow schedule.
+ *
+ * Deletes one workflow schedule addressed by agent, workflow, and schedule name.
+ *
  */
-export const setMcpConnectionCredentialsMutation = (
-  options?: Partial<Options<SetMcpConnectionCredentialsData>>
+export const deleteWorkflowScheduleMutation = (
+  options?: Partial<Options<DeleteWorkflowScheduleData>>
 ): UseMutationOptions<
-  SetMcpConnectionCredentialsResponse,
-  SetMcpConnectionCredentialsError,
-  Options<SetMcpConnectionCredentialsData>
+  DeleteWorkflowScheduleResponse,
+  DeleteWorkflowScheduleError,
+  Options<DeleteWorkflowScheduleData>
 > => {
   const mutationOptions: UseMutationOptions<
-    SetMcpConnectionCredentialsResponse,
-    SetMcpConnectionCredentialsError,
-    Options<SetMcpConnectionCredentialsData>
+    DeleteWorkflowScheduleResponse,
+    DeleteWorkflowScheduleError,
+    Options<DeleteWorkflowScheduleData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await setMcpConnectionCredentials({
+      const { data } = await deleteWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Update a workflow schedule.
+ *
+ * Replaces all mutable workflow schedule fields for one existing schedule.
+ *
+ */
+export const updateWorkflowScheduleMutation = (
+  options?: Partial<Options<UpdateWorkflowScheduleData>>
+): UseMutationOptions<
+  UpdateWorkflowScheduleResponse,
+  UpdateWorkflowScheduleError,
+  Options<UpdateWorkflowScheduleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateWorkflowScheduleResponse,
+    UpdateWorkflowScheduleError,
+    Options<UpdateWorkflowScheduleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateWorkflowSchedule({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkflowRunsQueryKey = (options: Options<ListWorkflowRunsData>) =>
+  createQueryKey("listWorkflowRuns", options)
+
+/**
+ * List workflow runs for a workflow schedule.
+ *
+ * Lists paginated workflow runs created from the addressed WorkflowSchedule.
+ *
+ */
+export const listWorkflowRunsOptions = (options: Options<ListWorkflowRunsData>) =>
+  queryOptions<
+    ListWorkflowRunsResponse2,
+    ListWorkflowRunsError,
+    ListWorkflowRunsResponse2,
+    ReturnType<typeof listWorkflowRunsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowRuns({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowRunsQueryKey(options),
+  })
+
+/**
+ * Trigger one workflow run from a workflow schedule.
+ *
+ * Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+ *
+ */
+export const createWorkflowRunMutation = (
+  options?: Partial<Options<CreateWorkflowRunData>>
+): UseMutationOptions<
+  CreateWorkflowRunResponse,
+  CreateWorkflowRunError,
+  Options<CreateWorkflowRunData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowRunResponse,
+    CreateWorkflowRunError,
+    Options<CreateWorkflowRunData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflowRun({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete one workflow run.
+ *
+ * Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+ *
+ */
+export const deleteWorkflowRunMutation = (
+  options?: Partial<Options<DeleteWorkflowRunData>>
+): UseMutationOptions<
+  DeleteWorkflowRunResponse,
+  DeleteWorkflowRunError,
+  Options<DeleteWorkflowRunData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkflowRunResponse,
+    DeleteWorkflowRunError,
+    Options<DeleteWorkflowRunData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflowRun({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getWorkflowRunQueryKey = (options: Options<GetWorkflowRunData>) =>
+  createQueryKey("getWorkflowRun", options)
+
+/**
+ * Get one workflow run.
+ *
+ * Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+ *
+ */
+export const getWorkflowRunOptions = (options: Options<GetWorkflowRunData>) =>
+  queryOptions<
+    GetWorkflowRunResponse,
+    GetWorkflowRunError,
+    GetWorkflowRunResponse,
+    ReturnType<typeof getWorkflowRunQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkflowRun({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkflowRunQueryKey(options),
+  })
+
+/**
+ * Set a WorkflowRun terminal status.
+ *
+ * Marks a running WorkflowRun as succeeded or failed. The gateway owns request validation and state-transition checks, then patches the WorkflowRun status in the configured namespace.
+ *
+ */
+export const patchWorkflowRunStatusMutation = (
+  options?: Partial<Options<PatchWorkflowRunStatusData>>
+): UseMutationOptions<
+  PatchWorkflowRunStatusResponse,
+  PatchWorkflowRunStatusError,
+  Options<PatchWorkflowRunStatusData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PatchWorkflowRunStatusResponse,
+    PatchWorkflowRunStatusError,
+    Options<PatchWorkflowRunStatusData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await patchWorkflowRunStatus({
         ...options,
         ...fnOptions,
         throwOnError: true,

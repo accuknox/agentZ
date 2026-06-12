@@ -1,6 +1,6 @@
 import { tool } from "@opencode-ai/plugin"
 
-import { listWorkflowSchedules, type WorkflowSchedule, zError } from "../lib/gateway"
+import { listAgentWorkflowSchedules, type WorkflowSchedule, zError } from "../lib/gateway"
 import { agentNameFromResourceAttributes, workflowErrorOutput } from "../lib/workflow"
 
 const description = `
@@ -39,7 +39,7 @@ export default tool({
     let pageToken: string | undefined
 
     while (true) {
-      const result = await listWorkflowSchedules({
+      const result = await listAgentWorkflowSchedules({
         path: {
           agentName,
         },

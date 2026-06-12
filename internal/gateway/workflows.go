@@ -10,7 +10,7 @@ import (
 	workflowstore "github.com/accuknox/clawarmor/internal/gateway/workflow"
 )
 
-// GetWorkflow handles GET /api/workflows/{agentName}/{workflowName}.
+// GetWorkflow handles GET /api/workflow/{agentName}/{workflowName}.
 func (s *Service) GetWorkflow(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
@@ -36,8 +36,8 @@ func (s *Service) GetWorkflow(w http.ResponseWriter, r *http.Request, agtName ga
 	apiutil.WriteJSON(w, http.StatusOK, workflow)
 }
 
-// CreateWorkflow handles POST /api/workflows.
-func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
+// CreateWorkflow handles POST /api/workflow/{agentName}.
+func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
 	var req gatewayapi.CreateWorkflowRequest
 	if err := apiutil.DecodeJSONBody(w, r, &req, false); err != nil {
 		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
@@ -48,7 +48,7 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.AgentName = strings.TrimSpace(req.AgentName)
+	agtName = strings.TrimSpace(agtName)
 	req.WorkflowName = strings.TrimSpace(req.WorkflowName)
 	req.Title = strings.TrimSpace(req.Title)
 	req.Summary = strings.TrimSpace(req.Summary)
@@ -88,7 +88,7 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 		edge.ConditionSummary = strings.TrimSpace(edge.ConditionSummary)
 	}
 
-	fields, err := workflowstore.ValidateCreateRequest(req)
+	fields, err := workflowstore.ValidateCreateRequest(agtName, req)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -104,14 +104,14 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row, err := workflowstore.Create(r.Context(), s.db, req)
+	row, err := workflowstore.Create(r.Context(), s.db, agtName, req)
 	if err != nil {
 		apiutil.WriteError(w, r, workflowstore.MapCreateError(err))
 		return
 	}
 
 	apiutil.WriteJSON(w, http.StatusCreated, gatewayapi.Workflow{
-		AgentName:    req.AgentName,
+		AgentName:    agtName,
 		WorkflowName: req.WorkflowName,
 		Title:        req.Title,
 		Summary:      req.Summary,
@@ -122,7 +122,7 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteWorkflows handles DELETE /api/workflows/{agentName}.
+// DeleteWorkflows handles DELETE /api/workflow/{agentName}.
 func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
 	var req gatewayapi.DeleteWorkflowsRequest
 	if err := apiutil.DecodeJSONBody(w, r, &req, false); err != nil {
@@ -169,7 +169,7 @@ func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtNam
 
 var _ gatewayapi.ServerInterface = (*Service)(nil)
 
-// ListWorkflowSummaries handles GET /api/workflow-summaries/{agentName}.
+// ListWorkflowSummaries handles GET /api/workflow/{agentName}.
 func (s *Service) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
 	agtName = strings.TrimSpace(agtName)
 

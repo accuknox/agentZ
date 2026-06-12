@@ -82,7 +82,6 @@ export default tool({
     })
 
     const bodyInput = {
-      workflow_name: args.workflow_name,
       schedule: args.schedule.trim(),
       inputs: args.inputs,
       timeout_seconds: args.timeout_seconds,
@@ -128,7 +127,8 @@ export default tool({
     const result = await updateWorkflowSchedule({
       path: {
         agentName,
-        name: args.name,
+        workflowName: args.workflow_name,
+        scheduleName: args.name,
       },
       body,
       throwOnError: false,

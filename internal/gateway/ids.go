@@ -16,11 +16,6 @@ import (
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 )
 
-type tracePageCursor struct {
-	StartedAt time.Time `json:"started_at"`
-	TraceID   string    `json:"trace_id"`
-}
-
 type traceSessionPageCursor struct {
 	StartedAt time.Time `json:"started_at"`
 	TraceID   string    `json:"trace_id"`
@@ -229,18 +224,6 @@ func decodeOffsetPageToken(w http.ResponseWriter, r *http.Request, token *gatewa
 		return 0, false
 	}
 	return offset, true
-}
-
-func decodeTracePageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (tracePageCursor, bool, bool) {
-	cursor, set, ok := decodeCursorPageToken[tracePageCursor](w, r, token)
-	if !ok || !set {
-		return cursor, set, ok
-	}
-	if cursor.StartedAt.IsZero() || cursor.TraceID == "" {
-		writeInvalidPageToken(w, r, errBadRequest)
-		return tracePageCursor{}, false, false
-	}
-	return cursor, true, true
 }
 
 func decodeTraceSessionPageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (traceSessionPageCursor, bool, bool) {

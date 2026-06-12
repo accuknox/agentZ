@@ -200,11 +200,16 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
     startTransition(() => {
       void (async () => {
         const [spanResult, telemetryResult] = await Promise.all([
-          listSpansAction({
-            agent_name: trace.agentName,
-            trace_id: trace.traceId,
-            limit: 50,
-          }),
+          listSpansAction(
+            {
+              agentName: trace.agentName,
+              sessionID: trace.sessionId,
+              traceID: trace.traceId,
+            },
+            {
+              limit: 50,
+            }
+          ),
           getRuntimeTelemetryAction({
             agent_name: trace.agentName,
             started_after: trace.startedAt,
@@ -265,12 +270,17 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
 
     startSpansTransition(() => {
       void (async () => {
-        const result = await listSpansAction({
-          agent_name: selectedTrace.agentName,
-          trace_id: selectedTrace.traceId,
-          limit: 50,
-          page_token: nextPageToken,
-        })
+        const result = await listSpansAction(
+          {
+            agentName: selectedTrace.agentName,
+            sessionID: selectedTrace.sessionId,
+            traceID: selectedTrace.traceId,
+          },
+          {
+            limit: 50,
+            page_token: nextPageToken,
+          }
+        )
         setSpans(result.data)
         setSpansError(result.error)
         setSelectedTrace((current) => current)
@@ -541,9 +551,10 @@ function SpansInspectorContent({
 
     startDetailTransition(async () => {
       const result = await getSpanDetailAction({
-        agent_name: selectedSpan.agentName,
-        trace_id: selectedSpan.traceId,
-        span_id: selectedSpan.spanId,
+        agentName: selectedSpan.agentName,
+        sessionID: selectedSpan.sessionId,
+        traceID: selectedSpan.traceId,
+        spanID: selectedSpan.spanId,
       })
       setDetailState({ data: result.data, error: result.error })
     })

@@ -2,6 +2,7 @@ import { tool } from "@opencode-ai/plugin"
 
 import { deleteWorkflowSchedule, zError } from "../lib/gateway"
 import { agentNameFromResourceAttributes, workflowErrorOutput } from "../lib/workflow"
+import { listWorkflowSchedulesOnce } from "../lib/workflow_schedule"
 
 const args = {
   name: tool.schema
@@ -70,10 +71,24 @@ export default tool({
       })
     }
 
+    const schedule = await listWorkflowSchedulesOnce(agentName, args.name)
+    if (!schedule.ok) {
+      context.metadata({
+        title: "Workflow schedule deletion failed",
+        metadata: {
+          agent_name: agentName,
+          name: args.name,
+          ...(schedule.metadata ?? {}),
+        },
+      })
+      return schedule.message
+    }
+
     const result = await deleteWorkflowSchedule({
       path: {
         agentName,
-        name: args.name,
+        workflowName: schedule.value.workflow_name,
+        scheduleName: args.name,
       },
       throwOnError: false,
     })

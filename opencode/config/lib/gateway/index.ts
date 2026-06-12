@@ -15,6 +15,7 @@ export {
   deleteWorkflows,
   deleteWorkflowSchedule,
   getWorkflow,
+  listAgentWorkflowSchedules,
   listWorkflowSchedules,
   listWorkflowSummaries,
   patchWorkflowRunStatus,

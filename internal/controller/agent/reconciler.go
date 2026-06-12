@@ -217,7 +217,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 
-	hash := configHash(opencodeCfg, agt.Spec.Env, envCfg.Packages)
+	hash := configHash(
+		opencodeCfg,
+		agt.Spec.Env,
+		envCfg.Packages,
+		envCfg.MCPRefs,
+	)
 	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, true)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
@@ -255,6 +260,17 @@ type environmentConfig struct {
 	AllowedHosts            []string
 	MCPURL                  string
 	MCPConsentPermissionIDs []string
+	MCPRefs                 []mcpRefConfig
+}
+
+type mcpRefConfig struct {
+	Name  string
+	Tools []mcpToolConfig
+}
+
+type mcpToolConfig struct {
+	Name           string
+	RequireConsent bool
 }
 
 func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alpha1.Agent) (environmentConfig, error) {
@@ -265,6 +281,7 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alp
 			AllowedHosts:            []string{},
 			MCPURL:                  "",
 			MCPConsentPermissionIDs: []string{},
+			MCPRefs:                 []mcpRefConfig{},
 		}, nil
 	}
 
@@ -286,8 +303,14 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alp
 	allowedHosts := make([]string, len(env.Spec.AllowedHosts))
 	copy(allowedHosts, env.Spec.AllowedHosts)
 	mcpConsentPermissionIDs := make([]string, 0, len(env.Spec.MCPConnectionRefs))
+	mcpRefs := make([]mcpRefConfig, 0, len(env.Spec.MCPConnectionRefs))
 	for _, ref := range env.Spec.MCPConnectionRefs {
+		tools := make([]mcpToolConfig, 0, len(ref.Tools))
 		for _, tool := range ref.Tools {
+			tools = append(tools, mcpToolConfig{
+				Name:           tool.Name,
+				RequireConsent: tool.RequireConsent,
+			})
 			if !tool.RequireConsent {
 				continue
 			}
@@ -296,6 +319,10 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alp
 				ref.Name+"_"+tool.Name,
 			)
 		}
+		mcpRefs = append(mcpRefs, mcpRefConfig{
+			Name:  ref.Name,
+			Tools: tools,
+		})
 	}
 	slices.Sort(mcpConsentPermissionIDs)
 	return environmentConfig{
@@ -303,6 +330,7 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *clawarmorv1alp
 		AllowedHosts:            allowedHosts,
 		MCPURL:                  r.environmentMCPURL(ctx, agt.Namespace, env),
 		MCPConsentPermissionIDs: mcpConsentPermissionIDs,
+		MCPRefs:                 mcpRefs,
 	}, nil
 }
 

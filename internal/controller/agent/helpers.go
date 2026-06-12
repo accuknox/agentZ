@@ -242,6 +242,7 @@ type configHashInput struct {
 	Config   json.RawMessage `json:"config"`
 	Env      []corev1.EnvVar `json:"env"`
 	Packages []string        `json:"packages"`
+	MCPRefs  []mcpRefConfig  `json:"mcpRefs"`
 }
 
 type packageJobHashInput struct {
@@ -249,11 +250,12 @@ type packageJobHashInput struct {
 	Packages []string `json:"packages"`
 }
 
-func configHash(opencodeCfg []byte, env []corev1.EnvVar, packages []string) string {
+func configHash(opencodeCfg []byte, env []corev1.EnvVar, packages []string, mcpRefs []mcpRefConfig) string {
 	hashInput, _ := json.Marshal(configHashInput{
 		Config:   opencodeCfg,
 		Env:      env,
 		Packages: packages,
+		MCPRefs:  mcpRefs,
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)

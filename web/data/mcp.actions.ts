@@ -6,12 +6,16 @@ import { redirect } from "next/navigation"
 import {
   createMcpConnection,
   deleteMcpConnection,
-  updateMcpConnection,
   type Error as GatewayError,
 } from "@/lib/gateway/client"
 import type { McpConnectionAuth } from "@/lib/gateway/client"
 import { zMcpConnectionName } from "@/lib/gateway/client/zod.gen"
-import { mcpAuthLocation, mcpFormSchema, parseMcpForm, type McpFormInput } from "@/data/mcp.schema"
+import {
+  defaultMcpAuthLocation,
+  mcpFormSchema,
+  parseMcpForm,
+  type McpFormInput,
+} from "@/data/mcp.schema"
 import {
   beginOAuthFlow,
   mcpOAuthCookieName,
@@ -96,7 +100,7 @@ function invalidMcpNameState(error: { issues: { message: string }[] }): DeleteMc
 function bearerAuth(input: ReturnType<typeof parseMcpForm>) {
   return {
     bearer: {
-      location: input.bearer?.location ?? mcpAuthLocation(),
+      location: input.bearerLocation ?? defaultMcpAuthLocation,
     },
   } satisfies McpConnectionAuth
 }
@@ -116,32 +120,17 @@ async function persistBearerMutation(
           token: "override-required",
         },
       }
-  if (form.mode === "create") {
-    const createResult = await createMcpConnection({
-      body: {
-        name: form.name,
-        endpoint: form.endpoint,
-        auth,
-        credentials,
-      },
-      client: gatewayServerClient,
-    })
-    if (createResult.error) {
-      return createResult.error
-    }
-  } else {
-    const updateResult = await updateMcpConnection({
-      client: gatewayServerClient,
-      path: { name: form.currentName ?? form.name },
-      body: {
-        endpoint: form.endpoint,
-        auth,
-        credentials,
-      },
-    })
-    if (updateResult.error) {
-      return updateResult.error
-    }
+  const createResult = await createMcpConnection({
+    body: {
+      name: form.name,
+      endpoint: form.endpoint,
+      auth,
+      credentials,
+    },
+    client: gatewayServerClient,
+  })
+  if (createResult.error) {
+    return createResult.error
   }
   return undefined
 }
@@ -158,14 +147,6 @@ export async function submitMcpFormAction(
   const headerKeys = formData.getAll("extra_header_key")
   const headerValues = formData.getAll("extra_header_value")
   const parsed = mcpFormSchema.safeParse({
-    mode: formData.get("mode") === "update" ? "update" : "create",
-    current_name: String(formData.get("current_name") ?? ""),
-    current_auth_mode:
-      formData.get("current_auth_mode") === "bearer"
-        ? "bearer"
-        : formData.get("current_auth_mode") === "oauth"
-          ? "oauth"
-          : "none",
     name: String(formData.get("name") ?? ""),
     endpoint_url: String(formData.get("endpoint_url") ?? ""),
     endpoint_timeout: String(formData.get("endpoint_timeout") ?? ""),
@@ -202,21 +183,12 @@ export async function submitMcpFormAction(
 
   const form = parseMcpForm(parsed.data)
   if (form.authMode === "oauth") {
-    const result =
-      form.mode === "create"
-        ? await beginOAuthFlow({
-            operation: {
-              kind: "create",
-              form,
-            },
-          })
-        : await beginOAuthFlow({
-            operation: {
-              kind: "update",
-              name: form.currentName ?? form.name,
-              form,
-            },
-          })
+    const result = await beginOAuthFlow({
+      operation: {
+        kind: "create",
+        form,
+      },
+    })
     if (!result.ok) {
       const errors = result.error.field
         ? result.error.code === "manual_client_credentials_required"

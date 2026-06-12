@@ -16,7 +16,11 @@ import {
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 import * as z from "zod"
 import type { JsonObject, McpConnectionAuth } from "@/lib/gateway/client"
-import { mcpAuthLocation, oauthCredentialsFromTokens, type ParsedMcpForm } from "@/data/mcp.schema"
+import {
+  defaultMcpAuthLocation,
+  oauthCredentialsFromTokens,
+  type ParsedMcpForm,
+} from "@/data/mcp.schema"
 import { webBaseURL } from "@/lib/gateway/base-url"
 import {
   oauthBroadcastChannelName,
@@ -32,13 +36,7 @@ type PendingCreateOperation = {
   form: ParsedMcpForm
 }
 
-type PendingUpdateOperation = {
-  kind: "update"
-  name: string
-  form: ParsedMcpForm
-}
-
-export type PendingOAuthOperation = PendingCreateOperation | PendingUpdateOperation
+export type PendingOAuthOperation = PendingCreateOperation
 
 const storedOAuthProtectedResourceMetadataSchema = z
   .object({
@@ -73,9 +71,6 @@ const storedAuthorizationServerMetadataSchema = z
   .passthrough()
 
 const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
-  mode: z.enum(["create", "update"]),
-  currentName: z.string().min(1).optional(),
-  currentAuthMode: z.enum(["none", "bearer", "oauth"]),
   name: z.string().min(1),
   endpoint: z.object({
     url: z.string().url(),
@@ -85,6 +80,16 @@ const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
   }),
   authMode: z.enum(["bearer", "oauth"]),
   bearerToken: z.string().min(1).optional(),
+  bearerLocation: z
+    .object({
+      header: z
+        .object({
+          name: z.string().min(1),
+          prefix: z.string().min(1).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
   oauth: z.object({
     issuer: z.string().min(1).optional(),
     authorizationEndpoint: z.string().url().optional(),
@@ -110,11 +115,6 @@ const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
 const pendingOAuthOperationSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("create"),
-    form: parsedMcpFormSchema,
-  }),
-  z.object({
-    kind: z.literal("update"),
-    name: z.string().min(1),
     form: parsedMcpFormSchema,
   }),
 ])
@@ -816,7 +816,7 @@ export function discoveredOAuthAuth(
     token_endpoint: discoveryState.authorizationServerMetadata?.token_endpoint,
     registration_endpoint: discoveryState.authorizationServerMetadata?.registration_endpoint,
     resource: discoveryState.resourceMetadata?.resource,
-    location: mcpAuthLocation(),
+    location: defaultMcpAuthLocation,
   }
 }
 

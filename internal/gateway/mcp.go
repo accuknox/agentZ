@@ -17,7 +17,6 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
@@ -255,73 +254,6 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 		return
 	}
 	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(*conn))
-}
-
-// UpdateMCPConnection handles PUT /api/mcp-connection/{name}.
-func (s *Service) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
-	var req gatewayapi.UpdateMCPConnectionRequest
-	if !decodeJSONBody(w, r, &req, false) {
-		return
-	}
-
-	name = strings.TrimSpace(name)
-	fields := validateMCPConnectionName(name, "name")
-	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
-		return
-	}
-
-	var updated clawarmorv1alpha1.MCPConnection
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		conn := &clawarmorv1alpha1.MCPConnection{}
-		key := ctrlclient.ObjectKey{Name: name, Namespace: s.cfg.Namespace}
-		err := s.k8sClient.Get(r.Context(), key, conn)
-		if err != nil {
-			return err
-		}
-
-		spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, &req.Auth)
-		if len(fields) > 0 {
-			return newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			)
-		}
-		conn.Spec = spec
-		setMCPConnectionSecretRef(name, &conn.Spec)
-		if err := s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials); err != nil {
-			return err
-		}
-		mcpconnwebhook.ApplyDefaults(&conn.Spec)
-		if err := mcpconnwebhook.Validate(conn); err != nil {
-			return err
-		}
-		if err := s.k8sClient.Update(r.Context(), conn); err != nil {
-			return err
-		}
-		updated = *conn
-		return nil
-	})
-	if err != nil {
-		var apiErr *apiError
-		if errors.As(err, &apiErr) {
-			writeMCPAPIError(w, r, apiErr)
-			return
-		}
-		writeMCPAPIError(w, r, mapKubeHTTPError("update mcp connection", err))
-		return
-	}
-
-	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(updated))
 }
 
 // DeleteMCPConnection handles DELETE /api/mcp-connection/{name}.

@@ -59,7 +59,6 @@ async function McpConnections({ searchParams }: { searchParams: Promise<SearchPa
       mcpConnections={result.mcpConnections}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}
-      submitMcpAction={submitMcpFormAction}
       deleteMcpAction={deleteMcpFormAction}
     />
   )

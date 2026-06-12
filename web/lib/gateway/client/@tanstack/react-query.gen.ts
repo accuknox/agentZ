@@ -40,7 +40,6 @@ import {
   putSecret,
   updateAgent,
   updateEnvironment,
-  updateMcpConnection,
   updateWorkflowSchedule,
 } from "../sdk.gen"
 import type {
@@ -149,9 +148,6 @@ import type {
   UpdateEnvironmentData,
   UpdateEnvironmentError,
   UpdateEnvironmentResponse,
-  UpdateMcpConnectionData,
-  UpdateMcpConnectionError,
-  UpdateMcpConnectionResponse,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleError,
   UpdateWorkflowScheduleResponse,
@@ -763,33 +759,6 @@ export const getMcpConnectionOptions = (options: Options<GetMcpConnectionData>) 
     },
     queryKey: getMcpConnectionQueryKey(options),
   })
-
-/**
- * Replace an MCPConnection resource spec.
- */
-export const updateMcpConnectionMutation = (
-  options?: Partial<Options<UpdateMcpConnectionData>>
-): UseMutationOptions<
-  UpdateMcpConnectionResponse,
-  UpdateMcpConnectionError,
-  Options<UpdateMcpConnectionData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    UpdateMcpConnectionResponse,
-    UpdateMcpConnectionError,
-    Options<UpdateMcpConnectionData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await updateMcpConnection({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
 
 /**
  * Delete workflow definitions.

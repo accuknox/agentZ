@@ -9765,20 +9765,6 @@ components:
       - allowed_hosts
       - mcp_connection_refs
       type: object
-    UpdateMCPConnectionRequest:
-      additionalProperties: false
-      properties:
-        auth:
-          $ref: '#/components/schemas/MCPConnectionAuth'
-        credentials:
-          $ref: '#/components/schemas/MCPConnectionCredentials'
-        endpoint:
-          $ref: '#/components/schemas/MCPConnectionEndpoint'
-      required:
-      - endpoint
-      - auth
-      - credentials
-      type: object
     UpdateWorkflowScheduleRequest:
       additionalProperties: false
       properties:
@@ -10727,34 +10713,6 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Get an MCPConnection resource.
-      tags:
-      - mcp-connections
-    put:
-      operationId: updateMCPConnection
-      parameters:
-      - $ref: '#/components/parameters/MCPConnectionNamePath'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateMCPConnectionRequest'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MCPConnectionDetail'
-          description: MCPConnection updated.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Replace an MCPConnection resource spec.
       tags:
       - mcp-connections
   /api/mcp-connection/watch:

@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"strings"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -87,8 +88,24 @@ func (v *Validator) ValidateCreate(_ context.Context, conn *clawarmorv1alpha1.MC
 }
 
 // ValidateUpdate validates MCPConnection updates.
-func (v *Validator) ValidateUpdate(_ context.Context, _, newConn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
-	return nil, Validate(newConn)
+func (v *Validator) ValidateUpdate(_ context.Context, oldConn, newConn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
+	if err := Validate(newConn); err != nil {
+		return nil, err
+	}
+
+	if apiequality.Semantic.DeepEqual(oldConn.Spec, newConn.Spec) {
+		return nil, nil
+	}
+
+	fields := field.ErrorList{field.Forbidden(
+		field.NewPath("spec"),
+		"mcp connection spec is immutable after creation",
+	)}
+	return nil, apierrors.NewInvalid(
+		newConn.GroupVersionKind().GroupKind(),
+		newConn.Name,
+		fields,
+	)
 }
 
 // ValidateDelete validates MCPConnection deletion.

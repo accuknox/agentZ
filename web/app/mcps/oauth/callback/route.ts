@@ -1,7 +1,7 @@
 import { revalidateTag } from "next/cache"
 import { cookies } from "next/headers"
 import { mcpsTag } from "@/data/cache"
-import { createMcpConnection, getMcpConnection, updateMcpConnection } from "@/lib/gateway/client"
+import { createMcpConnection } from "@/lib/gateway/client"
 import {
   completeOAuthFlow,
   mcpOAuthCookieName,
@@ -71,46 +71,19 @@ export async function GET(request: Request) {
       return popupFailure(pending.flowId, result.error.message)
     }
 
-    if (pending.operation.kind === "create") {
-      const createResult = await createMcpConnection({
-        body: {
-          name: pending.operation.form.name,
-          endpoint: pending.operation.form.endpoint,
-          auth: result.value.auth,
-          credentials: {
-            oauth: result.value.credentials,
-          },
+    const createResult = await createMcpConnection({
+      body: {
+        name: pending.operation.form.name,
+        endpoint: pending.operation.form.endpoint,
+        auth: result.value.auth,
+        credentials: {
+          oauth: result.value.credentials,
         },
-        client: gatewayServerClient,
-      })
-      if (createResult.error) {
-        throw new Error(createResult.error.message)
-      }
-    } else {
-      const currentResult = await getMcpConnection({
-        client: gatewayServerClient,
-        path: { name: pending.operation.name },
-        cache: "no-store",
-      })
-      if (currentResult.error) {
-        throw new Error(currentResult.error.message)
-      }
-
-      const previous = currentResult.data
-      const updateResult = await updateMcpConnection({
-        client: gatewayServerClient,
-        path: { name: pending.operation.name },
-        body: {
-          endpoint: pending.operation.form.endpoint,
-          auth: result.value.auth,
-          credentials: {
-            oauth: result.value.credentials,
-          },
-        },
-      })
-      if (updateResult.error) {
-        throw new Error(updateResult.error.message)
-      }
+      },
+      client: gatewayServerClient,
+    })
+    if (createResult.error) {
+      throw new Error(createResult.error.message)
     }
 
     revalidateTag(mcpsTag, { expire: 0 })

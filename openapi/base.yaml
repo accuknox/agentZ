@@ -604,33 +604,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-    put:
-      operationId: updateMCPConnection
-      summary: Replace an MCPConnection resource spec.
-      tags: [mcp-connections]
-      parameters:
-      - $ref: '#/components/parameters/MCPConnectionNamePath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateMCPConnectionRequest'
-      responses:
-        '200':
-          description: MCPConnection updated.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MCPConnectionDetail'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalError'
     delete:
       operationId: deleteMCPConnection
       summary: Delete an MCPConnection resource.
@@ -3269,18 +3242,6 @@ components:
         credentials:
           $ref: '#/components/schemas/MCPConnectionCredentials'
       required: [name, endpoint, auth, credentials]
-
-    UpdateMCPConnectionRequest:
-      type: object
-      additionalProperties: false
-      properties:
-        endpoint:
-          $ref: '#/components/schemas/MCPConnectionEndpoint'
-        auth:
-          $ref: '#/components/schemas/MCPConnectionAuth'
-        credentials:
-          $ref: '#/components/schemas/MCPConnectionCredentials'
-      required: [endpoint, auth, credentials]
 
     MCPConnectionCredentials:
       type: object

@@ -7,8 +7,8 @@ import {
   ArrowUpDown,
   CheckCircle2,
   CircleDashed,
+  Eye,
   MoreHorizontal,
-  Pencil,
   Trash2,
   XCircle,
 } from "lucide-react"
@@ -33,9 +33,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { DeleteMcpFormState, McpFormState, SubmitMcpFormAction } from "@/data/mcp.actions"
+import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { renderMcpServerIcon } from "./catalog"
-import { McpSheet } from "./mcp-sheet"
 
 const mcpStatusMeta = {
   Accepted: {
@@ -63,7 +62,7 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
-  submitMcpAction: (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
+  onViewAction: (name: string) => void
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,
@@ -130,8 +129,8 @@ export function createMcpColumns(actions: {
       cell: ({ row }) => (
         <McpActions
           connection={row.original}
-          submitMcpAction={actions.submitMcpAction}
           deleteMcpAction={actions.deleteMcpAction}
+          onViewAction={actions.onViewAction}
         />
       ),
     },
@@ -175,22 +174,29 @@ function McpStatusBadge({ connection }: { connection: McpConnectionSummary }) {
 
 function McpActions({
   connection,
-  submitMcpAction,
   deleteMcpAction,
+  onViewAction,
 }: {
   connection: McpConnectionSummary
-  submitMcpAction: (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,
     formData: FormData
   ) => Promise<DeleteMcpFormState>
+  onViewAction: (name: string) => void
 }) {
-  const [editOpen, setEditOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   return (
-    <div className="flex justify-end">
+    <div
+      className="flex justify-end"
+      onClick={(event) => {
+        event.stopPropagation()
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+      }}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8">
@@ -200,9 +206,13 @@ function McpActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={() => setEditOpen(true)}>
-              <Pencil />
-              Edit
+            <DropdownMenuItem
+              onSelect={() => {
+                onViewAction(connection.name)
+              }}
+            >
+              <Eye />
+              View
             </DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
               <Trash2 />
@@ -211,13 +221,6 @@ function McpActions({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <McpSheet
-        mode="update"
-        connection={connection}
-        open={editOpen}
-        onOpenChangeAction={setEditOpen}
-        submitMcpAction={submitMcpAction}
-      />
       <DeleteMcpDialog
         connection={connection}
         deleteMcpAction={deleteMcpAction}

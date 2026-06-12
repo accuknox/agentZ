@@ -19,12 +19,7 @@ export function NewMcpButton({
         <Plus />
         New MCP
       </Button>
-      <McpSheet
-        mode="create"
-        open={open}
-        onOpenChangeAction={setOpen}
-        submitMcpAction={submitMcpAction}
-      />
+      <McpSheet open={open} onOpenChangeAction={setOpen} submitMcpAction={submitMcpAction} />
     </>
   )
 }

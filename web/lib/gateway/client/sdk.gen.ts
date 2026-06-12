@@ -110,9 +110,6 @@ import type {
   UpdateEnvironmentData,
   UpdateEnvironmentErrors,
   UpdateEnvironmentResponses,
-  UpdateMcpConnectionData,
-  UpdateMcpConnectionErrors,
-  UpdateMcpConnectionResponses,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
@@ -183,8 +180,6 @@ import {
   zUpdateAgentPath,
   zUpdateEnvironmentBody,
   zUpdateEnvironmentPath,
-  zUpdateMcpConnectionBody,
-  zUpdateMcpConnectionPath,
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
@@ -735,33 +730,6 @@ export const getMcpConnection = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     url: "/api/mcp-connection/{name}",
     ...options,
-  })
-
-/**
- * Replace an MCPConnection resource spec.
- */
-export const updateMcpConnection = <ThrowOnError extends boolean = false>(
-  options: Options<UpdateMcpConnectionData, ThrowOnError>
-) =>
-  (options.client ?? client).put<
-    UpdateMcpConnectionResponses,
-    UpdateMcpConnectionErrors,
-    ThrowOnError
-  >({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: zUpdateMcpConnectionBody,
-          path: zUpdateMcpConnectionPath,
-          query: z.never().optional(),
-        })
-        .parseAsync(data),
-    url: "/api/mcp-connection/{name}",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
   })
 
 /**

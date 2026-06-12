@@ -875,12 +875,6 @@ export const zCreateMcpConnectionRequest = z.object({
   credentials: zMcpConnectionCredentials,
 })
 
-export const zUpdateMcpConnectionRequest = z.object({
-  endpoint: zMcpConnectionEndpoint,
-  auth: zMcpConnectionAuth,
-  credentials: zMcpConnectionCredentials,
-})
-
 /**
  * Agent name.
  */
@@ -1236,17 +1230,6 @@ export const zGetMcpConnectionPath = z.object({
  * MCPConnection.
  */
 export const zGetMcpConnectionResponse = zMcpConnectionDetail
-
-export const zUpdateMcpConnectionBody = zUpdateMcpConnectionRequest
-
-export const zUpdateMcpConnectionPath = z.object({
-  name: zMcpConnectionName,
-})
-
-/**
- * MCPConnection updated.
- */
-export const zUpdateMcpConnectionResponse = zMcpConnectionDetail
 
 export const zWatchMcpConnectionsBody = zWatchMcpConnectionsRequest
 

@@ -726,12 +726,6 @@ export type CreateMcpConnectionRequest = {
   credentials: McpConnectionCredentials
 }
 
-export type UpdateMcpConnectionRequest = {
-  endpoint: McpConnectionEndpoint
-  auth: McpConnectionAuth
-  credentials: McpConnectionCredentials
-}
-
 export type McpConnectionCredentials = {
   bearer?: McpConnectionBearerCredentials
   oauth?: McpConnectionOAuthCredentials
@@ -1857,49 +1851,6 @@ export type GetMcpConnectionResponses = {
 }
 
 export type GetMcpConnectionResponse = GetMcpConnectionResponses[keyof GetMcpConnectionResponses]
-
-export type UpdateMcpConnectionData = {
-  body: UpdateMcpConnectionRequest
-  path: {
-    /**
-     * MCPConnection name.
-     */
-    name: McpConnectionName
-  }
-  query?: never
-  url: "/api/mcp-connection/{name}"
-}
-
-export type UpdateMcpConnectionErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found.
-   */
-  404: Error
-  /**
-   * Request conflicts with current agent state.
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type UpdateMcpConnectionError = UpdateMcpConnectionErrors[keyof UpdateMcpConnectionErrors]
-
-export type UpdateMcpConnectionResponses = {
-  /**
-   * MCPConnection updated.
-   */
-  200: McpConnectionDetail
-}
-
-export type UpdateMcpConnectionResponse =
-  UpdateMcpConnectionResponses[keyof UpdateMcpConnectionResponses]
 
 export type WatchMcpConnectionsData = {
   body?: WatchMcpConnectionsRequest

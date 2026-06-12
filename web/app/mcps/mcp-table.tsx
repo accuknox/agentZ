@@ -25,8 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { DeleteMcpFormState, McpFormState, SubmitMcpFormAction } from "@/data/mcp.actions"
+import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { createMcpColumns } from "./mcp-columns"
+import { McpViewSheet } from "./mcp-view-sheet"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
@@ -87,13 +88,11 @@ export function McpTable({
   mcpConnections,
   hasNextPage,
   nextPageToken,
-  submitMcpAction,
   deleteMcpAction,
 }: {
   mcpConnections: McpConnectionSummary[]
   hasNextPage: boolean
   nextPageToken: string
-  submitMcpAction: (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,
@@ -104,6 +103,7 @@ export function McpTable({
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "age", desc: true }])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const [viewConnectionName, setViewConnectionName] = React.useState<string>()
   const connectionNames = React.useMemo(
     () => mcpConnections.map((connection) => connection.name),
     [mcpConnections]
@@ -113,10 +113,10 @@ export function McpTable({
   const columns = React.useMemo(
     () =>
       createMcpColumns({
-        submitMcpAction,
         deleteMcpAction,
+        onViewAction: setViewConnectionName,
       }),
-    [deleteMcpAction, submitMcpAction]
+    [deleteMcpAction]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -154,7 +154,23 @@ export function McpTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setViewConnectionName(row.original.name)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return
+                    }
+
+                    event.preventDefault()
+                    setViewConnectionName(row.original.name)
+                  }}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -190,6 +206,17 @@ export function McpTable({
           <ArrowRight data-icon="inline-end" />
         </Button>
       </div>
+      {viewConnectionName ? (
+        <McpViewSheet
+          name={viewConnectionName}
+          open
+          onOpenChangeAction={(open) => {
+            if (!open) {
+              setViewConnectionName(undefined)
+            }
+          }}
+        />
+      ) : null}
     </div>
   )
 }

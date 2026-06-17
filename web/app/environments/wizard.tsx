@@ -435,7 +435,6 @@ function McpToolsRow({
       queryFn: async () => {
         const result = await getMcpConnection({
           path: { name: connection.name },
-          cache: "no-store",
         })
         if (result.error) {
           throw new Error(result.error.message)
@@ -621,7 +620,6 @@ function McpStep({
         } else {
           const result = await getMcpConnection({
             path: { name: connection.name },
-            cache: "no-store",
           })
           if (result.error || !result.data.tool_catalog_ready) {
             return

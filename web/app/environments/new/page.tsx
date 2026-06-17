@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { connection } from "next/server"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { EnvironmentWizard } from "../wizard"
 
@@ -22,7 +21,6 @@ export default function NewEnvironmentPage() {
 }
 
 async function NewEnvironmentWizard() {
-  await connection()
   const result = await listMcpConnectionsCachedQuery({ limit: 200 })
   return <EnvironmentWizard mode="create" mcpConnections={result.mcpConnections ?? []} />
 }

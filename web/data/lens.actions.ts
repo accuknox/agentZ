@@ -82,7 +82,6 @@ export async function listTraceSessionsAction(
   const result = await listTraceSessions({
     path,
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -108,7 +107,6 @@ export async function getTraceChartAction(
     client: gatewayServerClient,
     path,
     query: { ...query, limit: chartSourceLimit },
-    cache: "no-store",
   })
   if (result.error) {
     return { data: undefined, error: result.error }
@@ -150,7 +148,6 @@ export async function listSpansAction(
   const result = await listSpans({
     path,
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -174,7 +171,6 @@ export async function getSpanDetailAction(
 ): Promise<SpanDetailActionResponse> {
   const result = await getSpanDetail({
     path,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -215,7 +211,6 @@ export async function getMcpGraphAction(
   const result = await getMcpGraph({
     path,
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -244,19 +239,16 @@ export async function getRuntimeTelemetryAction({
     listProcessObservability({
       path: { agentName: agent_name },
       query,
-      cache: "no-store",
       client: gatewayServerClient,
     }),
     listFileObservability({
       path: { agentName: agent_name },
       query,
-      cache: "no-store",
       client: gatewayServerClient,
     }),
     listNetworkObservability({
       path: { agentName: agent_name },
       query,
-      cache: "no-store",
       client: gatewayServerClient,
     }),
   ])
@@ -315,7 +307,6 @@ export async function getRuntimeTelemetryTabAction({
     const result = await listProcessObservability({
       path: { agentName: agent_name },
       query,
-      cache: "no-store",
       client: gatewayServerClient,
     })
     if (result.error) {
@@ -339,7 +330,6 @@ export async function getRuntimeTelemetryTabAction({
     const result = await listFileObservability({
       path: { agentName: agent_name },
       query,
-      cache: "no-store",
       client: gatewayServerClient,
     })
     if (result.error) {
@@ -360,7 +350,6 @@ export async function getRuntimeTelemetryTabAction({
   const result = await listNetworkObservability({
     path: { agentName: agent_name },
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -498,7 +487,6 @@ export async function getProcessTelemetryAction({
   const result = await listProcessObservability({
     path: { agentName: agent_name },
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -543,7 +531,6 @@ export async function getFileTelemetryAction({
   const result = await listFileObservability({
     path: { agentName: agent_name },
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -588,7 +575,6 @@ export async function getNetworkTelemetryAction({
   const result = await listNetworkObservability({
     path: { agentName: agent_name },
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {

@@ -66,7 +66,6 @@ export async function getWorkflowInputSchemaAction(
       agentName,
       workflowName,
     },
-    cache: "no-store",
   })
   if (result.error) {
     throw new Error(result.error.message)
@@ -181,7 +180,6 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
       agentName,
       workflowName: values.workflow_name,
     },
-    cache: "no-store",
   })
   if (workflowResult.error) {
     return { error: workflowResult.error }

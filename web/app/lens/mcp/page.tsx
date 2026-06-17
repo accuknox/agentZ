@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getMcpGraphAction } from "@/data/lens.actions"
 import type { ListAgentActionResponse } from "@/data/types"
@@ -10,19 +9,6 @@ import { firstSearchParam, mcpDateRange } from "@/app/lens/mcp/search-params"
 
 export const metadata: Metadata = {
   title: "MCP Observability",
-}
-
-export const unstable_instant = {
-  prefetch: "runtime",
-  samples: [
-    {
-      searchParams: {
-        agent_name: "",
-        from: "",
-        to: "",
-      },
-    },
-  ],
 }
 
 type McpSearchParams = {
@@ -46,31 +32,17 @@ type McpScope =
 /**
  * McpPage renders MCP observability for one selected agent and date range.
  */
-export default async function McpPage({
-  searchParams,
-}: {
-  searchParams: Promise<McpSearchParams>
-}) {
-  const params = await searchParams
-  await connection()
+export default function McpPage({ searchParams }: { searchParams: Promise<McpSearchParams> }) {
   const agents = listAgentsCachedQuery()
-  const range = mcpDateRange(firstSearchParam(params.from), firstSearchParam(params.to))
-  const scope = getMcpScope({
-    agents,
-    agentName: firstSearchParam(params.agent_name),
-  })
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters scope={scope} from={range.from} to={range.to} />
+        <FiltersContent agents={agents} searchParams={searchParams} />
       </Suspense>
-      <Suspense
-        key={`mcp-graph-${range.from}-${range.to}-${firstSearchParam(params.agent_name) ?? "default"}`}
-        fallback={<GraphSkeleton />}
-      >
-        <Graph scope={scope} range={range} />
+      <Suspense fallback={<GraphSkeleton />}>
+        <GraphContent agents={agents} searchParams={searchParams} />
       </Suspense>
     </main>
   )
@@ -108,6 +80,23 @@ async function Filters({
       to={to}
     />
   )
+}
+
+async function FiltersContent({
+  agents,
+  searchParams,
+}: {
+  agents: Promise<ListAgentActionResponse>
+  searchParams: Promise<McpSearchParams>
+}) {
+  const params = await searchParams
+  const range = mcpDateRange(firstSearchParam(params.from), firstSearchParam(params.to))
+  const scope = getMcpScope({
+    agents,
+    agentName: firstSearchParam(params.agent_name),
+  })
+
+  return <Filters scope={scope} from={range.from} to={range.to} />
 }
 
 async function Graph({
@@ -153,6 +142,23 @@ async function Graph({
       />
     </section>
   )
+}
+
+async function GraphContent({
+  agents,
+  searchParams,
+}: {
+  agents: Promise<ListAgentActionResponse>
+  searchParams: Promise<McpSearchParams>
+}) {
+  const params = await searchParams
+  const range = mcpDateRange(firstSearchParam(params.from), firstSearchParam(params.to))
+  const scope = getMcpScope({
+    agents,
+    agentName: firstSearchParam(params.agent_name),
+  })
+
+  return <Graph scope={scope} range={range} />
 }
 
 function FiltersSkeleton() {

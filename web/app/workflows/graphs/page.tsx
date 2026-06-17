@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import Workflow from "@/components/blocks/workflow/workflow"
 import { Skeleton } from "@/components/ui/skeleton"
-import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
 import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
@@ -16,18 +15,6 @@ export const metadata: Metadata = {
 type SearchParams = {
   agent_name?: string | string[]
   workflow_name?: string | string[]
-}
-
-export const unstable_instant = {
-  prefetch: "runtime",
-  samples: [
-    {
-      searchParams: {
-        agent_name: "",
-        workflow_name: "",
-      },
-    },
-  ],
 }
 
 export default function WorkflowsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -49,7 +36,6 @@ export default function WorkflowsPage({ searchParams }: { searchParams: Promise<
 }
 
 async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const selectedAgentName = firstSearchParam(params.agent_name)
@@ -79,7 +65,6 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
 }
 
 async function WorkflowContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const selectedAgentName = firstSearchParam(params.agent_name)

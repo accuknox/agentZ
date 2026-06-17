@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { connection } from "next/server"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { triggerWorkflowRunAction } from "@/data/workflow-run.actions"
@@ -26,18 +25,6 @@ type SearchParams = {
   page_token?: string | string[]
 }
 
-export const unstable_instant = {
-  prefetch: "runtime",
-  samples: [
-    {
-      searchParams: {
-        agent_name: "",
-        page_token: "",
-      },
-    },
-  ],
-}
-
 export default function SchedulesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -60,7 +47,6 @@ export default function SchedulesPage({ searchParams }: { searchParams: Promise<
 }
 
 async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentsResult = await agents
@@ -76,7 +62,6 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
 }
 
 async function Schedules({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const pageToken = firstSearchParam(params.page_token)
@@ -120,7 +105,6 @@ async function Schedules({ searchParams }: { searchParams: Promise<SearchParams>
 }
 
 async function HeaderAction({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentsResult = await agents

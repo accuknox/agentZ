@@ -1,5 +1,4 @@
 import { Suspense } from "react"
-import { connection } from "next/server"
 import { NavAgents, NavAgentsSkeleton } from "./agents"
 import { NavUser } from "./user"
 import { TeamSwitcher } from "./team-switcher"
@@ -20,7 +19,6 @@ import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
 
 export async function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
-  await connection()
   const agents = listAgentsCachedQuery()
   return (
     <Sidebar collapsible="icon" {...props}>

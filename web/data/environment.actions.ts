@@ -26,7 +26,6 @@ export async function listEnvironmentsAction(
 ): Promise<ListEnvironmentActionResponse> {
   const result = await listEnvironments({
     query,
-    cache: "no-store",
     client: gatewayServerClient,
   })
   if (result.error) {
@@ -103,7 +102,6 @@ export async function deleteEnvironmentFormAction(
     const listResult = await listEnvironments({
       client: gatewayServerClient,
       query: { limit: 200, page_token: pageToken || undefined },
-      cache: "no-store",
     })
     if (listResult.error) {
       return { error: listResult.error }

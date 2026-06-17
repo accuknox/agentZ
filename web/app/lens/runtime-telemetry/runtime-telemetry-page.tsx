@@ -50,33 +50,19 @@ export type TelemetryPageConfig<TData extends TelemetryPageData> = {
   value: "process" | "file" | "network"
 }
 
-export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
+export function RuntimeTelemetryPage<TData extends TelemetryPageData>({
   config,
   searchParams,
 }: TelemetryPageProps & {
   config: TelemetryPageConfig<TData>
 }) {
-  const search = await searchParams
-  const agentNameFromUrl = firstSearchParam(search.agent_name)
-  const from = firstSearchParam(search.from)
-  const to = firstSearchParam(search.to)
-  const pageToken = firstSearchParam(search.telemetry_page_token)
-  const range = telemetryDateRange(from, to)
-
-  const agentsResult = await listAgentsCachedQuery()
-  const agents = agentsResult.agents ?? []
-  const selectedAgent = agents.find((agent) => agent.name === agentNameFromUrl) ?? agents[0]
+  const state = resolveTelemetryPageState(searchParams)
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters
-          agents={agents}
-          selectedAgentName={selectedAgent?.name}
-          from={range.from}
-          to={range.to}
-        />
+        <Filters state={state} />
       </Suspense>
       <Tabs value={config.value} className="flex flex-1 flex-col">
         <div className="border-b px-6">
@@ -84,16 +70,9 @@ export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
         </div>
         <div className="flex flex-1 flex-col">
           <TabsContent value={config.value} className="m-0 flex flex-1 flex-col">
-            {!selectedAgent ? (
-              <EmptyState message="No agents available" />
-            ) : (
-              <TelemetryContent
-                config={config}
-                pageToken={pageToken}
-                range={range}
-                agentName={selectedAgent.name}
-              />
-            )}
+            <Suspense fallback={<TelemetryTableSkeleton headers={config.headers} />}>
+              <TelemetryContent config={config} state={state} />
+            </Suspense>
           </TabsContent>
         </div>
       </Tabs>
@@ -113,15 +92,16 @@ function PageHeader() {
 
 async function TelemetryContent<TData extends TelemetryPageData>({
   config,
-  pageToken,
-  range,
-  agentName,
+  state,
 }: {
   config: TelemetryPageConfig<TData>
-  pageToken?: string
-  range: TelemetryDateRange
-  agentName: string
+  state: Promise<TelemetryPageState>
 }) {
+  const { agentName, pageToken, range } = await state
+  if (!agentName) {
+    return <EmptyState message="No agents available" />
+  }
+
   return (
     <>
       <Suspense
@@ -187,23 +167,19 @@ async function Table<TData extends TelemetryPageData>({
   return config.renderTable(result.data)
 }
 
-function Filters({
-  agents,
-  selectedAgentName,
-  from,
-  to,
-}: {
-  agents: Awaited<ReturnType<typeof listAgentsCachedQuery>>["agents"]
-  selectedAgentName?: string
-  from?: string
-  to?: string
-}) {
+async function Filters({ state }: { state: Promise<TelemetryPageState> }) {
+  const { agents, selectedAgentName, range } = await state
   if (!agents || agents.length === 0) {
     return null
   }
 
   return (
-    <TelemetryFilters agents={agents} selectedAgentName={selectedAgentName} from={from} to={to} />
+    <TelemetryFilters
+      agents={agents}
+      selectedAgentName={selectedAgentName}
+      from={range.from}
+      to={range.to}
+    />
   )
 }
 
@@ -223,4 +199,33 @@ function EmptyState({ message }: { message: string }) {
       {message}
     </div>
   )
+}
+
+type TelemetryPageState = {
+  agentName?: string
+  agents: Awaited<ReturnType<typeof listAgentsCachedQuery>>["agents"]
+  pageToken?: string
+  range: TelemetryDateRange
+  selectedAgentName?: string
+}
+
+async function resolveTelemetryPageState(searchParams: Promise<TelemetrySearchParams>) {
+  const search = await searchParams
+  const from = firstSearchParam(search.from)
+  const to = firstSearchParam(search.to)
+
+  const agentNameFromURL = firstSearchParam(search.agent_name)
+  const pageToken = firstSearchParam(search.telemetry_page_token)
+  const range = telemetryDateRange(from, to)
+  const agentsResult = await listAgentsCachedQuery()
+  const agents = agentsResult.agents ?? []
+  const selectedAgent = agents.find((agent) => agent.name === agentNameFromURL) ?? agents[0]
+
+  return {
+    agentName: selectedAgent?.name,
+    agents,
+    pageToken,
+    range,
+    selectedAgentName: selectedAgent?.name,
+  } satisfies TelemetryPageState
 }

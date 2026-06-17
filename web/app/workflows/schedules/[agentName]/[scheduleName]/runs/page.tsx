@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { connection } from "next/server"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowRunsFiltersAction } from "@/data/workflow.actions"
@@ -57,7 +56,6 @@ export default function ScheduledWorkflowRunsPage({
 }
 
 async function Filters({ params }: { params: Promise<RunsParams> }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const [{ agentName, scheduleName }, agentsResult] = await Promise.all([params, agents])
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
@@ -92,8 +90,6 @@ async function Runs({
 }) {
   const [{ agentName, scheduleName }, search] = await Promise.all([params, searchParams])
   const pageToken = firstSearchParam(search.page_token)
-
-  await connection()
   const schedulesResult = await listWorkflowSchedulesCachedQuery(agentName, { limit: 200 })
   if (schedulesResult.error || !schedulesResult.workflowSchedules) {
     return <ErrorPanel message={schedulesResult.error?.message ?? "Unable to load schedules"} />

@@ -19,7 +19,6 @@ async function fetchAllSecretKeys(agentName: string): Promise<string[] | Error> 
       client: gatewayServerClient,
       path: { agentName },
       query: { limit: 200, page_token: pageToken },
-      cache: "no-store",
     })
 
     if (result.error) {

@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { connection } from "next/server"
 import { deleteAgentFormAction } from "@/data/agent.actions"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
@@ -38,7 +37,6 @@ export default function Home({
 }
 
 async function EnvironmentsHeader() {
-  await connection()
   const environments = await listEnvironmentsCachedQuery({ limit: 50 })
   if (environments.error) return null
   return (
@@ -52,7 +50,6 @@ async function EnvironmentsHeader() {
 }
 
 async function EnvironmentsInfo() {
-  await connection()
   const environments = await listEnvironmentsCachedQuery({ limit: 50 })
   if (!environments.error) return null
   return (
@@ -75,7 +72,6 @@ async function Agents({
     formData: FormData
   ) => Promise<DeleteAgentFormState>
 }) {
-  await connection()
   const params = searchParams ? await searchParams : undefined
   const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
   const [result, environments] = await Promise.all([

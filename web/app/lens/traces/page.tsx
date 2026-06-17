@@ -62,43 +62,26 @@ function traceScopeFailure(
   }
 }
 
-export default async function TracesPage({
+export default function TracesPage({
   searchParams,
 }: {
   searchParams: Promise<TracesSearchParams>
 }) {
-  const params = await searchParams
   const agents = listAgentsCachedQuery()
-  const from = firstSearchParam(params.from)
-  const to = firstSearchParam(params.to)
-  const range = traceDateRange(from, to)
-  const pageToken = firstSearchParam(params.page_token)
-  const limit = parseLimitParam(firstSearchParam(params.limit))
-  const agentName = firstSearchParam(params.agent_name)
-  const sessionID = firstSearchParam(params.session_id)
-  const traceScope = getTraceScope({
-    agents,
-    agentName,
-    sessionID,
-  })
+  const params = resolveTracesSearchParams(searchParams)
+  const traceScope = getTraceScopeFromSearchParams(agents, params)
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<TracesFiltersSkeleton />}>
-        <Filters traceScope={traceScope} from={range.from} to={range.to} />
+        <Filters searchParams={params} traceScope={traceScope} />
       </Suspense>
-      <Suspense
-        key={`chart-${agentName ?? "default"}-${sessionID ?? "default"}-${range.startedAfter}-${range.startedBefore}`}
-        fallback={<TracesChartSkeleton />}
-      >
-        <Chart traceScope={traceScope} range={range} />
+      <Suspense fallback={<TracesChartSkeleton />}>
+        <Chart searchParams={params} traceScope={traceScope} />
       </Suspense>
-      <Suspense
-        key={`table-${agentName ?? "default"}-${sessionID ?? "default"}-${range.startedAfter}-${range.startedBefore}-${pageToken ?? ""}-${limit}`}
-        fallback={<TracesSkeleton />}
-      >
-        <Traces traceScope={traceScope} range={range} pageToken={pageToken} limit={limit} />
+      <Suspense fallback={<TracesSkeleton />}>
+        <Traces searchParams={params} traceScope={traceScope} />
       </Suspense>
     </main>
   )
@@ -115,15 +98,13 @@ function PageHeader() {
 }
 
 async function Filters({
+  searchParams,
   traceScope,
-  from,
-  to,
 }: {
+  searchParams: Promise<ResolvedTracesSearchParams>
   traceScope: Promise<TraceScope>
-  from?: string
-  to?: string
 }) {
-  const scope = await traceScope
+  const [scope, params] = await Promise.all([traceScope, searchParams])
   if (scope.error) {
     return <ErrorPanel message={scope.error.message} />
   }
@@ -134,20 +115,20 @@ async function Filters({
       sessions={scope.sessions}
       selectedAgentName={scope.selectedAgentName}
       selectedSessionId={scope.selectedSessionId}
-      from={from}
-      to={to}
+      from={params.range.from}
+      to={params.range.to}
     />
   )
 }
 
 async function Chart({
+  searchParams,
   traceScope,
-  range,
 }: {
+  searchParams: Promise<ResolvedTracesSearchParams>
   traceScope: Promise<TraceScope>
-  range: TraceDateRange
 }) {
-  const scope = await traceScope
+  const [scope, params] = await Promise.all([traceScope, searchParams])
   if (scope.error) {
     return null
   }
@@ -166,8 +147,8 @@ async function Chart({
       sessionID,
     },
     {
-      started_after: range.startedAfter,
-      started_before: range.startedBefore,
+      started_after: params.range.startedAfter,
+      started_before: params.range.startedBefore,
     }
   )
   if (result.error) {
@@ -178,17 +159,13 @@ async function Chart({
 }
 
 async function Traces({
+  searchParams,
   traceScope,
-  range,
-  pageToken,
-  limit,
 }: {
+  searchParams: Promise<ResolvedTracesSearchParams>
   traceScope: Promise<TraceScope>
-  range: TraceDateRange
-  pageToken?: string
-  limit: number
 }) {
-  const scope = await traceScope
+  const [scope, params] = await Promise.all([traceScope, searchParams])
   if (scope.error) {
     return <ErrorPanel message={scope.error.message} />
   }
@@ -203,10 +180,10 @@ async function Traces({
       sessionID: scope.selectedSessionId,
     },
     {
-      limit,
-      page_token: pageToken,
-      started_after: range.startedAfter,
-      started_before: range.startedBefore,
+      limit: params.limit,
+      page_token: params.pageToken,
+      started_after: params.range.startedAfter,
+      started_before: params.range.startedBefore,
     }
   )
 
@@ -215,6 +192,41 @@ async function Traces({
 
 function TracesFiltersSkeleton() {
   return <div className="bg-muted/20 h-15 border-b" />
+}
+
+type ResolvedTracesSearchParams = {
+  agentName?: string
+  limit: number
+  pageToken?: string
+  range: TraceDateRange
+  sessionID?: string
+}
+
+async function getTraceScopeFromSearchParams(
+  agents: Promise<ListAgentActionResponse>,
+  searchParams: Promise<ResolvedTracesSearchParams>
+) {
+  const params = await searchParams
+
+  return getTraceScope({
+    agents,
+    agentName: params.agentName,
+    sessionID: params.sessionID,
+  })
+}
+
+async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParams>) {
+  const params = await searchParams
+  const from = firstSearchParam(params.from)
+  const to = firstSearchParam(params.to)
+
+  return {
+    agentName: firstSearchParam(params.agent_name),
+    limit: parseLimitParam(firstSearchParam(params.limit)),
+    pageToken: firstSearchParam(params.page_token),
+    range: traceDateRange(from, to),
+    sessionID: firstSearchParam(params.session_id),
+  } satisfies ResolvedTracesSearchParams
 }
 
 function ErrorPanel({ message }: { message: string }) {

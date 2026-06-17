@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { connection } from "next/server"
 import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { EnvironmentWizard } from "../../wizard"
@@ -29,7 +28,6 @@ export default function UpdateEnvironmentPage({ params }: { params: Promise<{ na
 }
 
 async function UpdateEnvironmentContent({ name }: { name: string }) {
-  await connection()
   const [environmentResult, mcpResult] = await Promise.all([
     listEnvironmentsCachedQuery({ limit: 200 }),
     listMcpConnectionsCachedQuery({ limit: 200 }),

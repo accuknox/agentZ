@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { deleteSecretFormAction, putSecretFormAction } from "@/data/secret.actions"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
@@ -59,7 +58,6 @@ async function NewSecretButtonShell({
   searchParams: Promise<SearchParams>
   putSecretAction: typeof putSecretFormAction
 }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentName = firstSearchParam(params.agent_name)
@@ -85,7 +83,6 @@ async function NewSecretButtonShell({
 }
 
 async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentName = firstSearchParam(params.agent_name)
@@ -108,7 +105,6 @@ async function Secrets({
   deleteSecretAction: typeof deleteSecretFormAction
   putSecretAction: typeof putSecretFormAction
 }) {
-  await connection()
   const agents = listAgentsCachedQuery()
   const params = await searchParams
   const agentName = firstSearchParam(params.agent_name)

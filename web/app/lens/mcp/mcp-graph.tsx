@@ -204,11 +204,9 @@ export function McpGraph({ graph }: McpGraphProps) {
  */
 export function McpEmptyState({ agentName }: { agentName: string }) {
   return (
-    <div className="flex flex-1 px-6 py-6">
-      <div className="bg-sidebar text-muted-foreground relative flex min-h-105 w-full items-center justify-center overflow-hidden rounded-xl border text-sm">
-        <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
-        <p className="relative">No MCP traffic for {agentName}</p>
-      </div>
+    <div className="bg-sidebar text-muted-foreground relative flex min-h-0 flex-1 items-center justify-center overflow-hidden border-y text-sm">
+      <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
+      <p className="relative">No MCP traffic for {agentName}</p>
     </div>
   )
 }

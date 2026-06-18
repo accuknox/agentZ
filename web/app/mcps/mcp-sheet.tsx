@@ -434,7 +434,9 @@ const ServerURLField = React.memo(function ServerURLField({
 
   return (
     <Field data-invalid={Boolean(endpointError)}>
-      <FieldLabel htmlFor="mcp-endpoint-url">MCP Server</FieldLabel>
+      <FieldLabel htmlFor="mcp-endpoint-url" required>
+        MCP Server
+      </FieldLabel>
       <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
         <PopoverAnchor asChild>
           <div ref={serverFieldRef} className="relative">
@@ -477,6 +479,7 @@ const ServerURLField = React.memo(function ServerURLField({
               placeholder="https://example.com/mcp"
               className={authMode === "oauth" ? "pr-25 pl-9" : "pr-10 pl-9"}
               aria-invalid={Boolean(endpointError)}
+              aria-required="true"
               aria-expanded={serverPickerOpen}
               aria-autocomplete="list"
               aria-controls="mcp-endpoint-url-suggestions"
@@ -1227,11 +1230,14 @@ export function McpSheet({
           >
             <FieldGroup>
               <Field data-invalid={Boolean(errors.name)}>
-                <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
+                <FieldLabel htmlFor="mcp-name" required>
+                  Name
+                </FieldLabel>
                 <Input
                   id="mcp-name"
                   placeholder="Example MCP"
                   aria-invalid={Boolean(errors.name)}
+                  aria-required="true"
                   {...form.register("name")}
                 />
                 {errors.name ? <FieldError errors={[errors.name]} /> : null}
@@ -1296,11 +1302,13 @@ export function McpSheet({
                     <AccordionContent className="[&>div]:h-auto">
                       <FieldGroup>
                         <Field data-invalid={Boolean(errors.oauth_client_id)}>
-                          <FieldLabel>Client ID</FieldLabel>
+                          <FieldLabel required={oauthClientCredentialsRequired}>
+                            Client ID
+                          </FieldLabel>
                           <Input
                             placeholder="Client ID"
-                            required={oauthClientCredentialsRequired}
                             aria-invalid={Boolean(errors.oauth_client_id)}
+                            aria-required={oauthClientCredentialsRequired}
                             {...form.register("oauth_client_id")}
                           />
                           {errors.oauth_client_id ? (
@@ -1308,12 +1316,14 @@ export function McpSheet({
                           ) : null}
                         </Field>
                         <Field data-invalid={Boolean(errors.oauth_client_secret)}>
-                          <FieldLabel>Client secret</FieldLabel>
+                          <FieldLabel required={oauthClientCredentialsRequired}>
+                            Client secret
+                          </FieldLabel>
                           <Input
                             type="password"
                             placeholder="Client secret"
-                            required={oauthClientCredentialsRequired}
                             aria-invalid={Boolean(errors.oauth_client_secret)}
+                            aria-required={oauthClientCredentialsRequired}
                             {...form.register("oauth_client_secret")}
                           />
                           {errors.oauth_client_secret ? (
@@ -1337,20 +1347,20 @@ export function McpSheet({
                           const required = oauthAdvancedRequiredFields.has(config.name)
                           return (
                             <Field key={config.name} data-invalid={Boolean(error)}>
-                              <FieldLabel>{config.label}</FieldLabel>
+                              <FieldLabel required={required}>{config.label}</FieldLabel>
                               {"kind" in config && config.kind === "textarea" ? (
                                 <Textarea
                                   rows={3}
                                   placeholder={config.placeholder}
-                                  required={required}
                                   aria-invalid={Boolean(error)}
+                                  aria-required={required}
                                   {...form.register(config.name)}
                                 />
                               ) : (
                                 <Input
                                   placeholder={config.placeholder}
-                                  required={required}
                                   aria-invalid={Boolean(error)}
+                                  aria-required={required}
                                   {...form.register(config.name)}
                                 />
                               )}
@@ -1372,12 +1382,15 @@ export function McpSheet({
               ) : (
                 <>
                   <Field data-invalid={Boolean(errors.bearer_token)}>
-                    <FieldLabel htmlFor="mcp-bearer-token">Token</FieldLabel>
+                    <FieldLabel htmlFor="mcp-bearer-token" required>
+                      Token
+                    </FieldLabel>
                     <Input
                       id="mcp-bearer-token"
                       type="password"
                       placeholder="API key or personal access token"
                       aria-invalid={Boolean(errors.bearer_token)}
+                      aria-required="true"
                       {...form.register("bearer_token")}
                     />
                     {errors.bearer_token ? <FieldError errors={[errors.bearer_token]} /> : null}

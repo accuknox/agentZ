@@ -361,9 +361,15 @@ export type DeleteWorkflowScheduleFormState = {
   error?: Error
 }
 
-export type WorkflowInputSchemaResult = {
-  inputs: WorkflowInputs
-}
+export type WorkflowInputSchemaResult =
+  | {
+      ok: true
+      inputs: WorkflowInputs
+    }
+  | {
+      ok: false
+      error: Error
+    }
 
 export type ProviderModelItem = {
   chef: string

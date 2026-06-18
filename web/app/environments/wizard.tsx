@@ -223,7 +223,9 @@ function IdentityForm({
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid} data-disabled={lockName}>
-              <FieldLabel htmlFor="environment-form-name">Name</FieldLabel>
+              <FieldLabel htmlFor="environment-form-name" required>
+                Name
+              </FieldLabel>
               <Input
                 id="environment-form-name"
                 name={field.name}
@@ -236,6 +238,7 @@ function IdentityForm({
                 autoComplete="off"
                 placeholder="my-environment"
                 aria-invalid={fieldState.invalid}
+                aria-required="true"
               />
               <FieldDescription>
                 {lockName

@@ -7,6 +7,21 @@ import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
+type RequiredIndicatorProps = React.ComponentProps<"span">
+
+function RequiredIndicator({ className, ...props }: RequiredIndicatorProps) {
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="field-required-indicator"
+      className={cn("text-destructive", className)}
+      {...props}
+    >
+      *
+    </span>
+  )
+}
+
 function FieldSet({ className, ...props }: React.ComponentProps<"fieldset">) {
   return (
     <fieldset
@@ -92,17 +107,25 @@ function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
+type FieldLabelProps = React.ComponentProps<typeof Label> & {
+  required?: boolean
+}
+
+function FieldLabel({ className, required = false, children, ...props }: FieldLabelProps) {
   return (
     <Label
       data-slot="field-label"
+      data-required={required}
       className={cn(
         "group/field-label peer/field-label has-data-checked:border-primary/30 has-data-checked:bg-primary/5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10 flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5",
         "has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col",
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {required ? <RequiredIndicator /> : null}
+    </Label>
   )
 }
 
@@ -221,4 +244,5 @@ export {
   FieldSet,
   FieldContent,
   FieldTitle,
+  RequiredIndicator,
 }

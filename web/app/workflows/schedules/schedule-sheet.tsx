@@ -4,7 +4,6 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, type Control, type Resolver } from "react-hook-form"
 import type {
-  JsonValue,
   WorkflowInputSchema,
   WorkflowInputs,
   WorkflowSchedule,
@@ -12,7 +11,14 @@ import type {
 } from "@/lib/gateway/client"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  RequiredIndicator,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
 import {
@@ -111,6 +117,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
   const [workflowInputs, setWorkflowInputs] = React.useState<WorkflowInputs>({})
   const [schemaError, setSchemaError] = React.useState<string>()
   const [schemaPending, startSchemaTransition] = React.useTransition()
+  const schemaRequestRef = React.useRef(0)
   const formSchema = React.useMemo(
     () => buildWorkflowScheduleFormSchema(workflowInputs),
     [workflowInputs]
@@ -132,6 +139,53 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     formAction,
     {}
   )
+  const loadWorkflowInputs = React.useCallback(
+    async (workflowName: string, values: ScheduleFormValues) => {
+      const requestId = schemaRequestRef.current + 1
+      schemaRequestRef.current = requestId
+
+      if (!workflowName) {
+        setWorkflowInputs({})
+        setSchemaError(undefined)
+        form.reset({
+          ...values,
+          inputs: {},
+        })
+        return
+      }
+
+      const result = await getWorkflowInputSchemaAction(agentName, workflowName)
+      if (schemaRequestRef.current !== requestId) {
+        return
+      }
+
+      if (!result.ok) {
+        setWorkflowInputs({})
+        setSchemaError(result.error.message)
+        form.reset({
+          ...values,
+          workflow_name: workflowName,
+          inputs: {},
+        })
+        return
+      }
+
+      const inputs =
+        mode === "create"
+          ? workflowInputDefaultValues(result.inputs)
+          : mergeWorkflowInputValues(result.inputs, values.inputs)
+
+      setWorkflowInputs(result.inputs)
+      setSchemaError(undefined)
+      form.reset({
+        ...values,
+        workflow_name: workflowName,
+        inputs,
+      })
+      void form.trigger()
+    },
+    [agentName, form, getWorkflowInputSchemaAction, mode]
+  )
 
   React.useEffect(() => {
     if (isPending || state.error) {
@@ -150,9 +204,11 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
     let nextValues: ScheduleFormValues
     if (mode === "create") {
+      const firstWorkflowName = workflows[0]?.workflow_name ?? ""
       nextValues = {
         ...createDefaults,
-        time_zone: resolveBrowserTimeZone(),
+        workflow_name: firstWorkflowName,
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       }
     } else {
       if (!scheduleItem) {
@@ -166,27 +222,10 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     setWorkflowInputs({})
     setSchemaError(undefined)
 
-    startSchemaTransition(async () => {
-      try {
-        const result = await getWorkflowInputSchemaAction(agentName, nextValues.workflow_name)
-        const inputs =
-          mode === "create"
-            ? workflowInputDefaultValues(result.inputs)
-            : mergeWorkflowInputValues(result.inputs, nextValues.inputs)
-
-        setWorkflowInputs(result.inputs)
-        setSchemaError(undefined)
-        form.reset({
-          ...nextValues,
-          inputs,
-        })
-        void form.trigger()
-      } catch (error) {
-        setWorkflowInputs({})
-        setSchemaError(error instanceof Error ? error.message : "Workflow inputs are unavailable")
-      }
+    startSchemaTransition(() => {
+      void loadWorkflowInputs(nextValues.workflow_name, nextValues)
     })
-  }, [agentName, form, getWorkflowInputSchemaAction, mode, open, scheduleItem])
+  }, [form, loadWorkflowInputs, mode, open, scheduleItem, workflows])
 
   React.useEffect(() => {
     if (!state.error?.errors) {
@@ -272,6 +311,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
   function onSheetOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
+      schemaRequestRef.current += 1
       setSchemaError(undefined)
       setWorkflowInputs({})
     }
@@ -286,23 +326,12 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
       shouldValidate: true,
     })
 
-    startSchemaTransition(async () => {
-      try {
-        const result = await getWorkflowInputSchemaAction(agentName, nextWorkflowName)
-        const currentValues = form.getValues()
-
-        setWorkflowInputs(result.inputs)
-        setSchemaError(undefined)
-        form.reset({
-          ...currentValues,
-          workflow_name: nextWorkflowName,
-          inputs: mergeWorkflowInputValues(result.inputs, currentValues.inputs),
-        })
-        void form.trigger()
-      } catch (error) {
-        setWorkflowInputs({})
-        setSchemaError(error instanceof Error ? error.message : "Workflow inputs are unavailable")
-      }
+    startSchemaTransition(() => {
+      const currentValues = form.getValues()
+      void loadWorkflowInputs(nextWorkflowName, {
+        ...currentValues,
+        workflow_name: nextWorkflowName,
+      })
     })
   }
 
@@ -328,7 +357,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="schedule-name">Name</FieldLabel>
+                  <FieldLabel htmlFor="schedule-name" required>
+                    Name
+                  </FieldLabel>
                   <Input
                     id="schedule-name"
                     value={field.value}
@@ -336,6 +367,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     onChange={field.onChange}
                     placeholder="nightly-triage"
                     aria-invalid={fieldState.invalid}
+                    aria-required="true"
                     disabled={isUpdate}
                     readOnly={isUpdate}
                   />
@@ -352,7 +384,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="schedule-workflow">Workflow name</FieldLabel>
+                  <FieldLabel htmlFor="schedule-workflow" required>
+                    Workflow name
+                  </FieldLabel>
                   <input type="hidden" name={field.name} value={field.value} ref={field.ref} />
                   <Select
                     value={field.value}
@@ -363,6 +397,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       id="schedule-workflow"
                       className="w-full"
                       aria-invalid={fieldState.invalid}
+                      aria-required="true"
                     >
                       <SelectValue placeholder="Select a workflow" />
                     </SelectTrigger>
@@ -386,7 +421,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="schedule-cron">Schedule</FieldLabel>
+                  <FieldLabel htmlFor="schedule-cron" required>
+                    Schedule
+                  </FieldLabel>
                   <Input
                     id="schedule-cron"
                     name={field.name}
@@ -397,6 +434,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     placeholder="0 3 * * 1"
                     className="font-mono"
                     aria-invalid={fieldState.invalid}
+                    aria-required="true"
                   />
                   <FieldDescription>Cron expression.</FieldDescription>
                   {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
@@ -409,7 +447,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="schedule-timeout">Timeout seconds</FieldLabel>
+                  <FieldLabel htmlFor="schedule-timeout" required>
+                    Timeout seconds
+                  </FieldLabel>
                   <Input
                     id="schedule-timeout"
                     name={field.name}
@@ -424,6 +464,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       field.onChange(Number.isNaN(nextValue) ? event.target.value : nextValue)
                     }}
                     aria-invalid={fieldState.invalid}
+                    aria-required="true"
                   />
                   <FieldDescription>
                     Maximum runtime for one scheduled workflow run.
@@ -437,7 +478,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="successful-runs-history-limit">
+                  <FieldLabel htmlFor="successful-runs-history-limit" required>
                     Successful Runs History Limit
                   </FieldLabel>
                   <input
@@ -457,6 +498,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       onValueChange={(value) => field.onChange(value[0] ?? historyLimitDefault)}
                       onBlur={field.onBlur}
                       aria-invalid={fieldState.invalid}
+                      aria-required="true"
                     />
                   </div>
                   <FieldDescription>Number of successful runs to retain.</FieldDescription>
@@ -469,7 +511,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="failed-runs-history-limit">
+                  <FieldLabel htmlFor="failed-runs-history-limit" required>
                     Failed Runs History Limit
                   </FieldLabel>
                   <input
@@ -489,6 +531,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       onValueChange={(value) => field.onChange(value[0] ?? historyLimitDefault)}
                       onBlur={field.onBlur}
                       aria-invalid={fieldState.invalid}
+                      aria-required="true"
                     />
                   </div>
                   <FieldDescription>Number of failed runs to retain.</FieldDescription>
@@ -588,7 +631,10 @@ function WorkflowInputField({
             />
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-0.5">
-                <div className="text-foreground font-mono text-sm">{name}</div>
+                <div className="text-foreground flex items-center gap-1 font-mono text-sm">
+                  <span>{name}</span>
+                  {input.required ? <RequiredIndicator className="text-xs" /> : null}
+                </div>
                 {input.description ? (
                   <div className="text-muted-foreground text-sm">{input.description}</div>
                 ) : null}
@@ -603,6 +649,7 @@ function WorkflowInputField({
                   id={`input-${name}`}
                   className="w-full border-0 shadow-none focus-visible:ring-0"
                   aria-invalid={fieldState.invalid}
+                  aria-required={input.required}
                 >
                   <SelectValue placeholder={input.required ? "Select a value" : "Optional"} />
                 </SelectTrigger>
@@ -643,7 +690,10 @@ function WorkflowInputField({
             />
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-0.5">
-                <div className="text-foreground font-mono text-sm">{name}</div>
+                <div className="text-foreground flex items-center gap-1 font-mono text-sm">
+                  <span>{name}</span>
+                  {input.required ? <RequiredIndicator className="text-xs" /> : null}
+                </div>
                 {input.description ? (
                   <div className="text-muted-foreground text-sm">{input.description}</div>
                 ) : null}
@@ -655,6 +705,7 @@ function WorkflowInputField({
                     checked={Boolean(field.value)}
                     onCheckedChange={(checked) => field.onChange(Boolean(checked))}
                     aria-invalid={fieldState.invalid}
+                    aria-required={input.required}
                   />
                   <span className="text-muted-foreground text-sm">
                     {input.required ? "Required" : "Optional"}
@@ -680,7 +731,10 @@ function WorkflowInputField({
         <Field data-invalid={fieldState.invalid}>
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-0.5">
-              <div className="text-foreground font-mono text-sm">{name}</div>
+              <div className="text-foreground flex items-center gap-1 font-mono text-sm">
+                <span>{name}</span>
+                {input.required ? <RequiredIndicator className="text-xs" /> : null}
+              </div>
               {input.description ? (
                 <div className="text-muted-foreground text-sm">{input.description}</div>
               ) : null}
@@ -707,6 +761,7 @@ function WorkflowInputField({
                 }}
                 className="font-mono"
                 aria-invalid={fieldState.invalid}
+                aria-required={input.required}
               />
             </InputGroup>
           </div>
@@ -718,6 +773,16 @@ function WorkflowInputField({
 }
 
 function scheduleValuesFromItem(item: WorkflowSchedule): ScheduleFormValues {
+  const inputs: Record<string, unknown> = {}
+
+  if (item.inputs && typeof item.inputs === "object" && !Array.isArray(item.inputs)) {
+    for (const [name, value] of Object.entries(item.inputs)) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        inputs[name] = value
+      }
+    }
+  }
+
   return {
     name: item.name,
     workflow_name: item.workflow_name,
@@ -726,7 +791,7 @@ function scheduleValuesFromItem(item: WorkflowSchedule): ScheduleFormValues {
     timeout_seconds: item.timeout_seconds,
     successful_runs_history_limit: item.successful_runs_history_limit,
     failed_runs_history_limit: item.failed_runs_history_limit,
-    inputs: workflowScheduleInputsFromJson(item.inputs),
+    inputs,
   }
 }
 
@@ -742,35 +807,6 @@ function mergeWorkflowInputValues(
   }
 
   return nextInputs
-}
-
-function workflowScheduleInputsFromJson(value: JsonValue) {
-  const inputs: Record<string, unknown> = {}
-
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return inputs
-  }
-
-  for (const [name, inputValue] of Object.entries(value)) {
-    if (
-      typeof inputValue === "string" ||
-      typeof inputValue === "number" ||
-      typeof inputValue === "boolean"
-    ) {
-      inputs[name] = inputValue
-    }
-  }
-
-  return inputs
-}
-
-function resolveBrowserTimeZone() {
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  if (!timeZone || timeZone.trim().length === 0) {
-    return "UTC"
-  }
-
-  return timeZone
 }
 
 function resolveInputType(input: WorkflowInputSchema) {

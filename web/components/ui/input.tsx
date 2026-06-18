@@ -21,6 +21,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         type={type}
         data-slot="input"
         className={cn(inputClassName, className)}
+        disabled={disabled}
         {...props}
       />
     )

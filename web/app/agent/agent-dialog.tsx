@@ -19,10 +19,10 @@ import {
   Groq,
   HuggingFace,
   MistralAI,
-  OpenCodeDark,
-  OpenCodeLight,
-  OpenAIDark as OpenAILight,
-  OpenAILight as OpenAIDark,
+  OpenCodeDark as OpenCodeLight,
+  OpenCodeLight as OpenCodeDark,
+  OpenAIDark,
+  OpenAILight,
   OpenRouterDark,
   OpenRouterLight,
   PerplexityAI,
@@ -86,8 +86,8 @@ type AgentSimpleForm = {
 }
 
 function themedIcon(
-  lightThemeIcon: ComponentType<SVGProps<SVGSVGElement>>,
-  darkThemeIcon: ComponentType<SVGProps<SVGSVGElement>>
+  darkThemeIcon: ComponentType<SVGProps<SVGSVGElement>>,
+  lightThemeIcon: ComponentType<SVGProps<SVGSVGElement>>
 ): ComponentType<SVGProps<SVGSVGElement>> {
   return function ThemedIcon(props: SVGProps<SVGSVGElement>) {
     const { resolvedTheme } = useTheme()
@@ -401,7 +401,9 @@ export function AgentDialog({
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="agent-form-name">Agent name</FieldLabel>
+                    <FieldLabel htmlFor="agent-form-name" required>
+                      Agent name
+                    </FieldLabel>
                     <Input
                       id="agent-form-name"
                       name={field.name}
@@ -410,6 +412,7 @@ export function AgentDialog({
                       onBlur={field.onBlur}
                       onChange={field.onChange}
                       aria-invalid={fieldState.invalid}
+                      aria-required="true"
                       placeholder="coding-agent"
                     />
                     {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
@@ -427,7 +430,9 @@ export function AgentDialog({
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="agent-form-environment">Environment</FieldLabel>
+                  <FieldLabel htmlFor="agent-form-environment" required>
+                    Environment
+                  </FieldLabel>
                   <EnvironmentSelect
                     disabled={!hasEnvironments}
                     id="agent-form-environment"
@@ -439,6 +444,7 @@ export function AgentDialog({
                     onBlurAction={field.onBlur}
                     onValueChangeAction={field.onChange}
                     aria-invalid={fieldState.invalid}
+                    aria-required="true"
                   />
                   {!hasEnvironments ? (
                     <FieldDescription>

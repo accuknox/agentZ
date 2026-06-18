@@ -179,7 +179,9 @@ export function SecretSheet({
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="secret-key">Name</FieldLabel>
+                  <FieldLabel htmlFor="secret-key" required>
+                    Name
+                  </FieldLabel>
                   <Input
                     id="secret-key"
                     name={field.name}
@@ -190,6 +192,7 @@ export function SecretSheet({
                     placeholder="SECRET_NAME"
                     readOnly={mode === "update"}
                     aria-invalid={fieldState.invalid}
+                    aria-required="true"
                   />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
@@ -203,7 +206,9 @@ export function SecretSheet({
 
                 return (
                   <Field data-invalid={fieldState.invalid || Boolean(hostDraftError)}>
-                    <FieldLabel htmlFor="secret-hosts">Hosts</FieldLabel>
+                    <FieldLabel htmlFor="secret-hosts" required>
+                      Hosts
+                    </FieldLabel>
                     <FieldDescription className="text-muted-foreground/80">
                       Exact host, wildcard host, IP, or CIDR. Use `*.` for one label and `**.` for
                       any subdomain depth.
@@ -267,7 +272,9 @@ export function SecretSheet({
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="secret-value">Value</FieldLabel>
+                  <FieldLabel htmlFor="secret-value" required>
+                    Value
+                  </FieldLabel>
                   <Textarea
                     id="secret-value"
                     name={field.name}
@@ -278,6 +285,7 @@ export function SecretSheet({
                     placeholder="Enter secret value..."
                     className="min-h-32 resize-y font-mono"
                     aria-invalid={fieldState.invalid}
+                    aria-required="true"
                   />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>

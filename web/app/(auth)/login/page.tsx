@@ -2,22 +2,43 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { LoginForm } from "@/components/login-form"
+import { LoginForm, type LoginError } from "@/components/login-form"
 import { auth } from "@/lib/auth"
+import { firstSearchParam } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Login | ClawArmor - AccuKnox",
 }
 
+async function signInWithGithub(): Promise<never> {
+  "use server"
+
+  const result = await auth.api.signInSocial({
+    body: {
+      callbackURL: "/",
+      disableRedirect: true,
+      errorCallbackURL: "/login",
+      provider: "github",
+    },
+    headers: await headers(),
+  })
+
+  if (!result.url) {
+    redirect("/login?error=no_callback_url")
+  }
+
+  redirect(result.url)
+}
+
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string | string[] }>
+  searchParams: Promise<{ error?: LoginError | LoginError[] }>
 }) {
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
-        <Suspense fallback={<LoginForm />}>
+        <Suspense fallback={<LoginForm action={signInWithGithub} />}>
           <LoginGate searchParams={searchParams} />
         </Suspense>
       </div>
@@ -28,7 +49,7 @@ export default function LoginPage({
 async function LoginGate({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string | string[] }>
+  searchParams: Promise<{ error?: LoginError | LoginError[] }>
 }) {
   "use cache: private"
 
@@ -41,7 +62,7 @@ async function LoginGate({
   }
 
   const params = await searchParams
-  const error = Array.isArray(params.error) ? params.error[0] : params.error
+  const error = firstSearchParam(params.error)
 
-  return <LoginForm error={error} />
+  return <LoginForm action={signInWithGithub} error={error} />
 }

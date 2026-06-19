@@ -1,12 +1,6 @@
-"use client"
-
-import { useTransition } from "react"
-import { GitHubDark } from "@ridemountainpig/svgl-react"
-import { authClient } from "@/lib/auth-client"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldDescription, FieldGroup } from "@/components/ui/field"
-import { Spinner } from "@/components/ui/spinner"
+import { Field, FieldError, FieldGroup } from "@/components/ui/field"
+import { LoginSubmitButton } from "@/components/login-submit-button"
 
 const errorMessages = {
   invalid_code: "GitHub sign-in could not be completed. Try again.",
@@ -16,22 +10,17 @@ const errorMessages = {
     "GitHub sign-in failed or this account is not authorized for this application.",
 } as const satisfies Record<string, string>
 
+export type LoginError = keyof typeof errorMessages
+
 export function LoginForm({
+  action,
   error,
   ...props
-}: React.ComponentProps<typeof Card> & { error?: string }) {
-  const [pending, startTransition] = useTransition()
-  const message = error ? errorMessages[error as keyof typeof errorMessages] : null
-
-  function signInWithGithub() {
-    startTransition(async () => {
-      await authClient.signIn.social({
-        provider: "github",
-        callbackURL: "/",
-        errorCallbackURL: "/login",
-      })
-    })
-  }
+}: React.ComponentProps<typeof Card> & {
+  action: () => Promise<void>
+  error?: LoginError
+}) {
+  const message = error ? errorMessages[error] : null
 
   return (
     <Card {...props}>
@@ -39,18 +28,11 @@ export function LoginForm({
         <CardTitle>Login to your account</CardTitle>
       </CardHeader>
       <CardContent>
-        <form>
+        <form action={action}>
           <FieldGroup>
-            <Field>
-              <Button type="button" variant="outline" disabled={pending} onClick={signInWithGithub}>
-                {pending ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <GitHubDark data-icon="inline-start" />
-                )}
-                Continue with GitHub
-              </Button>
-              {message ? <FieldDescription>{message}</FieldDescription> : null}
+            <Field data-invalid={Boolean(message)}>
+              <LoginSubmitButton />
+              {message ? <FieldError>{message}</FieldError> : null}
             </Field>
           </FieldGroup>
         </form>

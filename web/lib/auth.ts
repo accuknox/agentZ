@@ -5,7 +5,7 @@ import { db, schema } from "@/db"
 import { env } from "@/lib/env"
 import { getGithubUserInfo } from "@/lib/github-membership"
 
-const githubScope = env.GITHUB_ORG ? ["read:org"] : undefined
+const githubScope = ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])]
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,

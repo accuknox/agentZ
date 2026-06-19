@@ -1,4 +1,4 @@
-export function firstSearchParam(value?: string | string[]) {
+export function firstSearchParam<T extends string>(value?: T | T[]) {
   if (Array.isArray(value)) {
     return value[0]
   }

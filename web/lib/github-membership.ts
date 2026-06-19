@@ -3,8 +3,21 @@ import { Octokit } from "@octokit/rest"
 import { env } from "@/lib/env"
 
 type GithubProfile = Awaited<ReturnType<Octokit["rest"]["users"]["getAuthenticated"]>>["data"]
-
-const placeholderEmail = (id: string) => `github-${id}@auth.accuknox.invalid`
+type GithubEmail = Awaited<
+  ReturnType<Octokit["rest"]["users"]["listEmailsForAuthenticatedUser"]>
+>["data"][number]
+type GithubMembershipError = {
+  status?: number
+  request?: {
+    method?: string
+    url?: string
+  }
+  response?: {
+    url?: string
+    headers?: Record<string, string>
+    data?: unknown
+  }
+}
 
 async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
   if (env.GITHUB_ALLOWED_USER_ID) {
@@ -19,7 +32,7 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
     .getMembershipForAuthenticatedUser({
       org: env.GITHUB_ORG,
     })
-    .catch((err: { status?: number }) => {
+    .catch((err: GithubMembershipError) => {
       if (err.status === 404) {
         return null
       }
@@ -27,6 +40,11 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
     })
 
   if (!orgMembership || orgMembership.data.state !== "active") {
+    console.warn("github org membership rejected", {
+      login: profile.login,
+      org: env.GITHUB_ORG,
+      membership: orgMembership?.data.state ?? null,
+    })
     return false
   }
 
@@ -40,7 +58,7 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
       team_slug: env.GITHUB_TEAM_SLUG,
       username: profile.login,
     })
-    .catch((err: { status?: number }) => {
+    .catch((err: GithubMembershipError) => {
       if (err.status === 404) {
         return null
       }
@@ -48,12 +66,20 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
     })
 
   if (!teamMembership || teamMembership.data.state !== "active") {
+    console.warn("github team membership rejected", {
+      login: profile.login,
+      org: env.GITHUB_ORG,
+      team: env.GITHUB_TEAM_SLUG,
+      membership: teamMembership?.data.state ?? null,
+    })
     return false
   }
 
   return true
 }
 
+// getGithubUserInfo reads the authenticated GitHub profile and enforces the
+// optional org/team gate before Better Auth creates a session.
 export async function getGithubUserInfo(token: OAuth2Tokens) {
   if (!token.accessToken) {
     return null
@@ -62,17 +88,27 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
   const octokit = new Octokit({ auth: token.accessToken })
 
   try {
-    const [{ data: profile }, { data: emails }] = await Promise.all([
-      octokit.rest.users.getAuthenticated(),
-      octokit.rest.users.listEmailsForAuthenticatedUser(),
-    ])
+    const { data: profile } = await octokit.rest.users.getAuthenticated()
 
     if (!(await isGithubUserAllowed(octokit, profile))) {
       return null
     }
 
-    const primary = emails.find((email) => email.primary) ?? emails[0]
-    const email = primary?.email ?? placeholderEmail(String(profile.id))
+    let primary: GithubEmail | undefined
+
+    try {
+      const { data: emails } = await octokit.rest.users.listEmailsForAuthenticatedUser()
+      primary = emails.find((email) => email.primary) ?? emails[0]
+    } catch (err) {
+      console.warn("github email lookup failed", {
+        login: profile.login,
+        org: env.GITHUB_ORG,
+        team: env.GITHUB_TEAM_SLUG,
+        err,
+      })
+    }
+
+    const email = profile.email ?? primary?.email ?? `github-${profile.id}@auth.accuknox.invalid`
     const emailVerified = primary?.email ? primary.verified : false
 
     return {
@@ -86,11 +122,26 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
       data: profile satisfies GithubProfile,
     }
   } catch (err) {
+    const e = err as GithubMembershipError
+
     console.error("github auth gate failed", {
       allowedUserId: env.GITHUB_ALLOWED_USER_ID,
       org: env.GITHUB_ORG,
       team: env.GITHUB_TEAM_SLUG,
-      err,
+      err:
+        err instanceof Error
+          ? {
+              name: err.name,
+              message: err.message,
+              stack: err.stack,
+            }
+          : err,
+      status: e.status,
+      method: e.request?.method,
+      requestUrl: e.request?.url,
+      responseUrl: e.response?.url,
+      responseHeaders: e.response?.headers,
+      responseData: e.response?.data,
     })
     return null
   }

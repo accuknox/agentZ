@@ -1,19 +1,10 @@
 import { z } from "zod"
 
 const emptyString = z.literal("")
-
-const optionalNonEmptyString = z
+const optionalString = z
   .string()
   .trim()
   .min(1)
-  .optional()
-  .or(emptyString)
-  .transform((value) => (value === "" ? undefined : value))
-
-const optionalGithubUserId = z
-  .string()
-  .trim()
-  .regex(/^\d+$/)
   .optional()
   .or(emptyString)
   .transform((value) => (value === "" ? undefined : value))
@@ -25,9 +16,9 @@ const envSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     GITHUB_CLIENT_ID: z.string().min(1),
     GITHUB_CLIENT_SECRET: z.string().min(1),
-    GITHUB_ALLOWED_USER_ID: optionalGithubUserId,
-    GITHUB_ORG: optionalNonEmptyString,
-    GITHUB_TEAM_SLUG: optionalNonEmptyString,
+    GITHUB_ALLOWED_USER_ID: optionalString.pipe(z.string().regex(/^\d+$/).optional()),
+    GITHUB_ORG: optionalString,
+    GITHUB_TEAM_SLUG: optionalString,
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   })
   .superRefine((value, ctx) => {

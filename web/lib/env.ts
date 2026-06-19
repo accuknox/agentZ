@@ -19,7 +19,7 @@ const envSchema = z
     GITHUB_ALLOWED_USER_ID: optionalString.pipe(z.string().regex(/^\d+$/).optional()),
     GITHUB_ORG: optionalString,
     GITHUB_TEAM_SLUG: optionalString,
-    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    NODE_ENV: z.enum(["development", "production"]).default("development"),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production" && new URL(value.BETTER_AUTH_URL).protocol !== "https:") {

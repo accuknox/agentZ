@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 
 export function NavUser({
@@ -6,19 +6,28 @@ export function NavUser({
 }: {
   user: {
     name: string
-    email: string
+    image?: string | null
   }
 }) {
+  const initials = user.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton size="lg">
-          <Avatar className="h-8 w-8 rounded-lg">
-            <AvatarFallback className="rounded-lg bg-transparent">MU</AvatarFallback>
+          <Avatar className="size-8 rounded-lg">
+            <AvatarImage src={user.image ?? undefined} alt={user.name} />
+            <AvatarFallback className="rounded-lg bg-transparent">
+              {initials || "AK"}
+            </AvatarFallback>
           </Avatar>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-medium">{user.name}</span>
-            <span className="truncate text-xs">{user.email}</span>
           </div>
         </SidebarMenuButton>
       </SidebarMenuItem>

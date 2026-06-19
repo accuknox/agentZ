@@ -40,8 +40,8 @@ export type PendingOAuthOperation = PendingCreateOperation
 
 const storedOAuthProtectedResourceMetadataSchema = z
   .object({
-    resource: z.string().url(),
-    authorization_servers: z.array(z.string().url()).optional(),
+    resource: z.url(),
+    authorization_servers: z.array(z.url()).optional(),
     scopes_supported: z.array(z.string().min(1)).optional(),
   })
   .passthrough()
@@ -49,17 +49,17 @@ const storedOAuthProtectedResourceMetadataSchema = z
 const storedAuthorizationServerMetadataSchema = z
   .object({
     issuer: z.string().min(1),
-    authorization_endpoint: z.string().url(),
-    token_endpoint: z.string().url(),
-    registration_endpoint: z.string().url().optional(),
+    authorization_endpoint: z.url(),
+    token_endpoint: z.url(),
+    registration_endpoint: z.url().optional(),
     scopes_supported: z.array(z.string().min(1)).optional(),
     response_types_supported: z.array(z.string().min(1)),
     response_modes_supported: z.array(z.string().min(1)).optional(),
     grant_types_supported: z.array(z.string().min(1)).optional(),
     token_endpoint_auth_methods_supported: z.array(z.string().min(1)).optional(),
     token_endpoint_auth_signing_alg_values_supported: z.array(z.string().min(1)).optional(),
-    service_documentation: z.string().url().optional(),
-    revocation_endpoint: z.string().url().optional(),
+    service_documentation: z.url().optional(),
+    revocation_endpoint: z.url().optional(),
     revocation_endpoint_auth_methods_supported: z.array(z.string().min(1)).optional(),
     revocation_endpoint_auth_signing_alg_values_supported: z.array(z.string().min(1)).optional(),
     introspection_endpoint: z.string().optional(),
@@ -73,7 +73,7 @@ const storedAuthorizationServerMetadataSchema = z
 const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
   name: z.string().min(1),
   endpoint: z.object({
-    url: z.string().url(),
+    url: z.url(),
     timeout: z.string().min(1).optional(),
     insecure_skip_verify: z.boolean(),
     headers: z.record(z.string(), z.string()),
@@ -92,9 +92,9 @@ const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
     .optional(),
   oauth: z.object({
     issuer: z.string().min(1).optional(),
-    authorizationEndpoint: z.string().url().optional(),
-    tokenEndpoint: z.string().url().optional(),
-    registrationEndpoint: z.string().url().optional(),
+    authorizationEndpoint: z.url().optional(),
+    tokenEndpoint: z.url().optional(),
+    registrationEndpoint: z.url().optional(),
     resource: z.string().min(1).optional(),
     scopes: z.array(z.string().min(1)).optional(),
     location: z
@@ -138,7 +138,7 @@ const pendingOAuthStateSchema = z.object({
   flowId: z.string().min(1),
   operation: pendingOAuthOperationSchema,
   state: z.string().min(1),
-  redirectURL: z.string().url().optional(),
+  redirectURL: z.url().optional(),
   codeVerifier: z.string().min(1),
   discoveryState: oauthDiscoveryStateSchema.optional(),
   clientInformation: oauthClientInformationMixedSchema,

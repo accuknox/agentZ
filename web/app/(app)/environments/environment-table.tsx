@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "@bprogress/next/app"
 import {
   flexRender,
   getCoreRowModel,
@@ -8,8 +9,8 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import type { Agent, Environment } from "@/lib/gateway/client"
-import { createAgentColumns } from "@/app/agent-columns"
+import type { Environment } from "@/lib/gateway/client"
+import { createEnvironmentColumns } from "./environment-columns"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -19,59 +20,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { DeleteAgentFormState } from "@/data/types"
+import type { DeleteEnvironmentFormState } from "@/data/types"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
+  packages: "w-32",
+  allowed_hosts: "w-36",
+  mcps: "w-28",
   created_at: "w-44",
   actions: "w-14",
 }
 
-export function AgentTable({
-  agents,
+export function EnvironmentTable({
   environments,
   hasNextPage,
-  initialHasNextEnvironmentPage,
-  initialNextEnvironmentPageToken,
   nextPageToken,
-  deleteAgentAction,
+  deleteEnvironmentAction,
 }: {
-  agents: Agent[]
   environments: Environment[]
   hasNextPage: boolean
-  initialHasNextEnvironmentPage: boolean
-  initialNextEnvironmentPageToken: string
   nextPageToken: string
-  deleteAgentAction: (
-    agentName: string,
-    state: DeleteAgentFormState,
+  deleteEnvironmentAction: (
+    name: string,
+    state: DeleteEnvironmentFormState,
     formData: FormData
-  ) => Promise<DeleteAgentFormState>
+  ) => Promise<DeleteEnvironmentFormState>
 }) {
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const router = useRouter()
   const columns = React.useMemo(
-    () =>
-      createAgentColumns(
-        deleteAgentAction,
-        environments,
-        initialHasNextEnvironmentPage,
-        initialNextEnvironmentPageToken
-      ),
-    [
-      deleteAgentAction,
-      environments,
-      initialHasNextEnvironmentPage,
-      initialNextEnvironmentPageToken,
-    ]
+    () => createEnvironmentColumns(deleteEnvironmentAction),
+    [deleteEnvironmentAction]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data: agents,
+    data: environments,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -104,7 +92,24 @@ export function AgentTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => {
+                    router.push(`/environments/update/${encodeURIComponent(row.original.name)}`)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return
+                    }
+
+                    event.preventDefault()
+                    router.push(`/environments/update/${encodeURIComponent(row.original.name)}`)
+                  }}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -118,7 +123,7 @@ export function AgentTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No agents
+                  No environments
                 </TableCell>
               </TableRow>
             )}

@@ -7,6 +7,7 @@ resources:
 - bases/clawarmor.accuknox.com_workflowschedules.yaml
 - bases/clawarmor.accuknox.com_workflowruns.yaml
 - bases/clawarmor.accuknox.com_mcpconnections.yaml
+- bases/clawarmor.accuknox.com_tenants.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 # patches:

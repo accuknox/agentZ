@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Image from "next/image"
 import { Field, FieldError, FieldGroup } from "@/components/ui/field"
 import { LoginSubmitButton } from "@/components/login-submit-button"
 
@@ -15,28 +15,27 @@ export type LoginError = keyof typeof errorMessages
 export function LoginForm({
   action,
   error,
-  ...props
-}: React.ComponentProps<typeof Card> & {
+}: React.ComponentProps<"div"> & {
   action: () => Promise<void>
   error?: LoginError
 }) {
   const message = error ? errorMessages[error] : null
 
   return (
-    <Card {...props}>
-      <CardHeader>
-        <CardTitle>Login to your account</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form action={action}>
-          <FieldGroup>
-            <Field data-invalid={Boolean(message)}>
-              <LoginSubmitButton />
-              {message ? <FieldError>{message}</FieldError> : null}
-            </Field>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
+    <div className="mx-auto flex w-full max-w-sm flex-col gap-8 pt-10">
+      <div className="flex items-center justify-center gap-3">
+        <Image src="/emblem.svg" alt="AccuKnox emblem" width={40} height={40} className="size-10" />
+        <span className="text-foreground text-3xl font-semibold tracking-tight">AccuKnox</span>
+      </div>
+
+      <form action={action}>
+        <FieldGroup>
+          <Field data-invalid={Boolean(message)}>
+            <LoginSubmitButton />
+            {message ? <FieldError>{message}</FieldError> : null}
+          </Field>
+        </FieldGroup>
+      </form>
+    </div>
   )
 }

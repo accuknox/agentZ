@@ -36,8 +36,8 @@ export default function LoginPage({
   searchParams: Promise<{ error?: LoginError | LoginError[] }>
 }) {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
+    <div className="flex min-h-svh w-full justify-center px-6 py-10 md:px-10 md:py-14">
+      <div className="w-full max-w-xl">
         <Suspense fallback={<LoginForm action={signInWithGithub} />}>
           <LoginGate searchParams={searchParams} />
         </Suspense>

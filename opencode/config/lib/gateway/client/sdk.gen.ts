@@ -221,6 +221,7 @@ export const listAgents = <ThrowOnError extends boolean = false>(
           query: zListAgentsQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/agent",
     ...options,
   })
@@ -243,6 +244,7 @@ export const createAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/agent",
     ...options,
     headers: {
@@ -266,6 +268,7 @@ export const deleteAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/agent/{agentName}",
     ...options,
   })
@@ -288,6 +291,7 @@ export const updateAgent = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/agent/{agentName}",
     ...options,
     headers: {
@@ -314,6 +318,7 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/agent/watch",
     ...options,
     headers: {
@@ -338,6 +343,7 @@ export const listTraceSessions = <ThrowOnError extends boolean = false>(
             query: zListTraceSessionsQuery.optional(),
           })
           .parseAsync(data),
+      security: [{ scheme: "bearer", type: "http" }],
       url: "/api/lens/{agentName}/{sessionID}/trace",
       ...options,
     }
@@ -358,6 +364,7 @@ export const listSpans = <ThrowOnError extends boolean = false>(
           query: zListSpansQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/{sessionID}/trace/{traceID}/span",
     ...options,
   })
@@ -377,6 +384,7 @@ export const getSpanDetail = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/{sessionID}/trace/{traceID}/span/{spanID}",
     ...options,
   })
@@ -400,6 +408,7 @@ export const listProcessObservability = <ThrowOnError extends boolean = false>(
           query: zListProcessObservabilityQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/observability/process",
     ...options,
   })
@@ -423,6 +432,7 @@ export const listFileObservability = <ThrowOnError extends boolean = false>(
           query: zListFileObservabilityQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/observability/file",
     ...options,
   })
@@ -446,6 +456,7 @@ export const listNetworkObservability = <ThrowOnError extends boolean = false>(
           query: zListNetworkObservabilityQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/observability/network",
     ...options,
   })
@@ -465,6 +476,7 @@ export const getMcpGraph = <ThrowOnError extends boolean = false>(
           query: zGetMcpGraphQuery,
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/mcp/graph",
     ...options,
   })
@@ -487,6 +499,7 @@ export const listSecrets = <ThrowOnError extends boolean = false>(
           query: zListSecretsQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/secret/{agentName}",
     ...options,
   })
@@ -509,6 +522,7 @@ export const putSecret = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/secret/{agentName}",
     ...options,
     headers: {
@@ -535,6 +549,7 @@ export const deleteSecret = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/secret/{agentName}/delete",
     ...options,
     headers: {
@@ -558,6 +573,7 @@ export const listEnvironments = <ThrowOnError extends boolean = false>(
           query: zListEnvironmentsQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/environment",
     ...options,
   })
@@ -581,6 +597,7 @@ export const createEnvironment = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/environment",
     ...options,
     headers: {
@@ -608,6 +625,7 @@ export const deleteEnvironment = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/environment/{environmentName}",
     ...options,
   })
@@ -631,6 +649,7 @@ export const updateEnvironment = <ThrowOnError extends boolean = false>(
             query: z.never().optional(),
           })
           .parseAsync(data),
+      security: [{ scheme: "bearer", type: "http" }],
       url: "/api/environment/{environmentName}",
       ...options,
       headers: {
@@ -659,6 +678,7 @@ export const listMcpConnections = <ThrowOnError extends boolean = false>(
           query: zListMcpConnectionsQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/mcp-connection",
     ...options,
   })
@@ -682,6 +702,7 @@ export const createMcpConnection = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/mcp-connection",
     ...options,
     headers: {
@@ -709,6 +730,7 @@ export const deleteMcpConnection = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/mcp-connection/{name}",
     ...options,
   })
@@ -728,6 +750,7 @@ export const getMcpConnection = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/mcp-connection/{name}",
     ...options,
   })
@@ -754,6 +777,7 @@ export const watchMcpConnections = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/mcp-connection/watch",
     ...options,
     headers: {
@@ -780,6 +804,7 @@ export const deleteWorkflows = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}",
     ...options,
     headers: {
@@ -810,6 +835,7 @@ export const listWorkflowSummaries = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}",
     ...options,
   })
@@ -832,6 +858,7 @@ export const createWorkflow = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}",
     ...options,
     headers: {
@@ -858,6 +885,7 @@ export const getWorkflow = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}",
     ...options,
   })
@@ -884,6 +912,7 @@ export const listAgentWorkflowSchedules = <ThrowOnError extends boolean = false>
           query: zListAgentWorkflowSchedulesQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/schedule",
     ...options,
   })
@@ -910,6 +939,7 @@ export const listWorkflowSchedules = <ThrowOnError extends boolean = false>(
           query: zListWorkflowSchedulesQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule",
     ...options,
   })
@@ -936,6 +966,7 @@ export const createWorkflowSchedule = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule",
     ...options,
     headers: {
@@ -966,6 +997,7 @@ export const deleteWorkflowSchedule = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}",
     ...options,
   })
@@ -992,6 +1024,7 @@ export const updateWorkflowSchedule = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}",
     ...options,
     headers: {
@@ -1018,6 +1051,7 @@ export const listWorkflowRuns = <ThrowOnError extends boolean = false>(
           query: zListWorkflowRunsQuery.optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run",
     ...options,
   })
@@ -1044,6 +1078,7 @@ export const createWorkflowRun = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run",
     ...options,
   })
@@ -1070,6 +1105,7 @@ export const watchWorkflowRuns = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch",
     ...options,
     headers: {
@@ -1100,6 +1136,7 @@ export const deleteWorkflowRun = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}",
     ...options,
   })
@@ -1122,6 +1159,7 @@ export const getWorkflowRun = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}",
     ...options,
   })
@@ -1148,6 +1186,7 @@ export const patchWorkflowRunStatus = <ThrowOnError extends boolean = false>(
           query: z.never().optional(),
         })
         .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/status",
     ...options,
     headers: {

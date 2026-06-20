@@ -7,23 +7,23 @@ import { gatewayServerClient } from "@/lib/gateway/server-client"
 export async function listEnvironmentsCachedQuery(
   query?: ListEnvironmentsData["query"]
 ): Promise<ListEnvironmentActionResponse> {
-  "use cache"
+  "use cache: private"
 
   cacheLife("hours")
   cacheTag(environmentsTag)
 
-  const result = await listEnvironments({ query, client: gatewayServerClient })
-  if (result.error) {
+  const { data, error } = await listEnvironments({ query, client: gatewayServerClient })
+  if (error) {
     return {
       environments: undefined,
       nextPageToken: undefined,
       hasNextPage: undefined,
-      error: result.error,
+      error,
     }
   }
 
-  const environments = result.data.environments
-  const nextPageToken = result.data.next_page_token
+  const environments = data.environments
+  const nextPageToken = data.next_page_token
   const hasNextPage = nextPageToken.length > 0
 
   return {

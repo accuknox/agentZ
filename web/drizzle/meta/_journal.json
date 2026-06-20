@@ -15,6 +15,13 @@
       "when": 1781841509150,
       "tag": "0001_petite_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781962507857,
+      "tag": "0002_fixed_black_panther",
+      "breakpoints": true
     }
   ]
 }

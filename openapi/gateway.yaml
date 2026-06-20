@@ -10195,7 +10195,11 @@ components:
       - summary
       - updated_at
       type: object
-  securitySchemes: {}
+  securitySchemes:
+    GatewayBearer:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
 info:
   description: HTTP API for ClawArmor agents, lens, secrets, and environments.
   title: ClawArmor HTTP API
@@ -18886,6 +18890,8 @@ paths:
       summary: List workflow schedules for one agent.
       tags:
       - workflow-schedules
+security:
+- GatewayBearer: []
 servers:
 - description: Current origin
   url: /

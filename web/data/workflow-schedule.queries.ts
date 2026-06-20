@@ -22,25 +22,25 @@ export async function listWorkflowSchedulesCachedQuery(
   agentName: ListAgentWorkflowSchedulesData["path"]["agentName"],
   query?: ListAgentWorkflowSchedulesData["query"]
 ): Promise<ListWorkflowSchedulesQueryResult> {
-  "use cache"
+  "use cache: private"
 
   cacheLife("minutes")
   cacheTag(workflowsTag, agentWorkflowsTag(agentName))
 
-  const result = await listAgentWorkflowSchedules({
+  const { data, error } = await listAgentWorkflowSchedules({
     client: gatewayServerClient,
     path: { agentName },
     query,
   })
-  if (result.error) {
+  if (error) {
     return {
       workflowSchedules: undefined,
-      error: result.error,
+      error,
     }
   }
 
-  const workflowSchedules = result.data.workflow_schedules
-  const nextPageToken = result.data.next_page_token
+  const workflowSchedules = data.workflow_schedules
+  const nextPageToken = data.next_page_token
   const hasNextPage = nextPageToken.length > 0
 
   return {

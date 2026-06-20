@@ -6,6 +6,8 @@ info:
 servers:
 - url: /
   description: Current origin
+security:
+- GatewayBearer: []
 tags:
 - name: agents
   description: Agent lifecycle and status APIs.
@@ -1164,6 +1166,11 @@ paths:
           $ref: '#/components/responses/InternalError'
 
 components:
+  securitySchemes:
+    GatewayBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     AgentNameQuery:
       name: agent_name

@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { auth } from "@/lib/auth"
+import { ensureTenant } from "@/lib/gateway/auth"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,13 +26,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 async function AppGate({ children }: { children: React.ReactNode }) {
   "use cache: private"
 
+  const requestHeaders = await headers()
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   })
 
   if (!session) {
     redirect("/login")
   }
+
+  await ensureTenant(requestHeaders, session)
 
   return (
     <>
@@ -51,8 +55,18 @@ async function AppGate({ children }: { children: React.ReactNode }) {
               orientation="vertical"
               className="mr-2 data-vertical:h-4 data-vertical:self-auto"
             />
-            <Suspense fallback={<BreadcrumbFallback />}>
-              <PageBreadcrumbWrapper />
+            <Suspense
+              fallback={
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>Home</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+              }
+            >
+              <PageBreadcrumb agents={listAgentsCachedQuery()} />
             </Suspense>
           </div>
         </header>
@@ -61,22 +75,5 @@ async function AppGate({ children }: { children: React.ReactNode }) {
         </div>
       </SidebarInset>
     </>
-  )
-}
-
-async function PageBreadcrumbWrapper() {
-  const agents = listAgentsCachedQuery()
-  return <PageBreadcrumb agents={agents} />
-}
-
-function BreadcrumbFallback() {
-  return (
-    <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem>
-          <BreadcrumbPage>Home</BreadcrumbPage>
-        </BreadcrumbItem>
-      </BreadcrumbList>
-    </Breadcrumb>
   )
 }

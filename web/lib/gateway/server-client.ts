@@ -1,6 +1,7 @@
 import "server-only"
 
 import { createClient, createConfig, type Client } from "@/lib/gateway/client/client"
+import { currentGatewayAuthToken } from "@/lib/gateway/auth"
 import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
 
 /**
@@ -9,6 +10,7 @@ import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
  */
 export const gatewayServerClient: Client = createClient(
   createConfig({
+    auth: currentGatewayAuthToken,
     baseUrl: serverGatewayBaseURL(),
   })
 )

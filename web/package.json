@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
-    "gen:openapi-client": "openapi-ts"
+    "gen:openapi-client": "openapi-ts",
+    "gen:auth-schema": "bunx auth@latest generate --config ./lib/auth.ts --output ./db/auth-schema.ts --yes"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.19",

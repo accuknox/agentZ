@@ -22,26 +22,26 @@ export async function listSecretsCachedQuery(
   agentName: string,
   query?: { limit?: number; page_token?: string }
 ): Promise<ListSecretsQueryResponse> {
-  "use cache"
+  "use cache: private"
 
   cacheLife("minutes")
   cacheTag(secretsTag, agentSecretsTag(agentName))
 
-  const result = await listSecrets({
+  const { data, error } = await listSecrets({
     client: gatewayServerClient,
     path: { agentName },
     query,
   })
 
-  if (result.error) {
+  if (error) {
     return {
       items: undefined,
-      error: result.error,
+      error,
     }
   }
 
-  const items = result.data.items
-  const nextPageToken = result.data.next_page_token
+  const items = data.items
+  const nextPageToken = data.next_page_token
   const hasNextPage = nextPageToken.length > 0
 
   return {

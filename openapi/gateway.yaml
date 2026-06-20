@@ -9553,6 +9553,56 @@ components:
       - tool_arguments
       - tool_result
       type: object
+    Tenant:
+      properties:
+        conditions:
+          items:
+            $ref: '#/components/schemas/TenantCondition'
+          type: array
+        namespace:
+          type: string
+        phase:
+          $ref: '#/components/schemas/TenantPhase'
+        ready:
+          type: boolean
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+      required:
+      - tenant_id
+      - user_id
+      - namespace
+      - ready
+      - phase
+      - conditions
+      type: object
+    TenantCondition:
+      properties:
+        message:
+          type: string
+        reason:
+          type: string
+        status:
+          enum:
+          - "True"
+          - "False"
+          - Unknown
+          type: string
+        type:
+          type: string
+      required:
+      - type
+      - status
+      - reason
+      - message
+      type: object
+    TenantPhase:
+      enum:
+      - BOOTSTRAPPING
+      - READY
+      - FAILED
+      type: string
     Trace:
       additionalProperties: false
       properties:
@@ -18387,6 +18437,41 @@ paths:
       summary: Delete secrets for an agent.
       tags:
       - secrets
+  /api/tenant:
+    get:
+      operationId: getTenant
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+          description: Tenant bootstrap state.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get the current tenant bootstrap state.
+      tags:
+      - tenants
+    put:
+      description: |
+        Ensures a Tenant custom resource exists for the bearer token's active Better Auth organization. The request returns immediately with the current bootstrap state and does not wait for the tenant to become ready.
+      operationId: ensureTenant
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+          description: Tenant exists and current bootstrap state is returned.
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create the current tenant resource when missing.
+      tags:
+      - tenants
   /api/workflow/{agentName}:
     delete:
       description: |
@@ -18898,6 +18983,8 @@ servers:
 tags:
 - description: Agent lifecycle and status APIs.
   name: agents
+- description: Tenant bootstrap and readiness APIs.
+  name: tenants
 - description: Trace, span, and OS observability APIs.
   name: lens
 - description: Session secret management APIs.

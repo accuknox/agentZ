@@ -18,19 +18,13 @@ package v1alpha1
 
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
-
-// nolint:unused
-// log is for logging in this package.
-var tenantlog = logf.Log.WithName("tenant-resource")
 
 // SetupTenantWebhookWithManager registers the webhook for Tenant in the manager.
 func RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.Tenant{}).
 		WithValidator(&Validator{}).
-		WithDefaulter(&Defaulter{}).
 		Complete()
 }

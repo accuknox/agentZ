@@ -39,6 +39,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -681,8 +682,18 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
-		tenantReconciler := &tenant.TenantReconciler{
+		tenantReconciler := &tenant.Reconciler{
 			Client: mgr.GetClient(),
+			Direct: func() client.Client {
+				c, err := client.New(restCfg, client.Options{
+					Scheme: mgr.GetScheme(),
+				})
+				if err != nil {
+					setupLog.Error(err, "failed to create direct tenant client")
+					os.Exit(1)
+				}
+				return c
+			}(),
 			Scheme: mgr.GetScheme(),
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {

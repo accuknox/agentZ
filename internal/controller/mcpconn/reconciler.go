@@ -365,12 +365,10 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			if _, err := policies.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 				return nil, fmt.Errorf("create auth policy %q: %w", name, err)
 			}
-		} else {
-			if !reflect.DeepEqual(currentSpec, obj.Spec) ||
-				!reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
-				if _, err := policies.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
-					return nil, fmt.Errorf("update auth policy %q: %w", name, err)
-				}
+		} else if !reflect.DeepEqual(currentSpec, obj.Spec) || !reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+			_, err := policies.Update(ctx, obj, metav1.UpdateOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("update auth policy %q: %w", name, err)
 			}
 		}
 

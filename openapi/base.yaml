@@ -11,6 +11,8 @@ security:
 tags:
 - name: agents
   description: Agent lifecycle and status APIs.
+- name: tenants
+  description: Tenant bootstrap and readiness APIs.
 - name: lens
   description: Trace, span, and OS observability APIs.
 - name: secrets
@@ -25,6 +27,43 @@ tags:
   description: Workflow schedule management APIs.
 
 paths:
+  /api/tenant:
+    get:
+      operationId: getTenant
+      summary: Get the current tenant bootstrap state.
+      tags: [tenants]
+      responses:
+        '200':
+          description: Tenant bootstrap state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: ensureTenant
+      summary: Create the current tenant resource when missing.
+      description: >
+        Ensures a Tenant custom resource exists for the bearer token's active
+        Better Auth organization. The request returns immediately with the
+        current bootstrap state and does not wait for the tenant to become
+        ready.
+      tags: [tenants]
+      responses:
+        '200':
+          description: Tenant exists and current bootstrap state is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/agent:
     get:
       operationId: listAgents
@@ -1379,6 +1418,43 @@ components:
       maxLength: 16
       pattern: '^([0-9a-f]{16})?$'
       description: Lowercase hexadecimal OTLP span ID, or empty for root spans.
+
+    TenantPhase:
+      type: string
+      enum: [BOOTSTRAPPING, READY, FAILED]
+
+    TenantCondition:
+      type: object
+      required: [type, status, reason, message]
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+          enum: ['True', 'False', 'Unknown']
+        reason:
+          type: string
+        message:
+          type: string
+
+    Tenant:
+      type: object
+      required: [tenant_id, user_id, namespace, ready, phase, conditions]
+      properties:
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+        namespace:
+          type: string
+        ready:
+          type: boolean
+        phase:
+          $ref: '#/components/schemas/TenantPhase'
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantCondition'
 
     ObservabilityAction:
       type: string

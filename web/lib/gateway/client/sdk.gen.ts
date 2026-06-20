@@ -44,6 +44,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsErrors,
   DeleteWorkflowsResponses,
+  EnsureTenantData,
+  EnsureTenantErrors,
+  EnsureTenantResponses,
   GetMcpConnectionData,
   GetMcpConnectionErrors,
   GetMcpConnectionResponses,
@@ -53,6 +56,9 @@ import type {
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
+  GetTenantData,
+  GetTenantErrors,
+  GetTenantResponses,
   GetWorkflowData,
   GetWorkflowErrors,
   GetWorkflowResponses,
@@ -205,6 +211,49 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+/**
+ * Get the current tenant bootstrap state.
+ */
+export const getTenant = <ThrowOnError extends boolean = false>(
+  options?: Options<GetTenantData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<GetTenantResponses, GetTenantErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/tenant",
+    ...options,
+  })
+
+/**
+ * Create the current tenant resource when missing.
+ *
+ * Ensures a Tenant custom resource exists for the bearer token's active Better Auth organization. The request returns immediately with the current bootstrap state and does not wait for the tenant to become ready.
+ *
+ */
+export const ensureTenant = <ThrowOnError extends boolean = false>(
+  options?: Options<EnsureTenantData, ThrowOnError>
+) =>
+  (options?.client ?? client).put<EnsureTenantResponses, EnsureTenantErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/tenant",
+    ...options,
+  })
 
 /**
  * List paginated agent summaries.

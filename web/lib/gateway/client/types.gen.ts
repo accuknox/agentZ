@@ -19,6 +19,24 @@ export type SpanId = string
  */
 export type OptionalSpanId = string
 
+export type TenantPhase = "BOOTSTRAPPING" | "READY" | "FAILED"
+
+export type TenantCondition = {
+  type: string
+  status: "True" | "False" | "Unknown"
+  reason: string
+  message: string
+}
+
+export type Tenant = {
+  tenant_id: string
+  user_id: string
+  namespace: string
+  ready: boolean
+  phase: TenantPhase
+  conditions: Array<TenantCondition>
+}
+
 export type ObservabilityAction = "Allowed" | "Blocked"
 
 export type AgentName = string
@@ -836,6 +854,64 @@ export type FromDateQuery = string
  * Inclusive upper bound for MCP tool activity date.
  */
 export type ToDateQuery = string
+
+export type GetTenantData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/tenant"
+}
+
+export type GetTenantErrors = {
+  /**
+   * Requested resource was not found.
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetTenantError = GetTenantErrors[keyof GetTenantErrors]
+
+export type GetTenantResponses = {
+  /**
+   * Tenant bootstrap state.
+   */
+  200: Tenant
+}
+
+export type GetTenantResponse = GetTenantResponses[keyof GetTenantResponses]
+
+export type EnsureTenantData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/tenant"
+}
+
+export type EnsureTenantErrors = {
+  /**
+   * Request conflicts with current agent state.
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type EnsureTenantError = EnsureTenantErrors[keyof EnsureTenantErrors]
+
+export type EnsureTenantResponses = {
+  /**
+   * Tenant exists and current bootstrap state is returned.
+   */
+  200: Tenant
+}
+
+export type EnsureTenantResponse = EnsureTenantResponses[keyof EnsureTenantResponses]
 
 export type ListAgentsData = {
   body?: never

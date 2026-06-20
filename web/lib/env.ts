@@ -27,17 +27,9 @@ const envSchema = z
     }, z.string().regex(/^\d+$/).optional()),
     GITHUB_ORG: optionalNonEmptyString,
     GITHUB_TEAM_SLUG: optionalNonEmptyString,
-    NODE_ENV: z.enum(["development", "production"]).default("development"),
+    NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   })
   .superRefine((value, ctx) => {
-    if (value.NODE_ENV === "production" && new URL(value.BETTER_AUTH_URL).protocol !== "https:") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "BETTER_AUTH_URL must use https in production.",
-        path: ["BETTER_AUTH_URL"],
-      })
-    }
-
     if (value.GITHUB_TEAM_SLUG && !value.GITHUB_ORG) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

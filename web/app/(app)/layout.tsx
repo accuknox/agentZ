@@ -13,7 +13,8 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { auth } from "@/lib/auth"
-import { ensureTenant } from "@/lib/gateway/auth"
+import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
+import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -35,7 +36,13 @@ async function AppGate({ children }: { children: React.ReactNode }) {
     redirect("/login")
   }
 
-  await ensureTenant(requestHeaders, session)
+  const tenant = await ensureTenant({
+    client: gatewayServerClient,
+    throwOnError: true,
+  })
+  if (!tenant.data.ready) {
+    redirect("/setting-up")
+  }
 
   return (
     <>

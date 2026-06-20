@@ -10,13 +10,28 @@ spec:
     kind: Tenant
     listKind: TenantList
     plural: tenants
+    shortNames:
+    - tenant
     singular: tenant
-  scope: Namespaced
+  scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Whether the Tenant is ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Tenant namespace
+      jsonPath: .status.namespace
+      name: Namespace
+      type: string
+    - description: Age of the Tenant
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Tenant is the Schema for the tenants API
+        description: Tenant is the Schema for the tenants API.
         properties:
           apiVersion:
             description: |-
@@ -36,26 +51,27 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of Tenant
+            description: spec defines the desired state of Tenant.
             properties:
-              foo:
-                description: foo is an example field of Tenant. Edit tenant_types.go to remove/update
+              organizationID:
+                description: OrganizationID is the Better Auth organization ID that owns this tenant.
+                maxLength: 128
+                minLength: 1
                 type: string
+              userID:
+                description: UserID is the Better Auth user ID that owns this tenant.
+                maxLength: 128
+                minLength: 1
+                type: string
+            required:
+            - organizationID
+            - userID
             type: object
           status:
-            description: status defines the observed state of Tenant
+            description: status defines the observed state of Tenant.
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the Tenant resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: Conditions represent the current state of the Tenant resource.
                 items:
                   description: Condition contains details for one aspect of the current state of this API Resource.
                   properties:
@@ -113,6 +129,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              namespace:
+                description: Namespace is the isolated Kubernetes namespace for this tenant.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the latest reconciled generation.
+                format: int64
+                type: integer
             type: object
         required:
         - spec

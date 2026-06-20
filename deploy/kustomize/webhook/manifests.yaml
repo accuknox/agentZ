@@ -69,26 +69,6 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-clawarmor-accuknox-com-v1alpha1-tenant
-  failurePolicy: Fail
-  name: mtenant-v1alpha1.kb.io
-  rules:
-  - apiGroups:
-    - clawarmor.accuknox.com
-    apiVersions:
-    - v1alpha1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - tenants
-  sideEffects: None
-- admissionReviewVersions:
-  - v1
-  clientConfig:
-    service:
-      name: webhook-service
-      namespace: system
       path: /mutate-clawarmor-accuknox-com-v1alpha1-workflowrun
   failurePolicy: Fail
   name: mworkflowrun-v1alpha1.kb.io
@@ -207,6 +187,7 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
+    - DELETE
     resources:
     - tenants
   sideEffects: None

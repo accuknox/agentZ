@@ -21,6 +21,17 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - namespaces
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - persistentvolumeclaims
   verbs:
   - create
@@ -90,6 +101,7 @@ rules:
   resources:
   - agents
   - mcpconnections
+  - tenants
   - workflowruns
   - workflowschedules
   verbs:
@@ -106,6 +118,7 @@ rules:
   - agents/finalizers
   - envs/finalizers
   - mcpconnections/finalizers
+  - tenants/finalizers
   - workflowruns/finalizers
   - workflowschedules/finalizers
   verbs:
@@ -116,6 +129,7 @@ rules:
   - agents/status
   - envs/status
   - mcpconnections/status
+  - tenants/status
   - workflowruns/status
   - workflowschedules/status
   verbs:
@@ -158,36 +172,3 @@ rules:
   - patch
   - update
   - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: manager-role
-  namespace: clawarmor-system
-rules:
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - tenants
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - tenants/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - tenants/status
-  verbs:
-  - get
-  - patch
-  - update

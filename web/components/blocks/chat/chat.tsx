@@ -911,7 +911,6 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     string | undefined
   >()
   const [reasoningLevel, setReasoningLevel] = useState<string>(DEFAULT_REASONING_LEVEL)
-  const opencodeClient = useMemo(() => createAgentOpencodeClientV2(agentName), [agentName])
   const permissionAlwaysConfirm = permissionAlwaysConfirmRequestID === permissionRequest?.id
   const {
     clearInvalid,
@@ -926,7 +925,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     queryOptions({
       queryKey: ["opencode", "modelCatalog", agentName],
       queryFn: async () => {
-        const client = createAgentOpencodeClientV2(agentName)
+        const client = await createAgentOpencodeClientV2(agentName)
         const [providersResult, configResult, agentsResult] = await Promise.all([
           client.config.providers(),
           client.config.get(),
@@ -1137,7 +1136,8 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         throw new Error("No question request is active")
       }
 
-      const result = await opencodeClient.question.reply({
+      const client = await createAgentOpencodeClientV2(agentName)
+      const result = await client.question.reply({
         answers,
         requestID: questionRequest.id,
       })
@@ -1154,7 +1154,8 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         throw new Error("No question request is active")
       }
 
-      const result = await opencodeClient.question.reject({
+      const client = await createAgentOpencodeClientV2(agentName)
+      const result = await client.question.reject({
         requestID: questionRequest.id,
       })
 
@@ -1170,7 +1171,8 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         throw new Error("No permission request is active")
       }
 
-      const result = await opencodeClient.permission.reply({
+      const client = await createAgentOpencodeClientV2(agentName)
+      const result = await client.permission.reply({
         reply,
         requestID: permissionRequest.id,
       })

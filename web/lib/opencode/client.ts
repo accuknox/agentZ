@@ -4,6 +4,7 @@ import {
   type OpencodeClient as OpencodeClientV2,
 } from "@opencode-ai/sdk/v2/client"
 import { gatewayBaseURL } from "@/lib/gateway/base-url"
+import { getGatewayToken } from "@/lib/gateway/token-action"
 
 const gatewayBase = gatewayBaseURL()
 
@@ -11,17 +12,33 @@ function opencodeBaseURL(agentName: string): string {
   return `${gatewayBase}/api/opencode/${encodeURIComponent(agentName)}`
 }
 
+async function opencodeHeaders(): Promise<Record<string, string> | undefined> {
+  const token = await getGatewayToken()
+  if (!token) {
+    return undefined
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+  }
+}
+
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
-export function createAgentOpencodeClient(agentName: string, directory?: string): OpencodeClient {
+export async function createAgentOpencodeClient(
+  agentName: string,
+  directory?: string
+): Promise<OpencodeClient> {
   return createOpencodeClient({
     baseUrl: opencodeBaseURL(agentName),
+    headers: await opencodeHeaders(),
     ...(directory ? { directory } : {}),
   })
 }
 
 // createAgentOpencodeClientV2 builds an OpenCode v2 SDK client for one agent.
-export function createAgentOpencodeClientV2(agentName: string): OpencodeClientV2 {
+export async function createAgentOpencodeClientV2(agentName: string): Promise<OpencodeClientV2> {
   return createOpencodeClientV2({
     baseUrl: opencodeBaseURL(agentName),
+    headers: await opencodeHeaders(),
   })
 }

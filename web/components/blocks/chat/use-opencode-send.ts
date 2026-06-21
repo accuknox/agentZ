@@ -88,7 +88,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
 
       try {
         if (!resolvedSessionID) {
-          const createClient = createAgentOpencodeClientV2(agentName)
+          const createClient = await createAgentOpencodeClientV2(agentName)
           const createResult = await createClient.session.create({
             model: {
               id: input.model.modelID,
@@ -111,7 +111,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
           router.replace(`/agents/${agentName}/${createResult.data.id}`)
         }
 
-        const promptClient = createAgentOpencodeClientV2(agentName)
+        const promptClient = await createAgentOpencodeClientV2(agentName)
         const promptResult = await promptClient.session.promptAsync({
           model: {
             modelID: input.model.modelID,
@@ -156,7 +156,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
   const { error: sendError, isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
   const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({
     mutationFn: async (input) => {
-      const client = createAgentOpencodeClient(agentName, input.directory)
+      const client = await createAgentOpencodeClient(agentName, input.directory)
       const result = await client.session.abort({
         path: {
           id: input.sessionID,

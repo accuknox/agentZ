@@ -699,7 +699,7 @@ export function migrateChatOverlay(
 function sessionInfoQueryOptions(agentName: string, sessionID: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClientV2(agentName)
       const result = await client.session.get({
         sessionID,
       })
@@ -719,7 +719,7 @@ function sessionInfoQueryOptions(agentName: string, sessionID: string) {
 function sessionMessagesQueryOptions(agentName: string, sessionID: string, directory: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClientV2(agentName)
       const result = await client.session.messages({
         directory,
         sessionID,
@@ -740,7 +740,7 @@ function sessionMessagesQueryOptions(agentName: string, sessionID: string, direc
 function sessionTreeQueryOptions(agentName: string, directory: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClientV2(agentName)
       const [sessionResult, questionResult, permissionResult] = await Promise.all([
         client.session.list({
           directory,
@@ -782,9 +782,6 @@ function sessionTreeQueryOptions(agentName: string, directory: string) {
 
 export function useOpencodeChat(agentName: string, sessionID?: string): UseOpencodeChatResult {
   const queryClient = useQueryClient()
-  const clientV2 = useMemo(() => {
-    return createAgentOpencodeClientV2(agentName)
-  }, [agentName])
   const [liveStore, setLiveStore] = useState<{
     key: string
     store: OpencodeChatStore
@@ -956,7 +953,8 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
     async function consume() {
       try {
-        const result = await clientV2.event.subscribe(
+        const client = await createAgentOpencodeClientV2(agentName)
+        const result = await client.event.subscribe(
           {
             directory,
           },
@@ -990,7 +988,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         clearTimeout(timer)
       }
     }
-  }, [clientV2, session.data?.directory, sessionID])
+  }, [agentName, session.data?.directory, sessionID])
 
   const messages = useMemo(() => {
     return sessionID ? (store.message[sessionID] ?? []) : []

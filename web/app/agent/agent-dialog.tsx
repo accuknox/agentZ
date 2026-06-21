@@ -282,7 +282,7 @@ export function AgentDialog({
           throw new Error("Agent name is required")
         }
 
-        const client = createAgentOpencodeClientV2(agentName)
+        const client = await createAgentOpencodeClientV2(agentName)
         const [providersResult, configResult] = await Promise.all([
           client.config.providers(),
           client.config.get(),

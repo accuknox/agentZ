@@ -405,7 +405,7 @@ function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
         return applySessionLifecycleEvent(sessions, chunk.event)
       },
       streamFn: async function* ({ signal }) {
-        const client = createAgentOpencodeClient(agentName)
+        const client = await createAgentOpencodeClient(agentName)
         const listResult = await client.session.list()
         if (!listResult.data) {
           throw new Error("Failed to load sessions")

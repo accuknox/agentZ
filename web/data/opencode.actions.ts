@@ -21,7 +21,7 @@ export async function deleteAgentSessionAction(
   }
 
   try {
-    const client = createAgentOpencodeClient(agentName)
+    const client = await createAgentOpencodeClient(agentName)
     const result = await client.session.delete({
       path: { id: sessionID },
     })

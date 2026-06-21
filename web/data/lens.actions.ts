@@ -127,7 +127,7 @@ export async function getTraceChartAction(
 export async function listTraceSessionFilterAction(
   agentName: string
 ): Promise<TraceSessionFilterActionResponse> {
-  const client = createAgentOpencodeClient(agentName)
+  const client = await createAgentOpencodeClient(agentName)
   const sessionListResult = await client.session.list()
   if (!sessionListResult.data) {
     return { data: [], error: undefined }

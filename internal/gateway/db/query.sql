@@ -2,45 +2,52 @@
 SELECT EXISTS(
   SELECT 1
   FROM agents
-  WHERE agent_name = $1
+  WHERE tenant_namespace = $1
+    AND agent_name = $2
 );
 
 -- name: GatewayCreateAgent :one
-INSERT INTO agents(agent_name)
-VALUES ($1)
-RETURNING agent_name, created_at, updated_at;
+INSERT INTO agents(tenant_namespace, agent_name)
+VALUES ($1, $2)
+RETURNING tenant_namespace, agent_name, created_at, updated_at;
 
 -- name: GatewayGetAgent :one
-SELECT agent_name, created_at, updated_at
+SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
-WHERE agent_name = $1;
+WHERE tenant_namespace = $1
+  AND agent_name = $2;
 
 -- name: GatewayDeleteAgent :execrows
 DELETE FROM agents
-WHERE agent_name = $1;
+WHERE tenant_namespace = $1
+  AND agent_name = $2;
 
 -- name: GatewayDeleteSessionTraces :execrows
 DELETE FROM observer_traces ot
-WHERE ot.agent_name = sqlc.arg(agent_name)
+WHERE ot.tenant_namespace = sqlc.arg(tenant_namespace)
+  AND ot.agent_name = sqlc.arg(agent_name)
   AND ot.trace_id IN (
     SELECT ots.trace_id
     FROM observer_trace_sessions ots
-    WHERE ots.agent_name = sqlc.arg(agent_name)
+    WHERE ots.tenant_namespace = sqlc.arg(tenant_namespace)
+      AND ots.agent_name = sqlc.arg(agent_name)
       AND ots.session_id = sqlc.arg(session_id)
   );
 
 -- name: GatewayListAgents :many
-SELECT agent_name, created_at, updated_at
+SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
-ORDER BY updated_at DESC, agent_name DESC
-LIMIT $1 OFFSET $2;
-
--- name: GatewayListAgentsByName :many
-SELECT agent_name, created_at, updated_at
-FROM agents
-WHERE agent_name = ANY($1::text[])
+WHERE tenant_namespace = $1
 ORDER BY updated_at DESC, agent_name DESC
 LIMIT $2 OFFSET $3;
+
+-- name: GatewayListAgentsByName :many
+SELECT tenant_namespace, agent_name, created_at, updated_at
+FROM agents
+WHERE tenant_namespace = $1
+  AND agent_name = ANY($2::text[])
+ORDER BY updated_at DESC, agent_name DESC
+LIMIT $3 OFFSET $4;
 
 -- name: GatewayListTraces :many
 SELECT
@@ -62,7 +69,8 @@ SELECT
   status_code,
   updated_at
 FROM observer_traces
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND started_at >= sqlc.arg(started_after)
   AND started_at <= sqlc.arg(started_before)
   AND (
@@ -97,7 +105,8 @@ SELECT
   status_code,
   updated_at
 FROM observer_trace_sessions
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND (
     sqlc.narg(session_id)::text IS NULL
     OR session_id = sqlc.narg(session_id)::text
@@ -130,7 +139,8 @@ WITH range_rows AS (
     COUNT(*) FILTER (WHERE NOT inv.failed)::BIGINT AS success_count,
     COUNT(*) FILTER (WHERE inv.failed)::BIGINT AS failed_count
   FROM observer_mcp_tool_invocations inv
-  WHERE inv.agent_name = sqlc.arg(agent_name)
+  WHERE inv.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND inv.agent_name = sqlc.arg(agent_name)
     AND inv.start_time >= sqlc.arg(start_time_after)
     AND inv.start_time < sqlc.arg(start_time_before)
   GROUP BY
@@ -148,7 +158,8 @@ SELECT
   observer_mcp_tool_last_called.last_called_at
 FROM range_rows
 LEFT JOIN observer_mcp_tool_last_called
-  ON observer_mcp_tool_last_called.agent_name = range_rows.agent_name
+  ON observer_mcp_tool_last_called.tenant_namespace = sqlc.arg(tenant_namespace)
+  AND observer_mcp_tool_last_called.agent_name = range_rows.agent_name
   AND observer_mcp_tool_last_called.mcp_connection_name = range_rows.mcp_connection_name
   AND observer_mcp_tool_last_called.tool_name = range_rows.tool_name
 ORDER BY
@@ -183,7 +194,8 @@ SELECT
   llm_finish_reason,
   ingested_at
 FROM observer_trace_spans
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND trace_id = sqlc.arg(trace_id)
   AND (
     NOT sqlc.arg(cursor_set)::bool
@@ -227,7 +239,8 @@ WITH span_row AS (
     span_attributes,
     ingested_at
   FROM observer_trace_spans sp
-  WHERE sp.agent_name = sqlc.arg(agent_name)
+  WHERE sp.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND sp.agent_name = sqlc.arg(agent_name)
     AND sp.trace_id = sqlc.arg(trace_id)
     AND sp.span_id = sqlc.arg(span_id)
   ORDER BY sp.start_time ASC, sp.id ASC
@@ -285,7 +298,8 @@ SELECT
   action,
   source
 FROM observer_process_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(event_time_after)
   AND event_time <= sqlc.arg(event_time_before)
   AND (
@@ -317,7 +331,8 @@ SELECT
   action,
   source
 FROM observer_file_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(event_time_after)
   AND event_time <= sqlc.arg(event_time_before)
   AND (
@@ -346,7 +361,8 @@ SELECT
   source,
   COUNT(*) AS occurrences
 FROM observer_process_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(event_time_after)
   AND event_time <= sqlc.arg(event_time_before)
   AND (
@@ -372,7 +388,8 @@ SELECT
   source,
   COUNT(*) AS occurrences
 FROM observer_file_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(event_time_after)
   AND event_time <= sqlc.arg(event_time_before)
   AND (
@@ -402,7 +419,8 @@ SELECT
   action,
   source
 FROM observer_network_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(event_time_after)
   AND event_time <= sqlc.arg(event_time_before)
   AND (
@@ -432,7 +450,8 @@ SELECT
   source,
   COUNT(*) AS occurrences
 FROM observer_network_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(event_time_after)
   AND event_time <= sqlc.arg(event_time_before)
   AND (

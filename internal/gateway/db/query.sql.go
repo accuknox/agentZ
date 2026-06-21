@@ -16,37 +16,59 @@ const gatewayAgentExists = `-- name: GatewayAgentExists :one
 SELECT EXISTS(
   SELECT 1
   FROM agents
-  WHERE agent_name = $1
+  WHERE tenant_namespace = $1
+    AND agent_name = $2
 )
 `
 
-func (q *Queries) GatewayAgentExists(ctx context.Context, agentName string) (bool, error) {
-	row := q.db.QueryRow(ctx, gatewayAgentExists, agentName)
+type GatewayAgentExistsParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayAgentExists(ctx context.Context, arg GatewayAgentExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayAgentExists, arg.TenantNamespace, arg.AgentName)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
 const gatewayCreateAgent = `-- name: GatewayCreateAgent :one
-INSERT INTO agents(agent_name)
-VALUES ($1)
-RETURNING agent_name, created_at, updated_at
+INSERT INTO agents(tenant_namespace, agent_name)
+VALUES ($1, $2)
+RETURNING tenant_namespace, agent_name, created_at, updated_at
 `
 
-func (q *Queries) GatewayCreateAgent(ctx context.Context, agentName string) (Agent, error) {
-	row := q.db.QueryRow(ctx, gatewayCreateAgent, agentName)
+type GatewayCreateAgentParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayCreateAgent(ctx context.Context, arg GatewayCreateAgentParams) (Agent, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateAgent, arg.TenantNamespace, arg.AgentName)
 	var i Agent
-	err := row.Scan(&i.AgentName, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
 const gatewayDeleteAgent = `-- name: GatewayDeleteAgent :execrows
 DELETE FROM agents
-WHERE agent_name = $1
+WHERE tenant_namespace = $1
+  AND agent_name = $2
 `
 
-func (q *Queries) GatewayDeleteAgent(ctx context.Context, agentName string) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayDeleteAgent, agentName)
+type GatewayDeleteAgentParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayDeleteAgent(ctx context.Context, arg GatewayDeleteAgentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteAgent, arg.TenantNamespace, arg.AgentName)
 	if err != nil {
 		return 0, err
 	}
@@ -55,22 +77,25 @@ func (q *Queries) GatewayDeleteAgent(ctx context.Context, agentName string) (int
 
 const gatewayDeleteSessionTraces = `-- name: GatewayDeleteSessionTraces :execrows
 DELETE FROM observer_traces ot
-WHERE ot.agent_name = $1
+WHERE ot.tenant_namespace = $1
+  AND ot.agent_name = $2
   AND ot.trace_id IN (
     SELECT ots.trace_id
     FROM observer_trace_sessions ots
-    WHERE ots.agent_name = $1
-      AND ots.session_id = $2
+    WHERE ots.tenant_namespace = $1
+      AND ots.agent_name = $2
+      AND ots.session_id = $3
   )
 `
 
 type GatewayDeleteSessionTracesParams struct {
-	AgentName string `json:"agent_name"`
-	SessionID string `json:"session_id"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	SessionID       string `json:"session_id"`
 }
 
 func (q *Queries) GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDeleteSessionTracesParams) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayDeleteSessionTraces, arg.AgentName, arg.SessionID)
+	result, err := q.db.Exec(ctx, gatewayDeleteSessionTraces, arg.TenantNamespace, arg.AgentName, arg.SessionID)
 	if err != nil {
 		return 0, err
 	}
@@ -78,15 +103,26 @@ func (q *Queries) GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDel
 }
 
 const gatewayGetAgent = `-- name: GatewayGetAgent :one
-SELECT agent_name, created_at, updated_at
+SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
-WHERE agent_name = $1
+WHERE tenant_namespace = $1
+  AND agent_name = $2
 `
 
-func (q *Queries) GatewayGetAgent(ctx context.Context, agentName string) (Agent, error) {
-	row := q.db.QueryRow(ctx, gatewayGetAgent, agentName)
+type GatewayGetAgentParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayGetAgent(ctx context.Context, arg GatewayGetAgentParams) (Agent, error) {
+	row := q.db.QueryRow(ctx, gatewayGetAgent, arg.TenantNamespace, arg.AgentName)
 	var i Agent
-	err := row.Scan(&i.AgentName, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -100,9 +136,10 @@ WITH range_rows AS (
     COUNT(*) FILTER (WHERE NOT inv.failed)::BIGINT AS success_count,
     COUNT(*) FILTER (WHERE inv.failed)::BIGINT AS failed_count
   FROM observer_mcp_tool_invocations inv
-  WHERE inv.agent_name = $1
-    AND inv.start_time >= $2
-    AND inv.start_time < $3
+  WHERE inv.tenant_namespace = $1
+    AND inv.agent_name = $2
+    AND inv.start_time >= $3
+    AND inv.start_time < $4
   GROUP BY
     inv.agent_name,
     inv.mcp_connection_name,
@@ -118,7 +155,8 @@ SELECT
   observer_mcp_tool_last_called.last_called_at
 FROM range_rows
 LEFT JOIN observer_mcp_tool_last_called
-  ON observer_mcp_tool_last_called.agent_name = range_rows.agent_name
+  ON observer_mcp_tool_last_called.tenant_namespace = $1
+  AND observer_mcp_tool_last_called.agent_name = range_rows.agent_name
   AND observer_mcp_tool_last_called.mcp_connection_name = range_rows.mcp_connection_name
   AND observer_mcp_tool_last_called.tool_name = range_rows.tool_name
 ORDER BY
@@ -127,6 +165,7 @@ ORDER BY
 `
 
 type GatewayGetMCPGraphParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	StartTimeAfter  time.Time `json:"start_time_after"`
 	StartTimeBefore time.Time `json:"start_time_before"`
@@ -143,7 +182,12 @@ type GatewayGetMCPGraphRow struct {
 }
 
 func (q *Queries) GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error) {
-	rows, err := q.db.Query(ctx, gatewayGetMCPGraph, arg.AgentName, arg.StartTimeAfter, arg.StartTimeBefore)
+	rows, err := q.db.Query(ctx, gatewayGetMCPGraph,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.StartTimeAfter,
+		arg.StartTimeBefore,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -201,9 +245,10 @@ WITH span_row AS (
     span_attributes,
     ingested_at
   FROM observer_trace_spans sp
-  WHERE sp.agent_name = $1
-    AND sp.trace_id = $2
-    AND sp.span_id = $3
+  WHERE sp.tenant_namespace = $1
+    AND sp.agent_name = $2
+    AND sp.trace_id = $3
+    AND sp.span_id = $4
   ORDER BY sp.start_time ASC, sp.id ASC
   LIMIT 1
 )
@@ -247,9 +292,10 @@ LEFT JOIN observer_trace_span_payloads p
 `
 
 type GatewayGetSpanDetailParams struct {
-	AgentName string `json:"agent_name"`
-	TraceID   []byte `json:"trace_id"`
-	SpanID    []byte `json:"span_id"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	TraceID         []byte `json:"trace_id"`
+	SpanID          []byte `json:"span_id"`
 }
 
 type GatewayGetSpanDetailRow struct {
@@ -287,7 +333,12 @@ type GatewayGetSpanDetailRow struct {
 }
 
 func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error) {
-	row := q.db.QueryRow(ctx, gatewayGetSpanDetail, arg.AgentName, arg.TraceID, arg.SpanID)
+	row := q.db.QueryRow(ctx, gatewayGetSpanDetail,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.TraceID,
+		arg.SpanID,
+	)
 	var i GatewayGetSpanDetailRow
 	err := row.Scan(
 		&i.ID,
@@ -326,19 +377,21 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 }
 
 const gatewayListAgents = `-- name: GatewayListAgents :many
-SELECT agent_name, created_at, updated_at
+SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
+WHERE tenant_namespace = $1
 ORDER BY updated_at DESC, agent_name DESC
-LIMIT $1 OFFSET $2
+LIMIT $2 OFFSET $3
 `
 
 type GatewayListAgentsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	TenantNamespace string `json:"tenant_namespace"`
+	Limit           int32  `json:"limit"`
+	Offset          int32  `json:"offset"`
 }
 
 func (q *Queries) GatewayListAgents(ctx context.Context, arg GatewayListAgentsParams) ([]Agent, error) {
-	rows, err := q.db.Query(ctx, gatewayListAgents, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, gatewayListAgents, arg.TenantNamespace, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +399,12 @@ func (q *Queries) GatewayListAgents(ctx context.Context, arg GatewayListAgentsPa
 	items := []Agent{}
 	for rows.Next() {
 		var i Agent
-		if err := rows.Scan(&i.AgentName, &i.CreatedAt, &i.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&i.TenantNamespace,
+			&i.AgentName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -358,21 +416,28 @@ func (q *Queries) GatewayListAgents(ctx context.Context, arg GatewayListAgentsPa
 }
 
 const gatewayListAgentsByName = `-- name: GatewayListAgentsByName :many
-SELECT agent_name, created_at, updated_at
+SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
-WHERE agent_name = ANY($1::text[])
+WHERE tenant_namespace = $1
+  AND agent_name = ANY($2::text[])
 ORDER BY updated_at DESC, agent_name DESC
-LIMIT $2 OFFSET $3
+LIMIT $3 OFFSET $4
 `
 
 type GatewayListAgentsByNameParams struct {
-	Column1 []string `json:"column_1"`
-	Limit   int32    `json:"limit"`
-	Offset  int32    `json:"offset"`
+	TenantNamespace string   `json:"tenant_namespace"`
+	Column2         []string `json:"column_2"`
+	Limit           int32    `json:"limit"`
+	Offset          int32    `json:"offset"`
 }
 
 func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAgentsByNameParams) ([]Agent, error) {
-	rows, err := q.db.Query(ctx, gatewayListAgentsByName, arg.Column1, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, gatewayListAgentsByName,
+		arg.TenantNamespace,
+		arg.Column2,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +445,12 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 	items := []Agent{}
 	for rows.Next() {
 		var i Agent
-		if err := rows.Scan(&i.AgentName, &i.CreatedAt, &i.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&i.TenantNamespace,
+			&i.AgentName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -405,26 +475,28 @@ SELECT
   action,
   source
 FROM observer_file_events
-WHERE agent_name = $1
-  AND event_time >= $2
-  AND event_time <= $3
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3
+  AND event_time <= $4
   AND (
-    $4::text = ''
-    OR action = $4
+    $5::text = ''
+    OR action = $5
   )
   AND (
-    NOT $5::bool
-    OR event_time < $6
+    NOT $6::bool
+    OR event_time < $7
     OR (
-      event_time = $6
-      AND id < $7
+      event_time = $7
+      AND id < $8
     )
   )
 ORDER BY event_time DESC, id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type GatewayListFileEventsParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	EventTimeAfter  time.Time `json:"event_time_after"`
 	EventTimeBefore time.Time `json:"event_time_before"`
@@ -435,8 +507,23 @@ type GatewayListFileEventsParams struct {
 	PageSize        int32     `json:"page_size"`
 }
 
-func (q *Queries) GatewayListFileEvents(ctx context.Context, arg GatewayListFileEventsParams) ([]ObserverFileEvent, error) {
+type GatewayListFileEventsRow struct {
+	ID                int64     `json:"id"`
+	AgentName         string    `json:"agent_name"`
+	EventTime         time.Time `json:"event_time"`
+	IngestedAt        time.Time `json:"ingested_at"`
+	PodNamespace      string    `json:"pod_namespace"`
+	PodName           string    `json:"pod_name"`
+	FilePathAccessed  string    `json:"file_path_accessed"`
+	Process           string    `json:"process"`
+	CommandInvocation string    `json:"command_invocation"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+}
+
+func (q *Queries) GatewayListFileEvents(ctx context.Context, arg GatewayListFileEventsParams) ([]GatewayListFileEventsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListFileEvents,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.EventTimeAfter,
 		arg.EventTimeBefore,
@@ -450,9 +537,9 @@ func (q *Queries) GatewayListFileEvents(ctx context.Context, arg GatewayListFile
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ObserverFileEvent{}
+	items := []GatewayListFileEventsRow{}
 	for rows.Next() {
-		var i ObserverFileEvent
+		var i GatewayListFileEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentName,
@@ -487,23 +574,25 @@ SELECT
   source,
   COUNT(*) AS occurrences
 FROM observer_file_events
-WHERE agent_name = $1
-  AND event_time >= $2
-  AND event_time <= $3
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3
+  AND event_time <= $4
   AND (
-    $4::text = ''
-    OR action = $4
+    $5::text = ''
+    OR action = $5
   )
 GROUP BY agent_name, file_path_accessed, process, command_invocation, action, source
 HAVING (
-  NOT $5::bool
-  OR MAX(event_time) < $6
+  NOT $6::bool
+  OR MAX(event_time) < $7
 )
 ORDER BY MAX(event_time) DESC
-LIMIT $7
+LIMIT $8
 `
 
 type GatewayListFileEventsAggregatedParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	EventTimeAfter  time.Time `json:"event_time_after"`
 	EventTimeBefore time.Time `json:"event_time_before"`
@@ -526,6 +615,7 @@ type GatewayListFileEventsAggregatedRow struct {
 
 func (q *Queries) GatewayListFileEventsAggregated(ctx context.Context, arg GatewayListFileEventsAggregatedParams) ([]GatewayListFileEventsAggregatedRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListFileEventsAggregated,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.EventTimeAfter,
 		arg.EventTimeBefore,
@@ -576,26 +666,28 @@ SELECT
   action,
   source
 FROM observer_network_events
-WHERE agent_name = $1
-  AND event_time >= $2
-  AND event_time <= $3
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3
+  AND event_time <= $4
   AND (
-    $4::text = ''
-    OR action = $4
+    $5::text = ''
+    OR action = $5
   )
   AND (
-    NOT $5::bool
-    OR event_time < $6
+    NOT $6::bool
+    OR event_time < $7
     OR (
-      event_time = $6
-      AND id < $7
+      event_time = $7
+      AND id < $8
     )
   )
 ORDER BY event_time DESC, id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type GatewayListNetworkEventsParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	EventTimeAfter  time.Time `json:"event_time_after"`
 	EventTimeBefore time.Time `json:"event_time_before"`
@@ -606,8 +698,24 @@ type GatewayListNetworkEventsParams struct {
 	PageSize        int32     `json:"page_size"`
 }
 
-func (q *Queries) GatewayListNetworkEvents(ctx context.Context, arg GatewayListNetworkEventsParams) ([]ObserverNetworkEvent, error) {
+type GatewayListNetworkEventsRow struct {
+	ID                int64     `json:"id"`
+	AgentName         string    `json:"agent_name"`
+	EventTime         time.Time `json:"event_time"`
+	IngestedAt        time.Time `json:"ingested_at"`
+	PodNamespace      string    `json:"pod_namespace"`
+	PodName           string    `json:"pod_name"`
+	DestinationDomain string    `json:"destination_domain"`
+	DestinationIp     string    `json:"destination_ip"`
+	DestinationPort   int64     `json:"destination_port"`
+	Protocol          string    `json:"protocol"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+}
+
+func (q *Queries) GatewayListNetworkEvents(ctx context.Context, arg GatewayListNetworkEventsParams) ([]GatewayListNetworkEventsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListNetworkEvents,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.EventTimeAfter,
 		arg.EventTimeBefore,
@@ -621,9 +729,9 @@ func (q *Queries) GatewayListNetworkEvents(ctx context.Context, arg GatewayListN
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ObserverNetworkEvent{}
+	items := []GatewayListNetworkEventsRow{}
 	for rows.Next() {
-		var i ObserverNetworkEvent
+		var i GatewayListNetworkEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentName,
@@ -660,24 +768,26 @@ SELECT
   source,
   COUNT(*) AS occurrences
 FROM observer_network_events
-WHERE agent_name = $1
-  AND event_time >= $2
-  AND event_time <= $3
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3
+  AND event_time <= $4
   AND (
-    $4::text = ''
-    OR action = $4
+    $5::text = ''
+    OR action = $5
   )
 GROUP BY agent_name, destination_domain, destination_ip, destination_port,
          protocol, action, source
 HAVING (
-  NOT $5::bool
-  OR MAX(event_time) < $6
+  NOT $6::bool
+  OR MAX(event_time) < $7
 )
 ORDER BY MAX(event_time) DESC
-LIMIT $7
+LIMIT $8
 `
 
 type GatewayListNetworkEventsAggregatedParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	EventTimeAfter  time.Time `json:"event_time_after"`
 	EventTimeBefore time.Time `json:"event_time_before"`
@@ -701,6 +811,7 @@ type GatewayListNetworkEventsAggregatedRow struct {
 
 func (q *Queries) GatewayListNetworkEventsAggregated(ctx context.Context, arg GatewayListNetworkEventsAggregatedParams) ([]GatewayListNetworkEventsAggregatedRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListNetworkEventsAggregated,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.EventTimeAfter,
 		arg.EventTimeBefore,
@@ -751,26 +862,28 @@ SELECT
   action,
   source
 FROM observer_process_events
-WHERE agent_name = $1
-  AND event_time >= $2
-  AND event_time <= $3
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3
+  AND event_time <= $4
   AND (
-    $4::text = ''
-    OR action = $4
+    $5::text = ''
+    OR action = $5
   )
   AND (
-    NOT $5::bool
-    OR event_time < $6
+    NOT $6::bool
+    OR event_time < $7
     OR (
-      event_time = $6
-      AND id < $7
+      event_time = $7
+      AND id < $8
     )
   )
 ORDER BY event_time DESC, id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type GatewayListProcessEventsParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	EventTimeAfter  time.Time `json:"event_time_after"`
 	EventTimeBefore time.Time `json:"event_time_before"`
@@ -781,8 +894,23 @@ type GatewayListProcessEventsParams struct {
 	PageSize        int32     `json:"page_size"`
 }
 
-func (q *Queries) GatewayListProcessEvents(ctx context.Context, arg GatewayListProcessEventsParams) ([]ObserverProcessEvent, error) {
+type GatewayListProcessEventsRow struct {
+	ID                int64     `json:"id"`
+	AgentName         string    `json:"agent_name"`
+	EventTime         time.Time `json:"event_time"`
+	IngestedAt        time.Time `json:"ingested_at"`
+	PodNamespace      string    `json:"pod_namespace"`
+	PodName           string    `json:"pod_name"`
+	Process           string    `json:"process"`
+	ParentProcess     string    `json:"parent_process"`
+	CommandInvocation string    `json:"command_invocation"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+}
+
+func (q *Queries) GatewayListProcessEvents(ctx context.Context, arg GatewayListProcessEventsParams) ([]GatewayListProcessEventsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListProcessEvents,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.EventTimeAfter,
 		arg.EventTimeBefore,
@@ -796,9 +924,9 @@ func (q *Queries) GatewayListProcessEvents(ctx context.Context, arg GatewayListP
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ObserverProcessEvent{}
+	items := []GatewayListProcessEventsRow{}
 	for rows.Next() {
-		var i ObserverProcessEvent
+		var i GatewayListProcessEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentName,
@@ -833,23 +961,25 @@ SELECT
   source,
   COUNT(*) AS occurrences
 FROM observer_process_events
-WHERE agent_name = $1
-  AND event_time >= $2
-  AND event_time <= $3
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3
+  AND event_time <= $4
   AND (
-    $4::text = ''
-    OR action = $4
+    $5::text = ''
+    OR action = $5
   )
 GROUP BY agent_name, process, parent_process, command_invocation, action, source
 HAVING (
-  NOT $5::bool
-  OR MAX(event_time) < $6
+  NOT $6::bool
+  OR MAX(event_time) < $7
 )
 ORDER BY MAX(event_time) DESC
-LIMIT $7
+LIMIT $8
 `
 
 type GatewayListProcessEventsAggregatedParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	EventTimeAfter  time.Time `json:"event_time_after"`
 	EventTimeBefore time.Time `json:"event_time_before"`
@@ -872,6 +1002,7 @@ type GatewayListProcessEventsAggregatedRow struct {
 
 func (q *Queries) GatewayListProcessEventsAggregated(ctx context.Context, arg GatewayListProcessEventsAggregatedParams) ([]GatewayListProcessEventsAggregatedRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListProcessEventsAggregated,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.EventTimeAfter,
 		arg.EventTimeBefore,
@@ -935,21 +1066,23 @@ SELECT
   llm_finish_reason,
   ingested_at
 FROM observer_trace_spans
-WHERE agent_name = $1
-  AND trace_id = $2
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND trace_id = $3
   AND (
-    NOT $3::bool
-    OR start_time > $4
+    NOT $4::bool
+    OR start_time > $5
     OR (
-      start_time = $4
-      AND id > $5
+      start_time = $5
+      AND id > $6
     )
   )
 ORDER BY start_time ASC, id ASC
-LIMIT $6
+LIMIT $7
 `
 
 type GatewayListSpansParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	TraceID         []byte    `json:"trace_id"`
 	CursorSet       bool      `json:"cursor_set"`
@@ -988,6 +1121,7 @@ type GatewayListSpansRow struct {
 
 func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansParams) ([]GatewayListSpansRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListSpans,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.TraceID,
 		arg.CursorSet,
@@ -1060,31 +1194,33 @@ SELECT
   status_code,
   updated_at
 FROM observer_trace_sessions
-WHERE agent_name = $1
+WHERE tenant_namespace = $1
+  AND agent_name = $2
   AND (
-    $2::text IS NULL
-    OR session_id = $2::text
+    $3::text IS NULL
+    OR session_id = $3::text
   )
-  AND started_at >= $3
-  AND started_at <= $4
+  AND started_at >= $4
+  AND started_at <= $5
   AND (
-    NOT $5::bool
-    OR started_at < $6
+    NOT $6::bool
+    OR started_at < $7
     OR (
-      started_at = $6
-      AND trace_id < $7
+      started_at = $7
+      AND trace_id < $8
     )
     OR (
-      started_at = $6
-      AND trace_id = $7
-      AND session_id < $8
+      started_at = $7
+      AND trace_id = $8
+      AND session_id < $9
     )
   )
 ORDER BY started_at DESC, trace_id DESC, session_id DESC
-LIMIT $9
+LIMIT $10
 `
 
 type GatewayListTraceSessionsParams struct {
+	TenantNamespace string      `json:"tenant_namespace"`
 	AgentName       string      `json:"agent_name"`
 	SessionID       pgtype.Text `json:"session_id"`
 	StartedAfter    time.Time   `json:"started_after"`
@@ -1096,8 +1232,30 @@ type GatewayListTraceSessionsParams struct {
 	PageSize        int32       `json:"page_size"`
 }
 
-func (q *Queries) GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]ObserverTraceSession, error) {
+type GatewayListTraceSessionsRow struct {
+	TraceID           []byte    `json:"trace_id"`
+	SessionID         string    `json:"session_id"`
+	AgentName         string    `json:"agent_name"`
+	RootSpanID        []byte    `json:"root_span_id"`
+	StartedAt         time.Time `json:"started_at"`
+	EndedAt           time.Time `json:"ended_at"`
+	DurationNs        int64     `json:"duration_ns"`
+	SpanCount         int64     `json:"span_count"`
+	ErrorCount        int64     `json:"error_count"`
+	ToolCount         int64     `json:"tool_count"`
+	ModelCount        int64     `json:"model_count"`
+	InputTokens       int64     `json:"input_tokens"`
+	OutputTokens      int64     `json:"output_tokens"`
+	CachedInputTokens int64     `json:"cached_input_tokens"`
+	CachedWriteTokens int64     `json:"cached_write_tokens"`
+	CostUsd           float64   `json:"cost_usd"`
+	StatusCode        string    `json:"status_code"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+func (q *Queries) GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]GatewayListTraceSessionsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListTraceSessions,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.SessionID,
 		arg.StartedAfter,
@@ -1112,9 +1270,9 @@ func (q *Queries) GatewayListTraceSessions(ctx context.Context, arg GatewayListT
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ObserverTraceSession{}
+	items := []GatewayListTraceSessionsRow{}
 	for rows.Next() {
-		var i ObserverTraceSession
+		var i GatewayListTraceSessionsRow
 		if err := rows.Scan(
 			&i.TraceID,
 			&i.SessionID,
@@ -1165,22 +1323,24 @@ SELECT
   status_code,
   updated_at
 FROM observer_traces
-WHERE agent_name = $1
-  AND started_at >= $2
-  AND started_at <= $3
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND started_at >= $3
+  AND started_at <= $4
   AND (
-    NOT $4::bool
-    OR started_at < $5
+    NOT $5::bool
+    OR started_at < $6
     OR (
-      started_at = $5
-      AND trace_id < $6
+      started_at = $6
+      AND trace_id < $7
     )
   )
 ORDER BY started_at DESC, trace_id DESC
-LIMIT $7
+LIMIT $8
 `
 
 type GatewayListTracesParams struct {
+	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
 	StartedAfter    time.Time `json:"started_after"`
 	StartedBefore   time.Time `json:"started_before"`
@@ -1190,8 +1350,29 @@ type GatewayListTracesParams struct {
 	PageSize        int32     `json:"page_size"`
 }
 
-func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]ObserverTrace, error) {
+type GatewayListTracesRow struct {
+	TraceID           []byte    `json:"trace_id"`
+	AgentName         string    `json:"agent_name"`
+	RootSpanID        []byte    `json:"root_span_id"`
+	StartedAt         time.Time `json:"started_at"`
+	EndedAt           time.Time `json:"ended_at"`
+	DurationNs        int64     `json:"duration_ns"`
+	SpanCount         int64     `json:"span_count"`
+	ErrorCount        int64     `json:"error_count"`
+	ToolCount         int64     `json:"tool_count"`
+	ModelCount        int64     `json:"model_count"`
+	InputTokens       int64     `json:"input_tokens"`
+	OutputTokens      int64     `json:"output_tokens"`
+	CachedInputTokens int64     `json:"cached_input_tokens"`
+	CachedWriteTokens int64     `json:"cached_write_tokens"`
+	CostUsd           float64   `json:"cost_usd"`
+	StatusCode        string    `json:"status_code"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]GatewayListTracesRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListTraces,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.StartedAfter,
 		arg.StartedBefore,
@@ -1204,9 +1385,9 @@ func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesPa
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ObserverTrace{}
+	items := []GatewayListTracesRow{}
 	for rows.Next() {
-		var i ObserverTrace
+		var i GatewayListTracesRow
 		if err := rows.Scan(
 			&i.TraceID,
 			&i.AgentName,

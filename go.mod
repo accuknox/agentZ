@@ -4,6 +4,7 @@ go 1.26.4
 
 require (
 	github.com/agentgateway/agentgateway v1.2.1
+	github.com/cert-manager/cert-manager v1.19.1
 	github.com/cilium/cilium v1.19.3
 	github.com/envoyproxy/go-control-plane/envoy v1.37.1-0.20260425030550-64b2e46d9ebf
 	github.com/getkin/kin-openapi v0.140.0

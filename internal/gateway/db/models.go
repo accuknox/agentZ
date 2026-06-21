@@ -9,13 +9,15 @@ import (
 )
 
 type Agent struct {
-	AgentName string    `json:"agent_name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type ObserverFileEvent struct {
 	ID                int64     `json:"id"`
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	EventTime         time.Time `json:"event_time"`
 	IngestedAt        time.Time `json:"ingested_at"`
@@ -30,6 +32,7 @@ type ObserverFileEvent struct {
 
 type ObserverMcpToolInvocation struct {
 	ID                int64     `json:"id"`
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	TraceID           []byte    `json:"trace_id"`
 	SpanID            []byte    `json:"span_id"`
@@ -45,6 +48,7 @@ type ObserverMcpToolInvocation struct {
 
 type ObserverMcpToolInvocationsDefault struct {
 	ID                int64     `json:"id"`
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	TraceID           []byte    `json:"trace_id"`
 	SpanID            []byte    `json:"span_id"`
@@ -59,6 +63,7 @@ type ObserverMcpToolInvocationsDefault struct {
 }
 
 type ObserverMcpToolLastCalled struct {
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	McpConnectionName string    `json:"mcp_connection_name"`
 	ToolName          string    `json:"tool_name"`
@@ -68,6 +73,7 @@ type ObserverMcpToolLastCalled struct {
 
 type ObserverNetworkEvent struct {
 	ID                int64     `json:"id"`
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	EventTime         time.Time `json:"event_time"`
 	IngestedAt        time.Time `json:"ingested_at"`
@@ -83,6 +89,7 @@ type ObserverNetworkEvent struct {
 
 type ObserverProcessEvent struct {
 	ID                int64     `json:"id"`
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	EventTime         time.Time `json:"event_time"`
 	IngestedAt        time.Time `json:"ingested_at"`
@@ -97,6 +104,7 @@ type ObserverProcessEvent struct {
 
 type ObserverTrace struct {
 	TraceID           []byte    `json:"trace_id"`
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	RootSpanID        []byte    `json:"root_span_id"`
 	StartedAt         time.Time `json:"started_at"`
@@ -118,6 +126,7 @@ type ObserverTrace struct {
 type ObserverTraceSession struct {
 	TraceID           []byte    `json:"trace_id"`
 	SessionID         string    `json:"session_id"`
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	RootSpanID        []byte    `json:"root_span_id"`
 	StartedAt         time.Time `json:"started_at"`
@@ -138,6 +147,7 @@ type ObserverTraceSession struct {
 
 type ObserverTraceSpan struct {
 	ID                 int64     `json:"id"`
+	TenantNamespace    string    `json:"tenant_namespace"`
 	AgentName          string    `json:"agent_name"`
 	SessionID          string    `json:"session_id"`
 	TraceID            []byte    `json:"trace_id"`
@@ -188,6 +198,7 @@ type ObserverTraceSpanPayloadsDefault struct {
 
 type ObserverTraceSpansDefault struct {
 	ID                 int64     `json:"id"`
+	TenantNamespace    string    `json:"tenant_namespace"`
 	AgentName          string    `json:"agent_name"`
 	SessionID          string    `json:"session_id"`
 	TraceID            []byte    `json:"trace_id"`

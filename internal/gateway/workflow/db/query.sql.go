@@ -12,6 +12,7 @@ import (
 
 const workflowCreate = `-- name: WorkflowCreate :one
 INSERT INTO workflows(
+  tenant_namespace,
   agent_name,
   workflow_name,
   title,
@@ -23,9 +24,11 @@ VALUES (
   $2,
   $3,
   $4,
-  $5::jsonb
+  $5,
+  $6::jsonb
 )
 RETURNING
+  tenant_namespace,
   agent_name,
   workflow_name,
   title,
@@ -36,15 +39,17 @@ RETURNING
 `
 
 type WorkflowCreateParams struct {
-	AgentName    string `json:"agent_name"`
-	WorkflowName string `json:"workflow_name"`
-	Title        string `json:"title"`
-	Summary      string `json:"summary"`
-	InputSchema  []byte `json:"input_schema"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	Title           string `json:"title"`
+	Summary         string `json:"summary"`
+	InputSchema     []byte `json:"input_schema"`
 }
 
 func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error) {
 	row := q.db.QueryRow(ctx, workflowCreate,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.WorkflowName,
 		arg.Title,
@@ -53,6 +58,7 @@ func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) 
 	)
 	var i Workflow
 	err := row.Scan(
+		&i.TenantNamespace,
 		&i.AgentName,
 		&i.WorkflowName,
 		&i.Title,
@@ -66,6 +72,7 @@ func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) 
 
 const workflowCreateEdges = `-- name: WorkflowCreateEdges :exec
 INSERT INTO workflow_edges(
+  tenant_namespace,
   agent_name,
   workflow_name,
   source_node_name,
@@ -77,12 +84,13 @@ INSERT INTO workflow_edges(
 SELECT
   $1::text,
   $2::text,
+  $3::text,
   e.source_node_name,
   e.target_node_name,
   e.ordinal,
   e.branch_label,
   e.condition_summary
-FROM jsonb_to_recordset($3::jsonb) AS e(
+FROM jsonb_to_recordset($4::jsonb) AS e(
   source_node_name text,
   target_node_name text,
   ordinal int,
@@ -92,18 +100,25 @@ FROM jsonb_to_recordset($3::jsonb) AS e(
 `
 
 type WorkflowCreateEdgesParams struct {
-	AgentName    string `json:"agent_name"`
-	WorkflowName string `json:"workflow_name"`
-	Edges        []byte `json:"edges"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	Edges           []byte `json:"edges"`
 }
 
 func (q *Queries) WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error {
-	_, err := q.db.Exec(ctx, workflowCreateEdges, arg.AgentName, arg.WorkflowName, arg.Edges)
+	_, err := q.db.Exec(ctx, workflowCreateEdges,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+		arg.Edges,
+	)
 	return err
 }
 
 const workflowCreateNodes = `-- name: WorkflowCreateNodes :exec
 INSERT INTO workflow_nodes(
+  tenant_namespace,
   agent_name,
   workflow_name,
   node_name,
@@ -115,12 +130,13 @@ INSERT INTO workflow_nodes(
 SELECT
   $1::text,
   $2::text,
+  $3::text,
   n.node_name,
   n.ordinal,
   n.instructions,
   n.goal,
   n.done_criteria
-FROM jsonb_to_recordset($3::jsonb) AS n(
+FROM jsonb_to_recordset($4::jsonb) AS n(
   node_name text,
   ordinal int,
   instructions text,
@@ -130,18 +146,25 @@ FROM jsonb_to_recordset($3::jsonb) AS n(
 `
 
 type WorkflowCreateNodesParams struct {
-	AgentName    string `json:"agent_name"`
-	WorkflowName string `json:"workflow_name"`
-	Nodes        []byte `json:"nodes"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	Nodes           []byte `json:"nodes"`
 }
 
 func (q *Queries) WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNodesParams) error {
-	_, err := q.db.Exec(ctx, workflowCreateNodes, arg.AgentName, arg.WorkflowName, arg.Nodes)
+	_, err := q.db.Exec(ctx, workflowCreateNodes,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+		arg.Nodes,
+	)
 	return err
 }
 
 const workflowCreatePreferredTools = `-- name: WorkflowCreatePreferredTools :exec
 INSERT INTO workflow_node_preferred_tools(
+  tenant_namespace,
   agent_name,
   workflow_name,
   node_name,
@@ -151,10 +174,11 @@ INSERT INTO workflow_node_preferred_tools(
 SELECT
   $1::text,
   $2::text,
+  $3::text,
   t.node_name,
   t.ordinal,
   t.tool_name
-FROM jsonb_to_recordset($3::jsonb) AS t(
+FROM jsonb_to_recordset($4::jsonb) AS t(
   node_name text,
   ordinal int,
   tool_name text
@@ -162,29 +186,37 @@ FROM jsonb_to_recordset($3::jsonb) AS t(
 `
 
 type WorkflowCreatePreferredToolsParams struct {
-	AgentName      string `json:"agent_name"`
-	WorkflowName   string `json:"workflow_name"`
-	PreferredTools []byte `json:"preferred_tools"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	PreferredTools  []byte `json:"preferred_tools"`
 }
 
 func (q *Queries) WorkflowCreatePreferredTools(ctx context.Context, arg WorkflowCreatePreferredToolsParams) error {
-	_, err := q.db.Exec(ctx, workflowCreatePreferredTools, arg.AgentName, arg.WorkflowName, arg.PreferredTools)
+	_, err := q.db.Exec(ctx, workflowCreatePreferredTools,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+		arg.PreferredTools,
+	)
 	return err
 }
 
 const workflowDeleteMany = `-- name: WorkflowDeleteMany :execrows
 DELETE FROM workflows
-WHERE agent_name = $1
-  AND workflow_name = ANY($2::text[])
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND workflow_name = ANY($3::text[])
 `
 
 type WorkflowDeleteManyParams struct {
-	AgentName     string   `json:"agent_name"`
-	WorkflowNames []string `json:"workflow_names"`
+	TenantNamespace string   `json:"tenant_namespace"`
+	AgentName       string   `json:"agent_name"`
+	WorkflowNames   []string `json:"workflow_names"`
 }
 
 func (q *Queries) WorkflowDeleteMany(ctx context.Context, arg WorkflowDeleteManyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, workflowDeleteMany, arg.AgentName, arg.WorkflowNames)
+	result, err := q.db.Exec(ctx, workflowDeleteMany, arg.TenantNamespace, arg.AgentName, arg.WorkflowNames)
 	if err != nil {
 		return 0, err
 	}
@@ -193,6 +225,7 @@ func (q *Queries) WorkflowDeleteMany(ctx context.Context, arg WorkflowDeleteMany
 
 const workflowGet = `-- name: WorkflowGet :one
 SELECT
+  tenant_namespace,
   agent_name,
   workflow_name,
   title,
@@ -201,19 +234,22 @@ SELECT
   created_at,
   updated_at
 FROM workflows
-WHERE agent_name = $1
-  AND workflow_name = $2
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND workflow_name = $3
 `
 
 type WorkflowGetParams struct {
-	AgentName    string `json:"agent_name"`
-	WorkflowName string `json:"workflow_name"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
 }
 
 func (q *Queries) WorkflowGet(ctx context.Context, arg WorkflowGetParams) (Workflow, error) {
-	row := q.db.QueryRow(ctx, workflowGet, arg.AgentName, arg.WorkflowName)
+	row := q.db.QueryRow(ctx, workflowGet, arg.TenantNamespace, arg.AgentName, arg.WorkflowName)
 	var i Workflow
 	err := row.Scan(
+		&i.TenantNamespace,
 		&i.AgentName,
 		&i.WorkflowName,
 		&i.Title,
@@ -228,6 +264,7 @@ func (q *Queries) WorkflowGet(ctx context.Context, arg WorkflowGetParams) (Workf
 const workflowListEdges = `-- name: WorkflowListEdges :many
 SELECT
   id,
+  tenant_namespace,
   agent_name,
   workflow_name,
   source_node_name,
@@ -237,18 +274,20 @@ SELECT
   condition_summary,
   created_at
 FROM workflow_edges
-WHERE agent_name = $1
-  AND workflow_name = $2
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND workflow_name = $3
 ORDER BY ordinal ASC, id ASC
 `
 
 type WorkflowListEdgesParams struct {
-	AgentName    string `json:"agent_name"`
-	WorkflowName string `json:"workflow_name"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
 }
 
 func (q *Queries) WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesParams) ([]WorkflowEdge, error) {
-	rows, err := q.db.Query(ctx, workflowListEdges, arg.AgentName, arg.WorkflowName)
+	rows, err := q.db.Query(ctx, workflowListEdges, arg.TenantNamespace, arg.AgentName, arg.WorkflowName)
 	if err != nil {
 		return nil, err
 	}
@@ -258,6 +297,7 @@ func (q *Queries) WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesPa
 		var i WorkflowEdge
 		if err := rows.Scan(
 			&i.ID,
+			&i.TenantNamespace,
 			&i.AgentName,
 			&i.WorkflowName,
 			&i.SourceNodeName,
@@ -280,19 +320,21 @@ func (q *Queries) WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesPa
 const workflowListExistingNames = `-- name: WorkflowListExistingNames :many
 SELECT workflow_name
 FROM workflows
-WHERE agent_name = $1
-  AND workflow_name = ANY($2::text[])
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND workflow_name = ANY($3::text[])
 ORDER BY workflow_name ASC
 FOR UPDATE
 `
 
 type WorkflowListExistingNamesParams struct {
-	AgentName     string   `json:"agent_name"`
-	WorkflowNames []string `json:"workflow_names"`
+	TenantNamespace string   `json:"tenant_namespace"`
+	AgentName       string   `json:"agent_name"`
+	WorkflowNames   []string `json:"workflow_names"`
 }
 
 func (q *Queries) WorkflowListExistingNames(ctx context.Context, arg WorkflowListExistingNamesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, workflowListExistingNames, arg.AgentName, arg.WorkflowNames)
+	rows, err := q.db.Query(ctx, workflowListExistingNames, arg.TenantNamespace, arg.AgentName, arg.WorkflowNames)
 	if err != nil {
 		return nil, err
 	}
@@ -313,6 +355,7 @@ func (q *Queries) WorkflowListExistingNames(ctx context.Context, arg WorkflowLis
 
 const workflowListNodes = `-- name: WorkflowListNodes :many
 SELECT
+  tenant_namespace,
   agent_name,
   workflow_name,
   node_name,
@@ -323,18 +366,20 @@ SELECT
   created_at,
   updated_at
 FROM workflow_nodes
-WHERE agent_name = $1
-  AND workflow_name = $2
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND workflow_name = $3
 ORDER BY ordinal ASC, node_name ASC
 `
 
 type WorkflowListNodesParams struct {
-	AgentName    string `json:"agent_name"`
-	WorkflowName string `json:"workflow_name"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
 }
 
 func (q *Queries) WorkflowListNodes(ctx context.Context, arg WorkflowListNodesParams) ([]WorkflowNode, error) {
-	rows, err := q.db.Query(ctx, workflowListNodes, arg.AgentName, arg.WorkflowName)
+	rows, err := q.db.Query(ctx, workflowListNodes, arg.TenantNamespace, arg.AgentName, arg.WorkflowName)
 	if err != nil {
 		return nil, err
 	}
@@ -343,6 +388,7 @@ func (q *Queries) WorkflowListNodes(ctx context.Context, arg WorkflowListNodesPa
 	for rows.Next() {
 		var i WorkflowNode
 		if err := rows.Scan(
+			&i.TenantNamespace,
 			&i.AgentName,
 			&i.WorkflowName,
 			&i.NodeName,
@@ -365,24 +411,27 @@ func (q *Queries) WorkflowListNodes(ctx context.Context, arg WorkflowListNodesPa
 
 const workflowListPreferredTools = `-- name: WorkflowListPreferredTools :many
 SELECT
+  tenant_namespace,
   agent_name,
   workflow_name,
   node_name,
   ordinal,
   tool_name
 FROM workflow_node_preferred_tools
-WHERE agent_name = $1
-  AND workflow_name = $2
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND workflow_name = $3
 ORDER BY node_name ASC, ordinal ASC
 `
 
 type WorkflowListPreferredToolsParams struct {
-	AgentName    string `json:"agent_name"`
-	WorkflowName string `json:"workflow_name"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
 }
 
 func (q *Queries) WorkflowListPreferredTools(ctx context.Context, arg WorkflowListPreferredToolsParams) ([]WorkflowNodePreferredTool, error) {
-	rows, err := q.db.Query(ctx, workflowListPreferredTools, arg.AgentName, arg.WorkflowName)
+	rows, err := q.db.Query(ctx, workflowListPreferredTools, arg.TenantNamespace, arg.AgentName, arg.WorkflowName)
 	if err != nil {
 		return nil, err
 	}
@@ -391,6 +440,7 @@ func (q *Queries) WorkflowListPreferredTools(ctx context.Context, arg WorkflowLi
 	for rows.Next() {
 		var i WorkflowNodePreferredTool
 		if err := rows.Scan(
+			&i.TenantNamespace,
 			&i.AgentName,
 			&i.WorkflowName,
 			&i.NodeName,
@@ -414,9 +464,15 @@ SELECT
   summary,
   updated_at
 FROM workflows
-WHERE agent_name = $1
+WHERE tenant_namespace = $1
+  AND agent_name = $2
 ORDER BY updated_at DESC, workflow_name ASC
 `
+
+type WorkflowListSummariesParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
 
 type WorkflowListSummariesRow struct {
 	WorkflowName string    `json:"workflow_name"`
@@ -425,8 +481,8 @@ type WorkflowListSummariesRow struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-func (q *Queries) WorkflowListSummaries(ctx context.Context, agentName string) ([]WorkflowListSummariesRow, error) {
-	rows, err := q.db.Query(ctx, workflowListSummaries, agentName)
+func (q *Queries) WorkflowListSummaries(ctx context.Context, arg WorkflowListSummariesParams) ([]WorkflowListSummariesRow, error) {
+	rows, err := q.db.Query(ctx, workflowListSummaries, arg.TenantNamespace, arg.AgentName)
 	if err != nil {
 		return nil, err
 	}

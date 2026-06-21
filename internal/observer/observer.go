@@ -91,7 +91,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	evCh := make(chan event, cfg.BatchSize*4)
 	stats := &stats{}
 	sink := &sink{
-		store:  &dbStore{pool: pool},
+		store:  &dbStore{namespace: cfg.Namespace, pool: pool},
 		stats:  stats,
 		cfg:    cfg,
 		events: evCh,

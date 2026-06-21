@@ -69,7 +69,6 @@ run-manager:
 	kubectl -n default create token default --duration=24h > /tmp/sa-token
 	go run ./cmd/clawarmor manager \
 		--health-probe-bind-address=:8888 \
-		--watch-namespace=default \
 		--enable-webhooks=false \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
@@ -77,9 +76,12 @@ run-manager:
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
 		--manager-openbao-k8s-auth-role=manager \
-		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
+		--manager-k8s-service-account-token-path=/tmp/sa-token \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=nix-store \
+		--tenant-nix-store-size=5Gi \
+		--tenant-nix-store-access-mode=ReadWriteOnce \
+		--tenant-sinjector-clusterissuer-name=selfsigned \
 		--gateway-url=http://172.18.0.1:8090
 
 # Run observer

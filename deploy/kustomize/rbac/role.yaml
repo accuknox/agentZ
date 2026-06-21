@@ -7,6 +7,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - persistentvolumeclaims
   - pods
   - serviceaccounts
   - services
@@ -28,16 +29,6 @@ rules:
   - list
   - patch
   - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumeclaims
-  verbs:
-  - create
-  - delete
-  - get
-  - list
   - watch
 - apiGroups:
   - agentgateway.dev
@@ -79,6 +70,17 @@ rules:
   verbs:
   - create
   - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - create
   - get
   - list
   - patch

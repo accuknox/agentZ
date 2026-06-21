@@ -107,8 +107,8 @@ func ValidateAgentScheduleList(agtName string) []gatewayapi.FieldError {
 	return validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))
 }
 
-func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
-	def, err := Get(ctx, db, agtName, wfName)
+func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace string, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
+	def, err := Get(ctx, db, tenantNamespace, agtName, wfName)
 	if err != nil {
 		if errors.Is(err, ErrWorkflowNotFound) {
 			return []gatewayapi.FieldError{{
@@ -142,7 +142,7 @@ func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, agtName strin
 	return fields, nil
 }
 
-func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
+func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, tenant *clawarmorv1alpha1.Tenant, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
 	specInput := scheduleSpecInput{
 		schedule:                   req.Schedule,
 		timeZone:                   req.TimeZone,
@@ -185,6 +185,11 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 				Kind:       "Agent",
 				Name:       agt.Name,
 				UID:        agt.UID,
+			}, {
+				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Tenant",
+				Name:       tenant.Name,
+				UID:        tenant.UID,
 			}},
 		},
 	}

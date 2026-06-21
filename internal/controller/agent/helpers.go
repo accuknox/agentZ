@@ -57,6 +57,7 @@ const (
 	agentRuntimeUID              = int64(1000)
 	agentRuntimeGID              = int64(1000)
 	nixPkgEnv                    = "NIX_PACKAGES"
+	packageJobLabelKey           = "clawarmor.accuknox.com/agent-package-job"
 	packageJobNameSuffix         = "-packages"
 	packageJobHashAnnotation     = "clawarmor.accuknox.com/package-job-hash"
 	packageJobRootVolume         = "nix-agent-root"
@@ -111,7 +112,7 @@ func packageJobLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	maps.Copy(labels, agt.Labels)
 	labels["app.kubernetes.io/name"] = "clawarmor-agent-packages"
 	labels["app.kubernetes.io/instance"] = agt.Name
-	labels["clawarmor.accuknox.com/agent-package-job"] = agt.Name
+	labels[packageJobLabelKey] = agt.Name
 	labels["clawarmor.accuknox.com/managed"] = "true"
 	return labels
 }

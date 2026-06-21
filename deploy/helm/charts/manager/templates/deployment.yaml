@@ -60,6 +60,11 @@ spec:
             - --sinjector-ca-cert-path={{ .Values.config.sinjectorCACertPath }}
             - --sinjector-ca-key-path={{ .Values.config.sinjectorCAKeyPath }}
             - --agent-ca-bundle-path={{ .Values.config.agentCABundlePath }}
+            - --tenant-nix-store-size={{ .Values.config.tenantNixStoreSize }}
+            {{- range .Values.config.tenantNixStoreAccessModes }}
+            - --tenant-nix-store-access-mode={{ . }}
+            {{- end }}
+            - --tenant-sinjector-clusterissuer-name={{ .Values.config.tenantSinjectorClusterIssuerName }}
             {{- if .Values.config.leaderElect }}
             - --leader-elect
             {{- end }}
@@ -77,6 +82,9 @@ spec:
             {{- end }}
             {{- if .Values.config.nixStorePVC }}
             - --nix-store-pvc={{ .Values.config.nixStorePVC }}
+            {{- end }}
+            {{- if .Values.config.tenantNixStoreStorageClass }}
+            - --tenant-nix-store-storage-class={{ .Values.config.tenantNixStoreStorageClass }}
             {{- end }}
             {{- if .Values.config.watchNamespace }}
             - --watch-namespace={{ .Values.config.watchNamespace }}

@@ -17,10 +17,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
-	jwtrequest "github.com/golang-jwt/jwt/v5/request"
 	"github.com/jackc/pgx/v5/pgxpool"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -63,6 +63,7 @@ type Service struct {
 	bao       *baoapi.Client
 	baoKV     *baoapi.KVv2
 	k8sClient ctrlclient.Client
+	k8s       kubernetes.Interface
 }
 
 type statusRecorder struct {
@@ -134,7 +135,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("mcp probe stale after is required")
 	}
 
-	resolver, err := newResolver(ctx, cfg.Namespace, cfg.TargetOverride)
+	resolver, err := newResolver(ctx, cfg.TargetOverride)
 	if err != nil {
 		return err
 	}
@@ -151,6 +152,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	k8sClient, err := ctrlclient.New(kubeCfg, ctrlclient.Options{Scheme: scheme})
 	if err != nil {
 		return fmt.Errorf("create k8s client: %w", err)
+	}
+	k8s, err := kubernetes.NewForConfig(kubeCfg)
+	if err != nil {
+		return fmt.Errorf("create kubernetes clientset: %w", err)
 	}
 
 	db, err := pgxpool.New(ctx, cfg.PostgresDSN)
@@ -183,6 +188,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		bao:       baoClient,
 		baoKV:     baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 		k8sClient: k8sClient,
+		k8s:       k8s,
 	}
 
 	srv := &http.Server{
@@ -195,7 +201,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	go func() {
 		slog.InfoContext(ctx, "starting agent gateway HTTP server",
 			slog.String("addr", cfg.Addr),
-			slog.String("namespace", cfg.Namespace),
+			slog.String("target_override", cfg.TargetOverride),
 		)
 		errCh <- srv.ListenAndServe()
 	}()
@@ -227,7 +233,7 @@ func (s *Service) routes() http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-	r.Use(requireGatewayBearer)
+	r.Use(requireTenantRequest(s))
 	r.HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
 	r.HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 	return gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
@@ -271,56 +277,6 @@ type gatewayClaims struct {
 	jwt.RegisteredClaims
 	TenantID string `json:"tenant_id"`
 	UserID   string `json:"user_id"`
-}
-
-type gatewayClaimsContextKey struct{}
-
-func requireGatewayBearer(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		claims, err := parseGatewayClaims(r)
-		if err != nil {
-			writeError(w, r, newAPIError(
-				http.StatusUnauthorized,
-				"unauthorized",
-				"missing or invalid bearer token",
-				err,
-			))
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), gatewayClaimsContextKey{}, claims)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func parseGatewayClaims(r *http.Request) (gatewayClaims, error) {
-	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
-	if err != nil {
-		return gatewayClaims{}, fmt.Errorf("missing bearer token")
-	}
-
-	parser := jwt.NewParser()
-	claims := gatewayClaims{}
-	if _, _, err := parser.ParseUnverified(token, &claims); err != nil {
-		return gatewayClaims{}, fmt.Errorf("parse jwt claims: %w", err)
-	}
-	if strings.TrimSpace(claims.TenantID) == "" {
-		return gatewayClaims{}, fmt.Errorf("missing tenant_id claim")
-	}
-	if strings.TrimSpace(claims.UserID) == "" {
-		return gatewayClaims{}, fmt.Errorf("missing user_id claim")
-	}
-	return claims, nil
-}
-
-func requestClaims(ctx context.Context) (gatewayClaims, bool) {
-	claims, ok := ctx.Value(gatewayClaimsContextKey{}).(gatewayClaims)
-	return claims, ok
 }
 
 func shouldLogRequestCause(ctx context.Context, status int) bool {

@@ -24,9 +24,9 @@ import (
 )
 
 // RegisterWithManager registers the WorkflowRun webhook.
-func RegisterWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses) error {
+func RegisterWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) error {
 	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.WorkflowRun{}).
-		WithValidator(NewValidator(gatewayClient)).
+		WithValidator(NewValidator(gatewayClient, tokenPath)).
 		WithDefaulter(&Defaulter{}).
 		Complete()
 }

@@ -42,8 +42,11 @@ type storedEdge struct {
 }
 
 // ListSummaries returns workflow metadata for one agent without loading nodes or edges.
-func ListSummaries(ctx context.Context, pool *pgxpool.Pool, agtName string) ([]gatewayapi.WorkflowSummary, error) {
-	rows, err := workflowdb.New(pool).WorkflowListSummaries(ctx, agtName)
+func ListSummaries(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtName string) ([]gatewayapi.WorkflowSummary, error) {
+	rows, err := workflowdb.New(pool).WorkflowListSummaries(ctx, workflowdb.WorkflowListSummariesParams{
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list workflow summaries: %w", err)
 	}
@@ -62,7 +65,7 @@ func ListSummaries(ctx context.Context, pool *pgxpool.Pool, agtName string) ([]g
 }
 
 // Create stores a workflow and its graph.
-func Create(ctx context.Context, pool *pgxpool.Pool, agtName string, req gatewayapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
+func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtName string, req gatewayapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("begin tx: %w", err)
@@ -76,11 +79,12 @@ func Create(ctx context.Context, pool *pgxpool.Pool, agtName string, req gateway
 	}
 
 	row, err := queries.WorkflowCreate(ctx, workflowdb.WorkflowCreateParams{
-		AgentName:    agtName,
-		WorkflowName: req.WorkflowName,
-		Title:        req.Title,
-		Summary:      req.Summary,
-		InputSchema:  inputsJSON,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    req.WorkflowName,
+		Title:           req.Title,
+		Summary:         req.Summary,
+		InputSchema:     inputsJSON,
 	})
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("create workflow: %w", err)
@@ -92,9 +96,10 @@ func Create(ctx context.Context, pool *pgxpool.Pool, agtName string, req gateway
 	}
 
 	err = queries.WorkflowCreateNodes(ctx, workflowdb.WorkflowCreateNodesParams{
-		AgentName:    agtName,
-		WorkflowName: req.WorkflowName,
-		Nodes:        nodesJSON,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    req.WorkflowName,
+		Nodes:           nodesJSON,
 	})
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("create workflow nodes: %w", err)
@@ -102,9 +107,10 @@ func Create(ctx context.Context, pool *pgxpool.Pool, agtName string, req gateway
 
 	if len(preferredToolsJSON) > 0 && string(preferredToolsJSON) != "[]" {
 		err := queries.WorkflowCreatePreferredTools(ctx, workflowdb.WorkflowCreatePreferredToolsParams{
-			AgentName:      agtName,
-			WorkflowName:   req.WorkflowName,
-			PreferredTools: preferredToolsJSON,
+			TenantNamespace: tenantNamespace,
+			AgentName:       agtName,
+			WorkflowName:    req.WorkflowName,
+			PreferredTools:  preferredToolsJSON,
 		})
 		if err != nil {
 			return workflowdb.Workflow{}, fmt.Errorf("create preferred tools: %w", err)
@@ -118,9 +124,10 @@ func Create(ctx context.Context, pool *pgxpool.Pool, agtName string, req gateway
 
 	if len(req.Edges) > 0 {
 		err := queries.WorkflowCreateEdges(ctx, workflowdb.WorkflowCreateEdgesParams{
-			AgentName:    agtName,
-			WorkflowName: req.WorkflowName,
-			Edges:        edgesJSON,
+			TenantNamespace: tenantNamespace,
+			AgentName:       agtName,
+			WorkflowName:    req.WorkflowName,
+			Edges:           edgesJSON,
 		})
 		if err != nil {
 			return workflowdb.Workflow{}, fmt.Errorf("create workflow edges: %w", err)
@@ -135,7 +142,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, agtName string, req gateway
 }
 
 // DeleteMany removes multiple workflows for one agent.
-func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, ns string, agtName string, wfNames []string) ([]string, error) {
+func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, tenantNamespace string, agtName string, wfNames []string) ([]string, error) {
 	names := uniqueNames(wfNames)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -145,8 +152,9 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 
 	queries := workflowdb.New(tx)
 	existing, err := queries.WorkflowListExistingNames(ctx, workflowdb.WorkflowListExistingNamesParams{
-		AgentName:     agtName,
-		WorkflowNames: names,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowNames:   names,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list existing workflows: %w", err)
@@ -174,7 +182,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 	}
 
 	runList := &clawarmorv1alpha1.WorkflowRunList{}
-	err = k8sClient.List(ctx, runList, ctrlclient.InNamespace(ns))
+	err = k8sClient.List(ctx, runList, ctrlclient.InNamespace(tenantNamespace))
 	if err != nil {
 		return nil, fmt.Errorf("list workflow runs: %w", err)
 	}
@@ -193,7 +201,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 	}
 
 	scheduleList := &clawarmorv1alpha1.WorkflowScheduleList{}
-	err = k8sClient.List(ctx, scheduleList, ctrlclient.InNamespace(ns))
+	err = k8sClient.List(ctx, scheduleList, ctrlclient.InNamespace(tenantNamespace))
 	if err != nil {
 		return nil, fmt.Errorf("list workflow schedules: %w", err)
 	}
@@ -216,8 +224,9 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 	}
 
 	_, err = queries.WorkflowDeleteMany(ctx, workflowdb.WorkflowDeleteManyParams{
-		AgentName:     agtName,
-		WorkflowNames: names,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowNames:   names,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("delete workflows: %w", err)
@@ -231,12 +240,13 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 }
 
 // Get reconstructs a stored workflow graph from normalized workflow tables.
-func Get(ctx context.Context, pool *pgxpool.Pool, agtName string, wfName string) (gatewayapi.Workflow, error) {
+func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtName string, wfName string) (gatewayapi.Workflow, error) {
 	queries := workflowdb.New(pool)
 
 	row, err := queries.WorkflowGet(ctx, workflowdb.WorkflowGetParams{
-		AgentName:    agtName,
-		WorkflowName: wfName,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    wfName,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -246,24 +256,27 @@ func Get(ctx context.Context, pool *pgxpool.Pool, agtName string, wfName string)
 	}
 
 	nodeRows, err := queries.WorkflowListNodes(ctx, workflowdb.WorkflowListNodesParams{
-		AgentName:    agtName,
-		WorkflowName: wfName,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    wfName,
 	})
 	if err != nil {
 		return gatewayapi.Workflow{}, fmt.Errorf("list workflow nodes: %w", err)
 	}
 
 	toolRows, err := queries.WorkflowListPreferredTools(ctx, workflowdb.WorkflowListPreferredToolsParams{
-		AgentName:    agtName,
-		WorkflowName: wfName,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    wfName,
 	})
 	if err != nil {
 		return gatewayapi.Workflow{}, fmt.Errorf("list preferred tools: %w", err)
 	}
 
 	edgeRows, err := queries.WorkflowListEdges(ctx, workflowdb.WorkflowListEdgesParams{
-		AgentName:    agtName,
-		WorkflowName: wfName,
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    wfName,
 	})
 	if err != nil {
 		return gatewayapi.Workflow{}, fmt.Errorf("list workflow edges: %w", err)

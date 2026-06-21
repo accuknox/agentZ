@@ -1380,13 +1380,19 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     NotFound:
-      description: Requested resource was not found.
+      description: >
+        Requested resource was not found. For tenant-gated APIs this can also
+        mean the current tenant is not initialized and the error code is
+        `tenant_not_found`.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
     Conflict:
-      description: Request conflicts with current agent state.
+      description: >
+        Request conflicts with current state. For tenant-gated APIs this can
+        also mean the current tenant is still bootstrapping and the error code
+        is `tenant_not_ready`.
       content:
         application/json:
           schema:

@@ -35,6 +35,7 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/gwreq"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -64,6 +65,7 @@ type promptTemplateData struct {
 type Reconciler struct {
 	client.Client
 	GatewayClient *gatewayapi.ClientWithResponses
+	TokenPath     string
 }
 
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;create;update;patch;delete
@@ -180,6 +182,7 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *clawarmorv1alpha1.Wor
 			run.Spec.AgentName,
 			run.Status.SessionID,
 			nil,
+			gwreq.RequestEditor(r.TokenPath, run.Namespace),
 		)
 		if err != nil {
 			return fmt.Errorf("delete workflow session: %w", err)
@@ -340,6 +343,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 			Title:      &title,
 			Permission: &permission,
 		},
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
@@ -361,6 +365,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 		nil,
 		"application/json",
 		bytes.NewReader(prompt),
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return fmt.Errorf("send workflow prompt: %w", err)
@@ -393,6 +398,7 @@ func (r *Reconciler) failRun(ctx context.Context, run *clawarmorv1alpha1.Workflo
 				run.Spec.AgentName,
 				run.Status.SessionID,
 				nil,
+				gwreq.RequestEditor(r.TokenPath, run.Namespace),
 			)
 		}
 	}
@@ -562,6 +568,7 @@ func (r *Reconciler) sessionIdle(ctx context.Context, run *clawarmorv1alpha1.Wor
 		ctx,
 		run.Spec.AgentName,
 		nil,
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return false, fmt.Errorf("get session status: %w", err)
@@ -604,6 +611,7 @@ func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *clawarmorv
 		&gatewayapi.SessionMessagesParams{
 			Limit: &limit,
 		},
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return "", fmt.Errorf("list session messages: %w", err)

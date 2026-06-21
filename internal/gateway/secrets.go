@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
+	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	"github.com/accuknox/clawarmor/internal/sinjector"
 )
@@ -40,12 +41,21 @@ type secretKeyMetadata struct {
 
 // PutSecret handles POST /api/secret/{agentName}/put.
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	name, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), name)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -232,12 +242,21 @@ func parseSecretKeyMetadata(raw any) secretKeyMetadata {
 
 // DeleteSecret handles POST /api/secret/{agentName}/delete.
 func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	name, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), name)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -349,6 +368,11 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 // syncAgentEnv updates the Agent CR spec.env by adding placeholder entries
 // for secrets in add and removing entries whose Name matches keys in remove.
 func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gatewayapi.SecretEntry, remove []string) error {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return err
+	}
+
 	removeSet := make(map[string]struct{}, len(remove))
 	for _, key := range remove {
 		removeSet[strings.TrimSpace(key)] = struct{}{}
@@ -361,7 +385,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Get(
+		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(ns).Get(
 			ctx,
 			agentName,
 			metav1.GetOptions{},
@@ -394,7 +418,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 		}
 
 		agt.Spec.Env = newEnv
-		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Update(
+		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Update(
 			ctx,
 			agt,
 			metav1.UpdateOptions{},
@@ -405,12 +429,21 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 
 // ListSecrets handles GET /api/secret/{agentName}/list.
 func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListSecretsParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	name, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), name)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return

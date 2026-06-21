@@ -864,7 +864,8 @@ export type GetTenantData = {
 
 export type GetTenantErrors = {
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -893,7 +894,8 @@ export type EnsureTenantData = {
 
 export type EnsureTenantErrors = {
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -968,7 +970,8 @@ export type CreateAgentErrors = {
    */
   400: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -1006,7 +1009,8 @@ export type DeleteAgentErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1044,11 +1048,13 @@ export type UpdateAgentErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -1136,7 +1142,8 @@ export type ListTraceSessionsErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1192,7 +1199,8 @@ export type ListSpansErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1242,7 +1250,8 @@ export type GetSpanDetailErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1305,7 +1314,8 @@ export type ListProcessObservabilityErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1370,7 +1380,8 @@ export type ListFileObservabilityErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1435,7 +1446,8 @@ export type ListNetworkObservabilityErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1484,7 +1496,8 @@ export type GetMcpGraphErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1531,7 +1544,8 @@ export type ListSecretsErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1569,7 +1583,8 @@ export type PutSecretErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1607,7 +1622,8 @@ export type DeleteSecretErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1678,7 +1694,8 @@ export type CreateEnvironmentErrors = {
    */
   400: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -1716,7 +1733,8 @@ export type DeleteEnvironmentErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1754,7 +1772,8 @@ export type UpdateEnvironmentErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1826,7 +1845,8 @@ export type CreateMcpConnectionErrors = {
    */
   400: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -1865,11 +1885,13 @@ export type DeleteMcpConnectionErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -1908,7 +1930,8 @@ export type GetMcpConnectionErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -1976,7 +1999,8 @@ export type DeleteWorkflowsErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -2050,11 +2074,13 @@ export type CreateWorkflowErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -2096,7 +2122,8 @@ export type GetWorkflowErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -2232,11 +2259,13 @@ export type CreateWorkflowScheduleErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -2284,7 +2313,8 @@ export type DeleteWorkflowScheduleErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -2332,11 +2362,13 @@ export type UpdateWorkflowScheduleErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -2397,7 +2429,8 @@ export type ListWorkflowRunsErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -2443,11 +2476,13 @@ export type CreateWorkflowRunErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**
@@ -2493,7 +2528,8 @@ export type WatchWorkflowRunsErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -2543,7 +2579,8 @@ export type DeleteWorkflowRunErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -2593,7 +2630,8 @@ export type GetWorkflowRunErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
@@ -2639,11 +2677,13 @@ export type PatchWorkflowRunStatusErrors = {
    */
   400: Error
   /**
-   * Requested resource was not found.
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
    */
   404: Error
   /**
-   * Request conflicts with current agent state.
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
    */
   409: Error
   /**

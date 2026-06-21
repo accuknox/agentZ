@@ -127,9 +127,18 @@ manager:
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: http://gateway:8090
 
-    # Name of the pre-created PVC that backs a shared nix store.
-    # Leave empty when not using that mode.
+    # Name of the tenant-shared PVC used by agent package jobs.
     nixStorePVC: ""
+
+    # Requested storage size for the tenant nix store PVC.
+    tenantNixStoreSize: 5Gi
+
+    # Access modes for the tenant nix store PVC.
+    tenantNixStoreAccessModes:
+      - ReadWriteOnce
+
+    # Optional storage class for the tenant nix store PVC.
+    tenantNixStoreStorageClass: ""
 
     # OpenBao address used by manager-managed workloads.
     openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
@@ -173,6 +182,9 @@ manager:
 
     # CA bundle path mounted into agent containers.
     agentCABundlePath: /etc/clawarmor/sinjector-ca/ca.crt
+
+    # Pre-created ClusterIssuer used for tenant sinjector CA certificates.
+    tenantSinjectorClusterIssuerName: ""
 
     # Namespace or comma-separated namespaces watched by the manager.
     watchNamespace: ""

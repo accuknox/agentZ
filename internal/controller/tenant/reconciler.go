@@ -20,11 +20,16 @@ import (
 	"context"
 	"fmt"
 
+	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumpolicyapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
@@ -37,18 +42,30 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
+const packageJobLabelKey = "clawarmor.accuknox.com/agent-package-job"
+
 // Reconciler reconciles a Tenant object.
 type Reconciler struct {
 	client.Client
-	Direct client.Client
-	Scheme *runtime.Scheme
+	Direct     client.Client
+	CertClient cmclientset.Interface
+	Scheme     *runtime.Scheme
+
+	NixStorePVCName         string
+	NixStorePVCSize         resource.Quantity
+	NixStorePVCAccessModes  []corev1.PersistentVolumeAccessMode
+	NixStorePVCStorageClass string
+	SinjectorCASecretName   string
+	ClusterIssuerName       string
 }
 
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch
 
 // Reconcile converges a Tenant into an isolated namespace and network policy.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -94,6 +111,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if err := r.reconcileNamespace(ctx, &tenant, nsName); err != nil {
 		log.Error(err, "tenant namespace reconcile failed", "tenant", tenant.Name)
+		return r.failTenant(ctx, &tenant, err)
+	}
+	if err := r.reconcileNixStorePVC(ctx, &tenant, nsName); err != nil {
+		log.Error(err, "tenant nix store pvc reconcile failed", "tenant", tenant.Name)
+		return r.failTenant(ctx, &tenant, err)
+	}
+	if err := r.reconcileSinjectorCertificate(ctx, &tenant, nsName); err != nil {
+		log.Error(err, "tenant sinjector certificate reconcile failed", "tenant", tenant.Name)
 		return r.failTenant(ctx, &tenant, err)
 	}
 	if err := r.reconcileIsolationPolicy(ctx, &tenant, nsName); err != nil {
@@ -156,10 +181,114 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *clawarmorv1
 		}
 		ns.Annotations[clawarmorv1alpha1.TenantOrganizationIDAnnotation] = tenant.Spec.OrganizationID
 		ns.Annotations[clawarmorv1alpha1.TenantUserIDAnnotation] = tenant.Spec.UserID
+		ns.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Tenant",
+				Name:       tenant.Name,
+				UID:        tenant.UID,
+			},
+		}
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("reconcile namespace: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, tenant *clawarmorv1alpha1.Tenant, nsName string) error {
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.NixStorePVCName,
+			Namespace: nsName,
+		},
+	}
+	_, err := controllerutil.CreateOrPatch(ctx, r.directClient(), pvc, func() error {
+		pvc.Labels = map[string]string{
+			clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
+			clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+		}
+		pvc.Spec.AccessModes = append([]corev1.PersistentVolumeAccessMode{}, r.NixStorePVCAccessModes...)
+		pvc.Spec.Resources.Requests = corev1.ResourceList{
+			corev1.ResourceStorage: r.NixStorePVCSize,
+		}
+		if r.NixStorePVCStorageClass != "" {
+			pvc.Spec.StorageClassName = &r.NixStorePVCStorageClass
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile nix store pvc: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) reconcileSinjectorCertificate(ctx context.Context, tenant *clawarmorv1alpha1.Tenant, nsName string) error {
+	current, err := r.CertClient.CertmanagerV1().Certificates(nsName).Get(
+		ctx,
+		r.SinjectorCASecretName,
+		metav1.GetOptions{},
+	)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("get sinjector certificate: %w", err)
+	}
+	if apierrors.IsNotFound(err) {
+		current = &cmapi.Certificate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      r.SinjectorCASecretName,
+				Namespace: nsName,
+			},
+		}
+	}
+
+	desired := current.DeepCopy()
+	desired.Labels = map[string]string{
+		clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
+		clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+	}
+	desired.Spec = cmapi.CertificateSpec{
+		CommonName: r.SinjectorCASecretName,
+		SecretName: r.SinjectorCASecretName,
+		IssuerRef: cmmeta.IssuerReference{
+			Name:  r.ClusterIssuerName,
+			Kind:  "ClusterIssuer",
+			Group: "cert-manager.io",
+		},
+		IsCA: true,
+		Usages: []cmapi.KeyUsage{
+			cmapi.UsageCertSign,
+			cmapi.UsageCRLSign,
+			cmapi.UsageDigitalSignature,
+			cmapi.UsageKeyEncipherment,
+		},
+		PrivateKey: &cmapi.CertificatePrivateKey{
+			Algorithm:      cmapi.RSAKeyAlgorithm,
+			Encoding:       cmapi.PKCS1,
+			RotationPolicy: cmapi.RotationPolicyAlways,
+			Size:           2048,
+		},
+	}
+
+	if apierrors.IsNotFound(err) {
+		_, err = r.CertClient.CertmanagerV1().Certificates(nsName).Create(
+			ctx,
+			desired,
+			metav1.CreateOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("create sinjector certificate: %w", err)
+		}
+		return nil
+	}
+
+	_, err = r.CertClient.CertmanagerV1().Certificates(nsName).Update(
+		ctx,
+		desired,
+		metav1.UpdateOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("update sinjector certificate: %w", err)
 	}
 	return nil
 }
@@ -177,14 +306,23 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 		}
 		policy.Labels[clawarmorv1alpha1.TenantManagedByLabel] = clawarmorv1alpha1.TenantManagedByValue
 		policy.Labels[clawarmorv1alpha1.TenantNameLabel] = tenant.Name
+		selector := ciliumpolicyapi.NewESFromK8sLabelSelector(
+			ciliumlabels.LabelSourceK8sKeyPrefix,
+			&slimv1.LabelSelector{
+				MatchExpressions: []slimv1.LabelSelectorRequirement{{
+					Key:      packageJobLabelKey,
+					Operator: slimv1.LabelSelectorOpDoesNotExist,
+				}},
+			},
+		)
 
 		policy.Spec = &ciliumpolicyapi.Rule{
 			Description:      "Restrict tenant traffic to the same namespace only.",
-			EndpointSelector: ciliumpolicyapi.WildcardEndpointSelector,
+			EndpointSelector: selector,
 			Ingress: []ciliumpolicyapi.IngressRule{{
 				IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
 					FromEndpoints: []ciliumpolicyapi.EndpointSelector{
-						ciliumpolicyapi.WildcardEndpointSelector,
+						selector,
 					},
 				},
 			}},
@@ -192,7 +330,7 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 				{
 					EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
 						ToEndpoints: []ciliumpolicyapi.EndpointSelector{
-							ciliumpolicyapi.WildcardEndpointSelector,
+							selector,
 						},
 					},
 				},

@@ -43,13 +43,13 @@ func SetupEnvironmentWebhookWithManager(mgr ctrl.Manager) error {
 }
 
 // SetupWorkflowScheduleWebhookWithManager registers the WorkflowSchedule webhook.
-func SetupWorkflowScheduleWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses) error {
-	return workflowschedulewebhook.RegisterWithManager(mgr, gatewayClient)
+func SetupWorkflowScheduleWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) error {
+	return workflowschedulewebhook.RegisterWithManager(mgr, gatewayClient, tokenPath)
 }
 
 // SetupWorkflowRunWebhookWithManager registers the WorkflowRun webhook.
-func SetupWorkflowRunWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses) error {
-	return workflowrunwebhook.RegisterWithManager(mgr, gatewayClient)
+func SetupWorkflowRunWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) error {
+	return workflowrunwebhook.RegisterWithManager(mgr, gatewayClient, tokenPath)
 }
 
 // SetupMCPConnectionWebhookWithManager registers the MCPConnection webhook.

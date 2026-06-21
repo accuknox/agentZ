@@ -21,6 +21,12 @@ const mcpGraphAgentNodePrefix = "agent:"
 
 // ListTraceSessions handles GET /api/lens/{agentName}/{sessionID}/trace.
 func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, params gatewayapi.ListTraceSessionsParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -55,6 +61,7 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 	}
 
 	rows, err := s.queries.GatewayListTraceSessions(r.Context(), gatewaydb.GatewayListTraceSessionsParams{
+		TenantNamespace: ns,
 		AgentName:       agentName,
 		SessionID:       pgtype.Text{String: sessionID, Valid: true},
 		StartedAfter:    startedAfter,
@@ -113,6 +120,12 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 
 // ListSpans handles GET /api/lens/{agentName}/{sessionID}/trace/{traceID}/span.
 func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, traceID gatewayapi.TraceID, params gatewayapi.ListSpansParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -142,6 +155,7 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName ga
 	}
 
 	rows, err := s.queries.GatewayListSpans(r.Context(), gatewaydb.GatewayListSpansParams{
+		TenantNamespace: ns,
 		AgentName:       agentName,
 		TraceID:         traceIDBytes,
 		CursorSet:       cursorSet,
@@ -176,6 +190,12 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName ga
 
 // GetSpanDetail handles GET /api/lens/{agentName}/{sessionID}/trace/{traceID}/span/{spanID}.
 func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, traceID gatewayapi.TraceID, spanID gatewayapi.SpanID) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -201,9 +221,10 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 	}
 
 	row, err := s.queries.GatewayGetSpanDetail(r.Context(), gatewaydb.GatewayGetSpanDetailParams{
-		AgentName: agentName,
-		TraceID:   traceIDBytes,
-		SpanID:    spanIDBytes,
+		TenantNamespace: ns,
+		AgentName:       agentName,
+		TraceID:         traceIDBytes,
+		SpanID:          spanIDBytes,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -252,11 +273,20 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 
 // GetMCPGraph handles GET /api/lens/{agentName}/mcp/graph.
 func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.GetMCPGraphParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
-	exists, err := s.queries.GatewayAgentExists(r.Context(), agentName)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -284,6 +314,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 	}
 
 	rows, err := s.queries.GatewayGetMCPGraph(r.Context(), gatewaydb.GatewayGetMCPGraphParams{
+		TenantNamespace: ns,
 		AgentName:       agentName,
 		StartTimeAfter:  startTime,
 		StartTimeBefore: endTime,
@@ -391,6 +422,12 @@ func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.
 }
 
 func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListProcessObservabilityParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -423,6 +460,7 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 		}
 
 		rows, err := s.queries.GatewayListProcessEventsAggregated(r.Context(), gatewaydb.GatewayListProcessEventsAggregatedParams{
+			TenantNamespace: ns,
 			AgentName:       agentName,
 			EventTimeAfter:  after,
 			EventTimeBefore: before,
@@ -461,6 +499,7 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 	}
 
 	rows, err := s.queries.GatewayListProcessEvents(r.Context(), gatewaydb.GatewayListProcessEventsParams{
+		TenantNamespace: ns,
 		AgentName:       agentName,
 		EventTimeAfter:  after,
 		EventTimeBefore: before,
@@ -487,6 +526,12 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListFileObservabilityParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -519,6 +564,7 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 		}
 
 		rows, err := s.queries.GatewayListFileEventsAggregated(r.Context(), gatewaydb.GatewayListFileEventsAggregatedParams{
+			TenantNamespace: ns,
 			AgentName:       agentName,
 			EventTimeAfter:  after,
 			EventTimeBefore: before,
@@ -557,6 +603,7 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 	}
 
 	rows, err := s.queries.GatewayListFileEvents(r.Context(), gatewaydb.GatewayListFileEventsParams{
+		TenantNamespace: ns,
 		AgentName:       agentName,
 		EventTimeAfter:  after,
 		EventTimeBefore: before,
@@ -583,6 +630,12 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListNetworkObservabilityParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -615,6 +668,7 @@ func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Reques
 		}
 
 		rows, err := s.queries.GatewayListNetworkEventsAggregated(r.Context(), gatewaydb.GatewayListNetworkEventsAggregatedParams{
+			TenantNamespace: ns,
 			AgentName:       agentName,
 			EventTimeAfter:  after,
 			EventTimeBefore: before,
@@ -653,6 +707,7 @@ func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Reques
 	}
 
 	rows, err := s.queries.GatewayListNetworkEvents(r.Context(), gatewaydb.GatewayListNetworkEventsParams{
+		TenantNamespace: ns,
 		AgentName:       agentName,
 		EventTimeAfter:  after,
 		EventTimeBefore: before,
@@ -811,19 +866,19 @@ func eventPage[T any, E any](rows []T, limit int, convert func(T) E, cursor func
 	return items, next
 }
 
-func processCursor(row gatewaydb.ObserverProcessEvent) eventPageCursor {
+func processCursor(row gatewaydb.GatewayListProcessEventsRow) eventPageCursor {
 	return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 }
 
-func fileCursor(row gatewaydb.ObserverFileEvent) eventPageCursor {
+func fileCursor(row gatewaydb.GatewayListFileEventsRow) eventPageCursor {
 	return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 }
 
-func networkCursor(row gatewaydb.ObserverNetworkEvent) eventPageCursor {
+func networkCursor(row gatewaydb.GatewayListNetworkEventsRow) eventPageCursor {
 	return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 }
 
-func processEvent(row gatewaydb.ObserverProcessEvent) gatewayapi.ProcessObservabilityEvent {
+func processEvent(row gatewaydb.GatewayListProcessEventsRow) gatewayapi.ProcessObservabilityEvent {
 	return gatewayapi.ProcessObservabilityEvent{
 		Id:                row.ID,
 		AgentName:         row.AgentName,
@@ -839,7 +894,7 @@ func processEvent(row gatewaydb.ObserverProcessEvent) gatewayapi.ProcessObservab
 	}
 }
 
-func fileEvent(row gatewaydb.ObserverFileEvent) gatewayapi.FileObservabilityEvent {
+func fileEvent(row gatewaydb.GatewayListFileEventsRow) gatewayapi.FileObservabilityEvent {
 	return gatewayapi.FileObservabilityEvent{
 		Id:                row.ID,
 		AgentName:         row.AgentName,
@@ -855,7 +910,7 @@ func fileEvent(row gatewaydb.ObserverFileEvent) gatewayapi.FileObservabilityEven
 	}
 }
 
-func networkEvent(row gatewaydb.ObserverNetworkEvent) gatewayapi.NetworkObservabilityEvent {
+func networkEvent(row gatewaydb.GatewayListNetworkEventsRow) gatewayapi.NetworkObservabilityEvent {
 	return gatewayapi.NetworkObservabilityEvent{
 		Id:                row.ID,
 		AgentName:         row.AgentName,

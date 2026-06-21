@@ -15,6 +15,17 @@ import (
 
 // CreateWorkflowSchedule handles POST /api/workflow/{agentName}/{workflowName}/schedule.
 func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	tenant, err := tenantObject(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.CreateWorkflowScheduleRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -34,9 +45,10 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	fields, err := workflow.ValidateScheduleInputs(
+	fields, err = workflow.ValidateScheduleInputs(
 		r.Context(),
 		s.db,
+		ns,
 		agentName,
 		workflowName,
 		req.Inputs,
@@ -59,9 +71,10 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	resp, err := workflow.CreateSchedule(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agentName,
 		workflowName,
+		tenant,
 		req,
 	)
 	if err != nil {
@@ -74,6 +87,12 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 
 // ListAgentWorkflowSchedules handles GET /api/workflow/{agentName}/schedule.
 func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.ListAgentWorkflowSchedulesParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName := strings.TrimSpace(agtName)
 	fields := workflow.ValidateAgentScheduleList(agentName)
 	if len(fields) > 0 {
@@ -109,7 +128,7 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 	items, nextOffset, err := workflow.ListSchedules(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agentName,
 		"",
 		limit,
@@ -131,6 +150,12 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 
 // ListWorkflowSchedules handles GET /api/workflow/{agentName}/{workflowName}/schedule.
 func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.ListWorkflowSchedulesParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	fields := workflow.ValidateScheduleList(agentName, workflowName)
@@ -167,7 +192,7 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 	items, nextOffset, err := workflow.ListSchedules(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agentName,
 		workflowName,
 		limit,
@@ -189,6 +214,12 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 
 // DeleteWorkflowSchedule handles DELETE /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}.
 func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
@@ -204,10 +235,10 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	err := workflow.DeleteSchedule(
+	err = workflow.DeleteSchedule(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agentName,
 		workflowName,
 		scheduleName,
@@ -231,6 +262,12 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 
 // UpdateWorkflowSchedule handles PUT /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}.
 func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.UpdateWorkflowScheduleRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -256,9 +293,10 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	fields, err := workflow.ValidateScheduleInputs(
+	fields, err = workflow.ValidateScheduleInputs(
 		r.Context(),
 		s.db,
+		ns,
 		agentName,
 		workflowName,
 		req.Inputs,
@@ -281,7 +319,7 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	resp, err := workflow.UpdateSchedule(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agentName,
 		workflowName,
 		scheduleName,
@@ -306,6 +344,17 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 
 // CreateWorkflowRun handles POST /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run.
 func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	tenant, err := tenantObject(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
@@ -324,10 +373,11 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	resp, err := workflow.CreateRun(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agtName,
 		workflowName,
 		scheduleName,
+		tenant,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {

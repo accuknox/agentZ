@@ -19,6 +19,12 @@ import (
 
 // PatchWorkflowRunStatus handles PATCH /api/workflow/{agentName}/{workflowName}/run/{runName}/status.
 func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.PatchWorkflowRunStatusRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -46,10 +52,10 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	err := workflow.PatchRunStatus(
+	err = workflow.PatchRunStatus(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agentName,
 		workflowName,
 		runName,
@@ -84,6 +90,12 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 
 // ListWorkflowRuns handles GET /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run.
 func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, params gatewayapi.ListWorkflowRunsParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	schName := strings.TrimSpace(scheduleName)
@@ -123,7 +135,7 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 	items, nextOffset, err := workflow.ListRuns(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agtName,
 		workflowName,
 		schName,
@@ -156,6 +168,12 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 //
 //nolint:gocyclo
 func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.WatchWorkflowRunsRequest
 	if r.Body != nil {
 		if !decodeJSONBody(w, r, &req, true) {
@@ -179,10 +197,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		return
 	}
 
-	_, _, err := workflow.ListRuns(
+	_, _, err = workflow.ListRuns(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agtName,
 		workflowName,
 		schName,
@@ -259,7 +277,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		items, _, err := workflow.ListRuns(
 			r.Context(),
 			s.k8sClient,
-			s.cfg.Namespace,
+			ns,
 			agtName,
 			workflowName,
 			schName,
@@ -307,6 +325,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 			}
 			if evt.Type == workflowRunWatchEventDeleted {
 				item, ok := deletedWorkflowRunEventItem(
+					ns,
 					evt.Run,
 					prev,
 					agtName,
@@ -331,6 +350,12 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 
 // GetWorkflowRun handles GET /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}.
 func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	schName := strings.TrimSpace(scheduleName)
@@ -352,7 +377,7 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	detail, err := workflow.GetRun(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agtName,
 		workflowName,
 		schName,
@@ -377,6 +402,12 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 
 // DeleteWorkflowRun handles DELETE /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}.
 func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	schName := strings.TrimSpace(scheduleName)
@@ -395,10 +426,10 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		return
 	}
 
-	err := workflow.DeleteRun(
+	err = workflow.DeleteRun(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agtName,
 		workflowName,
 		schName,
@@ -438,8 +469,11 @@ func sameWorkflowRunSummary(a, b gatewayapi.WorkflowRunSummary) bool {
 		a.CreatedAt.Equal(b.CreatedAt)
 }
 
-func deletedWorkflowRunEventItem(run *clawarmorv1alpha1.WorkflowRun, prev map[string]gatewayapi.WorkflowRunSummary, agtName string, schName string, runNames []string) (gatewayapi.WorkflowRunSummary, bool) {
+func deletedWorkflowRunEventItem(namespace string, run *clawarmorv1alpha1.WorkflowRun, prev map[string]gatewayapi.WorkflowRunSummary, agtName string, schName string, runNames []string) (gatewayapi.WorkflowRunSummary, bool) {
 	if run == nil {
+		return gatewayapi.WorkflowRunSummary{}, false
+	}
+	if run.Namespace != namespace {
 		return gatewayapi.WorkflowRunSummary{}, false
 	}
 	if run.Spec.AgentName != agtName {

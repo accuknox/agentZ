@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/gwreq"
 )
 
 var workflowScheduleParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
@@ -39,7 +40,7 @@ func ValidateTimeZone(name string) error {
 }
 
 // ValidateInputs loads one workflow definition and validates runtime inputs.
-func ValidateInputs(ctx context.Context, c *gatewayapi.ClientWithResponses, gk schema.GroupKind, name, agtName, wfName string, raw []byte, path *field.Path) error {
+func ValidateInputs(ctx context.Context, c *gatewayapi.ClientWithResponses, tknPath, ns string, gk schema.GroupKind, name, agtName, wfName string, raw []byte, path *field.Path) error {
 	if c == nil {
 		fields := field.ErrorList{field.InternalError(
 			path,
@@ -48,7 +49,12 @@ func ValidateInputs(ctx context.Context, c *gatewayapi.ClientWithResponses, gk s
 		return apierrors.NewInvalid(gk, name, fields)
 	}
 
-	resp, err := c.GetWorkflowWithResponse(ctx, agtName, wfName)
+	resp, err := c.GetWorkflowWithResponse(
+		ctx,
+		agtName,
+		wfName,
+		gwreq.RequestEditor(tknPath, ns),
+	)
 	if err != nil {
 		fields := field.ErrorList{field.InternalError(
 			path,

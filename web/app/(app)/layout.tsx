@@ -49,6 +49,7 @@ async function AppGate({ children }: { children: React.ReactNode }) {
       <Suspense fallback={null}>
         <AppSidebar
           user={{
+            email: session.user.email,
             image: session.user.image,
             name: session.user.name,
           }}

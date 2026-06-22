@@ -20,6 +20,7 @@ import { NavMCPs } from "./mcps"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user?: {
+    email?: string | null
     image?: string | null
     name: string
   }

@@ -89,6 +89,7 @@ var (
 	managerOpenBaoK8sAuthRole                        string
 	managerOpenBaoK8sAuthTokenPath                   string
 	managerGatewayTokenPath                          string
+	managerGatewayTokenAudience                      string
 	managerServiceAccountName                        string
 	managerServiceAccountNamespace                   string
 	sinjectorCASecretName                            string
@@ -357,6 +358,15 @@ var managerCmd = &cli.Command{
 			Usage:       "Projected Kubernetes service account token path for gateway auth",
 			Value:       "/var/run/secrets/clawarmor/gateway/token",
 			Destination: &managerGatewayTokenPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-gateway-token-audience",
+			Usage:       "Audience for projected Kubernetes service account tokens used for gateway auth",
+			Value:       "clawarmor-gateway",
+			Destination: &managerGatewayTokenAudience,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -674,6 +684,7 @@ var managerCmd = &cli.Command{
 			SinjectorOpenBaoK8sAuthTokenPath: sinjectorOpenBaoK8sAuthTokenPath,
 			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
 			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
+			GatewayTokenAudience:             managerGatewayTokenAudience,
 			SinjectorImage:                   controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,

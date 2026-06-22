@@ -336,28 +336,40 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 }
 
 func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
-	tenantNamespace := strings.TrimSpace(
-		r.Header.Get(internalTenantNamespaceHeader),
-	)
-	if tenantNamespace != "" {
-		return s.resolveInternalRequestAuth(r, tenantNamespace)
-	}
-
 	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
-	if err != nil {
-		return requestAuth{}, fmt.Errorf("missing bearer token")
-	}
-
-	claims, err := s.parseGatewayClaims(token)
 	if err != nil {
 		return requestAuth{}, newAPIError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing or invalid bearer token",
-			err,
+			fmt.Errorf("missing bearer token"),
 		)
 	}
-	return requestAuth{claims: &claims}, nil
+
+	tenantNamespace := strings.TrimSpace(r.Header.Get(internalTenantNamespaceHeader))
+	if tenantNamespace != "" {
+		return s.resolveTenantRequestAuth(r.Context(), token, tenantNamespace)
+	}
+
+	claims, err := s.parseGatewayClaims(token)
+	if err == nil {
+		return requestAuth{claims: &claims}, nil
+	}
+
+	auth, reviewErr := s.resolveAgentRequestAuth(r, token)
+	if reviewErr == nil {
+		return auth, nil
+	}
+	if apiErr, ok := reviewErr.(*apiError); ok {
+		return requestAuth{}, apiErr
+	}
+
+	return requestAuth{}, newAPIError(
+		http.StatusUnauthorized,
+		"unauthorized",
+		"missing or invalid bearer token",
+		err,
+	)
 }
 
 func (s *Service) parseGatewayClaims(token string) (gatewayClaims, error) {
@@ -383,59 +395,13 @@ func (s *Service) parseGatewayClaims(token string) (gatewayClaims, error) {
 	return claims, nil
 }
 
-func (s *Service) resolveInternalRequestAuth(r *http.Request, tenantNamespace string) (requestAuth, error) {
-	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
+func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, tenantNamespace string) (requestAuth, error) {
+	review, err := s.reviewServiceAccountToken(ctx, token)
 	if err != nil {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid bearer token",
-			fmt.Errorf("missing bearer token"),
-		)
+		return requestAuth{}, err
 	}
 
-	review, err := s.k8s.AuthenticationV1().TokenReviews().Create(
-		r.Context(),
-		&authenticationv1.TokenReview{
-			Spec: authenticationv1.TokenReviewSpec{
-				Token:     token,
-				Audiences: []string{s.cfg.InternalK8sTokenAudience},
-			},
-		},
-		metav1.CreateOptions{},
-	)
-	if err != nil {
-		return requestAuth{}, fmt.Errorf(
-			"review internal bearer token: %w",
-			err,
-		)
-	}
-	if !review.Status.Authenticated {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid bearer token",
-			fmt.Errorf("internal bearer token is not authenticated"),
-		)
-	}
-	if !strings.HasPrefix(review.Status.User.Username, "system:serviceaccount:") {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid bearer token",
-			fmt.Errorf("internal bearer token is not a service account token"),
-		)
-	}
-	if !slices.Contains(review.Status.Audiences, s.cfg.InternalK8sTokenAudience) {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid bearer token",
-			fmt.Errorf("internal bearer token audience mismatch"),
-		)
-	}
-
-	tenant, err := s.findTenantByNamespace(r.Context(), tenantNamespace)
+	tenant, err := s.findTenantByNamespace(ctx, tenantNamespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return requestAuth{}, newAPIError(
@@ -448,44 +414,236 @@ func (s *Service) resolveInternalRequestAuth(r *http.Request, tenantNamespace st
 		return requestAuth{}, err
 	}
 
-	sar, err := s.k8s.AuthorizationV1().SubjectAccessReviews().Create(
-		r.Context(),
-		&authorizationv1.SubjectAccessReview{
-			Spec: authorizationv1.SubjectAccessReviewSpec{
-				User:   review.Status.User.Username,
-				UID:    review.Status.User.UID,
-				Groups: review.Status.User.Groups,
-				ResourceAttributes: &authorizationv1.ResourceAttributes{
-					Verb:     "use",
-					Group:    clawarmorv1alpha1.SchemeGroupVersion.Group,
-					Resource: "tenants",
-					Name:     tenant.Name,
-				},
-			},
+	err = s.authorizeServiceAccount(
+		ctx,
+		review.Status.User,
+		authorizationv1.ResourceAttributes{
+			Verb:     "use",
+			Group:    clawarmorv1alpha1.SchemeGroupVersion.Group,
+			Resource: "tenants",
+			Name:     tenant.Name,
 		},
-		metav1.CreateOptions{},
+		"tenant",
 	)
 	if err != nil {
-		return requestAuth{}, fmt.Errorf("authorize internal bearer: %w", err)
-	}
-	if !sar.Status.Allowed {
-		return requestAuth{}, newAPIError(
-			http.StatusForbidden,
-			"forbidden",
-			"internal caller is not authorized for tenant",
-			fmt.Errorf(
-				"internal caller is not authorized for tenant %q: %s %s",
-				tenant.Name,
-				sar.Status.Reason,
-				sar.Status.EvaluationError,
-			),
-		)
+		return requestAuth{}, err
 	}
 
 	return requestAuth{
 		tenantName:      tenant.Name,
 		tenantNamespace: tenant.Status.Namespace,
 	}, nil
+}
+
+func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (requestAuth, error) {
+	review, err := s.reviewServiceAccountToken(r.Context(), token)
+	if err != nil {
+		return requestAuth{}, err
+	}
+
+	agentName, verb, ok := workflowAgentAccess(r.Method, r.URL.Path)
+	if !ok {
+		return requestAuth{}, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"internal caller is not authorized for route",
+			fmt.Errorf("internal caller is not authorized for route %s %s", r.Method, r.URL.Path),
+		)
+	}
+
+	user, err := serviceAccountUser(review.Status.User.Username)
+	if err != nil {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			err,
+		)
+	}
+	if user.name != agentName {
+		return requestAuth{}, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"internal caller is not authorized for agent",
+			fmt.Errorf("serviceaccount %q cannot access agent %q", user.name, agentName),
+		)
+	}
+
+	agt := &clawarmorv1alpha1.Agent{}
+	err = s.k8sClient.Get(
+		r.Context(),
+		ctrlclient.ObjectKey{
+			Name:      agentName,
+			Namespace: user.namespace,
+		},
+		agt,
+	)
+	if err != nil {
+		return requestAuth{}, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"internal caller is not authorized for agent",
+			err,
+		)
+	}
+
+	err = s.authorizeServiceAccount(
+		r.Context(),
+		review.Status.User,
+		authorizationv1.ResourceAttributes{
+			Verb:      verb,
+			Group:     clawarmorv1alpha1.SchemeGroupVersion.Group,
+			Resource:  "agents",
+			Namespace: agt.Namespace,
+			Name:      agt.Name,
+		},
+		"agent",
+	)
+	if err != nil {
+		return requestAuth{}, err
+	}
+
+	return requestAuth{
+		tenantNamespace: agt.Namespace,
+	}, nil
+}
+
+func (s *Service) reviewServiceAccountToken(ctx context.Context, token string) (*authenticationv1.TokenReview, error) {
+	review, err := s.k8s.AuthenticationV1().TokenReviews().Create(
+		ctx,
+		&authenticationv1.TokenReview{
+			Spec: authenticationv1.TokenReviewSpec{
+				Token:     token,
+				Audiences: []string{s.cfg.InternalK8sTokenAudience},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("review internal bearer token: %w", err)
+	}
+	if !review.Status.Authenticated {
+		return nil, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			fmt.Errorf("internal bearer token is not authenticated"),
+		)
+	}
+	if !slices.Contains(review.Status.Audiences, s.cfg.InternalK8sTokenAudience) {
+		return nil, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			fmt.Errorf("internal bearer token audience mismatch"),
+		)
+	}
+	_, err = serviceAccountUser(review.Status.User.Username)
+	if err != nil {
+		return nil, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			err,
+		)
+	}
+	return review, nil
+}
+
+func (s *Service) authorizeServiceAccount(ctx context.Context, user authenticationv1.UserInfo, resource authorizationv1.ResourceAttributes, kind string) error {
+	sar, err := s.k8s.AuthorizationV1().SubjectAccessReviews().Create(
+		ctx,
+		&authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User:               user.Username,
+				UID:                user.UID,
+				Groups:             user.Groups,
+				ResourceAttributes: &resource,
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("authorize internal bearer: %w", err)
+	}
+	if !sar.Status.Allowed {
+		return newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"internal caller is not authorized",
+			fmt.Errorf(
+				"internal caller is not authorized for %s %q: %s %s",
+				kind,
+				resource.Name,
+				sar.Status.Reason,
+				sar.Status.EvaluationError,
+			),
+		)
+	}
+	return nil
+}
+
+type serviceAccountName struct {
+	namespace string
+	name      string
+}
+
+func serviceAccountUser(username string) (serviceAccountName, error) {
+	const prefix = "system:serviceaccount:"
+
+	rest, ok := strings.CutPrefix(username, prefix)
+	if !ok {
+		return serviceAccountName{}, fmt.Errorf("internal bearer token is not a service account token")
+	}
+
+	namespace, name, ok := strings.Cut(rest, ":")
+	if !ok || strings.TrimSpace(namespace) == "" || strings.TrimSpace(name) == "" {
+		return serviceAccountName{}, fmt.Errorf("internal bearer token is not a service account token")
+	}
+
+	return serviceAccountName{
+		namespace: namespace,
+		name:      name,
+	}, nil
+}
+
+//nolint:gocyclo
+func workflowAgentAccess(method, requestPath string) (string, string, bool) {
+	path, ok := strings.CutPrefix(requestPath, "/api/workflow/")
+	if !ok || path == "" {
+		return "", "", false
+	}
+
+	parts := strings.Split(path, "/")
+	agentName := strings.TrimSpace(parts[0])
+	if agentName == "" {
+		return "", "", false
+	}
+
+	switch {
+	case len(parts) == 1 && method == http.MethodGet:
+		return agentName, "list-workflows", true
+	case len(parts) == 1 && method == http.MethodPost:
+		return agentName, "create-workflow", true
+	case len(parts) == 1 && method == http.MethodDelete:
+		return agentName, "delete-workflows", true
+	case len(parts) == 2 && parts[1] == "schedule" && method == http.MethodGet:
+		return agentName, "list-workflow-schedules", true
+	case len(parts) == 2 && method == http.MethodGet:
+		return agentName, "get-workflow", true
+	case len(parts) == 3 && parts[2] == "schedule" && method == http.MethodGet:
+		return agentName, "list-workflow-schedules", true
+	case len(parts) == 3 && parts[2] == "schedule" && method == http.MethodPost:
+		return agentName, "create-workflow-schedule", true
+	case len(parts) == 4 && parts[2] == "schedule" && method == http.MethodDelete:
+		return agentName, "delete-workflow-schedule", true
+	case len(parts) == 4 && parts[2] == "schedule" && method == http.MethodPut:
+		return agentName, "update-workflow-schedule", true
+	case len(parts) == 5 && parts[2] == "run" && parts[4] == "status" && method == http.MethodPatch:
+		return agentName, "set-workflowrun-status", true
+	default:
+		return "", "", false
+	}
 }
 
 func requestAuthState(ctx context.Context) (requestAuth, bool) {

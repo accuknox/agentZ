@@ -258,6 +258,25 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 		MountPath: sinjectorCAMountPath,
 		ReadOnly:  true,
 	})
+	volumes = append(volumes, corev1.Volume{
+		Name: gatewayTokenVolume,
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{{
+					ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+						Path:              "token",
+						Audience:          r.Config.GatewayTokenAudience,
+						ExpirationSeconds: new(int64(3600)),
+					},
+				}},
+			},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      gatewayTokenVolume,
+		MountPath: gatewayTokenMountPath,
+		ReadOnly:  true,
+	})
 
 	if len(packages) > 0 {
 		volumes = append(volumes,
@@ -452,11 +471,9 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
-		corev1.EnvVar{
-			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
-			Value: "clawarmor.agent_name=" + agt.Name,
-		},
+		corev1.EnvVar{Name: "CLAWARMOR_AGENT_NAME", Value: agt.Name},
 		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_URL", Value: r.Config.GatewayURL},
+		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
 	)
 
 	forcedNames := make(map[string]struct{}, len(forced))

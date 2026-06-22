@@ -3,9 +3,9 @@ import { tool } from "@opencode-ai/plugin"
 import { createWorkflow, type CreateWorkflowRequest, zError } from "../lib/gateway"
 import { zCreateWorkflowBody } from "../lib/gateway/client/zod.gen"
 import {
-  agentNameFromResourceAttributes,
   formatRequestValidationError,
   validateWorkflowDefinition,
+  workflowAgentName,
   workflowErrorOutput,
 } from "../lib/workflow"
 
@@ -228,17 +228,13 @@ export default tool({
   description,
   args: createWorkflowArgs,
   async execute(args: CreateWorkflowToolInput, context) {
-    const agentName = agentNameFromResourceAttributes(process.env.OPENCODE_RESOURCE_ATTRIBUTES)
+    const agentName = workflowAgentName()
     if (!agentName) {
       context.metadata({
         title: "Workflow creation unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return (
-        "Could not derive clawarmor.agent_name from " +
-        "OPENCODE_RESOURCE_ATTRIBUTES. Configure the agent runtime to inject " +
-        "that resource attribute before using create_workflow."
-      )
+      return "CLAWARMOR_AGENT_NAME is not set. Configure the agent runtime before using create_workflow."
     }
 
     context.metadata({

@@ -54,6 +54,7 @@ spec:
             - --manager-openbao-k8s-auth-role={{ .Values.config.managerOpenBaoK8sAuthRole }}
             - --manager-openbao-k8s-auth-token-path={{ .Values.config.managerOpenBaoK8sAuthTokenPath }}
             - --manager-gateway-token-path={{ .Values.config.managerGatewayTokenPath }}
+            - --manager-gateway-token-audience={{ .Values.config.managerGatewayTokenAudience }}
             - --manager-service-account-name={{ include "manager.serviceAccountName" . }}
             - --manager-service-account-namespace={{ .Release.Namespace }}
             - --sinjector-ca-secret-name={{ .Values.config.sinjectorCASecretName }}

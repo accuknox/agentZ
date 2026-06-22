@@ -26,6 +26,7 @@ import (
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -94,6 +95,60 @@ func (r *Reconciler) reconcileServiceAccount(ctx context.Context, agt *clawarmor
 	if err != nil {
 		return fmt.Errorf("create or patch serviceaccount: %w", err)
 	}
+	return nil
+}
+
+func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+	role := &rbacv1.Role{}
+	role.Name = agt.Name + gatewayRoleNameSuffix
+	role.Namespace = agt.Namespace
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
+		role.Labels = resourceLabels(agt)
+		role.Annotations = agt.Annotations
+		role.Rules = []rbacv1.PolicyRule{{
+			APIGroups:     []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+			Resources:     []string{"agents"},
+			ResourceNames: []string{agt.Name},
+			Verbs: []string{
+				"create-workflow",
+				"create-workflow-schedule",
+				"delete-workflow-schedule",
+				"delete-workflows",
+				"get-workflow",
+				"list-workflow-schedules",
+				"list-workflows",
+				"set-workflowrun-status",
+				"update-workflow-schedule",
+			},
+		}}
+		return ctrl.SetControllerReference(agt, role, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch gateway role: %w", err)
+	}
+
+	binding := &rbacv1.RoleBinding{}
+	binding.Name = agt.Name + gatewayRoleNameSuffix
+	binding.Namespace = agt.Namespace
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, binding, func() error {
+		binding.Labels = resourceLabels(agt)
+		binding.Annotations = agt.Annotations
+		binding.RoleRef = rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "Role",
+			Name:     role.Name,
+		}
+		binding.Subjects = []rbacv1.Subject{{
+			Kind:      rbacv1.ServiceAccountKind,
+			Name:      agt.Name,
+			Namespace: agt.Namespace,
+		}}
+		return ctrl.SetControllerReference(agt, binding, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch gateway rolebinding: %w", err)
+	}
+
 	return nil
 }
 

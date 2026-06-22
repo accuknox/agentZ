@@ -1,11 +1,20 @@
+import { readFileSync } from "node:fs"
+
 import { client } from "./client/client.gen"
 
 const gatewayUrl = process.env.CLAWARMOR_GATEWAY_URL?.trim()
 const gatewayBaseUrl = gatewayUrl ? gatewayUrl.replace(/\/+$/, "") : "http://localhost:8090"
+const gatewayTokenPath = process.env.CLAWARMOR_GATEWAY_TOKEN_PATH?.trim()
 
-// Configure the generated fetch client lazily from the agent runtime so tool
-// calls use the gateway workflow API without extra feature flags.
 client.setConfig({
+  auth: () => {
+    if (!gatewayTokenPath) {
+      return undefined
+    }
+
+    const token = readFileSync(gatewayTokenPath, "utf8").trim()
+    return token || undefined
+  },
   baseUrl: gatewayBaseUrl,
 })
 

@@ -2,7 +2,7 @@ import { tool } from "@opencode-ai/plugin"
 
 import { getWorkflow, type Workflow, type WorkflowEdge, type WorkflowNode } from "../lib/gateway"
 import { zError } from "../lib/gateway"
-import { agentNameFromResourceAttributes, workflowErrorOutput } from "../lib/workflow"
+import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
 const getWorkflowArgs = {
   workflow_name: tool.schema
@@ -35,16 +35,13 @@ export default tool({
   description,
   args: getWorkflowArgs,
   async execute(args, context) {
-    const agentName = agentNameFromResourceAttributes(process.env.OPENCODE_RESOURCE_ATTRIBUTES)
+    const agentName = workflowAgentName()
     if (!agentName) {
       context.metadata({
         title: "Workflow retrieval unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return (
-        "Could not derive clawarmor.agent_name from OPENCODE_RESOURCE_ATTRIBUTES. " +
-        "Configure the agent runtime to inject that resource attribute before using get_workflow."
-      )
+      return "CLAWARMOR_AGENT_NAME is not set. Configure the agent runtime before using get_workflow."
     }
 
     context.metadata({

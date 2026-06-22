@@ -12,11 +12,8 @@ function opencodeBaseURL(agentName: string): string {
   return `${gatewayBase}/api/opencode/${encodeURIComponent(agentName)}`
 }
 
-async function opencodeHeaders(): Promise<Record<string, string> | undefined> {
-  const token = await getGatewayToken()
-  if (!token) {
-    return undefined
-  }
+async function opencodeHeaders(): Promise<Record<string, string>> {
+  const token = await getGatewayToken(`${window.location.pathname}${window.location.search}`)
 
   return {
     Authorization: `Bearer ${token}`,

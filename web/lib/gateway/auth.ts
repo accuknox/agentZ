@@ -1,16 +1,18 @@
 import "server-only"
 
 import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { loginURL } from "@/lib/login-redirect"
 
-export async function currentGatewayAuthToken(): Promise<string | undefined> {
+export async function currentGatewayAuthToken(returnTo?: string): Promise<string> {
   const requestHeaders = await headers()
   const session = await auth.api.getSession({
     headers: requestHeaders,
   })
 
   if (!session) {
-    return
+    redirect(loginURL({ error: "session_expired", returnTo }))
   }
 
   const activeOrganizationId = session.session.activeOrganizationId

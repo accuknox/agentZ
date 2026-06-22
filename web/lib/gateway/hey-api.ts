@@ -6,6 +6,11 @@ const baseUrl = gatewayBaseURL()
 
 export const createClientConfig: CreateClientConfig = (config) => ({
   ...config,
-  auth: getGatewayToken,
+  auth: () =>
+    getGatewayToken(
+      typeof window === "undefined"
+        ? undefined
+        : `${window.location.pathname}${window.location.search}`
+    ),
   baseUrl,
 })

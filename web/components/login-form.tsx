@@ -5,6 +5,7 @@ import { LoginSubmitButton } from "@/components/login-submit-button"
 const errorMessages = {
   invalid_code: "GitHub sign-in could not be completed. Try again.",
   no_callback_url: "Sign-in was started incorrectly. Retry from the login page.",
+  session_expired: "Your session expired. Sign in again to continue.",
   state_mismatch: "The sign-in session expired or was opened in another tab. Try again.",
   unable_to_get_user_info:
     "GitHub sign-in failed or this account is not authorized for this application.",
@@ -12,13 +13,13 @@ const errorMessages = {
 
 export type LoginError = keyof typeof errorMessages
 
-export function LoginForm({
-  action,
-  error,
-}: React.ComponentProps<"div"> & {
-  action: () => Promise<void>
+type LoginFormProps = {
+  action: (formData: FormData) => Promise<void>
   error?: LoginError
-}) {
+  returnTo?: string
+}
+
+export function LoginForm({ action, error, returnTo }: LoginFormProps) {
   const message = error ? errorMessages[error] : null
 
   return (
@@ -29,6 +30,7 @@ export function LoginForm({
       </div>
 
       <form action={action}>
+        {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
         <FieldGroup>
           <Field data-invalid={Boolean(message)}>
             <LoginSubmitButton />

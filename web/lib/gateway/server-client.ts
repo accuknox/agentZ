@@ -10,7 +10,7 @@ import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
  */
 export const gatewayServerClient: Client = createClient(
   createConfig({
-    auth: currentGatewayAuthToken,
+    auth: () => currentGatewayAuthToken(),
     baseUrl: serverGatewayBaseURL(),
   })
 )

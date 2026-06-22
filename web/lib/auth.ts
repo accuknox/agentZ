@@ -34,7 +34,7 @@ export const auth = betterAuth({
   },
   session: {
     expiresIn: 60 * 60,
-    disableSessionRefresh: true,
+    updateAge: 15 * 60,
   },
   account: {
     encryptOAuthTokens: true,

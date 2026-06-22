@@ -72,12 +72,7 @@ export function NavUser({
                 <AvatarImage src={user.image ?? undefined} alt={user.name} />
                 <AvatarFallback className="rounded-lg bg-transparent">{initials}</AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                {user.email ? (
-                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
-                ) : null}
-              </div>
+              <span className="truncate">{user.name}</span>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>

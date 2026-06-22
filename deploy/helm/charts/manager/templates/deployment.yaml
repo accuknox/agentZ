@@ -53,6 +53,9 @@ spec:
             - --sinjector-openbao-k8s-auth-token-path={{ .Values.config.sinjectorOpenBaoK8sAuthTokenPath }}
             - --manager-openbao-k8s-auth-role={{ .Values.config.managerOpenBaoK8sAuthRole }}
             - --manager-openbao-k8s-auth-token-path={{ .Values.config.managerOpenBaoK8sAuthTokenPath }}
+            - --manager-gateway-token-path={{ .Values.config.managerGatewayTokenPath }}
+            - --manager-service-account-name={{ include "manager.serviceAccountName" . }}
+            - --manager-service-account-namespace={{ .Release.Namespace }}
             - --sinjector-ca-secret-name={{ .Values.config.sinjectorCASecretName }}
             - --sinjector-ca-secret-cert-key={{ .Values.config.sinjectorCASecretCertKey }}
             - --sinjector-ca-secret-key-key={{ .Values.config.sinjectorCASecretKeyKey }}
@@ -118,14 +121,24 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.config.enableWebhooks }}
           volumeMounts:
+            - mountPath: /var/run/secrets/clawarmor/gateway
+              name: gateway-token
+              readOnly: true
+          {{- if .Values.config.enableWebhooks }}
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: webhook-certs
               readOnly: true
           {{- end }}
-      {{- if .Values.config.enableWebhooks }}
       volumes:
+        - name: gateway-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: {{ .Values.config.managerGatewayTokenAudience }}
+                  expirationSeconds: 3600
+      {{- if .Values.config.enableWebhooks }}
         - name: webhook-certs
           secret:
             secretName: {{ .Values.certManager.webhookSecretName }}

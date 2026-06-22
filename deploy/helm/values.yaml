@@ -162,6 +162,13 @@ manager:
     # ServiceAccount token path used by the manager for OpenBao auth.
     managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
 
+    # Projected ServiceAccount token path used by the manager for gateway auth.
+    managerGatewayTokenPath: /var/run/secrets/clawarmor/gateway/token
+
+    # Audience bound onto the projected ServiceAccount token used for gateway
+    # auth.
+    managerGatewayTokenAudience: clawarmor-gateway
+
     # Secret name that stores the sinjector CA materials.
     sinjectorCASecretName: sinjector
 
@@ -327,6 +334,18 @@ gateway:
 
     # ServiceAccount token path used for OpenBao auth.
     openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+    # Required Better Auth JWKS URL used to verify external bearer tokens.
+    externalJWTJWKSURL: ""
+
+    # Required Better Auth issuer used to verify external bearer tokens.
+    externalJWTIssuer: ""
+
+    # Required Better Auth audience used to verify external bearer tokens.
+    externalJWTAudience: clawarmor-gateway
+
+    # Required audience for internal projected ServiceAccount bearer tokens.
+    internalK8sTokenAudience: clawarmor-gateway
 
     # Maximum age before MCP probe results are treated as stale.
     mcpProbeStaleAfter: 5m

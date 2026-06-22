@@ -14,24 +14,23 @@ const internalTenantNamespaceHeader = "X-ClawArmor-Tenant-Namespace"
 
 func RequestEditor(tokenPath string, namespace string) gatewayapi.RequestEditorFn {
 	return func(_ context.Context, req *http.Request) error {
-		token, err := readServiceAccountToken(tokenPath)
+		token, err := os.ReadFile(tokenPath)
 		if err != nil {
-			return err
+			return fmt.Errorf(
+				"read service account token %q: %w",
+				tokenPath,
+				err,
+			)
 		}
 
-		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set(
+			"Authorization",
+			"Bearer "+strings.TrimSpace(string(token)),
+		)
 		req.Header.Set(
 			internalTenantNamespaceHeader,
 			strings.TrimSpace(namespace),
 		)
 		return nil
 	}
-}
-
-func readServiceAccountToken(path string) (string, error) {
-	token, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("read service account token %q: %w", path, err)
-	}
-	return strings.TrimSpace(string(token)), nil
 }

@@ -70,6 +70,8 @@ config:
   sinjectorOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
   managerOpenBaoK8sAuthRole: manager
   managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+  managerGatewayTokenPath: /var/run/secrets/clawarmor/gateway/token
+  managerGatewayTokenAudience: clawarmor-gateway
   sinjectorCASecretName: sinjector
   sinjectorCASecretCertKey: tls.crt
   sinjectorCASecretKeyKey: tls.key

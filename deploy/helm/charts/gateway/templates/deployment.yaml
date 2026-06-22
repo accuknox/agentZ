@@ -40,6 +40,10 @@ spec:
             - "--addr=0.0.0.0:{{ .Values.service.port }}"
             - --namespace={{ .Values.config.namespace }}
             - --postgres-dsn={{ required "gateway.config.postgresDSN is required" .Values.config.postgresDSN }}
+            - --external-jwt-jwks-url={{ required "gateway.config.externalJWTJWKSURL is required" .Values.config.externalJWTJWKSURL }}
+            - --external-jwt-issuer={{ required "gateway.config.externalJWTIssuer is required" .Values.config.externalJWTIssuer }}
+            - --external-jwt-audience={{ required "gateway.config.externalJWTAudience is required" .Values.config.externalJWTAudience }}
+            - --internal-k8s-token-audience={{ required "gateway.config.internalK8sTokenAudience is required" .Values.config.internalK8sTokenAudience }}
             - --agent-trace-endpoint={{ required "gateway.config.agentTraceEndpoint is required" .Values.config.agentTraceEndpoint }}
             - --openbao-addr={{ .Values.config.openBaoAddr }}
             - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}

@@ -349,44 +349,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthPolicy(ctx context.Context, ns
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
 		policy.Labels = maps.Clone(labels)
 		policy.OwnerReferences = ownerRefs
-		policy.Spec = &ciliumapi.Rule{
-			EndpointSelector: ciliumapi.NewESFromLabels(
-				ciliumlabels.NewLabel(
-					"app.kubernetes.io/name",
-					extAuthLabelName,
-					ciliumlabels.LabelSourceK8s,
-				),
-			),
-			Ingress: []ciliumapi.IngressRule{{
-				IngressCommonRule: ciliumapi.IngressCommonRule{
-					FromEndpoints: []ciliumapi.EndpointSelector{
-						ciliumapi.NewESFromLabels(
-							ciliumlabels.NewLabel(
-								"io.kubernetes.pod.namespace",
-								ns,
-								ciliumlabels.LabelSourceK8s,
-							),
-							ciliumlabels.NewLabel(
-								"app.kubernetes.io/name",
-								mcp.GatewayName,
-								ciliumlabels.LabelSourceK8s,
-							),
-							ciliumlabels.NewLabel(
-								"gateway.networking.k8s.io/gateway-name",
-								mcp.GatewayName,
-								ciliumlabels.LabelSourceK8s,
-							),
-						),
-					},
-				},
-				ToPorts: ciliumapi.PortRules{{
-					Ports: []ciliumapi.PortProtocol{{
-						Port:     "18081",
-						Protocol: ciliumapi.ProtoTCP,
-					}},
-				}},
-			}},
-		}
+		policy.Spec = extAuthPolicySpec(ns)
 		return nil
 	})
 	if err != nil {
@@ -394,6 +357,52 @@ func (r *MCPConnectionReconciler) reconcileExtAuthPolicy(ctx context.Context, ns
 	}
 
 	return nil
+}
+
+func extAuthPolicySpec(ns string) *ciliumapi.Rule {
+	return &ciliumapi.Rule{
+		EndpointSelector: ciliumapi.NewESFromLabels(
+			ciliumlabels.NewLabel(
+				"app.kubernetes.io/name",
+				extAuthLabelName,
+				ciliumlabels.LabelSourceK8s,
+			),
+		),
+		Ingress: []ciliumapi.IngressRule{{
+			IngressCommonRule: ciliumapi.IngressCommonRule{
+				FromEndpoints: []ciliumapi.EndpointSelector{
+					ciliumapi.NewESFromLabels(
+						ciliumlabels.NewLabel(
+							"io.kubernetes.pod.namespace",
+							ns,
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"app.kubernetes.io/name",
+							mcp.GatewayName,
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"gateway.networking.k8s.io/gateway-name",
+							mcp.GatewayName,
+							ciliumlabels.LabelSourceK8s,
+						),
+					),
+				},
+			},
+			ToPorts: ciliumapi.PortRules{{
+				Ports: []ciliumapi.PortProtocol{{
+					Port:     "18081",
+					Protocol: ciliumapi.ProtoTCP,
+				}},
+			}},
+		}},
+		Egress: []ciliumapi.EgressRule{{
+			EgressCommonRule: ciliumapi.EgressCommonRule{
+				ToEntities: ciliumapi.EntitySlice{ciliumapi.EntityAll},
+			},
+		}},
+	}
 }
 
 func (r *MCPConnectionReconciler) reconcileExtAuthOpenBao(ctx context.Context, ns string) error {

@@ -28,6 +28,7 @@ import (
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumpolicyapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,12 +52,14 @@ type Reconciler struct {
 	CertClient cmclientset.Interface
 	Scheme     *runtime.Scheme
 
-	NixStorePVCName         string
-	NixStorePVCSize         resource.Quantity
-	NixStorePVCAccessModes  []corev1.PersistentVolumeAccessMode
-	NixStorePVCStorageClass string
-	SinjectorCASecretName   string
-	ClusterIssuerName       string
+	NixStorePVCName                string
+	NixStorePVCSize                resource.Quantity
+	NixStorePVCAccessModes         []corev1.PersistentVolumeAccessMode
+	NixStorePVCStorageClass        string
+	SinjectorCASecretName          string
+	ClusterIssuerName              string
+	ManagerServiceAccountName      string
+	ManagerServiceAccountNamespace string
 }
 
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants,verbs=get;list;watch;create;update;patch;delete
@@ -66,6 +69,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile converges a Tenant into an isolated namespace and network policy.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -123,6 +127,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	if err := r.reconcileIsolationPolicy(ctx, &tenant, nsName); err != nil {
 		log.Error(err, "tenant isolation policy reconcile failed", "tenant", tenant.Name)
+		return r.failTenant(ctx, &tenant, err)
+	}
+	if err := r.reconcileGatewayAccess(ctx, &tenant); err != nil {
+		log.Error(err, "tenant gateway access reconcile failed", "tenant", tenant.Name)
 		return r.failTenant(ctx, &tenant, err)
 	}
 
@@ -363,6 +371,76 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 	})
 	if err != nil {
 		return fmt.Errorf("reconcile cilium network policy: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, tenant *clawarmorv1alpha1.Tenant) error {
+	if r.ManagerServiceAccountName == "" {
+		return fmt.Errorf("manager service account name is required")
+	}
+	if r.ManagerServiceAccountNamespace == "" {
+		return fmt.Errorf("manager service account namespace is required")
+	}
+
+	roleName := tenant.Name + "-gateway-use"
+	role := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: roleName},
+	}
+	_, err := controllerutil.CreateOrPatch(ctx, r.directClient(), role, func() error {
+		role.Labels = map[string]string{
+			clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
+			clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+		}
+		role.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "Tenant",
+			Name:       tenant.Name,
+			UID:        tenant.UID,
+		}}
+		role.Rules = []rbacv1.PolicyRule{{
+			APIGroups:     []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+			Resources:     []string{"tenants"},
+			ResourceNames: []string{tenant.Name},
+			Verbs:         []string{"use"},
+		}}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile tenant gateway cluster role: %w", err)
+	}
+
+	binding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: roleName},
+	}
+	_, err = controllerutil.CreateOrPatch(ctx, r.directClient(), binding, func() error {
+		binding.Labels = map[string]string{
+			clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
+			clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+		}
+		binding.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "Tenant",
+			Name:       tenant.Name,
+			UID:        tenant.UID,
+		}}
+		binding.RoleRef = rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "ClusterRole",
+			Name:     roleName,
+		}
+		binding.Subjects = []rbacv1.Subject{{
+			Kind:      rbacv1.ServiceAccountKind,
+			Name:      r.ManagerServiceAccountName,
+			Namespace: r.ManagerServiceAccountNamespace,
+		}}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf(
+			"reconcile tenant gateway cluster role binding: %w",
+			err,
+		)
 	}
 	return nil
 }

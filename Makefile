@@ -6,6 +6,13 @@ SHELL = /usr/bin/env bash -o pipefail
 # Image URL to render into Kubernetes manifests.
 IMAGE ?= murtazau/clawarmor:latest
 AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
+BETTER_AUTH_ORIGIN ?= http://localhost:3000
+BETTER_AUTH_ISSUER ?= $(BETTER_AUTH_ORIGIN)
+BETTER_AUTH_JWKS_URL ?= $(BETTER_AUTH_ORIGIN)/api/auth/.well-known/jwks.json
+GATEWAY_JWT_AUDIENCE ?= clawarmor-gateway
+K8S_NAMESPACE ?= default
+OPENBAO_TOKEN_PATH ?= /tmp/sa-token
+GATEWAY_TOKEN_PATH ?= /tmp/gateway-sa-token
 
 .PHONY: all
 all: generate lint build
@@ -51,22 +58,27 @@ build:
 # Run agent gateway
 .PHONY: run-gateway
 run-gateway:
-	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	kubectl -n $(K8S_NAMESPACE) create token default --duration=24h > $(OPENBAO_TOKEN_PATH)
 	go run ./cmd/clawarmor gateway serve \
 		--addr 0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
+		--external-jwt-jwks-url=$(BETTER_AUTH_JWKS_URL) \
+		--external-jwt-issuer=$(BETTER_AUTH_ISSUER) \
+		--external-jwt-audience=$(GATEWAY_JWT_AUDIENCE) \
+		--internal-k8s-token-audience=$(GATEWAY_JWT_AUDIENCE) \
 		--agent-image=$(AGENT_IMAGE) \
 		--agent-trace-endpoint=172.18.0.1:4317 \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
 		--openbao-k8s-auth-role=gateway \
-		--openbao-k8s-auth-token-path=/tmp/sa-token
+		--openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH)
 
 # Run agent controller manager
 .PHONY: run-manager
 run-manager:
-	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	kubectl -n $(K8S_NAMESPACE) create token default --duration=24h > $(OPENBAO_TOKEN_PATH)
+	kubectl -n $(K8S_NAMESPACE) create token default --audience=$(GATEWAY_JWT_AUDIENCE) --duration=24h > $(GATEWAY_TOKEN_PATH)
 	go run ./cmd/clawarmor manager \
 		--health-probe-bind-address=:8888 \
 		--enable-webhooks=false \
@@ -76,7 +88,10 @@ run-manager:
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
 		--manager-openbao-k8s-auth-role=manager \
-		--manager-k8s-service-account-token-path=/tmp/sa-token \
+		--manager-openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH) \
+		--manager-gateway-token-path=$(GATEWAY_TOKEN_PATH) \
+		--manager-service-account-name=default \
+		--manager-service-account-namespace=$(K8S_NAMESPACE) \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=nix-store \
 		--tenant-nix-store-size=5Gi \

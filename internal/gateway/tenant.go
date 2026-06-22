@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 	jwtrequest "github.com/golang-jwt/jwt/v5/request"
 	authenticationv1 "k8s.io/api/authentication/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
@@ -28,6 +29,7 @@ type tenantContextKey struct{}
 
 type requestAuth struct {
 	claims          *gatewayClaims
+	tenantName      string
 	tenantNamespace string
 }
 
@@ -123,12 +125,10 @@ func tenantView(tenant *clawarmorv1alpha1.Tenant) gatewayapi.Tenant {
 			Status:  gatewayapi.TenantConditionStatus(cond.Status),
 			Type:    cond.Type,
 		})
-		if cond.Type == clawarmorv1alpha1.TenantConditionReady &&
-			cond.Status == metav1.ConditionTrue {
+		if cond.Type == clawarmorv1alpha1.TenantConditionReady && cond.Status == metav1.ConditionTrue {
 			ready = true
 		}
-		if cond.Type == clawarmorv1alpha1.TenantConditionDegraded &&
-			cond.Status == metav1.ConditionTrue {
+		if cond.Type == clawarmorv1alpha1.TenantConditionDegraded && cond.Status == metav1.ConditionTrue {
 			degraded = true
 		}
 	}
@@ -150,7 +150,7 @@ func tenantView(tenant *clawarmorv1alpha1.Tenant) gatewayapi.Tenant {
 	}
 }
 
-func requireGatewayAuth(k8s kubernetes.Interface) func(http.Handler) http.Handler {
+func requireGatewayAuth(s *Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodOptions {
@@ -158,14 +158,18 @@ func requireGatewayAuth(k8s kubernetes.Interface) func(http.Handler) http.Handle
 				return
 			}
 
-			auth, err := resolveRequestAuth(r, k8s)
+			auth, err := s.resolveRequestAuth(r)
 			if err != nil {
-				writeError(w, r, newAPIError(
-					http.StatusUnauthorized,
-					"unauthorized",
-					"missing or invalid bearer token",
-					err,
-				))
+				apiErr, ok := err.(*apiError)
+				if !ok {
+					apiErr = newAPIError(
+						http.StatusUnauthorized,
+						"unauthorized",
+						"missing or invalid bearer token",
+						err,
+					)
+				}
+				writeError(w, r, apiErr)
 				return
 			}
 
@@ -176,7 +180,7 @@ func requireGatewayAuth(k8s kubernetes.Interface) func(http.Handler) http.Handle
 }
 
 func requireTenantRequest(s *Service) func(http.Handler) http.Handler {
-	auth := requireGatewayAuth(s.k8s)
+	auth := requireGatewayAuth(s)
 	tenant := loadTenant(s)
 	return func(next http.Handler) http.Handler {
 		return auth(tenant(requireTenantReady(s, next)))
@@ -331,34 +335,44 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 	return nil
 }
 
-func resolveRequestAuth(r *http.Request, k8s kubernetes.Interface) (requestAuth, error) {
+func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 	tenantNamespace := strings.TrimSpace(
 		r.Header.Get(internalTenantNamespaceHeader),
 	)
 	if tenantNamespace != "" {
-		if err := validateInternalBearer(r, k8s); err != nil {
-			return requestAuth{}, err
-		}
-		return requestAuth{tenantNamespace: tenantNamespace}, nil
+		return s.resolveInternalRequestAuth(r, tenantNamespace)
 	}
 
-	claims, err := parseGatewayClaims(r)
+	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
 	if err != nil {
-		return requestAuth{}, err
+		return requestAuth{}, fmt.Errorf("missing bearer token")
+	}
+
+	claims, err := s.parseGatewayClaims(token)
+	if err != nil {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			err,
+		)
 	}
 	return requestAuth{claims: &claims}, nil
 }
 
-func parseGatewayClaims(r *http.Request) (gatewayClaims, error) {
-	token, err := extractBearerToken(r)
-	if err != nil {
-		return gatewayClaims{}, err
-	}
-
-	parser := jwt.NewParser()
+func (s *Service) parseGatewayClaims(token string) (gatewayClaims, error) {
 	claims := gatewayClaims{}
-	if _, _, err := parser.ParseUnverified(token, &claims); err != nil {
-		return gatewayClaims{}, fmt.Errorf("parse jwt claims: %w", err)
+	parser := jwt.NewParser(
+		jwt.WithValidMethods([]string{jwt.SigningMethodES256.Alg()}),
+		jwt.WithIssuer(s.cfg.ExternalJWTIssuer),
+		jwt.WithAudience(s.cfg.ExternalJWTAudience),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt(),
+	)
+
+	_, err := parser.ParseWithClaims(token, &claims, s.externalJWTKeyfunc)
+	if err != nil {
+		return gatewayClaims{}, fmt.Errorf("verify external bearer: %w", err)
 	}
 	if strings.TrimSpace(claims.TenantID) == "" {
 		return gatewayClaims{}, fmt.Errorf("missing tenant_id claim")
@@ -369,37 +383,109 @@ func parseGatewayClaims(r *http.Request) (gatewayClaims, error) {
 	return claims, nil
 }
 
-func extractBearerToken(r *http.Request) (string, error) {
+func (s *Service) resolveInternalRequestAuth(r *http.Request, tenantNamespace string) (requestAuth, error) {
 	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
 	if err != nil {
-		return "", fmt.Errorf("missing bearer token")
-	}
-	return token, nil
-}
-
-func validateInternalBearer(r *http.Request, k8s kubernetes.Interface) error {
-	token, err := extractBearerToken(r)
-	if err != nil {
-		return err
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			fmt.Errorf("missing bearer token"),
+		)
 	}
 
-	review, err := k8s.AuthenticationV1().TokenReviews().Create(
+	review, err := s.k8s.AuthenticationV1().TokenReviews().Create(
 		r.Context(),
 		&authenticationv1.TokenReview{
-			Spec: authenticationv1.TokenReviewSpec{Token: token},
+			Spec: authenticationv1.TokenReviewSpec{
+				Token:     token,
+				Audiences: []string{s.cfg.InternalK8sTokenAudience},
+			},
 		},
 		metav1.CreateOptions{},
 	)
 	if err != nil {
-		return fmt.Errorf("review internal bearer token: %w", err)
+		return requestAuth{}, fmt.Errorf(
+			"review internal bearer token: %w",
+			err,
+		)
 	}
 	if !review.Status.Authenticated {
-		return fmt.Errorf("internal bearer token is not authenticated")
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			fmt.Errorf("internal bearer token is not authenticated"),
+		)
 	}
 	if !strings.HasPrefix(review.Status.User.Username, "system:serviceaccount:") {
-		return fmt.Errorf("internal bearer token is not a service account token")
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			fmt.Errorf("internal bearer token is not a service account token"),
+		)
 	}
-	return nil
+	if !slices.Contains(review.Status.Audiences, s.cfg.InternalK8sTokenAudience) {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid bearer token",
+			fmt.Errorf("internal bearer token audience mismatch"),
+		)
+	}
+
+	tenant, err := s.findTenantByNamespace(r.Context(), tenantNamespace)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return requestAuth{}, newAPIError(
+				http.StatusNotFound,
+				"tenant_not_found",
+				"tenant is not initialized",
+				err,
+			)
+		}
+		return requestAuth{}, err
+	}
+
+	sar, err := s.k8s.AuthorizationV1().SubjectAccessReviews().Create(
+		r.Context(),
+		&authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User:   review.Status.User.Username,
+				UID:    review.Status.User.UID,
+				Groups: review.Status.User.Groups,
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Verb:     "use",
+					Group:    clawarmorv1alpha1.SchemeGroupVersion.Group,
+					Resource: "tenants",
+					Name:     tenant.Name,
+				},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return requestAuth{}, fmt.Errorf("authorize internal bearer: %w", err)
+	}
+	if !sar.Status.Allowed {
+		return requestAuth{}, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"internal caller is not authorized for tenant",
+			fmt.Errorf(
+				"internal caller is not authorized for tenant %q: %s %s",
+				tenant.Name,
+				sar.Status.Reason,
+				sar.Status.EvaluationError,
+			),
+		)
+	}
+
+	return requestAuth{
+		tenantName:      tenant.Name,
+		tenantNamespace: tenant.Status.Namespace,
+	}, nil
 }
 
 func requestAuthState(ctx context.Context) (requestAuth, bool) {
@@ -459,18 +545,31 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*clawarmorv
 		return tenant, nil
 	}
 
+	if auth.tenantName != "" {
+		tenant := &clawarmorv1alpha1.Tenant{}
+		err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: auth.tenantName}, tenant)
+		if err != nil {
+			return nil, err
+		}
+		return tenant, nil
+	}
+
+	return s.findTenantByNamespace(ctx, auth.tenantNamespace)
+}
+
+func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace string) (*clawarmorv1alpha1.Tenant, error) {
 	list := &clawarmorv1alpha1.TenantList{}
 	if err := s.k8sClient.List(ctx, list); err != nil {
 		return nil, fmt.Errorf("list tenants: %w", err)
 	}
 	for i := range list.Items {
 		tenant := &list.Items[i]
-		if tenant.Status.Namespace == auth.tenantNamespace {
+		if tenant.Status.Namespace == tenantNamespace {
 			return tenant, nil
 		}
 	}
 	return nil, apierrors.NewNotFound(
 		clawarmorv1alpha1.Resource("tenant"),
-		auth.tenantNamespace,
+		tenantNamespace,
 	)
 }

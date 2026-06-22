@@ -87,7 +87,10 @@ var (
 	openBaoK8sAuthMountPath                          string
 	sinjectorOpenBaoK8sAuthTokenPath                 string
 	managerOpenBaoK8sAuthRole                        string
-	managerK8sServiceAccountTokenPath                string
+	managerOpenBaoK8sAuthTokenPath                   string
+	managerGatewayTokenPath                          string
+	managerServiceAccountName                        string
+	managerServiceAccountNamespace                   string
 	sinjectorCASecretName                            string
 	sinjectorCASecretCertKey                         string
 	sinjectorCASecretKeyKey                          string
@@ -341,10 +344,35 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:        "manager-k8s-service-account-token-path",
-			Usage:       "Kubernetes service account token path for OpenBao and gateway auth",
+			Name:        "manager-openbao-k8s-auth-token-path",
+			Usage:       "Kubernetes service account token path for manager OpenBao auth",
 			Value:       "/var/run/secrets/kubernetes.io/serviceaccount/token",
-			Destination: &managerK8sServiceAccountTokenPath,
+			Destination: &managerOpenBaoK8sAuthTokenPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-gateway-token-path",
+			Usage:       "Projected Kubernetes service account token path for gateway auth",
+			Value:       "/var/run/secrets/clawarmor/gateway/token",
+			Destination: &managerGatewayTokenPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-service-account-name",
+			Usage:       "Manager ServiceAccount name granted tenant gateway access",
+			Destination: &managerServiceAccountName,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-service-account-namespace",
+			Usage:       "Manager ServiceAccount namespace granted tenant gateway access",
+			Destination: &managerServiceAccountNamespace,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -645,7 +673,7 @@ var managerCmd = &cli.Command{
 			OpenBaoK8sAuthMountPath:          openBaoK8sAuthMountPath,
 			SinjectorOpenBaoK8sAuthTokenPath: sinjectorOpenBaoK8sAuthTokenPath,
 			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
-			ManagerOpenBaoK8sAuthTokenPath:   managerK8sServiceAccountTokenPath,
+			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
 			SinjectorImage:                   controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,
@@ -695,11 +723,11 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "Environment")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient, managerK8sServiceAccountTokenPath); err != nil {
+			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowSchedule")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr, gwClient, managerK8sServiceAccountTokenPath); err != nil {
+			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowRun")
 				os.Exit(1)
 			}
@@ -726,7 +754,7 @@ var managerCmd = &cli.Command{
 		workflowRunReconciler := &workflowruncontroller.Reconciler{
 			Client:        mgr.GetClient(),
 			GatewayClient: gwClient,
-			TokenPath:     managerK8sServiceAccountTokenPath,
+			TokenPath:     managerGatewayTokenPath,
 		}
 		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "WorkflowRun")
@@ -743,7 +771,7 @@ var managerCmd = &cli.Command{
 			OpenBaoSecretMountPath:  openBaoSecretMountPath,
 			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
 			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
-			OpenBaoK8sAuthTokenPath: managerK8sServiceAccountTokenPath,
+			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "MCPConnection")
@@ -763,13 +791,15 @@ var managerCmd = &cli.Command{
 				}
 				return c
 			}(),
-			Scheme:                  mgr.GetScheme(),
-			NixStorePVCName:         nixStorePVC,
-			NixStorePVCSize:         tenantPVCSize,
-			NixStorePVCAccessModes:  tenantPVCAccessModes,
-			NixStorePVCStorageClass: tenantNixStoreStorageClass,
-			SinjectorCASecretName:   sinjectorCASecretName,
-			ClusterIssuerName:       tenantSinjectorClusterIssuerName,
+			Scheme:                         mgr.GetScheme(),
+			NixStorePVCName:                nixStorePVC,
+			NixStorePVCSize:                tenantPVCSize,
+			NixStorePVCAccessModes:         tenantPVCAccessModes,
+			NixStorePVCStorageClass:        tenantNixStoreStorageClass,
+			SinjectorCASecretName:          sinjectorCASecretName,
+			ClusterIssuerName:              tenantSinjectorClusterIssuerName,
+			ManagerServiceAccountName:      managerServiceAccountName,
+			ManagerServiceAccountNamespace: managerServiceAccountNamespace,
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Tenant")

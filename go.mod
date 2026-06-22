@@ -3,6 +3,7 @@ module github.com/accuknox/clawarmor
 go 1.26.4
 
 require (
+	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/agentgateway/agentgateway v1.2.1
 	github.com/cert-manager/cert-manager v1.19.1
 	github.com/cilium/cilium v1.19.3
@@ -41,6 +42,7 @@ require (
 	cel.dev/expr v0.25.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
+	github.com/MicahParks/jwkset v0.11.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

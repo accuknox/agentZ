@@ -105,7 +105,7 @@ export function NavUser({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/sessions">
+                <Link href="/settings/sessions">
                   <Monitor />
                   Sessions
                 </Link>

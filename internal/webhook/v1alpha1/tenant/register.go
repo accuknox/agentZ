@@ -22,7 +22,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-// SetupTenantWebhookWithManager registers the webhook for Tenant in the manager.
+// RegisterWithManager registers the Tenant webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.Tenant{}).
 		WithValidator(&Validator{}).

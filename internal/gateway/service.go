@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -70,6 +71,7 @@ type Service struct {
 	k8sClient          ctrlclient.Client
 	k8s                kubernetes.Interface
 	externalJWTKeyfunc jwt.Keyfunc
+	corsOrigin         string
 }
 
 type statusRecorder struct {
@@ -201,6 +203,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+	corsOrigin, err := externalJWTIssuerOrigin(cfg.ExternalJWTIssuer)
+	if err != nil {
+		return err
+	}
 
 	svc := &Service{
 		ctx:                ctx,
@@ -213,6 +219,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		k8sClient:          k8sClient,
 		k8s:                k8s,
 		externalJWTKeyfunc: externalJWTKeyfunc,
+		corsOrigin:         corsOrigin,
 	}
 
 	srv := &http.Server{
@@ -251,7 +258,7 @@ func (s *Service) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestLog)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedOrigins:   []string{s.corsOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: false,
@@ -309,6 +316,18 @@ func newExternalJWTKeyfunc(ctx context.Context, jwksURL string) (jwt.Keyfunc, er
 		return nil, fmt.Errorf("create external jwt keyfunc: %w", err)
 	}
 	return k.Keyfunc, nil
+}
+
+func externalJWTIssuerOrigin(raw string) (string, error) {
+	issuer, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", fmt.Errorf("parse external jwt issuer: %w", err)
+	}
+	if issuer.Scheme == "" || issuer.Host == "" {
+		return "", fmt.Errorf("external jwt issuer must be an absolute url")
+	}
+
+	return (&url.URL{Scheme: issuer.Scheme, Host: issuer.Host}).String(), nil
 }
 
 func shouldLogRequestCause(ctx context.Context, status int) bool {

@@ -12,7 +12,7 @@ repo: github.com/accuknox/clawarmor
 resources:
 - api:
     crdVersion: v1
-    namespaced: true
+    namespaced: false
   controller: true
   domain: accuknox.com
   group: clawarmor

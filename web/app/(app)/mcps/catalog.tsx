@@ -54,7 +54,7 @@ export type McpServer = {
   icon: React.ComponentType<SVGProps<SVGSVGElement>>
 }
 
-export const mcpFallbackIcon = Globe
+const mcpFallbackIcon = Globe
 export const mcpConnectionFallbackIcon = PlugZap
 
 function themedIcon(
@@ -954,8 +954,7 @@ export function findMcpServerByURL(mcpURL: string): McpServer | undefined {
   return mcpServers.find((server) => server.mcpUrl === mcpURL)
 }
 
-// iconForMcpServerURL returns the icon for one MCP endpoint URL.
-export function iconForMcpServerURL(
+function iconForMcpServerURL(
   mcpURL: string,
   fallback: React.ComponentType<SVGProps<SVGSVGElement>> = mcpFallbackIcon
 ): React.ComponentType<SVGProps<SVGSVGElement>> {

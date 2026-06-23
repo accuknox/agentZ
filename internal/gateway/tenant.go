@@ -238,6 +238,10 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 					err,
 				))
 			default:
+				if apiErr, ok := errors.AsType[*apiError](err); ok {
+					writeError(w, r, apiErr)
+					return
+				}
 				writeInternalError(w, r, err)
 			}
 		})
@@ -700,6 +704,14 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*clawarmorv
 		if err != nil {
 			return nil, err
 		}
+		if !tenantMatchesClaims(tenant, auth.claims) {
+			return nil, newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"tenant identity does not match bearer claims",
+				fmt.Errorf("tenant identity mismatch"),
+			)
+		}
 		return tenant, nil
 	}
 
@@ -713,6 +725,14 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*clawarmorv
 	}
 
 	return s.findTenantByNamespace(ctx, auth.tenantNamespace)
+}
+
+func tenantMatchesClaims(tenant *clawarmorv1alpha1.Tenant, claims *gatewayClaims) bool {
+	if tenant == nil || claims == nil {
+		return false
+	}
+	return tenant.Spec.OrganizationID == strings.TrimSpace(claims.TenantID) &&
+		tenant.Spec.UserID == strings.TrimSpace(claims.UserID)
 }
 
 func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace string) (*clawarmorv1alpha1.Tenant, error) {

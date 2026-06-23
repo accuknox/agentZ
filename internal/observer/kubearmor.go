@@ -7,7 +7,7 @@ import (
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 )
 
-func normalizeLog(item *pb.Log, namespace, agentName string) (event, bool) {
+func kubeArmorLogEvent(item *pb.Log, namespace, agentName string) (event, bool) {
 	if item == nil {
 		return event{}, false
 	}
@@ -18,7 +18,7 @@ func normalizeLog(item *pb.Log, namespace, agentName string) (event, bool) {
 	ts := eventTime(item.GetUpdatedTime(), item.GetTimestamp())
 	switch item.GetOperation() {
 	case "Process":
-		process := normalizeProcessName(item.GetProcessName(), item.GetResource())
+		process := processName(item.GetProcessName(), item.GetResource())
 		if process == "" {
 			return event{}, false
 		}
@@ -29,13 +29,13 @@ func normalizeLog(item *pb.Log, namespace, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			process:           process,
 			parentProcess:     item.GetParentProcessName(),
-			commandInvocation: normalizeCommand(item.GetResource(), process),
+			commandInvocation: commandLine(item.GetResource(), process),
 			action:            actionAllowed,
 			source:            sourceKubeArmorLog,
 		}}, true
 	case "File":
 		path := firstToken(item.GetResource())
-		process := normalizeCommand(item.GetProcessName(), firstToken(item.GetSource()))
+		process := commandLine(item.GetProcessName(), firstToken(item.GetSource()))
 		if path == "" || process == "" {
 			return event{}, false
 		}
@@ -46,7 +46,7 @@ func normalizeLog(item *pb.Log, namespace, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			filePathAccessed:  path,
 			process:           process,
-			commandInvocation: normalizeCommand(item.GetSource(), process),
+			commandInvocation: commandLine(item.GetSource(), process),
 			action:            actionAllowed,
 			source:            sourceKubeArmorLog,
 		}}, true
@@ -55,16 +55,16 @@ func normalizeLog(item *pb.Log, namespace, agentName string) (event, bool) {
 	}
 }
 
-func normalizeAlert(item *pb.Alert, namespace, agentName string) (event, bool) {
+func kubeArmorAlertEvent(item *pb.Alert, namespace, agentName string) (event, bool) {
 	if item == nil || item.GetNamespaceName() != namespace {
 		return event{}, false
 	}
 
 	ts := eventTime(item.GetUpdatedTime(), item.GetTimestamp())
-	action := normalizeAction(item.GetAction())
+	action := kubeArmorAction(item.GetAction())
 	switch item.GetOperation() {
 	case "Process":
-		process := normalizeProcessName(item.GetProcessName(), item.GetResource())
+		process := processName(item.GetProcessName(), item.GetResource())
 		if process == "" {
 			return event{}, false
 		}
@@ -75,13 +75,13 @@ func normalizeAlert(item *pb.Alert, namespace, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			process:           process,
 			parentProcess:     item.GetParentProcessName(),
-			commandInvocation: normalizeCommand(item.GetResource(), process),
+			commandInvocation: commandLine(item.GetResource(), process),
 			action:            action,
 			source:            sourceKubeArmorAlert,
 		}}, true
 	case "File":
 		path := firstToken(item.GetResource())
-		process := normalizeCommand(item.GetProcessName(), firstToken(item.GetSource()))
+		process := commandLine(item.GetProcessName(), firstToken(item.GetSource()))
 		if path == "" || process == "" {
 			return event{}, false
 		}
@@ -92,7 +92,7 @@ func normalizeAlert(item *pb.Alert, namespace, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			filePathAccessed:  path,
 			process:           process,
-			commandInvocation: normalizeCommand(item.GetSource(), process),
+			commandInvocation: commandLine(item.GetSource(), process),
 			action:            action,
 			source:            sourceKubeArmorAlert,
 		}}, true
@@ -101,7 +101,7 @@ func normalizeAlert(item *pb.Alert, namespace, agentName string) (event, bool) {
 	}
 }
 
-func normalizeAction(action string) string {
+func kubeArmorAction(action string) string {
 	if strings.Contains(action, "Block") {
 		return actionBlocked
 	}
@@ -135,14 +135,14 @@ func eventTime(updated string, unix int64) time.Time {
 	return time.Now().UTC()
 }
 
-func normalizeProcessName(processName, resource string) string {
+func processName(processName, resource string) string {
 	if processName != "" {
 		return processName
 	}
 	return firstToken(resource)
 }
 
-func normalizeCommand(primary, fallback string) string {
+func commandLine(primary, fallback string) string {
 	primary = strings.TrimSpace(primary)
 	if primary != "" {
 		return primary

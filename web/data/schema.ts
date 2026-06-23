@@ -1,7 +1,7 @@
 import * as z from "zod"
 import ipaddr from "ipaddr.js"
 
-export const secretKeySchema = z
+const secretKeySchema = z
   .string()
   .trim()
   .min(1, "Secret name is required")

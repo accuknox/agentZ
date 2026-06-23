@@ -9,9 +9,40 @@ import { getGithubUserInfo } from "@/lib/github-membership"
 
 const githubScope = ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])]
 
+const disabledAuthPaths = [
+  // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
+  // project's 1:1 user-organization invariant before minting a bearer token.
+  "/token",
+  // Organization state is provisioned and reconciled server-side only. Public
+  // org endpoints would let a user mutate, delete, leave, or unset the single
+  // tenant organization that the gateway uses as its security boundary.
+  "/organization/accept-invitation",
+  "/organization/cancel-invitation",
+  "/organization/check-slug",
+  "/organization/create",
+  "/organization/delete",
+  "/organization/get-active-member",
+  "/organization/get-active-member-role",
+  "/organization/get-full-organization",
+  "/organization/get-invitation",
+  "/organization/has-permission",
+  "/organization/invite-member",
+  "/organization/leave",
+  "/organization/list",
+  "/organization/list-invitations",
+  "/organization/list-members",
+  "/organization/list-user-invitations",
+  "/organization/reject-invitation",
+  "/organization/remove-member",
+  "/organization/set-active",
+  "/organization/update",
+  "/organization/update-member-role",
+]
+
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   trustedOrigins: [new URL(env.BETTER_AUTH_URL).origin],
+  disabledPaths: disabledAuthPaths,
   database: drizzleAdapter(db, {
     provider: "pg",
     usePlural: true,
@@ -64,6 +95,7 @@ export const auth = betterAuth({
   plugins: [
     organization({
       allowUserToCreateOrganization: false,
+      disableOrganizationDeletion: true,
       organizationLimit: 1,
       membershipLimit: 1,
     }),

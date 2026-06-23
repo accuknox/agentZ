@@ -1,12 +1,12 @@
 import { dayjs } from "@/lib/dayjs"
 export { firstSearchParam } from "@/lib/search-params"
 
-export const defaultLimit = 25
+const defaultTraceLimit = 25
 
 export function parseLimitParam(value?: string) {
   const limit = Number(value)
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
-    return defaultLimit
+    return defaultTraceLimit
   }
 
   return limit

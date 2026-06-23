@@ -142,7 +142,7 @@ func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespa
 	return fields, nil
 }
 
-func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, tenant *clawarmorv1alpha1.Tenant, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
+func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
 	specInput := scheduleSpecInput{
 		schedule:                   req.Schedule,
 		timeZone:                   req.TimeZone,
@@ -180,17 +180,12 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
 			Namespace: ns,
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
-				Kind:       "Agent",
-				Name:       agt.Name,
-				UID:        agt.UID,
-			}, {
-				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
-				Kind:       "Tenant",
-				Name:       tenant.Name,
-				UID:        tenant.UID,
-			}},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(
+					agt,
+					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Agent"),
+				),
+			},
 		},
 	}
 	applyScheduleSpec(&schedule.Spec, agtName, wfName, specInput, inputsJSON)

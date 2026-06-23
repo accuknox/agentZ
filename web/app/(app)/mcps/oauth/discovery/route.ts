@@ -2,18 +2,52 @@ import {
   discoverAuthorizationServerMetadata,
   discoverOAuthProtectedResourceMetadata,
 } from "@modelcontextprotocol/client"
+import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import * as z from "zod"
-import { discoveredOAuth, type StoredOAuthDiscoveryState } from "@/lib/mcp-oauth"
+import { auth } from "@/lib/auth"
+import {
+  discoveredOAuth,
+  parseStoredOAuthDiscoveryState,
+  type StoredOAuthDiscoveryState,
+} from "@/lib/mcp-oauth"
 
 const manualDiscoveryMessage =
   "Auto-discovery failed. If the MCP server supports OAuth, please fill in the required fields in advanced section manually."
 
+const httpsURLSchema = z.url().superRefine((value, ctx) => {
+  const url = new URL(value)
+  if (url.protocol !== "https:") {
+    ctx.addIssue({
+      code: "custom",
+      message: "MCP server URL must use HTTPS",
+    })
+  }
+  if (url.username || url.password) {
+    ctx.addIssue({
+      code: "custom",
+      message: "MCP server URL must not include credentials",
+    })
+  }
+})
+
 const discoveryRequestSchema = z.object({
-  endpointUrl: z.url(),
+  endpointUrl: httpsURLSchema,
 })
 
 export async function POST(request: Request) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  })
+  if (!session) {
+    return NextResponse.json(
+      {
+        message: "Unauthorized",
+      },
+      { status: 401 }
+    )
+  }
+
   const raw = await request.text()
   if (!raw.trim()) {
     return NextResponse.json(
@@ -41,7 +75,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json(
       {
-        message: "MCP server URL must be a valid URL",
+        message: parsed.error.issues[0]?.message ?? "MCP server URL must be a valid URL",
       },
       { status: 400 }
     )
@@ -55,8 +89,11 @@ export async function POST(request: Request) {
 
   try {
     resourceMetadata = await discoverOAuthProtectedResourceMetadata(serverUrl)
-    authorizationServerUrl =
-      resourceMetadata.authorization_servers?.[0] ?? fallbackAuthorizationServerUrl
+    const discoveredAuthorizationServerUrl = resourceMetadata.authorization_servers?.[0]
+    const parsedAuthorizationServerUrl = httpsURLSchema.safeParse(discoveredAuthorizationServerUrl)
+    authorizationServerUrl = parsedAuthorizationServerUrl.success
+      ? parsedAuthorizationServerUrl.data
+      : fallbackAuthorizationServerUrl
   } catch {
     // Ignore protected resource discovery failures and fall back to
     // authorization server discovery from the endpoint origin.
@@ -75,11 +112,22 @@ export async function POST(request: Request) {
     )
   }
 
-  const discoveryState = {
-    authorizationServerUrl,
-    resourceMetadata,
-    authorizationServerMetadata,
-  } satisfies StoredOAuthDiscoveryState
+  let discoveryState: StoredOAuthDiscoveryState
+  try {
+    discoveryState = parseStoredOAuthDiscoveryState({
+      authorizationServerUrl,
+      resourceMetadata,
+      authorizationServerMetadata,
+    })
+  } catch {
+    return NextResponse.json(
+      {
+        message: manualDiscoveryMessage,
+      },
+      { status: 502 }
+    )
+  }
+
   const discovered = discoveredOAuth(discoveryState)
 
   return NextResponse.json({

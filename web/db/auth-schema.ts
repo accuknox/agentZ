@@ -23,6 +23,19 @@ export const users = pgTable("users", {
     .notNull(),
 })
 
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    logo: text("logo"),
+    createdAt: timestamp("created_at").notNull(),
+    metadata: text("metadata"),
+  },
+  (table) => [uniqueIndex("organizations_slug_uidx").on(table.slug)]
+)
+
 export const sessions = pgTable(
   "sessions",
   {
@@ -38,7 +51,9 @@ export const sessions = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    activeOrganizationId: text("active_organization_id"),
+    activeOrganizationId: text("active_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [index("sessions_userId_idx").on(table.userId)]
 )
@@ -83,19 +98,6 @@ export const verifications = pgTable(
   (table) => [index("verifications_identifier_idx").on(table.identifier)]
 )
 
-export const organizations = pgTable(
-  "organizations",
-  {
-    id: text("id").primaryKey(),
-    name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
-    logo: text("logo"),
-    createdAt: timestamp("created_at").notNull(),
-    metadata: text("metadata"),
-  },
-  (table) => [uniqueIndex("organizations_slug_uidx").on(table.slug)]
-)
-
 export const members = pgTable(
   "members",
   {
@@ -110,8 +112,8 @@ export const members = pgTable(
     createdAt: timestamp("created_at").notNull(),
   },
   (table) => [
-    index("members_organizationId_idx").on(table.organizationId),
-    index("members_userId_idx").on(table.userId),
+    uniqueIndex("members_organizationId_uidx").on(table.organizationId),
+    uniqueIndex("members_userId_uidx").on(table.userId),
   ]
 )
 

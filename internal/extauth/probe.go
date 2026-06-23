@@ -37,6 +37,7 @@ const (
 	mcpProbeAttempts      = 3
 	mcpProbeBackoffStart  = 100 * time.Millisecond
 	mcpProbeBackoffFactor = 2.0
+	maxProbeHTTPBodyBytes = 1 << 20
 )
 
 type probeRoundTripper struct {
@@ -47,11 +48,13 @@ type probeRoundTripper struct {
 
 	connName string
 
-	lastStatus   int
-	lastMethod   string
-	lastURL      string
-	lastReqBody  []byte
-	lastRespBody []byte
+	lastStatus    int
+	lastMethod    string
+	lastURL       string
+	lastReqBody   []byte
+	lastRespBody  []byte
+	reqTruncated  bool
+	respTruncated bool
 }
 
 func (s *Service) runMCPProbes(ctx context.Context) {
@@ -455,8 +458,15 @@ func (rt *probeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 
 	var reqBody []byte
 	if req.Body != nil {
-		reqBody, _ = io.ReadAll(req.Body)
-		req.Body.Close()
+		var truncated bool
+		var err error
+		reqBody, truncated, err = readProbeBody(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		if truncated {
+			return nil, fmt.Errorf("mcp probe request body exceeds %d bytes", maxProbeHTTPBodyBytes)
+		}
 		req.Body = io.NopCloser(bytes.NewReader(reqBody))
 	}
 
@@ -488,13 +498,17 @@ func (rt *probeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	if resp != nil {
 		rt.lastStatus = resp.StatusCode
 		rt.lastMethod = req.Method
-		rt.lastURL = req.URL.String()
+		rt.lastURL = probeLogURL(req.URL)
 		rt.lastReqBody = reqBody
+		rt.reqTruncated = false
 
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		respBody, truncated, err := readProbeBody(resp.Body)
+		if err != nil {
+			return nil, err
+		}
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 		rt.lastRespBody = respBody
+		rt.respTruncated = truncated
 	}
 	return resp, err
 }
@@ -509,7 +523,35 @@ func (rt *probeRoundTripper) logHTTPExchange(ctx context.Context, level slog.Lev
 		slog.String("http_url", rt.lastURL),
 		slog.Int("http_status", rt.lastStatus),
 		slog.String("http_req_body", strings.TrimSpace(string(rt.lastReqBody))),
+		slog.Bool("http_req_body_truncated", rt.reqTruncated),
 		slog.String("http_resp_body", strings.TrimSpace(string(rt.lastRespBody))),
+		slog.Bool("http_resp_body_truncated", rt.respTruncated),
 	)
 	slog.LogAttrs(ctx, level, msg, attrs...)
+}
+
+func readProbeBody(body io.ReadCloser) ([]byte, bool, error) {
+	defer body.Close()
+
+	data, err := io.ReadAll(io.LimitReader(body, maxProbeHTTPBodyBytes+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if len(data) <= maxProbeHTTPBodyBytes {
+		return data, false, nil
+	}
+	return data[:maxProbeHTTPBodyBytes], true, nil
+}
+
+func probeLogURL(raw *url.URL) string {
+	if raw == nil {
+		return ""
+	}
+
+	clean := *raw
+	clean.User = nil
+	if clean.RawQuery != "" {
+		clean.RawQuery = "redacted"
+	}
+	return clean.String()
 }

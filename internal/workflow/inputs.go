@@ -356,7 +356,8 @@ func joinField(fieldPrefix string, instanceLocation string) string {
 	var field strings.Builder
 	field.WriteString(fieldPrefix)
 	for _, part := range jsonPointerParts(instanceLocation) {
-		field.WriteString("." + part)
+		field.WriteString(".")
+		field.WriteString(part)
 	}
 	return field.String()
 }

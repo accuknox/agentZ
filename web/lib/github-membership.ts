@@ -7,6 +7,8 @@ type GithubEmail = Awaited<
   ReturnType<Octokit["rest"]["users"]["listEmailsForAuthenticatedUser"]>
 >["data"][number]
 type GithubMembershipError = {
+  name?: string
+  message?: string
   status?: number
   request?: {
     method?: string
@@ -16,6 +18,26 @@ type GithubMembershipError = {
     url?: string
     headers?: Record<string, string>
     data?: unknown
+  }
+}
+
+function githubErrorDetails(err: unknown) {
+  const e = err as GithubMembershipError
+  return {
+    error:
+      err instanceof Error
+        ? {
+            message: err.message,
+            name: err.name,
+          }
+        : {
+            message: e.message ?? "unknown error",
+            name: e.name ?? "unknown",
+          },
+    method: e.request?.method,
+    requestUrl: e.request?.url,
+    responseUrl: e.response?.url,
+    status: e.status,
   }
 }
 
@@ -104,7 +126,7 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
         login: profile.login,
         org: env.GITHUB_ORG,
         team: env.GITHUB_TEAM_SLUG,
-        err,
+        ...githubErrorDetails(err),
       })
     }
 
@@ -122,26 +144,11 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
       data: profile satisfies GithubProfile,
     }
   } catch (err) {
-    const e = err as GithubMembershipError
-
     console.error("github auth gate failed", {
       allowedUserId: env.GITHUB_ALLOWED_USER_ID,
       org: env.GITHUB_ORG,
       team: env.GITHUB_TEAM_SLUG,
-      err:
-        err instanceof Error
-          ? {
-              name: err.name,
-              message: err.message,
-              stack: err.stack,
-            }
-          : err,
-      status: e.status,
-      method: e.request?.method,
-      requestUrl: e.request?.url,
-      responseUrl: e.response?.url,
-      responseHeaders: e.response?.headers,
-      responseData: e.response?.data,
+      ...githubErrorDetails(err),
     })
     return null
   }

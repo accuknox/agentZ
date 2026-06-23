@@ -40,7 +40,12 @@ async function AppGate({ children }: { children: React.ReactNode }) {
     client: gatewayServerClient,
     throwOnError: true,
   })
-  if (!tenant.data.ready) {
+  const tenantData = tenant.data
+  if (!tenantData) {
+    throw new Error("gateway returned no tenant bootstrap state")
+  }
+
+  if (!tenantData.ready) {
     redirect("/setting-up")
   }
 

@@ -271,7 +271,9 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Delete(
 		r.Context(),
 		row.AgentName,
-		metav1.DeleteOptions{},
+		metav1.DeleteOptions{
+			PropagationPolicy: new(metav1.DeletePropagationBackground),
+		},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		writeError(w, r, mapKubeHTTPError("delete agent", err))
@@ -596,12 +598,10 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 				labelManagedBy: "clawarmor-agent-gateway",
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
-					Kind:       "Tenant",
-					Name:       tenant.Name,
-					UID:        tenant.UID,
-				},
+				*metav1.NewControllerRef(
+					tenant,
+					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+				),
 			},
 		},
 		Spec: clawarmorv1alpha1.AgentSpec{

@@ -36,9 +36,8 @@ type requestTarget struct {
 	addr   netip.Addr
 }
 
-// NormalizeSecretHosts validates, canonicalizes, and deduplicates secret hosts
-// before storage or matching.
-func NormalizeSecretHosts(hosts []string) ([]string, error) {
+// CanonicalSecretHosts validates secret hosts and returns stable canonical values.
+func CanonicalSecretHosts(hosts []string) ([]string, error) {
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("at least one host is required")
 	}
@@ -65,7 +64,7 @@ func NormalizeSecretHosts(hosts []string) ([]string, error) {
 }
 
 // SecretHostMatches reports whether a CONNECT destination matches any
-// normalized secret host.
+// canonical secret host.
 func SecretHostMatches(connectHost string, hosts []string) bool {
 	req, err := parseRequestTarget(connectHost)
 	if err != nil {

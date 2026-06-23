@@ -8,7 +8,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-func TestDefaulterDefaultNormalizesHosts(t *testing.T) {
+func TestDefaulterDefaultCanonicalizesHosts(t *testing.T) {
 	t.Parallel()
 
 	env := &clawarmorv1alpha1.Environment{

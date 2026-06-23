@@ -12,6 +12,8 @@ import (
 
 const internalTenantNamespaceHeader = "X-ClawArmor-Tenant-Namespace"
 
+// RequestEditor attaches the manager token and tenant namespace to gateway
+// requests made on behalf of one tenant.
 func RequestEditor(tokenPath string, namespace string) gatewayapi.RequestEditorFn {
 	return func(_ context.Context, req *http.Request) error {
 		token, err := os.ReadFile(tokenPath)

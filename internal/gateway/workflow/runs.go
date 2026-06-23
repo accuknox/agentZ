@@ -179,7 +179,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	return resultErr
 }
 
-func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, tenant *clawarmorv1alpha1.Tenant) (gatewayapi.WorkflowRunSummary, error) {
+func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (gatewayapi.WorkflowRunSummary, error) {
 	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
 	if err != nil {
 		return gatewayapi.WorkflowRunSummary{}, err
@@ -201,12 +201,6 @@ func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 					schedule,
 					clawarmorv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
 				),
-				{
-					APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
-					Kind:       "Tenant",
-					Name:       tenant.Name,
-					UID:        tenant.UID,
-				},
 			},
 		},
 		Spec: clawarmorv1alpha1.WorkflowRunSpec{

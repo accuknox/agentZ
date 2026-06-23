@@ -37,7 +37,7 @@ type HitlStore = {
 
 type StreamEvent = OpencodeEventV2
 
-export type ChatSystemPrompt = {
+type ChatSystemPrompt = {
   content: string
   createdAt: number
   id: string
@@ -171,10 +171,6 @@ function sessionErrorMessage(
     default:
       return "Session error"
   }
-}
-
-function normalizeText(value: string) {
-  return value.trim().replaceAll(/\s+/g, " ")
 }
 
 function upsertMessage(messages: Message[], next: Message) {
@@ -585,7 +581,7 @@ function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
   }
 }
 
-export function chatOverlayQueryKey(agentName: string, sessionID?: string) {
+function chatOverlayQueryKey(agentName: string, sessionID?: string) {
   return ["opencode", "chatOverlay", agentName, sessionID ?? "new"] as const
 }
 
@@ -663,7 +659,7 @@ export function markOptimisticUserMessageFailed(
   )
 }
 
-export function removeOptimisticUserMessage(
+function removeOptimisticUserMessage(
   queryClient: QueryClient,
   agentName: string,
   sessionID: string | undefined,
@@ -1032,8 +1028,8 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
       const match = messages.find((message) => {
         if (message.role !== "user") return false
         const parts = partsByMessage[message.id] ?? []
-        const messageText = normalizeText(sessionMessageText(parts))
-        const optimisticText = normalizeText(localMessage.text)
+        const messageText = sessionMessageText(parts).trim().replaceAll(/\s+/g, " ")
+        const optimisticText = localMessage.text.trim().replaceAll(/\s+/g, " ")
 
         return (
           messageText.length > 0 &&

@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-// HostKind identifies a normalized environment host entry.
+// HostKind identifies a canonical environment host entry.
 type HostKind string
 
 const (
@@ -26,16 +26,16 @@ const (
 
 var errEmptyHost = errors.New("must not be empty")
 
-// Host is a normalized environment egress destination.
+// Host is a canonical environment egress destination.
 type Host struct {
 	// Kind is the parsed host category used for policy generation.
 	Kind HostKind
-	// Value is the normalized host value.
+	// Value is the canonical host value.
 	Value string
 }
 
-// NormalizeHostList trims, validates, lowercases, and de-duplicates host entries.
-func NormalizeHostList(raw []string) ([]string, error) {
+// CanonicalHostList validates host entries and returns stable canonical values.
+func CanonicalHostList(raw []string) ([]string, error) {
 	hosts := make([]string, 0, len(raw))
 	seen := make(map[string]struct{}, len(raw))
 	for i, entry := range raw {
@@ -52,7 +52,7 @@ func NormalizeHostList(raw []string) ([]string, error) {
 	return hosts, nil
 }
 
-// ParseHost validates and normalizes one environment host entry.
+// ParseHost validates one environment host entry and returns its canonical form.
 func ParseHost(raw string) (Host, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
@@ -102,7 +102,7 @@ func validateDomain(value string) error {
 	return errors.New("must be a valid dns domain")
 }
 
-// ParseHostList validates normalized host entries and groups them by kind.
+// ParseHostList validates canonical host entries and groups them by kind.
 func ParseHostList(raw []string) ([]Host, error) {
 	hosts := make([]Host, 0, len(raw))
 	for i, entry := range raw {

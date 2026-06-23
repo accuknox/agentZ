@@ -16,6 +16,7 @@ import {
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 import * as z from "zod"
 import type { JsonObject, McpConnectionAuth } from "@/lib/gateway/client"
+import { env } from "@/lib/env"
 import {
   defaultMcpAuthLocation,
   oauthCredentialsFromTokens,
@@ -37,29 +38,50 @@ type PendingCreateOperation = {
 }
 
 export type PendingOAuthOperation = PendingCreateOperation
+export type PendingOAuthInitiator = {
+  organizationId: string
+  sessionId: string
+  userId: string
+}
+
+const httpsURLSchema = z.url().superRefine((value, ctx) => {
+  const url = new URL(value)
+  if (url.protocol !== "https:") {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL must use HTTPS",
+    })
+  }
+  if (url.username || url.password) {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL must not include credentials",
+    })
+  }
+})
 
 const storedOAuthProtectedResourceMetadataSchema = z
   .object({
-    resource: z.url(),
-    authorization_servers: z.array(z.url()).optional(),
+    resource: httpsURLSchema,
+    authorization_servers: z.array(httpsURLSchema).optional(),
     scopes_supported: z.array(z.string().min(1)).optional(),
   })
   .passthrough()
 
 const storedAuthorizationServerMetadataSchema = z
   .object({
-    issuer: z.string().min(1),
-    authorization_endpoint: z.url(),
-    token_endpoint: z.url(),
-    registration_endpoint: z.url().optional(),
+    issuer: httpsURLSchema,
+    authorization_endpoint: httpsURLSchema,
+    token_endpoint: httpsURLSchema,
+    registration_endpoint: httpsURLSchema.optional(),
     scopes_supported: z.array(z.string().min(1)).optional(),
     response_types_supported: z.array(z.string().min(1)),
     response_modes_supported: z.array(z.string().min(1)).optional(),
     grant_types_supported: z.array(z.string().min(1)).optional(),
     token_endpoint_auth_methods_supported: z.array(z.string().min(1)).optional(),
     token_endpoint_auth_signing_alg_values_supported: z.array(z.string().min(1)).optional(),
-    service_documentation: z.url().optional(),
-    revocation_endpoint: z.url().optional(),
+    service_documentation: httpsURLSchema.optional(),
+    revocation_endpoint: httpsURLSchema.optional(),
     revocation_endpoint_auth_methods_supported: z.array(z.string().min(1)).optional(),
     revocation_endpoint_auth_signing_alg_values_supported: z.array(z.string().min(1)).optional(),
     introspection_endpoint: z.string().optional(),
@@ -73,7 +95,7 @@ const storedAuthorizationServerMetadataSchema = z
 const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
   name: z.string().min(1),
   endpoint: z.object({
-    url: z.url(),
+    url: httpsURLSchema,
     timeout: z.string().min(1).optional(),
     insecure_skip_verify: z.boolean(),
     headers: z.record(z.string(), z.string()),
@@ -91,11 +113,11 @@ const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
     })
     .optional(),
   oauth: z.object({
-    issuer: z.string().min(1).optional(),
-    authorizationEndpoint: z.url().optional(),
-    tokenEndpoint: z.url().optional(),
-    registrationEndpoint: z.url().optional(),
-    resource: z.string().min(1).optional(),
+    issuer: httpsURLSchema.optional(),
+    authorizationEndpoint: httpsURLSchema.optional(),
+    tokenEndpoint: httpsURLSchema.optional(),
+    registrationEndpoint: httpsURLSchema.optional(),
+    resource: httpsURLSchema.optional(),
     scopes: z.array(z.string().min(1)).optional(),
     location: z
       .object({
@@ -127,8 +149,8 @@ const oauthClientInformationMixedSchema = z
   .passthrough()
 
 const oauthDiscoveryStateSchema = z.object({
-  authorizationServerUrl: z.string().min(1),
-  resourceMetadataUrl: z.string().optional(),
+  authorizationServerUrl: httpsURLSchema,
+  resourceMetadataUrl: httpsURLSchema.optional(),
   resourceMetadata: storedOAuthProtectedResourceMetadataSchema.optional(),
   authorizationServerMetadata: storedAuthorizationServerMetadataSchema.optional(),
 })
@@ -136,6 +158,11 @@ const oauthDiscoveryStateSchema = z.object({
 const pendingOAuthStateSchema = z.object({
   version: z.literal(1),
   flowId: z.string().min(1),
+  initiator: z.object({
+    organizationId: z.string().min(1),
+    sessionId: z.string().min(1),
+    userId: z.string().min(1),
+  }),
   operation: pendingOAuthOperationSchema,
   state: z.string().min(1),
   redirectURL: z.url().optional(),
@@ -147,6 +174,7 @@ const pendingOAuthStateSchema = z.object({
 export type PendingOAuthState = {
   version: 1
   flowId: string
+  initiator: PendingOAuthInitiator
   operation: PendingOAuthOperation
   state: string
   redirectURL?: string
@@ -156,14 +184,14 @@ export type PendingOAuthState = {
 }
 
 export type StoredOAuthDiscoveryState = z.infer<typeof oauthDiscoveryStateSchema>
-export type DiscoverOAuthAuthValue = NonNullable<McpConnectionAuth["oauth"]>
+type DiscoverOAuthAuthValue = NonNullable<McpConnectionAuth["oauth"]>
 export type OAuthDiscoveryValue = {
   oauth: DiscoverOAuthAuthValue
   defaultScopes?: string[]
   supportedScopes?: string[]
 }
 
-export type OAuthFlowErrorCode =
+type OAuthFlowErrorCode =
   | "cookie_too_large"
   | "callback_missing_state"
   | "callback_state_invalid"
@@ -174,7 +202,7 @@ export type OAuthFlowErrorCode =
   | "oauth_complete_failed"
   | "manual_client_credentials_required"
 
-export type OAuthFlowError = {
+type OAuthFlowError = {
   code: OAuthFlowErrorCode
   message: string
   field?: OAuthErrorFieldName
@@ -211,18 +239,17 @@ type RuntimeOAuthState = {
   discoveryState?: StoredOAuthDiscoveryState
 }
 
+export function parseStoredOAuthDiscoveryState(input: unknown): StoredOAuthDiscoveryState {
+  return oauthDiscoveryStateSchema.parse(input)
+}
+
 const oauthCookieName = "clawarmor-mcp-oauth"
 const oauthCookieTTLSeconds = 15 * 60
 const googleAuthorizationHosts = new Set(["accounts.google.com"])
 const dropboxAuthorizationHosts = new Set(["www.dropbox.com", "dropbox.com"])
 
 function secretKeyMaterial() {
-  const secret = process.env.MCP_OAUTH_COOKIE_SECRET
-  if (secret) {
-    return createHash("sha256").update(secret).digest()
-  }
-
-  throw new Error("MCP_OAUTH_COOKIE_SECRET is required for MCP OAuth flows")
+  return createHash("sha256").update(env.MCP_OAUTH_COOKIE_SECRET).digest()
 }
 
 function base64url(input: Buffer | ArrayBuffer) {
@@ -564,7 +591,32 @@ function registrationPayload(clientInformation: OAuthClientInformationMixed) {
   return parsed.data satisfies JsonObject
 }
 
+function scriptJSON(value: unknown) {
+  const json = JSON.stringify(value)
+  if (json === undefined) {
+    return "null"
+  }
+
+  return json.replace(/[<>&\u2028\u2029]/g, (char) => {
+    switch (char) {
+      case "<":
+        return "\\u003c"
+      case ">":
+        return "\\u003e"
+      case "&":
+        return "\\u0026"
+      case "\u2028":
+        return "\\u2028"
+      case "\u2029":
+        return "\\u2029"
+      default:
+        return char
+    }
+  })
+}
+
 export async function beginOAuthFlow(input: {
+  initiator: PendingOAuthInitiator
   operation: PendingOAuthOperation
 }): Promise<OAuthResult<BeginOAuthFlowValue>> {
   const state = randomBytes(24).toString("base64url")
@@ -628,6 +680,7 @@ export async function beginOAuthFlow(input: {
     const pending = {
       version: 1,
       flowId,
+      initiator: input.initiator,
       operation: input.operation,
       state,
       // Reuse the exact redirect URL on the callback exchange because the
@@ -806,9 +859,7 @@ export async function completeOAuthFlow(input: {
   }
 }
 
-export function discoveredOAuthAuth(
-  discoveryState: StoredOAuthDiscoveryState
-): DiscoverOAuthAuthValue {
+function discoveredOAuthAuth(discoveryState: StoredOAuthDiscoveryState): DiscoverOAuthAuthValue {
   return {
     issuer:
       discoveryState.authorizationServerMetadata?.issuer ?? discoveryState.authorizationServerUrl,
@@ -839,7 +890,7 @@ export function discoveredOAuth(discoveryState: StoredOAuthDiscoveryState): OAut
   }
 }
 
-export function oauthAuthFromPending(
+function oauthAuthFromPending(
   discoveryState: StoredOAuthDiscoveryState,
   form: ParsedMcpForm
 ): McpConnectionAuth {
@@ -863,14 +914,15 @@ export function oauthCallbackResultPage(input: {
   flowId: string
   message: string
 }) {
-  const payload = JSON.stringify({
+  const payload = scriptJSON({
     source: oauthWindowMessageSource,
     kind: "result",
     flowId: input.flowId,
     status: input.success ? "success" : "error",
     message: input.message,
   } satisfies OAuthPopupMessage)
-  const message = JSON.stringify(input.message)
+  const message = scriptJSON(input.message)
+  const channelName = scriptJSON(oauthBroadcastChannelName)
 
   return `<!doctype html>
 <html lang="en">
@@ -883,7 +935,7 @@ export function oauthCallbackResultPage(input: {
     <script>
       const payload = ${payload};
       const message = ${message};
-      const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(${JSON.stringify(oauthBroadcastChannelName)}) : null;
+      const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(${channelName}) : null;
       if (channel) {
         const closeWhenAcknowledged = (event) => {
           const data = event.data;

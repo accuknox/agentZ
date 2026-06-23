@@ -86,7 +86,7 @@ func (c *dnsCache) get(agentName, podName, ip string, now time.Time) string {
 	return item.domain
 }
 
-func normalizeFlow(ctx context.Context, item *flowpb.Flow, namespace string, r *resolver, cache *dnsCache) (event, bool) {
+func hubbleFlowEvent(ctx context.Context, item *flowpb.Flow, namespace string, r *resolver, cache *dnsCache) (event, bool) {
 	if item == nil {
 		return event{}, false
 	}
@@ -109,17 +109,17 @@ func normalizeFlow(ctx context.Context, item *flowpb.Flow, namespace string, r *
 		return event{}, false
 	}
 
-	action, ok := normalizeNetworkAction(item.GetVerdict())
+	action, ok := networkAction(item.GetVerdict())
 	if !ok {
 		return event{}, false
 	}
-	protocol, port := normalizeNetworkProtocol(item.GetL4())
+	protocol, port := networkProtocol(item.GetL4())
 	if protocol == "" {
 		return event{}, false
 	}
 
 	dstIP := strings.TrimSpace(item.GetIP().GetDestination())
-	domain := normalizeDestinationDomain(
+	domain := destinationDomain(
 		cache.get(src.agentName, src.podName, dstIP, ts),
 		item.GetDestinationNames(),
 		r.resolveDestinationDomain(ctx, dstIP),
@@ -145,7 +145,7 @@ func observeDNSFlow(item *flowpb.Flow, src managedSource, cache *dnsCache, now t
 	}
 
 	dns := item.GetL7().GetDns()
-	domain := normalizeDNSName(dns.GetQuery())
+	domain := dnsName(dns.GetQuery())
 	if domain == "" {
 		return
 	}
@@ -163,7 +163,7 @@ func resolveManagedSource(ctx context.Context, r *resolver, src *flowpb.Endpoint
 		return managedSource{}, false
 	}
 
-	labels := normalizeHubbleLabels(src.GetLabels())
+	labels := hubbleLabels(src.GetLabels())
 	agentName, ok := r.resolveNetwork(ctx, src.GetNamespace(), labels, src.GetPodName())
 	if !ok {
 		return managedSource{}, false
@@ -175,7 +175,7 @@ func resolveManagedSource(ctx context.Context, r *resolver, src *flowpb.Endpoint
 	}, true
 }
 
-func normalizeHubbleLabels(raw []string) map[string]string {
+func hubbleLabels(raw []string) map[string]string {
 	labels := make(map[string]string, len(raw))
 	for _, item := range raw {
 		key, value, ok := strings.Cut(item, "=")
@@ -188,7 +188,7 @@ func normalizeHubbleLabels(raw []string) map[string]string {
 	return labels
 }
 
-func normalizeNetworkAction(verdict flowpb.Verdict) (string, bool) {
+func networkAction(verdict flowpb.Verdict) (string, bool) {
 	switch verdict {
 	case flowpb.Verdict_FORWARDED, flowpb.Verdict_AUDIT:
 		return actionAllowed, true
@@ -199,7 +199,7 @@ func normalizeNetworkAction(verdict flowpb.Verdict) (string, bool) {
 	}
 }
 
-func normalizeNetworkProtocol(l4 *flowpb.Layer4) (string, int64) {
+func networkProtocol(l4 *flowpb.Layer4) (string, int64) {
 	if l4 == nil {
 		return "", 0
 	}
@@ -224,21 +224,21 @@ func normalizeNetworkProtocol(l4 *flowpb.Layer4) (string, int64) {
 	}
 }
 
-func normalizeDestinationDomain(cacheDomain string, names []string, fallback string) string {
-	cacheDomain = normalizeDNSName(cacheDomain)
+func destinationDomain(cacheDomain string, names []string, fallback string) string {
+	cacheDomain = dnsName(cacheDomain)
 	if cacheDomain != "" {
 		return cacheDomain
 	}
 	for _, item := range names {
-		item = normalizeDNSName(item)
+		item = dnsName(item)
 		if item != "" {
 			return item
 		}
 	}
-	return normalizeDNSName(fallback)
+	return dnsName(fallback)
 }
 
-func normalizeDNSName(raw string) string {
+func dnsName(raw string) string {
 	raw = strings.TrimSpace(raw)
 	return strings.TrimSuffix(raw, ".")
 }

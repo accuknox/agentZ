@@ -174,7 +174,7 @@ func validateSecretEntries(raw []gatewayapi.SecretEntry) ([]validatedSecretEntry
 			continue
 		}
 
-		hosts, err := sinjector.NormalizeSecretHosts(entry.Hosts)
+		hosts, err := sinjector.CanonicalSecretHosts(entry.Hosts)
 		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("secrets[%d].hosts", i),
@@ -192,52 +192,56 @@ func validateSecretEntries(raw []gatewayapi.SecretEntry) ([]validatedSecretEntry
 	return entries, fields
 }
 
-func stringSlice(raw any) []string {
+func secretListKeys(raw any) []string {
 	switch items := raw.(type) {
 	case []string:
 		return append([]string{}, items...)
 	case []any:
-		out := make([]string, 0, len(items))
+		keys := make([]string, 0, len(items))
 		for _, item := range items {
-			s, ok := item.(string)
-			if !ok || s == "" {
+			key, ok := item.(string)
+			if !ok || key == "" {
 				continue
 			}
-			out = append(out, s)
+			keys = append(keys, key)
 		}
-		return out
+		return keys
 	default:
 		return []string{}
 	}
 }
 
-func stringMap(raw any) map[string]any {
+func secretListKeyMetadata(raw any) map[string]secretKeyMetadata {
 	items, ok := raw.(map[string]any)
 	if !ok {
-		return map[string]any{}
+		return map[string]secretKeyMetadata{}
 	}
-	return items
+
+	metadata := make(map[string]secretKeyMetadata, len(items))
+	for key, item := range items {
+		info, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		metadata[key] = secretKeyMetadata{
+			createdAt: secretMetadataTime(info["created_time"]),
+			updatedAt: secretMetadataTime(info["updated_time"]),
+		}
+	}
+	return metadata
 }
 
-func parseSecretKeyMetadata(raw any) secretKeyMetadata {
-	info := stringMap(raw)
-	meta := secretKeyMetadata{}
-
-	createdAt, ok := info["created_time"].(string)
-	if ok && createdAt != "" {
-		if parsed, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
-			meta.createdAt = parsed
-		}
+func secretMetadataTime(raw any) time.Time {
+	value, ok := raw.(string)
+	if !ok || value == "" {
+		return time.Time{}
 	}
 
-	updatedAt, ok := info["updated_time"].(string)
-	if ok && updatedAt != "" {
-		if parsed, err := time.Parse(time.RFC3339Nano, updatedAt); err == nil {
-			meta.updatedAt = parsed
-		}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}
 	}
-
-	return meta
+	return parsed
 }
 
 // DeleteSecret handles POST /api/secret/{agentName}/delete.
@@ -492,8 +496,8 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	keys := stringSlice(secret.Data["keys"])
-	rawKeyInfo := stringMap(secret.Data["key_info"])
+	keys := secretListKeys(secret.Data["keys"])
+	keyMetadata := secretListKeyMetadata(secret.Data["key_info"])
 
 	items := make([]gatewayapi.SecretListItem, 0, len(keys))
 	for _, key := range keys {
@@ -506,7 +510,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 			Key:   key,
 			Hosts: hosts,
 		}
-		meta := parseSecretKeyMetadata(rawKeyInfo[key])
+		meta := keyMetadata[key]
 		item.CreatedAt = meta.createdAt
 		item.ModifiedAt = meta.updatedAt
 		items = append(items, item)
@@ -564,19 +568,19 @@ func (s *Service) readSecretHosts(ctx context.Context, agentName, key string) ([
 	if secret == nil {
 		return nil, baoapi.ErrSecretNotFound
 	}
-	hosts, err := secretDataHosts(secret.Data["hosts"])
+	hosts, err := secretHostList(secret.Data["hosts"])
 	if err != nil {
 		return nil, err
 	}
 	return hosts, nil
 }
 
-func secretDataHosts(raw any) ([]string, error) {
-	hosts := stringSlice(raw)
+func secretHostList(raw any) ([]string, error) {
+	hosts := secretListKeys(raw)
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("secret hosts are invalid")
 	}
-	return sinjector.NormalizeSecretHosts(hosts)
+	return sinjector.CanonicalSecretHosts(hosts)
 }
 
 func (s *Service) agentSecretKeys(ctx context.Context, agentName string) ([]string, error) {
@@ -595,7 +599,7 @@ func (s *Service) agentSecretKeys(ctx context.Context, agentName string) ([]stri
 			return keys, nil
 		}
 
-		page := stringSlice(secret.Data["keys"])
+		page := secretListKeys(secret.Data["keys"])
 		if len(page) == 0 {
 			return keys, nil
 		}

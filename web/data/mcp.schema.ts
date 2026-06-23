@@ -20,6 +20,40 @@ const authLocationHeaderSchema = z.object({
     .transform((value) => (value === undefined ? undefined : value.trim())),
 })
 
+const optionalHTTPSURLSchema = z
+  .string()
+  .optional()
+  .transform((value) => value?.trim() || undefined)
+  .superRefine((value, ctx) => {
+    if (value === undefined) {
+      return
+    }
+
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must be a valid URL",
+      })
+      return
+    }
+
+    if (url.protocol !== "https:") {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must use HTTPS",
+      })
+    }
+    if (url.username || url.password) {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must not include credentials",
+      })
+    }
+  })
+
 export const defaultMcpAuthLocation = {
   header: {
     name: "Authorization",
@@ -69,6 +103,12 @@ const formSchema = z.object({
           message: "MCP server URL must use HTTPS",
         })
       }
+      if (url.username || url.password) {
+        ctx.addIssue({
+          code: "custom",
+          message: "MCP server URL must not include credentials",
+        })
+      }
     }),
   endpoint_timeout: z
     .string()
@@ -98,26 +138,11 @@ const formSchema = z.object({
     .string()
     .optional()
     .transform((value) => value?.trim() || undefined),
-  oauth_issuer: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() || undefined),
-  oauth_authorization_endpoint: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() || undefined),
-  oauth_token_endpoint: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() || undefined),
-  oauth_registration_endpoint: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() || undefined),
-  oauth_resource: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() || undefined),
+  oauth_issuer: optionalHTTPSURLSchema,
+  oauth_authorization_endpoint: optionalHTTPSURLSchema,
+  oauth_token_endpoint: optionalHTTPSURLSchema,
+  oauth_registration_endpoint: optionalHTTPSURLSchema,
+  oauth_resource: optionalHTTPSURLSchema,
   oauth_location_header_name: z
     .string()
     .optional()

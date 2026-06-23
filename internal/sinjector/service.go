@@ -177,7 +177,7 @@ func (r resolver) resolve(ctx context.Context, name string) (resolvedSecret, err
 	default:
 		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}
-	hosts, err = NormalizeSecretHosts(hosts)
+	hosts, err = CanonicalSecretHosts(hosts)
 	if err != nil {
 		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}

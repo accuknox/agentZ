@@ -24,6 +24,7 @@ import {
 } from "@/lib/mcp-oauth"
 import { oauthErrorFieldNames } from "@/lib/mcp-oauth-shared"
 import { mcpsTag } from "@/data/cache"
+import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 export type McpFormState =
@@ -183,7 +184,9 @@ export async function submitMcpFormAction(
 
   const form = parseMcpForm(parsed.data)
   if (form.authMode === "oauth") {
+    const authContext = await currentGatewayAuthContext()
     const result = await beginOAuthFlow({
+      initiator: authContext,
       operation: {
         kind: "create",
         form,

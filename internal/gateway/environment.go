@@ -126,7 +126,7 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.AllowedHosts != nil {
 		rawAllowedHosts = *req.AllowedHosts
 	}
-	allowedHosts, err := envutil.NormalizeHostList(rawAllowedHosts)
+	allowedHosts, err := envutil.CanonicalHostList(rawAllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)
 		return
@@ -179,12 +179,10 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 			Name:      name,
 			Namespace: ns,
 			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
-					Kind:       "Tenant",
-					Name:       tenant.Name,
-					UID:        tenant.UID,
-				},
+				*metav1.NewControllerRef(
+					tenant,
+					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+				),
 			},
 		},
 		Spec: clawarmorv1alpha1.EnvironmentSpec{
@@ -279,7 +277,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 	}
 
 	envName := strings.TrimSpace(environmentName)
-	allowedHosts, err := envutil.NormalizeHostList(req.AllowedHosts)
+	allowedHosts, err := envutil.CanonicalHostList(req.AllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)
 		return

@@ -50,7 +50,6 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
-	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
 	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
 	"github.com/accuknox/clawarmor/internal/controller/mcpconn"
@@ -112,6 +111,29 @@ type silentExitCoder interface {
 	Silent() bool
 }
 
+func newLogger(level, format string, withSource bool) *slog.Logger {
+	var slogLvl slog.Level
+	switch level {
+	case "debug":
+		slogLvl = slog.LevelDebug
+	case "warn":
+		slogLvl = slog.LevelWarn
+	case "error":
+		slogLvl = slog.LevelError
+	default:
+		slogLvl = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{
+		Level:     slogLvl,
+		AddSource: withSource,
+	}
+	if format == "json" {
+		return slog.New(slog.NewJSONHandler(os.Stderr, opts))
+	}
+	return slog.New(slog.NewTextHandler(os.Stderr, opts))
+}
+
 var cmd = &cli.Command{
 	Name:                  "clawarmor",
 	Usage:                 "Infra for your AI agents.",
@@ -164,7 +186,7 @@ var cmd = &cli.Command{
 			return ctx, fmt.Errorf("invalid log format %q", format)
 		}
 		withSource := c.Bool("log-with-source")
-		slog.SetDefault(util.NewLogger(level, format, withSource))
+		slog.SetDefault(newLogger(level, format, withSource))
 		return ctx, nil
 	},
 }

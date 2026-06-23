@@ -20,11 +20,6 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		writeInternalError(w, r, err)
 		return
 	}
-	tenant, err := tenantObject(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
 
 	var req gatewayapi.CreateWorkflowScheduleRequest
 	if !decodeJSONBody(w, r, &req, false) {
@@ -74,7 +69,6 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		ns,
 		agentName,
 		workflowName,
-		tenant,
 		req,
 	)
 	if err != nil {
@@ -349,11 +343,6 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		writeInternalError(w, r, err)
 		return
 	}
-	tenant, err := tenantObject(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
 
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
@@ -377,7 +366,6 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		agtName,
 		workflowName,
 		scheduleName,
-		tenant,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {

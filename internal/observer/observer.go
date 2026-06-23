@@ -184,7 +184,7 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 				atomic.AddUint64(&s.filtered, 1)
 				continue
 			}
-			ev, ok := normalizeLog(item, cfg.Namespace, agentName)
+			ev, ok := kubeArmorLogEvent(item, cfg.Namespace, agentName)
 			if !ok {
 				atomic.AddUint64(&s.filtered, 1)
 				continue
@@ -210,7 +210,7 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 				atomic.AddUint64(&s.filtered, 1)
 				continue
 			}
-			ev, ok := normalizeAlert(item, cfg.Namespace, agentName)
+			ev, ok := kubeArmorAlertEvent(item, cfg.Namespace, agentName)
 			if !ok {
 				atomic.AddUint64(&s.filtered, 1)
 				continue
@@ -321,7 +321,7 @@ func consumeHubbleStream(ctx context.Context, cfg Config, r *resolver, out chan<
 			continue
 		}
 		atomic.AddUint64(&s.received, 1)
-		ev, ok := normalizeFlow(ctx, item.GetFlow(), cfg.Namespace, r, cache)
+		ev, ok := hubbleFlowEvent(ctx, item.GetFlow(), cfg.Namespace, r, cache)
 		if !ok {
 			atomic.AddUint64(&s.filtered, 1)
 			continue

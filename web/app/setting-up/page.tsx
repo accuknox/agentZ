@@ -2,15 +2,15 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-
-export const metadata: Metadata = {
-  title: "Setting up | ClawArmor - AccuKnox",
-}
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { auth } from "@/lib/auth"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
 import { gatewayServerClient } from "@/lib/gateway/server-client"
 import { BootstrappingStatus } from "./status"
+
+export const metadata: Metadata = {
+  title: "Setting up | ClawArmor - AccuKnox",
+}
 
 export default function BootstrappingPage() {
   return (

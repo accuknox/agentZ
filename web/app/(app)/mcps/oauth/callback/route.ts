@@ -9,14 +9,19 @@ import {
   oauthCookieOptions,
   openPendingOAuthState,
 } from "@/lib/mcp-oauth"
+import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { gatewayServerClient } from "@/lib/gateway/server-client"
 
 function htmlResponse(body: string) {
   return new Response(body, {
     status: 200,
     headers: {
-      "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
+      "content-security-policy":
+        "default-src 'none'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+      "content-type": "text/html; charset=utf-8",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
     },
   })
 }
@@ -58,6 +63,19 @@ export async function GET(request: Request) {
   }
 
   try {
+    const authContext = await currentGatewayAuthContext()
+    if (
+      pending.initiator.organizationId !== authContext.organizationId ||
+      pending.initiator.sessionId !== authContext.sessionId ||
+      pending.initiator.userId !== authContext.userId
+    ) {
+      clearPendingOAuthCookie(cookieStore)
+      return popupFailure(
+        pending.flowId,
+        "OAuth flow no longer matches your signed-in session. Start again."
+      )
+    }
+
     const result = await completeOAuthFlow({
       pending,
       callbackURL: new URL(request.url),
@@ -87,7 +105,7 @@ export async function GET(request: Request) {
     }
 
     revalidateTag(mcpsTag, { expire: 0 })
-    cookieStore.delete(mcpOAuthCookieName())
+    clearPendingOAuthCookie(cookieStore)
     return htmlResponse(
       oauthCallbackResultPage({
         success: true,

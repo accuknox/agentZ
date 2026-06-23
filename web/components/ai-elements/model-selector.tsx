@@ -1,13 +1,10 @@
 import {
   Command,
-  CommandDialog,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -43,10 +40,6 @@ export const ModelSelectorContent = ({
   </DialogContent>
 )
 
-export type ModelSelectorDialogProps = ComponentProps<typeof CommandDialog>
-
-export const ModelSelectorDialog = (props: ModelSelectorDialogProps) => <CommandDialog {...props} />
-
 export type ModelSelectorInputProps = ComponentProps<typeof CommandInput>
 
 export const ModelSelectorInput = ({ className, ...props }: ModelSelectorInputProps) => (
@@ -68,18 +61,6 @@ export const ModelSelectorGroup = (props: ModelSelectorGroupProps) => <CommandGr
 export type ModelSelectorItemProps = ComponentProps<typeof CommandItem>
 
 export const ModelSelectorItem = (props: ModelSelectorItemProps) => <CommandItem {...props} />
-
-export type ModelSelectorShortcutProps = ComponentProps<typeof CommandShortcut>
-
-export const ModelSelectorShortcut = (props: ModelSelectorShortcutProps) => (
-  <CommandShortcut {...props} />
-)
-
-export type ModelSelectorSeparatorProps = ComponentProps<typeof CommandSeparator>
-
-export const ModelSelectorSeparator = (props: ModelSelectorSeparatorProps) => (
-  <CommandSeparator {...props} />
-)
 
 export type ModelSelectorLogoProps = Omit<ComponentProps<"img">, "src" | "alt"> & {
   provider:

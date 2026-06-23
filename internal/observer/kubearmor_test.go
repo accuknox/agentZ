@@ -7,11 +7,11 @@ import (
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 )
 
-func TestNormalizeLogProcess(t *testing.T) {
+func TestKubeArmorLogProcess(t *testing.T) {
 	t.Parallel()
 
 	const agentName = "agent-sample"
-	ev, ok := normalizeLog(&pb.Log{
+	ev, ok := kubeArmorLogEvent(&pb.Log{
 		UpdatedTime:       "2026-04-20T15:04:59.058553Z",
 		NamespaceName:     "default",
 		Type:              "ContainerLog",
@@ -22,7 +22,7 @@ func TestNormalizeLogProcess(t *testing.T) {
 		Resource:          "/usr/bin/id -u",
 	}, "default", agentName)
 	if !ok {
-		t.Fatal("normalizeLog() filtered process event")
+		t.Fatal("kubeArmorLogEvent() filtered process event")
 	}
 	if ev.process == nil {
 		t.Fatal("process event is nil")
@@ -43,10 +43,10 @@ func TestNormalizeLogProcess(t *testing.T) {
 	}
 }
 
-func TestNormalizeAlertBlockedProcess(t *testing.T) {
+func TestKubeArmorAlertBlockedProcess(t *testing.T) {
 	t.Parallel()
 
-	ev, ok := normalizeAlert(&pb.Alert{
+	ev, ok := kubeArmorAlertEvent(&pb.Alert{
 		UpdatedTime:   "2026-04-20T15:05:43.692697Z",
 		NamespaceName: "default",
 		Operation:     "Process",
@@ -56,7 +56,7 @@ func TestNormalizeAlertBlockedProcess(t *testing.T) {
 		Action:        "Block",
 	}, "default", "agent-sample")
 	if !ok {
-		t.Fatal("normalizeAlert() filtered blocked process event")
+		t.Fatal("kubeArmorAlertEvent() filtered blocked process event")
 	}
 	if ev.process == nil {
 		t.Fatal("process event is nil")
@@ -69,10 +69,10 @@ func TestNormalizeAlertBlockedProcess(t *testing.T) {
 	}
 }
 
-func TestNormalizeLogFile(t *testing.T) {
+func TestKubeArmorLogFile(t *testing.T) {
 	t.Parallel()
 
-	ev, ok := normalizeLog(&pb.Log{
+	ev, ok := kubeArmorLogEvent(&pb.Log{
 		UpdatedTime:   "2026-04-20T15:04:59.170356Z",
 		NamespaceName: "default",
 		Type:          "ContainerLog",
@@ -83,7 +83,7 @@ func TestNormalizeLogFile(t *testing.T) {
 		Resource:      "/etc/hosts extra=data",
 	}, "default", "agent-sample")
 	if !ok {
-		t.Fatal("normalizeLog() filtered file event")
+		t.Fatal("kubeArmorLogEvent() filtered file event")
 	}
 	if ev.file == nil {
 		t.Fatal("file event is nil")
@@ -96,16 +96,16 @@ func TestNormalizeLogFile(t *testing.T) {
 	}
 }
 
-func TestNormalizeLogFiltersOtherNamespace(t *testing.T) {
+func TestKubeArmorLogFiltersOtherNamespace(t *testing.T) {
 	t.Parallel()
 
-	_, ok := normalizeLog(&pb.Log{
+	_, ok := kubeArmorLogEvent(&pb.Log{
 		NamespaceName: "kube-system",
 		Type:          "ContainerLog",
 		Operation:     "Process",
 		ProcessName:   "/usr/bin/id",
 	}, "default", "agent-sample")
 	if ok {
-		t.Fatal("normalizeLog() accepted event from another namespace")
+		t.Fatal("kubeArmorLogEvent() accepted event from another namespace")
 	}
 }

@@ -34,7 +34,7 @@ export function LoginForm({ action, error, returnTo }: LoginFormProps) {
         <FieldGroup>
           <Field data-invalid={Boolean(message)}>
             <LoginSubmitButton />
-            {message ? <FieldError>{message}</FieldError> : null}
+            {message ? <FieldError className="text-center">{message}</FieldError> : null}
           </Field>
         </FieldGroup>
       </form>

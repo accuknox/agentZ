@@ -4,7 +4,9 @@ import {
   type OpencodeClient as OpencodeClientV2,
 } from "@opencode-ai/sdk/v2/client"
 import { gatewayBaseURL } from "@/lib/gateway/base-url"
+import { GATEWAY_UNAUTHORIZED } from "@/lib/gateway/errors"
 import { getGatewayToken } from "@/lib/gateway/token-action"
+import { clientRedirectToLogin } from "@/lib/login-redirect"
 
 const gatewayBase = gatewayBaseURL()
 
@@ -13,10 +15,14 @@ function opencodeBaseURL(agentName: string): string {
 }
 
 async function opencodeHeaders(): Promise<Record<string, string>> {
-  const token = await getGatewayToken(`${window.location.pathname}${window.location.search}`)
-
-  return {
-    Authorization: `Bearer ${token}`,
+  try {
+    const token = await getGatewayToken()
+    return { Authorization: `Bearer ${token}` }
+  } catch (error) {
+    if (error instanceof Error && error.message === GATEWAY_UNAUTHORIZED) {
+      clientRedirectToLogin()
+    }
+    throw error
   }
 }
 

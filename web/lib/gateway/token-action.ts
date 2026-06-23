@@ -2,6 +2,6 @@
 
 import { currentGatewayAuthToken } from "@/lib/gateway/auth"
 
-export async function getGatewayToken(returnTo?: string): Promise<string> {
-  return currentGatewayAuthToken(returnTo)
+export async function getGatewayToken(): Promise<string> {
+  return currentGatewayAuthToken()
 }

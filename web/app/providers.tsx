@@ -1,5 +1,6 @@
 "use client"
 
+import "@/lib/gateway/client-interceptors"
 import { getQueryClient } from "@/lib/utils"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { ProgressProvider } from "@bprogress/next/app"

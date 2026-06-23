@@ -40,3 +40,17 @@ export function loginURL({
 
   return `/login?${search}`
 }
+
+/**
+ * clientRedirectToLogin navigates to /login with session_expired and the
+ * current path as returnTo. Used by client-side error interceptors that
+ * detect a revoked session after it crosses the Server Action boundary.
+ */
+export function clientRedirectToLogin(): void {
+  window.location.replace(
+    loginURL({
+      error: "session_expired",
+      returnTo: `${window.location.pathname}${window.location.search}`,
+    })
+  )
+}

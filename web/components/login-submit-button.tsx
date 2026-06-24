@@ -1,7 +1,7 @@
 "use client"
 
 import { useFormStatus } from "react-dom"
-import { GitHubDark } from "@ridemountainpig/svgl-react"
+import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 
@@ -10,7 +10,14 @@ export function LoginSubmitButton() {
 
   return (
     <Button type="submit" variant="outline" size="lg" className="gap-3" disabled={pending}>
-      {pending ? <Spinner data-icon="inline-start" /> : <GitHubDark data-icon="inline-start" />}
+      {pending ? (
+        <Spinner data-icon="inline-start" />
+      ) : (
+        <>
+          <GitHubLight data-icon="inline-start" className="dark:hidden" />
+          <GitHubDark data-icon="inline-start" className="hidden dark:block" />
+        </>
+      )}
       Sign in with GitHub
     </Button>
   )

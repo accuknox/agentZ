@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronsUpDown, LogOut, Monitor, Settings, User2 } from "lucide-react"
+import { ChevronsUpDown, LogOut, Monitor, KeyRound, User2 } from "lucide-react"
 import { useState } from "react"
 import { authClient } from "@/lib/auth-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -99,7 +99,7 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/account">
+                <Link href="/settings/account">
                   <User2 />
                   Account
                 </Link>
@@ -110,14 +110,13 @@ export function NavUser({
                   Sessions
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings/api-keys">
+                  <KeyRound />
+                  API Keys
+                </Link>
+              </DropdownMenuItem>
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings">
-                <Settings />
-                All settings
-              </Link>
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"

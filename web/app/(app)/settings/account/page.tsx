@@ -1,0 +1,72 @@
+import type { Metadata } from "next"
+import { Suspense } from "react"
+import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
+import { headers } from "next/headers"
+import { auth } from "@/lib/auth"
+
+export const metadata: Metadata = {
+  title: "Account",
+}
+
+export default function AccountPage() {
+  return (
+    <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+      <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-normal">Account</h1>
+        </div>
+      </div>
+      <Suspense fallback={<ProviderSkeleton />}>
+        <IdentityProvider />
+      </Suspense>
+    </main>
+  )
+}
+
+async function IdentityProvider() {
+  let hasAccount = false
+  let errorMessage: string | undefined
+
+  try {
+    const accounts = await auth.api.listUserAccounts({
+      headers: await headers(),
+    })
+    hasAccount = accounts.length > 0
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : "Failed to load account"
+  }
+
+  if (errorMessage || !hasAccount) {
+    return <ErrorPanel message={errorMessage ?? "No identity provider found"} />
+  }
+
+  return (
+    <section className="flex flex-col gap-4 px-4 md:px-6">
+      <h2 className="text-lg font-semibold tracking-normal">Identity Provider</h2>
+      <div className="border-border bg-card text-card-foreground flex h-12 w-fit min-w-36 items-center gap-3 rounded-md border px-4 text-sm font-medium">
+        <GitHubLight className="size-5 shrink-0 dark:hidden" />
+        <GitHubDark className="hidden size-5 shrink-0 dark:block" />
+        <span>GitHub</span>
+      </div>
+    </section>
+  )
+}
+
+function ProviderSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 px-4 md:px-6">
+      <div className="bg-muted/20 h-7 w-44 rounded-md" />
+      <div className="bg-muted/20 h-14 w-36 rounded-md" />
+    </div>
+  )
+}
+
+function ErrorPanel({ message }: { message: string }) {
+  return (
+    <div className="px-4 md:px-6">
+      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
+        {message}
+      </div>
+    </div>
+  )
+}

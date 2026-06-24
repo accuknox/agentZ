@@ -13,6 +13,7 @@
     "gen:auth-schema": "bunx auth@latest generate --config ./lib/auth.ts --output ./db/auth-schema.ts --yes"
   },
   "dependencies": {
+    "@better-auth/api-key": "^1.6.20",
     "@better-auth/core": "^1.6.20",
     "@bprogress/next": "^3.2.12",
     "@cfworker/json-schema": "^4.1.1",

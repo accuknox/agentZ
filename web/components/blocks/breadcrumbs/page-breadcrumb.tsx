@@ -1,7 +1,6 @@
 "use client"
 
-import { use } from "react"
-import { Fragment } from "react"
+import { Fragment, use } from "react"
 import Link from "next/link"
 import { useSelectedLayoutSegments } from "next/navigation"
 import {
@@ -18,6 +17,21 @@ type Crumb = {
   href?: string
   label: string
 }
+
+const genericBreadcrumbHrefs = new Set([
+  "/",
+  "/environments",
+  "/environments/new",
+  "/lens/mcp",
+  "/lens/runtime-telemetry",
+  "/lens/traces",
+  "/secrets",
+])
+
+const genericBreadcrumbLabels = new Map([
+  ["api-keys", "API Keys"],
+  ["mcps", "MCPs"],
+])
 
 export function PageBreadcrumb({ agents }: { agents: Promise<ListAgentActionResponse> }) {
   const segments = useSelectedLayoutSegments().filter((segment) => !segment.startsWith("("))
@@ -106,24 +120,14 @@ function crumbsForSegments(
 
 function genericCrumbs(segments: string[]): Crumb[] {
   const crumbs: Crumb[] = [{ href: "/", label: "Home" }]
-  const hrefs = new Set([
-    "/",
-    "/environments",
-    "/environments/new",
-    "/lens/mcp",
-    "/lens/runtime-telemetry",
-    "/lens/traces",
-    "/secrets",
-  ])
-  const labelOverrides = new Map([["mcps", "MCPs"]])
 
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i]
     const href = `/${segments.slice(0, i + 1).join("/")}`
 
     crumbs.push({
-      href: hrefs.has(href) ? href : undefined,
-      label: labelOverrides.get(segment) ?? titleize(segment),
+      href: genericBreadcrumbHrefs.has(href) ? href : undefined,
+      label: genericBreadcrumbLabels.get(segment) ?? titleize(segment),
     })
   }
 

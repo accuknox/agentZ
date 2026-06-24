@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth"
 import { nextCookies } from "better-auth/next-js"
 import { jwt, organization } from "better-auth/plugins"
+import { apiKey } from "@better-auth/api-key"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { randomUUID } from "node:crypto"
 import { db, schema } from "@/db"
@@ -8,6 +9,7 @@ import { env } from "@/lib/env"
 import { getGithubUserInfo } from "@/lib/github-membership"
 
 const githubScope = ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])]
+export const opencodeAPIKeyConfigID = "opencode"
 
 const disabledAuthPaths = [
   // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
@@ -99,6 +101,24 @@ export const auth = betterAuth({
       organizationLimit: 1,
       membershipLimit: 1,
     }),
+    apiKey([
+      {
+        configId: opencodeAPIKeyConfigID,
+        defaultPrefix: "opk_",
+        startingCharactersConfig: {
+          charactersLength: 10,
+          shouldStore: true,
+        },
+        keyExpiration: {
+          defaultExpiresIn: null,
+        },
+        rateLimit: {
+          enabled: false,
+        },
+        references: "organization",
+        requireName: true,
+      },
+    ]),
     jwt({
       disableSettingJwtHeader: true,
       jwks: {

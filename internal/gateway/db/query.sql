@@ -6,6 +6,17 @@ SELECT EXISTS(
     AND agent_name = $2
 );
 
+-- name: GatewayGetOpenCodeAPIKeyByHash :one
+SELECT id, reference_id, name, permissions
+FROM apikeys
+WHERE key = sqlc.arg(key)
+  AND config_id = sqlc.arg(config_id)
+  AND enabled = true
+  AND (
+    expires_at IS NULL
+    OR expires_at > sqlc.arg(now_at)
+  );
+
 -- name: GatewayCreateAgent :one
 INSERT INTO agents(tenant_namespace, agent_name)
 VALUES ($1, $2)

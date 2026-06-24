@@ -349,6 +349,20 @@ export type DeleteSessionFormState = {
   success?: boolean
 }
 
+export type CreateAPIKeyFormState = {
+  error?: Error
+  key?: {
+    id: string
+    name: string | null
+    secret: string
+  }
+}
+
+export type DeleteAPIKeyFormState = {
+  error?: Error
+  success?: boolean
+}
+
 export type CreateWorkflowScheduleFormState = {
   error?: Error
 }

@@ -6,6 +6,8 @@ package gatewaydb
 
 import (
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Agent struct {
@@ -13,6 +15,31 @@ type Agent struct {
 	AgentName       string    `json:"agent_name"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type Apikey struct {
+	ID                  string             `json:"id"`
+	ConfigID            string             `json:"config_id"`
+	Name                pgtype.Text        `json:"name"`
+	Start               pgtype.Text        `json:"start"`
+	ReferenceID         string             `json:"reference_id"`
+	Prefix              pgtype.Text        `json:"prefix"`
+	Key                 string             `json:"key"`
+	RefillInterval      pgtype.Int8        `json:"refill_interval"`
+	RefillAmount        pgtype.Int8        `json:"refill_amount"`
+	LastRefillAt        pgtype.Timestamptz `json:"last_refill_at"`
+	Enabled             bool               `json:"enabled"`
+	RateLimitEnabled    bool               `json:"rate_limit_enabled"`
+	RateLimitTimeWindow pgtype.Int8        `json:"rate_limit_time_window"`
+	RateLimitMax        pgtype.Int8        `json:"rate_limit_max"`
+	RequestCount        int64              `json:"request_count"`
+	Remaining           pgtype.Int8        `json:"remaining"`
+	LastRequest         pgtype.Timestamptz `json:"last_request"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+	Permissions         pgtype.Text        `json:"permissions"`
+	Metadata            pgtype.Text        `json:"metadata"`
 }
 
 type ObserverFileEvent struct {

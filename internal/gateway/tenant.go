@@ -340,6 +340,11 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 }
 
 func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if strings.HasPrefix(strings.ToLower(authHeader), "basic ") && strings.HasPrefix(r.URL.Path, opencodePrefix+"/") {
+		return s.resolveOpenCodeAPIKeyAuth(r)
+	}
+
 	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
 	if err != nil {
 		return requestAuth{}, newAPIError(

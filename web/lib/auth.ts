@@ -1,15 +1,29 @@
+import { createHmac, randomUUID } from "node:crypto"
 import { betterAuth } from "better-auth"
+import { createAuthMiddleware, getOAuthState } from "better-auth/api"
 import { nextCookies } from "better-auth/next-js"
-import { jwt, organization } from "better-auth/plugins"
+import { deleteSessionCookie, expireCookie } from "better-auth/cookies"
 import { apiKey } from "@better-auth/api-key"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { randomUUID } from "node:crypto"
+import { jwt } from "better-auth/plugins/jwt"
+import { organization } from "better-auth/plugins/organization"
+import { twoFactor } from "better-auth/plugins/two-factor"
 import { db, schema } from "@/db"
 import { env } from "@/lib/env"
 import { getGithubUserInfo } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
+import { loginReturnTo } from "@/lib/login-redirect"
 
 export const opencodeAPIKeyConfigID = "opencode"
+
+// Better Auth uses these internal cookie names for 2FA challenge state and
+// trusted-device bypass. The plugin does not export them publicly, so the
+// callback hook uses the same stable names to keep OAuth and credential 2FA
+// behavior aligned.
+const twoFactorCookieName = "two_factor"
+const trustDeviceCookieName = "trust_device"
+const defaultTwoFactorCookieMaxAge = 10 * 60
+const defaultTrustDeviceMaxAge = 30 * 24 * 60 * 60
 
 const disabledAuthPaths = [
   // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
@@ -39,9 +53,13 @@ const disabledAuthPaths = [
   "/organization/set-active",
   "/organization/update",
   "/organization/update-member-role",
+  // Backup codes are issued once during enrollment and cannot be rotated later
+  // through account settings or direct client calls.
+  "/two-factor/generate-backup-codes",
 ]
 
 export const auth = betterAuth({
+  appName: "ClawArmor",
   baseURL: env.BETTER_AUTH_URL,
   trustedOrigins: [new URL(env.BETTER_AUTH_URL).origin],
   disabledPaths: disabledAuthPaths,
@@ -85,6 +103,107 @@ export const auth = betterAuth({
       "/sign-in/social": { window: 60, max: 5 },
       "/callback/:id": { window: 60, max: 10 },
     },
+  },
+  hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/callback/:id") {
+        return
+      }
+
+      const newSession = ctx.context.newSession
+      if (!newSession?.user.twoFactorEnabled) {
+        return
+      }
+
+      const plugin = ctx.context.getPlugin("two-factor")
+      const trustDeviceMaxAge = plugin?.options?.trustDeviceMaxAge ?? defaultTrustDeviceMaxAge
+      const trustDeviceCookie = ctx.context.createAuthCookie(trustDeviceCookieName, {
+        maxAge: trustDeviceMaxAge,
+      })
+      const signedTrustDevice = await ctx.getSignedCookie(
+        trustDeviceCookie.name,
+        ctx.context.secret
+      )
+
+      if (signedTrustDevice) {
+        const [token, trustIdentifier] = signedTrustDevice.split("!")
+        if (token && trustIdentifier) {
+          const expectedToken = createHmac("sha256", ctx.context.secret)
+            .update(`${newSession.user.id}!${trustIdentifier}`)
+            .digest("base64url")
+          const verificationRecord =
+            await ctx.context.internalAdapter.findVerificationValue(trustIdentifier)
+
+          if (
+            token === expectedToken &&
+            verificationRecord &&
+            verificationRecord.value === newSession.user.id &&
+            verificationRecord.expiresAt > new Date()
+          ) {
+            // Rotate the trusted-device record on each successful reuse so a
+            // stolen old cookie cannot be replayed after the next login.
+            await ctx.context.internalAdapter.deleteVerificationByIdentifier(trustIdentifier)
+
+            const nextTrustIdentifier = `trust-device-${randomUUID()}`
+            const nextToken = createHmac("sha256", ctx.context.secret)
+              .update(`${newSession.user.id}!${nextTrustIdentifier}`)
+              .digest("base64url")
+
+            await ctx.context.internalAdapter.createVerificationValue({
+              value: newSession.user.id,
+              identifier: nextTrustIdentifier,
+              expiresAt: new Date(Date.now() + trustDeviceMaxAge * 1000),
+            })
+            await ctx.setSignedCookie(
+              trustDeviceCookie.name,
+              `${nextToken}!${nextTrustIdentifier}`,
+              ctx.context.secret,
+              trustDeviceCookie.attributes
+            )
+            return
+          }
+        }
+
+        expireCookie(ctx, trustDeviceCookie)
+      }
+
+      // OAuth callbacks create a live session before this hook runs. Burn that
+      // session and replace it with a short-lived 2FA challenge so there is no
+      // authenticated state until the second factor succeeds.
+      deleteSessionCookie(ctx, true)
+      await ctx.context.internalAdapter.deleteSession(newSession.session.token)
+      ctx.context.setNewSession(null)
+
+      const twoFactorCookieMaxAge =
+        plugin?.options?.twoFactorCookieMaxAge ?? defaultTwoFactorCookieMaxAge
+      const twoFactorCookie = ctx.context.createAuthCookie(twoFactorCookieName, {
+        maxAge: twoFactorCookieMaxAge,
+      })
+      const twoFactorIdentifier = `2fa-${randomUUID()}`
+
+      await ctx.context.internalAdapter.createVerificationValue({
+        value: newSession.user.id,
+        identifier: twoFactorIdentifier,
+        expiresAt: new Date(Date.now() + twoFactorCookieMaxAge * 1000),
+      })
+      await ctx.setSignedCookie(
+        twoFactorCookie.name,
+        twoFactorIdentifier,
+        ctx.context.secret,
+        twoFactorCookie.attributes
+      )
+
+      const oauthState = await getOAuthState()
+      const returnTo = loginReturnTo(oauthState?.callbackURL)
+      const search = new URLSearchParams()
+      if (returnTo) {
+        search.set("returnTo", returnTo)
+      }
+
+      throw ctx.redirect(
+        search.size === 0 ? "/login/two-factor" : `/login/two-factor?${search.toString()}`
+      )
+    }),
   },
   socialProviders: {
     // Each provider is enabled only when its env pair is configured; the env
@@ -170,6 +289,10 @@ export const auth = betterAuth({
           modelName: "jwk",
         },
       },
+    }),
+    twoFactor({
+      allowPasswordless: true,
+      issuer: "ClawArmor",
     }),
     nextCookies(), // make sure this is the last plugin in the array
   ],

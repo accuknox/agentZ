@@ -4,10 +4,11 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { Copy, KeyRound } from "lucide-react"
+import { KeyRound } from "lucide-react"
 import { createAPIKeyFormSchema, type CreateAPIKeyFormValues } from "@/data/api-key.schema"
 import type { CreateAPIKeyFormState } from "@/data/types"
 import { Button } from "@/components/ui/button"
+import { CopyButton } from "@/components/ui/copy-button"
 import {
   Dialog,
   DialogClose,
@@ -158,17 +159,9 @@ function CreateAPIKeyDialog({
             </FieldGroup>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              onClick={async () => {
-                await navigator.clipboard.writeText(state.key!.secret)
-              }}
-            >
-              <Copy data-icon="inline-start" />
-              Copy
-            </Button>
+            <CopyButton content={state.key.secret} label="Copy" />
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <Button type="button" variant="destructive">
                 Close
               </Button>
             </DialogClose>

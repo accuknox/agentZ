@@ -5,6 +5,7 @@ import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
 import { AgentTable } from "@/app/agent-table"
 import { AgentDialog } from "@/app/agent/agent-dialog"
+import { BotIcon } from "@/components/bot-icon"
 import type { DeleteAgentFormState } from "@/data/types"
 
 export const metadata: Metadata = {
@@ -19,7 +20,12 @@ export default function Home({
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-3">
+          <BotIcon
+            aria-hidden="true"
+            className="text-primary flex size-10 shrink-0 items-center justify-center rounded-md"
+            size={24}
+          />
           <h1 className="text-2xl font-semibold tracking-normal">Agents</h1>
         </div>
         <Suspense fallback={null}>

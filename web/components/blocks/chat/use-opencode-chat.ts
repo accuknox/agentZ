@@ -10,10 +10,12 @@ import type {
   Session as SessionV2,
   SessionStatus,
   TextPart,
+  Todo,
 } from "@opencode-ai/sdk/v2"
 import { QueryClient, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { sdkErrorMessage } from "@/components/blocks/chat/errors"
 
 type SessionMessageRecord = {
   info: Message
@@ -27,6 +29,9 @@ type OpencodeChatStore = {
   session?: SessionV2
   sessionCost: number
   sessionStatus: Record<string, SessionStatus>
+  // Todos are keyed by sessionID and cleared whenever the turn that produced
+  // them completes. Empty arrays collapse to "no todos" so the dock hides.
+  todos: Record<string, Todo[]>
 }
 
 type HitlStore = {
@@ -70,8 +75,11 @@ type UseOpencodeChatResult = {
   session?: SessionV2
   sessionCost: number
   sessionStatus?: SessionStatus
+  reloadHistory: () => void
+  reconnectStream: () => void
   streamError?: string
   textByPart: Record<string, string>
+  todos: Todo[]
 }
 
 const idleSessionStatus: SessionStatus = { type: "idle" }
@@ -146,15 +154,6 @@ function deriveSessionIsBusy(
   return false
 }
 
-function sdkErrorMessage(
-  error:
-    | { data?: { message?: string }; message?: string; _tag?: unknown; name?: unknown }
-    | undefined,
-  fallback: string
-) {
-  return error?.data?.message ?? error?.message ?? fallback
-}
-
 function sessionErrorMessage(
   error: Extract<StreamEvent, { type: "session.error" }>["properties"]["error"]
 ) {
@@ -209,6 +208,7 @@ function buildStore(
     session,
     sessionCost: 0,
     sessionStatus: {},
+    todos: {},
   }
   const visibleRecords = records.slice(-MAX_CHAT_MESSAGES)
   store.message[sessionID] = visibleRecords
@@ -438,6 +438,19 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
           [event.properties.sessionID]: event.properties.status,
         },
       }
+
+    case "todo.updated": {
+      // Empty todos array means agent finished its work — delete the key so the
+      // dock unmounts cleanly rather than rendering an empty header.
+      const sessionID = event.properties.sessionID
+      const nextTodos = { ...store.todos }
+      if (event.properties.todos.length === 0) {
+        delete nextTodos[sessionID]
+      } else {
+        nextTodos[sessionID] = event.properties.todos
+      }
+      return { ...store, todos: nextTodos }
+    }
 
     case "session.idle":
       return {
@@ -784,6 +797,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   }>()
   const [hitlEvents, setHitlEvents] = useState<StreamEvent[]>([])
   const [streamError, setStreamError] = useState<string>()
+  const [streamEpoch, setStreamEpoch] = useState(0)
   const session = useQuery({
     ...sessionInfoQueryOptions(agentName, sessionID ?? ""),
     enabled: Boolean(sessionID),
@@ -796,6 +810,8 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     ...sessionTreeQueryOptions(agentName, session.data?.directory ?? ""),
     enabled: Boolean(session.data?.directory),
   })
+  const refetchSession = session.refetch
+  const refetchHistory = history.refetch
   const localMessages = useQuery({
     ...queryOptions({
       queryFn: async (): Promise<LocalChatMessage[]> => [],
@@ -814,6 +830,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         session: undefined,
         sessionCost: 0,
         sessionStatus: {},
+        todos: {},
       }
     }
 
@@ -869,6 +886,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         case "session.updated":
         case "session.deleted":
         case "session.next.step.ended":
+        case "todo.updated":
           hasStoreUpdate = true
           break
         default:
@@ -984,7 +1002,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         clearTimeout(timer)
       }
     }
-  }, [agentName, session.data?.directory, sessionID])
+  }, [agentName, session.data?.directory, sessionID, streamEpoch])
 
   const messages = useMemo(() => {
     return sessionID ? (store.message[sessionID] ?? []) : []
@@ -1044,6 +1062,23 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     }
   }, [agentName, localMessages.data, messages, partsByMessage, queryClient, sessionID])
 
+  const todos = useMemo(() => {
+    if (!sessionID) return []
+    return store.todos[sessionID] ?? []
+  }, [sessionID, store.todos])
+
+  const reloadHistory = useCallback(() => {
+    void refetchHistory()
+    if (sessionID) {
+      void refetchSession()
+    }
+  }, [refetchHistory, refetchSession, sessionID])
+
+  const reconnectStream = useCallback(() => {
+    setStreamError(undefined)
+    setStreamEpoch((current) => current + 1)
+  }, [])
+
   return {
     blocked: permissionRequest !== undefined || questionRequest !== undefined,
     historyError: history.error instanceof Error ? history.error.message : undefined,
@@ -1056,10 +1091,13 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     permissions,
     questions,
     questionRequest,
+    reconnectStream,
+    reloadHistory,
     session: store.session,
     sessionCost: store.sessionCost,
     sessionStatus,
     streamError,
     textByPart,
+    todos,
   }
 }

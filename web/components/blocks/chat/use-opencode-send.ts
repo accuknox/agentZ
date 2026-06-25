@@ -6,12 +6,13 @@ import { nanoid } from "nanoid"
 import { useCallback, useState } from "react"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
-import { createAgentOpencodeClient, createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
 import {
   attachmentDataFromPart,
   messageHasRenderableContent,
   opencodePartsFromMessage,
 } from "@/components/blocks/chat/attachments"
+import { sdkErrorMessage } from "@/components/blocks/chat/errors"
 import {
   appendSystemPrompt,
   markOptimisticUserMessageFailed,
@@ -32,15 +33,6 @@ type SendMessageInput = {
 type SendMessageResult = {
   directory?: string
   sessionID: string
-}
-
-function sdkErrorMessage(
-  error:
-    | { data?: { message?: string }; message?: string; _tag?: unknown; name?: unknown }
-    | undefined,
-  fallback: string
-) {
-  return error?.data?.message ?? error?.message ?? fallback
 }
 
 export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: boolean) {
@@ -153,14 +145,13 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
       })
     },
   })
-  const { error: sendError, isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
+  const { isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
   const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({
     mutationFn: async (input) => {
-      const client = await createAgentOpencodeClient(agentName, input.directory)
+      const client = await createAgentOpencodeClientV2(agentName)
       const result = await client.session.abort({
-        path: {
-          id: input.sessionID,
-        },
+        ...(input.directory ? { directory: input.directory } : {}),
+        sessionID: input.sessionID,
       })
 
       if (result.error || result.data !== true) {
@@ -202,8 +193,6 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
   return {
     abortMessage,
     canSubmit: !isSendPending && !isAbortPending && !isBusy,
-    latestError: sendError?.message,
-    pendingSessionID,
     sendMessage,
     sendState,
   }

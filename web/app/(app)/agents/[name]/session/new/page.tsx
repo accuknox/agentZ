@@ -29,5 +29,9 @@ export default function ChatPage({ params }: { params: Promise<ChatPageParams> }
 async function ChatPageContent({ params }: { params: Promise<ChatPageParams> }) {
   const { name } = await params
 
-  return <Chat agentName={name} />
+  return (
+    <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
+      <Chat agentName={name} />
+    </main>
+  )
 }

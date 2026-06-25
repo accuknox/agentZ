@@ -1036,7 +1036,7 @@ export const PromptInputTextarea = ({
 
   return (
     <InputGroupTextarea
-      className={cn("max-h-48 min-h-16 whitespace-pre-wrap", className)}
+      className={cn("max-h-48 min-h-11 whitespace-pre-wrap", className)}
       name="message"
       onCompositionEnd={handleCompositionEnd}
       onCompositionStart={handleCompositionStart}
@@ -1054,7 +1054,7 @@ export type PromptInputHeaderProps = Omit<ComponentProps<typeof InputGroupAddon>
 export const PromptInputHeader = ({ className, ...props }: PromptInputHeaderProps) => (
   <InputGroupAddon
     align="block-end"
-    className={cn("order-first flex-wrap gap-1", className)}
+    className={cn("order-first flex-wrap gap-1 empty:hidden", className)}
     {...props}
   />
 )

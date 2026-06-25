@@ -7,8 +7,8 @@ import { randomUUID } from "node:crypto"
 import { db, schema } from "@/db"
 import { env } from "@/lib/env"
 import { getGithubUserInfo } from "@/lib/github-membership"
+import { getGoogleUserInfo } from "@/lib/google-membership"
 
-const githubScope = ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])]
 export const opencodeAPIKeyConfigID = "opencode"
 
 const disabledAuthPaths = [
@@ -87,12 +87,31 @@ export const auth = betterAuth({
     },
   },
   socialProviders: {
-    github: {
-      clientId: env.GITHUB_CLIENT_ID,
-      clientSecret: env.GITHUB_CLIENT_SECRET,
-      scope: githubScope,
-      getUserInfo: getGithubUserInfo,
-    },
+    // Each provider is enabled only when its env pair is configured; the env
+    // schema enforces "both or neither" so an unconfigured provider spreads
+    // nothing here and better-auth returns 404 on its callback route.
+    ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+      ? {
+          github: {
+            clientId: env.GITHUB_CLIENT_ID,
+            clientSecret: env.GITHUB_CLIENT_SECRET,
+            // read:org is only needed when an org/team gate is configured.
+            scope: ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])],
+            getUserInfo: getGithubUserInfo,
+          },
+        }
+      : {}),
+    ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: env.GOOGLE_CLIENT_ID,
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
+            accessType: "offline",
+            prompt: "select_account",
+            getUserInfo: getGoogleUserInfo,
+          },
+        }
+      : {}),
   },
   plugins: [
     organization({

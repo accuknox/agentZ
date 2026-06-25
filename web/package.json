@@ -44,6 +44,7 @@
     "drizzle-orm": "^0.45.2",
     "fuse.js": "^7.4.2",
     "ipaddr.js": "^2.4.0",
+    "jose": "^6.1.13",
     "lucide-react": "^1.21.0",
     "motion": "^12.41.0",
     "nanoid": "^5.1.15",

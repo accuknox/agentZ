@@ -56,7 +56,7 @@ type Reconciler struct {
 	AgentGateway agentgatewayclientset.Interface
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents,verbs=get;list;watch

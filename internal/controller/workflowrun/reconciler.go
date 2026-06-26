@@ -69,7 +69,7 @@ type Reconciler struct {
 	TokenPath     string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns/finalizers,verbs=update
 

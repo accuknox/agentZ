@@ -44,10 +44,9 @@ type Reconciler struct {
 	ControllerImage string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=get;list;watch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules/finalizers,verbs=update
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=batch,resources=cronjobs;jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
@@ -90,6 +89,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	err = r.refreshStatus(ctx, schedule, cronJobName)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
 		return ctrl.Result{}, fmt.Errorf("refresh schedule status: %w", err)
 	}
 

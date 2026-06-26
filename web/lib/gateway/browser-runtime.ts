@@ -54,6 +54,16 @@ async function fetchGatewayResponse<T>(
   return await parseResponse(response, schema)
 }
 
+function withBearerToken(request: Request, token: string): Request {
+  const headers = new Headers(request.headers)
+  headers.set("Authorization", `Bearer ${token}`)
+
+  return new Request(request, {
+    headers,
+    signal: request.signal,
+  })
+}
+
 /**
  * getGatewayBaseURL returns the browser-safe gateway origin for direct API
  * calls.
@@ -86,4 +96,20 @@ export async function getGatewayToken(): Promise<string> {
     gatewayTokenResponseSchema
   )
   return body.token
+}
+
+/**
+ * gatewayAuthenticatedFetch refreshes the short-lived gateway JWT for every
+ * browser request so SSE reconnects never reuse an expired bearer token.
+ */
+export async function gatewayAuthenticatedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const [request, token] = await Promise.all([
+    Promise.resolve(new Request(input, init)),
+    getGatewayToken(),
+  ])
+
+  return fetch(withBearerToken(request, token))
 }

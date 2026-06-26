@@ -67,7 +67,7 @@ type MCPConnectionReconciler struct {
 	OpenBaoK8sAuthTokenPath string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections/finalizers,verbs=update
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch

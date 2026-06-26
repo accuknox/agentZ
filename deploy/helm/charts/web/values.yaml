@@ -27,8 +27,26 @@ service:
   port: 3000
 
 env:
+  # Required public Better Auth issuer URL.
+  betterAuthURL: ""
+  # Required public gateway base URL used by browser clients.
+  gatewayBaseURL: ""
   # Optional internal gateway base URL used only by server-side web requests.
-  gatewayInternalBaseURL: ""
+  internalGatewayBaseURL: ""
+  # Audience for Better Auth JWTs consumed by the gateway.
+  gatewayJWTAudience: clawarmor-gateway
+  # Optional GitHub OAuth client ID.
+  githubClientID: ""
+  # Optional GitHub allow-list user ID.
+  githubAllowedUserID: ""
+  # Optional GitHub organization gate.
+  githubOrg: ""
+  # Optional GitHub team slug gate.
+  githubTeamSlug: ""
+  # Optional Google OAuth client ID.
+  googleClientID: ""
+  # Optional comma-separated Google email-domain allow list.
+  googleAllowedEmailDomains: ""
   # Optional NixOS search Elasticsearch endpoint.
   nixosSearchESURL: ""
   # Optional NixOS search Elasticsearch username.
@@ -39,7 +57,15 @@ env:
   nixosSearchESBranch: ""
 
 secrets:
+  # Required database DSN for Better Auth and Drizzle.
+  databaseURL: ""
+  # Required Better Auth secret.
+  betterAuthSecret: ""
   # Required secret used to protect MCP OAuth flow cookies.
   mcpOAuthCookieSecret: ""
+  # Optional GitHub OAuth client secret.
+  githubClientSecret: ""
+  # Optional Google OAuth client secret.
+  googleClientSecret: ""
   # Optional NixOS search Elasticsearch password.
   nixosSearchESPassword: ""

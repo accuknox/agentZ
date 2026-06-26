@@ -62,14 +62,14 @@ type Reconciler struct {
 	ManagerServiceAccountNamespace string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants,verbs=get;list;watch
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants,verbs=use
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch
 
 // Reconcile converges a Tenant into an isolated namespace and network policy.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -328,13 +328,28 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 		policy.Spec = &ciliumpolicyapi.Rule{
 			Description:      "Restrict tenant traffic to the same namespace only.",
 			EndpointSelector: selector,
-			Ingress: []ciliumpolicyapi.IngressRule{{
-				IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-					FromEndpoints: []ciliumpolicyapi.EndpointSelector{
-						selector,
+			Ingress: []ciliumpolicyapi.IngressRule{
+				{
+					IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+						FromEndpoints: []ciliumpolicyapi.EndpointSelector{
+							selector,
+						},
 					},
 				},
-			}},
+				{
+					IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+						FromEndpoints: []ciliumpolicyapi.EndpointSelector{
+							ciliumpolicyapi.NewESFromLabels(
+								ciliumlabels.NewLabel(
+									"io.kubernetes.pod.namespace",
+									"clawarmor-system",
+									ciliumlabels.LabelSourceK8s,
+								),
+							),
+						},
+					},
+				},
+			},
 			Egress: []ciliumpolicyapi.EgressRule{
 				{
 					EgressCommonRule: ciliumpolicyapi.EgressCommonRule{

@@ -65,6 +65,15 @@ spec:
         - --leader-elect
         - --health-probe-bind-address=:8081
         - --controller-image=controller:latest
+        - --gateway-url=http://gateway.clawarmor-system.svc.cluster.local:8090
+        - --manager-gateway-token-path=/var/run/secrets/clawarmor/gateway/token
+        - --manager-gateway-token-audience=clawarmor-gateway
+        - --manager-service-account-name=controller-manager
+        - --manager-service-account-namespace=system
+        - --nix-store-pvc=nix-store
+        - --tenant-nix-store-size=5Gi
+        - --tenant-nix-store-access-mode=ReadWriteOnce
+        - --tenant-sinjector-clusterissuer-name=selfsigned
         image: controller:latest
         name: manager
         ports: []
@@ -95,7 +104,17 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
-        volumeMounts: []
-      volumes: []
+        volumeMounts:
+        - mountPath: /var/run/secrets/clawarmor/gateway
+          name: gateway-token
+          readOnly: true
+      volumes:
+      - name: gateway-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: clawarmor-gateway
+              expirationSeconds: 3600
+              path: token
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

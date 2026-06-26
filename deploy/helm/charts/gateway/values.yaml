@@ -8,6 +8,11 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+waitImage:
+  repository: busybox
+  tag: "1.37.0"
+  pullPolicy: IfNotPresent
+
 imagePullSecrets: []
 
 serviceAccount:

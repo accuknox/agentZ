@@ -472,6 +472,10 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
 		corev1.EnvVar{Name: "CLAWARMOR_AGENT_NAME", Value: agt.Name},
+		corev1.EnvVar{
+			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
+			Value: "clawarmor.agent_name=" + agt.Name + ",clawarmor.tenant_namespace=" + agt.Namespace,
+		},
 		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_URL", Value: r.Config.GatewayURL},
 		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
 	)

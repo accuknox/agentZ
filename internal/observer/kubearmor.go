@@ -7,11 +7,8 @@ import (
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 )
 
-func kubeArmorLogEvent(item *pb.Log, namespace, agentName string) (event, bool) {
-	if item == nil {
-		return event{}, false
-	}
-	if item.GetNamespaceName() != namespace || item.GetType() != "ContainerLog" {
+func kubeArmorLogEvent(item *pb.Log, agentName string) (event, bool) {
+	if item == nil || item.GetType() != "ContainerLog" {
 		return event{}, false
 	}
 
@@ -23,6 +20,7 @@ func kubeArmorLogEvent(item *pb.Log, namespace, agentName string) (event, bool) 
 			return event{}, false
 		}
 		return event{process: &processEvent{
+			tenantNamespace:   item.GetNamespaceName(),
 			agentName:         agentName,
 			eventTime:         ts,
 			podNamespace:      item.GetNamespaceName(),
@@ -40,6 +38,7 @@ func kubeArmorLogEvent(item *pb.Log, namespace, agentName string) (event, bool) 
 			return event{}, false
 		}
 		return event{file: &fileEvent{
+			tenantNamespace:   item.GetNamespaceName(),
 			agentName:         agentName,
 			eventTime:         ts,
 			podNamespace:      item.GetNamespaceName(),
@@ -55,11 +54,12 @@ func kubeArmorLogEvent(item *pb.Log, namespace, agentName string) (event, bool) 
 	}
 }
 
-func kubeArmorAlertEvent(item *pb.Alert, namespace, agentName string) (event, bool) {
-	if item == nil || item.GetNamespaceName() != namespace {
+func kubeArmorAlertEvent(item *pb.Alert, agentName string) (event, bool) {
+	if item == nil {
 		return event{}, false
 	}
 
+	ns := item.GetNamespaceName()
 	ts := eventTime(item.GetUpdatedTime(), item.GetTimestamp())
 	action := kubeArmorAction(item.GetAction())
 	switch item.GetOperation() {
@@ -69,9 +69,10 @@ func kubeArmorAlertEvent(item *pb.Alert, namespace, agentName string) (event, bo
 			return event{}, false
 		}
 		return event{process: &processEvent{
+			tenantNamespace:   ns,
 			agentName:         agentName,
 			eventTime:         ts,
-			podNamespace:      item.GetNamespaceName(),
+			podNamespace:      ns,
 			podName:           item.GetPodName(),
 			process:           process,
 			parentProcess:     item.GetParentProcessName(),
@@ -86,9 +87,10 @@ func kubeArmorAlertEvent(item *pb.Alert, namespace, agentName string) (event, bo
 			return event{}, false
 		}
 		return event{file: &fileEvent{
+			tenantNamespace:   ns,
 			agentName:         agentName,
 			eventTime:         ts,
-			podNamespace:      item.GetNamespaceName(),
+			podNamespace:      ns,
 			podName:           item.GetPodName(),
 			filePathAccessed:  path,
 			process:           process,

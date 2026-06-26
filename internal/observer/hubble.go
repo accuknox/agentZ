@@ -86,7 +86,7 @@ func (c *dnsCache) get(agentName, podName, ip string, now time.Time) string {
 	return item.domain
 }
 
-func hubbleFlowEvent(ctx context.Context, item *flowpb.Flow, namespace string, r *resolver, cache *dnsCache) (event, bool) {
+func hubbleFlowEvent(ctx context.Context, item *flowpb.Flow, r *resolver, cache *dnsCache) (event, bool) {
 	if item == nil {
 		return event{}, false
 	}
@@ -99,9 +99,6 @@ func hubbleFlowEvent(ctx context.Context, item *flowpb.Flow, namespace string, r
 	ts := flowEventTime(item)
 	observeDNSFlow(item, src, cache, ts)
 
-	if src.namespace != namespace {
-		return event{}, false
-	}
 	if item.GetTrafficDirection() != flowpb.TrafficDirection_EGRESS {
 		return event{}, false
 	}
@@ -126,6 +123,7 @@ func hubbleFlowEvent(ctx context.Context, item *flowpb.Flow, namespace string, r
 	)
 
 	return event{network: &networkEvent{
+		tenantNamespace:   src.namespace,
 		agentName:         src.agentName,
 		eventTime:         ts,
 		podNamespace:      src.namespace,

@@ -20,7 +20,7 @@ func TestKubeArmorLogProcess(t *testing.T) {
 		ProcessName:       "/usr/bin/id",
 		ParentProcessName: "/usr/bin/dash",
 		Resource:          "/usr/bin/id -u",
-	}, "default", agentName)
+	}, agentName)
 	if !ok {
 		t.Fatal("kubeArmorLogEvent() filtered process event")
 	}
@@ -54,7 +54,7 @@ func TestKubeArmorAlertBlockedProcess(t *testing.T) {
 		ProcessName:   "/usr/bin/whoami",
 		Resource:      "/usr/bin/whoami",
 		Action:        "Block",
-	}, "default", "agent-sample")
+	}, "agent-sample")
 	if !ok {
 		t.Fatal("kubeArmorAlertEvent() filtered blocked process event")
 	}
@@ -81,7 +81,7 @@ func TestKubeArmorLogFile(t *testing.T) {
 		ProcessName:   "/usr/bin/curl",
 		Source:        "/usr/bin/curl -I https://example.com",
 		Resource:      "/etc/hosts extra=data",
-	}, "default", "agent-sample")
+	}, "agent-sample")
 	if !ok {
 		t.Fatal("kubeArmorLogEvent() filtered file event")
 	}
@@ -96,16 +96,19 @@ func TestKubeArmorLogFile(t *testing.T) {
 	}
 }
 
-func TestKubeArmorLogFiltersOtherNamespace(t *testing.T) {
+func TestKubeArmorLogTenantNamespace(t *testing.T) {
 	t.Parallel()
 
-	_, ok := kubeArmorLogEvent(&pb.Log{
+	ev, ok := kubeArmorLogEvent(&pb.Log{
 		NamespaceName: "kube-system",
 		Type:          "ContainerLog",
 		Operation:     "Process",
 		ProcessName:   "/usr/bin/id",
-	}, "default", "agent-sample")
-	if ok {
-		t.Fatal("kubeArmorLogEvent() accepted event from another namespace")
+	}, "agent-sample")
+	if !ok {
+		t.Fatal("kubeArmorLogEvent() filtered event from another namespace")
+	}
+	if ev.process.tenantNamespace != "kube-system" {
+		t.Fatalf("tenantNamespace = %q, want %q", ev.process.tenantNamespace, "kube-system")
 	}
 }

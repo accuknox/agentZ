@@ -14,11 +14,13 @@ func TestTraceEventsFromOTLPRequestExtractsGenAIPayloads(t *testing.T) {
 
 	const agentName = "agent-sample"
 	const sessionID = "ses_123"
+	const tenantNamespace = "tenant-test"
 	req := &tracev1.ExportTraceServiceRequest{
 		ResourceSpans: []*tracepb.ResourceSpans{{
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
 					stringKV(attrClawArmorAgentName, agentName),
+					stringKV(attrClawArmorTenantNamespace, tenantNamespace),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{
@@ -48,6 +50,9 @@ func TestTraceEventsFromOTLPRequestExtractsGenAIPayloads(t *testing.T) {
 	ev := events[0]
 	if ev.agentName != agentName {
 		t.Fatalf("agentName = %s, want %s", ev.agentName, agentName)
+	}
+	if ev.tenantNamespace != tenantNamespace {
+		t.Fatalf("tenantNamespace = %s, want %s", ev.tenantNamespace, tenantNamespace)
 	}
 	if ev.sessionID != sessionID {
 		t.Fatalf("sessionID = %s, want %s", ev.sessionID, sessionID)
@@ -100,6 +105,7 @@ func TestTraceEventsFromOTLPRequestExtractsToolPayloadsOnlyForToolSpans(t *testi
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
 					stringKV(attrClawArmorAgentName, agentName),
+					stringKV(attrClawArmorTenantNamespace, "tenant-test"),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{
@@ -146,6 +152,7 @@ func TestTraceEventsFromOTLPRequestDoesNotExtractLLMPayloadsForSessionSpans(t *t
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
 					stringKV(attrClawArmorAgentName, agentName),
+					stringKV(attrClawArmorTenantNamespace, "tenant-test"),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{
@@ -186,6 +193,7 @@ func TestTraceEventsFromOTLPRequestExtractsOpenCodeGatewayToolInvocation(t *test
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
 					stringKV(attrClawArmorAgentName, "agent-sample"),
+					stringKV(attrClawArmorTenantNamespace, "tenant-test"),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{
@@ -228,6 +236,7 @@ func TestTraceEventsFromOTLPRequestMarksMCPToolInvocationFailedFromToolError(t *
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
 					stringKV(attrClawArmorAgentName, "agent-sample"),
+					stringKV(attrClawArmorTenantNamespace, "tenant-test"),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{
@@ -261,6 +270,7 @@ func TestTraceEventsFromOTLPRequestSkipsNonMCPToolInvocation(t *testing.T) {
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
 					stringKV(attrClawArmorAgentName, "agent-sample"),
+					stringKV(attrClawArmorTenantNamespace, "tenant-test"),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{
@@ -290,6 +300,7 @@ func TestTraceEventsFromOTLPRequestExtractsGatewayToolInvocationWithHyphenatedCo
 			Resource: &resourcepb.Resource{
 				Attributes: []*commonpb.KeyValue{
 					stringKV(attrClawArmorAgentName, "agent-sample"),
+					stringKV(attrClawArmorTenantNamespace, "tenant-test"),
 				},
 			},
 			ScopeSpans: []*tracepb.ScopeSpans{{

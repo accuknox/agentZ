@@ -23,6 +23,7 @@ type event struct {
 }
 
 type processEvent struct {
+	tenantNamespace   string
 	agentName         string
 	eventTime         time.Time
 	podNamespace      string
@@ -35,6 +36,7 @@ type processEvent struct {
 }
 
 type fileEvent struct {
+	tenantNamespace   string
 	agentName         string
 	eventTime         time.Time
 	podNamespace      string
@@ -47,6 +49,7 @@ type fileEvent struct {
 }
 
 type networkEvent struct {
+	tenantNamespace   string
 	agentName         string
 	eventTime         time.Time
 	podNamespace      string
@@ -60,6 +63,7 @@ type networkEvent struct {
 }
 
 type traceSpanEvent struct {
+	tenantNamespace    string
 	agentName          string
 	sessionID          string
 	traceID            []byte

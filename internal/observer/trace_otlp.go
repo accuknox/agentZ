@@ -18,10 +18,17 @@ import (
 	"google.golang.org/grpc"
 )
 
+var (
+	errTraceAgentNameMissing       = errors.New("clawarmor.agent_name missing")
+	errTraceSessionIDMissing       = errors.New("session.id missing")
+	errTraceTenantNamespaceMissing = errors.New("clawarmor.tenant_namespace missing")
+)
+
 const (
-	attrClawArmorAgentName = "clawarmor.agent_name"
-	attrSessionID          = "session.id"
-	attrSpanKind           = "openinference.span.kind"
+	attrClawArmorAgentName       = "clawarmor.agent_name"
+	attrClawArmorTenantNamespace = "clawarmor.tenant_namespace"
+	attrSessionID                = "session.id"
+	attrSpanKind                 = "openinference.span.kind"
 
 	attrInputValue     = "input.value"
 	attrInputMimeType  = "input.mime_type"
@@ -56,11 +63,6 @@ const (
 	operationSession     = "session"
 	operationChat        = "chat"
 	operationExecuteTool = "execute_tool"
-)
-
-var (
-	errTraceAgentNameMissing = errors.New("clawarmor.agent_name missing")
-	errTraceSessionIDMissing = errors.New("session.id missing")
 )
 
 type traceReceiver struct {
@@ -158,6 +160,11 @@ func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb
 		return traceSpanEvent{}, err
 	}
 
+	tenantNamespace, err := requiredStringAttr(spanAttrs, resourceAttrs, attrClawArmorTenantNamespace, errTraceTenantNamespaceMissing)
+	if err != nil {
+		return traceSpanEvent{}, err
+	}
+
 	start := unixNano(sp.GetStartTimeUnixNano())
 	end := unixNano(sp.GetEndTimeUnixNano())
 	durationNS := max(end.Sub(start).Nanoseconds(), 0)
@@ -198,6 +205,7 @@ func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb
 	}
 
 	return traceSpanEvent{
+		tenantNamespace:    tenantNamespace,
 		agentName:          agentName,
 		sessionID:          sessionID,
 		traceID:            cloneBytes(sp.GetTraceId()),

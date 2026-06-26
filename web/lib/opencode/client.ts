@@ -4,26 +4,33 @@ import {
   type OpencodeClient as OpencodeClientV2,
 } from "@opencode-ai/sdk/v2/client"
 import { gatewayBaseURL } from "@/lib/gateway/base-url"
-import { GATEWAY_UNAUTHORIZED } from "@/lib/gateway/errors"
-import { getGatewayToken } from "@/lib/gateway/token-action"
 import { clientRedirectToLogin } from "@/lib/login-redirect"
 
-const gatewayBase = gatewayBaseURL()
-
 function opencodeBaseURL(agentName: string): string {
-  return `${gatewayBase}/api/opencode/${encodeURIComponent(agentName)}`
+  return `${gatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`
 }
 
 async function opencodeHeaders(): Promise<Record<string, string>> {
-  try {
-    const token = await getGatewayToken()
-    return { Authorization: `Bearer ${token}` }
-  } catch (error) {
-    if (error instanceof Error && error.message === GATEWAY_UNAUTHORIZED) {
-      clientRedirectToLogin()
-    }
-    throw error
+  const response = await fetch("/api/gateway/token", {
+    cache: "no-store",
+    credentials: "same-origin",
+  })
+
+  if (response.status === 401) {
+    clientRedirectToLogin()
+    throw new Error("Unauthorized")
   }
+
+  if (!response.ok) {
+    throw new Error("Failed to load gateway token")
+  }
+
+  const body = (await response.json()) as { token?: string }
+  if (!body.token) {
+    throw new Error("Failed to load gateway token")
+  }
+
+  return { Authorization: `Bearer ${body.token}` }
 }
 
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.

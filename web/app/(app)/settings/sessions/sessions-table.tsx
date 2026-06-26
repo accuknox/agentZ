@@ -55,10 +55,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { auth } from "@/lib/auth"
 import type { SVGProps } from "react"
+import type { Auth } from "@/lib/auth"
 
-type SessionRow = Awaited<ReturnType<typeof auth.api.listSessions>>[number]
+type SessionRow = Awaited<ReturnType<Auth["api"]["listSessions"]>>[number]
 type IconComponent = React.ComponentType<SVGProps<SVGSVGElement>>
 
 const columnClassName: Record<string, string> = {

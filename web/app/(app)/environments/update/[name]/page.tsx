@@ -17,7 +17,11 @@ export async function generateMetadata({
   }
 }
 
-export default function UpdateEnvironmentPage({ params }: { params: Promise<{ name: string }> }) {
+export default async function UpdateEnvironmentPage({
+  params,
+}: {
+  params: Promise<{ name: string }>
+}) {
   return (
     <Suspense fallback={<UpdateEnvironmentSkeleton />}>
       {params.then(({ name }) => (

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Environments",
 }
 
-export default function EnvironmentsPage({
+export default async function EnvironmentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ page_token?: string | string[] }>

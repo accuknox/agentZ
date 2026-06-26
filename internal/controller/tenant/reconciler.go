@@ -189,6 +189,7 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *clawarmorv1
 		}
 		ns.Annotations[clawarmorv1alpha1.TenantOrganizationIDAnnotation] = tenant.Spec.OrganizationID
 		ns.Annotations[clawarmorv1alpha1.TenantUserIDAnnotation] = tenant.Spec.UserID
+		ns.Annotations[clawarmorv1alpha1.KubeArmorVisibilityAnnotation] = "process"
 		ns.OwnerReferences = []metav1.OwnerReference{
 			{
 				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),

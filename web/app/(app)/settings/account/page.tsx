@@ -2,14 +2,16 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { headers } from "next/headers"
-import { auth } from "@/lib/auth"
+import { connection } from "next/server"
+import { getAuth } from "@/lib/auth"
 import { TwoFactorSettings } from "./two-factor-settings"
 
 export const metadata: Metadata = {
   title: "Account",
 }
 
-export default function AccountPage() {
+export default async function AccountPage() {
+  await connection()
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -28,6 +30,7 @@ export default function AccountPage() {
 }
 
 async function IdentityProvider() {
+  const auth = getAuth()
   let provider: "github" | "google" | string | undefined
   let errorMessage: string | undefined
 
@@ -66,6 +69,7 @@ async function IdentityProvider() {
 }
 
 async function AccountSecurity() {
+  const auth = getAuth()
   let enabled = false
   let errorMessage: string | undefined
 

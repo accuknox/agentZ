@@ -35,9 +35,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import type { auth } from "@/lib/auth"
+import type { Auth } from "@/lib/auth"
 
-type APIKeyRow = Awaited<ReturnType<typeof auth.api.listApiKeys>>["apiKeys"][number]
+type APIKeyRow = Awaited<ReturnType<Auth["api"]["listApiKeys"]>>["apiKeys"][number]
 
 const columnClassName: Record<string, string> = {
   name: "w-40",

@@ -8,8 +8,8 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { jwt } from "better-auth/plugins/jwt"
 import { organization } from "better-auth/plugins/organization"
 import { twoFactor } from "better-auth/plugins/two-factor"
-import { db, schema } from "@/db"
-import { env } from "@/lib/env"
+import { getDB, schema } from "@/db"
+import { getEnv } from "@/lib/env"
 import { getGithubUserInfo } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
 import { loginReturnTo } from "@/lib/login-redirect"
@@ -24,6 +24,7 @@ const twoFactorCookieName = "two_factor"
 const trustDeviceCookieName = "trust_device"
 const defaultTwoFactorCookieMaxAge = 10 * 60
 const defaultTrustDeviceMaxAge = 30 * 24 * 60 * 60
+let auth: Auth | undefined
 
 const disabledAuthPaths = [
   // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
@@ -58,242 +59,257 @@ const disabledAuthPaths = [
   "/two-factor/generate-backup-codes",
 ]
 
-export const auth = betterAuth({
-  appName: "ClawArmor",
-  baseURL: env.BETTER_AUTH_URL,
-  trustedOrigins: [new URL(env.BETTER_AUTH_URL).origin],
-  disabledPaths: disabledAuthPaths,
-  database: drizzleAdapter(db, {
-    provider: "pg",
-    usePlural: true,
-    schema,
-  }),
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          await auth.api.createOrganization({
-            body: {
-              name: `${user.name || user.email}'s tenant`,
-              slug: `tenant-${randomUUID()}`,
-              userId: user.id,
-            },
-          })
-        },
-      },
-    },
-  },
-  session: {
-    expiresIn: 60 * 60,
-    updateAge: 15 * 60,
-  },
-  account: {
-    encryptOAuthTokens: true,
-    storeStateStrategy: "database",
-    accountLinking: {
-      enabled: false,
-    },
-  },
-  rateLimit: {
-    enabled: true,
-    storage: "database",
-    window: 60,
-    max: 100,
-    customRules: {
-      "/sign-in/social": { window: 60, max: 5 },
-      "/callback/:id": { window: 60, max: 10 },
-    },
-  },
-  hooks: {
-    after: createAuthMiddleware(async (ctx) => {
-      if (ctx.path !== "/callback/:id") {
-        return
-      }
+function buildAuth() {
+  const env = getEnv()
 
-      const newSession = ctx.context.newSession
-      if (!newSession?.user.twoFactorEnabled) {
-        return
-      }
-
-      const plugin = ctx.context.getPlugin("two-factor")
-      const trustDeviceMaxAge = plugin?.options?.trustDeviceMaxAge ?? defaultTrustDeviceMaxAge
-      const trustDeviceCookie = ctx.context.createAuthCookie(trustDeviceCookieName, {
-        maxAge: trustDeviceMaxAge,
-      })
-      const signedTrustDevice = await ctx.getSignedCookie(
-        trustDeviceCookie.name,
-        ctx.context.secret
-      )
-
-      if (signedTrustDevice) {
-        const [token, trustIdentifier] = signedTrustDevice.split("!")
-        if (token && trustIdentifier) {
-          const expectedToken = createHmac("sha256", ctx.context.secret)
-            .update(`${newSession.user.id}!${trustIdentifier}`)
-            .digest("base64url")
-          const verificationRecord =
-            await ctx.context.internalAdapter.findVerificationValue(trustIdentifier)
-
-          if (
-            token === expectedToken &&
-            verificationRecord &&
-            verificationRecord.value === newSession.user.id &&
-            verificationRecord.expiresAt > new Date()
-          ) {
-            // Rotate the trusted-device record on each successful reuse so a
-            // stolen old cookie cannot be replayed after the next login.
-            await ctx.context.internalAdapter.deleteVerificationByIdentifier(trustIdentifier)
-
-            const nextTrustIdentifier = `trust-device-${randomUUID()}`
-            const nextToken = createHmac("sha256", ctx.context.secret)
-              .update(`${newSession.user.id}!${nextTrustIdentifier}`)
-              .digest("base64url")
-
-            await ctx.context.internalAdapter.createVerificationValue({
-              value: newSession.user.id,
-              identifier: nextTrustIdentifier,
-              expiresAt: new Date(Date.now() + trustDeviceMaxAge * 1000),
+  return betterAuth({
+    appName: "ClawArmor",
+    baseURL: env.BETTER_AUTH_URL,
+    trustedOrigins: [new URL(env.BETTER_AUTH_URL).origin],
+    disabledPaths: disabledAuthPaths,
+    database: drizzleAdapter(getDB(), {
+      provider: "pg",
+      usePlural: true,
+      schema,
+    }),
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            await getAuth().api.createOrganization({
+              body: {
+                name: `${user.name || user.email}'s tenant`,
+                slug: `tenant-${randomUUID()}`,
+                userId: user.id,
+              },
             })
-            await ctx.setSignedCookie(
-              trustDeviceCookie.name,
-              `${nextToken}!${nextTrustIdentifier}`,
-              ctx.context.secret,
-              trustDeviceCookie.attributes
-            )
-            return
-          }
-        }
-
-        expireCookie(ctx, trustDeviceCookie)
-      }
-
-      // OAuth callbacks create a live session before this hook runs. Burn that
-      // session and replace it with a short-lived 2FA challenge so there is no
-      // authenticated state until the second factor succeeds.
-      deleteSessionCookie(ctx, true)
-      await ctx.context.internalAdapter.deleteSession(newSession.session.token)
-      ctx.context.setNewSession(null)
-
-      const twoFactorCookieMaxAge =
-        plugin?.options?.twoFactorCookieMaxAge ?? defaultTwoFactorCookieMaxAge
-      const twoFactorCookie = ctx.context.createAuthCookie(twoFactorCookieName, {
-        maxAge: twoFactorCookieMaxAge,
-      })
-      const twoFactorIdentifier = `2fa-${randomUUID()}`
-
-      await ctx.context.internalAdapter.createVerificationValue({
-        value: newSession.user.id,
-        identifier: twoFactorIdentifier,
-        expiresAt: new Date(Date.now() + twoFactorCookieMaxAge * 1000),
-      })
-      await ctx.setSignedCookie(
-        twoFactorCookie.name,
-        twoFactorIdentifier,
-        ctx.context.secret,
-        twoFactorCookie.attributes
-      )
-
-      const oauthState = await getOAuthState()
-      const returnTo = loginReturnTo(oauthState?.callbackURL)
-      const search = new URLSearchParams()
-      if (returnTo) {
-        search.set("returnTo", returnTo)
-      }
-
-      throw ctx.redirect(
-        search.size === 0 ? "/login/two-factor" : `/login/two-factor?${search.toString()}`
-      )
-    }),
-  },
-  socialProviders: {
-    // Each provider is enabled only when its env pair is configured; the env
-    // schema enforces "both or neither" so an unconfigured provider spreads
-    // nothing here and better-auth returns 404 on its callback route.
-    ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
-      ? {
-          github: {
-            clientId: env.GITHUB_CLIENT_ID,
-            clientSecret: env.GITHUB_CLIENT_SECRET,
-            // read:org is only needed when an org/team gate is configured.
-            scope: ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])],
-            getUserInfo: getGithubUserInfo,
           },
-        }
-      : {}),
-    ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-      ? {
-          google: {
-            clientId: env.GOOGLE_CLIENT_ID,
-            clientSecret: env.GOOGLE_CLIENT_SECRET,
-            accessType: "offline",
-            prompt: "select_account",
-            getUserInfo: getGoogleUserInfo,
-          },
-        }
-      : {}),
-  },
-  plugins: [
-    organization({
-      allowUserToCreateOrganization: false,
-      disableOrganizationDeletion: true,
-      organizationLimit: 1,
-      membershipLimit: 1,
-    }),
-    apiKey([
-      {
-        configId: opencodeAPIKeyConfigID,
-        defaultPrefix: "opk_",
-        startingCharactersConfig: {
-          charactersLength: 10,
-          shouldStore: true,
         },
-        keyExpiration: {
-          defaultExpiresIn: null,
-        },
-        rateLimit: {
-          enabled: false,
-        },
-        references: "organization",
-        requireName: true,
       },
-    ]),
-    jwt({
-      disableSettingJwtHeader: true,
-      jwks: {
-        jwksPath: "/.well-known/jwks.json",
-        keyPairConfig: {
-          alg: "ES256",
-        },
-        rotationInterval: 60 * 60 * 24 * 30,
-        gracePeriod: 60 * 60 * 24 * 30,
+    },
+    session: {
+      expiresIn: 60 * 60,
+      updateAge: 15 * 60,
+    },
+    account: {
+      encryptOAuthTokens: true,
+      storeStateStrategy: "database",
+      accountLinking: {
+        enabled: false,
       },
-      jwt: {
-        audience: env.GATEWAY_JWT_AUDIENCE,
-        expirationTime: "2m",
-        issuer: env.BETTER_AUTH_URL,
-        definePayload: ({ session, user }) => {
-          if (!session.activeOrganizationId) {
-            throw new Error("gateway JWT requires an active organization")
+    },
+    rateLimit: {
+      enabled: true,
+      storage: "database",
+      window: 60,
+      max: 100,
+      customRules: {
+        "/sign-in/social": { window: 60, max: 5 },
+        "/callback/:id": { window: 60, max: 10 },
+      },
+    },
+    hooks: {
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/callback/:id") {
+          return
+        }
+
+        const newSession = ctx.context.newSession
+        if (!newSession?.user.twoFactorEnabled) {
+          return
+        }
+
+        const plugin = ctx.context.getPlugin("two-factor")
+        const trustDeviceMaxAge = plugin?.options?.trustDeviceMaxAge ?? defaultTrustDeviceMaxAge
+        const trustDeviceCookie = ctx.context.createAuthCookie(trustDeviceCookieName, {
+          maxAge: trustDeviceMaxAge,
+        })
+        const signedTrustDevice = await ctx.getSignedCookie(
+          trustDeviceCookie.name,
+          ctx.context.secret
+        )
+
+        if (signedTrustDevice) {
+          const [token, trustIdentifier] = signedTrustDevice.split("!")
+          if (token && trustIdentifier) {
+            const expectedToken = createHmac("sha256", ctx.context.secret)
+              .update(`${newSession.user.id}!${trustIdentifier}`)
+              .digest("base64url")
+            const verificationRecord =
+              await ctx.context.internalAdapter.findVerificationValue(trustIdentifier)
+
+            if (
+              token === expectedToken &&
+              verificationRecord &&
+              verificationRecord.value === newSession.user.id &&
+              verificationRecord.expiresAt > new Date()
+            ) {
+              // Rotate the trusted-device record on each successful reuse so a
+              // stolen old cookie cannot be replayed after the next login.
+              await ctx.context.internalAdapter.deleteVerificationByIdentifier(trustIdentifier)
+
+              const nextTrustIdentifier = `trust-device-${randomUUID()}`
+              const nextToken = createHmac("sha256", ctx.context.secret)
+                .update(`${newSession.user.id}!${nextTrustIdentifier}`)
+                .digest("base64url")
+
+              await ctx.context.internalAdapter.createVerificationValue({
+                value: newSession.user.id,
+                identifier: nextTrustIdentifier,
+                expiresAt: new Date(Date.now() + trustDeviceMaxAge * 1000),
+              })
+              await ctx.setSignedCookie(
+                trustDeviceCookie.name,
+                `${nextToken}!${nextTrustIdentifier}`,
+                ctx.context.secret,
+                trustDeviceCookie.attributes
+              )
+              return
+            }
           }
 
-          return {
-            email: user.email,
-            name: user.name,
-            tenant_id: session.activeOrganizationId,
-            user_id: user.id,
+          expireCookie(ctx, trustDeviceCookie)
+        }
+
+        // OAuth callbacks create a live session before this hook runs. Burn
+        // that session and replace it with a short-lived 2FA challenge so
+        // there is no authenticated state until the second factor succeeds.
+        deleteSessionCookie(ctx, true)
+        await ctx.context.internalAdapter.deleteSession(newSession.session.token)
+        ctx.context.setNewSession(null)
+
+        const twoFactorCookieMaxAge =
+          plugin?.options?.twoFactorCookieMaxAge ?? defaultTwoFactorCookieMaxAge
+        const twoFactorCookie = ctx.context.createAuthCookie(twoFactorCookieName, {
+          maxAge: twoFactorCookieMaxAge,
+        })
+        const twoFactorIdentifier = `2fa-${randomUUID()}`
+
+        await ctx.context.internalAdapter.createVerificationValue({
+          value: newSession.user.id,
+          identifier: twoFactorIdentifier,
+          expiresAt: new Date(Date.now() + twoFactorCookieMaxAge * 1000),
+        })
+        await ctx.setSignedCookie(
+          twoFactorCookie.name,
+          twoFactorIdentifier,
+          ctx.context.secret,
+          twoFactorCookie.attributes
+        )
+
+        const oauthState = await getOAuthState()
+        const returnTo = loginReturnTo(oauthState?.callbackURL)
+        const search = new URLSearchParams()
+        if (returnTo) {
+          search.set("returnTo", returnTo)
+        }
+
+        throw ctx.redirect(
+          search.size === 0 ? "/login/two-factor" : `/login/two-factor?${search.toString()}`
+        )
+      }),
+    },
+    socialProviders: {
+      // Each provider is enabled only when its env pair is configured; the env
+      // schema enforces "both or neither" so an unconfigured provider spreads
+      // nothing here and better-auth returns 404 on its callback route.
+      ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+        ? {
+            github: {
+              clientId: env.GITHUB_CLIENT_ID,
+              clientSecret: env.GITHUB_CLIENT_SECRET,
+              // read:org is only needed when an org/team gate is configured.
+              scope: ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])],
+              getUserInfo: getGithubUserInfo,
+            },
           }
+        : {}),
+      ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+        ? {
+            google: {
+              clientId: env.GOOGLE_CLIENT_ID,
+              clientSecret: env.GOOGLE_CLIENT_SECRET,
+              accessType: "offline",
+              prompt: "select_account",
+              getUserInfo: getGoogleUserInfo,
+            },
+          }
+        : {}),
+    },
+    plugins: [
+      organization({
+        allowUserToCreateOrganization: false,
+        disableOrganizationDeletion: true,
+        organizationLimit: 1,
+        membershipLimit: 1,
+      }),
+      apiKey([
+        {
+          configId: opencodeAPIKeyConfigID,
+          defaultPrefix: "opk_",
+          startingCharactersConfig: {
+            charactersLength: 10,
+            shouldStore: true,
+          },
+          keyExpiration: {
+            defaultExpiresIn: null,
+          },
+          rateLimit: {
+            enabled: false,
+          },
+          references: "organization",
+          requireName: true,
         },
-      },
-      schema: {
+      ]),
+      jwt({
+        disableSettingJwtHeader: true,
         jwks: {
-          modelName: "jwk",
+          jwksPath: "/.well-known/jwks.json",
+          keyPairConfig: {
+            alg: "ES256",
+          },
+          rotationInterval: 60 * 60 * 24 * 30,
+          gracePeriod: 60 * 60 * 24 * 30,
         },
-      },
-    }),
-    twoFactor({
-      allowPasswordless: true,
-      issuer: "ClawArmor",
-    }),
-    nextCookies(), // make sure this is the last plugin in the array
-  ],
-})
+        jwt: {
+          audience: env.GATEWAY_JWT_AUDIENCE,
+          expirationTime: "2m",
+          issuer: env.BETTER_AUTH_URL,
+          definePayload: ({ session, user }) => {
+            if (!session.activeOrganizationId) {
+              throw new Error("gateway JWT requires an active organization")
+            }
+
+            return {
+              email: user.email,
+              name: user.name,
+              tenant_id: session.activeOrganizationId,
+              user_id: user.id,
+            }
+          },
+        },
+        schema: {
+          jwks: {
+            modelName: "jwk",
+          },
+        },
+      }),
+      twoFactor({
+        allowPasswordless: true,
+        issuer: "ClawArmor",
+      }),
+      nextCookies(), // make sure this is the last plugin in the array
+    ],
+  })
+}
+
+export type Auth = ReturnType<typeof buildAuth>
+
+/**
+ * getAuth creates the Better Auth singleton lazily so the build does not need
+ * runtime-only secrets.
+ */
+export function getAuth(): Auth {
+  auth ??= buildAuth()
+  return auth
+}

@@ -31,7 +31,7 @@ export async function generateMetadata({
   }
 }
 
-export default function ScheduledWorkflowRunsPage({
+export default async function ScheduledWorkflowRunsPage({
   params,
   searchParams,
 }: {

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: "File Telemetry",
 }
 
-export default function FilePage({
+export default async function FilePage({
   searchParams,
 }: {
   searchParams: Promise<{

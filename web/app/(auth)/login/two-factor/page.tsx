@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { headers } from "next/headers"
+import { connection } from "next/server"
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getAuth } from "@/lib/auth"
 import { loginReturnTo } from "@/lib/login-redirect"
 import { TwoFactorChallenge } from "./two-factor-challenge"
 
@@ -31,8 +32,8 @@ async function TwoFactorGate({
 }: {
   searchParams: Promise<TwoFactorPageSearchParams>
 }) {
-  "use cache: private"
-
+  await connection()
+  const auth = getAuth()
   const params = await searchParams
   const returnToValue = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo
   const returnTo = loginReturnTo(returnToValue) ?? "/"

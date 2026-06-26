@@ -32,7 +32,11 @@ type McpScope =
 /**
  * McpPage renders MCP observability for one selected agent and date range.
  */
-export default function McpPage({ searchParams }: { searchParams: Promise<McpSearchParams> }) {
+export default async function McpPage({
+  searchParams,
+}: {
+  searchParams: Promise<McpSearchParams>
+}) {
   const agents = listAgentsCachedQuery()
 
   return (

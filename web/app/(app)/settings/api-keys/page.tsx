@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { headers } from "next/headers"
+import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { createAPIKeyFormAction, deleteAPIKeyFormAction } from "@/data/api-key.actions"
 import { Button } from "@/components/ui/button"
-import { auth } from "@/lib/auth"
-import { opencodeAPIKeyConfigID } from "@/lib/auth"
+import { getAuth, opencodeAPIKeyConfigID } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { CreateAPIKeyButton } from "./dialog"
 import { APIKeysTable } from "./table"
@@ -14,7 +14,8 @@ export const metadata: Metadata = {
   title: "API Keys",
 }
 
-export default function APIKeysPage() {
+export default async function APIKeysPage() {
+  await connection()
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -44,6 +45,7 @@ async function CreateAPIKeyAction() {
 }
 
 async function APIKeys() {
+  const auth = getAuth()
   const authContext = await currentGatewayAuthContext()
   const requestHeaders = await headers()
   const listedKeys = await auth.api.listApiKeys({

@@ -5,7 +5,7 @@ import {
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import * as z from "zod"
-import { auth } from "@/lib/auth"
+import { getAuth } from "@/lib/auth"
 import {
   discoveredOAuth,
   parseStoredOAuthDiscoveryState,
@@ -36,6 +36,7 @@ const discoveryRequestSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const auth = getAuth()
   const session = await auth.api.getSession({
     headers: await headers(),
   })

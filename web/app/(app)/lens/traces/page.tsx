@@ -62,7 +62,7 @@ function traceScopeFailure(
   }
 }
 
-export default function TracesPage({
+export default async function TracesPage({
   searchParams,
 }: {
   searchParams: Promise<TracesSearchParams>

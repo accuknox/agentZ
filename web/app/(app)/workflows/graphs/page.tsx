@@ -17,7 +17,11 @@ type SearchParams = {
   workflow_name?: string | string[]
 }
 
-export default function WorkflowsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+export default async function WorkflowsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">

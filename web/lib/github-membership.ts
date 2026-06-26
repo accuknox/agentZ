@@ -1,6 +1,6 @@
 import type { OAuth2Tokens } from "@better-auth/core/oauth2"
 import { Octokit } from "@octokit/rest"
-import { env } from "@/lib/env"
+import { getEnv } from "@/lib/env"
 
 type GithubProfile = Awaited<ReturnType<Octokit["rest"]["users"]["getAuthenticated"]>>["data"]
 type GithubEmail = Awaited<
@@ -42,6 +42,8 @@ function githubErrorDetails(err: unknown) {
 }
 
 async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
+  const env = getEnv()
+
   if (env.GITHUB_ALLOWED_USER_ID) {
     return String(profile.id) === env.GITHUB_ALLOWED_USER_ID
   }
@@ -107,6 +109,7 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
     return null
   }
 
+  const env = getEnv()
   const octokit = new Octokit({ auth: token.accessToken })
 
   try {

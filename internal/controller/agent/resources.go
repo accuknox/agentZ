@@ -178,7 +178,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	podAnnotations := make(map[string]string, len(agt.Annotations)+2)
 	maps.Copy(podAnnotations, agt.Annotations)
 	podAnnotations["clawarmor.accuknox.com/config-hash"] = hash
-	podAnnotations["kubearmor-visibility"] = "process,file"
+	podAnnotations["kubearmor-visibility"] = "process"
 
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount

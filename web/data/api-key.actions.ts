@@ -5,7 +5,7 @@ import { headers } from "next/headers"
 import type { CreateAPIKeyFormState, DeleteAPIKeyFormState } from "@/data/types"
 import { listAgents } from "@/lib/gateway/client"
 import { createAPIKeyFormSchema } from "@/data/api-key.schema"
-import { auth } from "@/lib/auth"
+import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { gatewayServerClient } from "@/lib/gateway/server-client"
 import { opencodeAPIKeyConfigID } from "@/lib/auth"
@@ -14,6 +14,7 @@ export async function createAPIKeyFormAction(
   _: CreateAPIKeyFormState,
   formData: FormData
 ): Promise<CreateAPIKeyFormState> {
+  const auth = getAuth()
   const parsed = createAPIKeyFormSchema.safeParse({
     name: formData.get("name"),
     scopeMode: formData.get("scopeMode"),
@@ -103,6 +104,7 @@ export async function deleteAPIKeyFormAction(
   _: DeleteAPIKeyFormState,
   formData: FormData
 ): Promise<DeleteAPIKeyFormState> {
+  const auth = getAuth()
   const keyID = formData.get("keyID")
   if (typeof keyID !== "string" || keyID.length === 0) {
     return {

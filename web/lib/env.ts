@@ -1,35 +1,5 @@
 import { z } from "zod"
 
-// optionalNonEmptyString treats empty/whitespace values as unset so users can
-// leave an env var absent or blank without tripping the min(1) validator.
-const optionalNonEmptyString = z.preprocess((value) => {
-  if (typeof value !== "string") {
-    return value
-  }
-
-  const trimmed = value.trim()
-  return trimmed === "" ? undefined : trimmed
-}, z.string().min(1).optional())
-
-// commaList parses a comma-separated env value into a deduped, lowercased
-// string array. Normalisation lives at the trust boundary (env parse) so
-// downstream consumers compare against already-canonical values.
-const commaList = z.preprocess(
-  (value) => {
-    if (typeof value !== "string") {
-      return value
-    }
-
-    const entries = value
-      .split(",")
-      .map((entry) => entry.trim().toLowerCase())
-      .filter((entry) => entry.length > 0)
-
-    return entries.length === 0 ? undefined : [...new Set(entries)]
-  },
-  z.array(z.string().min(1)).optional()
-)
-
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
@@ -39,8 +9,22 @@ const envSchema = z
     GATEWAY_JWT_AUDIENCE: z.string().trim().min(1).default("clawarmor-gateway"),
     // GitHub is optional: enabled iff GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET
     // are both configured. The cross-validation below enforces the pair.
-    GITHUB_CLIENT_ID: optionalNonEmptyString,
-    GITHUB_CLIENT_SECRET: optionalNonEmptyString,
+    GITHUB_CLIENT_ID: z.preprocess((value) => {
+      if (typeof value !== "string") {
+        return value
+      }
+
+      const trimmed = value.trim()
+      return trimmed === "" ? undefined : trimmed
+    }, z.string().min(1).optional()),
+    GITHUB_CLIENT_SECRET: z.preprocess((value) => {
+      if (typeof value !== "string") {
+        return value
+      }
+
+      const trimmed = value.trim()
+      return trimmed === "" ? undefined : trimmed
+    }, z.string().min(1).optional()),
     GITHUB_ALLOWED_USER_ID: z.preprocess((value) => {
       if (typeof value !== "string") {
         return value
@@ -49,13 +33,55 @@ const envSchema = z
       const trimmed = value.trim()
       return trimmed === "" ? undefined : trimmed
     }, z.string().regex(/^\d+$/).optional()),
-    GITHUB_ORG: optionalNonEmptyString,
-    GITHUB_TEAM_SLUG: optionalNonEmptyString,
+    GITHUB_ORG: z.preprocess((value) => {
+      if (typeof value !== "string") {
+        return value
+      }
+
+      const trimmed = value.trim()
+      return trimmed === "" ? undefined : trimmed
+    }, z.string().min(1).optional()),
+    GITHUB_TEAM_SLUG: z.preprocess((value) => {
+      if (typeof value !== "string") {
+        return value
+      }
+
+      const trimmed = value.trim()
+      return trimmed === "" ? undefined : trimmed
+    }, z.string().min(1).optional()),
     // Google is optional and gated by an email-domain allowlist. The OAuth
     // client must whitelist the redirect URI .../api/auth/callback/google.
-    GOOGLE_CLIENT_ID: optionalNonEmptyString,
-    GOOGLE_CLIENT_SECRET: optionalNonEmptyString,
-    GOOGLE_ALLOWED_EMAIL_DOMAINS: commaList,
+    GOOGLE_CLIENT_ID: z.preprocess((value) => {
+      if (typeof value !== "string") {
+        return value
+      }
+
+      const trimmed = value.trim()
+      return trimmed === "" ? undefined : trimmed
+    }, z.string().min(1).optional()),
+    GOOGLE_CLIENT_SECRET: z.preprocess((value) => {
+      if (typeof value !== "string") {
+        return value
+      }
+
+      const trimmed = value.trim()
+      return trimmed === "" ? undefined : trimmed
+    }, z.string().min(1).optional()),
+    GOOGLE_ALLOWED_EMAIL_DOMAINS: z.preprocess(
+      (value) => {
+        if (typeof value !== "string") {
+          return value
+        }
+
+        const domains = value
+          .split(",")
+          .map((entry) => entry.trim().toLowerCase())
+          .filter((entry) => entry.length > 0)
+
+        return domains.length === 0 ? undefined : [...new Set(domains)]
+      },
+      z.array(z.string().min(1)).optional()
+    ),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   })
   .superRefine((value, ctx) => {
@@ -100,4 +126,15 @@ const envSchema = z
     }
   })
 
-export const env = envSchema.parse(process.env)
+export type Env = z.infer<typeof envSchema>
+
+let env: Env | undefined
+
+/**
+ * getEnv validates the process environment on first runtime use and memoizes
+ * the parsed result for the rest of the process lifetime.
+ */
+export function getEnv(): Env {
+  env ??= envSchema.parse(process.env)
+  return env
+}

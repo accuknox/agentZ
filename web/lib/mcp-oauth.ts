@@ -16,13 +16,13 @@ import {
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 import * as z from "zod"
 import type { JsonObject, McpConnectionAuth } from "@/lib/gateway/client"
-import { env } from "@/lib/env"
+import { getEnv } from "@/lib/env"
 import {
   defaultMcpAuthLocation,
   oauthCredentialsFromTokens,
   type ParsedMcpForm,
 } from "@/data/mcp.schema"
-import { webBaseURL } from "@/lib/gateway/base-url"
+import { serverWebBaseURL } from "@/lib/gateway/server-base-url"
 import {
   oauthBroadcastChannelName,
   oauthErrorFieldNames,
@@ -249,7 +249,7 @@ const googleAuthorizationHosts = new Set(["accounts.google.com"])
 const dropboxAuthorizationHosts = new Set(["www.dropbox.com", "dropbox.com"])
 
 function secretKeyMaterial() {
-  return createHash("sha256").update(env.MCP_OAUTH_COOKIE_SECRET).digest()
+  return createHash("sha256").update(getEnv().MCP_OAUTH_COOKIE_SECRET).digest()
 }
 
 function base64url(input: Buffer | ArrayBuffer) {
@@ -261,7 +261,7 @@ function bufferFromBase64url(value: string) {
 }
 
 function redirectURL() {
-  return new URL("/mcps/oauth/callback", webBaseURL())
+  return new URL("/mcps/oauth/callback", serverWebBaseURL())
 }
 
 function oauthClientMetadata(redirectURL: URL): OAuthClientMetadata {

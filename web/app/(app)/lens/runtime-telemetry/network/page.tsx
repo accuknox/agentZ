@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: "Network Telemetry",
 }
 
-export default function NetworkPage({
+export default async function NetworkPage({
   searchParams,
 }: {
   searchParams: Promise<{

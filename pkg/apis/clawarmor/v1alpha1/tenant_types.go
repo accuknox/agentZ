@@ -57,6 +57,9 @@ const (
 	// TenantIsolationPolicyName is the Cilium policy name used for tenant
 	// isolation.
 	TenantIsolationPolicyName = "tenant-isolation"
+	// KubeArmorVisibilityAnnotation is the annotation key for setting
+	// KubeArmor visibility on namespaces and pods.
+	KubeArmorVisibilityAnnotation = "kubearmor-visibility"
 )
 
 // TenantSpec defines the desired state of Tenant.

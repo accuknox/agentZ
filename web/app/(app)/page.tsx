@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Agents | ClawArmor - AccuKnox",
 }
 
-export default function Home({
+export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<{ page_token?: string | string[] }>

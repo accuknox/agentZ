@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: "Runtime Telemetry",
 }
 
-export default function RuntimeTelemetryPage({
+export default async function RuntimeTelemetryPage({
   searchParams,
 }: {
   searchParams: Promise<{

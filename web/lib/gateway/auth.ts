@@ -1,7 +1,7 @@
 import "server-only"
 
 import { headers } from "next/headers"
-import { auth } from "@/lib/auth"
+import { getAuth } from "@/lib/auth"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 
 export type GatewayAuthContext = {
@@ -15,6 +15,7 @@ type GatewayAuthState = GatewayAuthContext & {
 }
 
 async function resolveGatewayAuthState(): Promise<GatewayAuthState> {
+  const auth = getAuth()
   const requestHeaders = await headers()
   const session = await auth.api.getSession({
     headers: requestHeaders,
@@ -64,6 +65,7 @@ export async function currentGatewayAuthContext(): Promise<GatewayAuthContext> {
 }
 
 export async function currentGatewayAuthToken(): Promise<string> {
+  const auth = getAuth()
   const state = await resolveGatewayAuthState()
   const data = await auth.api.getToken({
     headers: state.requestHeaders,

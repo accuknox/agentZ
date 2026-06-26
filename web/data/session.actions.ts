@@ -3,12 +3,13 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import type { DeleteSessionFormState } from "@/data/types"
-import { auth } from "@/lib/auth"
+import { getAuth } from "@/lib/auth"
 
 export async function deleteSessionFormAction(
   _: DeleteSessionFormState,
   formData: FormData
 ): Promise<DeleteSessionFormState> {
+  const auth = getAuth()
   const token = formData.get("token")
   if (typeof token !== "string" || token.length === 0) {
     return {

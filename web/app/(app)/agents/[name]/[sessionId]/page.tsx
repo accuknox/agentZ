@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import Chat from "@/components/blocks/chat/chat"
+import { ChatShell } from "@/components/blocks/chat/chat-shell"
 
 type ChatPageParams = {
   name: string
@@ -19,7 +19,7 @@ export async function generateMetadata({
   }
 }
 
-export default function ChatPage({ params }: { params: Promise<ChatPageParams> }) {
+export default async function ChatPage({ params }: { params: Promise<ChatPageParams> }) {
   return (
     <Suspense fallback={null}>
       <ChatPageContent params={params} />
@@ -32,7 +32,7 @@ async function ChatPageContent({ params }: { params: Promise<ChatPageParams> }) 
 
   return (
     <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
-      <Chat agentName={name} sessionId={sessionId} />
+      <ChatShell agentName={name} sessionId={sessionId} />
     </main>
   )
 }

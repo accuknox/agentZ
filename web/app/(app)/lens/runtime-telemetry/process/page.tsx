@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: "Process Telemetry",
 }
 
-export default function ProcessPage({
+export default async function ProcessPage({
   searchParams,
 }: {
   searchParams: Promise<{

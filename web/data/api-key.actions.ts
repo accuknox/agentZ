@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 import type { CreateAPIKeyFormState, DeleteAPIKeyFormState } from "@/data/types"
 import { listAgents } from "@/lib/gateway/client"
 import { createAPIKeyFormSchema } from "@/data/api-key.schema"
@@ -9,12 +11,14 @@ import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { gatewayServerClient } from "@/lib/gateway/server-client"
 import { opencodeAPIKeyConfigID } from "@/lib/auth"
+import { loginURL } from "@/lib/login-redirect"
 
 export async function createAPIKeyFormAction(
   _: CreateAPIKeyFormState,
   formData: FormData
 ): Promise<CreateAPIKeyFormState> {
   const auth = getAuth()
+  const requestHeaders = await headers()
   const parsed = createAPIKeyFormSchema.safeParse({
     name: formData.get("name"),
     scopeMode: formData.get("scopeMode"),
@@ -28,6 +32,13 @@ export async function createAPIKeyFormAction(
         message: parsed.error.issues[0]?.message ?? "Invalid API key configuration",
       },
     }
+  }
+
+  const session = await auth.api.getSession({
+    headers: requestHeaders,
+  })
+  if (!session) {
+    redirect(loginURL({ error: "session_expired" }))
   }
 
   const authContext = await currentGatewayAuthContext()
@@ -91,6 +102,10 @@ export async function createAPIKeyFormAction(
       },
     }
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error
+    }
+
     return {
       error: {
         code: "API_KEY_CREATE_FAILED",
@@ -116,6 +131,13 @@ export async function deleteAPIKeyFormAction(
   }
 
   const requestHeaders = await headers()
+  const session = await auth.api.getSession({
+    headers: requestHeaders,
+  })
+  if (!session) {
+    redirect(loginURL({ error: "session_expired" }))
+  }
+
   try {
     await auth.api.deleteApiKey({
       body: {
@@ -125,6 +147,10 @@ export async function deleteAPIKeyFormAction(
       headers: requestHeaders,
     })
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error
+    }
+
     return {
       error: {
         code: "API_KEY_DELETE_FAILED",

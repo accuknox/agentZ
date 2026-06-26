@@ -2,8 +2,10 @@
 
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 import type { DeleteSessionFormState } from "@/data/types"
 import { getAuth } from "@/lib/auth"
+import { loginURL } from "@/lib/login-redirect"
 
 export async function deleteSessionFormAction(
   _: DeleteSessionFormState,
@@ -25,12 +27,7 @@ export async function deleteSessionFormAction(
     headers: requestHeaders,
   })
   if (!currentSession) {
-    return {
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Unauthorized",
-      },
-    }
+    redirect(loginURL({ error: "session_expired" }))
   }
 
   if (currentSession.session.token === token) {
@@ -48,6 +45,10 @@ export async function deleteSessionFormAction(
       body: { token },
     })
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error
+    }
+
     return {
       error: {
         code: "SESSION_DELETE_FAILED",

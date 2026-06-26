@@ -1,5 +1,6 @@
 "use server"
 
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
 import type { DeleteSessionFormState } from "@/data/types"
 
@@ -41,6 +42,10 @@ export async function deleteAgentSessionAction(
       success: true,
     }
   } catch (err) {
+    if (isRedirectError(err)) {
+      throw err
+    }
+
     return {
       error: {
         code: "OPENCODE_SESSION_DELETE_ERROR",

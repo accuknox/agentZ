@@ -10,16 +10,23 @@ function opencodeBaseURL(agentName: string): string {
   return `${gatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`
 }
 
-async function opencodeHeaders(): Promise<Record<string, string>> {
-  const response = await fetch("/api/gateway/token", {
-    cache: "no-store",
-    credentials: "same-origin",
-  })
-
+// Every non-navigation OpenCode path goes through fetch, so this is the
+// narrow place to force logout on a revoked web session.
+async function authenticatedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init)
   if (response.status === 401) {
     clientRedirectToLogin()
     throw new Error("Unauthorized")
   }
+
+  return response
+}
+
+async function gatewayAuthHeaders(): Promise<Record<string, string>> {
+  const response = await authenticatedFetch("/api/gateway/token", {
+    cache: "no-store",
+    credentials: "same-origin",
+  })
 
   if (!response.ok) {
     throw new Error("Failed to load gateway token")
@@ -40,7 +47,8 @@ export async function createAgentOpencodeClient(
 ): Promise<OpencodeClient> {
   return createOpencodeClient({
     baseUrl: opencodeBaseURL(agentName),
-    headers: await opencodeHeaders(),
+    fetch: authenticatedFetch,
+    headers: await gatewayAuthHeaders(),
     ...(directory ? { directory } : {}),
   })
 }
@@ -49,6 +57,7 @@ export async function createAgentOpencodeClient(
 export async function createAgentOpencodeClientV2(agentName: string): Promise<OpencodeClientV2> {
   return createOpencodeClientV2({
     baseUrl: opencodeBaseURL(agentName),
-    headers: await opencodeHeaders(),
+    fetch: authenticatedFetch,
+    headers: await gatewayAuthHeaders(),
   })
 }

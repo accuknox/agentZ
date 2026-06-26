@@ -17,12 +17,12 @@ const searchConfigEnvKeys = [
   "NIXOS_SEARCH_ES_BRANCH",
 ] as const
 
-export type NixPackageLicense = {
+type NixPackageLicense = {
   fullName: string | null
   url: string | null
 }
 
-export type NixPackageMaintainer = {
+type NixPackageMaintainer = {
   name: string | null
   email: string | null
   github: string | null

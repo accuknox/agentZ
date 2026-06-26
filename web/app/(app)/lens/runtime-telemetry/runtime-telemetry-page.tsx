@@ -10,7 +10,6 @@ import { TelemetryChart } from "@/app/(app)/lens/runtime-telemetry/telemetry-cha
 import { TelemetryChartSkeleton } from "@/app/(app)/lens/runtime-telemetry/telemetry-chart-skeleton"
 import { TelemetryFilters } from "@/app/(app)/lens/runtime-telemetry/telemetry-filters"
 import {
-  firstSearchParam,
   telemetryDateRange,
   type TelemetryDateRange,
 } from "@/app/(app)/lens/runtime-telemetry/search-params"
@@ -211,11 +210,15 @@ type TelemetryPageState = {
 
 async function resolveTelemetryPageState(searchParams: Promise<TelemetrySearchParams>) {
   const search = await searchParams
-  const from = firstSearchParam(search.from)
-  const to = firstSearchParam(search.to)
+  const from = Array.isArray(search.from) ? search.from[0] : search.from
+  const to = Array.isArray(search.to) ? search.to[0] : search.to
 
-  const agentNameFromURL = firstSearchParam(search.agent_name)
-  const pageToken = firstSearchParam(search.telemetry_page_token)
+  const agentNameFromURL = Array.isArray(search.agent_name)
+    ? search.agent_name[0]
+    : search.agent_name
+  const pageToken = Array.isArray(search.telemetry_page_token)
+    ? search.telemetry_page_token[0]
+    : search.telemetry_page_token
   const range = telemetryDateRange(from, to)
   const agentsResult = await listAgentsCachedQuery()
   const agents = agentsResult.agents ?? []

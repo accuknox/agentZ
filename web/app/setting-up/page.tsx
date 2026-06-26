@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { getAuth } from "@/lib/auth"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { BootstrappingStatus } from "./status"
 
 export const metadata: Metadata = {
@@ -42,7 +42,7 @@ async function BootstrappingGate() {
   }
 
   const tenant = await ensureTenant({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     throwOnError: true,
   })
   const tenantData = tenant.data

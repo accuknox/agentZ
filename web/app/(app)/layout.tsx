@@ -15,10 +15,14 @@ import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getAuth } from "@/lib/auth"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<AppLayoutFallback />}>{<AppGate>{children}</AppGate>}</Suspense>
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<AppLayoutFallback />}>
+      <AppGate>{children}</AppGate>
+    </Suspense>
+  )
 }
 
 async function AppGate({ children }: { children: React.ReactNode }) {
@@ -34,7 +38,7 @@ async function AppGate({ children }: { children: React.ReactNode }) {
   }
 
   const tenant = await ensureTenant({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     throwOnError: true,
   })
   const tenantData = tenant.data

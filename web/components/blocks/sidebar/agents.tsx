@@ -35,6 +35,7 @@ import {
   type AgentStatus,
   type WatchAgentsResponse,
 } from "@/lib/gateway/client"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   experimental_streamedQuery as streamedQuery,
   queryOptions,
@@ -125,7 +126,10 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
           })
         },
         streamFn: async ({ signal }) => {
-          const result = await watchAgents({ signal })
+          const result = await watchAgents({
+            baseUrl: await getGatewayBaseURL(),
+            signal,
+          })
           return result.stream
         },
       }),

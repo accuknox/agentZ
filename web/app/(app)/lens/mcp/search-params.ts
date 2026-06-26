@@ -1,5 +1,4 @@
 import { dayjs } from "@/lib/dayjs"
-export { firstSearchParam } from "@/lib/search-params"
 
 export type McpDateRange = {
   from: string

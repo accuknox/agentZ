@@ -218,6 +218,10 @@ type AccordionAction =
   | {
       type: "reset"
     }
+
+function isServerErrorField(value: string): value is ServerErrorField {
+  return serverErrorFields.some((field) => field === value)
+}
 type McpCatalogResult =
   | {
       kind: "catalog"
@@ -311,8 +315,8 @@ function applyServerErrors(form: ReturnType<typeof useForm<McpFormInput>>, state
   }
 
   for (const error of state.error.errors) {
-    if (serverErrorFields.includes(error.field as ServerErrorField)) {
-      form.setError(error.field as ServerErrorField, {
+    if (isServerErrorField(error.field)) {
+      form.setError(error.field, {
         type: "server",
         message: error.message,
       })
@@ -333,7 +337,11 @@ function applyServerErrors(form: ReturnType<typeof useForm<McpFormInput>>, state
       continue
     }
 
-    const key = match[2] as ExtraHeaderFieldKey
+    const key = match[2]
+    if (key !== "key" && key !== "value") {
+      continue
+    }
+
     form.setError(`extra_headers.${index}.${key}` as const, {
       type: "server",
       message: error.message,
@@ -348,10 +356,7 @@ function generalErrorMessage(error: McpFormState["error"]) {
 
   const fieldErrors =
     error.errors?.filter((item) => {
-      return (
-        serverErrorFields.includes(item.field as ServerErrorField) ||
-        item.field.startsWith("extra_headers.")
-      )
+      return isServerErrorField(item.field) || item.field.startsWith("extra_headers.")
     }) ?? []
   const hasGeneralError = !error.errors || error.errors.length > fieldErrors.length
 

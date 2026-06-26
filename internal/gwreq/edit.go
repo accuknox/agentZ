@@ -25,10 +25,12 @@ func RequestEditor(tokenPath string, namespace string) gatewayapi.RequestEditorF
 			)
 		}
 
-		req.Header.Set(
-			"Authorization",
-			"Bearer "+strings.TrimSpace(string(token)),
-		)
+		value := strings.TrimSpace(string(token))
+		if value == "" {
+			return fmt.Errorf("read service account token %q: token is empty", tokenPath)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+value)
 		req.Header.Set(
 			internalTenantNamespaceHeader,
 			strings.TrimSpace(namespace),

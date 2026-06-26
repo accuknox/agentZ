@@ -15,7 +15,7 @@ import type {
 import { QueryClient, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
-import { sdkErrorMessage } from "@/components/blocks/chat/errors"
+import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 
 type SessionMessageRecord = {
   info: Message
@@ -714,7 +714,7 @@ function sessionInfoQueryOptions(agentName: string, sessionID: string) {
       })
 
       if (result.error || !result.data) {
-        throw new Error(sdkErrorMessage(result.error, "Failed to load session"))
+        throw new Error(opencodeErrorMessage(result.error, "Failed to load session"))
       }
 
       return result.data
@@ -735,7 +735,7 @@ function sessionMessagesQueryOptions(agentName: string, sessionID: string, direc
       })
 
       if (result.error || !result.data) {
-        throw new Error(sdkErrorMessage(result.error, "Failed to load session messages"))
+        throw new Error(opencodeErrorMessage(result.error, "Failed to load session messages"))
       }
 
       return result.data
@@ -764,16 +764,18 @@ function sessionTreeQueryOptions(agentName: string, directory: string) {
       ])
 
       if (sessionResult.error) {
-        throw new Error(sdkErrorMessage(sessionResult.error, "Failed to load sessions"))
+        throw new Error(opencodeErrorMessage(sessionResult.error, "Failed to load sessions"))
       }
 
       if (questionResult.error) {
-        throw new Error(sdkErrorMessage(questionResult.error, "Failed to load pending questions"))
+        throw new Error(
+          opencodeErrorMessage(questionResult.error, "Failed to load pending questions")
+        )
       }
 
       if (permissionResult.error) {
         throw new Error(
-          sdkErrorMessage(permissionResult.error, "Failed to load pending permissions")
+          opencodeErrorMessage(permissionResult.error, "Failed to load pending permissions")
         )
       }
 

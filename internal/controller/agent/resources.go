@@ -279,7 +279,8 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	})
 
 	if len(packages) > 0 {
-		volumes = append(volumes,
+		volumes = append(
+			volumes,
 			corev1.Volume{
 				Name: nixLinkVolume,
 				VolumeSource: corev1.VolumeSource{
@@ -341,7 +342,8 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			},
 		})
 
-		volumeMounts = append(volumeMounts,
+		volumeMounts = append(
+			volumeMounts,
 			corev1.VolumeMount{
 				Name:      nixAgentVolume,
 				MountPath: nixAgentMount,
@@ -450,7 +452,8 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		})
 	}
 	noProxyValue := strings.Join(noProxy, ",")
-	forced = append(forced,
+	forced = append(
+		forced,
 		corev1.EnvVar{Name: "https_proxy", Value: proxy},
 		corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
 		corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
@@ -464,7 +467,9 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	if telemetryEndpoint != "" {
 		telemetryURL = "http://" + telemetryEndpoint
 	}
-	forced = append(forced,
+	resourceAttributes := "clawarmor.agent_name=" + agt.Name + ",clawarmor.tenant_namespace=" + agt.Namespace
+	forced = append(
+		forced,
 		corev1.EnvVar{
 			Name:  "OPENCODE_ENABLE_TELEMETRY",
 			Value: strconv.FormatBool(agt.Spec.Telemetry.Enabled),
@@ -474,7 +479,11 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		corev1.EnvVar{Name: "CLAWARMOR_AGENT_NAME", Value: agt.Name},
 		corev1.EnvVar{
 			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
-			Value: "clawarmor.agent_name=" + agt.Name + ",clawarmor.tenant_namespace=" + agt.Namespace,
+			Value: resourceAttributes,
+		},
+		corev1.EnvVar{
+			Name:  "OTEL_RESOURCE_ATTRIBUTES",
+			Value: resourceAttributes,
 		},
 		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_URL", Value: r.Config.GatewayURL},
 		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
@@ -495,7 +504,8 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	}
 
 	if len(packages) > 0 {
-		env = append(env,
+		env = append(
+			env,
 			corev1.EnvVar{
 				Name:  "NIX_PROFILES",
 				Value: nixLinkMount + "/profile",

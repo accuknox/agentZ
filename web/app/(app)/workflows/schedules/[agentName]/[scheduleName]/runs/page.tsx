@@ -6,7 +6,6 @@ import { selectWorkflowRunsFiltersAction } from "@/data/workflow.actions"
 import { deleteWorkflowRunAction } from "@/data/workflow-run.actions"
 import { listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
 import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
-import { firstSearchParam } from "@/lib/search-params"
 import { RunsFilters } from "./runs-filters"
 import { RunsTable } from "./runs-table"
 
@@ -89,7 +88,7 @@ async function Runs({
   searchParams: Promise<RunsSearchParams>
 }) {
   const [{ agentName, scheduleName }, search] = await Promise.all([params, searchParams])
-  const pageToken = firstSearchParam(search.page_token)
+  const pageToken = Array.isArray(search.page_token) ? search.page_token[0] : search.page_token
   const schedulesResult = await listWorkflowSchedulesCachedQuery(agentName, { limit: 200 })
   if (schedulesResult.error || !schedulesResult.workflowSchedules) {
     return <ErrorPanel message={schedulesResult.error?.message ?? "Unable to load schedules"} />

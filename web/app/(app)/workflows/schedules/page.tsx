@@ -11,7 +11,6 @@ import {
 } from "@/data/workflow-schedule.actions"
 import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
 import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
-import { firstSearchParam } from "@/lib/search-params"
 import { NewScheduleButton } from "./new-schedule-button"
 import { SchedulesFilters } from "./schedules-filters"
 import { SchedulesTable } from "./schedules-table"
@@ -58,7 +57,7 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
     return <FiltersSkeleton />
   }
 
-  const agentName = firstSearchParam(params.agent_name)
+  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
   const selectedAgent =
     agentsResult.agents.find((agent) => agent.name === agentName) ?? agentsResult.agents[0]
 
@@ -68,13 +67,13 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
 async function Schedules({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
-  const pageToken = firstSearchParam(params.page_token)
+  const pageToken = Array.isArray(params.page_token) ? params.page_token[0] : params.page_token
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />
   }
 
-  const agentName = firstSearchParam(params.agent_name)
+  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
   const selectedAgent =
     agentsResult.agents?.find((agent) => agent.name === agentName) ?? agentsResult.agents?.[0]
   if (!selectedAgent) {
@@ -116,7 +115,7 @@ async function HeaderAction({ searchParams }: { searchParams: Promise<SearchPara
     return null
   }
 
-  const agentName = firstSearchParam(params.agent_name)
+  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
   const selectedAgent =
     agentsResult.agents?.find((agent) => agent.name === agentName) ?? agentsResult.agents?.[0]
   if (!selectedAgent) {

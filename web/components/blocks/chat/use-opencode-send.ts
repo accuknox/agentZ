@@ -12,7 +12,7 @@ import {
   messageHasRenderableContent,
   opencodePartsFromMessage,
 } from "@/components/blocks/chat/attachments"
-import { sdkErrorMessage } from "@/components/blocks/chat/errors"
+import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import {
   appendSystemPrompt,
   markOptimisticUserMessageFailed,
@@ -89,7 +89,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
             },
           })
           if (createResult.error || !createResult.data) {
-            throw new Error(sdkErrorMessage(createResult.error, "Failed to create session"))
+            throw new Error(opencodeErrorMessage(createResult.error, "Failed to create session"))
           }
 
           newSessionDirectory = createResult.data.directory
@@ -115,7 +115,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
         })
 
         if (promptResult.error) {
-          throw new Error(sdkErrorMessage(promptResult.error, "Failed to send message"))
+          throw new Error(opencodeErrorMessage(promptResult.error, "Failed to send message"))
         }
 
         return {
@@ -155,7 +155,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
       })
 
       if (result.error || result.data !== true) {
-        throw new Error(sdkErrorMessage(result.error, "Failed to stop the active run"))
+        throw new Error(opencodeErrorMessage(result.error, "Failed to stop the active run"))
       }
 
       return result.data

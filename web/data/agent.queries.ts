@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 import { listAgents, type Agent, type ListAgentsData } from "@/lib/gateway/client"
 import type { ListAgentActionResponse } from "@/data/types"
 import { agentsTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function listAgentsCachedQuery(
   query?: ListAgentsData["query"]
@@ -12,7 +12,7 @@ export async function listAgentsCachedQuery(
   cacheLife("minutes")
   cacheTag(agentsTag)
 
-  const { data, error } = await listAgents({ query, client: gatewayServerClient })
+  const { data, error } = await listAgents({ query, client: getGatewayServerClient() })
   if (error) {
     return {
       agents: undefined,

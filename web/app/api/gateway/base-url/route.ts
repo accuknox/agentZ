@@ -1,18 +1,21 @@
 import { connection } from "next/server"
 import { NextResponse } from "next/server"
-import { currentGatewayAuthToken } from "@/lib/gateway/auth"
+import { gatewayBaseURL } from "@/lib/gateway/base-url"
+import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 
 /**
- * GET returns a freshly minted gateway bearer token for one browser API call.
+ * GET returns the public gateway origin for direct browser API calls.
  */
 export async function GET(): Promise<Response> {
   await connection()
 
   try {
+    await currentGatewayAuthContext()
+
     return NextResponse.json(
       {
-        token: await currentGatewayAuthToken(),
+        baseUrl: gatewayBaseURL(),
       },
       {
         headers: {

@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Archivo } from "next/font/google"
 import "./globals.css"
-import { cn } from "@/lib/utils"
 import Providers from "./providers"
 
 const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
@@ -19,7 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", "font-sans", "font-heading", archivo.variable)}
+      className={`font-heading h-full font-sans antialiased ${archivo.variable}`}
       suppressHydrationWarning
     >
       <body className="bg-background text-foreground min-h-svh">

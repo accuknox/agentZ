@@ -111,7 +111,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		runHubbleWatcher(ctx, cfg, res, evCh, stats)
 	})
 	wg.Go(func() {
-		if err := runOTLPTraceReceiver(ctx, cfg, evCh, stats); err != nil {
+		if err := runOTLPTraceReceiver(ctx, cfg, res, evCh, stats); err != nil {
 			slog.ErrorContext(ctx, "otlp trace receiver failed", slog.Any("error", err))
 		}
 	})
@@ -225,7 +225,7 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 }
 
 func resolveAgent(ctx context.Context, r *resolver, namespace, rawLabels string, owner *pb.Podowner, podName string) (string, bool) {
-	ownerName := ""
+	var ownerName string
 	if owner != nil {
 		ownerName = owner.GetName()
 	}

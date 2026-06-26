@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"text/template"
 	"time"
@@ -393,13 +394,33 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 func (r *Reconciler) failRun(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
 	if abort && run.Status.SessionID != "" {
 		if r.GatewayClient != nil {
-			_, _ = r.GatewayClient.SessionAbortWithResponse(
+			resp, err := r.GatewayClient.SessionAbortWithResponse(
 				ctx,
 				run.Spec.AgentName,
 				run.Status.SessionID,
 				nil,
 				gwreq.RequestEditor(r.TokenPath, run.Namespace),
 			)
+			switch {
+			case err != nil:
+				slog.WarnContext(
+					ctx,
+					"abort workflow session",
+					slog.String("agent", run.Spec.AgentName),
+					slog.String("namespace", run.Namespace),
+					slog.String("sessionID", run.Status.SessionID),
+					slog.Any("err", err),
+				)
+			case resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound:
+				slog.WarnContext(
+					ctx,
+					"abort workflow session returned unexpected status",
+					slog.String("agent", run.Spec.AgentName),
+					slog.String("namespace", run.Namespace),
+					slog.String("sessionID", run.Status.SessionID),
+					slog.Int("status", resp.StatusCode()),
+				)
+			}
 		}
 	}
 

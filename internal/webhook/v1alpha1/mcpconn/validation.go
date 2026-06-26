@@ -419,7 +419,7 @@ func validateAuthHeaderConflicts(headers map[string]string, auth *clawarmorv1alp
 		return fields
 	}
 
-	headerName := ""
+	var headerName string
 	switch {
 	case auth.Bearer != nil && auth.Bearer.Location != nil && auth.Bearer.Location.Header != nil:
 		headerName = auth.Bearer.Location.Header.Name

@@ -1,23 +1,45 @@
-import type { Message } from "@opencode-ai/sdk/v2"
+import type {
+  AssistantMessage,
+  PermissionListError,
+  PermissionReplyError,
+  QuestionListError,
+  QuestionRejectError,
+  QuestionReplyError,
+  SessionAbortError,
+  SessionCreateError,
+  SessionGetError,
+  SessionListError,
+  SessionMessagesError,
+  SessionPromptAsyncError,
+} from "@opencode-ai/sdk/v2"
 
-// SDK responses wrap the error message in either `data.message` or `message`.
-// We normalize to a single string with a sensible fallback so call sites never
-// have to repeat the same `?? ` ternary.
-export type SdkErrorLike = {
-  data?: { message?: string }
-  message?: string
-  _tag?: unknown
-  name?: unknown
-}
+type OpenCodeClientError =
+  | PermissionListError
+  | PermissionReplyError
+  | QuestionListError
+  | QuestionRejectError
+  | QuestionReplyError
+  | SessionAbortError
+  | SessionCreateError
+  | SessionGetError
+  | SessionListError
+  | SessionMessagesError
+  | SessionPromptAsyncError
 
-export function sdkErrorMessage(error: SdkErrorLike | undefined, fallback: string): string {
-  return error?.data?.message ?? error?.message ?? fallback
+export function opencodeErrorMessage(
+  error: OpenCodeClientError | undefined,
+  fallback: string
+): string {
+  if (!error) return fallback
+  if ("message" in error && typeof error.message === "string") return error.message
+  if ("data" in error && typeof error.data.message === "string") return error.data.message
+  return fallback
 }
 
 // AssistantMessage carries an optional `error` discriminated by `name`. We pull
 // out a short label and the provider-authored body so the timeline can render
 // a consistent Error/Interrupted row without leaking raw provider JSON.
-export type AssistantMessageError = Extract<Message, { role: "assistant" }>["error"]
+export type AssistantMessageError = AssistantMessage["error"]
 
 export function unwrapMessageError(error: AssistantMessageError | undefined): {
   body: string

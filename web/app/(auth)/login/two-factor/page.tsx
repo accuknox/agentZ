@@ -35,8 +35,8 @@ async function TwoFactorGate({
   await connection()
   const auth = getAuth()
   const params = await searchParams
-  const returnToValue = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo
-  const returnTo = loginReturnTo(returnToValue) ?? "/"
+  const returnTo =
+    loginReturnTo(Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo) ?? "/"
   const session = await auth.api.getSession({
     headers: await headers(),
   })

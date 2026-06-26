@@ -5,7 +5,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
 import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
-import { firstSearchParam } from "@/lib/search-params"
 import { WorkflowsFilters } from "./workflows-filters"
 
 export const metadata: Metadata = {
@@ -42,8 +41,12 @@ export default async function WorkflowsPage({
 async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
-  const selectedAgentName = firstSearchParam(params.agent_name)
-  const selectedWorkflowName = firstSearchParam(params.workflow_name)
+  const selectedAgentName = Array.isArray(params.agent_name)
+    ? params.agent_name[0]
+    : params.agent_name
+  const selectedWorkflowName = Array.isArray(params.workflow_name)
+    ? params.workflow_name[0]
+    : params.workflow_name
   const agentsResult = await agents
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
     return <FiltersSkeleton />
@@ -71,8 +74,12 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
 async function WorkflowContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
-  const selectedAgentName = firstSearchParam(params.agent_name)
-  const selectedWorkflowName = firstSearchParam(params.workflow_name)
+  const selectedAgentName = Array.isArray(params.agent_name)
+    ? params.agent_name[0]
+    : params.agent_name
+  const selectedWorkflowName = Array.isArray(params.workflow_name)
+    ? params.workflow_name[0]
+    : params.workflow_name
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

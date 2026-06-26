@@ -230,8 +230,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	hash := configHash(
 		opencodeCfg,
 		agt.Spec.Env,
-		envCfg.Packages,
-		envCfg.MCPRefs,
+		envCfg,
 	)
 	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, true)
 	if err != nil {

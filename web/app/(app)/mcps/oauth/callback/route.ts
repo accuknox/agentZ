@@ -10,7 +10,7 @@ import {
   openPendingOAuthState,
 } from "@/lib/mcp-oauth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 function htmlResponse(body: string) {
   return new Response(body, {
@@ -27,7 +27,7 @@ function htmlResponse(body: string) {
 }
 
 function clearPendingOAuthCookie(cookieStore: Awaited<ReturnType<typeof cookies>>) {
-  cookieStore.set(mcpOAuthCookieName(), "", {
+  cookieStore.set(mcpOAuthCookieName, "", {
     ...oauthCookieOptions(),
     maxAge: 0,
   })
@@ -45,7 +45,7 @@ function popupFailure(flowId: string, message: string) {
 
 export async function GET(request: Request) {
   const cookieStore = await cookies()
-  const sealed = cookieStore.get(mcpOAuthCookieName())?.value
+  const sealed = cookieStore.get(mcpOAuthCookieName)?.value
   if (!sealed) {
     return htmlResponse(
       "<!doctype html><html><body>OAuth flow could not be completed.</body></html>"
@@ -98,10 +98,14 @@ export async function GET(request: Request) {
           oauth: result.value.credentials,
         },
       },
-      client: gatewayServerClient,
+      client: getGatewayServerClient(),
     })
     if (createResult.error) {
-      throw new Error(createResult.error.message)
+      console.error("mcp oauth connection save failed", {
+        flowId: pending.flowId,
+        code: createResult.error.code,
+      })
+      throw new Error("MCP connection could not be saved")
     }
 
     revalidateTag(mcpsTag, { expire: 0 })
@@ -119,9 +123,6 @@ export async function GET(request: Request) {
       message: error instanceof Error ? error.message : "unknown error",
     })
     clearPendingOAuthCookie(cookieStore)
-    return popupFailure(
-      pending.flowId,
-      error instanceof Error ? error.message : "OAuth flow could not be completed."
-    )
+    return popupFailure(pending.flowId, "OAuth flow could not be completed.")
   }
 }

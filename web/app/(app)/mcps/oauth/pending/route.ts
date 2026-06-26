@@ -3,7 +3,7 @@ import { mcpOAuthCookieName, oauthCookieOptions } from "@/lib/mcp-oauth"
 
 export async function POST() {
   const cookieStore = await cookies()
-  cookieStore.set(mcpOAuthCookieName(), "", {
+  cookieStore.set(mcpOAuthCookieName, "", {
     ...oauthCookieOptions(),
     maxAge: 0,
   })

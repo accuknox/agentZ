@@ -9,7 +9,7 @@ import { listAgents } from "@/lib/gateway/client"
 import { createAPIKeyFormSchema } from "@/data/api-key.schema"
 import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { opencodeAPIKeyConfigID } from "@/lib/auth"
 import { loginURL } from "@/lib/login-redirect"
 
@@ -44,7 +44,7 @@ export async function createAPIKeyFormAction(
   const authContext = await currentGatewayAuthContext()
   const selectedAgentNames = [...new Set(parsed.data.agentNames)].toSorted()
   if (parsed.data.scopeMode === "selected") {
-    const { data, error } = await listAgents({ client: gatewayServerClient })
+    const { data, error } = await listAgents({ client: getGatewayServerClient() })
     if (error) {
       return {
         error: {
@@ -109,7 +109,7 @@ export async function createAPIKeyFormAction(
     return {
       error: {
         code: "API_KEY_CREATE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to create API key",
+        message: "Failed to create API key",
       },
     }
   }
@@ -154,7 +154,7 @@ export async function deleteAPIKeyFormAction(
     return {
       error: {
         code: "API_KEY_DELETE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to revoke API key",
+        message: "Failed to revoke API key",
       },
     }
   }

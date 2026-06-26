@@ -26,14 +26,15 @@ import {
   XCircle,
 } from "lucide-react"
 import { dayjs } from "@/lib/dayjs"
-import { getWorkflowRunOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import {
+  getWorkflowRun,
   watchWorkflowRuns,
   type WorkflowRunDetail,
   type WorkflowRunStatus,
   type WorkflowRunSummary,
   type WatchWorkflowRunsResponse,
 } from "@/lib/gateway/client"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -162,6 +163,7 @@ export function RunsTable({
         refetchMode: "reset",
         streamFn: async ({ signal }) => {
           const result = await watchWorkflowRuns({
+            baseUrl: await getGatewayBaseURL(),
             body: {
               run_names: workflowRuns.map((run) => run.name),
             },
@@ -434,18 +436,30 @@ function RunActions({
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const detailQuery = useQuery({
-    ...getWorkflowRunOptions({
-      path: {
-        agentName,
-        workflowName,
-        scheduleName,
-        runName: item.name,
+  const detailQuery = useQuery(
+    queryOptions({
+      enabled: menuOpen,
+      queryKey: ["workflowRun", agentName, workflowName, scheduleName, item.name] as const,
+      queryFn: async (): Promise<WorkflowRunDetail> => {
+        const result = await getWorkflowRun({
+          baseUrl: await getGatewayBaseURL(),
+          path: {
+            agentName,
+            workflowName,
+            scheduleName,
+            runName: item.name,
+          },
+        })
+        if (result.error || !result.data) {
+          throw new Error(result.error?.message ?? "Failed to load workflow run")
+        }
+
+        return result.data
       },
-    }),
-    enabled: menuOpen,
-    staleTime: 60 * 1000,
-  })
+      retry: false,
+      staleTime: 60 * 1000,
+    })
+  )
 
   return (
     <>

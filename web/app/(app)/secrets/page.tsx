@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { deleteSecretFormAction, putSecretFormAction } from "@/data/secret.actions"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
-import { firstSearchParam } from "@/lib/search-params"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
 import { SecretTable } from "./secret-table"
@@ -64,7 +63,7 @@ async function NewSecretButtonShell({
 }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
-  const agentName = firstSearchParam(params.agent_name)
+  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return (
@@ -89,7 +88,7 @@ async function NewSecretButtonShell({
 async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
-  const agentName = firstSearchParam(params.agent_name)
+  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return <FiltersSkeleton />
@@ -111,8 +110,8 @@ async function Secrets({
 }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
-  const agentName = firstSearchParam(params.agent_name)
-  const pageToken = firstSearchParam(params.page_token)
+  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
+  const pageToken = Array.isArray(params.page_token) ? params.page_token[0] : params.page_token
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

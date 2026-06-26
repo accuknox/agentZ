@@ -52,7 +52,7 @@ export async function deleteSessionFormAction(
     return {
       error: {
         code: "SESSION_DELETE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to revoke session",
+        message: "Failed to revoke session",
       },
     }
   }

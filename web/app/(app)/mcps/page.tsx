@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { deleteMcpFormAction, submitMcpFormAction } from "@/data/mcp.actions"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
-import { firstSearchParam } from "@/lib/search-params"
 import { McpTable } from "./mcp-table"
 import { NewMcpButton } from "./new-mcp-button"
 
@@ -44,7 +43,7 @@ export default async function MCPsPage({ searchParams }: { searchParams: Promise
 
 async function McpConnections({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
-  const pageToken = firstSearchParam(params.page_token)
+  const pageToken = Array.isArray(params.page_token) ? params.page_token[0] : params.page_token
   const result = await listMcpConnectionsCachedQuery({
     limit: 50,
     page_token: pageToken,

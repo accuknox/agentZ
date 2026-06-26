@@ -4,6 +4,7 @@ import * as React from "react"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { CircleAlert } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   Sheet,
   SheetContent,
@@ -14,20 +15,6 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { getMcpConnection } from "@/lib/gateway/client"
 import type { McpConnectionAuthLocation } from "@/lib/gateway/client"
-
-const mcpConnectionQueryOptions = (name: string) =>
-  queryOptions({
-    queryKey: ["mcp-connection", name],
-    queryFn: async () => {
-      const result = await getMcpConnection({
-        path: { name },
-      })
-      if (result.error) {
-        throw new Error(result.error.message)
-      }
-      return result.data
-    },
-  })
 
 function locationLabel(location?: McpConnectionAuthLocation) {
   if (location?.header) {
@@ -62,10 +49,25 @@ export function McpViewSheet({
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }) {
-  const query = useQuery({
-    ...mcpConnectionQueryOptions(name),
-    enabled: open,
-  })
+  const query = useQuery(
+    queryOptions({
+      enabled: open,
+      queryKey: ["mcp-connection", name],
+      queryFn: async () => {
+        const result = await getMcpConnection({
+          baseUrl: await getGatewayBaseURL(),
+          path: { name },
+        })
+        if (result.error) {
+          throw new Error(result.error.message)
+        }
+
+        return result.data
+      },
+      retry: false,
+      staleTime: 30_000,
+    })
+  )
 
   return (
     <Sheet open={open} onOpenChange={onOpenChangeAction}>

@@ -476,7 +476,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	after := ""
+	var after string
 	if params.PageToken != nil {
 		after = strings.TrimSpace(*params.PageToken)
 	}
@@ -585,8 +585,10 @@ func secretHostList(raw any) ([]string, error) {
 
 func (s *Service) agentSecretKeys(ctx context.Context, agentName string) ([]string, error) {
 	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, agentName)
-	after := ""
-	keys := []string{}
+
+	var after string
+	keys := make([]string, 0)
+
 	for {
 		secret, err := s.bao.Logical().ListPageWithContext(ctx, listPath, after, agentSecretPage+1)
 		if err != nil {

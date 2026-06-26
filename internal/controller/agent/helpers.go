@@ -212,9 +212,23 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 			},
 		}
 	}
+	var singleMCPConnectionName string
+	if len(envCfg.MCPRefs) == 1 {
+		singleMCPConnectionName = envCfg.MCPRefs[0].Name
+	}
 	if len(envCfg.MCPConsentPermissionIDs) > 0 {
 		for _, permissionID := range envCfg.MCPConsentPermissionIDs {
 			cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+permissionID] = "ask"
+			if singleMCPConnectionName == "" {
+				continue
+			}
+			aliasPermissionID, ok := strings.CutPrefix(
+				permissionID,
+				singleMCPConnectionName+"_",
+			)
+			if ok && aliasPermissionID != "" {
+				cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+aliasPermissionID] = "ask"
+			}
 		}
 	}
 
@@ -253,10 +267,9 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config   json.RawMessage `json:"config"`
-	Env      []corev1.EnvVar `json:"env"`
-	Packages []string        `json:"packages"`
-	MCPRefs  []mcpRefConfig  `json:"mcpRefs"`
+	Config json.RawMessage   `json:"config"`
+	Env    []corev1.EnvVar   `json:"env"`
+	EnvCfg environmentConfig `json:"envConfig"`
 }
 
 type packageJobHashInput struct {
@@ -264,12 +277,11 @@ type packageJobHashInput struct {
 	Packages []string `json:"packages"`
 }
 
-func configHash(opencodeCfg []byte, env []corev1.EnvVar, packages []string, mcpRefs []mcpRefConfig) string {
+func configHash(opencodeCfg []byte, env []corev1.EnvVar, envCfg environmentConfig) string {
 	hashInput, _ := json.Marshal(configHashInput{
-		Config:   opencodeCfg,
-		Env:      env,
-		Packages: packages,
-		MCPRefs:  mcpRefs,
+		Config: opencodeCfg,
+		Env:    env,
+		EnvCfg: envCfg,
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)

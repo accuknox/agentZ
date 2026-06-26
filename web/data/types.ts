@@ -27,16 +27,6 @@ export type AgentSessionListItem = {
   parentID?: string
 }
 
-export type ListAgentSessionActionResponse =
-  | {
-      sessions: AgentSessionListItem[]
-      error: undefined
-    }
-  | {
-      sessions: undefined
-      error: Error
-    }
-
 export type TraceListItem = {
   agentName: string
   sessionId: string
@@ -395,15 +385,3 @@ export type ProviderModelItem = {
   providerID: string
   variants?: string[]
 }
-
-export type ListAgentProvidersActionResponse =
-  | {
-      models: ProviderModelItem[]
-      chefs: string[]
-      error: undefined
-    }
-  | {
-      models: undefined
-      chefs: undefined
-      error: Error
-    }

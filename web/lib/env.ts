@@ -1,5 +1,16 @@
 import { z } from "zod"
 
+function optionalTrimmedString() {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value
+    }
+
+    const trimmed = value.trim()
+    return trimmed === "" ? undefined : trimmed
+  }, z.string().min(1).optional())
+}
+
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
@@ -9,22 +20,8 @@ const envSchema = z
     GATEWAY_JWT_AUDIENCE: z.string().trim().min(1).default("clawarmor-gateway"),
     // GitHub is optional: enabled iff GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET
     // are both configured. The cross-validation below enforces the pair.
-    GITHUB_CLIENT_ID: z.preprocess((value) => {
-      if (typeof value !== "string") {
-        return value
-      }
-
-      const trimmed = value.trim()
-      return trimmed === "" ? undefined : trimmed
-    }, z.string().min(1).optional()),
-    GITHUB_CLIENT_SECRET: z.preprocess((value) => {
-      if (typeof value !== "string") {
-        return value
-      }
-
-      const trimmed = value.trim()
-      return trimmed === "" ? undefined : trimmed
-    }, z.string().min(1).optional()),
+    GITHUB_CLIENT_ID: optionalTrimmedString(),
+    GITHUB_CLIENT_SECRET: optionalTrimmedString(),
     GITHUB_ALLOWED_USER_ID: z.preprocess((value) => {
       if (typeof value !== "string") {
         return value
@@ -33,40 +30,12 @@ const envSchema = z
       const trimmed = value.trim()
       return trimmed === "" ? undefined : trimmed
     }, z.string().regex(/^\d+$/).optional()),
-    GITHUB_ORG: z.preprocess((value) => {
-      if (typeof value !== "string") {
-        return value
-      }
-
-      const trimmed = value.trim()
-      return trimmed === "" ? undefined : trimmed
-    }, z.string().min(1).optional()),
-    GITHUB_TEAM_SLUG: z.preprocess((value) => {
-      if (typeof value !== "string") {
-        return value
-      }
-
-      const trimmed = value.trim()
-      return trimmed === "" ? undefined : trimmed
-    }, z.string().min(1).optional()),
+    GITHUB_ORG: optionalTrimmedString(),
+    GITHUB_TEAM_SLUG: optionalTrimmedString(),
     // Google is optional and gated by an email-domain allowlist. The OAuth
     // client must whitelist the redirect URI .../api/auth/callback/google.
-    GOOGLE_CLIENT_ID: z.preprocess((value) => {
-      if (typeof value !== "string") {
-        return value
-      }
-
-      const trimmed = value.trim()
-      return trimmed === "" ? undefined : trimmed
-    }, z.string().min(1).optional()),
-    GOOGLE_CLIENT_SECRET: z.preprocess((value) => {
-      if (typeof value !== "string") {
-        return value
-      }
-
-      const trimmed = value.trim()
-      return trimmed === "" ? undefined : trimmed
-    }, z.string().min(1).optional()),
+    GOOGLE_CLIENT_ID: optionalTrimmedString(),
+    GOOGLE_CLIENT_SECRET: optionalTrimmedString(),
     GOOGLE_ALLOWED_EMAIL_DOMAINS: z.preprocess(
       (value) => {
         if (typeof value !== "string") {

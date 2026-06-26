@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 import { listAgentWorkflowSchedules } from "@/lib/gateway/client"
 import type { Error, ListAgentWorkflowSchedulesData, WorkflowSchedule } from "@/lib/gateway/client"
 import { agentWorkflowsTag, workflowsTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type ListWorkflowSchedulesQueryResult =
   | {
@@ -28,7 +28,7 @@ export async function listWorkflowSchedulesCachedQuery(
   cacheTag(workflowsTag, agentWorkflowsTag(agentName))
 
   const { data, error } = await listAgentWorkflowSchedules({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path: { agentName },
     query,
   })

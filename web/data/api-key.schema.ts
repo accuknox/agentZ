@@ -1,8 +1,8 @@
 import * as z from "zod"
 
-export const apiKeyExpirySchema = z.enum(["none", "7", "30", "90", "365"])
+const apiKeyExpirySchema = z.enum(["none", "7", "30", "90", "365"])
 
-export const apiKeyScopeModeSchema = z.enum(["all", "selected"])
+const apiKeyScopeModeSchema = z.enum(["all", "selected"])
 
 export const createAPIKeyFormSchema = z
   .object({

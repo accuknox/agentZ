@@ -14,8 +14,7 @@ export const metadata: Metadata = {
   title: "API Keys",
 }
 
-export default async function APIKeysPage() {
-  await connection()
+export default function APIKeysPage() {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -45,6 +44,7 @@ async function CreateAPIKeyAction() {
 }
 
 async function APIKeys() {
+  await connection()
   const auth = getAuth()
   const authContext = await currentGatewayAuthContext()
   const requestHeaders = await headers()

@@ -9,7 +9,7 @@ import {
   type WorkflowSummary,
 } from "@/lib/gateway/client"
 import { agentWorkflowsTag, workflowTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 type WorkflowSummariesQueryResult =
   | {
@@ -41,7 +41,7 @@ export async function listWorkflowSummariesCachedQuery(
 
   const { data, error } = await listWorkflowSummaries({
     path: { agentName },
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (error) {
     return {
@@ -67,7 +67,7 @@ export async function getWorkflowCachedQuery(
   cacheTag(workflowTag(agentName, workflowName))
 
   const { data, error } = await getWorkflow({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path: {
       agentName,
       workflowName,

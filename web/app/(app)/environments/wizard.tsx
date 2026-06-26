@@ -28,7 +28,7 @@ import * as React from "react"
 import { startTransition, useActionState, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { dayjs } from "@/lib/dayjs"
-import { WizardShell } from "@/components/blocks/wizard"
+import { WizardShell } from "@/components/blocks/wizard/shell"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -63,6 +63,7 @@ import {
 } from "@/data/environment.actions"
 import * as z from "zod"
 import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { getMcpConnection, type McpConnectionSummary } from "@/lib/gateway/client"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { PackageSearch } from "./package-search"
@@ -434,9 +435,10 @@ function McpToolsRow({
 }) {
   const query = useQuery(
     queryOptions({
-      queryKey: ["mcpConnection", connection.name],
+      queryKey: ["mcp-connection", connection.name],
       queryFn: async () => {
         const result = await getMcpConnection({
+          baseUrl: await getGatewayBaseURL(),
           path: { name: connection.name },
         })
         if (result.error) {
@@ -444,6 +446,7 @@ function McpToolsRow({
         }
         return result.data
       },
+      retry: false,
       staleTime: 30_000,
     })
   )
@@ -458,7 +461,7 @@ function McpToolsRow({
   }
 
   if (query.isError) {
-    return <div className="text-destructive text-sm">{(query.error as Error).message}</div>
+    return <div className="text-destructive text-sm">{query.error.message}</div>
   }
 
   const detail = query.data
@@ -622,6 +625,7 @@ function McpStep({
           })
         } else {
           const result = await getMcpConnection({
+            baseUrl: await getGatewayBaseURL(),
             path: { name: connection.name },
           })
           if (result.error || !result.data.tool_catalog_ready) {
@@ -1072,10 +1076,10 @@ export function EnvironmentWizard({
     >
       {({ stepper }) => {
         const data: EnvironmentWizardData = {
-          identity: stepper.metadata.get("identity") as EnvironmentIdentity | undefined,
-          packages: stepper.metadata.get("packages") as string[] | undefined,
-          mcps: stepper.metadata.get("mcps") as SelectedMcpConnectionRef[] | undefined,
-          allowedHosts: stepper.metadata.get("allowedHosts") as AllowedHostsDraft | undefined,
+          identity: stepper.metadata.get<EnvironmentIdentity>("identity") ?? undefined,
+          packages: stepper.metadata.get<string[]>("packages") ?? undefined,
+          mcps: stepper.metadata.get<SelectedMcpConnectionRef[]>("mcps") ?? undefined,
+          allowedHosts: stepper.metadata.get<AllowedHostsDraft>("allowedHosts") ?? undefined,
         }
         const currentIndex = stepper.state.current.index
         const currentStepId = stepper.state.current.data.id

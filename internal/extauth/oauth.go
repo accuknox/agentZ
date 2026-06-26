@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -18,6 +20,20 @@ import (
 )
 
 const oauthRefreshGrace = time.Minute
+
+var blockedOAuthTokenEndpointPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("192.88.99.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("2001:db8::/32"),
+}
 
 type tokenResponse struct {
 	AccessToken      string `json:"access_token"`
@@ -149,10 +165,15 @@ func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPC
 		}
 	}
 
+	tokenEndpoint, err := requirePublicOAuthTokenEndpoint(ctx, auth.TokenEndpoint)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		auth.TokenEndpoint,
+		tokenEndpoint,
 		bytes.NewBufferString(form.Encode()),
 	)
 	if err != nil {
@@ -179,7 +200,12 @@ func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPC
 		)
 	}
 
-	resp, err := s.http.Do(req)
+	oauthClient := *s.http
+	oauthClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	resp, err := oauthClient.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf(
 			"refresh oauth token: %v: %w",
@@ -239,6 +265,63 @@ func (s *Service) refreshToken(ctx context.Context, auth *clawarmorv1alpha1.MCPC
 		return token, nil, nil
 	}
 	return token, strings.Fields(scope), nil
+}
+
+func requirePublicOAuthTokenEndpoint(ctx context.Context, raw string) (string, error) {
+	endpoint := strings.TrimSpace(raw)
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("parse oauth token endpoint: %v: %w", err, errCredentialUnavailable)
+	}
+	if u.Scheme != "https" {
+		return "", fmt.Errorf("oauth token endpoint must use https: %w", errCredentialUnavailable)
+	}
+	if u.User != nil {
+		return "", fmt.Errorf("oauth token endpoint must not include credentials: %w", errCredentialUnavailable)
+	}
+
+	host := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(u.Hostname()), "."))
+	if host == "" {
+		return "", fmt.Errorf("oauth token endpoint must include a host: %w", errCredentialUnavailable)
+	}
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return "", fmt.Errorf("oauth token endpoint must resolve to a public address: %w", errCredentialUnavailable)
+	}
+
+	if addr, err := netip.ParseAddr(host); err == nil {
+		if !publicOAuthTokenEndpointAddr(addr) {
+			return "", fmt.Errorf("oauth token endpoint must resolve to a public address: %w", errCredentialUnavailable)
+		}
+		return u.String(), nil
+	}
+
+	addrs, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	if err != nil {
+		return "", fmt.Errorf("resolve oauth token endpoint host: %v: %w", err, errCredentialUnavailable)
+	}
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("oauth token endpoint host has no addresses: %w", errCredentialUnavailable)
+	}
+	for _, addr := range addrs {
+		if !publicOAuthTokenEndpointAddr(addr) {
+			return "", fmt.Errorf("oauth token endpoint must resolve to a public address: %w", errCredentialUnavailable)
+		}
+	}
+
+	return u.String(), nil
+}
+
+func publicOAuthTokenEndpointAddr(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	if !addr.IsValid() || !addr.IsGlobalUnicast() || addr.IsPrivate() {
+		return false
+	}
+	for _, prefix := range blockedOAuthTokenEndpointPrefixes {
+		if prefix.Contains(addr) {
+			return false
+		}
+	}
+	return true
 }
 
 func oauthTokenUsable(token *oauth2.Token, now time.Time) bool {

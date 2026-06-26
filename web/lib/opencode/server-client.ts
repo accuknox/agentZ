@@ -7,30 +7,24 @@ import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
 import { loginURL } from "@/lib/login-redirect"
 
-function opencodeBaseURL(agentName: string): string {
-  return `${serverGatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`
-}
-
-async function opencodeHeaders(): Promise<Record<string, string>> {
+// createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
+export async function createAgentOpencodeClient(
+  agentName: string,
+  directory?: string
+): Promise<OpencodeClient> {
+  let gatewayToken: string
   try {
-    const token = await currentGatewayAuthToken()
-    return { Authorization: `Bearer ${token}` }
+    gatewayToken = await currentGatewayAuthToken()
   } catch (error) {
     if (error instanceof GatewayUnauthorizedError) {
       redirect(loginURL({ error: "session_expired" }))
     }
     throw error
   }
-}
 
-// createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
-export async function createAgentOpencodeClient(
-  agentName: string,
-  directory?: string
-): Promise<OpencodeClient> {
   return createOpencodeClient({
-    baseUrl: opencodeBaseURL(agentName),
-    headers: await opencodeHeaders(),
+    baseUrl: `${serverGatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`,
+    headers: { Authorization: `Bearer ${gatewayToken}` },
     ...(directory ? { directory } : {}),
   })
 }

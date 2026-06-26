@@ -15,6 +15,7 @@ import {
   type McpConnectionSummary,
   type WatchMcpConnectionsEvent,
 } from "@/lib/gateway/client"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -68,6 +69,7 @@ const watchMcpConnectionsQueryOptions = (
       refetchMode: "reset",
       streamFn: async ({ signal }) => {
         const result = await watchMcpConnections({
+          baseUrl: await getGatewayBaseURL(),
           body: {
             names: connectionNames,
           },

@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto"
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
 import { nextCookies } from "better-auth/next-js"
@@ -130,16 +130,20 @@ function buildAuth() {
         )
 
         if (signedTrustDevice) {
-          const [token, trustIdentifier] = signedTrustDevice.split("!")
-          if (token && trustIdentifier) {
+          const parts = signedTrustDevice.split("!")
+          const [token, trustIdentifier] = parts
+          if (parts.length === 2 && token && trustIdentifier) {
             const expectedToken = createHmac("sha256", ctx.context.secret)
               .update(`${newSession.user.id}!${trustIdentifier}`)
               .digest("base64url")
+            const tokenBytes = Buffer.from(token)
+            const expectedTokenBytes = Buffer.from(expectedToken)
             const verificationRecord =
               await ctx.context.internalAdapter.findVerificationValue(trustIdentifier)
 
             if (
-              token === expectedToken &&
+              tokenBytes.length === expectedTokenBytes.length &&
+              timingSafeEqual(tokenBytes, expectedTokenBytes) &&
               verificationRecord &&
               verificationRecord.value === newSession.user.id &&
               verificationRecord.expiresAt > new Date()

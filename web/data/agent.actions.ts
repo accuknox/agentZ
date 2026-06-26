@@ -6,7 +6,7 @@ import { createAgent, deleteAgent, updateAgent } from "@/lib/gateway/client"
 import type { CreateAgentFormState, DeleteAgentFormState } from "@/data/types"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function createAgentFormAction(
   _: CreateAgentFormState,
@@ -29,7 +29,7 @@ export async function createAgentFormAction(
     }
   }
 
-  const result = await createAgent({ body: parsed.data, client: gatewayServerClient })
+  const result = await createAgent({ body: parsed.data, client: getGatewayServerClient() })
   if (result.error) {
     return { error: result.error }
   }
@@ -74,7 +74,7 @@ export async function updateAgentFormAction(
       environmentName: parsed.data.environmentName,
       ...(opencode ? { opencode } : {}),
     },
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path: { agentName },
   })
   if (result.error) {
@@ -91,7 +91,7 @@ export async function deleteAgentFormAction(
   _formData: FormData
 ): Promise<DeleteAgentFormState> {
   const result = await deleteAgent({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path: { agentName },
   })
   if (result.error) {

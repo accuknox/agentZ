@@ -9,6 +9,9 @@ import { getAuth } from "@/lib/auth"
 import {
   discoveredOAuth,
   parseStoredOAuthDiscoveryState,
+  publicOAuthFetch,
+  requirePublicOAuthDiscoveryState,
+  requirePublicOAuthURL,
   type StoredOAuthDiscoveryState,
 } from "@/lib/mcp-oauth"
 
@@ -82,19 +85,37 @@ export async function POST(request: Request) {
     )
   }
 
-  const serverUrl = new URL(parsed.data.endpointUrl)
+  let serverUrl: URL
+  try {
+    serverUrl = await requirePublicOAuthURL(parsed.data.endpointUrl, "MCP server URL")
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message: error instanceof Error ? error.message : "MCP server URL is not allowed",
+      },
+      { status: 400 }
+    )
+  }
   const fallbackAuthorizationServerUrl = new URL("/", serverUrl).toString()
 
   let resourceMetadata: StoredOAuthDiscoveryState["resourceMetadata"]
   let authorizationServerUrl = fallbackAuthorizationServerUrl
 
   try {
-    resourceMetadata = await discoverOAuthProtectedResourceMetadata(serverUrl)
+    resourceMetadata = await discoverOAuthProtectedResourceMetadata(
+      serverUrl,
+      undefined,
+      publicOAuthFetch
+    )
     const discoveredAuthorizationServerUrl = resourceMetadata.authorization_servers?.[0]
     const parsedAuthorizationServerUrl = httpsURLSchema.safeParse(discoveredAuthorizationServerUrl)
-    authorizationServerUrl = parsedAuthorizationServerUrl.success
-      ? parsedAuthorizationServerUrl.data
-      : fallbackAuthorizationServerUrl
+    if (parsedAuthorizationServerUrl.success) {
+      const publicAuthorizationServerURL = await requirePublicOAuthURL(
+        parsedAuthorizationServerUrl.data,
+        "OAuth issuer URL"
+      )
+      authorizationServerUrl = publicAuthorizationServerURL.toString()
+    }
   } catch {
     // Ignore protected resource discovery failures and fall back to
     // authorization server discovery from the endpoint origin.
@@ -103,7 +124,12 @@ export async function POST(request: Request) {
   let authorizationServerMetadata: StoredOAuthDiscoveryState["authorizationServerMetadata"]
 
   try {
-    authorizationServerMetadata = await discoverAuthorizationServerMetadata(authorizationServerUrl)
+    authorizationServerMetadata = await discoverAuthorizationServerMetadata(
+      authorizationServerUrl,
+      {
+        fetchFn: publicOAuthFetch,
+      }
+    )
   } catch {
     return NextResponse.json(
       {
@@ -120,6 +146,7 @@ export async function POST(request: Request) {
       resourceMetadata,
       authorizationServerMetadata,
     })
+    await requirePublicOAuthDiscoveryState(discoveryState)
   } catch {
     return NextResponse.json(
       {

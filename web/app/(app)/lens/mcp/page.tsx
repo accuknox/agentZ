@@ -5,7 +5,7 @@ import { getMcpGraphAction } from "@/data/lens.actions"
 import type { ListAgentActionResponse } from "@/data/types"
 import { McpEmptyState, McpGraph } from "@/app/(app)/lens/mcp/mcp-graph"
 import { McpFilters } from "@/app/(app)/lens/mcp/mcp-filters"
-import { firstSearchParam, mcpDateRange } from "@/app/(app)/lens/mcp/search-params"
+import { mcpDateRange } from "@/app/(app)/lens/mcp/search-params"
 
 export const metadata: Metadata = {
   title: "MCP Observability",
@@ -94,10 +94,12 @@ async function FiltersContent({
   searchParams: Promise<McpSearchParams>
 }) {
   const params = await searchParams
-  const range = mcpDateRange(firstSearchParam(params.from), firstSearchParam(params.to))
+  const from = Array.isArray(params.from) ? params.from[0] : params.from
+  const to = Array.isArray(params.to) ? params.to[0] : params.to
+  const range = mcpDateRange(from, to)
   const scope = getMcpScope({
     agents,
-    agentName: firstSearchParam(params.agent_name),
+    agentName: Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name,
   })
 
   return <Filters scope={scope} from={range.from} to={range.to} />
@@ -156,10 +158,12 @@ async function GraphContent({
   searchParams: Promise<McpSearchParams>
 }) {
   const params = await searchParams
-  const range = mcpDateRange(firstSearchParam(params.from), firstSearchParam(params.to))
+  const from = Array.isArray(params.from) ? params.from[0] : params.from
+  const to = Array.isArray(params.to) ? params.to[0] : params.to
+  const range = mcpDateRange(from, to)
   const scope = getMcpScope({
     agents,
-    agentName: firstSearchParam(params.agent_name),
+    agentName: Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name,
   })
 
   return <Graph scope={scope} range={range} />

@@ -468,7 +468,11 @@ function TraceInspector({
       <div className="bg-background flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-rows-[auto_1fr]">
         <Tabs
           value={tab}
-          onValueChange={(v) => onTabChange(v as TraceInspectorTab)}
+          onValueChange={(value) => {
+            if (value === "spans" || value === "telemetry") {
+              onTabChange(value)
+            }
+          }}
           className="bg-muted/50 py-2"
         >
           <TabsList variant="line" className="gap-2">
@@ -959,7 +963,11 @@ function RuntimeTelemetryContent({
   return (
     <Tabs
       value={telemetryTab}
-      onValueChange={(v) => onTabChange(v as RuntimeTelemetryTab)}
+      onValueChange={(value) => {
+        if (value === "process" || value === "file" || value === "network") {
+          onTabChange(value)
+        }
+      }}
       className="mt-4 flex h-full min-h-0 flex-col"
     >
       <TabsList variant="line" className="overflow-auto overflow-y-hidden px-2">

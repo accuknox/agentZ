@@ -11,7 +11,6 @@ import { TracesChart } from "@/app/(app)/lens/traces/traces-chart"
 import { TracesChartSkeleton } from "@/app/(app)/lens/traces/traces-chart-skeleton"
 import { TracesFilters } from "@/app/(app)/lens/traces/traces-filters"
 import {
-  firstSearchParam,
   parseLimitParam,
   type TraceDateRange,
   traceDateRange,
@@ -217,15 +216,15 @@ async function getTraceScopeFromSearchParams(
 
 async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParams>) {
   const params = await searchParams
-  const from = firstSearchParam(params.from)
-  const to = firstSearchParam(params.to)
+  const from = Array.isArray(params.from) ? params.from[0] : params.from
+  const to = Array.isArray(params.to) ? params.to[0] : params.to
 
   return {
-    agentName: firstSearchParam(params.agent_name),
-    limit: parseLimitParam(firstSearchParam(params.limit)),
-    pageToken: firstSearchParam(params.page_token),
+    agentName: Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name,
+    limit: parseLimitParam(Array.isArray(params.limit) ? params.limit[0] : params.limit),
+    pageToken: Array.isArray(params.page_token) ? params.page_token[0] : params.page_token,
     range: traceDateRange(from, to),
-    sessionID: firstSearchParam(params.session_id),
+    sessionID: Array.isArray(params.session_id) ? params.session_id[0] : params.session_id,
   } satisfies ResolvedTracesSearchParams
 }
 

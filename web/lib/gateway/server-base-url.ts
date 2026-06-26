@@ -1,29 +1,34 @@
 import "server-only"
-
-function configuredURL(name: string): string | undefined {
-  const value = process.env[name]?.trim()
-  if (!value) {
-    return
-  }
-
-  return value.endsWith("/") ? value.slice(0, -1) : value
-}
+import { gatewayBaseURL } from "@/lib/gateway/base-url"
 
 /**
  * serverGatewayBaseURL returns the server-side gateway origin.
  */
 export function serverGatewayBaseURL(): string {
-  const gatewayInternalBaseURL = configuredURL("GATEWAY_INTERNAL_BASE_URL")
-  if (gatewayInternalBaseURL) {
-    return gatewayInternalBaseURL
+  const rawInternalGatewayBaseURL = process.env.INTERNAL_GATEWAY_BASE_URL?.trim()
+  if (rawInternalGatewayBaseURL) {
+    const internalGatewayBaseURL = new URL(rawInternalGatewayBaseURL)
+    if (
+      internalGatewayBaseURL.protocol !== "http:" &&
+      internalGatewayBaseURL.protocol !== "https:"
+    ) {
+      throw new Error("INTERNAL_GATEWAY_BASE_URL must use http or https")
+    }
+
+    return internalGatewayBaseURL.origin
   }
 
-  const gatewayBaseURL = configuredURL("GATEWAY_BASE_URL")
-  if (gatewayBaseURL) {
-    return gatewayBaseURL
+  const rawGatewayBaseURL = process.env.GATEWAY_BASE_URL?.trim()
+  if (rawGatewayBaseURL) {
+    const serverGatewayBaseURL = new URL(rawGatewayBaseURL)
+    if (serverGatewayBaseURL.protocol !== "http:" && serverGatewayBaseURL.protocol !== "https:") {
+      throw new Error("GATEWAY_BASE_URL must use http or https")
+    }
+
+    return serverGatewayBaseURL.origin
   }
 
-  throw new Error("GATEWAY_BASE_URL is not configured")
+  return gatewayBaseURL()
 }
 
 /**
@@ -33,10 +38,15 @@ export function serverGatewayBaseURL(): string {
  * on different ports.
  */
 export function serverWebBaseURL(): string {
-  const webURL = configuredURL("BETTER_AUTH_URL")
-  if (webURL) {
-    return webURL
+  const rawWebURL = process.env.BETTER_AUTH_URL?.trim()
+  if (rawWebURL) {
+    const webURL = new URL(rawWebURL)
+    if (webURL.protocol !== "http:" && webURL.protocol !== "https:") {
+      throw new Error("BETTER_AUTH_URL must use http or https")
+    }
+
+    return webURL.origin
   }
 
-  throw new Error("BETTER_AUTH_URL is not configured")
+  return gatewayBaseURL()
 }

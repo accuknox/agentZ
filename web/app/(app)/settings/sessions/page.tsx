@@ -10,8 +10,7 @@ export const metadata: Metadata = {
   title: "Sessions",
 }
 
-export default async function SessionsPage() {
-  await connection()
+export default function SessionsPage() {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -27,6 +26,7 @@ export default async function SessionsPage() {
 }
 
 async function Sessions() {
+  await connection()
   const auth = getAuth()
   const requestHeaders = await headers()
   let currentToken: string | undefined

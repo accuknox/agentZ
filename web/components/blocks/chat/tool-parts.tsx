@@ -179,8 +179,11 @@ function toolStateTone(status: ToolPart["state"]["status"]): ToolTone {
 }
 
 function toolMetadata(part: ToolPart) {
-  const { metadata } = part.state as { metadata?: unknown }
-  return record(metadata) ? metadata : undefined
+  if (!("metadata" in part.state)) {
+    return undefined
+  }
+
+  return record(part.state.metadata) ? part.state.metadata : undefined
 }
 
 function toneClass(tone: ToolTone) {
@@ -1060,10 +1063,6 @@ function ToolView({ agentName, part }: ToolProps) {
     default:
       return <GenericTool agentName={agentName} part={part} />
   }
-}
-
-export function toolEntries(parts: ToolPart[]) {
-  return groupTools(parts)
 }
 
 export function ToolEntries({ agentName, entry }: { agentName: string; entry: ToolEntry }) {

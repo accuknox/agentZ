@@ -51,7 +51,7 @@ import {
   projectTimeline,
   type TimelineRow,
 } from "@/components/blocks/chat/timeline"
-import { sdkErrorMessage } from "@/components/blocks/chat/errors"
+import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { ToolEntries } from "@/components/blocks/chat/tool-parts"
 import {
   chatAttachmentConfig,
@@ -516,7 +516,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         requestID: questionRequest.id,
       })
       if (result.error || result.data !== true) {
-        throw new Error(sdkErrorMessage(result.error, "Failed to answer question"))
+        throw new Error(opencodeErrorMessage(result.error, "Failed to answer question"))
       }
     },
     onError: (error) => {
@@ -536,7 +536,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         requestID: questionRequest.id,
       })
       if (result.error || result.data !== true) {
-        throw new Error(sdkErrorMessage(result.error, "Failed to reject question"))
+        throw new Error(opencodeErrorMessage(result.error, "Failed to reject question"))
       }
     },
     onError: (error) => {
@@ -557,7 +557,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
         reply,
       })
       if (result.error || result.data !== true) {
-        throw new Error(sdkErrorMessage(result.error, "Failed to respond to permission"))
+        throw new Error(opencodeErrorMessage(result.error, "Failed to respond to permission"))
       }
     },
     onError: (error) => {

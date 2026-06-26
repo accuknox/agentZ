@@ -325,8 +325,15 @@ export function PackageSearch({
         <Tabs
           value={filter}
           onValueChange={(value) => {
-            setFilter(value as PackageFilter)
-            setPage(0)
+            if (
+              value === "all" ||
+              value === "installed" ||
+              value === "not-installed" ||
+              value === "selected"
+            ) {
+              setFilter(value)
+              setPage(0)
+            }
           }}
         >
           <TabsList className="h-9 w-full lg:w-auto">

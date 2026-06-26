@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "New Environment",
 }
 
-export default async function NewEnvironmentPage() {
+export default function NewEnvironmentPage() {
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 p-4 sm:px-6 sm:pb-6">
       <div className="min-w-0">

@@ -33,7 +33,8 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
-	message := ""
+
+	var message string
 	if req.Message != nil {
 		message = strings.TrimSpace(*req.Message)
 	}

@@ -1,6 +1,6 @@
 "use server"
 
-import type { Error } from "@/lib/gateway/client"
+import type { Error as GatewayError } from "@/lib/gateway/client"
 
 type SearchConfig = {
   esUrl: string
@@ -41,7 +41,7 @@ export type NixPackage = {
 
 export type SearchNixPackagesResponse =
   | { packages: NixPackage[]; error: undefined }
-  | { packages: undefined; error: Error }
+  | { packages: undefined; error: GatewayError }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)

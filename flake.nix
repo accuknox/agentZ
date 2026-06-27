@@ -75,6 +75,8 @@
                 "create_workflow": true,
                 "create_workflow_schedule": true,
                 "list_workflows": true,
+                "skill": true,
+                "list_skills": true,
                 "list_workflow_schedules": true,
                 "get_workflow": true,
                 "delete_workflows": true,

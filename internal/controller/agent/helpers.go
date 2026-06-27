@@ -35,14 +35,14 @@ const (
 	opencodeInstructionKey         = "instruction.md"
 	configVolume                   = "config"
 	opencodeConfigDir              = "/etc/clawarmor/opencode"
-	opencodePluginDir              = "/etc/opencode/plugins"
 	opencodeInstructionPath        = "/etc/clawarmor/opencode/instruction.md"
-	opencodeSkillReloadPluginPath  = opencodePluginDir + "/skill-reload.ts"
 	createWorkflowToolName         = "create_workflow"
 	createWorkflowScheduleToolName = "create_workflow_schedule"
 	listWorkflowSchedulesToolName  = "list_workflow_schedules"
 	getWorkflowToolName            = "get_workflow"
 	listWorkflowsToolName          = "list_workflows"
+	skillToolName                  = "skill"
+	listSkillsToolName             = "list_skills"
 	deleteWorkflowsToolName        = "delete_workflows"
 	deleteWorkflowScheduleToolName = "delete_workflow_schedule"
 	setWorkflowRunStatusToolName   = "set_workflowrun_status"
@@ -183,7 +183,6 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	if instruction != "" {
 		cfg.Instructions = []string{opencodeInstructionPath}
 	}
-	cfg.Plugin = []string{opencodeSkillReloadPluginPath}
 	cfg.Skills = &opencodeSkillsFile{
 		Paths: []string{
 			opencodeBundledSkillsPath,
@@ -211,6 +210,8 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 		listWorkflowSchedulesToolName:  true,
 		getWorkflowToolName:            true,
 		listWorkflowsToolName:          true,
+		skillToolName:                  true,
+		listSkillsToolName:             true,
 		deleteWorkflowsToolName:        true,
 		deleteWorkflowScheduleToolName: true,
 		setWorkflowRunStatusToolName:   false,
@@ -257,7 +258,6 @@ type opencodeConfigFile struct {
 	SmallModel   string                            `json:"small_model,omitempty"`
 	Instructions []string                          `json:"instructions,omitempty"`
 	Skills       *opencodeSkillsFile               `json:"skills,omitempty"`
-	Plugin       []string                          `json:"plugin,omitempty"`
 	Provider     map[string]opencodeProviderFile   `json:"provider,omitempty"`
 	MCP          map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
 	Permission   map[string]opencodePermissionRule `json:"permission,omitempty"`

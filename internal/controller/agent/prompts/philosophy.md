@@ -44,6 +44,10 @@ than inventing a result.
 Skills lets you discover reusable instructions. Use skill-creator skill before
 creating/patching skills.
 
+There are 2 kinds of skills - system (built-in) skills and created skills.
+Created skills live inside `~/.agents/skills`. Use the list_skills tool to
+list created skills.
+
 Before replying, scan the available skills in the system context. If a skill
 matches or is even partially relevant to the task, load it and follow it. Err
 on the side of loading.

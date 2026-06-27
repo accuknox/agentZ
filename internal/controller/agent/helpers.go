@@ -35,7 +35,9 @@ const (
 	opencodeInstructionKey         = "instruction.md"
 	configVolume                   = "config"
 	opencodeConfigDir              = "/etc/clawarmor/opencode"
+	opencodePluginDir              = "/etc/opencode/plugins"
 	opencodeInstructionPath        = "/etc/clawarmor/opencode/instruction.md"
+	opencodeSkillReloadPluginPath  = opencodePluginDir + "/skill-reload.ts"
 	createWorkflowToolName         = "create_workflow"
 	createWorkflowScheduleToolName = "create_workflow_schedule"
 	listWorkflowSchedulesToolName  = "list_workflow_schedules"
@@ -76,6 +78,9 @@ const (
 	gatewayTokenPath               = gatewayTokenMountPath + "/token"
 	egressPolicySuffix             = "-egress"
 	opencodeConfigSchema           = "https://opencode.ai/config.json"
+	agentHomeDir                   = "/home/clawarmor"
+	opencodeWritableSkillsPath     = agentHomeDir + "/.agents/skills"
+	opencodeBundledSkillsPath      = "/etc/opencode/skills/defaults"
 )
 
 var (
@@ -174,9 +179,16 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	if agt.Spec.SmallModel != "" {
 		cfg.SmallModel = agt.Spec.SmallModel
 	}
-	instruction := strings.TrimSpace(agt.Spec.Instruction)
+	instruction := renderOpencodeInstruction(agt.Spec)
 	if instruction != "" {
 		cfg.Instructions = []string{opencodeInstructionPath}
+	}
+	cfg.Plugin = []string{opencodeSkillReloadPluginPath}
+	cfg.Skills = &opencodeSkillsFile{
+		Paths: []string{
+			opencodeBundledSkillsPath,
+			opencodeWritableSkillsPath,
+		},
 	}
 	if len(agt.Spec.Providers) > 0 {
 		cfg.Provider = make(map[string]opencodeProviderFile, len(agt.Spec.Providers))
@@ -244,10 +256,17 @@ type opencodeConfigFile struct {
 	Model        string                            `json:"model,omitempty"`
 	SmallModel   string                            `json:"small_model,omitempty"`
 	Instructions []string                          `json:"instructions,omitempty"`
+	Skills       *opencodeSkillsFile               `json:"skills,omitempty"`
+	Plugin       []string                          `json:"plugin,omitempty"`
 	Provider     map[string]opencodeProviderFile   `json:"provider,omitempty"`
 	MCP          map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
 	Permission   map[string]opencodePermissionRule `json:"permission,omitempty"`
 	Tools        map[string]bool                   `json:"tools,omitempty"`
+}
+
+type opencodeSkillsFile struct {
+	Paths []string `json:"paths,omitempty"`
+	URLs  []string `json:"urls,omitempty"`
 }
 
 type opencodePermissionRule string
@@ -294,4 +313,12 @@ func packageJobHash(image string, packages []string) string {
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)
+}
+
+func renderOpencodeInstruction(spec clawarmorv1alpha1.AgentSpec) string {
+	parts := []string{strings.TrimSpace(agentPhilosophy)}
+	if instruction := strings.TrimSpace(spec.Instruction); instruction != "" {
+		parts = append(parts, instruction)
+	}
+	return strings.Join(parts, "\n\n")
 }

@@ -43,15 +43,17 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-const packageJobLabelKey = "clawarmor.accuknox.com/agent-package-job"
+const (
+	packageJobLabelKey             = "clawarmor.accuknox.com/agent-package-job"
+	workflowScheduleRunnerLabelKey = "clawarmor.accuknox.com/workflow-schedule-runner"
+)
 
 // Reconciler reconciles a Tenant object.
 type Reconciler struct {
 	client.Client
-	Direct     client.Client
-	CertClient cmclientset.Interface
-	Scheme     *runtime.Scheme
-
+	Direct                         client.Client
+	CertClient                     cmclientset.Interface
+	Scheme                         *runtime.Scheme
 	NixStorePVCName                string
 	NixStorePVCSize                resource.Quantity
 	NixStorePVCAccessModes         []corev1.PersistentVolumeAccessMode
@@ -318,10 +320,16 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 		selector := ciliumpolicyapi.NewESFromK8sLabelSelector(
 			ciliumlabels.LabelSourceK8sKeyPrefix,
 			&slimv1.LabelSelector{
-				MatchExpressions: []slimv1.LabelSelectorRequirement{{
-					Key:      packageJobLabelKey,
-					Operator: slimv1.LabelSelectorOpDoesNotExist,
-				}},
+				MatchExpressions: []slimv1.LabelSelectorRequirement{
+					{
+						Key:      packageJobLabelKey,
+						Operator: slimv1.LabelSelectorOpDoesNotExist,
+					},
+					{
+						Key:      workflowScheduleRunnerLabelKey,
+						Operator: slimv1.LabelSelectorOpDoesNotExist,
+					},
+				},
 			},
 		)
 

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -51,7 +51,7 @@ func run() error {
 		return err
 	}
 
-	normalizeOpenAPI31(upstream)
+	rewriteOpenAPI31Keywords(upstream)
 	rewritten, manifest, err := rewriteOpenCode(upstream)
 	if err != nil {
 		return err
@@ -135,11 +135,11 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 		}
 	}
 
-	sort.Slice(manifest.Routes, func(i, j int) bool {
-		if manifest.Routes[i].Path == manifest.Routes[j].Path {
-			return manifest.Routes[i].Method < manifest.Routes[j].Method
+	slices.SortFunc(manifest.Routes, func(a, b routeSpec) int {
+		if a.Path == b.Path {
+			return strings.Compare(a.Method, b.Method)
 		}
-		return manifest.Routes[i].Path < manifest.Routes[j].Path
+		return strings.Compare(a.Path, b.Path)
 	})
 
 	return map[string]any{
@@ -361,7 +361,7 @@ func stringSlice(value any) []string {
 	return out
 }
 
-func normalizeOpenAPI31(value any) {
+func rewriteOpenAPI31Keywords(value any) {
 	switch node := value.(type) {
 	case map[string]any:
 		if raw, ok := node["exclusiveMinimum"]; ok {
@@ -380,11 +380,11 @@ func normalizeOpenAPI31(value any) {
 		}
 
 		for _, child := range node {
-			normalizeOpenAPI31(child)
+			rewriteOpenAPI31Keywords(child)
 		}
 	case []any:
 		for _, child := range node {
-			normalizeOpenAPI31(child)
+			rewriteOpenAPI31Keywords(child)
 		}
 	}
 }

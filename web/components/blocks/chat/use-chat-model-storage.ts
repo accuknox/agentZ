@@ -2,7 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react"
 
-export type StoredModelRef = {
+type StoredModelRef = {
   modelID: string
   providerID: string
 }

@@ -43,6 +43,38 @@ var gatewayServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:     "external-jwt-jwks-url",
+			Usage:    "JWKS URL for external Better Auth bearer tokens",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:     "external-jwt-issuer",
+			Usage:    "JWT issuer for external Better Auth bearer tokens",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:     "external-jwt-audience",
+			Usage:    "JWT audience for external Better Auth bearer tokens",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:     "internal-k8s-token-audience",
+			Usage:    "Audience required on internal Kubernetes service account bearer tokens",
+			Required: true,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
 			Name:  "target-override",
 			Usage: "Override resolved backend target for local port-forward testing",
 			Config: cli.StringConfig{
@@ -112,18 +144,22 @@ var gatewayServeCmd = &cli.Command{
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return gateway.Serve(ctx, gateway.Config{
-			Addr:                    c.String("addr"),
-			Namespace:               c.String("namespace"),
-			PostgresDSN:             c.String("postgres-dsn"),
-			TargetOverride:          c.String("target-override"),
-			AgentImage:              c.String("agent-image"),
-			AgentTraceEndpoint:      c.String("agent-trace-endpoint"),
-			OpenBaoAddr:             c.String("openbao-addr"),
-			OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
-			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
-			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
-			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
-			MCPProbeStaleAfter:      c.Duration("mcp-probe-stale-after"),
+			Addr:                     c.String("addr"),
+			Namespace:                c.String("namespace"),
+			PostgresDSN:              c.String("postgres-dsn"),
+			ExternalJWTJWKSURL:       c.String("external-jwt-jwks-url"),
+			ExternalJWTIssuer:        c.String("external-jwt-issuer"),
+			ExternalJWTAudience:      c.String("external-jwt-audience"),
+			InternalK8sTokenAudience: c.String("internal-k8s-token-audience"),
+			TargetOverride:           c.String("target-override"),
+			AgentImage:               c.String("agent-image"),
+			AgentTraceEndpoint:       c.String("agent-trace-endpoint"),
+			OpenBaoAddr:              c.String("openbao-addr"),
+			OpenBaoSecretMountPath:   c.String("openbao-secret-mount-path"),
+			OpenBaoK8sAuthRole:       c.String("openbao-k8s-auth-role"),
+			OpenBaoK8sAuthMountPath:  c.String("openbao-k8s-auth-mount-path"),
+			OpenBaoK8sAuthTokenPath:  c.String("openbao-k8s-auth-token-path"),
+			MCPProbeStaleAfter:       c.Duration("mcp-probe-stale-after"),
 		})
 	},
 }

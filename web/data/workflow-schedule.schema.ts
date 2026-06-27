@@ -15,9 +15,9 @@ const workflowScheduleFieldSchema = z.union([z.string(), z.number(), z.boolean()
 
 const workflowScheduleInputsSchema = z.record(z.string(), workflowScheduleFieldSchema)
 
-export type WorkflowScheduleInputValue = string | number | boolean | undefined
+type WorkflowScheduleInputValue = string | number | boolean | undefined
 
-export const createWorkflowScheduleFormSchema = z.object({
+const createWorkflowScheduleFormSchema = z.object({
   name: workflowScheduleNameSchema,
   workflow_name: workflowNameSchema,
   schedule: z
@@ -69,7 +69,7 @@ export function buildWorkflowScheduleFormSchema(inputSchema: WorkflowInputs) {
   })
 }
 
-export function buildWorkflowInputObjectSchema(inputSchema: WorkflowInputs) {
+function buildWorkflowInputObjectSchema(inputSchema: WorkflowInputs) {
   const shape: Record<string, z.ZodType<WorkflowScheduleInputValue>> = {}
 
   for (const [name, input] of Object.entries(inputSchema)) {

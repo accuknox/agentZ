@@ -18,10 +18,18 @@ import { NavEnvironments } from "./environments"
 import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
 
-export async function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user?: {
+    email?: string | null
+    image?: string | null
+    name: string
+  }
+}
+
+export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
   const agents = listAgentsCachedQuery()
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible="icon" {...sidebarProps}>
       <SidebarHeader>
         <TeamSwitcher />
       </SidebarHeader>
@@ -42,9 +50,11 @@ export async function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
           </Suspense>
         </SidebarGroup>
       </SidebarContent>
-      {/*<SidebarFooter>
-        <NavUser user={{ email: "murtaza@accuknox.com", name: "Murtaza U" }} />
-      </SidebarFooter>*/}
+      {user ? (
+        <SidebarFooter>
+          <NavUser user={user} />
+        </SidebarFooter>
+      ) : null}
       <SidebarRail />
     </Sidebar>
   )

@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
+	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	"github.com/accuknox/clawarmor/internal/sinjector"
 )
@@ -40,12 +41,21 @@ type secretKeyMetadata struct {
 
 // PutSecret handles POST /api/secret/{agentName}/put.
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	name, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), name)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -164,7 +174,7 @@ func validateSecretEntries(raw []gatewayapi.SecretEntry) ([]validatedSecretEntry
 			continue
 		}
 
-		hosts, err := sinjector.NormalizeSecretHosts(entry.Hosts)
+		hosts, err := sinjector.CanonicalSecretHosts(entry.Hosts)
 		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("secrets[%d].hosts", i),
@@ -182,62 +192,75 @@ func validateSecretEntries(raw []gatewayapi.SecretEntry) ([]validatedSecretEntry
 	return entries, fields
 }
 
-func stringSlice(raw any) []string {
+func secretListKeys(raw any) []string {
 	switch items := raw.(type) {
 	case []string:
 		return append([]string{}, items...)
 	case []any:
-		out := make([]string, 0, len(items))
+		keys := make([]string, 0, len(items))
 		for _, item := range items {
-			s, ok := item.(string)
-			if !ok || s == "" {
+			key, ok := item.(string)
+			if !ok || key == "" {
 				continue
 			}
-			out = append(out, s)
+			keys = append(keys, key)
 		}
-		return out
+		return keys
 	default:
 		return []string{}
 	}
 }
 
-func stringMap(raw any) map[string]any {
+func secretListKeyMetadata(raw any) map[string]secretKeyMetadata {
 	items, ok := raw.(map[string]any)
 	if !ok {
-		return map[string]any{}
+		return map[string]secretKeyMetadata{}
 	}
-	return items
+
+	metadata := make(map[string]secretKeyMetadata, len(items))
+	for key, item := range items {
+		info, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		metadata[key] = secretKeyMetadata{
+			createdAt: secretMetadataTime(info["created_time"]),
+			updatedAt: secretMetadataTime(info["updated_time"]),
+		}
+	}
+	return metadata
 }
 
-func parseSecretKeyMetadata(raw any) secretKeyMetadata {
-	info := stringMap(raw)
-	meta := secretKeyMetadata{}
-
-	createdAt, ok := info["created_time"].(string)
-	if ok && createdAt != "" {
-		if parsed, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
-			meta.createdAt = parsed
-		}
+func secretMetadataTime(raw any) time.Time {
+	value, ok := raw.(string)
+	if !ok || value == "" {
+		return time.Time{}
 	}
 
-	updatedAt, ok := info["updated_time"].(string)
-	if ok && updatedAt != "" {
-		if parsed, err := time.Parse(time.RFC3339Nano, updatedAt); err == nil {
-			meta.updatedAt = parsed
-		}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}
 	}
-
-	return meta
+	return parsed
 }
 
 // DeleteSecret handles POST /api/secret/{agentName}/delete.
 func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	name, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), name)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -349,6 +372,11 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 // syncAgentEnv updates the Agent CR spec.env by adding placeholder entries
 // for secrets in add and removing entries whose Name matches keys in remove.
 func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gatewayapi.SecretEntry, remove []string) error {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return err
+	}
+
 	removeSet := make(map[string]struct{}, len(remove))
 	for _, key := range remove {
 		removeSet[strings.TrimSpace(key)] = struct{}{}
@@ -361,7 +389,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Get(
+		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(ns).Get(
 			ctx,
 			agentName,
 			metav1.GetOptions{},
@@ -394,7 +422,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 		}
 
 		agt.Spec.Env = newEnv
-		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Update(
+		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Update(
 			ctx,
 			agt,
 			metav1.UpdateOptions{},
@@ -405,12 +433,21 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gate
 
 // ListSecrets handles GET /api/secret/{agentName}/list.
 func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListSecretsParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	name, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), name)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -439,7 +476,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	after := ""
+	var after string
 	if params.PageToken != nil {
 		after = strings.TrimSpace(*params.PageToken)
 	}
@@ -459,8 +496,8 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	keys := stringSlice(secret.Data["keys"])
-	rawKeyInfo := stringMap(secret.Data["key_info"])
+	keys := secretListKeys(secret.Data["keys"])
+	keyMetadata := secretListKeyMetadata(secret.Data["key_info"])
 
 	items := make([]gatewayapi.SecretListItem, 0, len(keys))
 	for _, key := range keys {
@@ -473,7 +510,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 			Key:   key,
 			Hosts: hosts,
 		}
-		meta := parseSecretKeyMetadata(rawKeyInfo[key])
+		meta := keyMetadata[key]
 		item.CreatedAt = meta.createdAt
 		item.ModifiedAt = meta.updatedAt
 		items = append(items, item)
@@ -531,25 +568,27 @@ func (s *Service) readSecretHosts(ctx context.Context, agentName, key string) ([
 	if secret == nil {
 		return nil, baoapi.ErrSecretNotFound
 	}
-	hosts, err := secretDataHosts(secret.Data["hosts"])
+	hosts, err := secretHostList(secret.Data["hosts"])
 	if err != nil {
 		return nil, err
 	}
 	return hosts, nil
 }
 
-func secretDataHosts(raw any) ([]string, error) {
-	hosts := stringSlice(raw)
+func secretHostList(raw any) ([]string, error) {
+	hosts := secretListKeys(raw)
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("secret hosts are invalid")
 	}
-	return sinjector.NormalizeSecretHosts(hosts)
+	return sinjector.CanonicalSecretHosts(hosts)
 }
 
 func (s *Service) agentSecretKeys(ctx context.Context, agentName string) ([]string, error) {
 	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, agentName)
-	after := ""
-	keys := []string{}
+
+	var after string
+	keys := make([]string, 0)
+
 	for {
 		secret, err := s.bao.Logical().ListPageWithContext(ctx, listPath, after, agentSecretPage+1)
 		if err != nil {
@@ -562,7 +601,7 @@ func (s *Service) agentSecretKeys(ctx context.Context, agentName string) ([]stri
 			return keys, nil
 		}
 
-		page := stringSlice(secret.Data["keys"])
+		page := secretListKeys(secret.Data["keys"])
 		if len(page) == 0 {
 			return keys, nil
 		}

@@ -12,6 +12,12 @@ import (
 
 // GetWorkflow handles GET /api/workflow/{agentName}/{workflowName}.
 func (s *Service) GetWorkflow(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 
@@ -27,7 +33,13 @@ func (s *Service) GetWorkflow(w http.ResponseWriter, r *http.Request, agtName ga
 		return
 	}
 
-	workflow, err := workflowstore.Get(r.Context(), s.db, agtName, workflowName)
+	workflow, err := workflowstore.Get(
+		r.Context(),
+		s.db,
+		ns,
+		agtName,
+		workflowName,
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, workflowstore.MapGetError(err))
 		return
@@ -38,6 +50,12 @@ func (s *Service) GetWorkflow(w http.ResponseWriter, r *http.Request, agtName ga
 
 // CreateWorkflow handles POST /api/workflow/{agentName}.
 func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.CreateWorkflowRequest
 	if err := apiutil.DecodeJSONBody(w, r, &req, false); err != nil {
 		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
@@ -104,7 +122,7 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 		return
 	}
 
-	row, err := workflowstore.Create(r.Context(), s.db, agtName, req)
+	row, err := workflowstore.Create(r.Context(), s.db, ns, agtName, req)
 	if err != nil {
 		apiutil.WriteError(w, r, workflowstore.MapCreateError(err))
 		return
@@ -124,6 +142,12 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 
 // DeleteWorkflows handles DELETE /api/workflow/{agentName}.
 func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.DeleteWorkflowsRequest
 	if err := apiutil.DecodeJSONBody(w, r, &req, false); err != nil {
 		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
@@ -155,7 +179,7 @@ func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtNam
 		r.Context(),
 		s.db,
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		agtName,
 		req.WorkflowNames,
 	)
@@ -171,6 +195,12 @@ var _ gatewayapi.ServerInterface = (*Service)(nil)
 
 // ListWorkflowSummaries handles GET /api/workflow/{agentName}.
 func (s *Service) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+
 	agtName = strings.TrimSpace(agtName)
 
 	fields := workflowstore.ValidateListRequest(agtName)
@@ -185,7 +215,7 @@ func (s *Service) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	summaries, err := workflowstore.ListSummaries(r.Context(), s.db, agtName)
+	summaries, err := workflowstore.ListSummaries(r.Context(), s.db, ns, agtName)
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusInternalServerError,

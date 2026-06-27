@@ -19,6 +19,12 @@ import (
 
 // ListEnvironments handles GET /api/environment.
 func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, params gatewayapi.ListEnvironmentsParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	limit := 50
 	if params.Limit != nil {
 		limit = int(*params.Limit)
@@ -39,14 +45,14 @@ func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, param
 	}
 
 	var envList clawarmorv1alpha1.EnvironmentList
-	if err := s.k8sClient.List(r.Context(), &envList, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+	if err := s.k8sClient.List(r.Context(), &envList, ctrlclient.InNamespace(ns)); err != nil {
 		writeInternalError(w, r, fmt.Errorf("list environments: %w", err))
 		return
 	}
 	refs, err := envutil.ReferencedNames(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("list environment references: %w", err))
@@ -75,6 +81,17 @@ func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, param
 
 // CreateEnvironment handles POST /api/environment.
 func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	tenant, err := tenantObject(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.CreateEnvironmentRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -109,7 +126,7 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.AllowedHosts != nil {
 		rawAllowedHosts = *req.AllowedHosts
 	}
-	allowedHosts, err := envutil.NormalizeHostList(rawAllowedHosts)
+	allowedHosts, err := envutil.CanonicalHostList(rawAllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)
 		return
@@ -160,7 +177,13 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: s.cfg.Namespace,
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(
+					tenant,
+					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+				),
+			},
 		},
 		Spec: clawarmorv1alpha1.EnvironmentSpec{
 			Packages:          packages,
@@ -179,6 +202,12 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 
 // DeleteEnvironment handles DELETE /api/environment/{environmentName}.
 func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request, environmentName gatewayapi.EnvironmentName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	name := strings.TrimSpace(environmentName)
 	if name == "" {
 		writeError(w, r, newAPIError(
@@ -193,11 +222,11 @@ func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request, envi
 
 	env := &clawarmorv1alpha1.Environment{}
 	env.Name = name
-	env.Namespace = s.cfg.Namespace
+	env.Namespace = ns
 	agentName, err := envutil.ReferencingAgentName(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		name,
 	)
 	if err != nil {
@@ -224,6 +253,12 @@ func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request, envi
 
 // UpdateEnvironment handles PUT /api/environment/{environmentName}.
 func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, environmentName gatewayapi.EnvironmentName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.UpdateEnvironmentRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -242,7 +277,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 	}
 
 	envName := strings.TrimSpace(environmentName)
-	allowedHosts, err := envutil.NormalizeHostList(req.AllowedHosts)
+	allowedHosts, err := envutil.CanonicalHostList(req.AllowedHosts)
 	if err != nil {
 		writeAllowedHostsError(w, r, err)
 		return
@@ -294,7 +329,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 		env := &clawarmorv1alpha1.Environment{}
 		if getErr := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{
 			Name:      envName,
-			Namespace: s.cfg.Namespace,
+			Namespace: ns,
 		}, env); getErr != nil {
 			return getErr
 		}
@@ -317,7 +352,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 	agentName, err := envutil.ReferencingAgentName(
 		r.Context(),
 		s.k8sClient,
-		s.cfg.Namespace,
+		ns,
 		updated.Name,
 	)
 	if err != nil {
@@ -478,11 +513,19 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 }
 
 func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []clawarmorv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return []gatewayapi.FieldError{{
+			Field:   "mcp_connection_refs",
+			Message: "tenant context is missing",
+		}}
+	}
+
 	fields := []gatewayapi.FieldError{}
 	for i, ref := range refs {
 		conn := &clawarmorv1alpha1.MCPConnection{}
 		key := ctrlclient.ObjectKey{
-			Namespace: s.cfg.Namespace,
+			Namespace: ns,
 			Name:      ref.Name,
 		}
 		err := s.k8sClient.Get(ctx, key, conn)

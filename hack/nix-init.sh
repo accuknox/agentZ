@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly nixpkgs_ref='github:NixOS/nixpkgs/a799d3e3886da994fa307f817a6bc705ae538eeb'
+readonly nixpkgs_ref='github:NixOS/nixpkgs/567a49d1913ce81ac6e9582e3553dd90a955875f'
 readonly nixpkgs_path_file='/etc/clawarmor/nixpkgs.path'
 readonly agent_root="${CLAWARMOR_NIX_ROOT:-/mnt/nix}"
 readonly agent_store_root="${agent_root}/nix"

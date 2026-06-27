@@ -47,7 +47,6 @@ type workflowRunWatchEvent struct {
 }
 
 type resolver struct {
-	namespace      string
 	targetOverride string
 	client         clientset.Interface
 	lister         listersv1alpha1.AgentLister
@@ -58,7 +57,7 @@ type resolver struct {
 	runWatchers    map[chan workflowRunWatchEvent]struct{}
 }
 
-func newResolver(ctx context.Context, namespace, targetOverride string) (*resolver, error) {
+func newResolver(ctx context.Context, targetOverride string) (*resolver, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("load kube config: %w", err)
@@ -69,15 +68,7 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 		return nil, fmt.Errorf("create agent clientset: %w", err)
 	}
 
-	if namespace == "" {
-		namespace = DefaultNamespace
-	}
-
-	factory := informers.NewSharedInformerFactoryWithOptions(
-		cs,
-		30*time.Second,
-		informers.WithNamespace(namespace),
-	)
+	factory := informers.NewSharedInformerFactoryWithOptions(cs, 30*time.Second)
 	agentInformer := factory.Clawarmor().V1alpha1().Agents()
 	workflowRunInformer := factory.Clawarmor().V1alpha1().WorkflowRuns()
 	informer := agentInformer.Informer()
@@ -85,7 +76,6 @@ func newResolver(ctx context.Context, namespace, targetOverride string) (*resolv
 	lister := agentInformer.Lister()
 
 	r := &resolver{
-		namespace:      namespace,
 		targetOverride: strings.TrimSpace(targetOverride),
 		client:         cs,
 		lister:         lister,
@@ -219,13 +209,17 @@ func (r *resolver) broadcastWorkflowRunEvent(typ workflowRunWatchEventType, run 
 	}
 }
 
-func (r *resolver) resolveAgent(_ context.Context, agentName string) (*resolvedAgent, error) {
+func (r *resolver) resolveAgent(_ context.Context, namespace, agentName string) (*resolvedAgent, error) {
 	agentName = strings.TrimSpace(agentName)
 	if agentName == "" {
 		return nil, fmt.Errorf("agent name is required")
 	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		return nil, fmt.Errorf("agent namespace is required")
+	}
 
-	agt, err := r.lister.Agents(r.namespace).Get(agentName)
+	agt, err := r.lister.Agents(namespace).Get(agentName)
 	if err != nil {
 		return nil, errAgentNotFound
 	}

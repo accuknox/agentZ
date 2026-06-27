@@ -11,17 +11,21 @@ import {
   type OAuthClientMetadata,
   type OAuthClientProvider,
   type OAuthTokens,
+  type FetchLike,
   resourceUrlFromServerUrl,
 } from "@modelcontextprotocol/client"
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
+import { lookup } from "node:dns/promises"
+import ipaddr from "ipaddr.js"
 import * as z from "zod"
 import type { JsonObject, McpConnectionAuth } from "@/lib/gateway/client"
+import { getEnv } from "@/lib/env"
 import {
   defaultMcpAuthLocation,
   oauthCredentialsFromTokens,
   type ParsedMcpForm,
 } from "@/data/mcp.schema"
-import { webBaseURL } from "@/lib/gateway/base-url"
+import { serverWebBaseURL } from "@/lib/gateway/server-base-url"
 import {
   oauthBroadcastChannelName,
   oauthErrorFieldNames,
@@ -37,29 +41,50 @@ type PendingCreateOperation = {
 }
 
 export type PendingOAuthOperation = PendingCreateOperation
+export type PendingOAuthInitiator = {
+  organizationId: string
+  sessionId: string
+  userId: string
+}
+
+const httpsURLSchema = z.url().superRefine((value, ctx) => {
+  const url = new URL(value)
+  if (url.protocol !== "https:") {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL must use HTTPS",
+    })
+  }
+  if (url.username || url.password) {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL must not include credentials",
+    })
+  }
+})
 
 const storedOAuthProtectedResourceMetadataSchema = z
   .object({
-    resource: z.string().url(),
-    authorization_servers: z.array(z.string().url()).optional(),
+    resource: httpsURLSchema,
+    authorization_servers: z.array(httpsURLSchema).optional(),
     scopes_supported: z.array(z.string().min(1)).optional(),
   })
   .passthrough()
 
 const storedAuthorizationServerMetadataSchema = z
   .object({
-    issuer: z.string().min(1),
-    authorization_endpoint: z.string().url(),
-    token_endpoint: z.string().url(),
-    registration_endpoint: z.string().url().optional(),
+    issuer: httpsURLSchema,
+    authorization_endpoint: httpsURLSchema,
+    token_endpoint: httpsURLSchema,
+    registration_endpoint: httpsURLSchema.optional(),
     scopes_supported: z.array(z.string().min(1)).optional(),
     response_types_supported: z.array(z.string().min(1)),
     response_modes_supported: z.array(z.string().min(1)).optional(),
     grant_types_supported: z.array(z.string().min(1)).optional(),
     token_endpoint_auth_methods_supported: z.array(z.string().min(1)).optional(),
     token_endpoint_auth_signing_alg_values_supported: z.array(z.string().min(1)).optional(),
-    service_documentation: z.string().url().optional(),
-    revocation_endpoint: z.string().url().optional(),
+    service_documentation: httpsURLSchema.optional(),
+    revocation_endpoint: httpsURLSchema.optional(),
     revocation_endpoint_auth_methods_supported: z.array(z.string().min(1)).optional(),
     revocation_endpoint_auth_signing_alg_values_supported: z.array(z.string().min(1)).optional(),
     introspection_endpoint: z.string().optional(),
@@ -73,7 +98,7 @@ const storedAuthorizationServerMetadataSchema = z
 const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
   name: z.string().min(1),
   endpoint: z.object({
-    url: z.string().url(),
+    url: httpsURLSchema,
     timeout: z.string().min(1).optional(),
     insecure_skip_verify: z.boolean(),
     headers: z.record(z.string(), z.string()),
@@ -91,11 +116,11 @@ const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
     })
     .optional(),
   oauth: z.object({
-    issuer: z.string().min(1).optional(),
-    authorizationEndpoint: z.string().url().optional(),
-    tokenEndpoint: z.string().url().optional(),
-    registrationEndpoint: z.string().url().optional(),
-    resource: z.string().min(1).optional(),
+    issuer: httpsURLSchema.optional(),
+    authorizationEndpoint: httpsURLSchema.optional(),
+    tokenEndpoint: httpsURLSchema.optional(),
+    registrationEndpoint: httpsURLSchema.optional(),
+    resource: httpsURLSchema.optional(),
     scopes: z.array(z.string().min(1)).optional(),
     location: z
       .object({
@@ -127,8 +152,8 @@ const oauthClientInformationMixedSchema = z
   .passthrough()
 
 const oauthDiscoveryStateSchema = z.object({
-  authorizationServerUrl: z.string().min(1),
-  resourceMetadataUrl: z.string().optional(),
+  authorizationServerUrl: httpsURLSchema,
+  resourceMetadataUrl: httpsURLSchema.optional(),
   resourceMetadata: storedOAuthProtectedResourceMetadataSchema.optional(),
   authorizationServerMetadata: storedAuthorizationServerMetadataSchema.optional(),
 })
@@ -136,9 +161,14 @@ const oauthDiscoveryStateSchema = z.object({
 const pendingOAuthStateSchema = z.object({
   version: z.literal(1),
   flowId: z.string().min(1),
+  initiator: z.object({
+    organizationId: z.string().min(1),
+    sessionId: z.string().min(1),
+    userId: z.string().min(1),
+  }),
   operation: pendingOAuthOperationSchema,
   state: z.string().min(1),
-  redirectURL: z.string().url().optional(),
+  redirectURL: z.url().optional(),
   codeVerifier: z.string().min(1),
   discoveryState: oauthDiscoveryStateSchema.optional(),
   clientInformation: oauthClientInformationMixedSchema,
@@ -147,6 +177,7 @@ const pendingOAuthStateSchema = z.object({
 export type PendingOAuthState = {
   version: 1
   flowId: string
+  initiator: PendingOAuthInitiator
   operation: PendingOAuthOperation
   state: string
   redirectURL?: string
@@ -156,14 +187,14 @@ export type PendingOAuthState = {
 }
 
 export type StoredOAuthDiscoveryState = z.infer<typeof oauthDiscoveryStateSchema>
-export type DiscoverOAuthAuthValue = NonNullable<McpConnectionAuth["oauth"]>
+type DiscoverOAuthAuthValue = NonNullable<McpConnectionAuth["oauth"]>
 export type OAuthDiscoveryValue = {
   oauth: DiscoverOAuthAuthValue
   defaultScopes?: string[]
   supportedScopes?: string[]
 }
 
-export type OAuthFlowErrorCode =
+type OAuthFlowErrorCode =
   | "cookie_too_large"
   | "callback_missing_state"
   | "callback_state_invalid"
@@ -174,7 +205,7 @@ export type OAuthFlowErrorCode =
   | "oauth_complete_failed"
   | "manual_client_credentials_required"
 
-export type OAuthFlowError = {
+type OAuthFlowError = {
   code: OAuthFlowErrorCode
   message: string
   field?: OAuthErrorFieldName
@@ -211,30 +242,111 @@ type RuntimeOAuthState = {
   discoveryState?: StoredOAuthDiscoveryState
 }
 
-const oauthCookieName = "clawarmor-mcp-oauth"
+export function parseStoredOAuthDiscoveryState(input: unknown): StoredOAuthDiscoveryState {
+  return oauthDiscoveryStateSchema.parse(input)
+}
+
+export const mcpOAuthCookieName = "clawarmor-mcp-oauth"
 const oauthCookieTTLSeconds = 15 * 60
 const googleAuthorizationHosts = new Set(["accounts.google.com"])
 const dropboxAuthorizationHosts = new Set(["www.dropbox.com", "dropbox.com"])
 
-function secretKeyMaterial() {
-  const secret = process.env.MCP_OAUTH_COOKIE_SECRET
-  if (secret) {
-    return createHash("sha256").update(secret).digest()
+// requirePublicOAuthURL keeps OAuth discovery, registration, and token exchange
+// from becoming authenticated SSRF primitives.
+export async function requirePublicOAuthURL(input: string | URL, label: string) {
+  const url = input instanceof URL ? input : new URL(input)
+  if (url.protocol !== "https:") {
+    throw new Error(`${label} must use HTTPS`)
+  }
+  if (url.username || url.password) {
+    throw new Error(`${label} must not include credentials`)
   }
 
-  throw new Error("MCP_OAUTH_COOKIE_SECRET is required for MCP OAuth flows")
+  const hostname = url.hostname
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "")
+    .toLowerCase()
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+    throw new Error(`${label} must resolve to a public address`)
+  }
+
+  try {
+    if (ipaddr.process(hostname).range() === "unicast") {
+      return url
+    }
+    throw new Error(`${label} must resolve to a public address`)
+  } catch (error) {
+    if (ipaddr.isValid(hostname)) {
+      throw error
+    }
+  }
+
+  let addresses: { address: string }[]
+  try {
+    addresses = await lookup(hostname, { all: true, verbatim: false })
+  } catch {
+    throw new Error(`${label} could not be resolved`)
+  }
+  if (addresses.length === 0) {
+    throw new Error(`${label} could not be resolved`)
+  }
+  for (const { address } of addresses) {
+    try {
+      if (ipaddr.process(address).range() === "unicast") {
+        continue
+      }
+    } catch {
+      throw new Error(`${label} must resolve to a public address`)
+    }
+    throw new Error(`${label} must resolve to a public address`)
+  }
+
+  return url
 }
 
-function base64url(input: Buffer | ArrayBuffer) {
-  return Buffer.from(input instanceof Buffer ? input : new Uint8Array(input)).toString("base64url")
+export const publicOAuthFetch: FetchLike = async (input, init) => {
+  const fetchInit: RequestInit = {
+    ...init,
+    cache: "no-store",
+    redirect: "error",
+  }
+
+  if (input instanceof Request) {
+    await requirePublicOAuthURL(input.url, "OAuth fetch URL")
+    return fetch(input, fetchInit)
+  }
+
+  await requirePublicOAuthURL(input, "OAuth fetch URL")
+  return fetch(input, fetchInit)
 }
 
-function bufferFromBase64url(value: string) {
-  return Buffer.from(value, "base64url")
+export async function requirePublicOAuthDiscoveryState(discoveryState: StoredOAuthDiscoveryState) {
+  const checks: [string | undefined, string][] = [
+    [discoveryState.authorizationServerUrl, "OAuth issuer URL"],
+    [discoveryState.resourceMetadataUrl, "OAuth resource metadata URL"],
+    [discoveryState.resourceMetadata?.resource, "OAuth resource URL"],
+    [discoveryState.authorizationServerMetadata?.issuer, "OAuth issuer URL"],
+    [discoveryState.authorizationServerMetadata?.authorization_endpoint, "OAuth authorization URL"],
+    [discoveryState.authorizationServerMetadata?.token_endpoint, "OAuth token URL"],
+    [discoveryState.authorizationServerMetadata?.registration_endpoint, "OAuth registration URL"],
+  ]
+  for (const authorizationServer of discoveryState.resourceMetadata?.authorization_servers ?? []) {
+    checks.push([authorizationServer, "OAuth issuer URL"])
+  }
+  for (const [value, label] of checks) {
+    if (!value) {
+      continue
+    }
+    await requirePublicOAuthURL(value, label)
+  }
+}
+
+function secretKeyMaterial() {
+  return createHash("sha256").update(getEnv().MCP_OAUTH_COOKIE_SECRET).digest()
 }
 
 function redirectURL() {
-  return new URL("/mcps/oauth/callback", webBaseURL())
+  return new URL("/mcps/oauth/callback", serverWebBaseURL())
 }
 
 function oauthClientMetadata(redirectURL: URL): OAuthClientMetadata {
@@ -373,29 +485,42 @@ async function effectiveDiscoveryState(input: {
     if (!authorizationServerUrl) {
       return undefined
     }
+    const publicAuthorizationServerURL = await requirePublicOAuthURL(
+      authorizationServerUrl,
+      "OAuth issuer URL"
+    )
 
     discoveryState = {
-      authorizationServerUrl,
-      authorizationServerMetadata:
-        await discoverAuthorizationServerMetadata(authorizationServerUrl),
+      authorizationServerUrl: publicAuthorizationServerURL.toString(),
+      authorizationServerMetadata: await discoverAuthorizationServerMetadata(
+        publicAuthorizationServerURL.toString(),
+        { fetchFn: publicOAuthFetch }
+      ),
       resourceMetadata: undefined,
       resourceMetadataUrl: undefined,
     }
   }
 
   if (!discoveryState.authorizationServerMetadata) {
+    const publicAuthorizationServerURL = await requirePublicOAuthURL(
+      discoveryState.authorizationServerUrl,
+      "OAuth issuer URL"
+    )
     discoveryState = {
       ...discoveryState,
       authorizationServerMetadata: await discoverAuthorizationServerMetadata(
-        discoveryState.authorizationServerUrl
+        publicAuthorizationServerURL.toString(),
+        { fetchFn: publicOAuthFetch }
       ),
     }
   }
 
-  return mergeDiscoveryStateWithForm({
+  const merged = mergeDiscoveryStateWithForm({
     form,
     discoveryState,
   })
+  await requirePublicOAuthDiscoveryState(merged)
+  return merged
 }
 
 function oauthProvider(input: {
@@ -447,11 +572,15 @@ function oauthProvider(input: {
       return input.runtime.discoveryState
     },
     async validateResourceURL(serverUrl, discoveredResource) {
-      return oauthResourceURL({
+      const resourceURL = oauthResourceURL({
         form: input.form,
         serverUrl,
         discoveredResource,
       })
+      if (resourceURL) {
+        await requirePublicOAuthURL(resourceURL, "OAuth resource URL")
+      }
+      return resourceURL
     },
   }
 
@@ -465,10 +594,6 @@ function oauthProvider(input: {
   return provider
 }
 
-export function mcpOAuthCookieName() {
-  return oauthCookieName
-}
-
 export async function sealPendingOAuthState(state: PendingOAuthState) {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -480,7 +605,7 @@ export async function sealPendingOAuthState(state: PendingOAuthState) {
   const iv = randomBytes(12)
   const plaintext = new TextEncoder().encode(JSON.stringify(state))
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext)
-  return `${base64url(iv)}.${base64url(ciphertext)}`
+  return `${iv.toString("base64url")}.${Buffer.from(ciphertext).toString("base64url")}`
 }
 
 export async function openPendingOAuthState(value: string) {
@@ -497,9 +622,9 @@ export async function openPendingOAuthState(value: string) {
     ["decrypt"]
   )
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: bufferFromBase64url(ivPart) },
+    { name: "AES-GCM", iv: Buffer.from(ivPart, "base64url") },
     key,
-    bufferFromBase64url(ciphertextPart)
+    Buffer.from(ciphertextPart, "base64url")
   )
   return pendingOAuthStateSchema.parse(JSON.parse(Buffer.from(decrypted).toString("utf8")))
 }
@@ -564,13 +689,42 @@ function registrationPayload(clientInformation: OAuthClientInformationMixed) {
   return parsed.data satisfies JsonObject
 }
 
+function scriptJSON(value: unknown) {
+  const json = JSON.stringify(value)
+  if (json === undefined) {
+    return "null"
+  }
+
+  return json.replace(/[<>&\u2028\u2029]/g, (char) => {
+    switch (char) {
+      case "<":
+        return "\\u003c"
+      case ">":
+        return "\\u003e"
+      case "&":
+        return "\\u0026"
+      case "\u2028":
+        return "\\u2028"
+      case "\u2029":
+        return "\\u2029"
+      default:
+        return char
+    }
+  })
+}
+
 export async function beginOAuthFlow(input: {
+  initiator: PendingOAuthInitiator
   operation: PendingOAuthOperation
 }): Promise<OAuthResult<BeginOAuthFlowValue>> {
   const state = randomBytes(24).toString("base64url")
   const flowId = randomBytes(18).toString("base64url")
   const oauthRedirectURL = redirectURL()
   try {
+    const serverURL = await requirePublicOAuthURL(
+      input.operation.form.endpoint.url,
+      "MCP server URL"
+    )
     const runtime: RuntimeOAuthState = {
       discoveryState: await effectiveDiscoveryState({
         form: input.operation.form,
@@ -578,7 +732,9 @@ export async function beginOAuthFlow(input: {
     }
     if (requiresManualClientInput(input.operation.form)) {
       if (!runtime.discoveryState) {
-        runtime.discoveryState = await discoverOAuthServerInfo(input.operation.form.endpoint.url)
+        runtime.discoveryState = await discoverOAuthServerInfo(serverURL.toString(), {
+          fetchFn: publicOAuthFetch,
+        })
       }
 
       runtime.discoveryState = await effectiveDiscoveryState({
@@ -600,8 +756,9 @@ export async function beginOAuthFlow(input: {
     })
 
     const result = await auth(provider, {
-      serverUrl: input.operation.form.endpoint.url,
+      serverUrl: serverURL.toString(),
       scope: input.operation.form.oauth.scopes?.join(" "),
+      fetchFn: publicOAuthFetch,
     })
     if (result !== "REDIRECT" || !runtime.authorizationUrl || !runtime.codeVerifier) {
       return {
@@ -628,6 +785,7 @@ export async function beginOAuthFlow(input: {
     const pending = {
       version: 1,
       flowId,
+      initiator: input.initiator,
       operation: input.operation,
       state,
       // Reuse the exact redirect URL on the callback exchange because the
@@ -733,6 +891,10 @@ export async function completeOAuthFlow(input: {
   }
 
   try {
+    const serverURL = await requirePublicOAuthURL(
+      input.pending.operation.form.endpoint.url,
+      "MCP server URL"
+    )
     const runtime: RuntimeOAuthState = {
       codeVerifier: input.pending.codeVerifier,
       clientInformation: input.pending.clientInformation,
@@ -749,9 +911,10 @@ export async function completeOAuthFlow(input: {
     })
 
     const result = await auth(provider, {
-      serverUrl: input.pending.operation.form.endpoint.url,
+      serverUrl: serverURL.toString(),
       authorizationCode: code,
       scope: input.pending.operation.form.oauth.scopes?.join(" "),
+      fetchFn: publicOAuthFetch,
     })
     if (result !== "AUTHORIZED" || !runtime.tokens || !runtime.discoveryState) {
       return {
@@ -806,9 +969,7 @@ export async function completeOAuthFlow(input: {
   }
 }
 
-export function discoveredOAuthAuth(
-  discoveryState: StoredOAuthDiscoveryState
-): DiscoverOAuthAuthValue {
+function discoveredOAuthAuth(discoveryState: StoredOAuthDiscoveryState): DiscoverOAuthAuthValue {
   return {
     issuer:
       discoveryState.authorizationServerMetadata?.issuer ?? discoveryState.authorizationServerUrl,
@@ -839,7 +1000,7 @@ export function discoveredOAuth(discoveryState: StoredOAuthDiscoveryState): OAut
   }
 }
 
-export function oauthAuthFromPending(
+function oauthAuthFromPending(
   discoveryState: StoredOAuthDiscoveryState,
   form: ParsedMcpForm
 ): McpConnectionAuth {
@@ -863,14 +1024,15 @@ export function oauthCallbackResultPage(input: {
   flowId: string
   message: string
 }) {
-  const payload = JSON.stringify({
+  const payload = scriptJSON({
     source: oauthWindowMessageSource,
     kind: "result",
     flowId: input.flowId,
     status: input.success ? "success" : "error",
     message: input.message,
   } satisfies OAuthPopupMessage)
-  const message = JSON.stringify(input.message)
+  const message = scriptJSON(input.message)
+  const channelName = scriptJSON(oauthBroadcastChannelName)
 
   return `<!doctype html>
 <html lang="en">
@@ -883,7 +1045,7 @@ export function oauthCallbackResultPage(input: {
     <script>
       const payload = ${payload};
       const message = ${message};
-      const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(${JSON.stringify(oauthBroadcastChannelName)}) : null;
+      const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(${channelName}) : null;
       if (channel) {
         const closeWhenAcknowledged = (event) => {
           const data = event.data;

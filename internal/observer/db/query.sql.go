@@ -13,6 +13,7 @@ import (
 const listFileEventsBetween = `-- name: ListFileEventsBetween :many
 SELECT
   id,
+  tenant_namespace,
   agent_name,
   event_time,
   ingested_at,
@@ -24,22 +25,25 @@ SELECT
   action,
   source
 FROM observer_file_events
-WHERE agent_name = $1
-  AND event_time >= $2::timestamptz
-  AND event_time <= $3::timestamptz
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3::timestamptz
+  AND event_time <= $4::timestamptz
 ORDER BY event_time ASC, id ASC
-LIMIT $4
+LIMIT $5
 `
 
 type ListFileEventsBetweenParams struct {
-	AgentName     string    `json:"agent_name"`
-	UpdatedAfter  time.Time `json:"updated_after"`
-	UpdatedBefore time.Time `json:"updated_before"`
-	PageSize      int32     `json:"page_size"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	UpdatedAfter    time.Time `json:"updated_after"`
+	UpdatedBefore   time.Time `json:"updated_before"`
+	PageSize        int32     `json:"page_size"`
 }
 
 func (q *Queries) ListFileEventsBetween(ctx context.Context, arg ListFileEventsBetweenParams) ([]ObserverFileEvent, error) {
 	rows, err := q.db.Query(ctx, listFileEventsBetween,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.UpdatedAfter,
 		arg.UpdatedBefore,
@@ -54,6 +58,7 @@ func (q *Queries) ListFileEventsBetween(ctx context.Context, arg ListFileEventsB
 		var i ObserverFileEvent
 		if err := rows.Scan(
 			&i.ID,
+			&i.TenantNamespace,
 			&i.AgentName,
 			&i.EventTime,
 			&i.IngestedAt,
@@ -78,6 +83,7 @@ func (q *Queries) ListFileEventsBetween(ctx context.Context, arg ListFileEventsB
 const listNetworkEventsBetween = `-- name: ListNetworkEventsBetween :many
 SELECT
   id,
+  tenant_namespace,
   agent_name,
   event_time,
   ingested_at,
@@ -90,22 +96,25 @@ SELECT
   action,
   source
 FROM observer_network_events
-WHERE agent_name = $1
-  AND event_time >= $2::timestamptz
-  AND event_time <= $3::timestamptz
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3::timestamptz
+  AND event_time <= $4::timestamptz
 ORDER BY event_time ASC, id ASC
-LIMIT $4
+LIMIT $5
 `
 
 type ListNetworkEventsBetweenParams struct {
-	AgentName     string    `json:"agent_name"`
-	UpdatedAfter  time.Time `json:"updated_after"`
-	UpdatedBefore time.Time `json:"updated_before"`
-	PageSize      int32     `json:"page_size"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	UpdatedAfter    time.Time `json:"updated_after"`
+	UpdatedBefore   time.Time `json:"updated_before"`
+	PageSize        int32     `json:"page_size"`
 }
 
 func (q *Queries) ListNetworkEventsBetween(ctx context.Context, arg ListNetworkEventsBetweenParams) ([]ObserverNetworkEvent, error) {
 	rows, err := q.db.Query(ctx, listNetworkEventsBetween,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.UpdatedAfter,
 		arg.UpdatedBefore,
@@ -120,6 +129,7 @@ func (q *Queries) ListNetworkEventsBetween(ctx context.Context, arg ListNetworkE
 		var i ObserverNetworkEvent
 		if err := rows.Scan(
 			&i.ID,
+			&i.TenantNamespace,
 			&i.AgentName,
 			&i.EventTime,
 			&i.IngestedAt,
@@ -145,6 +155,7 @@ func (q *Queries) ListNetworkEventsBetween(ctx context.Context, arg ListNetworkE
 const listProcessEventsBetween = `-- name: ListProcessEventsBetween :many
 SELECT
   id,
+  tenant_namespace,
   agent_name,
   event_time,
   ingested_at,
@@ -156,22 +167,25 @@ SELECT
   action,
   source
 FROM observer_process_events
-WHERE agent_name = $1
-  AND event_time >= $2::timestamptz
-  AND event_time <= $3::timestamptz
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND event_time >= $3::timestamptz
+  AND event_time <= $4::timestamptz
 ORDER BY event_time ASC, id ASC
-LIMIT $4
+LIMIT $5
 `
 
 type ListProcessEventsBetweenParams struct {
-	AgentName     string    `json:"agent_name"`
-	UpdatedAfter  time.Time `json:"updated_after"`
-	UpdatedBefore time.Time `json:"updated_before"`
-	PageSize      int32     `json:"page_size"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	UpdatedAfter    time.Time `json:"updated_after"`
+	UpdatedBefore   time.Time `json:"updated_before"`
+	PageSize        int32     `json:"page_size"`
 }
 
 func (q *Queries) ListProcessEventsBetween(ctx context.Context, arg ListProcessEventsBetweenParams) ([]ObserverProcessEvent, error) {
 	rows, err := q.db.Query(ctx, listProcessEventsBetween,
+		arg.TenantNamespace,
 		arg.AgentName,
 		arg.UpdatedAfter,
 		arg.UpdatedBefore,
@@ -186,6 +200,7 @@ func (q *Queries) ListProcessEventsBetween(ctx context.Context, arg ListProcessE
 		var i ObserverProcessEvent
 		if err := rows.Scan(
 			&i.ID,
+			&i.TenantNamespace,
 			&i.AgentName,
 			&i.EventTime,
 			&i.IngestedAt,

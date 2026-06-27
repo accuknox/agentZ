@@ -189,7 +189,7 @@ func observabilityFilters(w http.ResponseWriter, r *http.Request, after *gateway
 		return time.Time{}, time.Time{}, "", false
 	}
 
-	actionValue := ""
+	var actionValue string
 	if action != nil {
 		actionValue = string(*action)
 		if actionValue != "Allowed" && actionValue != "Blocked" {

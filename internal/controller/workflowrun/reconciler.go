@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"text/template"
 	"time"
@@ -35,6 +36,7 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/gwreq"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -64,9 +66,10 @@ type promptTemplateData struct {
 type Reconciler struct {
 	client.Client
 	GatewayClient *gatewayapi.ClientWithResponses
+	TokenPath     string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns/finalizers,verbs=update
 
@@ -180,6 +183,7 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *clawarmorv1alpha1.Wor
 			run.Spec.AgentName,
 			run.Status.SessionID,
 			nil,
+			gwreq.RequestEditor(r.TokenPath, run.Namespace),
 		)
 		if err != nil {
 			return fmt.Errorf("delete workflow session: %w", err)
@@ -340,6 +344,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 			Title:      &title,
 			Permission: &permission,
 		},
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
@@ -361,6 +366,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 		nil,
 		"application/json",
 		bytes.NewReader(prompt),
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return fmt.Errorf("send workflow prompt: %w", err)
@@ -388,12 +394,33 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 func (r *Reconciler) failRun(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
 	if abort && run.Status.SessionID != "" {
 		if r.GatewayClient != nil {
-			_, _ = r.GatewayClient.SessionAbortWithResponse(
+			resp, err := r.GatewayClient.SessionAbortWithResponse(
 				ctx,
 				run.Spec.AgentName,
 				run.Status.SessionID,
 				nil,
+				gwreq.RequestEditor(r.TokenPath, run.Namespace),
 			)
+			switch {
+			case err != nil:
+				slog.WarnContext(
+					ctx,
+					"abort workflow session",
+					slog.String("agent", run.Spec.AgentName),
+					slog.String("namespace", run.Namespace),
+					slog.String("sessionID", run.Status.SessionID),
+					slog.Any("err", err),
+				)
+			case resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound:
+				slog.WarnContext(
+					ctx,
+					"abort workflow session returned unexpected status",
+					slog.String("agent", run.Spec.AgentName),
+					slog.String("namespace", run.Namespace),
+					slog.String("sessionID", run.Status.SessionID),
+					slog.Int("status", resp.StatusCode()),
+				)
+			}
 		}
 	}
 
@@ -562,6 +589,7 @@ func (r *Reconciler) sessionIdle(ctx context.Context, run *clawarmorv1alpha1.Wor
 		ctx,
 		run.Spec.AgentName,
 		nil,
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return false, fmt.Errorf("get session status: %w", err)
@@ -604,6 +632,7 @@ func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *clawarmorv
 		&gatewayapi.SessionMessagesParams{
 			Limit: &limit,
 		},
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
 		return "", fmt.Errorf("list session messages: %w", err)

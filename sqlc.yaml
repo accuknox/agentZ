@@ -27,6 +27,7 @@ sql:
   schema:
   - internal/session/db/schema.sql
   - internal/observer/db/schema.sql
+  - internal/gateway/db/schema.sql
   gen:
     go:
       package: gatewaydb

@@ -178,7 +178,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	podAnnotations := make(map[string]string, len(agt.Annotations)+2)
 	maps.Copy(podAnnotations, agt.Annotations)
 	podAnnotations["clawarmor.accuknox.com/config-hash"] = hash
-	podAnnotations["kubearmor-visibility"] = "process,file"
+	podAnnotations["kubearmor-visibility"] = "process"
 
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
@@ -258,9 +258,29 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 		MountPath: sinjectorCAMountPath,
 		ReadOnly:  true,
 	})
+	volumes = append(volumes, corev1.Volume{
+		Name: gatewayTokenVolume,
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{{
+					ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+						Path:              "token",
+						Audience:          r.Config.GatewayTokenAudience,
+						ExpirationSeconds: new(int64(3600)),
+					},
+				}},
+			},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      gatewayTokenVolume,
+		MountPath: gatewayTokenMountPath,
+		ReadOnly:  true,
+	})
 
 	if len(packages) > 0 {
-		volumes = append(volumes,
+		volumes = append(
+			volumes,
 			corev1.Volume{
 				Name: nixLinkVolume,
 				VolumeSource: corev1.VolumeSource{
@@ -322,7 +342,8 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 			},
 		})
 
-		volumeMounts = append(volumeMounts,
+		volumeMounts = append(
+			volumeMounts,
 			corev1.VolumeMount{
 				Name:      nixAgentVolume,
 				MountPath: nixAgentMount,
@@ -431,7 +452,8 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		})
 	}
 	noProxyValue := strings.Join(noProxy, ",")
-	forced = append(forced,
+	forced = append(
+		forced,
 		corev1.EnvVar{Name: "https_proxy", Value: proxy},
 		corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
 		corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
@@ -445,18 +467,26 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	if telemetryEndpoint != "" {
 		telemetryURL = "http://" + telemetryEndpoint
 	}
-	forced = append(forced,
+	resourceAttributes := "clawarmor.agent_name=" + agt.Name + ",clawarmor.tenant_namespace=" + agt.Namespace
+	forced = append(
+		forced,
 		corev1.EnvVar{
 			Name:  "OPENCODE_ENABLE_TELEMETRY",
 			Value: strconv.FormatBool(agt.Spec.Telemetry.Enabled),
 		},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
+		corev1.EnvVar{Name: "CLAWARMOR_AGENT_NAME", Value: agt.Name},
 		corev1.EnvVar{
 			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
-			Value: "clawarmor.agent_name=" + agt.Name,
+			Value: resourceAttributes,
+		},
+		corev1.EnvVar{
+			Name:  "OTEL_RESOURCE_ATTRIBUTES",
+			Value: resourceAttributes,
 		},
 		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_URL", Value: r.Config.GatewayURL},
+		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
 	)
 
 	forcedNames := make(map[string]struct{}, len(forced))
@@ -474,7 +504,8 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	}
 
 	if len(packages) > 0 {
-		env = append(env,
+		env = append(
+			env,
 			corev1.EnvVar{
 				Name:  "NIX_PROFILES",
 				Value: nixLinkMount + "/profile",

@@ -1,75 +1,86 @@
-# Setting SHELL to bash allows bash commands to be executed by recipes.
-# Options are set to exit when a recipe line exits non-zero or a piped command fails.
-SHELL = /usr/bin/env bash -o pipefail
-.SHELLFLAGS = -ec
+SHELL := bash
+.SHELLFLAGS := -euo pipefail -c
 
-# Image URL to render into Kubernetes manifests.
 IMAGE ?= murtazau/clawarmor:latest
 AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
+BETTER_AUTH_URL ?= http://localhost:3000
+GATEWAY_JWT_AUDIENCE ?= clawarmor-gateway
+K8S_NAMESPACE ?= default
+OPENBAO_TOKEN_PATH ?= /tmp/sa-token
+IGNORE_NOT_FOUND ?= false
+
+KUBECTL ?= kubectl
+KUSTOMIZE ?= kustomize
+CONTROLLER_GEN ?= controller-gen
+
+GO_PKGS := ./cmd/... ./hack ./internal/... ./pkg/...
 
 .PHONY: all
 all: generate lint build
 
-# Generate sql stubs, code containing DeepCopy, DeepCopyInto, and DeepCopyObject
-# method implementations and WebhookConfiguration, ClusterRole and
-# CustomResourceDefinition objects.
 .PHONY: generate
 generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
-	oapi-codegen --include-tags agents,lens,secrets,environments,mcp-connections,workflows,workflow-schedules,session -config oapi-codegen.gateway.yaml openapi/gateway.yaml
-	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
-	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
+	oapi-codegen \
+		--include-tags agents,tenants,lens,secrets,environments,mcp-connections,workflows,workflow-schedules,session \
+		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
+	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./pkg/apis/...;./internal/controller/...;./internal/webhook/..." \
 		output:rbac:artifacts:config=deploy/kustomize/rbac \
 		output:webhook:artifacts:config=deploy/kustomize/webhook \
 		output:crd:artifacts:config=deploy/kustomize/crd/bases
 
-# Run go fmt against code.
 .PHONY: fmt
 fmt:
-	go fmt ./...
+	go fmt $(GO_PKGS)
 	yamlfmt .
 
-# Run tests.
 .PHONY: test
-test: $(LOCALBIN)
-	KUBEBUILDER_ASSETS="$$( "$(ENVTEST)" use "$(ENVTEST_K8S_VERSION)" --bin-dir "$(abspath $(LOCALBIN))" -p path )" go test -tags="controller webhook" $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+test:
+	mkdir -p bin
+	version="$(ENVTEST_K8S_VERSION)"; \
+	if [ -z "$$version" ]; then \
+		version="$$(go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' k8s.io/api | sed -E 's/^v?[0-9]+\.([0-9]+).*/1.\1/')"; \
+	fi; \
+	KUBEBUILDER_ASSETS="$$(setup-envtest use "$$version" --bin-dir "$(CURDIR)/bin" -p path)" \
+		go test -tags="controller webhook" $(GO_PKGS) -coverprofile cover.out
 
-# Run golangci-lint linter
 .PHONY: lint
 lint:
-	go vet ./...
-	"$(GOLANGCI_LINT)" run
+	go vet $(GO_PKGS)
+	golangci-lint run $(GO_PKGS)
 	yamllint .
 
-# Build clawarmor binary.
 .PHONY: build
 build:
-	go build ./...
+	go build $(GO_PKGS)
 
-# Run agent gateway
 .PHONY: run-gateway
 run-gateway:
-	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
 	go run ./cmd/clawarmor gateway serve \
 		--addr 0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
+		--external-jwt-jwks-url=$(BETTER_AUTH_URL)/api/auth/.well-known/jwks.json \
+		--external-jwt-issuer=$(BETTER_AUTH_URL) \
+		--external-jwt-audience=$(GATEWAY_JWT_AUDIENCE) \
+		--internal-k8s-token-audience=$(GATEWAY_JWT_AUDIENCE) \
 		--agent-image=$(AGENT_IMAGE) \
 		--agent-trace-endpoint=172.18.0.1:4317 \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
 		--openbao-k8s-auth-role=gateway \
-		--openbao-k8s-auth-token-path=/tmp/sa-token
+		--openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH)
 
-# Run agent controller manager
 .PHONY: run-manager
 run-manager:
-	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
+	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --audience=$(GATEWAY_JWT_AUDIENCE) --duration=24h > /tmp/gateway-sa-token
 	go run ./cmd/clawarmor manager \
 		--health-probe-bind-address=:8888 \
-		--watch-namespace=default \
 		--enable-webhooks=false \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
@@ -77,99 +88,68 @@ run-manager:
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
 		--manager-openbao-k8s-auth-role=manager \
-		--manager-openbao-k8s-auth-token-path=/tmp/sa-token \
+		--manager-openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH) \
+		--manager-gateway-token-path=/tmp/gateway-sa-token \
+		--manager-service-account-name=default \
+		--manager-service-account-namespace=$(K8S_NAMESPACE) \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=nix-store \
+		--tenant-nix-store-size=5Gi \
+		--tenant-nix-store-access-mode=ReadWriteOnce \
+		--tenant-sinjector-clusterissuer-name=selfsigned \
 		--gateway-url=http://172.18.0.1:8090
 
-# Run observer
 .PHONY: run-observer
 run-observer:
 	go run ./cmd/clawarmor observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
 
-# Run MCP ext-auth service
 .PHONY: run-extauth
 run-extauth:
-	kubectl -n default create token default --duration=24h > /tmp/sa-token
+	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
 	go run ./cmd/clawarmor extauth serve \
 		--addr 0.0.0.0:18081 \
-		--namespace=default \
+		--namespace=$(K8S_NAMESPACE) \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
 		--openbao-k8s-auth-role=extauth \
-		--openbao-k8s-auth-token-path=/tmp/sa-token
+		--openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH)
 
-# Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer
 build-installer: generate
 	mkdir -p dist
 	tmp="$$(mktemp -d)"; \
-	out="$(abspath dist/install.yaml)"; \
 	trap 'rm -rf "$$tmp"' EXIT; \
 	cp -R deploy "$$tmp/deploy"; \
-	cd "$$tmp/deploy/kustomize/manager" && "$(KUSTOMIZE)" edit set image controller=${IMAGE}; \
-	"$(KUSTOMIZE)" build "$$tmp/deploy/kustomize/default" > "$$out"
+	cd "$$tmp/deploy/kustomize/manager"; \
+	$(KUSTOMIZE) edit set image controller=$(IMAGE); \
+	$(KUSTOMIZE) build "$$tmp/deploy/kustomize/default" > "$(CURDIR)/dist/install.yaml"
 
-ifndef ignore-not-found
-  ignore-not-found = false
-endif
-
-# Install CRDs into the K8s cluster specified in ~/.kube/config.
 .PHONY: install
 install: generate
-	@out="$$( "$(KUSTOMIZE)" build deploy/kustomize/crd 2>/dev/null || true )"; \
-	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" apply -f -; else echo "No CRDs to install; skipping."; fi
+	$(KUSTOMIZE) build deploy/kustomize/crd | $(KUBECTL) apply -f -
 
-# Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with
-# ignore-not-found=true to ignore resource not found errors during deletion.
 .PHONY: uninstall
-uninstall: generate
-	@out="$$( "$(KUSTOMIZE)" build deploy/kustomize/crd 2>/dev/null || true )"; \
-	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" delete --ignore-not-found=$(ignore-not-found) -f -; else echo "No CRDs to delete; skipping."; fi
+uninstall:
+	$(KUSTOMIZE) build deploy/kustomize/crd | $(KUBECTL) delete --ignore-not-found=$(IGNORE_NOT_FOUND) -f -
 
-# Deploy controller to the K8s cluster specified in ~/.kube/config.
 .PHONY: deploy
 deploy: generate
-	cd deploy/kustomize/manager && "$(KUSTOMIZE)" edit set image controller=${IMAGE}
-	"$(KUSTOMIZE)" build deploy/kustomize/default | "$(KUBECTL)" apply -f -
+	tmp="$$(mktemp -d)"; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	cp -R deploy "$$tmp/deploy"; \
+	cd "$$tmp/deploy/kustomize/manager"; \
+	$(KUSTOMIZE) edit set image controller=$(IMAGE); \
+	$(KUSTOMIZE) build "$$tmp/deploy/kustomize/default" | $(KUBECTL) apply -f -
 
-# Undeploy controller from the K8s cluster specified in ~/.kube/config. Call
-# with ignore-not-found=true to ignore resource not found errors during
-# deletion.
 .PHONY: undeploy
 undeploy:
-	"$(KUSTOMIZE)" build deploy/kustomize/default | "$(KUBECTL)" delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build deploy/kustomize/default | $(KUBECTL) delete --ignore-not-found=$(IGNORE_NOT_FOUND) -f -
 
-# Location to install dependencies to
-LOCALBIN ?= $(shell pwd)/bin
-$(LOCALBIN):
-	mkdir -p "$(LOCALBIN)"
-
-# Tool Binaries
-KUBECTL ?= kubectl
-KUSTOMIZE ?= kustomize
-CONTROLLER_GEN ?= controller-gen
-ENVTEST ?= setup-envtest
-GOLANGCI_LINT ?= golangci-lint
-
-# Version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
-ENVTEST_K8S_VERSION ?= $(shell v='$(call gomodver,k8s.io/api)'; \
-  [ -n "$$v" ] || { echo "Set ENVTEST_K8S_VERSION manually (k8s.io/api replace has no tag)" >&2; exit 1; }; \
-  printf '%s\n' "$$v" | sed -E 's/^v?[0-9]+\.([0-9]+).*/1.\1/')
-
-define gomodver
-$(shell go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' $(1) 2>/dev/null)
-endef
-
-# generates clientset, informers and listers
-CODEGEN_PKG = _output/tmp/code-generator
-CODEGEN_PKG_VERSION ?= v0.35.3
 .PHONY: codegen
 codegen:
-	@rm -rf $(CODEGEN_PKG)
-	@echo "[~] Installing kube-codegen..."
-	@git clone https://github.com/kubernetes/code-generator --branch $(CODEGEN_PKG_VERSION) --single-branch $(CODEGEN_PKG)
-	@echo "[~] Generating clientset, informers & listers..."
-	@mkdir -p pkg/controller/clientset pkg/controller/listers pkg/controller/informers
-	CODEGEN_PKG=$(CODEGEN_PKG) hack/update-codegen.sh
-	@rm -rf _output/
+	tmp="$$(mktemp -d)"; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	git clone --depth 1 \
+		--branch "$$(go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' k8s.io/client-go)" \
+		https://github.com/kubernetes/code-generator "$$tmp/code-generator"; \
+	CODEGEN_PKG="$$tmp/code-generator" hack/update-codegen.sh

@@ -1,7 +1,7 @@
 import type { Plugin, PluginInput } from "@opencode-ai/plugin"
 
 import { listWorkflowSummaries, type WorkflowSummary } from "../lib/gateway"
-import { agentNameFromResourceAttributes } from "../lib/workflow"
+import { workflowAgentName } from "../lib/workflow"
 
 const descriptionLimit = 240
 
@@ -18,14 +18,14 @@ type WorkflowGateway = (input: { agentName: string }) => Promise<WorkflowSummary
 
 type WorkflowContextDeps = {
   listSummaries: WorkflowGateway
-  resourceAttributes: string | undefined
+  agentName: string
 }
 
 function createWorkflowContextPlugin(
   _input: PluginInput,
   deps: WorkflowContextDeps
 ): ReturnType<Plugin> {
-  const agentName = agentNameFromResourceAttributes(deps.resourceAttributes)
+  const agentName = deps.agentName
   const snapshots = new Map<string, WorkflowContextSnapshot>()
   const inflight = new Map<string, Promise<WorkflowContextSnapshot>>()
 
@@ -138,7 +138,7 @@ export default (async (input) =>
 
       return result.data
     },
-    resourceAttributes: process.env.OPENCODE_RESOURCE_ATTRIBUTES,
+    agentName: workflowAgentName(),
   })) satisfies Plugin
 
 function createdSessionID(event: { type: string; properties: unknown }) {

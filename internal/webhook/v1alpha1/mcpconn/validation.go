@@ -174,6 +174,13 @@ func validateEndpoint(endpoint clawarmorv1alpha1.MCPConnectionEndpoint, path *fi
 			"must include a host",
 		))
 	}
+	if parsed.User != nil {
+		fields = append(fields, field.Invalid(
+			path.Child("url"),
+			endpoint.URL,
+			"must not include credentials",
+		))
+	}
 
 	for name, value := range endpoint.Headers {
 		canonicalName := textproto.CanonicalMIMEHeaderKey(strings.TrimSpace(name))
@@ -395,6 +402,13 @@ func validateOptionalHTTPSURL(raw string, path *field.Path) field.ErrorList {
 			"must include a host",
 		))
 	}
+	if parsed.User != nil {
+		fields = append(fields, field.Invalid(
+			path,
+			raw,
+			"must not include credentials",
+		))
+	}
 
 	return fields
 }
@@ -405,7 +419,7 @@ func validateAuthHeaderConflicts(headers map[string]string, auth *clawarmorv1alp
 		return fields
 	}
 
-	headerName := ""
+	var headerName string
 	switch {
 	case auth.Bearer != nil && auth.Bearer.Location != nil && auth.Bearer.Location.Header != nil:
 		headerName = auth.Bearer.Location.Header.Name

@@ -53,6 +53,10 @@ spec:
             - --sinjector-openbao-k8s-auth-token-path={{ .Values.config.sinjectorOpenBaoK8sAuthTokenPath }}
             - --manager-openbao-k8s-auth-role={{ .Values.config.managerOpenBaoK8sAuthRole }}
             - --manager-openbao-k8s-auth-token-path={{ .Values.config.managerOpenBaoK8sAuthTokenPath }}
+            - --manager-gateway-token-path={{ .Values.config.managerGatewayTokenPath }}
+            - --manager-gateway-token-audience={{ .Values.config.managerGatewayTokenAudience }}
+            - --manager-service-account-name={{ include "manager.serviceAccountName" . }}
+            - --manager-service-account-namespace={{ .Release.Namespace }}
             - --sinjector-ca-secret-name={{ .Values.config.sinjectorCASecretName }}
             - --sinjector-ca-secret-cert-key={{ .Values.config.sinjectorCASecretCertKey }}
             - --sinjector-ca-secret-key-key={{ .Values.config.sinjectorCASecretKeyKey }}
@@ -60,6 +64,11 @@ spec:
             - --sinjector-ca-cert-path={{ .Values.config.sinjectorCACertPath }}
             - --sinjector-ca-key-path={{ .Values.config.sinjectorCAKeyPath }}
             - --agent-ca-bundle-path={{ .Values.config.agentCABundlePath }}
+            - --tenant-nix-store-size={{ .Values.config.tenantNixStoreSize }}
+            {{- range .Values.config.tenantNixStoreAccessModes }}
+            - --tenant-nix-store-access-mode={{ . }}
+            {{- end }}
+            - --tenant-sinjector-clusterissuer-name={{ .Values.config.tenantSinjectorClusterIssuerName }}
             {{- if .Values.config.leaderElect }}
             - --leader-elect
             {{- end }}
@@ -77,6 +86,9 @@ spec:
             {{- end }}
             {{- if .Values.config.nixStorePVC }}
             - --nix-store-pvc={{ .Values.config.nixStorePVC }}
+            {{- end }}
+            {{- if .Values.config.tenantNixStoreStorageClass }}
+            - --tenant-nix-store-storage-class={{ .Values.config.tenantNixStoreStorageClass }}
             {{- end }}
             {{- if .Values.config.watchNamespace }}
             - --watch-namespace={{ .Values.config.watchNamespace }}
@@ -110,14 +122,24 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.config.enableWebhooks }}
           volumeMounts:
+            - mountPath: /var/run/secrets/clawarmor/gateway
+              name: gateway-token
+              readOnly: true
+          {{- if .Values.config.enableWebhooks }}
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: webhook-certs
               readOnly: true
           {{- end }}
-      {{- if .Values.config.enableWebhooks }}
       volumes:
+        - name: gateway-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: {{ .Values.config.managerGatewayTokenAudience }}
+                  expirationSeconds: 3600
+      {{- if .Values.config.enableWebhooks }}
         - name: webhook-certs
           secret:
             secretName: {{ .Values.certManager.webhookSecretName }}

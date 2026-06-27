@@ -2,6 +2,9 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,13 +12,17 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 const (
+	openCodeAPIKeyConfigID      = "opencode"
 	opencodePrefix              = "/api/opencode"
 	opencodeProxyBodyLimitBytes = 16 * 1024 * 1024
 )
@@ -39,12 +46,22 @@ type opencodeSessionDeleteTarget struct {
 	sessionID string
 }
 
+type openCodePermissions struct {
+	Opencode []string `json:"opencode"`
+}
+
 type sessionTraceStore interface {
 	GatewayDeleteSessionTraces(ctx context.Context, arg gatewaydb.GatewayDeleteSessionTracesParams) (int64, error)
 }
 
 // handleOpenCodeProxy resolves and proxies supported OpenCode requests.
 func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, chi.URLParam(r, "agentName"), "agentName")
 	if !ok {
 		return
@@ -70,7 +87,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	resolved, err := s.resolver.resolveAgent(r.Context(), agentName)
+	resolved, err := s.resolver.resolveAgent(r.Context(), ns, agentName)
 	if err != nil {
 		writeError(w, r, newAPIError(
 			http.StatusNotFound,
@@ -118,6 +135,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			preq.Out.Host = target.Host
 			preq.Out.URL.Path = path
 			preq.Out.URL.RawPath = rawPath
+			// the gateway terminates client auth. Upstream agent pods must
+			// never receive caller credentials they do not verify.
+			preq.Out.Header.Del("Authorization")
+			preq.Out.Header.Del("Proxy-Authorization")
 			preq.SetXForwarded()
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 		},
@@ -214,9 +235,15 @@ func matchOpencodeSessionDelete(route *opencodeRoute, path string, agentName str
 // deleteSessionTraces removes observer traces linked to one session. Cascading
 // foreign keys delete the dependent session summaries and span records.
 func deleteSessionTraces(ctx context.Context, store sessionTraceStore, target opencodeSessionDeleteTarget) error {
-	_, err := store.GatewayDeleteSessionTraces(ctx, gatewaydb.GatewayDeleteSessionTracesParams{
-		AgentName: target.agentName,
-		SessionID: target.sessionID,
+	tenantNamespace, err := tenantNamespace(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve tenant namespace: %w", err)
+	}
+
+	_, err = store.GatewayDeleteSessionTraces(ctx, gatewaydb.GatewayDeleteSessionTracesParams{
+		TenantNamespace: tenantNamespace,
+		AgentName:       target.agentName,
+		SessionID:       target.sessionID,
 	})
 	if err != nil {
 		return fmt.Errorf("delete session traces: %w", err)
@@ -282,6 +309,130 @@ func openCodeUpstreamPath(u *url.URL, agentName string) (string, string, error) 
 	}
 
 	return out, rawPath, nil
+}
+
+// resolveOpenCodeAPIKeyAuth validates a Basic auth password against Better
+// Auth API key rows and maps the owning organization to one tenant.
+func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error) {
+	username, password, ok := r.BasicAuth()
+	if !ok {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			errBadRequest,
+		)
+	}
+	if username != "opencode" || strings.TrimSpace(password) == "" {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			errBadRequest,
+		)
+	}
+
+	key, err := s.queries.GatewayGetOpenCodeAPIKeyByHash(
+		r.Context(),
+		gatewaydb.GatewayGetOpenCodeAPIKeyByHashParams{
+			Key:      hashAPIKey(password),
+			ConfigID: openCodeAPIKeyConfigID,
+			NowAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		},
+	)
+	if err != nil {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			err,
+		)
+	}
+
+	var perms openCodePermissions
+	if !key.Permissions.Valid {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			errBadRequest,
+		)
+	}
+	if err := json.Unmarshal([]byte(key.Permissions.String), &perms); err != nil {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			err,
+		)
+	}
+
+	agentName := strings.TrimSpace(agentNameFromOpenCodePath(r.URL.Path))
+	if agentName == "" {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			errBadRequest,
+		)
+	}
+	if !allowOpenCodeAgent(perms.Opencode, agentName) {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			fmt.Errorf(
+				"api key %q is not authorized for agent %q",
+				key.ID,
+				agentName,
+			),
+		)
+	}
+
+	tenantName := clawarmorv1alpha1.TenantName(strings.TrimSpace(key.ReferenceID))
+	if tenantName == "" {
+		return requestAuth{}, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			errBadRequest,
+		)
+	}
+
+	return requestAuth{tenantName: tenantName}, nil
+}
+
+func agentNameFromOpenCodePath(path string) string {
+	if !strings.HasPrefix(path, opencodePrefix+"/") {
+		return ""
+	}
+
+	rest := strings.TrimPrefix(path, opencodePrefix+"/")
+	segment, _, _ := strings.Cut(rest, "/")
+	return segment
+}
+
+func allowOpenCodeAgent(scopes []string, agentName string) bool {
+	if len(scopes) == 0 {
+		return false
+	}
+
+	allowed := "agent:" + agentName
+	for _, scope := range scopes {
+		switch scope {
+		case "all":
+			return true
+		case allowed:
+			return true
+		}
+	}
+
+	return false
+}
+
+func hashAPIKey(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 func pathSegments(path string) []string {

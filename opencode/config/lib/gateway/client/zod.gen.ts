@@ -26,6 +26,24 @@ export const zOptionalSpanId = z
   .max(16)
   .regex(/^([0-9a-f]{16})?$/)
 
+export const zTenantPhase = z.enum(["BOOTSTRAPPING", "READY", "FAILED"])
+
+export const zTenantCondition = z.object({
+  type: z.string(),
+  status: z.enum(["True", "False", "Unknown"]),
+  reason: z.string(),
+  message: z.string(),
+})
+
+export const zTenant = z.object({
+  tenant_id: z.string(),
+  user_id: z.string(),
+  namespace: z.string(),
+  ready: z.boolean(),
+  phase: zTenantPhase,
+  conditions: z.array(zTenantCondition),
+})
+
 export const zObservabilityAction = z.enum(["Allowed", "Blocked"])
 
 export const zAgentName = z
@@ -964,6 +982,16 @@ export const zFromDateQuery = z.iso.date()
  * Inclusive upper bound for MCP tool activity date.
  */
 export const zToDateQuery = z.iso.date()
+
+/**
+ * Tenant bootstrap state.
+ */
+export const zGetTenantResponse = zTenant
+
+/**
+ * Tenant exists and current bootstrap state is returned.
+ */
+export const zEnsureTenantResponse = zTenant
 
 export const zListAgentsQuery = z.object({
   agent_name: z.array(zAgentName).optional(),

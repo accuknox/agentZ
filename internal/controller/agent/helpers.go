@@ -31,42 +31,51 @@ import (
 )
 
 const (
-	opencodeConfigKey            = "opencode.json"
-	opencodeInstructionKey       = "instruction.md"
-	configVolume                 = "config"
-	opencodeConfigDir            = "/etc/clawarmor/opencode"
-	opencodeInstructionPath      = "/etc/clawarmor/opencode/instruction.md"
-	createWorkflowToolName       = "create_workflow"
-	getWorkflowToolName          = "get_workflow"
-	listWorkflowsToolName        = "list_workflows"
-	deleteWorkflowsToolName      = "delete_workflows"
-	setWorkflowRunStatusToolName = "set_workflowrun_status"
-	nixAgentVolume               = "nix-agent"
-	nixRuntimeStoreVolume        = "nix-runtime-store"
-	nixAgentMount                = "/mnt/nix"
-	nixRuntimeStoreMount         = "/nix/store"
-	nixRuntimeStageMount         = "/runtime-nix-store"
-	nixHomeSubPath               = "home"
-	nixStoreSubPath              = "nix"
-	nixVolumeRootMount           = "/pvc"
-	nixLinkVolume                = "nix-link"
-	nixLinkMount                 = "/tmp/nix-link"
-	nixLinkStage                 = "/tmp/nix-link"
-	nixInitImage                 = "murtazau/clawarmor-init:latest"
-	homeInitName                 = "home-init"
-	agentRuntimeUID              = int64(1000)
-	agentRuntimeGID              = int64(1000)
-	nixPkgEnv                    = "NIX_PACKAGES"
-	packageJobNameSuffix         = "-packages"
-	packageJobHashAnnotation     = "clawarmor.accuknox.com/package-job-hash"
-	packageJobRootVolume         = "nix-agent-root"
-	packageJobSharedVolume       = "nix-shared"
-	sinjectorNameSuffix          = "-sinjector"
-	sinjectorCAVolume            = "sinjector-ca"
-	sinjectorCAMountPath         = "/etc/clawarmor/sinjector-ca"
-	sinjectorFinalizer           = "clawarmor.accuknox.com/sinjector"
-	egressPolicySuffix           = "-egress"
-	opencodeConfigSchema         = "https://opencode.ai/config.json"
+	opencodeConfigKey              = "opencode.json"
+	opencodeInstructionKey         = "instruction.md"
+	configVolume                   = "config"
+	opencodeConfigDir              = "/etc/clawarmor/opencode"
+	opencodeInstructionPath        = "/etc/clawarmor/opencode/instruction.md"
+	createWorkflowToolName         = "create_workflow"
+	createWorkflowScheduleToolName = "create_workflow_schedule"
+	listWorkflowSchedulesToolName  = "list_workflow_schedules"
+	getWorkflowToolName            = "get_workflow"
+	listWorkflowsToolName          = "list_workflows"
+	deleteWorkflowsToolName        = "delete_workflows"
+	deleteWorkflowScheduleToolName = "delete_workflow_schedule"
+	setWorkflowRunStatusToolName   = "set_workflowrun_status"
+	updateWorkflowScheduleToolName = "update_workflow_schedule"
+	nixAgentVolume                 = "nix-agent"
+	nixRuntimeStoreVolume          = "nix-runtime-store"
+	nixAgentMount                  = "/mnt/nix"
+	nixRuntimeStoreMount           = "/nix/store"
+	nixRuntimeStageMount           = "/runtime-nix-store"
+	nixHomeSubPath                 = "home"
+	nixStoreSubPath                = "nix"
+	nixVolumeRootMount             = "/pvc"
+	nixLinkVolume                  = "nix-link"
+	nixLinkMount                   = "/tmp/nix-link"
+	nixLinkStage                   = "/tmp/nix-link"
+	nixInitImage                   = "murtazau/clawarmor-init:latest"
+	homeInitName                   = "home-init"
+	agentRuntimeUID                = int64(1000)
+	agentRuntimeGID                = int64(1000)
+	nixPkgEnv                      = "NIX_PACKAGES"
+	packageJobLabelKey             = "clawarmor.accuknox.com/agent-package-job"
+	packageJobNameSuffix           = "-packages"
+	packageJobHashAnnotation       = "clawarmor.accuknox.com/package-job-hash"
+	packageJobRootVolume           = "nix-agent-root"
+	packageJobSharedVolume         = "nix-shared"
+	sinjectorNameSuffix            = "-sinjector"
+	sinjectorCAVolume              = "sinjector-ca"
+	sinjectorCAMountPath           = "/etc/clawarmor/sinjector-ca"
+	sinjectorFinalizer             = "clawarmor.accuknox.com/sinjector"
+	gatewayRoleNameSuffix          = "-gateway"
+	gatewayTokenVolume             = "gateway-token"
+	gatewayTokenMountPath          = "/var/run/secrets/clawarmor/gateway"
+	gatewayTokenPath               = gatewayTokenMountPath + "/token"
+	egressPolicySuffix             = "-egress"
+	opencodeConfigSchema           = "https://opencode.ai/config.json"
 )
 
 var (
@@ -95,6 +104,7 @@ type RuntimeConfig struct {
 	SinjectorOpenBaoK8sAuthTokenPath string
 	ManagerOpenBaoK8sAuthRole        string
 	ManagerOpenBaoK8sAuthTokenPath   string
+	GatewayTokenAudience             string
 }
 
 func selectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
@@ -111,7 +121,7 @@ func packageJobLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	maps.Copy(labels, agt.Labels)
 	labels["app.kubernetes.io/name"] = "clawarmor-agent-packages"
 	labels["app.kubernetes.io/instance"] = agt.Name
-	labels["clawarmor.accuknox.com/agent-package-job"] = agt.Name
+	labels[packageJobLabelKey] = agt.Name
 	labels["clawarmor.accuknox.com/managed"] = "true"
 	return labels
 }
@@ -184,11 +194,15 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 		}
 	}
 	cfg.Tools = map[string]bool{
-		createWorkflowToolName:       true,
-		getWorkflowToolName:          true,
-		listWorkflowsToolName:        true,
-		deleteWorkflowsToolName:      true,
-		setWorkflowRunStatusToolName: false,
+		createWorkflowToolName:         true,
+		createWorkflowScheduleToolName: true,
+		listWorkflowSchedulesToolName:  true,
+		getWorkflowToolName:            true,
+		listWorkflowsToolName:          true,
+		deleteWorkflowsToolName:        true,
+		deleteWorkflowScheduleToolName: true,
+		setWorkflowRunStatusToolName:   false,
+		updateWorkflowScheduleToolName: true,
 	}
 	if envCfg.MCPURL != "" {
 		cfg.MCP = map[string]opencodeMCPRemoteFile{
@@ -198,9 +212,23 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 			},
 		}
 	}
+	var singleMCPConnectionName string
+	if len(envCfg.MCPRefs) == 1 {
+		singleMCPConnectionName = envCfg.MCPRefs[0].Name
+	}
 	if len(envCfg.MCPConsentPermissionIDs) > 0 {
 		for _, permissionID := range envCfg.MCPConsentPermissionIDs {
 			cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+permissionID] = "ask"
+			if singleMCPConnectionName == "" {
+				continue
+			}
+			aliasPermissionID, ok := strings.CutPrefix(
+				permissionID,
+				singleMCPConnectionName+"_",
+			)
+			if ok && aliasPermissionID != "" {
+				cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+aliasPermissionID] = "ask"
+			}
 		}
 	}
 
@@ -239,10 +267,9 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config   json.RawMessage `json:"config"`
-	Env      []corev1.EnvVar `json:"env"`
-	Packages []string        `json:"packages"`
-	MCPRefs  []mcpRefConfig  `json:"mcpRefs"`
+	Config json.RawMessage   `json:"config"`
+	Env    []corev1.EnvVar   `json:"env"`
+	EnvCfg environmentConfig `json:"envConfig"`
 }
 
 type packageJobHashInput struct {
@@ -250,12 +277,11 @@ type packageJobHashInput struct {
 	Packages []string `json:"packages"`
 }
 
-func configHash(opencodeCfg []byte, env []corev1.EnvVar, packages []string, mcpRefs []mcpRefConfig) string {
+func configHash(opencodeCfg []byte, env []corev1.EnvVar, envCfg environmentConfig) string {
 	hashInput, _ := json.Marshal(configHashInput{
-		Config:   opencodeCfg,
-		Env:      env,
-		Packages: packages,
-		MCPRefs:  mcpRefs,
+		Config: opencodeCfg,
+		Env:    env,
+		EnvCfg: envCfg,
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)

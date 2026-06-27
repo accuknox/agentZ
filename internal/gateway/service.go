@@ -14,11 +14,14 @@ import (
 	"syscall"
 	"time"
 
+	keyfunc "github.com/MicahParks/keyfunc/v3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -37,30 +40,36 @@ var (
 
 // Config describes how to start the gateway.
 type Config struct {
-	Addr                    string
-	Namespace               string
-	PostgresDSN             string
-	TargetOverride          string
-	AgentImage              string
-	AgentTraceEndpoint      string
-	OpenBaoAddr             string
-	OpenBaoSecretMountPath  string
-	OpenBaoK8sAuthRole      string
-	OpenBaoK8sAuthMountPath string
-	OpenBaoK8sAuthTokenPath string
-	MCPProbeStaleAfter      time.Duration
+	Addr                     string
+	Namespace                string
+	PostgresDSN              string
+	ExternalJWTJWKSURL       string
+	ExternalJWTIssuer        string
+	ExternalJWTAudience      string
+	InternalK8sTokenAudience string
+	TargetOverride           string
+	AgentImage               string
+	AgentTraceEndpoint       string
+	OpenBaoAddr              string
+	OpenBaoSecretMountPath   string
+	OpenBaoK8sAuthRole       string
+	OpenBaoK8sAuthMountPath  string
+	OpenBaoK8sAuthTokenPath  string
+	MCPProbeStaleAfter       time.Duration
 }
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
-	ctx       context.Context
-	resolver  *resolver
-	queries   gatewaydb.Querier
-	db        *pgxpool.Pool
-	cfg       Config
-	bao       *baoapi.Client
-	baoKV     *baoapi.KVv2
-	k8sClient ctrlclient.Client
+	ctx                context.Context
+	resolver           *resolver
+	queries            gatewaydb.Querier
+	db                 *pgxpool.Pool
+	cfg                Config
+	bao                *baoapi.Client
+	baoKV              *baoapi.KVv2
+	k8sClient          ctrlclient.Client
+	k8s                kubernetes.Interface
+	externalJWTKeyfunc jwt.Keyfunc
 }
 
 type statusRecorder struct {
@@ -116,6 +125,18 @@ func Serve(ctx context.Context, cfg Config) error {
 	if strings.TrimSpace(cfg.PostgresDSN) == "" {
 		return fmt.Errorf("postgres dsn is required")
 	}
+	if strings.TrimSpace(cfg.ExternalJWTJWKSURL) == "" {
+		return fmt.Errorf("external jwt jwks url is required")
+	}
+	if strings.TrimSpace(cfg.ExternalJWTIssuer) == "" {
+		return fmt.Errorf("external jwt issuer is required")
+	}
+	if strings.TrimSpace(cfg.ExternalJWTAudience) == "" {
+		return fmt.Errorf("external jwt audience is required")
+	}
+	if strings.TrimSpace(cfg.InternalK8sTokenAudience) == "" {
+		return fmt.Errorf("internal k8s token audience is required")
+	}
 	if strings.TrimSpace(cfg.AgentTraceEndpoint) == "" {
 		return fmt.Errorf("agent trace endpoint is required")
 	}
@@ -132,7 +153,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("mcp probe stale after is required")
 	}
 
-	resolver, err := newResolver(ctx, cfg.Namespace, cfg.TargetOverride)
+	resolver, err := newResolver(ctx, cfg.TargetOverride)
 	if err != nil {
 		return err
 	}
@@ -149,6 +170,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	k8sClient, err := ctrlclient.New(kubeCfg, ctrlclient.Options{Scheme: scheme})
 	if err != nil {
 		return fmt.Errorf("create k8s client: %w", err)
+	}
+	k8s, err := kubernetes.NewForConfig(kubeCfg)
+	if err != nil {
+		return fmt.Errorf("create kubernetes clientset: %w", err)
 	}
 
 	db, err := pgxpool.New(ctx, cfg.PostgresDSN)
@@ -172,15 +197,22 @@ func Serve(ctx context.Context, cfg Config) error {
 		return err
 	}
 
+	externalJWTKeyfunc, err := newExternalJWTKeyfunc(ctx, cfg.ExternalJWTJWKSURL)
+	if err != nil {
+		return err
+	}
+
 	svc := &Service{
-		ctx:       ctx,
-		resolver:  resolver,
-		queries:   gatewaydb.New(db),
-		db:        db,
-		cfg:       cfg,
-		bao:       baoClient,
-		baoKV:     baoClient.KVv2(cfg.OpenBaoSecretMountPath),
-		k8sClient: k8sClient,
+		ctx:                ctx,
+		resolver:           resolver,
+		queries:            gatewaydb.New(db),
+		db:                 db,
+		cfg:                cfg,
+		bao:                baoClient,
+		baoKV:              baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		k8sClient:          k8sClient,
+		k8s:                k8s,
+		externalJWTKeyfunc: externalJWTKeyfunc,
 	}
 
 	srv := &http.Server{
@@ -193,7 +225,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	go func() {
 		slog.InfoContext(ctx, "starting agent gateway HTTP server",
 			slog.String("addr", cfg.Addr),
-			slog.String("namespace", cfg.Namespace),
+			slog.String("target_override", cfg.TargetOverride),
 		)
 		errCh <- srv.ListenAndServe()
 	}()
@@ -219,12 +251,13 @@ func (s *Service) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestLog)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+	r.Use(requireTenantRequest(s))
 	r.HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
 	r.HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 	return gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
@@ -262,6 +295,20 @@ func requestLog(next http.Handler) http.Handler {
 		}
 		slog.LogAttrs(r.Context(), slog.LevelInfo, "gateway request completed", attrs...)
 	})
+}
+
+type gatewayClaims struct {
+	jwt.RegisteredClaims
+	TenantID string `json:"tenant_id"`
+	UserID   string `json:"user_id"`
+}
+
+func newExternalJWTKeyfunc(ctx context.Context, jwksURL string) (jwt.Keyfunc, error) {
+	k, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
+	if err != nil {
+		return nil, fmt.Errorf("create external jwt keyfunc: %w", err)
+	}
+	return k.Keyfunc, nil
 }
 
 func shouldLogRequestCause(ctx context.Context, status int) bool {

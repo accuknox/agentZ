@@ -181,6 +181,17 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 
 // CreateMCPConnection handles POST /api/mcp-connection.
 func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	tenant, err := tenantObject(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.CreateMCPConnectionRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -206,7 +217,15 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: s.cfg.Namespace,
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+					Kind:       "Tenant",
+					Name:       tenant.Name,
+					UID:        tenant.UID,
+				},
+			},
 		},
 	}
 
@@ -299,6 +318,12 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 }
 
 func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawName string) (*clawarmorv1alpha1.MCPConnection, bool) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return nil, false
+	}
+
 	name := strings.TrimSpace(rawName)
 	fields := validateMCPConnectionName(name, "name")
 	if len(fields) > 0 {
@@ -313,7 +338,7 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 	}
 
 	conn := &clawarmorv1alpha1.MCPConnection{}
-	key := ctrlclient.ObjectKey{Name: name, Namespace: s.cfg.Namespace}
+	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
 	if err := s.k8sClient.Get(r.Context(), key, conn); err != nil {
 		writeMCPAPIError(w, r, mapKubeHTTPError("get mcp connection", err))
 		return nil, false
@@ -324,8 +349,13 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 // listMCPConnections returns all MCPConnection resources in the service
 // namespace.
 func (s *Service) listMCPConnections(ctx context.Context) ([]clawarmorv1alpha1.MCPConnection, error) {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var list clawarmorv1alpha1.MCPConnectionList
-	if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+	if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, fmt.Errorf("list mcp connections: %w", err)
 	}
 	return list.Items, nil
@@ -494,12 +524,17 @@ func statusConditionMessage(fallback string, conditions ...*metav1.Condition) st
 }
 
 func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string) error {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return err
+	}
+
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		conn := &clawarmorv1alpha1.MCPConnection{}
-		key := ctrlclient.ObjectKey{Namespace: s.cfg.Namespace, Name: name}
+		key := ctrlclient.ObjectKey{Namespace: ns, Name: name}
 		err := s.k8sClient.Get(ctx, key, conn)
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -643,8 +678,13 @@ func validateMCPConnectionName(name string, fieldName string) []gatewayapi.Field
 }
 
 func (s *Service) referencingEnvironments(ctx context.Context, connectionName string) ([]string, error) {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var envList clawarmorv1alpha1.EnvironmentList
-	if err := s.k8sClient.List(ctx, &envList, ctrlclient.InNamespace(s.cfg.Namespace)); err != nil {
+	if err := s.k8sClient.List(ctx, &envList, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, err
 	}
 

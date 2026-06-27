@@ -7,6 +7,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - persistentvolumeclaims
   - pods
   - serviceaccounts
   - services
@@ -21,12 +22,13 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - persistentvolumeclaims
+  - namespaces
   verbs:
   - create
-  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - agentgateway.dev
@@ -74,6 +76,17 @@ rules:
   - update
   - watch
 - apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - cilium.io
   resources:
   - ciliumnetworkpolicies
@@ -89,16 +102,19 @@ rules:
   - clawarmor.accuknox.com
   resources:
   - agents
-  - mcpconnections
-  - workflowruns
-  - workflowschedules
   verbs:
-  - create
-  - delete
+  - create-workflow
+  - create-workflow-schedule
+  - delete-workflow-schedule
+  - delete-workflows
   - get
+  - get-workflow
   - list
+  - list-workflow-schedules
+  - list-workflows
   - patch
-  - update
+  - set-workflowrun-status
+  - update-workflow-schedule
   - watch
 - apiGroups:
   - clawarmor.accuknox.com
@@ -107,7 +123,6 @@ rules:
   - envs/finalizers
   - mcpconnections/finalizers
   - workflowruns/finalizers
-  - workflowschedules/finalizers
   verbs:
   - update
 - apiGroups:
@@ -116,6 +131,7 @@ rules:
   - agents/status
   - envs/status
   - mcpconnections/status
+  - tenants/status
   - workflowruns/status
   - workflowschedules/status
   verbs:
@@ -126,11 +142,40 @@ rules:
   - clawarmor.accuknox.com
   resources:
   - envs
+  - mcpconnections
   verbs:
   - get
   - list
   - patch
+  - watch
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - tenants
+  verbs:
+  - get
+  - list
+  - use
+  - watch
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - workflowruns
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
   - update
+  - watch
+- apiGroups:
+  - clawarmor.accuknox.com
+  resources:
+  - workflowschedules
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - gateway.networking.k8s.io
@@ -140,6 +185,18 @@ rules:
   verbs:
   - create
   - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  verbs:
+  - create
   - get
   - list
   - patch

@@ -56,7 +56,7 @@ type Reconciler struct {
 	AgentGateway agentgatewayclientset.Interface
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents,verbs=get;list;watch
@@ -469,8 +469,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		}
 		return nil
 	}
-	if reflect.DeepEqual(currentSpec, obj.Spec) &&
-		reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+	if reflect.DeepEqual(currentSpec, obj.Spec) && reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
 		return nil
 	}
 	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
@@ -649,6 +648,11 @@ func gatewayNetworkPolicySpec(namespace string) *ciliumapi.Rule {
 					Protocol: ciliumapi.ProtoTCP,
 				}},
 			}},
+		}},
+		Egress: []ciliumapi.EgressRule{{
+			EgressCommonRule: ciliumapi.EgressCommonRule{
+				ToEntities: ciliumapi.EntitySlice{ciliumapi.EntityAll},
+			},
 		}},
 	}
 }

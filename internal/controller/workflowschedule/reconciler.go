@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"slices"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -44,12 +45,12 @@ type Reconciler struct {
 	ControllerImage string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=get;list;watch
 // +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules/finalizers,verbs=update
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=batch,resources=cronjobs;jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile keeps one CronJob and its access resources aligned with the schedule.
@@ -80,6 +81,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
 	}
+	err = r.reconcileRunnerPolicy(ctx, schedule)
+	if err != nil {
+		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
+	}
 	cronJobName, err := r.reconcileCronJob(ctx, schedule)
 	if err != nil {
 		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
@@ -90,6 +95,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	err = r.refreshStatus(ctx, schedule, cronJobName)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
 		return ctrl.Result{}, fmt.Errorf("refresh schedule status: %w", err)
 	}
 
@@ -102,6 +110,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&clawarmorv1alpha1.WorkflowSchedule{}).
 		Owns(&batchv1.CronJob{}).
 		Owns(&corev1.ServiceAccount{}).
+		Owns(&ciliumv2.CiliumNetworkPolicy{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&clawarmorv1alpha1.WorkflowRun{}).

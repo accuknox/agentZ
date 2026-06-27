@@ -127,9 +127,18 @@ manager:
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: http://gateway:8090
 
-    # Name of the pre-created PVC that backs a shared nix store.
-    # Leave empty when not using that mode.
+    # Name of the tenant-shared PVC used by agent package jobs.
     nixStorePVC: ""
+
+    # Requested storage size for the tenant nix store PVC.
+    tenantNixStoreSize: 5Gi
+
+    # Access modes for the tenant nix store PVC.
+    tenantNixStoreAccessModes:
+      - ReadWriteOnce
+
+    # Optional storage class for the tenant nix store PVC.
+    tenantNixStoreStorageClass: ""
 
     # OpenBao address used by manager-managed workloads.
     openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
@@ -153,6 +162,13 @@ manager:
     # ServiceAccount token path used by the manager for OpenBao auth.
     managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
 
+    # Projected ServiceAccount token path used by the manager for gateway auth.
+    managerGatewayTokenPath: /var/run/secrets/clawarmor/gateway/token
+
+    # Audience bound onto the projected ServiceAccount token used for gateway
+    # auth.
+    managerGatewayTokenAudience: clawarmor-gateway
+
     # Secret name that stores the sinjector CA materials.
     sinjectorCASecretName: sinjector
 
@@ -173,6 +189,9 @@ manager:
 
     # CA bundle path mounted into agent containers.
     agentCABundlePath: /etc/clawarmor/sinjector-ca/ca.crt
+
+    # Pre-created ClusterIssuer used for tenant sinjector CA certificates.
+    tenantSinjectorClusterIssuerName: ""
 
     # Namespace or comma-separated namespaces watched by the manager.
     watchNamespace: ""
@@ -237,6 +256,16 @@ gateway:
     tag: latest
 
     # Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+
+  waitImage:
+    # Image used by the gateway init container while waiting for the web JWKS endpoint.
+    repository: busybox
+
+    # Image tag used by the gateway init container.
+    tag: "1.37.0"
+
+    # Kubernetes image pull policy for the wait container.
     pullPolicy: IfNotPresent
 
   # Image pull secrets used by the gateway pod.
@@ -315,6 +344,18 @@ gateway:
 
     # ServiceAccount token path used for OpenBao auth.
     openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+    # Required Better Auth JWKS URL used to verify external bearer tokens.
+    externalJWTJWKSURL: ""
+
+    # Required Better Auth issuer used to verify external bearer tokens.
+    externalJWTIssuer: ""
+
+    # Required Better Auth audience used to verify external bearer tokens.
+    externalJWTAudience: clawarmor-gateway
+
+    # Required audience for internal projected ServiceAccount bearer tokens.
+    internalK8sTokenAudience: clawarmor-gateway
 
     # Maximum age before MCP probe results are treated as stale.
     mcpProbeStaleAfter: 5m
@@ -479,8 +520,35 @@ web:
     port: 3000
 
   env:
+    # Required public Better Auth issuer URL.
+    betterAuthURL: ""
+
+    # Required public gateway base URL used by browser clients.
+    gatewayBaseURL: ""
+
     # Optional internal gateway base URL used only by server-side web requests.
-    gatewayInternalBaseURL: ""
+    internalGatewayBaseURL: ""
+
+    # Audience for Better Auth JWTs consumed by the gateway.
+    gatewayJWTAudience: clawarmor-gateway
+
+    # Optional GitHub OAuth client ID.
+    githubClientID: ""
+
+    # Optional GitHub allow-list user ID.
+    githubAllowedUserID: ""
+
+    # Optional GitHub organization gate.
+    githubOrg: ""
+
+    # Optional GitHub team slug gate.
+    githubTeamSlug: ""
+
+    # Optional Google OAuth client ID.
+    googleClientID: ""
+
+    # Optional comma-separated Google email-domain allow list.
+    googleAllowedEmailDomains: ""
 
     # Optional NixOS search Elasticsearch endpoint.
     nixosSearchESURL: ""
@@ -495,8 +563,20 @@ web:
     nixosSearchESBranch: ""
 
   secrets:
+    # Required database DSN for Better Auth and Drizzle.
+    databaseURL: ""
+
+    # Required Better Auth secret.
+    betterAuthSecret: ""
+
     # Required secret used to protect MCP OAuth flow cookies.
     mcpOAuthCookieSecret: ""
+
+    # Optional GitHub OAuth client secret.
+    githubClientSecret: ""
+
+    # Optional Google OAuth client secret.
+    googleClientSecret: ""
 
     # Optional NixOS search Elasticsearch password.
     nixosSearchESPassword: ""

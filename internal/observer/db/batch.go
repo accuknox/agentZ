@@ -19,6 +19,7 @@ var (
 
 const insertMCPToolInvocation = `-- name: InsertMCPToolInvocation :batchexec
 INSERT INTO observer_mcp_tool_invocations(
+  tenant_namespace,
   agent_name,
   trace_id,
   span_id,
@@ -39,7 +40,8 @@ INSERT INTO observer_mcp_tool_invocations(
   $7,
   $8,
   $9,
-  $10
+  $10,
+  $11
 )
 ON CONFLICT(trace_id, span_id, start_time) DO NOTHING
 `
@@ -51,6 +53,7 @@ type InsertMCPToolInvocationBatchResults struct {
 }
 
 type InsertMCPToolInvocationParams struct {
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	TraceID           []byte    `json:"trace_id"`
 	SpanID            []byte    `json:"span_id"`
@@ -67,6 +70,7 @@ func (q *Queries) InsertMCPToolInvocation(ctx context.Context, arg []InsertMCPTo
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
+			a.TenantNamespace,
 			a.AgentName,
 			a.TraceID,
 			a.SpanID,
@@ -107,6 +111,7 @@ func (b *InsertMCPToolInvocationBatchResults) Close() error {
 
 const insertTraceSpan = `-- name: InsertTraceSpan :batchexec
 INSERT INTO observer_trace_spans(
+  tenant_namespace,
   agent_name,
   session_id,
   trace_id,
@@ -157,7 +162,8 @@ INSERT INTO observer_trace_spans(
   $22,
   $23,
   $24,
-  $25
+  $25,
+  $26
 )
 ON CONFLICT(trace_id, span_id, start_time) DO NOTHING
 `
@@ -169,6 +175,7 @@ type InsertTraceSpanBatchResults struct {
 }
 
 type InsertTraceSpanParams struct {
+	TenantNamespace    string    `json:"tenant_namespace"`
 	AgentName          string    `json:"agent_name"`
 	SessionID          string    `json:"session_id"`
 	TraceID            []byte    `json:"trace_id"`
@@ -200,6 +207,7 @@ func (q *Queries) InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanPara
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
+			a.TenantNamespace,
 			a.AgentName,
 			a.SessionID,
 			a.TraceID,
@@ -333,6 +341,7 @@ const refreshTraceSessionSummary = `-- name: RefreshTraceSessionSummary :batchex
 INSERT INTO observer_trace_sessions(
   trace_id,
   session_id,
+  tenant_namespace,
   agent_name,
   root_span_id,
   started_at,
@@ -352,6 +361,7 @@ INSERT INTO observer_trace_sessions(
 ) SELECT
   observer_trace_spans.trace_id,
   $1,
+  (ARRAY_AGG(tenant_namespace ORDER BY start_time ASC))[1],
   (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
   COALESCE(
     (ARRAY_AGG(span_id ORDER BY
@@ -394,6 +404,7 @@ WHERE observer_trace_spans.trace_id = $2
   AND observer_trace_spans.session_id = $1
 GROUP BY observer_trace_spans.trace_id
 ON CONFLICT(trace_id, session_id) DO UPDATE SET
+  tenant_namespace = EXCLUDED.tenant_namespace,
   agent_name = EXCLUDED.agent_name,
   root_span_id = EXCLUDED.root_span_id,
   started_at = EXCLUDED.started_at,
@@ -460,6 +471,7 @@ func (b *RefreshTraceSessionSummaryBatchResults) Close() error {
 const refreshTraceSummary = `-- name: RefreshTraceSummary :batchexec
 INSERT INTO observer_traces(
   trace_id,
+  tenant_namespace,
   agent_name,
   root_span_id,
   started_at,
@@ -478,6 +490,7 @@ INSERT INTO observer_traces(
   updated_at
 ) SELECT
   observer_trace_spans.trace_id,
+  (ARRAY_AGG(tenant_namespace ORDER BY start_time ASC))[1],
   (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
   COALESCE(
     (ARRAY_AGG(span_id ORDER BY
@@ -519,6 +532,7 @@ FROM observer_trace_spans
 WHERE observer_trace_spans.trace_id = $1
 GROUP BY observer_trace_spans.trace_id
 ON CONFLICT(trace_id) DO UPDATE SET
+  tenant_namespace = EXCLUDED.tenant_namespace,
   agent_name = EXCLUDED.agent_name,
   root_span_id = EXCLUDED.root_span_id,
   started_at = EXCLUDED.started_at,
@@ -578,6 +592,7 @@ func (b *RefreshTraceSummaryBatchResults) Close() error {
 
 const upsertMCPToolLastCalled = `-- name: UpsertMCPToolLastCalled :batchexec
 INSERT INTO observer_mcp_tool_last_called(
+  tenant_namespace,
   agent_name,
   mcp_connection_name,
   tool_name,
@@ -588,9 +603,15 @@ INSERT INTO observer_mcp_tool_last_called(
   $2,
   $3,
   $4,
+  $5,
   now()
 )
-ON CONFLICT(agent_name, mcp_connection_name, tool_name) DO UPDATE SET
+ON CONFLICT(
+  tenant_namespace,
+  agent_name,
+  mcp_connection_name,
+  tool_name
+) DO UPDATE SET
   last_called_at = GREATEST(
     observer_mcp_tool_last_called.last_called_at,
     EXCLUDED.last_called_at
@@ -605,6 +626,7 @@ type UpsertMCPToolLastCalledBatchResults struct {
 }
 
 type UpsertMCPToolLastCalledParams struct {
+	TenantNamespace   string    `json:"tenant_namespace"`
 	AgentName         string    `json:"agent_name"`
 	McpConnectionName string    `json:"mcp_connection_name"`
 	ToolName          string    `json:"tool_name"`
@@ -615,6 +637,7 @@ func (q *Queries) UpsertMCPToolLastCalled(ctx context.Context, arg []UpsertMCPTo
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
+			a.TenantNamespace,
 			a.AgentName,
 			a.McpConnectionName,
 			a.ToolName,

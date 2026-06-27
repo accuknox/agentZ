@@ -107,8 +107,8 @@ func ValidateAgentScheduleList(agtName string) []gatewayapi.FieldError {
 	return validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))
 }
 
-func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
-	def, err := Get(ctx, db, agtName, wfName)
+func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace string, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
+	def, err := Get(ctx, db, tenantNamespace, agtName, wfName)
 	if err != nil {
 		if errors.Is(err, ErrWorkflowNotFound) {
 			return []gatewayapi.FieldError{{
@@ -180,12 +180,12 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
 			Namespace: ns,
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
-				Kind:       "Agent",
-				Name:       agt.Name,
-				UID:        agt.UID,
-			}},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(
+					agt,
+					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Agent"),
+				),
+			},
 		},
 	}
 	applyScheduleSpec(&schedule.Spec, agtName, wfName, specInput, inputsJSON)

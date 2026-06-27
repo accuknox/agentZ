@@ -134,6 +134,36 @@ func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string
 	return agt.Name, true
 }
 
+func (r *resolver) resolveSingleMCPConnection(ctx context.Context, namespace, agentName string) (string, bool) {
+	agt := &clawarmorv1alpha1.Agent{}
+	agtKey := ctrlclient.ObjectKey{Namespace: namespace, Name: agentName}
+	err := r.client.Get(ctx, agtKey, agt)
+	if err != nil {
+		return "", false
+	}
+	if agt.Spec.EnvironmentRef == nil {
+		return "", false
+	}
+
+	envName := strings.TrimSpace(agt.Spec.EnvironmentRef.Name)
+	if envName == "" {
+		return "", false
+	}
+
+	env := &clawarmorv1alpha1.Environment{}
+	envKey := ctrlclient.ObjectKey{Namespace: namespace, Name: envName}
+	err = r.client.Get(ctx, envKey, env)
+	if err != nil {
+		return "", false
+	}
+	if len(env.Spec.MCPConnectionRefs) != 1 {
+		return "", false
+	}
+
+	name := strings.TrimSpace(env.Spec.MCPConnectionRefs[0].Name)
+	return name, name != ""
+}
+
 func (r *resolver) resolveDestinationDomain(ctx context.Context, ip string) string {
 	ip = strings.TrimSpace(ip)
 	if ip == "" {

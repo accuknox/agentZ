@@ -24,6 +24,7 @@ import (
 	agentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/agent"
 	environmentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/environment"
 	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
+	tenantwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/tenant"
 	workflowrunwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowrun"
 	workflowschedulewebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowschedule"
 )
@@ -42,16 +43,21 @@ func SetupEnvironmentWebhookWithManager(mgr ctrl.Manager) error {
 }
 
 // SetupWorkflowScheduleWebhookWithManager registers the WorkflowSchedule webhook.
-func SetupWorkflowScheduleWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses) error {
-	return workflowschedulewebhook.RegisterWithManager(mgr, gatewayClient)
+func SetupWorkflowScheduleWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) error {
+	return workflowschedulewebhook.RegisterWithManager(mgr, gatewayClient, tokenPath)
 }
 
 // SetupWorkflowRunWebhookWithManager registers the WorkflowRun webhook.
-func SetupWorkflowRunWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses) error {
-	return workflowrunwebhook.RegisterWithManager(mgr, gatewayClient)
+func SetupWorkflowRunWebhookWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) error {
+	return workflowrunwebhook.RegisterWithManager(mgr, gatewayClient, tokenPath)
 }
 
 // SetupMCPConnectionWebhookWithManager registers the MCPConnection webhook.
 func SetupMCPConnectionWebhookWithManager(mgr ctrl.Manager, kubeClient client.Client) error {
 	return mcpconnwebhook.RegisterWithManager(mgr, kubeClient)
+}
+
+// SetupTenantWebhookWithManager registers the Tenant webhook.
+func SetupTenantWebhookWithManager(mgr ctrl.Manager) error {
+	return tenantwebhook.RegisterWithManager(mgr)
 }

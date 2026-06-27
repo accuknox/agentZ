@@ -59,6 +59,10 @@ config:
   agentInitImage: ""
   gatewayURL: http://gateway.clawarmor-system.svc.cluster.local:8090
   nixStorePVC: ""
+  tenantNixStoreSize: 5Gi
+  tenantNixStoreAccessModes:
+    - ReadWriteOnce
+  tenantNixStoreStorageClass: ""
   openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
   managerOpenBaoAddr: ""
   openBaoSecretMountPath: kv
@@ -66,6 +70,8 @@ config:
   sinjectorOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
   managerOpenBaoK8sAuthRole: manager
   managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+  managerGatewayTokenPath: /var/run/secrets/clawarmor/gateway/token
+  managerGatewayTokenAudience: clawarmor-gateway
   sinjectorCASecretName: sinjector
   sinjectorCASecretCertKey: tls.crt
   sinjectorCASecretKeyKey: tls.key
@@ -73,6 +79,7 @@ config:
   sinjectorCACertPath: /etc/clawarmor/sinjector-ca/tls.crt
   sinjectorCAKeyPath: /etc/clawarmor/sinjector-ca/tls.key
   agentCABundlePath: /etc/clawarmor/sinjector-ca/ca.crt
+  tenantSinjectorClusterIssuerName: ""
   watchNamespace: ""
   enableWebhooks: true
 

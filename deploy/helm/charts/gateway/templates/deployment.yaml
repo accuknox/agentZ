@@ -27,6 +27,17 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        - name: wait-for-web-jwks
+          image: "{{ .Values.waitImage.repository }}:{{ .Values.waitImage.tag }}"
+          imagePullPolicy: {{ .Values.waitImage.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until wget -q -O /dev/null {{ .Values.config.externalJWTJWKSURL | quote }}; do
+                sleep 2
+              done
       containers:
         - name: gateway
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -40,6 +51,10 @@ spec:
             - "--addr=0.0.0.0:{{ .Values.service.port }}"
             - --namespace={{ .Values.config.namespace }}
             - --postgres-dsn={{ required "gateway.config.postgresDSN is required" .Values.config.postgresDSN }}
+            - --external-jwt-jwks-url={{ required "gateway.config.externalJWTJWKSURL is required" .Values.config.externalJWTJWKSURL }}
+            - --external-jwt-issuer={{ required "gateway.config.externalJWTIssuer is required" .Values.config.externalJWTIssuer }}
+            - --external-jwt-audience={{ required "gateway.config.externalJWTAudience is required" .Values.config.externalJWTAudience }}
+            - --internal-k8s-token-audience={{ required "gateway.config.internalK8sTokenAudience is required" .Values.config.internalK8sTokenAudience }}
             - --agent-trace-endpoint={{ required "gateway.config.agentTraceEndpoint is required" .Values.config.agentTraceEndpoint }}
             - --openbao-addr={{ .Values.config.openBaoAddr }}
             - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}
@@ -63,6 +78,19 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          startupProbe:
+            tcpSocket:
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

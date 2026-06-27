@@ -6,20 +6,8 @@ export type RequestValidationIssue = {
   message: string
 }
 
-export function agentNameFromResourceAttributes(input: string | undefined) {
-  if (!input) {
-    return ""
-  }
-
-  for (const item of input.split(",")) {
-    const [key, value] = item.split("=", 2)
-    if (key?.trim() !== "clawarmor.agent_name") {
-      continue
-    }
-    return value?.trim() ?? ""
-  }
-
-  return ""
+export function workflowAgentName() {
+  return process.env.CLAWARMOR_AGENT_NAME?.trim() ?? ""
 }
 
 export function workflowErrorOutput(error: GatewayError) {

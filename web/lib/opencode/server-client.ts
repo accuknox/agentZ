@@ -1,27 +1,30 @@
 import "server-only"
 
+import { redirect } from "next/navigation"
 import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk/client"
-import {
-  createOpencodeClient as createOpencodeClientV2,
-  type OpencodeClient as OpencodeClientV2,
-} from "@opencode-ai/sdk/v2/client"
+import { currentGatewayAuthToken } from "@/lib/gateway/auth"
+import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
-
-function opencodeBaseURL(agentName: string): string {
-  return `${serverGatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`
-}
+import { loginURL } from "@/lib/login-redirect"
 
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
-export function createAgentOpencodeClient(agentName: string, directory?: string): OpencodeClient {
-  return createOpencodeClient({
-    baseUrl: opencodeBaseURL(agentName),
-    ...(directory ? { directory } : {}),
-  })
-}
+export async function createAgentOpencodeClient(
+  agentName: string,
+  directory?: string
+): Promise<OpencodeClient> {
+  let gatewayToken: string
+  try {
+    gatewayToken = await currentGatewayAuthToken()
+  } catch (error) {
+    if (error instanceof GatewayUnauthorizedError) {
+      redirect(loginURL({ error: "session_expired" }))
+    }
+    throw error
+  }
 
-// createAgentOpencodeClientV2 builds an OpenCode v2 SDK client for one agent.
-export function createAgentOpencodeClientV2(agentName: string): OpencodeClientV2 {
-  return createOpencodeClientV2({
-    baseUrl: opencodeBaseURL(agentName),
+  return createOpencodeClient({
+    baseUrl: `${serverGatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`,
+    headers: { Authorization: `Bearer ${gatewayToken}` },
+    ...(directory ? { directory } : {}),
   })
 }

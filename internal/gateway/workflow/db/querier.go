@@ -19,7 +19,7 @@ type Querier interface {
 	WorkflowListExistingNames(ctx context.Context, arg WorkflowListExistingNamesParams) ([]string, error)
 	WorkflowListNodes(ctx context.Context, arg WorkflowListNodesParams) ([]WorkflowNode, error)
 	WorkflowListPreferredTools(ctx context.Context, arg WorkflowListPreferredToolsParams) ([]WorkflowNodePreferredTool, error)
-	WorkflowListSummaries(ctx context.Context, agentName string) ([]WorkflowListSummariesRow, error)
+	WorkflowListSummaries(ctx context.Context, arg WorkflowListSummariesParams) ([]WorkflowListSummariesRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

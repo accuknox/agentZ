@@ -1,3 +1,18 @@
+{{- if and (not .Values.env.githubClientID) (not .Values.env.googleClientID) }}
+{{- fail "web requires at least one social provider client ID (githubClientID or googleClientID)" }}
+{{- end }}
+{{- if and .Values.env.githubClientID (not .Values.secrets.githubClientSecret) }}
+{{- fail "web.env.githubClientID requires web.secrets.githubClientSecret" }}
+{{- end }}
+{{- if and .Values.secrets.githubClientSecret (not .Values.env.githubClientID) }}
+{{- fail "web.secrets.githubClientSecret requires web.env.githubClientID" }}
+{{- end }}
+{{- if and .Values.env.googleClientID (not .Values.secrets.googleClientSecret) }}
+{{- fail "web.env.googleClientID requires web.secrets.googleClientSecret" }}
+{{- end }}
+{{- if and .Values.secrets.googleClientSecret (not .Values.env.googleClientID) }}
+{{- fail "web.secrets.googleClientSecret requires web.env.googleClientID" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,14 +49,68 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.service.port | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: DATABASE_URL
+            - name: BETTER_AUTH_URL
+              value: {{ required "web.env.betterAuthURL is required" .Values.env.betterAuthURL | quote }}
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: BETTER_AUTH_SECRET
+            - name: GATEWAY_BASE_URL
+              value: {{ required "web.env.gatewayBaseURL is required" .Values.env.gatewayBaseURL | quote }}
+            - name: GATEWAY_JWT_AUDIENCE
+              value: {{ .Values.env.gatewayJWTAudience | quote }}
             - name: MCP_OAUTH_COOKIE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "web.fullname" . }}
                   key: MCP_OAUTH_COOKIE_SECRET
-            {{- if .Values.env.gatewayInternalBaseURL }}
-            - name: GATEWAY_INTERNAL_BASE_URL
-              value: {{ .Values.env.gatewayInternalBaseURL | quote }}
+            {{- if .Values.env.internalGatewayBaseURL }}
+            - name: INTERNAL_GATEWAY_BASE_URL
+              value: {{ .Values.env.internalGatewayBaseURL | quote }}
+            {{- end }}
+            {{- if .Values.env.githubClientID }}
+            - name: GITHUB_CLIENT_ID
+              value: {{ .Values.env.githubClientID | quote }}
+            {{- end }}
+            {{- if .Values.secrets.githubClientSecret }}
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: GITHUB_CLIENT_SECRET
+            {{- end }}
+            {{- if .Values.env.githubAllowedUserID }}
+            - name: GITHUB_ALLOWED_USER_ID
+              value: {{ .Values.env.githubAllowedUserID | quote }}
+            {{- end }}
+            {{- if .Values.env.githubOrg }}
+            - name: GITHUB_ORG
+              value: {{ .Values.env.githubOrg | quote }}
+            {{- end }}
+            {{- if .Values.env.githubTeamSlug }}
+            - name: GITHUB_TEAM_SLUG
+              value: {{ .Values.env.githubTeamSlug | quote }}
+            {{- end }}
+            {{- if .Values.env.googleClientID }}
+            - name: GOOGLE_CLIENT_ID
+              value: {{ .Values.env.googleClientID | quote }}
+            {{- end }}
+            {{- if .Values.secrets.googleClientSecret }}
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: GOOGLE_CLIENT_SECRET
+            {{- end }}
+            {{- if .Values.env.googleAllowedEmailDomains }}
+            - name: GOOGLE_ALLOWED_EMAIL_DOMAINS
+              value: {{ .Values.env.googleAllowedEmailDomains | quote }}
             {{- end }}
             {{- if .Values.env.nixosSearchESURL }}
             - name: NIXOS_SEARCH_ES_URL

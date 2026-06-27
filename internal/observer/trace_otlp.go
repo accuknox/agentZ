@@ -18,10 +18,19 @@ import (
 	"google.golang.org/grpc"
 )
 
+var (
+	errTraceAgentNameMissing       = errors.New("clawarmor.agent_name missing")
+	errTraceSessionIDMissing       = errors.New("session.id missing")
+	errTraceTenantNamespaceMissing = errors.New("tenant namespace missing")
+)
+
 const (
-	attrClawArmorAgentName = "clawarmor.agent_name"
-	attrSessionID          = "session.id"
-	attrSpanKind           = "openinference.span.kind"
+	attrClawArmorAgentName       = "clawarmor.agent_name"
+	attrClawArmorTenantNamespace = "clawarmor.tenant_namespace"
+	attrK8sNamespaceName         = "k8s.namespace.name"
+	attrSessionID                = "session.id"
+	attrServiceNamespace         = "service.namespace"
+	attrSpanKind                 = "openinference.span.kind"
 
 	attrInputValue     = "input.value"
 	attrInputMimeType  = "input.mime_type"
@@ -58,19 +67,15 @@ const (
 	operationExecuteTool = "execute_tool"
 )
 
-var (
-	errTraceAgentNameMissing = errors.New("clawarmor.agent_name missing")
-	errTraceSessionIDMissing = errors.New("session.id missing")
-)
-
 type traceReceiver struct {
 	tracev1.UnimplementedTraceServiceServer
 
+	res   *resolver
 	out   chan<- event
 	stats *stats
 }
 
-func runOTLPTraceReceiver(ctx context.Context, cfg Config, out chan<- event, s *stats) error {
+func runOTLPTraceReceiver(ctx context.Context, cfg Config, res *resolver, out chan<- event, s *stats) error {
 	lis, err := net.Listen("tcp", cfg.OTLPTraceGRPCAddr)
 	if err != nil {
 		return fmt.Errorf("listen otlp trace grpc %s: %w", cfg.OTLPTraceGRPCAddr, err)
@@ -78,6 +83,7 @@ func runOTLPTraceReceiver(ctx context.Context, cfg Config, out chan<- event, s *
 
 	srv := grpc.NewServer()
 	tracev1.RegisterTraceServiceServer(srv, &traceReceiver{
+		res:   res,
 		out:   out,
 		stats: s,
 	})
@@ -105,7 +111,7 @@ func runOTLPTraceReceiver(ctx context.Context, cfg Config, out chan<- event, s *
 }
 
 func (r *traceReceiver) Export(ctx context.Context, req *tracev1.ExportTraceServiceRequest) (*tracev1.ExportTraceServiceResponse, error) {
-	events, rejected := traceEventsFromOTLPRequest(req)
+	events, rejected := traceEventsFromOTLPRequest(ctx, r.res, req)
 	for _, ev := range events {
 		if err := sendEvent(ctx, r.out, event{trace: &ev}); err != nil {
 			return nil, err
@@ -118,7 +124,7 @@ func (r *traceReceiver) Export(ctx context.Context, req *tracev1.ExportTraceServ
 	return &tracev1.ExportTraceServiceResponse{}, nil
 }
 
-func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest) ([]traceSpanEvent, int) {
+func traceEventsFromOTLPRequest(ctx context.Context, res *resolver, req *tracev1.ExportTraceServiceRequest) ([]traceSpanEvent, int) {
 	if req == nil {
 		return nil, 0
 	}
@@ -129,7 +135,7 @@ func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest) ([]trace
 		resourceAttrs := attrsMap(rs.GetResource().GetAttributes())
 		for _, ss := range rs.GetScopeSpans() {
 			for _, sp := range ss.GetSpans() {
-				ev, err := traceEventFromOTLPSpan(sp, resourceAttrs)
+				ev, err := traceEventFromOTLPSpan(ctx, res, sp, resourceAttrs)
 				if err != nil {
 					rejected++
 					continue
@@ -141,7 +147,7 @@ func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest) ([]trace
 	return events, rejected
 }
 
-func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) (traceSpanEvent, error) {
+func traceEventFromOTLPSpan(ctx context.Context, res *resolver, sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) (traceSpanEvent, error) {
 	if sp == nil || len(sp.GetTraceId()) != 16 || len(sp.GetSpanId()) != 8 {
 		return traceSpanEvent{}, errTraceAgentNameMissing
 	}
@@ -156,6 +162,29 @@ func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb
 	sessionID, err := requiredStringAttr(spanAttrs, resourceAttrs, attrSessionID, errTraceSessionIDMissing)
 	if err != nil {
 		return traceSpanEvent{}, err
+	}
+
+	tenantNamespace := strings.TrimSpace(firstStringAttr(
+		spanAttrs,
+		resourceAttrs,
+		attrClawArmorTenantNamespace,
+	))
+	if tenantNamespace == "" {
+		tenantNamespace = strings.TrimSpace(firstStringAttr(
+			spanAttrs,
+			resourceAttrs,
+			attrK8sNamespaceName,
+		))
+	}
+	if tenantNamespace == "" {
+		tenantNamespace = strings.TrimSpace(firstStringAttr(
+			spanAttrs,
+			resourceAttrs,
+			attrServiceNamespace,
+		))
+	}
+	if tenantNamespace == "" {
+		return traceSpanEvent{}, errTraceTenantNamespaceMissing
 	}
 
 	start := unixNano(sp.GetStartTimeUnixNano())
@@ -179,8 +208,22 @@ func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb
 	if spanClass == spanClassTool && toolName != "" {
 		prefix := mcp.OpenCodeGatewayToolsetName + "_"
 		if rest, ok := strings.CutPrefix(toolName, prefix); ok {
-			connectionName, toolName, ok := strings.Cut(rest, "_")
-			if ok && connectionName != "" && toolName != "" {
+			var connectionName, mcpToolName string
+			if conn, name, ok := strings.Cut(rest, "_"); ok && conn != "" && name != "" {
+				connectionName = conn
+				mcpToolName = name
+			} else if res != nil && rest != "" {
+				conn, ok := res.resolveSingleMCPConnection(
+					ctx,
+					tenantNamespace,
+					agentName,
+				)
+				if ok && conn != "" {
+					connectionName = conn
+					mcpToolName = rest
+				}
+			}
+			if connectionName != "" && mcpToolName != "" {
 				mcpToolCall = &mcpToolCallEvent{
 					agentName:         agentName,
 					traceID:           cloneBytes(sp.GetTraceId()),
@@ -189,7 +232,7 @@ func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb
 					endTime:           end,
 					durationNS:        durationNS,
 					mcpConnectionName: connectionName,
-					toolName:          toolName,
+					toolName:          mcpToolName,
 					sessionID:         sessionID,
 					failed:            status == statusError || hasPayloadValue(payload.toolError),
 				}
@@ -198,6 +241,7 @@ func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb
 	}
 
 	return traceSpanEvent{
+		tenantNamespace:    tenantNamespace,
 		agentName:          agentName,
 		sessionID:          sessionID,
 		traceID:            cloneBytes(sp.GetTraceId()),

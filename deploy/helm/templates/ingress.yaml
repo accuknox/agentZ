@@ -25,6 +25,20 @@ spec:
     - host: {{ .host }}
       http:
         paths:
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "clawarmor.webFullname" $ }}
+                port:
+                  number: {{ $.Values.web.service.port }}
+          - path: /api/gateway
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "clawarmor.webFullname" $ }}
+                port:
+                  number: {{ $.Values.web.service.port }}
           - path: /api
             pathType: Prefix
             backend:

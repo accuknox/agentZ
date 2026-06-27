@@ -48,7 +48,7 @@ import type {
   TraceSessionFilterItem,
 } from "@/data/types"
 import { dayjs } from "@/lib/dayjs"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
 
 const maxChartPoints = 25
@@ -58,6 +58,13 @@ type AggregatedTelemetryEvent = {
   last_seen: string
   occurrences: number
 }
+type ObservabilityEvent =
+  | FileObservabilityEvent
+  | FileObservabilityEventAggregated
+  | NetworkObservabilityEvent
+  | NetworkObservabilityEventAggregated
+  | ProcessObservabilityEvent
+  | ProcessObservabilityEventAggregated
 type TraceSummary = Pick<
   TraceSession,
   | "trace_id"
@@ -82,7 +89,7 @@ export async function listTraceSessionsAction(
   const result = await listTraceSessions({
     path,
     query,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
@@ -104,7 +111,7 @@ export async function getTraceChartAction(
   query?: ListTraceSessionsData["query"]
 ): Promise<TraceChartActionResponse> {
   const result = await listTraceSessions({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path,
     query: { ...query, limit: chartSourceLimit },
   })
@@ -127,7 +134,7 @@ export async function getTraceChartAction(
 export async function listTraceSessionFilterAction(
   agentName: string
 ): Promise<TraceSessionFilterActionResponse> {
-  const client = createAgentOpencodeClient(agentName)
+  const client = await createAgentOpencodeClient(agentName)
   const sessionListResult = await client.session.list()
   if (!sessionListResult.data) {
     return { data: [], error: undefined }
@@ -148,7 +155,7 @@ export async function listSpansAction(
   const result = await listSpans({
     path,
     query,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
@@ -171,7 +178,7 @@ export async function getSpanDetailAction(
 ): Promise<SpanDetailActionResponse> {
   const result = await getSpanDetail({
     path,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
@@ -211,7 +218,7 @@ export async function getMcpGraphAction(
   const result = await getMcpGraph({
     path,
     query,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
@@ -239,17 +246,17 @@ export async function getRuntimeTelemetryAction({
     listProcessObservability({
       path: { agentName: agent_name },
       query,
-      client: gatewayServerClient,
+      client: getGatewayServerClient(),
     }),
     listFileObservability({
       path: { agentName: agent_name },
       query,
-      client: gatewayServerClient,
+      client: getGatewayServerClient(),
     }),
     listNetworkObservability({
       path: { agentName: agent_name },
       query,
-      client: gatewayServerClient,
+      client: getGatewayServerClient(),
     }),
   ])
   if (processes.error) {
@@ -265,9 +272,9 @@ export async function getRuntimeTelemetryAction({
   }
 
   const events: RuntimeTelemetryEventItem[] = [
-    ...(processes.data.events as ProcessObservabilityEvent[]).map(processTelemetryEventItem),
-    ...(files.data.events as FileObservabilityEvent[]).map(fileTelemetryEventItem),
-    ...(networks.data.events as NetworkObservabilityEvent[]).map(networkTelemetryEventItem),
+    ...processes.data.events.map(processTelemetryEventItem),
+    ...files.data.events.map(fileTelemetryEventItem),
+    ...networks.data.events.map(networkTelemetryEventItem),
   ].toSorted((left, right) => left.eventTime.localeCompare(right.eventTime))
 
   return {
@@ -307,15 +314,13 @@ export async function getRuntimeTelemetryTabAction({
     const result = await listProcessObservability({
       path: { agentName: agent_name },
       query,
-      client: gatewayServerClient,
+      client: getGatewayServerClient(),
     })
     if (result.error) {
       return { data: undefined, error: result.error }
     }
 
-    const events = (result.data.events as ProcessObservabilityEvent[]).map(
-      processTelemetryEventItem
-    )
+    const events = result.data.events.map(processTelemetryEventItem)
     return {
       data: {
         events,
@@ -330,13 +335,13 @@ export async function getRuntimeTelemetryTabAction({
     const result = await listFileObservability({
       path: { agentName: agent_name },
       query,
-      client: gatewayServerClient,
+      client: getGatewayServerClient(),
     })
     if (result.error) {
       return { data: undefined, error: result.error }
     }
 
-    const events = (result.data.events as FileObservabilityEvent[]).map(fileTelemetryEventItem)
+    const events = result.data.events.map(fileTelemetryEventItem)
     return {
       data: {
         events,
@@ -350,13 +355,13 @@ export async function getRuntimeTelemetryTabAction({
   const result = await listNetworkObservability({
     path: { agentName: agent_name },
     query,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
 
-  const events = (result.data.events as NetworkObservabilityEvent[]).map(networkTelemetryEventItem)
+  const events = result.data.events.map(networkTelemetryEventItem)
   return {
     data: {
       events,
@@ -370,12 +375,25 @@ export async function getRuntimeTelemetryTabAction({
 const maxTelemetryChartPoints = 5
 const defaultPageSize = 25
 
+function requireAggregatedTelemetryEvents<T extends ObservabilityEvent>(
+  events: readonly T[]
+): Extract<T, AggregatedTelemetryEvent>[] {
+  const aggregated = events.filter(
+    (event): event is Extract<T, AggregatedTelemetryEvent> => "occurrences" in event
+  )
+  if (aggregated.length !== events.length) {
+    throw new Error("gateway returned raw telemetry for an aggregated request")
+  }
+
+  return aggregated
+}
+
 function rowTelemetryEvent(event: ProcessObservabilityEventAggregated): ProcessTelemetryRow {
   return {
     process: event.process,
     command: event.command_invocation || event.parent_process,
     action: event.action,
-    occurrences: Number(event.occurrences),
+    occurrences: event.occurrences,
     lastSeen: formatEventTime(event.last_seen),
   }
 }
@@ -385,7 +403,7 @@ function fileTelemetryEvent(event: FileObservabilityEventAggregated): FileTeleme
     filePath: event.file_path_accessed,
     process: event.command_invocation || event.process,
     action: event.action,
-    occurrences: Number(event.occurrences),
+    occurrences: event.occurrences,
     lastSeen: formatEventTime(event.last_seen),
   }
 }
@@ -397,7 +415,7 @@ function networkTelemetryEvent(event: NetworkObservabilityEventAggregated): Netw
     destinationPort: event.destination_port,
     protocol: event.protocol,
     action: event.action,
-    occurrences: Number(event.occurrences),
+    occurrences: event.occurrences,
     lastSeen: formatEventTime(event.last_seen),
   }
 }
@@ -460,7 +478,7 @@ function computeTelemetryChartFromAggregated(
 
   return {
     points,
-    total: events.reduce((sum, e) => sum + Number(e.occurrences), 0),
+    total: events.reduce((sum, event) => sum + event.occurrences, 0),
     granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
   }
 }
@@ -487,13 +505,13 @@ export async function getProcessTelemetryAction({
   const result = await listProcessObservability({
     path: { agentName: agent_name },
     query,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
 
-  const events = result.data.events as ProcessObservabilityEventAggregated[]
+  const events = requireAggregatedTelemetryEvents(result.data.events)
   const rows = events.map(rowTelemetryEvent)
   const chart = computeTelemetryChartFromAggregated(events)
   const nextPageToken = result.data.next_page_token
@@ -531,13 +549,13 @@ export async function getFileTelemetryAction({
   const result = await listFileObservability({
     path: { agentName: agent_name },
     query,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
 
-  const events = result.data.events as FileObservabilityEventAggregated[]
+  const events = requireAggregatedTelemetryEvents(result.data.events)
   const rows = events.map(fileTelemetryEvent)
   const chart = computeTelemetryChartFromAggregated(events)
   const nextPageToken = result.data.next_page_token
@@ -575,13 +593,13 @@ export async function getNetworkTelemetryAction({
   const result = await listNetworkObservability({
     path: { agentName: agent_name },
     query,
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (result.error) {
     return { data: undefined, error: result.error }
   }
 
-  const events = result.data.events as NetworkObservabilityEventAggregated[]
+  const events = requireAggregatedTelemetryEvents(result.data.events)
   const rows = events.map(networkTelemetryEvent)
   const chart = computeTelemetryChartFromAggregated(events)
   const nextPageToken = result.data.next_page_token
@@ -861,7 +879,13 @@ function isEmptyJSON(value: JsonValue) {
   return false
 }
 
-function processTelemetryEventItem(event: ProcessObservabilityEvent): RuntimeTelemetryEventItem {
+function processTelemetryEventItem(
+  event: ProcessObservabilityEvent | ProcessObservabilityEventAggregated
+): RuntimeTelemetryEventItem {
+  if (!("id" in event)) {
+    throw new Error("gateway returned aggregated process telemetry for a raw request")
+  }
+
   const eventTime = dayjs(event.event_time)
   const time = !eventTime.isValid()
     ? event.event_time
@@ -883,7 +907,13 @@ function processTelemetryEventItem(event: ProcessObservabilityEvent): RuntimeTel
   }
 }
 
-function fileTelemetryEventItem(event: FileObservabilityEvent): RuntimeTelemetryEventItem {
+function fileTelemetryEventItem(
+  event: FileObservabilityEvent | FileObservabilityEventAggregated
+): RuntimeTelemetryEventItem {
+  if (!("id" in event)) {
+    throw new Error("gateway returned aggregated file telemetry for a raw request")
+  }
+
   const eventTime = dayjs(event.event_time)
   const time = !eventTime.isValid()
     ? event.event_time
@@ -905,7 +935,13 @@ function fileTelemetryEventItem(event: FileObservabilityEvent): RuntimeTelemetry
   }
 }
 
-function networkTelemetryEventItem(event: NetworkObservabilityEvent): RuntimeTelemetryEventItem {
+function networkTelemetryEventItem(
+  event: NetworkObservabilityEvent | NetworkObservabilityEventAggregated
+): RuntimeTelemetryEventItem {
+  if (!("id" in event)) {
+    throw new Error("gateway returned aggregated network telemetry for a raw request")
+  }
+
   const eventTime = dayjs(event.event_time)
   const time = !eventTime.isValid()
     ? event.event_time

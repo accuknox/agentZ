@@ -39,13 +39,13 @@ export function chatAttachmentErrorMessage(code: "accept" | "max_file_size" | "m
   }
 }
 
-export function formatBytes(size: number) {
+function formatBytes(size: number) {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function validateChatAttachments(files: ChatAttachment[]) {
+function validateChatAttachments(files: ChatAttachment[]) {
   if (files.length > chatAttachmentConfig.maxFileCount) {
     throw new Error(chatAttachmentErrorMessage("max_files"))
   }
@@ -69,7 +69,7 @@ export function validateChatAttachments(files: ChatAttachment[]) {
   }
 }
 
-export function isSupportedChatAttachmentMime(mime: string) {
+function isSupportedChatAttachmentMime(mime: string) {
   if (blockedMimeTypes.has(mime)) return false
   return mime.startsWith("image/") || mime === "application/pdf"
 }

@@ -31,14 +31,18 @@ import (
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
+	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/go-logr/logr"
 	"github.com/urfave/cli/v3"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -46,10 +50,10 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/clawarmor/cmd/clawarmor/subcommands"
-	"github.com/accuknox/clawarmor/cmd/clawarmor/util"
 	"github.com/accuknox/clawarmor/internal/controller/agent"
 	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
 	"github.com/accuknox/clawarmor/internal/controller/mcpconn"
+	"github.com/accuknox/clawarmor/internal/controller/tenant"
 	workflowruncontroller "github.com/accuknox/clawarmor/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/clawarmor/internal/controller/workflowschedule"
 	"github.com/accuknox/clawarmor/internal/envutil"
@@ -83,6 +87,10 @@ var (
 	sinjectorOpenBaoK8sAuthTokenPath                 string
 	managerOpenBaoK8sAuthRole                        string
 	managerOpenBaoK8sAuthTokenPath                   string
+	managerGatewayTokenPath                          string
+	managerGatewayTokenAudience                      string
+	managerServiceAccountName                        string
+	managerServiceAccountNamespace                   string
 	sinjectorCASecretName                            string
 	sinjectorCASecretCertKey                         string
 	sinjectorCASecretKeyKey                          string
@@ -90,6 +98,10 @@ var (
 	sinjectorCACertPath                              string
 	sinjectorCAKeyPath                               string
 	agentCABundlePath                                string
+	tenantNixStoreSize                               string
+	tenantNixStoreAccessModes                        []string
+	tenantNixStoreStorageClass                       string
+	tenantSinjectorClusterIssuerName                 string
 	watchNamespace                                   string
 	enableWebhooks                                   bool
 )
@@ -99,9 +111,32 @@ type silentExitCoder interface {
 	Silent() bool
 }
 
+func newLogger(level, format string, withSource bool) *slog.Logger {
+	var slogLvl slog.Level
+	switch level {
+	case "debug":
+		slogLvl = slog.LevelDebug
+	case "warn":
+		slogLvl = slog.LevelWarn
+	case "error":
+		slogLvl = slog.LevelError
+	default:
+		slogLvl = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{
+		Level:     slogLvl,
+		AddSource: withSource,
+	}
+	if format == "json" {
+		return slog.New(slog.NewJSONHandler(os.Stderr, opts))
+	}
+	return slog.New(slog.NewTextHandler(os.Stderr, opts))
+}
+
 var cmd = &cli.Command{
 	Name:                  "clawarmor",
-	Usage:                 "The AI that actually does things - SECURELY.",
+	Usage:                 "Infra for your AI agents.",
 	EnableShellCompletion: true,
 	Authors:               []any{"Murtaza U <murtaza@accuknox.com>"},
 	ExitErrHandler: func(_ context.Context, _ *cli.Command, err error) {
@@ -151,7 +186,7 @@ var cmd = &cli.Command{
 			return ctx, fmt.Errorf("invalid log format %q", format)
 		}
 		withSource := c.Bool("log-with-source")
-		slog.SetDefault(util.NewLogger(level, format, withSource))
+		slog.SetDefault(newLogger(level, format, withSource))
 		return ctx, nil
 	},
 }
@@ -240,8 +275,31 @@ var managerCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:        "nix-store-pvc",
-			Usage:       "Name of the shared nix store PVC (pre-created by admin)",
+			Usage:       "Name of the tenant-shared nix store PVC used by agent package jobs",
 			Destination: &nixStorePVC,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "tenant-nix-store-size",
+			Usage:       "Requested storage size for the tenant nix store PVC",
+			Value:       "5Gi",
+			Destination: &tenantNixStoreSize,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringSliceFlag{
+			Name:        "tenant-nix-store-access-mode",
+			Usage:       "Access mode for the tenant nix store PVC; repeat for multiple values",
+			Value:       []string{"ReadWriteOnce"},
+			Destination: &tenantNixStoreAccessModes,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-nix-store-storage-class",
+			Usage:       "Optional storage class for the tenant nix store PVC",
+			Destination: &tenantNixStoreStorageClass,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -310,7 +368,7 @@ var managerCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:        "manager-openbao-k8s-auth-token-path",
-			Usage:       "Controller-manager Kubernetes token path for OpenBao auth",
+			Usage:       "Kubernetes service account token path for manager OpenBao auth",
 			Value:       "/var/run/secrets/kubernetes.io/serviceaccount/token",
 			Destination: &managerOpenBaoK8sAuthTokenPath,
 			Config: cli.StringConfig{
@@ -318,8 +376,42 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:        "manager-gateway-token-path",
+			Usage:       "Projected Kubernetes service account token path for gateway auth",
+			Value:       "/var/run/secrets/clawarmor/gateway/token",
+			Destination: &managerGatewayTokenPath,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-gateway-token-audience",
+			Usage:       "Audience for projected Kubernetes service account tokens used for gateway auth",
+			Value:       "clawarmor-gateway",
+			Destination: &managerGatewayTokenAudience,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-service-account-name",
+			Usage:       "Manager ServiceAccount name granted tenant gateway access",
+			Destination: &managerServiceAccountName,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "manager-service-account-namespace",
+			Usage:       "Manager ServiceAccount namespace granted tenant gateway access",
+			Destination: &managerServiceAccountNamespace,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
 			Name:        "sinjector-ca-secret-name",
-			Usage:       "Shared cert-manager Secret containing SIP CA cert/key/bundle",
+			Usage:       "Tenant-scoped cert-manager Secret containing SIP CA cert/key/bundle",
 			Value:       "sinjector",
 			Destination: &sinjectorCASecretName,
 			Config: cli.StringConfig{
@@ -367,6 +459,14 @@ var managerCmd = &cli.Command{
 			Value:       "/etc/clawarmor/sinjector-ca/ca.crt",
 			Destination: &agentCABundlePath,
 			Hidden:      true,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-sinjector-clusterissuer-name",
+			Usage:       "Pre-created cert-manager ClusterIssuer used for tenant sinjector CA certificates",
+			Destination: &tenantSinjectorClusterIssuerName,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
 		},
 		&cli.StringFlag{
 			Name:        "watch-namespace",
@@ -555,6 +655,11 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "failed to create agentgateway clientset")
 			os.Exit(1)
 		}
+		cmClient, err := cmclientset.NewForConfig(restCfg)
+		if err != nil {
+			setupLog.Error(err, "failed to create cert-manager clientset")
+			os.Exit(1)
+		}
 		if openBaoAddr == "" {
 			return fmt.Errorf("openbao addr is required")
 		}
@@ -563,6 +668,30 @@ var managerCmd = &cli.Command{
 		}
 		if sinjectorCASecretName == "" {
 			return fmt.Errorf("sinjector ca secret name is required")
+		}
+		if nixStorePVC == "" {
+			return fmt.Errorf("nix store pvc is required")
+		}
+		if tenantSinjectorClusterIssuerName == "" {
+			return fmt.Errorf("tenant sinjector clusterissuer name is required")
+		}
+
+		tenantPVCSize, err := resource.ParseQuantity(tenantNixStoreSize)
+		if err != nil {
+			return fmt.Errorf("parse tenant nix store size: %w", err)
+		}
+		tenantPVCAccessModes := make(
+			[]corev1.PersistentVolumeAccessMode,
+			0,
+			len(tenantNixStoreAccessModes),
+		)
+		for _, value := range tenantNixStoreAccessModes {
+			switch corev1.PersistentVolumeAccessMode(value) {
+			case corev1.ReadWriteOnce, corev1.ReadOnlyMany, corev1.ReadWriteMany, corev1.ReadWriteOncePod:
+				tenantPVCAccessModes = append(tenantPVCAccessModes, corev1.PersistentVolumeAccessMode(value))
+			default:
+				return fmt.Errorf("invalid tenant nix store access mode %q", value)
+			}
 		}
 
 		runtimeConfig := agent.RuntimeConfig{
@@ -577,6 +706,7 @@ var managerCmd = &cli.Command{
 			SinjectorOpenBaoK8sAuthTokenPath: sinjectorOpenBaoK8sAuthTokenPath,
 			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
 			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
+			GatewayTokenAudience:             managerGatewayTokenAudience,
 			SinjectorImage:                   controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,
@@ -626,16 +756,20 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "Environment")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient); err != nil {
+			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowSchedule")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr, gwClient); err != nil {
+			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowRun")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupMCPConnectionWebhookWithManager(mgr, mgr.GetClient()); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "MCPConnection")
+				os.Exit(1)
+			}
+			if err := webhookv1alpha1.SetupTenantWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "Tenant")
 				os.Exit(1)
 			}
 		}
@@ -653,6 +787,7 @@ var managerCmd = &cli.Command{
 		workflowRunReconciler := &workflowruncontroller.Reconciler{
 			Client:        mgr.GetClient(),
 			GatewayClient: gwClient,
+			TokenPath:     managerGatewayTokenPath,
 		}
 		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "WorkflowRun")
@@ -673,6 +808,34 @@ var managerCmd = &cli.Command{
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "MCPConnection")
+			os.Exit(1)
+		}
+
+		tenantReconciler := &tenant.Reconciler{
+			Client:     mgr.GetClient(),
+			CertClient: cmClient,
+			Direct: func() client.Client {
+				c, err := client.New(restCfg, client.Options{
+					Scheme: mgr.GetScheme(),
+				})
+				if err != nil {
+					setupLog.Error(err, "failed to create direct tenant client")
+					os.Exit(1)
+				}
+				return c
+			}(),
+			Scheme:                         mgr.GetScheme(),
+			NixStorePVCName:                nixStorePVC,
+			NixStorePVCSize:                tenantPVCSize,
+			NixStorePVCAccessModes:         tenantPVCAccessModes,
+			NixStorePVCStorageClass:        tenantNixStoreStorageClass,
+			SinjectorCASecretName:          sinjectorCASecretName,
+			ClusterIssuerName:              tenantSinjectorClusterIssuerName,
+			ManagerServiceAccountName:      managerServiceAccountName,
+			ManagerServiceAccountNamespace: managerServiceAccountNamespace,
+		}
+		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "Tenant")
 			os.Exit(1)
 		}
 

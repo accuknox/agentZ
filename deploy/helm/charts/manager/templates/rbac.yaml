@@ -11,7 +11,10 @@ rules:
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["create", "delete", "get", "list", "watch"]
+    verbs: ["create", "get", "list", "patch", "update", "watch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["agentgateway.dev"]
     resources: ["agentgatewaybackends", "agentgatewayparameters", "agentgatewaypolicies"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
@@ -27,31 +30,43 @@ rules:
   - apiGroups: ["cilium.io"]
     resources: ["ciliumnetworkpolicies"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["clawarmor.accuknox.com"]
-    resources: ["agents", "mcpconnections", "workflowruns", "workflowschedules"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+    resources: ["agents"]
+    verbs: ["create-workflow", "create-workflow-schedule", "delete-workflow-schedule", "delete-workflows", "get", "get-workflow", "list", "list-workflow-schedules", "list-workflows", "patch", "set-workflowrun-status", "update-workflow-schedule", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["envs", "mcpconnections"]
+    verbs: ["get", "list", "patch", "watch"]
   - apiGroups: ["clawarmor.accuknox.com"]
     resources:
       - agents/finalizers
       - envs/finalizers
       - mcpconnections/finalizers
       - workflowruns/finalizers
-      - workflowschedules/finalizers
     verbs: ["update"]
   - apiGroups: ["clawarmor.accuknox.com"]
     resources:
       - agents/status
       - envs/status
       - mcpconnections/status
+      - tenants/status
       - workflowruns/status
       - workflowschedules/status
     verbs: ["get", "patch", "update"]
   - apiGroups: ["clawarmor.accuknox.com"]
-    resources: ["envs"]
-    verbs: ["get", "list", "patch", "update", "watch"]
+    resources: ["tenants", "workflowschedules"]
+    verbs: ["get", "list", "use", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["workflowruns"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["gateways", "httproutes"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings"]
+    verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["rolebindings", "roles"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
@@ -144,6 +159,51 @@ rules:
   - nonResourceURLs: ["/metrics"]
     verbs: ["get"]
 {{- if .Values.rbac.createUserRoles }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-tenant-admin-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["tenants"]
+    verbs: ["*"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["tenants/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-tenant-editor-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["tenants"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["tenants/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "manager.fullname" . }}-tenant-viewer-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["tenants"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["clawarmor.accuknox.com"]
+    resources: ["tenants/status"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

@@ -34,13 +34,14 @@ import (
 // +kubebuilder:object:generate=false
 type Validator struct {
 	gatewayClient *gatewayapi.ClientWithResponses
+	tokenPath     string
 }
 
 var _ admission.Validator[*clawarmorv1alpha1.WorkflowRun] = &Validator{}
 
 // NewValidator builds a WorkflowRun validator.
-func NewValidator(gatewayClient *gatewayapi.ClientWithResponses) *Validator {
-	return &Validator{gatewayClient: gatewayClient}
+func NewValidator(gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) *Validator {
+	return &Validator{gatewayClient: gatewayClient, tokenPath: tokenPath}
 }
 
 // +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-workflowrun,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowruns,verbs=create;update,versions=v1alpha1,name=vworkflowrun-v1alpha1.kb.io,admissionReviewVersions=v1
@@ -90,6 +91,8 @@ func (v *Validator) validateRun(ctx context.Context, run *clawarmorv1alpha1.Work
 		err := workflow.ValidateInputs(
 			ctx,
 			v.gatewayClient,
+			v.tokenPath,
+			run.Namespace,
 			run.GroupVersionKind().GroupKind(),
 			run.Name,
 			run.Spec.AgentName,

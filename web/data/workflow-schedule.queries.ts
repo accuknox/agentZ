@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 import { listAgentWorkflowSchedules } from "@/lib/gateway/client"
 import type { Error, ListAgentWorkflowSchedulesData, WorkflowSchedule } from "@/lib/gateway/client"
 import { agentWorkflowsTag, workflowsTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type ListWorkflowSchedulesQueryResult =
   | {
@@ -22,25 +22,25 @@ export async function listWorkflowSchedulesCachedQuery(
   agentName: ListAgentWorkflowSchedulesData["path"]["agentName"],
   query?: ListAgentWorkflowSchedulesData["query"]
 ): Promise<ListWorkflowSchedulesQueryResult> {
-  "use cache"
+  "use cache: private"
 
   cacheLife("minutes")
   cacheTag(workflowsTag, agentWorkflowsTag(agentName))
 
-  const result = await listAgentWorkflowSchedules({
-    client: gatewayServerClient,
+  const { data, error } = await listAgentWorkflowSchedules({
+    client: getGatewayServerClient(),
     path: { agentName },
     query,
   })
-  if (result.error) {
+  if (error) {
     return {
       workflowSchedules: undefined,
-      error: result.error,
+      error,
     }
   }
 
-  const workflowSchedules = result.data.workflow_schedules
-  const nextPageToken = result.data.next_page_token
+  const workflowSchedules = data.workflow_schedules
+  const nextPageToken = data.next_page_token
   const hasNextPage = nextPageToken.length > 0
 
   return {

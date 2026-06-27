@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { DeleteAgentFormState } from "@/data/types"
-import { useTokenPagination } from "@/app/lens/traces/client-utils"
+import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {

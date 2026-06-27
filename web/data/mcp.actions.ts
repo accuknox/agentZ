@@ -24,7 +24,8 @@ import {
 } from "@/lib/mcp-oauth"
 import { oauthErrorFieldNames } from "@/lib/mcp-oauth-shared"
 import { mcpsTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { currentGatewayAuthContext } from "@/lib/gateway/auth"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type McpFormState =
   | {
@@ -127,7 +128,7 @@ async function persistBearerMutation(
       auth,
       credentials,
     },
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
   if (createResult.error) {
     return createResult.error
@@ -183,7 +184,9 @@ export async function submitMcpFormAction(
 
   const form = parseMcpForm(parsed.data)
   if (form.authMode === "oauth") {
+    const authContext = await currentGatewayAuthContext()
     const result = await beginOAuthFlow({
+      initiator: authContext,
       operation: {
         kind: "create",
         form,
@@ -216,7 +219,7 @@ export async function submitMcpFormAction(
     try {
       const cookieStore = await cookies()
       cookieStore.set(
-        mcpOAuthCookieName(),
+        mcpOAuthCookieName,
         await sealPendingOAuthState(result.value.pending),
         oauthCookieOptions()
       )
@@ -257,7 +260,7 @@ export async function deleteMcpFormAction(
   }
 
   const result = await deleteMcpConnection({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path: { name: parsedName.data },
   })
   if (result.error) {

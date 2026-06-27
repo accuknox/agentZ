@@ -17,9 +17,11 @@ import {
   deleteWorkflowRun,
   deleteWorkflows,
   deleteWorkflowSchedule,
+  ensureTenant,
   getMcpConnection,
   getMcpGraph,
   getSpanDetail,
+  getTenant,
   getWorkflow,
   getWorkflowRun,
   listAgents,
@@ -82,6 +84,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsError,
   DeleteWorkflowsResponse,
+  EnsureTenantData,
+  EnsureTenantError,
+  EnsureTenantResponse,
   GetMcpConnectionData,
   GetMcpConnectionError,
   GetMcpConnectionResponse,
@@ -91,6 +96,9 @@ import type {
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
+  GetTenantData,
+  GetTenantError,
+  GetTenantResponse,
   GetWorkflowData,
   GetWorkflowError,
   GetWorkflowResponse,
@@ -190,6 +198,57 @@ const createQueryKey = <TOptions extends Options>(
     params.query = options.query
   }
   return [params]
+}
+
+export const getTenantQueryKey = (options?: Options<GetTenantData>) =>
+  createQueryKey("getTenant", options)
+
+/**
+ * Get the current tenant bootstrap state.
+ */
+export const getTenantOptions = (options?: Options<GetTenantData>) =>
+  queryOptions<
+    GetTenantResponse,
+    GetTenantError,
+    GetTenantResponse,
+    ReturnType<typeof getTenantQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getTenant({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getTenantQueryKey(options),
+  })
+
+/**
+ * Create the current tenant resource when missing.
+ *
+ * Ensures a Tenant custom resource exists for the bearer token's active Better Auth organization. The request returns immediately with the current bootstrap state and does not wait for the tenant to become ready.
+ *
+ */
+export const ensureTenantMutation = (
+  options?: Partial<Options<EnsureTenantData>>
+): UseMutationOptions<EnsureTenantResponse, EnsureTenantError, Options<EnsureTenantData>> => {
+  const mutationOptions: UseMutationOptions<
+    EnsureTenantResponse,
+    EnsureTenantError,
+    Options<EnsureTenantData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await ensureTenant({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
 }
 
 export const listAgentsQueryKey = (options?: Options<ListAgentsData>) =>

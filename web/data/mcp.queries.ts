@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 import { listMcpConnections, type ListMcpConnectionsData } from "@/lib/gateway/client"
 import type { Error, McpConnectionSummary } from "@/lib/gateway/client"
 import { mcpsTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type ListMcpConnectionsQueryResponse =
   | {
@@ -21,22 +21,22 @@ export type ListMcpConnectionsQueryResponse =
 export async function listMcpConnectionsCachedQuery(
   query?: ListMcpConnectionsData["query"]
 ): Promise<ListMcpConnectionsQueryResponse> {
-  "use cache"
+  "use cache: private"
 
   cacheLife("minutes")
   cacheTag(mcpsTag)
 
-  const result = await listMcpConnections({ query, client: gatewayServerClient })
-  if (result.error) {
+  const { data, error } = await listMcpConnections({ query, client: getGatewayServerClient() })
+  if (error) {
     return {
       mcpConnections: undefined,
-      error: result.error,
+      error,
     }
   }
 
-  const nextPageToken = result.data.next_page_token
+  const nextPageToken = data.next_page_token
   return {
-    mcpConnections: result.data.mcp_connections,
+    mcpConnections: data.mcp_connections,
     nextPageToken,
     hasNextPage: nextPageToken.length > 0,
     error: undefined,

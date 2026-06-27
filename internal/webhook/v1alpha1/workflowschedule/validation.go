@@ -18,6 +18,7 @@ package workflowschedule
 
 import (
 	"context"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -32,13 +33,14 @@ import (
 // +kubebuilder:object:generate=false
 type Validator struct {
 	gatewayClient *gatewayapi.ClientWithResponses
+	tokenPath     string
 }
 
 var _ admission.Validator[*clawarmorv1alpha1.WorkflowSchedule] = &Validator{}
 
 // NewValidator builds a WorkflowSchedule validator.
-func NewValidator(gatewayClient *gatewayapi.ClientWithResponses) *Validator {
-	return &Validator{gatewayClient: gatewayClient}
+func NewValidator(gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) *Validator {
+	return &Validator{gatewayClient: gatewayClient, tokenPath: tokenPath}
 }
 
 // +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-workflowschedule,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=create;update,versions=v1alpha1,name=vworkflowschedule-v1alpha1.kb.io,admissionReviewVersions=v1
@@ -83,6 +85,8 @@ func (v *Validator) validateSchedule(ctx context.Context, schedule *clawarmorv1a
 		err := workflow.ValidateInputs(
 			ctx,
 			v.gatewayClient,
+			v.tokenPath,
+			schedule.Namespace,
 			schedule.GroupVersionKind().GroupKind(),
 			schedule.Name,
 			schedule.Spec.AgentName,

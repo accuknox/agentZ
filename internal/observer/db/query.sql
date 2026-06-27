@@ -1,6 +1,7 @@
 -- name: ListProcessEventsBetween :many
 SELECT
   id,
+  tenant_namespace,
   agent_name,
   event_time,
   ingested_at,
@@ -12,7 +13,8 @@ SELECT
   action,
   source
 FROM observer_process_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(updated_after)::timestamptz
   AND event_time <= sqlc.arg(updated_before)::timestamptz
 ORDER BY event_time ASC, id ASC
@@ -20,6 +22,7 @@ LIMIT sqlc.arg(page_size);
 
 -- name: InsertTraceSpan :batchexec
 INSERT INTO observer_trace_spans(
+  tenant_namespace,
   agent_name,
   session_id,
   trace_id,
@@ -46,6 +49,7 @@ INSERT INTO observer_trace_spans(
   resource_attributes,
   span_attributes
 ) VALUES (
+  sqlc.arg(tenant_namespace),
   sqlc.arg(agent_name),
   sqlc.arg(session_id),
   sqlc.arg(trace_id),
@@ -96,6 +100,7 @@ ON CONFLICT(trace_id, span_id, start_time) DO NOTHING;
 
 -- name: InsertMCPToolInvocation :batchexec
 INSERT INTO observer_mcp_tool_invocations(
+  tenant_namespace,
   agent_name,
   trace_id,
   span_id,
@@ -107,6 +112,7 @@ INSERT INTO observer_mcp_tool_invocations(
   session_id,
   failed
 ) VALUES (
+  sqlc.arg(tenant_namespace),
   sqlc.arg(agent_name),
   sqlc.arg(trace_id),
   sqlc.arg(span_id),
@@ -122,19 +128,26 @@ ON CONFLICT(trace_id, span_id, start_time) DO NOTHING;
 
 -- name: UpsertMCPToolLastCalled :batchexec
 INSERT INTO observer_mcp_tool_last_called(
+  tenant_namespace,
   agent_name,
   mcp_connection_name,
   tool_name,
   last_called_at,
   updated_at
 ) VALUES (
+  sqlc.arg(tenant_namespace),
   sqlc.arg(agent_name),
   sqlc.arg(mcp_connection_name),
   sqlc.arg(tool_name),
   sqlc.arg(last_called_at),
   now()
 )
-ON CONFLICT(agent_name, mcp_connection_name, tool_name) DO UPDATE SET
+ON CONFLICT(
+  tenant_namespace,
+  agent_name,
+  mcp_connection_name,
+  tool_name
+) DO UPDATE SET
   last_called_at = GREATEST(
     observer_mcp_tool_last_called.last_called_at,
     EXCLUDED.last_called_at
@@ -144,6 +157,7 @@ ON CONFLICT(agent_name, mcp_connection_name, tool_name) DO UPDATE SET
 -- name: RefreshTraceSummary :batchexec
 INSERT INTO observer_traces(
   trace_id,
+  tenant_namespace,
   agent_name,
   root_span_id,
   started_at,
@@ -162,6 +176,7 @@ INSERT INTO observer_traces(
   updated_at
 ) SELECT
   observer_trace_spans.trace_id,
+  (ARRAY_AGG(tenant_namespace ORDER BY start_time ASC))[1],
   (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
   COALESCE(
     (ARRAY_AGG(span_id ORDER BY
@@ -203,6 +218,7 @@ FROM observer_trace_spans
 WHERE observer_trace_spans.trace_id = sqlc.arg(trace_id)
 GROUP BY observer_trace_spans.trace_id
 ON CONFLICT(trace_id) DO UPDATE SET
+  tenant_namespace = EXCLUDED.tenant_namespace,
   agent_name = EXCLUDED.agent_name,
   root_span_id = EXCLUDED.root_span_id,
   started_at = EXCLUDED.started_at,
@@ -224,6 +240,7 @@ ON CONFLICT(trace_id) DO UPDATE SET
 INSERT INTO observer_trace_sessions(
   trace_id,
   session_id,
+  tenant_namespace,
   agent_name,
   root_span_id,
   started_at,
@@ -243,6 +260,7 @@ INSERT INTO observer_trace_sessions(
 ) SELECT
   observer_trace_spans.trace_id,
   sqlc.arg(session_id),
+  (ARRAY_AGG(tenant_namespace ORDER BY start_time ASC))[1],
   (ARRAY_AGG(agent_name ORDER BY start_time ASC))[1],
   COALESCE(
     (ARRAY_AGG(span_id ORDER BY
@@ -285,6 +303,7 @@ WHERE observer_trace_spans.trace_id = sqlc.arg(trace_id)
   AND observer_trace_spans.session_id = sqlc.arg(session_id)
 GROUP BY observer_trace_spans.trace_id
 ON CONFLICT(trace_id, session_id) DO UPDATE SET
+  tenant_namespace = EXCLUDED.tenant_namespace,
   agent_name = EXCLUDED.agent_name,
   root_span_id = EXCLUDED.root_span_id,
   started_at = EXCLUDED.started_at,
@@ -305,6 +324,7 @@ ON CONFLICT(trace_id, session_id) DO UPDATE SET
 -- name: ListFileEventsBetween :many
 SELECT
   id,
+  tenant_namespace,
   agent_name,
   event_time,
   ingested_at,
@@ -316,7 +336,8 @@ SELECT
   action,
   source
 FROM observer_file_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(updated_after)::timestamptz
   AND event_time <= sqlc.arg(updated_before)::timestamptz
 ORDER BY event_time ASC, id ASC
@@ -325,6 +346,7 @@ LIMIT sqlc.arg(page_size);
 -- name: ListNetworkEventsBetween :many
 SELECT
   id,
+  tenant_namespace,
   agent_name,
   event_time,
   ingested_at,
@@ -337,7 +359,8 @@ SELECT
   action,
   source
 FROM observer_network_events
-WHERE agent_name = sqlc.arg(agent_name)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
   AND event_time >= sqlc.arg(updated_after)::timestamptz
   AND event_time <= sqlc.arg(updated_before)::timestamptz
 ORDER BY event_time ASC, id ASC

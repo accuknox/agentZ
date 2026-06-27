@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
 import { createWorkflowRun, deleteWorkflowRun, type Error } from "@/lib/gateway/client"
 import { scheduleWorkflowRunsTag, workflowRunsTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type DeleteWorkflowRunActionState = {
   success: boolean
@@ -38,7 +38,7 @@ export async function deleteWorkflowRunAction(
   }
 
   const result = await deleteWorkflowRun({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path: {
       agentName,
       workflowName,
@@ -84,7 +84,7 @@ export async function triggerWorkflowRunAction(
   }
 
   const result = await createWorkflowRun({
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
     path: {
       agentName,
       workflowName,

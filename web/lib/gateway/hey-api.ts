@@ -1,9 +1,7 @@
 import type { CreateClientConfig } from "@/lib/gateway/client/client"
-import { gatewayBaseURL } from "@/lib/gateway/base-url"
-
-const baseUrl = gatewayBaseURL()
+import { gatewayAuthenticatedFetch } from "@/lib/gateway/browser-runtime"
 
 export const createClientConfig: CreateClientConfig = (config) => ({
   ...config,
-  baseUrl,
+  fetch: gatewayAuthenticatedFetch,
 })

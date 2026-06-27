@@ -27,16 +27,6 @@ export type AgentSessionListItem = {
   parentID?: string
 }
 
-export type ListAgentSessionActionResponse =
-  | {
-      sessions: AgentSessionListItem[]
-      error: undefined
-    }
-  | {
-      sessions: undefined
-      error: Error
-    }
-
 export type TraceListItem = {
   agentName: string
   sessionId: string
@@ -349,6 +339,20 @@ export type DeleteSessionFormState = {
   success?: boolean
 }
 
+export type CreateAPIKeyFormState = {
+  error?: Error
+  key?: {
+    id: string
+    name: string | null
+    secret: string
+  }
+}
+
+export type DeleteAPIKeyFormState = {
+  error?: Error
+  success?: boolean
+}
+
 export type CreateWorkflowScheduleFormState = {
   error?: Error
 }
@@ -381,15 +385,3 @@ export type ProviderModelItem = {
   providerID: string
   variants?: string[]
 }
-
-export type ListAgentProvidersActionResponse =
-  | {
-      models: ProviderModelItem[]
-      chefs: string[]
-      error: undefined
-    }
-  | {
-      models: undefined
-      chefs: undefined
-      error: Error
-    }

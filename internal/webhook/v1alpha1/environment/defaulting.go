@@ -41,7 +41,7 @@ func NewDefaulter() *Defaulter {
 
 // Default applies defaults to an Environment resource.
 func (d *Defaulter) Default(_ context.Context, env *clawarmorv1alpha1.Environment) error {
-	hosts, err := envutil.NormalizeHostList(env.Spec.AllowedHosts)
+	hosts, err := envutil.CanonicalHostList(env.Spec.AllowedHosts)
 	if err != nil {
 		return nil
 	}

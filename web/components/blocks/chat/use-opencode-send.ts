@@ -6,12 +6,13 @@ import { nanoid } from "nanoid"
 import { useCallback, useState } from "react"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
-import { createAgentOpencodeClient, createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
 import {
   attachmentDataFromPart,
   messageHasRenderableContent,
   opencodePartsFromMessage,
 } from "@/components/blocks/chat/attachments"
+import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import {
   appendSystemPrompt,
   markOptimisticUserMessageFailed,
@@ -32,15 +33,6 @@ type SendMessageInput = {
 type SendMessageResult = {
   directory?: string
   sessionID: string
-}
-
-function sdkErrorMessage(
-  error:
-    | { data?: { message?: string }; message?: string; _tag?: unknown; name?: unknown }
-    | undefined,
-  fallback: string
-) {
-  return error?.data?.message ?? error?.message ?? fallback
 }
 
 export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: boolean) {
@@ -88,7 +80,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
 
       try {
         if (!resolvedSessionID) {
-          const createClient = createAgentOpencodeClientV2(agentName)
+          const createClient = await createAgentOpencodeClientV2(agentName)
           const createResult = await createClient.session.create({
             model: {
               id: input.model.modelID,
@@ -97,7 +89,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
             },
           })
           if (createResult.error || !createResult.data) {
-            throw new Error(sdkErrorMessage(createResult.error, "Failed to create session"))
+            throw new Error(opencodeErrorMessage(createResult.error, "Failed to create session"))
           }
 
           newSessionDirectory = createResult.data.directory
@@ -111,7 +103,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
           router.replace(`/agents/${agentName}/${createResult.data.id}`)
         }
 
-        const promptClient = createAgentOpencodeClientV2(agentName)
+        const promptClient = await createAgentOpencodeClientV2(agentName)
         const promptResult = await promptClient.session.promptAsync({
           model: {
             modelID: input.model.modelID,
@@ -123,7 +115,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
         })
 
         if (promptResult.error) {
-          throw new Error(sdkErrorMessage(promptResult.error, "Failed to send message"))
+          throw new Error(opencodeErrorMessage(promptResult.error, "Failed to send message"))
         }
 
         return {
@@ -153,18 +145,17 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
       })
     },
   })
-  const { error: sendError, isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
+  const { isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
   const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({
     mutationFn: async (input) => {
-      const client = createAgentOpencodeClient(agentName, input.directory)
+      const client = await createAgentOpencodeClientV2(agentName)
       const result = await client.session.abort({
-        path: {
-          id: input.sessionID,
-        },
+        ...(input.directory ? { directory: input.directory } : {}),
+        sessionID: input.sessionID,
       })
 
       if (result.error || result.data !== true) {
-        throw new Error(sdkErrorMessage(result.error, "Failed to stop the active run"))
+        throw new Error(opencodeErrorMessage(result.error, "Failed to stop the active run"))
       }
 
       return result.data
@@ -202,8 +193,6 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
   return {
     abortMessage,
     canSubmit: !isSendPending && !isAbortPending && !isBusy,
-    latestError: sendError?.message,
-    pendingSessionID,
     sendMessage,
     sendState,
   }

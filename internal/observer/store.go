@@ -28,6 +28,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		rows := make([][]any, 0, len(b.processes))
 		for _, ev := range b.processes {
 			rows = append(rows, []any{
+				ev.tenantNamespace,
 				ev.agentName,
 				ev.eventTime,
 				ev.podNamespace,
@@ -43,6 +44,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 			ctx,
 			pgx.Identifier{"observer_process_events"},
 			[]string{
+				"tenant_namespace",
 				"agent_name",
 				"event_time",
 				"pod_namespace",
@@ -64,6 +66,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		rows := make([][]any, 0, len(b.files))
 		for _, ev := range b.files {
 			rows = append(rows, []any{
+				ev.tenantNamespace,
 				ev.agentName,
 				ev.eventTime,
 				ev.podNamespace,
@@ -79,6 +82,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 			ctx,
 			pgx.Identifier{"observer_file_events"},
 			[]string{
+				"tenant_namespace",
 				"agent_name",
 				"event_time",
 				"pod_namespace",
@@ -100,6 +104,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		rows := make([][]any, 0, len(b.networks))
 		for _, ev := range b.networks {
 			rows = append(rows, []any{
+				ev.tenantNamespace,
 				ev.agentName,
 				ev.eventTime,
 				ev.podNamespace,
@@ -116,6 +121,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 			ctx,
 			pgx.Identifier{"observer_network_events"},
 			[]string{
+				"tenant_namespace",
 				"agent_name",
 				"event_time",
 				"pod_namespace",
@@ -135,7 +141,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 	}
 
 	if len(b.traces) > 0 {
-		if err := insertTraceEvents(ctx, tx, b.traces); err != nil {
+		if err := insertTraceEventBatch(ctx, tx, b.traces); err != nil {
 			return err
 		}
 	}
@@ -146,7 +152,7 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 	return nil
 }
 
-func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) error {
+func insertTraceEventBatch(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) error {
 	q := observerdb.New(tx)
 	spans := make([]observerdb.InsertTraceSpanParams, 0, len(traces))
 	payloads := make([]observerdb.InsertTraceSpanPayloadParams, 0, len(traces))
@@ -158,6 +164,7 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 	mcpLastCalledByKey := make(map[string]observerdb.UpsertMCPToolLastCalledParams, len(traces))
 	for _, ev := range traces {
 		spans = append(spans, observerdb.InsertTraceSpanParams{
+			TenantNamespace:    ev.tenantNamespace,
 			AgentName:          ev.agentName,
 			SessionID:          ev.sessionID,
 			TraceID:            ev.traceID,
@@ -197,6 +204,7 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 		if ev.mcpToolCall != nil {
 			call := ev.mcpToolCall
 			mcpInvocations = append(mcpInvocations, observerdb.InsertMCPToolInvocationParams{
+				TenantNamespace:   ev.tenantNamespace,
 				AgentName:         call.agentName,
 				TraceID:           call.traceID,
 				SpanID:            call.spanID,
@@ -209,8 +217,9 @@ func insertTraceEvents(ctx context.Context, tx pgx.Tx, traces []traceSpanEvent) 
 				Failed:            call.failed,
 			})
 
-			lastCalledKey := call.agentName + "\x00" + call.mcpConnectionName + "\x00" + call.toolName
+			lastCalledKey := ev.tenantNamespace + "\x00" + call.agentName + "\x00" + call.mcpConnectionName + "\x00" + call.toolName
 			lastCalled := observerdb.UpsertMCPToolLastCalledParams{
+				TenantNamespace:   ev.tenantNamespace,
 				AgentName:         call.agentName,
 				McpConnectionName: call.mcpConnectionName,
 				ToolName:          call.toolName,

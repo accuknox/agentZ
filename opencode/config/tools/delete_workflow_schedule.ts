@@ -1,7 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
 
 import { deleteWorkflowSchedule, zError } from "../lib/gateway"
-import { agentNameFromResourceAttributes, workflowErrorOutput } from "../lib/workflow"
+import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 import { listWorkflowSchedulesOnce } from "../lib/workflow_schedule"
 
 const args = {
@@ -38,17 +38,13 @@ export default tool({
   description,
   args,
   async execute(args: DeleteWorkflowScheduleToolInput, context) {
-    const agentName = agentNameFromResourceAttributes(process.env.OPENCODE_RESOURCE_ATTRIBUTES)
+    const agentName = workflowAgentName()
     if (!agentName) {
       context.metadata({
         title: "Workflow schedule deletion unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return (
-        "Could not derive clawarmor.agent_name from " +
-        "OPENCODE_RESOURCE_ATTRIBUTES. Configure the agent runtime to inject " +
-        "that resource attribute before using delete_workflow_schedule."
-      )
+      return "CLAWARMOR_AGENT_NAME is not set. Configure the agent runtime before using delete_workflow_schedule."
     }
 
     context.metadata({

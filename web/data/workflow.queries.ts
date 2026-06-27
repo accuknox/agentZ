@@ -9,7 +9,7 @@ import {
   type WorkflowSummary,
 } from "@/lib/gateway/client"
 import { agentWorkflowsTag, workflowTag } from "@/data/cache"
-import { gatewayServerClient } from "@/lib/gateway/server-client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 type WorkflowSummariesQueryResult =
   | {
@@ -34,24 +34,24 @@ type WorkflowQueryResult =
 export async function listWorkflowSummariesCachedQuery(
   agentName: ListWorkflowSummariesData["path"]["agentName"]
 ): Promise<WorkflowSummariesQueryResult> {
-  "use cache"
+  "use cache: private"
 
   cacheLife("minutes")
   cacheTag(agentWorkflowsTag(agentName))
 
-  const result = await listWorkflowSummaries({
+  const { data, error } = await listWorkflowSummaries({
     path: { agentName },
-    client: gatewayServerClient,
+    client: getGatewayServerClient(),
   })
-  if (result.error) {
+  if (error) {
     return {
       summaries: undefined,
-      error: result.error,
+      error,
     }
   }
 
   return {
-    summaries: result.data,
+    summaries: data,
     error: undefined,
   } satisfies WorkflowSummariesQueryResult
 }
@@ -60,28 +60,28 @@ export async function getWorkflowCachedQuery(
   agentName: GetWorkflowData["path"]["agentName"],
   workflowName: GetWorkflowData["path"]["workflowName"]
 ): Promise<WorkflowQueryResult> {
-  "use cache"
+  "use cache: private"
 
   cacheLife("minutes")
   cacheTag(agentWorkflowsTag(agentName))
   cacheTag(workflowTag(agentName, workflowName))
 
-  const result = await getWorkflow({
-    client: gatewayServerClient,
+  const { data, error } = await getWorkflow({
+    client: getGatewayServerClient(),
     path: {
       agentName,
       workflowName,
     },
   })
-  if (result.error) {
+  if (error) {
     return {
       workflow: undefined,
-      error: result.error,
+      error,
     }
   }
 
   return {
-    workflow: result.data,
+    workflow: data,
     error: undefined,
   } satisfies WorkflowQueryResult
 }

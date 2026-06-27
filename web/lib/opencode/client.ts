@@ -3,25 +3,38 @@ import {
   createOpencodeClient as createOpencodeClientV2,
   type OpencodeClient as OpencodeClientV2,
 } from "@opencode-ai/sdk/v2/client"
-import { gatewayBaseURL } from "@/lib/gateway/base-url"
-
-const gatewayBase = gatewayBaseURL()
-
-function opencodeBaseURL(agentName: string): string {
-  return `${gatewayBase}/api/opencode/${encodeURIComponent(agentName)}`
-}
+import {
+  gatewayAuthenticatedFetch,
+  getGatewayBaseURL,
+  getGatewayToken,
+} from "@/lib/gateway/browser-runtime"
 
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
-export function createAgentOpencodeClient(agentName: string, directory?: string): OpencodeClient {
+export async function createAgentOpencodeClient(
+  agentName: string,
+  directory?: string
+): Promise<OpencodeClient> {
+  const [gatewayBaseURL, gatewayToken] = await Promise.all([getGatewayBaseURL(), getGatewayToken()])
+
   return createOpencodeClient({
-    baseUrl: opencodeBaseURL(agentName),
+    baseUrl: `${gatewayBaseURL}/api/opencode/${encodeURIComponent(agentName)}`,
+    fetch: gatewayAuthenticatedFetch,
+    headers: {
+      Authorization: `Bearer ${gatewayToken}`,
+    },
     ...(directory ? { directory } : {}),
   })
 }
 
 // createAgentOpencodeClientV2 builds an OpenCode v2 SDK client for one agent.
-export function createAgentOpencodeClientV2(agentName: string): OpencodeClientV2 {
+export async function createAgentOpencodeClientV2(agentName: string): Promise<OpencodeClientV2> {
+  const [gatewayBaseURL, gatewayToken] = await Promise.all([getGatewayBaseURL(), getGatewayToken()])
+
   return createOpencodeClientV2({
-    baseUrl: opencodeBaseURL(agentName),
+    baseUrl: `${gatewayBaseURL}/api/opencode/${encodeURIComponent(agentName)}`,
+    fetch: gatewayAuthenticatedFetch,
+    headers: {
+      Authorization: `Bearer ${gatewayToken}`,
+    },
   })
 }

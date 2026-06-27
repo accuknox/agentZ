@@ -72,13 +72,19 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 //
 //nolint:gocyclo
 func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.CreateAgentRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
 
 	name, fields := validateCreateAgentRequest(req)
-	envFields, err := s.validateAgentEnvironmentName(r.Context(), req.EnvironmentName)
+	envFields, err := s.validateAgentEnvironmentName(r.Context(), ns, req.EnvironmentName)
 	fields = append(fields, envFields...)
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -95,20 +101,32 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row, err := s.queries.GatewayCreateAgent(r.Context(), name)
+	row, err := s.queries.GatewayCreateAgent(r.Context(), gatewaydb.GatewayCreateAgentParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("create agent", err))
 		return
 	}
 
-	agt := s.agentFromCreateRequest(req, name)
-	_, err = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Create(
+	tenant, err := tenantObject(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	agt := s.agentFromCreateRequest(req, ns, tenant, name)
+	_, err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Create(
 		r.Context(),
 		agt,
 		metav1.CreateOptions{},
 	)
 	if err != nil {
-		if _, deleteErr := s.queries.GatewayDeleteAgent(r.Context(), name); deleteErr != nil {
+		if _, deleteErr := s.queries.GatewayDeleteAgent(r.Context(), gatewaydb.GatewayDeleteAgentParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		}); deleteErr != nil {
 			err = fmt.Errorf("create agent: %w; rollback record: %v", err, deleteErr)
 		}
 		writeError(w, r, mapKubeHTTPError("create agent", err))
@@ -127,6 +145,12 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 // UpdateAgent handles POST /api/agent/update/{agentName}.
 func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.UpdateAgentRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -147,7 +171,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	if req.EnvironmentName != nil {
-		envFields, err := s.validateAgentEnvironmentName(r.Context(), *req.EnvironmentName)
+		envFields, err := s.validateAgentEnvironmentName(r.Context(), ns, *req.EnvironmentName)
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
@@ -177,7 +201,10 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	row, err := s.queries.GatewayGetAgent(r.Context(), name)
+	row, err := s.queries.GatewayGetAgent(r.Context(), gatewaydb.GatewayGetAgentParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("get agent", err))
 		return
@@ -185,7 +212,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 
 	var updated *clawarmorv1alpha1.Agent
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, getErr := s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Get(
+		agt, getErr := s.resolver.client.ClawarmorV1alpha1().Agents(ns).Get(
 			r.Context(),
 			row.AgentName,
 			metav1.GetOptions{},
@@ -194,7 +221,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return getErr
 		}
 		applyUpdateAgentRequest(agt, req)
-		updated, getErr = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Update(
+		updated, getErr = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Update(
 			r.Context(),
 			agt,
 			metav1.UpdateOptions{},
@@ -222,20 +249,31 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 
 // DeleteAgent handles DELETE /api/agent/{agentName}.
 func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
 	}
 
-	row, err := s.queries.GatewayGetAgent(r.Context(), agentName)
+	row, err := s.queries.GatewayGetAgent(r.Context(), gatewaydb.GatewayGetAgentParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+	})
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("get agent", err))
 		return
 	}
-	err = s.resolver.client.ClawarmorV1alpha1().Agents(s.cfg.Namespace).Delete(
+	err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Delete(
 		r.Context(),
 		row.AgentName,
-		metav1.DeleteOptions{},
+		metav1.DeleteOptions{
+			PropagationPolicy: new(metav1.DeletePropagationBackground),
+		},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		writeError(w, r, mapKubeHTTPError("delete agent", err))
@@ -247,7 +285,10 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	rows, err := s.queries.GatewayDeleteAgent(r.Context(), agentName)
+	rows, err := s.queries.GatewayDeleteAgent(r.Context(), gatewaydb.GatewayDeleteAgentParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+	})
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("delete agent", err))
 		return
@@ -267,6 +308,12 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 
 // WatchAgents handles POST /api/agent/watch.
 func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.WatchAgentsRequest
 	if r.Body != nil {
 		if !decodeJSONBody(w, r, &req, true) {
@@ -365,7 +412,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if evt.Type == agentWatchEventDeleted {
-				item, ok := deletedAgentEventItem(evt.Agent, prev, agentNames)
+				item, ok := deletedAgentEventItem(ns, evt.Agent, prev, agentNames)
 				if ok && !send("DELETE", []gatewayapi.Agent{item}) {
 					return
 				}
@@ -383,18 +430,24 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit int, offset int) ([]gatewayapi.Agent, string, error) {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+
 	var rows []gatewaydb.Agent
-	var err error
 	if len(agentNames) > 0 {
 		rows, err = s.queries.GatewayListAgentsByName(ctx, gatewaydb.GatewayListAgentsByNameParams{
-			Column1: agentNames,
-			Limit:   int32(limit + 1),
-			Offset:  int32(offset),
+			TenantNamespace: ns,
+			Column2:         agentNames,
+			Limit:           int32(limit + 1),
+			Offset:          int32(offset),
 		})
 	} else {
 		rows, err = s.queries.GatewayListAgents(ctx, gatewaydb.GatewayListAgentsParams{
-			Limit:  int32(limit + 1),
-			Offset: int32(offset),
+			TenantNamespace: ns,
+			Limit:           int32(limit + 1),
+			Offset:          int32(offset),
 		})
 	}
 	if err != nil {
@@ -411,7 +464,7 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 
 		status := gatewayapi.UNSPECIFIED
 		environmentName := gatewayapi.EnvironmentName("")
-		resolved, resolveErr := s.resolver.resolveAgent(ctx, row.AgentName)
+		resolved, resolveErr := s.resolver.resolveAgent(ctx, ns, row.AgentName)
 		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
 		}
@@ -440,8 +493,11 @@ func sameAgent(a, b gatewayapi.Agent) bool {
 		a.Status == b.Status
 }
 
-func deletedAgentEventItem(agt *clawarmorv1alpha1.Agent, prev map[string]gatewayapi.Agent, agentNames []string) (gatewayapi.Agent, bool) {
+func deletedAgentEventItem(namespace string, agt *clawarmorv1alpha1.Agent, prev map[string]gatewayapi.Agent, agentNames []string) (gatewayapi.Agent, bool) {
 	if agt == nil {
+		return gatewayapi.Agent{}, false
+	}
+	if agt.Namespace != namespace {
 		return gatewayapi.Agent{}, false
 	}
 	if len(agentNames) > 0 && !slices.Contains(agentNames, agt.Name) {
@@ -504,14 +560,14 @@ func validateAgentEnvironmentNameField(fields []gatewayapi.FieldError, name stri
 	return fields
 }
 
-func (s *Service) validateAgentEnvironmentName(ctx context.Context, name gatewayapi.EnvironmentName) ([]gatewayapi.FieldError, error) {
+func (s *Service) validateAgentEnvironmentName(ctx context.Context, namespace string, name gatewayapi.EnvironmentName) ([]gatewayapi.FieldError, error) {
 	fields := validateAgentEnvironmentNameField(nil, name)
 	if len(fields) > 0 {
 		return fields, nil
 	}
 
 	var env clawarmorv1alpha1.Environment
-	key := types.NamespacedName{Namespace: s.cfg.Namespace, Name: name}
+	key := types.NamespacedName{Namespace: namespace, Name: name}
 	if err := s.k8sClient.Get(ctx, key, &env); err != nil {
 		if apierrors.IsNotFound(err) {
 			return []gatewayapi.FieldError{{
@@ -524,7 +580,7 @@ func (s *Service) validateAgentEnvironmentName(ctx context.Context, name gateway
 	return nil, nil
 }
 
-func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name string) *clawarmorv1alpha1.Agent {
+func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, namespace string, tenant *clawarmorv1alpha1.Tenant, name string) *clawarmorv1alpha1.Agent {
 	env := []corev1.EnvVar{}
 	if req.Env != nil {
 		env = envVarsFromMap(*req.Env)
@@ -537,9 +593,15 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: s.cfg.Namespace,
+			Namespace: namespace,
 			Labels: map[string]string{
 				labelManagedBy: "clawarmor-agent-gateway",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(
+					tenant,
+					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+				),
 			},
 		},
 		Spec: clawarmorv1alpha1.AgentSpec{

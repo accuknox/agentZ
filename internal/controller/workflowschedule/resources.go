@@ -22,6 +22,9 @@ import (
 	"fmt"
 	"maps"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	ciliumlabels "github.com/cilium/cilium/pkg/labels"
+	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -34,8 +37,10 @@ import (
 )
 
 const (
-	workflowScheduleLabel    = "clawarmor.accuknox.com/workflow-schedule"
-	scheduleRunnerRoleSuffix = "-schedule-runner"
+	workflowScheduleLabel      = "clawarmor.accuknox.com/workflow-schedule"
+	scheduleRunnerLabel        = "clawarmor.accuknox.com/workflow-schedule-runner"
+	scheduleRunnerRoleSuffix   = "-schedule-runner"
+	scheduleRunnerPolicySuffix = "-schedule-runner"
 )
 
 func scheduleRunnerName(schedule *clawarmorv1alpha1.WorkflowSchedule) string {
@@ -48,6 +53,16 @@ func scheduleLabels(schedule *clawarmorv1alpha1.WorkflowSchedule) map[string]str
 	}
 	maps.Copy(labels, schedule.Labels)
 	return labels
+}
+
+func scheduleRunnerPodLabels(schedule *clawarmorv1alpha1.WorkflowSchedule) map[string]string {
+	labels := scheduleLabels(schedule)
+	labels[scheduleRunnerLabel] = schedule.Name
+	return labels
+}
+
+func scheduleRunnerPolicyName(schedule *clawarmorv1alpha1.WorkflowSchedule) string {
+	return schedule.Name + scheduleRunnerPolicySuffix
 }
 
 func (r *Reconciler) reconcileServiceAccount(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
@@ -126,6 +141,66 @@ func (r *Reconciler) reconcileRoleBinding(ctx context.Context, schedule *clawarm
 	return nil
 }
 
+func (r *Reconciler) reconcileRunnerPolicy(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+	policy := &ciliumv2.CiliumNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scheduleRunnerPolicyName(schedule),
+			Namespace: schedule.Namespace,
+		},
+	}
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
+		policy.Labels = scheduleLabels(schedule)
+		policy.Annotations = schedule.Annotations
+		policy.Spec = &ciliumapi.Rule{
+			EndpointSelector: ciliumapi.NewESFromLabels(
+				ciliumlabels.NewLabel(
+					scheduleRunnerLabel,
+					schedule.Name,
+					ciliumlabels.LabelSourceK8s,
+				),
+			),
+			Egress: []ciliumapi.EgressRule{
+				{
+					EgressCommonRule: ciliumapi.EgressCommonRule{
+						ToEntities: ciliumapi.EntitySlice{
+							ciliumapi.EntityKubeAPIServer,
+						},
+					},
+				},
+				{
+					EgressCommonRule: ciliumapi.EgressCommonRule{
+						ToEndpoints: []ciliumapi.EndpointSelector{
+							ciliumapi.NewESFromLabels(
+								ciliumlabels.NewLabel(
+									"io.kubernetes.pod.namespace",
+									"kube-system",
+									ciliumlabels.LabelSourceK8s,
+								),
+								ciliumlabels.NewLabel(
+									"k8s-app",
+									"kube-dns",
+									ciliumlabels.LabelSourceK8s,
+								),
+							),
+						},
+					},
+					ToPorts: []ciliumapi.PortRule{{
+						Ports: []ciliumapi.PortProtocol{
+							{Port: "53", Protocol: ciliumapi.ProtoUDP},
+							{Port: "53", Protocol: ciliumapi.ProtoTCP},
+						},
+					}},
+				},
+			},
+		}
+		return ctrl.SetControllerReference(schedule, policy, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch runner policy: %w", err)
+	}
+	return nil
+}
+
 func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) (string, error) {
 	name := schedule.Name
 	err := workflow.ValidateCronSchedule(schedule.Spec.Schedule)
@@ -164,7 +239,7 @@ func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *clawarmorv1
 		cronJob.Spec.SuccessfulJobsHistoryLimit = new(int32(1))
 		cronJob.Spec.FailedJobsHistoryLimit = new(int32(1))
 		cronJob.Spec.JobTemplate.Spec.BackoffLimit = new(int32(0))
-		cronJob.Spec.JobTemplate.Spec.Template.Labels = scheduleLabels(schedule)
+		cronJob.Spec.JobTemplate.Spec.Template.Labels = scheduleRunnerPodLabels(schedule)
 		cronJob.Spec.JobTemplate.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
 		cronJob.Spec.JobTemplate.Spec.Template.Spec.ServiceAccountName = scheduleRunnerName(schedule)
 		cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers = []corev1.Container{{

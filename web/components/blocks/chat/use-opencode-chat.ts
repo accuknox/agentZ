@@ -83,12 +83,39 @@ type UseOpencodeChatResult = {
 }
 
 const idleSessionStatus: SessionStatus = { type: "idle" }
-const MAX_CHAT_MESSAGES = 25
+const MAX_CHAT_TURNS = 25
+
+// visibleMessageIDsForRecentTurns keeps the newest bounded user turns intact so
+// assistant follow-ups never outlive the user prompt they belong to.
+function visibleMessageIDsForRecentTurns(messages: Message[]): Set<string> {
+  const ordered = [...messages].sort((x, y) => x.time.created - y.time.created)
+  const userIDs = ordered
+    .filter((message): message is Extract<Message, { role: "user" }> => message.role === "user")
+    .map((message) => message.id)
+  const visibleUserIDs = new Set(userIDs.slice(-MAX_CHAT_TURNS))
+  const visibleMessageIDs = new Set<string>()
+
+  for (const message of ordered) {
+    if (message.role === "user") {
+      if (visibleUserIDs.has(message.id)) {
+        visibleMessageIDs.add(message.id)
+      }
+      continue
+    }
+
+    if (visibleUserIDs.has(message.parentID)) {
+      visibleMessageIDs.add(message.id)
+    }
+  }
+
+  return visibleMessageIDs
+}
 
 function pruneStore(store: OpencodeChatStore): OpencodeChatStore {
   const nextMessage = Object.fromEntries(
     Object.entries(store.message).map(([sessionID, messages]) => {
-      return [sessionID, messages.slice(-MAX_CHAT_MESSAGES)]
+      const visibleMessageIDs = visibleMessageIDsForRecentTurns(messages)
+      return [sessionID, messages.filter((message) => visibleMessageIDs.has(message.id))]
     })
   )
   const visibleMessageIDs = new Set(
@@ -210,7 +237,8 @@ function buildStore(
     sessionStatus: {},
     todos: {},
   }
-  const visibleRecords = records.slice(-MAX_CHAT_MESSAGES)
+  const visibleMessageIDs = visibleMessageIDsForRecentTurns(records.map((record) => record.info))
+  const visibleRecords = records.filter((record) => visibleMessageIDs.has(record.info.id))
   store.message[sessionID] = visibleRecords
     .map((record) => record.info)
     .sort((x, y) => x.time.created - y.time.created)
@@ -226,13 +254,6 @@ function buildStore(
   }
 
   return pruneStore(store)
-}
-
-function sessionMessageText(parts: Part[]) {
-  return parts
-    .filter((part): part is TextPart => part.type === "text")
-    .map((part) => part.text)
-    .join("")
 }
 
 function messageSessionID(event: StreamEvent) {
@@ -461,13 +482,6 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
         },
       }
 
-    case "session.created":
-    case "session.updated":
-      return {
-        ...store,
-        session: store.session,
-      }
-
     default:
       return store
   }
@@ -622,7 +636,7 @@ export function appendSystemPrompt(
         id: `sys-${crypto.randomUUID()}`,
         kind: "system",
       })
-      return draft.slice(-MAX_CHAT_MESSAGES)
+      return draft.slice(-MAX_CHAT_TURNS)
     }
   )
 }
@@ -646,7 +660,7 @@ export function upsertOptimisticUserMessage(
       }
 
       draft.push(message)
-      return draft.slice(-MAX_CHAT_MESSAGES)
+      return draft.slice(-MAX_CHAT_TURNS)
     }
   )
 }
@@ -884,9 +898,6 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         case "message.part.removed":
         case "session.status":
         case "session.idle":
-        case "session.created":
-        case "session.updated":
-        case "session.deleted":
         case "session.next.step.ended":
         case "todo.updated":
           hasStoreUpdate = true
@@ -1048,7 +1059,12 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
       const match = messages.find((message) => {
         if (message.role !== "user") return false
         const parts = partsByMessage[message.id] ?? []
-        const messageText = sessionMessageText(parts).trim().replaceAll(/\s+/g, " ")
+        const messageText = parts
+          .filter((part): part is TextPart => part.type === "text")
+          .map((part) => part.text)
+          .join("")
+          .trim()
+          .replaceAll(/\s+/g, " ")
         const optimisticText = localMessage.text.trim().replaceAll(/\s+/g, " ")
 
         return (

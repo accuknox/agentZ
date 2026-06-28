@@ -46,14 +46,14 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-4aM2htrZIyuyWQLzkblBr6JVu3Knsmhy11SYEyCzdTc=";
+            outputHash = "sha256-t7HL/r2Z/HmaCCsiZAI1G+jck0QZSfSnLE1ZLSeEtO8=";
           };
           cfg = pkgs.runCommand "opencode-config" { } ''
             mkdir -p \
               "$out/lib" \
               "$out/node_modules" \
               "$out/plugins/opencode-plugin-otel" \
-              "$out/skills/defaults" \
+              "$out/skills" \
               "$out/tools"
 
             cp -R ${otel}/. "$out/plugins/opencode-plugin-otel/"
@@ -61,7 +61,7 @@
             cp -R ${./opencode/config/lib}/. "$out/lib/"
             cp -R ${./opencode/config/plugins}/. "$out/plugins/"
             cp -R ${./opencode/config/tools}/. "$out/tools/"
-            cp -R ${./opencode/skills}/. "$out/skills"
+            cp -R ${./opencode/skills}/. "$out/skills/"
             cp ${./opencode/config/bun.lock} "$out/bun.lock"
             cp ${./opencode/config/package.json} "$out/package.json"
             cp ${./opencode/config/openapi-ts.config.mjs} "$out/openapi-ts.config.mjs"

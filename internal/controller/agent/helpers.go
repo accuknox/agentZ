@@ -286,9 +286,12 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config json.RawMessage   `json:"config"`
-	Env    []corev1.EnvVar   `json:"env"`
-	EnvCfg environmentConfig `json:"envConfig"`
+	Config                  json.RawMessage `json:"config"`
+	Env                     []corev1.EnvVar `json:"env"`
+	Packages                []string        `json:"packages"`
+	MCPURL                  string          `json:"mcpUrl"`
+	MCPConsentPermissionIDs []string        `json:"mcpConsentPermissionIds"`
+	MCPRefs                 []mcpRefConfig  `json:"mcpRefs"`
 }
 
 type packageJobHashInput struct {
@@ -298,9 +301,12 @@ type packageJobHashInput struct {
 
 func configHash(opencodeCfg []byte, env []corev1.EnvVar, envCfg environmentConfig) string {
 	hashInput, _ := json.Marshal(configHashInput{
-		Config: opencodeCfg,
-		Env:    env,
-		EnvCfg: envCfg,
+		Config:                  opencodeCfg,
+		Env:                     env,
+		Packages:                envCfg.Packages,
+		MCPURL:                  envCfg.MCPURL,
+		MCPConsentPermissionIDs: envCfg.MCPConsentPermissionIDs,
+		MCPRefs:                 envCfg.MCPRefs,
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)

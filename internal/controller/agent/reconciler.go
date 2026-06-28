@@ -228,11 +228,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 
-	hash := configHash(
-		opencodeCfg,
-		agt.Spec.Env,
-		envCfg,
-	)
+	hash := configHash(opencodeCfg, agt.Spec.Env, envCfg)
 	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, true)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)

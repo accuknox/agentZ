@@ -59,7 +59,7 @@ import {
   messageHasRenderableContent,
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
-import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
@@ -326,7 +326,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     queryOptions({
       queryKey: ["opencode", "modelCatalog", agentName],
       queryFn: async () => {
-        const client = await createAgentOpencodeClientV2(agentName)
+        const client = await createAgentOpencodeClient(agentName)
         const [providersResult, configResult, agentsResult] = await Promise.all([
           client.config.providers(),
           client.config.get(),
@@ -510,7 +510,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
-      const client = await createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClient(agentName)
       const result = await client.question.reply({
         answers,
         requestID: questionRequest.id,
@@ -531,7 +531,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
-      const client = await createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClient(agentName)
       const result = await client.question.reject({
         requestID: questionRequest.id,
       })
@@ -551,7 +551,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
       if (!permissionRequest) {
         throw new Error("No permission request is active")
       }
-      const client = await createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClient(agentName)
       const result = await client.permission.reply({
         requestID: permissionRequest.id,
         reply,

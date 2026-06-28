@@ -6,7 +6,7 @@ import { nanoid } from "nanoid"
 import { useCallback, useState } from "react"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
-import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import {
   attachmentDataFromPart,
   messageHasRenderableContent,
@@ -79,9 +79,10 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
       let newSessionDirectory: string | undefined
 
       try {
+        const client = await createAgentOpencodeClient(agentName)
+
         if (!resolvedSessionID) {
-          const createClient = await createAgentOpencodeClientV2(agentName)
-          const createResult = await createClient.session.create({
+          const createResult = await client.session.create({
             model: {
               id: input.model.modelID,
               providerID: input.model.providerID,
@@ -103,8 +104,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
           router.replace(`/agents/${agentName}/${createResult.data.id}`)
         }
 
-        const promptClient = await createAgentOpencodeClientV2(agentName)
-        const promptResult = await promptClient.session.promptAsync({
+        const promptResult = await client.session.promptAsync({
           model: {
             modelID: input.model.modelID,
             providerID: input.model.providerID,
@@ -148,7 +148,7 @@ export function useOpencodeSend(agentName: string, sessionID?: string, isBusy?: 
   const { isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
   const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({
     mutationFn: async (input) => {
-      const client = await createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClient(agentName)
       const result = await client.session.abort({
         ...(input.directory ? { directory: input.directory } : {}),
         sessionID: input.sessionID,

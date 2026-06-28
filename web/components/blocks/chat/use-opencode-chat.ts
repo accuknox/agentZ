@@ -14,7 +14,7 @@ import type {
 } from "@opencode-ai/sdk/v2"
 import { QueryClient, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
-import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 
 type SessionMessageRecord = {
@@ -708,7 +708,7 @@ export function migrateChatOverlay(
 function sessionInfoQueryOptions(agentName: string, sessionID: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = await createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClient(agentName)
       const result = await client.session.get({
         sessionID,
       })
@@ -728,7 +728,7 @@ function sessionInfoQueryOptions(agentName: string, sessionID: string) {
 function sessionMessagesQueryOptions(agentName: string, sessionID: string, directory: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = await createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClient(agentName)
       const result = await client.session.messages({
         directory,
         sessionID,
@@ -749,7 +749,7 @@ function sessionMessagesQueryOptions(agentName: string, sessionID: string, direc
 function sessionTreeQueryOptions(agentName: string, directory: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = await createAgentOpencodeClientV2(agentName)
+      const client = await createAgentOpencodeClient(agentName)
       const [sessionResult, questionResult, permissionResult] = await Promise.all([
         client.session.list({
           directory,
@@ -969,7 +969,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
     async function consume() {
       try {
-        const client = await createAgentOpencodeClientV2(agentName)
+        const client = await createAgentOpencodeClient(agentName)
         const result = await client.event.subscribe(
           {
             directory,

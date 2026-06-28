@@ -46,13 +46,7 @@ import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { AgentSessionListItem, ListAgentActionResponse } from "@/data/types"
 import { usePathname } from "next/navigation"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
-import {
-  applySessionLifecycleEvent,
-  isSessionLifecycleEvent,
-  sortAgentSessions,
-  toAgentSessionListItem,
-} from "@/lib/opencode/session-list"
-import type { Event as OpencodeEvent } from "@opencode-ai/sdk"
+import type { Event as OpencodeEvent, Session as OpencodeSession } from "@opencode-ai/sdk/v2"
 
 const MotionSidebarMenuSubItem = motion.create(SidebarMenuSubItem)
 
@@ -65,6 +59,12 @@ type SessionStreamChunk =
       type: "event"
       event: OpencodeEvent
     }
+
+function sortAgentSessions(sessions: readonly AgentSessionListItem[]): AgentSessionListItem[] {
+  return [...sessions].sort((x, y) => {
+    return y.updatedAt - x.updatedAt || x.id.localeCompare(y.id)
+  })
+}
 
 export function NavAgentsSkeleton() {
   return (
@@ -402,11 +402,29 @@ function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
           return sortAgentSessions(chunk.sessions)
         }
 
-        if (!isSessionLifecycleEvent(chunk.event)) {
+        if (
+          chunk.event.type !== "session.created" &&
+          chunk.event.type !== "session.updated" &&
+          chunk.event.type !== "session.deleted"
+        ) {
           return sessions
         }
 
-        return applySessionLifecycleEvent(sessions, chunk.event)
+        const next = new Map(sessions.map((session) => [session.id, session]))
+        const session = {
+          id: chunk.event.properties.info.id,
+          parentID: chunk.event.properties.info.parentID,
+          title: chunk.event.properties.info.title,
+          updatedAt: chunk.event.properties.info.time.updated,
+        } satisfies AgentSessionListItem
+
+        if (chunk.event.type === "session.deleted") {
+          next.delete(session.id)
+          return sortAgentSessions(Array.from(next.values()))
+        }
+
+        next.set(session.id, session)
+        return sortAgentSessions(Array.from(next.values()))
       },
       streamFn: async function* ({ signal }) {
         const client = await createAgentOpencodeClient(agentName)
@@ -417,12 +435,17 @@ function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
 
         yield {
           type: "snapshot",
-          sessions: sortAgentSessions(listResult.data.map(toAgentSessionListItem)),
+          sessions: sortAgentSessions(
+            listResult.data.map((session: OpencodeSession) => ({
+              id: session.id,
+              parentID: session.parentID,
+              title: session.title,
+              updatedAt: session.time.updated,
+            }))
+          ),
         }
 
-        const subscription = await client.event.subscribe({
-          signal,
-        })
+        const subscription = await client.event.subscribe(undefined, { signal })
 
         for await (const event of subscription.stream) {
           yield {

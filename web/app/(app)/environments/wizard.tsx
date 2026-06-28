@@ -65,7 +65,6 @@ import * as z from "zod"
 import { environmentAllowedHostSchema, environmentNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { getMcpConnection, type McpConnectionSummary } from "@/lib/gateway/client"
-import { defaultEnvironmentPackages } from "@/data/environment-defaults"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { PackageSearch } from "./package-search"
 

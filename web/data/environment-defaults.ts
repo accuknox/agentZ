@@ -2,7 +2,7 @@ export const defaultEnvironmentPackages = [
   "gnused",
   "gawk",
   "gnugrep",
-	"bc",
+  "bc",
   "jq",
   "yq-go",
   "curl",

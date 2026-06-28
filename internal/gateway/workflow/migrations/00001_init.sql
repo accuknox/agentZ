@@ -87,6 +87,37 @@ CREATE INDEX workflow_node_preferred_tools_node_idx
     ordinal ASC
   );
 
+CREATE TABLE workflow_node_preferred_skills(
+  tenant_namespace TEXT NOT NULL,
+  agent_name TEXT NOT NULL,
+  workflow_name TEXT NOT NULL,
+  node_name TEXT NOT NULL,
+  ordinal INT NOT NULL CHECK(ordinal >= 0),
+  skill_name TEXT NOT NULL
+    CHECK (
+      length(skill_name) <= 64 AND
+      skill_name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'
+    ),
+  PRIMARY KEY(tenant_namespace, agent_name, workflow_name, node_name, ordinal),
+  FOREIGN KEY(tenant_namespace, agent_name, workflow_name, node_name)
+    REFERENCES workflow_nodes(
+      tenant_namespace,
+      agent_name,
+      workflow_name,
+      node_name
+    )
+    ON DELETE CASCADE
+);
+
+CREATE INDEX workflow_node_preferred_skills_node_idx
+  ON workflow_node_preferred_skills(
+    tenant_namespace,
+    agent_name,
+    workflow_name,
+    node_name,
+    ordinal ASC
+  );
+
 CREATE TABLE workflow_edges(
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   tenant_namespace TEXT NOT NULL,
@@ -149,6 +180,7 @@ CREATE INDEX workflow_edges_target_idx
 
 -- +goose Down
 DROP TABLE workflow_edges;
+DROP TABLE workflow_node_preferred_skills;
 DROP TABLE workflow_node_preferred_tools;
 DROP TABLE workflow_nodes;
 DROP TABLE workflows;

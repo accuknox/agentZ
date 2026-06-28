@@ -162,6 +162,46 @@ func (q *Queries) WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNod
 	return err
 }
 
+const workflowCreatePreferredSkills = `-- name: WorkflowCreatePreferredSkills :exec
+INSERT INTO workflow_node_preferred_skills(
+  tenant_namespace,
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  skill_name
+)
+SELECT
+  $1::text,
+  $2::text,
+  $3::text,
+  s.node_name,
+  s.ordinal,
+  s.skill_name
+FROM jsonb_to_recordset($4::jsonb) AS s(
+  node_name text,
+  ordinal int,
+  skill_name text
+)
+`
+
+type WorkflowCreatePreferredSkillsParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	PreferredSkills []byte `json:"preferred_skills"`
+}
+
+func (q *Queries) WorkflowCreatePreferredSkills(ctx context.Context, arg WorkflowCreatePreferredSkillsParams) error {
+	_, err := q.db.Exec(ctx, workflowCreatePreferredSkills,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+		arg.PreferredSkills,
+	)
+	return err
+}
+
 const workflowCreatePreferredTools = `-- name: WorkflowCreatePreferredTools :exec
 INSERT INTO workflow_node_preferred_tools(
   tenant_namespace,
@@ -398,6 +438,54 @@ func (q *Queries) WorkflowListNodes(ctx context.Context, arg WorkflowListNodesPa
 			&i.DoneCriteria,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const workflowListPreferredSkills = `-- name: WorkflowListPreferredSkills :many
+SELECT
+  tenant_namespace,
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  skill_name
+FROM workflow_node_preferred_skills
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+  AND workflow_name = $3
+ORDER BY node_name ASC, ordinal ASC
+`
+
+type WorkflowListPreferredSkillsParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+}
+
+func (q *Queries) WorkflowListPreferredSkills(ctx context.Context, arg WorkflowListPreferredSkillsParams) ([]WorkflowNodePreferredSkill, error) {
+	rows, err := q.db.Query(ctx, workflowListPreferredSkills, arg.TenantNamespace, arg.AgentName, arg.WorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkflowNodePreferredSkill{}
+	for rows.Next() {
+		var i WorkflowNodePreferredSkill
+		if err := rows.Scan(
+			&i.TenantNamespace,
+			&i.AgentName,
+			&i.WorkflowName,
+			&i.NodeName,
+			&i.Ordinal,
+			&i.SkillName,
 		); err != nil {
 			return nil, err
 		}

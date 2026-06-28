@@ -69,12 +69,21 @@ const createWorkflowArgs = {
         instructions: tool.schema.string().min(1).max(16384),
         goal: tool.schema.string().min(1).max(2048),
         done_criteria: tool.schema.string().min(1).max(2048),
+        preferred_skills: tool.schema
+          .array(
+            tool.schema
+              .string()
+              .min(1)
+              .max(64)
+              .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+          )
+          .optional(),
         preferred_tools: tool.schema.array(tool.schema.string().min(1).max(128)).optional(),
       })
     )
     .min(1)
     .describe(
-      "All workflow nodes. Each node must define concrete instructions, goal, done_criteria and optionally preferred_tools."
+      "All workflow nodes. Each node must define concrete instructions, goal, done_criteria and can optionally declare preferred_skills and preferred_tools."
     ),
   edges: tool.schema
     .array(
@@ -102,124 +111,17 @@ const createWorkflowArgs = {
 const description = `
 Create a reusable workflow DAG.
 
-Use this tool when the user wants to save a reusable workflow definition, not when they only want a prose plan in chat.
+Load and follow the built-in "workflow-creator" skill before using this tool (VERY IMPORTANT).
 
-The workflow is a directed acyclic graph:
-- Each node is one execution step with concrete agent instructions.
-- Edges define allowed transitions between nodes.
-- Branching is explicit on edges, not buried inside node text.
+Use this tool when you/user wants to create a reusable workflow definition, not when you/user only want a prose plan.
 
-Call this tool only after you have finalized the full workflow graph.
+Call this tool only after you have manually executed the intended task end-to-end at least once and finalized the full workflow graph.
 
-Authoring rules:
-- workflow_name must be a DNS label up to 32 characters, for example triage-review or incident-intake.
-- inputs is optional. If present, it must be a flat object keyed by input name.
-- Each inputs entry must be a schema object with at least type and required.
-- Each inputs entry may use only these keys: type, description, required, default, enum, minLength, maxLength, pattern, format, minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf.
-- Supported input types are scalar only: string, integer, number, and boolean.
-- required belongs inside each inputs.<name> schema object. Do not use top-level JSON Schema required arrays inside one input definition.
-- Nested object or array input schemas are NOT supported.
-- Extra JSON Schema metadata such as $schema, title, properties, items, additionalProperties, oneOf, anyOf, or allOf is NOT supported and may fail metaschema validation.
-- Workflow definition inputs declare the schema. Runtime workflow or schedule inputs are separate JSON values validated against that schema.
-- Every node.name must also be a DNS label and unique within the workflow.
-- The graph must be connected and acyclic.
-- The graph must have at least one start node and at least one terminal node.
-- preferred_tools is optional. Include it to provide helpful directions to future you.
-- branch_label names the branch shown to humans, for example approved, needs-info, or blocked.
-- condition_summary is the plain-language branch condition shown to humans and the executor.
-- For straight-line transitions, leave branch_label and condition_summary as empty strings.
+For recurring automation or scheduled execution, create or update a skill or script first unless the repeated logic is truly trivial.
 
-Branching semantics:
-- Use multiple outgoing edges when the next step depends on a decision or observed outcome.
-- Keep branch conditions on edges, not inside node instructions.
-- If a node has multiple outgoing edges, each outgoing edge must have a non-empty branch_label and condition_summary.
-- Do not use an unlabeled default edge from a branching node.
+If you have not yet exercised the task successfully, keep working instead of calling this tool.
 
-If the service reports workflow_name already in use, surface the conflict. Do not rename the workflow automatically.
-
-Example:
-{
-  "workflow_name": "repo-triage",
-  "title": "Repository Triage and Fix Routing",
-  "summary": "Inspect a reported issue, decide whether it is reproducible, then route to fix or clarification.",
-  "inputs": {
-    "issue_url": {
-      "type": "string",
-      "required": true,
-      "format": "uri",
-      "description": "Issue or report URL to inspect first."
-    },
-    "max_files": {
-      "type": "integer",
-      "required": false,
-      "default": 50,
-      "minimum": 1,
-      "maximum": 500
-    }
-  },
-  "nodes": [
-    {
-      "name": "intake",
-      "instructions": "Read the report and inspect repository context before choosing the next step.",
-      "goal": "Classify the reported issue.",
-      "done_criteria": "The issue is understood well enough for investigation.",
-      "preferred_tools": ["read", "grep", "glob"]
-    },
-    {
-      "name": "reproduce",
-      "instructions": "Reproduce or disprove the reported behavior with the available information.",
-      "goal": "Confirm current behavior.",
-      "done_criteria": "The bug is reproduced or ruled out.",
-      "preferred_tools": ["bash", "read"]
-    },
-    {
-      "name": "fix",
-      "instructions": "Implement and verify a safe fix once the bug is reproduced.",
-      "goal": "Land a safe code change.",
-      "done_criteria": "Checks are complete and the fix is verified.",
-      "preferred_tools": ["edit", "bash"]
-    },
-    {
-      "name": "clarify",
-      "instructions": "Gather the missing information needed to continue investigation.",
-      "goal": "Unblock reproduction.",
-      "done_criteria": "The missing inputs are enumerated for the user."
-    }
-  ],
-  "edges": [
-    {
-      "source": "intake",
-      "target": "reproduce",
-      "branch_label": "",
-      "condition_summary": ""
-    },
-    {
-      "source": "reproduce",
-      "target": "fix",
-      "branch_label": "reproduced",
-      "condition_summary": "The reported behavior is reproduced locally."
-    },
-    {
-      "source": "reproduce",
-      "target": "clarify",
-      "branch_label": "needs-info",
-      "condition_summary": "The issue cannot be reproduced with current information."
-    }
-  ]
-}
-
-If a workflow does not need parameters, omit inputs entirely.
-
-Do:
-- "inputs": { "target_url": { "type": "string", "required": true, "format": "uri" } }
-- "inputs": { "first_input": { "type": "string", "required": true }, "second_input": { "type": "string", "required": false, "description": "Optional secondary value." } }
-
-Do NOT:
-- "inputs": { "target_url": "string" }
-- "inputs": { "repo": { "type": "object", "required": true, "properties": { "url": { "type": "string" } } } }
-- "inputs": { "first_input": { "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "string", "title": "Example Input", "required": true }, "second_input": { "type": "string", "required": false, "oneOf": [{ "type": "string" }, { "type": "null" }] } }
-
-Successful calls save the workflow for the current agent.
+If the service reports "workflow_name" already in use, surface the conflict. Do not rename the workflow automatically.
 `.trim()
 
 type CreateWorkflowToolInput = CreateWorkflowRequest

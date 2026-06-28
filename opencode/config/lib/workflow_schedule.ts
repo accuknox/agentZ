@@ -138,8 +138,7 @@ export async function listWorkflowSchedulesOnce(agentName: string, scheduleName:
 }
 
 function buildJSONValueSchema() {
-  let schema: ReturnType<typeof tool.schema.lazy>
-  schema = tool.schema.lazy(() =>
+  const schema: ReturnType<typeof tool.schema.lazy> = tool.schema.lazy(() =>
     tool.schema.union([
       tool.schema.boolean(),
       tool.schema.number(),

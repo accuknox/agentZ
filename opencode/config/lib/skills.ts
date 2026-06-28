@@ -20,6 +20,7 @@ type SkillFrontmatter = {
 
 const ignoredDirectories = new Set([".git", "node_modules"])
 const globalHome = homedir()
+const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(globalHome, ".config")
 
 function ancestorDirectories(directory: string, worktree: string): string[] {
   const current = path.resolve(directory)
@@ -51,23 +52,29 @@ function skillRoots(
   directory: string,
   worktree: string
 ): Array<{ root: string; scope: "project" | "global" }> {
-  const roots: Array<{ root: string; scope: "project" | "global" }> = [
-    { root: path.join(globalHome, ".claude", "skills"), scope: "global" as const },
-    { root: path.join(globalHome, ".agents", "skills"), scope: "global" as const },
-  ]
+  const roots: Array<{ root: string; scope: "project" | "global" }> = []
+  const seen = new Set<string>()
+  const pushRoot = (root: string, scope: "project" | "global"): void => {
+    if (seen.has(root)) {
+      return
+    }
 
-  for (const ancestor of ancestorDirectories(directory, worktree)) {
-    roots.push({ root: path.join(ancestor, ".claude", "skills"), scope: "project" as const })
-    roots.push({ root: path.join(ancestor, ".agents", "skills"), scope: "project" as const })
+    seen.add(root)
+    roots.push({ root, scope })
   }
 
-  roots.push({
-    root: path.join(globalHome, ".config", "opencode", "skills"),
-    scope: "global" as const,
-  })
+  pushRoot(path.join(globalHome, ".claude", "skills"), "global")
+  pushRoot(path.join(globalHome, ".agents", "skills"), "global")
 
   for (const ancestor of ancestorDirectories(directory, worktree)) {
-    roots.push({ root: path.join(ancestor, ".opencode", "skills"), scope: "project" as const })
+    pushRoot(path.join(ancestor, ".claude", "skills"), "project")
+    pushRoot(path.join(ancestor, ".agents", "skills"), "project")
+  }
+
+  pushRoot(path.join(xdgConfigHome, "opencode", "skills"), "global")
+
+  for (const ancestor of ancestorDirectories(directory, worktree)) {
+    pushRoot(path.join(ancestor, ".opencode", "skills"), "project")
   }
 
   return roots

@@ -24,7 +24,7 @@ The tool returns:
 - declared workflow inputs
 - start and terminal nodes
 - nodes in execution order
-- complete node instructions, goals, done criteria, and preferred tools
+- complete node instructions, goals, done criteria, preferred skills, and preferred tools
 - incoming and outgoing transitions for each node
 - branch labels and condition summaries for every edge
 
@@ -202,6 +202,7 @@ function workflowToMarkdown(workflow: Workflow) {
     lines.push(`- Execution position: ${index + 1}`)
     lines.push(`- Goal: ${node.goal}`)
     lines.push(`- Done criteria: ${node.done_criteria}`)
+    lines.push(`- Preferred skills: ${joinNames(node.preferred_skills ?? [])}`)
     lines.push(`- Preferred tools: ${joinNames(node.preferred_tools ?? [])}`)
     lines.push(`- Incoming transitions: ${joinTransitions(incomingByNode.get(node.name) ?? [])}`)
     lines.push(`- Outgoing transitions: ${joinTransitions(outgoingByNode.get(node.name) ?? [])}`)

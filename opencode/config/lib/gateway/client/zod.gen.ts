@@ -168,6 +168,15 @@ export const zWorkflowNode = z.object({
   instructions: z.string().min(1).max(16384),
   goal: z.string().min(1).max(2048),
   done_criteria: z.string().min(1).max(2048),
+  preferred_skills: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .max(64)
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    )
+    .optional(),
   preferred_tools: z.array(z.string().min(1).max(128)).optional(),
 })
 

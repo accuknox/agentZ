@@ -32,10 +32,13 @@ import (
 
 const (
 	opencodeConfigKey              = "opencode.json"
-	opencodeInstructionKey         = "instruction.md"
 	configVolume                   = "config"
 	opencodeConfigDir              = "/etc/clawarmor/opencode"
-	opencodeInstructionPath        = "/etc/clawarmor/opencode/instruction.md"
+	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
+	opencodePhilosophyKey          = "philosophy.md"
+	opencodeInstructionKey         = "instruction.md"
+	opencodePhilosophyPath         = opencodeConfigDir + "/" + opencodePhilosophyKey
+	opencodeInstructionPath        = opencodeConfigDir + "/" + opencodeInstructionKey
 	createWorkflowToolName         = "create_workflow"
 	createWorkflowScheduleToolName = "create_workflow_schedule"
 	listWorkflowSchedulesToolName  = "list_workflow_schedules"
@@ -166,7 +169,12 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	return labels
 }
 
-func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]byte, string, error) {
+type opencodeInstructionFile struct {
+	Path    string
+	Content string
+}
+
+func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]byte, []opencodeInstructionFile, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
 		Permission: map[string]opencodePermissionRule{
@@ -179,9 +187,12 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	if agt.Spec.SmallModel != "" {
 		cfg.SmallModel = agt.Spec.SmallModel
 	}
-	instruction := renderOpencodeInstruction(agt.Spec)
-	if instruction != "" {
-		cfg.Instructions = []string{opencodeInstructionPath}
+	instructionFiles := renderOpencodeInstructions(agt.Spec)
+	if len(instructionFiles) > 0 {
+		cfg.Instructions = make([]string, 0, len(instructionFiles))
+		for _, item := range instructionFiles {
+			cfg.Instructions = append(cfg.Instructions, item.Path)
+		}
 	}
 	cfg.Skills = &opencodeSkillsFile{
 		Paths: []string{
@@ -247,9 +258,9 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		return nil, "", fmt.Errorf("marshal opencode json: %w", err)
+		return nil, nil, fmt.Errorf("marshal opencode json: %w", err)
 	}
-	return append(data, '\n'), instruction, nil
+	return append(data, '\n'), instructionFiles, nil
 }
 
 type opencodeConfigFile struct {
@@ -287,6 +298,7 @@ type opencodeProviderOptionsFile struct {
 
 type configHashInput struct {
 	Config                  json.RawMessage `json:"config"`
+	Instructions            []string        `json:"instructions"`
 	Env                     []corev1.EnvVar `json:"env"`
 	Packages                []string        `json:"packages"`
 	MCPURL                  string          `json:"mcpUrl"`
@@ -299,9 +311,15 @@ type packageJobHashInput struct {
 	Packages []string `json:"packages"`
 }
 
-func configHash(opencodeCfg []byte, env []corev1.EnvVar, envCfg environmentConfig) string {
+func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg environmentConfig) string {
+	instructions := make([]string, 0, len(instructionFiles))
+	for _, item := range instructionFiles {
+		instructions = append(instructions, item.Path+"\n"+item.Content)
+	}
+
 	hashInput, _ := json.Marshal(configHashInput{
 		Config:                  opencodeCfg,
+		Instructions:            instructions,
 		Env:                     env,
 		Packages:                envCfg.Packages,
 		MCPURL:                  envCfg.MCPURL,
@@ -321,10 +339,27 @@ func packageJobHash(image string, packages []string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
-func renderOpencodeInstruction(spec clawarmorv1alpha1.AgentSpec) string {
-	parts := []string{strings.TrimSpace(agentPhilosophy)}
+func renderOpencodeInstructions(spec clawarmorv1alpha1.AgentSpec) []opencodeInstructionFile {
+	files := []opencodeInstructionFile{{
+		Path:    opencodePhilosophyPath,
+		Content: renderInstructionFile(agentPhilosophy),
+	}}
+
 	if instruction := strings.TrimSpace(spec.Instruction); instruction != "" {
-		parts = append(parts, instruction)
+		files = append(files, opencodeInstructionFile{
+			Path:    opencodeInstructionPath,
+			Content: renderInstructionFile(instruction),
+		})
 	}
-	return strings.Join(parts, "\n\n")
+
+	return files
+}
+
+func renderInstructionFile(body string) string {
+	text := strings.TrimSpace(body)
+	if text == "" {
+		return ""
+	}
+
+	return opencodeInstructionPreamble + "\n\n" + text
 }

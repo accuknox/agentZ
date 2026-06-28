@@ -10063,6 +10063,13 @@ components:
           type: string
         name:
           $ref: '#/components/schemas/WorkflowNodeName'
+        preferred_skills:
+          items:
+            maxLength: 64
+            minLength: 1
+            pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+            type: string
+          type: array
         preferred_tools:
           items:
             maxLength: 128

@@ -109,17 +109,9 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rawPackages []string
+	packages := []string{}
 	if req.Packages != nil {
-		rawPackages = *req.Packages
-	}
-	packages := make([]string, 0, len(rawPackages))
-	for _, pkg := range rawPackages {
-		pkg = strings.TrimSpace(pkg)
-		if pkg == "" {
-			continue
-		}
-		packages = append(packages, pkg)
+		packages = *req.Packages
 	}
 
 	var rawAllowedHosts []string
@@ -304,14 +296,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 			Tools: tools,
 		})
 	}
-	packages := make([]string, 0, len(req.Packages))
-	for _, pkg := range req.Packages {
-		pkg = strings.TrimSpace(pkg)
-		if pkg == "" {
-			continue
-		}
-		packages = append(packages, pkg)
-	}
+	packages := req.Packages
 	fields = s.validateEnvironmentMCPConnections(r.Context(), mcpConnectionRefs)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(

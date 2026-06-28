@@ -99,6 +99,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
+	packages := defaultPackages(env.Spec.Packages)
+	if !slices.Equal(env.Spec.Packages, packages) {
+		patch := client.MergeFrom(env.DeepCopy())
+		env.Spec.Packages = packages
+		if err := r.Patch(ctx, env, patch); err != nil {
+			return ctrl.Result{}, fmt.Errorf("default packages: %w", err)
+		}
+	}
+
 	conns, err := mcp.LoadConnections(ctx, r.Client, env)
 	if err != nil {
 		return ctrl.Result{}, err

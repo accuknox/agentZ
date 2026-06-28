@@ -109,15 +109,21 @@
                   mkdir -p "$out/etc/opencode"
                   cp -R ${cfg}/. "$out/etc/opencode/"
                 '')
-                cli
-                pkgs.bashInteractive
+                (pkgs.runCommand "opencode-shell-paths" { } ''
+                  mkdir -p "$out/usr/bin"
+                  ln -s /bin/env "$out/usr/bin/env"
+                  ln -s /bin/bash "$out/usr/bin/bash"
+                '')
                 pkgs.cacert
-                pkgs.coreutils
                 pkgs.stdenv.cc.cc.lib
+                pkgs.bashInteractive
+                pkgs.coreutils-full
+                cli
               ];
               pathsToLink = [
                 "/bin"
                 "/etc"
+                "/usr/bin"
               ];
             };
             agentImage = pkgs.dockerTools.buildLayeredImage {
@@ -130,6 +136,7 @@
                   pathsToLink = [
                     "/bin"
                     "/etc"
+                    "/usr/bin"
                   ];
                 })
               ];

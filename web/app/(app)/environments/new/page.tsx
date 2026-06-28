@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
+import { defaultEnvironmentPackages } from "@/data/environment-defaults"
 import { EnvironmentWizard } from "../wizard"
 
 export const metadata: Metadata = {
@@ -22,7 +23,13 @@ export default function NewEnvironmentPage() {
 
 async function NewEnvironmentWizard() {
   const result = await listMcpConnectionsCachedQuery({ limit: 200 })
-  return <EnvironmentWizard mode="create" mcpConnections={result.mcpConnections ?? []} />
+  return (
+    <EnvironmentWizard
+      mode="create"
+      initialPackages={[...defaultEnvironmentPackages]}
+      mcpConnections={result.mcpConnections ?? []}
+    />
+  )
 }
 
 function WizardSkeleton() {

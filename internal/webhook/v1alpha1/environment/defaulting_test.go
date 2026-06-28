@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	envcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
@@ -31,5 +32,9 @@ func TestDefaulterDefaultCanonicalizesHosts(t *testing.T) {
 	want := "[github.com,*.github.com,**.github.com,10.0.0.0/24]"
 	if got != want {
 		t.Fatalf("AllowedHosts = %s, want %s", got, want)
+	}
+
+	if len(env.Spec.Packages) != len(envcontroller.DefaultPackages) {
+		t.Fatalf("Packages length = %d, want %d", len(env.Spec.Packages), len(envcontroller.DefaultPackages))
 	}
 }

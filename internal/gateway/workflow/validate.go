@@ -3,6 +3,7 @@ package workflow
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,8 @@ import (
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	"github.com/accuknox/clawarmor/internal/workflow"
 )
+
+var skillNamePattern = regexp.MustCompile("^[a-z0-9]+(-[a-z0-9]+)*$")
 
 func ValidateLookupRequest(agtName string, wfName string) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 2)
@@ -191,6 +194,35 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 					continue
 				}
 				seenTools[toolName] = struct{}{}
+			}
+		}
+
+		if node.PreferredSkills != nil {
+			seenSkills := make(map[string]struct{}, len(*node.PreferredSkills))
+			for skillIndex, skillName := range *node.PreferredSkills {
+				field := fieldPrefix + ".preferred_skills." + strconv.Itoa(skillIndex)
+				if skillName == "" {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   field,
+						Message: "must not be empty",
+					})
+					continue
+				}
+				if len(skillName) > 64 || !skillNamePattern.MatchString(skillName) {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   field,
+						Message: "must be a valid skill name",
+					})
+					continue
+				}
+				if _, exists := seenSkills[skillName]; exists {
+					fields = append(fields, gatewayapi.FieldError{
+						Field:   field,
+						Message: "must be unique within the node",
+					})
+					continue
+				}
+				seenSkills[skillName] = struct{}{}
 			}
 		}
 	}

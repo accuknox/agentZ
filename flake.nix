@@ -9,10 +9,18 @@
       (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          opencodePluginOtel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
-          opencodeConfigNodeModules = pkgs.stdenvNoCC.mkDerivation {
-            pname = "clawarmor-opencode-config-node_modules";
-            version = "1.0.0";
+          otel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
+          cli = pkgs.buildGoModule {
+            pname = "clawarmor";
+            version = "0.1.0";
+            src = ./.;
+            subPackages = [ "cmd/clawarmor" ];
+            ldflags = [ "-s" "-w" ];
+            vendorHash = "sha256-51d7SeEKb/1UUdC+woytR9uGe3b6JAoPDYdUQAcn6LQ=";
+          };
+          nodeModules = pkgs.stdenvNoCC.mkDerivation {
+            pname = "opencode-config-node_modules";
+            version = "0.1.0";
             src = ./opencode/config;
 
             nativeBuildInputs = [ pkgs.bun ];
@@ -38,30 +46,28 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-EuyeZEVSvkh5VQMHwziBgYl7CZewgquW37zTWd0ipt4=";
+            outputHash = "sha256-t7HL/r2Z/HmaCCsiZAI1G+jck0QZSfSnLE1ZLSeEtO8=";
           };
-          opencodeXdgConfigRoot = pkgs.runCommand "clawarmor-xdg-config" { } ''
-            mkdir -p "$out/opencode/plugins/opencode-plugin-otel"
-            cp -R ${opencodePluginOtel}/. "$out/opencode/plugins/opencode-plugin-otel/"
-            mkdir -p "$out/opencode/tools" "$out/opencode/lib"
-            cp -R ${opencodeConfigNodeModules}/node_modules "$out/opencode/"
-            cp -R ${./opencode/config/lib}/. "$out/opencode/lib/"
-            cp ${./opencode/config/bun.lock} "$out/opencode/bun.lock"
-            cp ${./opencode/config/package.json} "$out/opencode/package.json"
-            cp ${./opencode/config/openapi-ts.config.mjs} "$out/opencode/openapi-ts.config.mjs"
-            cp ${./opencode/config/tsconfig.json} "$out/opencode/tsconfig.json"
-            cp ${./opencode/config/tools/get_workflow.ts} "$out/opencode/tools/get_workflow.ts"
-            cp ${./opencode/config/tools/create_workflow.ts} "$out/opencode/tools/create_workflow.ts"
-            cp ${./opencode/config/tools/create_workflow_schedule.ts} "$out/opencode/tools/create_workflow_schedule.ts"
-            cp ${./opencode/config/tools/list_workflows.ts} "$out/opencode/tools/list_workflows.ts"
-            cp ${./opencode/config/tools/list_workflow_schedules.ts} "$out/opencode/tools/list_workflow_schedules.ts"
-            cp ${./opencode/config/tools/delete_workflows.ts} "$out/opencode/tools/delete_workflows.ts"
-            cp ${./opencode/config/tools/delete_workflow_schedule.ts} "$out/opencode/tools/delete_workflow_schedule.ts"
-            cp ${./opencode/config/tools/set_workflowrun_status.ts} "$out/opencode/tools/set_workflowrun_status.ts"
-            cp ${./opencode/config/tools/update_workflow_schedule.ts} "$out/opencode/tools/update_workflow_schedule.ts"
-            cp ${./opencode/config/plugins/workflow-context.ts} "$out/opencode/plugins/workflow-context.ts"
+          cfg = pkgs.runCommand "opencode-config" { } ''
+            mkdir -p \
+              "$out/lib" \
+              "$out/node_modules" \
+              "$out/plugins/opencode-plugin-otel" \
+              "$out/skills" \
+              "$out/tools"
 
-            cat > "$out/opencode/opencode.json" <<'EOF'
+            cp -R ${otel}/. "$out/plugins/opencode-plugin-otel/"
+            cp -R ${nodeModules}/node_modules/. "$out/node_modules/"
+            cp -R ${./opencode/config/lib}/. "$out/lib/"
+            cp -R ${./opencode/config/plugins}/. "$out/plugins/"
+            cp -R ${./opencode/config/tools}/. "$out/tools/"
+            cp -R ${./opencode/skills}/. "$out/skills/"
+            cp ${./opencode/config/bun.lock} "$out/bun.lock"
+            cp ${./opencode/config/package.json} "$out/package.json"
+            cp ${./opencode/config/openapi-ts.config.mjs} "$out/openapi-ts.config.mjs"
+            cp ${./opencode/config/tsconfig.json} "$out/tsconfig.json"
+
+            cat > "$out/opencode.json" <<'EOF'
             {
               "$schema": "https://opencode.ai/config.json",
               "plugin": ["./plugins/opencode-plugin-otel"],
@@ -69,6 +75,8 @@
                 "create_workflow": true,
                 "create_workflow_schedule": true,
                 "list_workflows": true,
+                "skill": true,
+                "list_skills": true,
                 "list_workflow_schedules": true,
                 "get_workflow": true,
                 "delete_workflows": true,
@@ -83,31 +91,39 @@
         {
           formatter = pkgs.nixpkgs-fmt;
           packages = rec {
-            inherit opencodePluginOtel;
-            opencodeConfigDir = pkgs.runCommand "clawarmor-opencode-config-dir" { } ''
-              mkdir -p "$out"
-              cp -R ${opencodeXdgConfigRoot}/opencode/. "$out/"
-            '';
+            opencodePluginOtel = otel;
+            opencodeConfigDir = cfg;
             opencodeAgentRuntime = pkgs.buildEnv {
-              name = "clawarmor-opencode-runtime";
+              name = "opencode-runtime";
               paths = [
                 (pkgs.writeShellScriptBin "opencode" ''
                   if [ -z "''${XDG_CONFIG_HOME:-}" ]; then
-                    export XDG_CONFIG_HOME="${opencodeXdgConfigRoot}"
+                    export XDG_CONFIG_HOME="/etc"
                   fi
                   export OPENCODE_DISABLE_PROJECT_CONFIG=1
                   export OPENCODE_DISABLE_MODELS_FETCH=1
                   export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}"
                   exec ${pkgs.opencode}/bin/opencode "$@"
                 '')
-                pkgs.bashInteractive
+                (pkgs.runCommand "opencode-etc" { } ''
+                  mkdir -p "$out/etc/opencode"
+                  cp -R ${cfg}/. "$out/etc/opencode/"
+                '')
+                (pkgs.runCommand "opencode-shell-paths" { } ''
+                  mkdir -p "$out/usr/bin"
+                  ln -s /bin/env "$out/usr/bin/env"
+                  ln -s /bin/bash "$out/usr/bin/bash"
+                '')
                 pkgs.cacert
-                pkgs.coreutils
                 pkgs.stdenv.cc.cc.lib
+                pkgs.bashInteractive
+                pkgs.coreutils-full
+                cli
               ];
               pathsToLink = [
                 "/bin"
                 "/etc"
+                "/usr/bin"
               ];
             };
             agentImage = pkgs.dockerTools.buildLayeredImage {
@@ -115,11 +131,12 @@
               tag = "latest";
               contents = [
                 (pkgs.buildEnv {
-                  name = "clawarmor-agent-root";
+                  name = "agent-root";
                   paths = [ opencodeAgentRuntime ];
                   pathsToLink = [
                     "/bin"
                     "/etc"
+                    "/usr/bin"
                   ];
                 })
               ];

@@ -32,15 +32,20 @@ import (
 
 const (
 	opencodeConfigKey              = "opencode.json"
-	opencodeInstructionKey         = "instruction.md"
 	configVolume                   = "config"
 	opencodeConfigDir              = "/etc/clawarmor/opencode"
-	opencodeInstructionPath        = "/etc/clawarmor/opencode/instruction.md"
+	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
+	opencodePhilosophyKey          = "philosophy.md"
+	opencodeInstructionKey         = "instruction.md"
+	opencodePhilosophyPath         = opencodeConfigDir + "/" + opencodePhilosophyKey
+	opencodeInstructionPath        = opencodeConfigDir + "/" + opencodeInstructionKey
 	createWorkflowToolName         = "create_workflow"
 	createWorkflowScheduleToolName = "create_workflow_schedule"
 	listWorkflowSchedulesToolName  = "list_workflow_schedules"
 	getWorkflowToolName            = "get_workflow"
 	listWorkflowsToolName          = "list_workflows"
+	skillToolName                  = "skill"
+	listSkillsToolName             = "list_skills"
 	deleteWorkflowsToolName        = "delete_workflows"
 	deleteWorkflowScheduleToolName = "delete_workflow_schedule"
 	setWorkflowRunStatusToolName   = "set_workflowrun_status"
@@ -76,6 +81,9 @@ const (
 	gatewayTokenPath               = gatewayTokenMountPath + "/token"
 	egressPolicySuffix             = "-egress"
 	opencodeConfigSchema           = "https://opencode.ai/config.json"
+	agentHomeDir                   = "/home/clawarmor"
+	opencodeWritableSkillsPath     = agentHomeDir + "/.agents/skills"
+	opencodeBundledSkillsPath      = "/etc/opencode/skills/defaults"
 )
 
 var (
@@ -161,7 +169,12 @@ func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 	return labels
 }
 
-func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]byte, string, error) {
+type opencodeInstructionFile struct {
+	Path    string
+	Content string
+}
+
+func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]byte, []opencodeInstructionFile, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
 		Permission: map[string]opencodePermissionRule{
@@ -174,9 +187,18 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 	if agt.Spec.SmallModel != "" {
 		cfg.SmallModel = agt.Spec.SmallModel
 	}
-	instruction := strings.TrimSpace(agt.Spec.Instruction)
-	if instruction != "" {
-		cfg.Instructions = []string{opencodeInstructionPath}
+	instructionFiles := renderOpencodeInstructions(agt.Spec)
+	if len(instructionFiles) > 0 {
+		cfg.Instructions = make([]string, 0, len(instructionFiles))
+		for _, item := range instructionFiles {
+			cfg.Instructions = append(cfg.Instructions, item.Path)
+		}
+	}
+	cfg.Skills = &opencodeSkillsFile{
+		Paths: []string{
+			opencodeBundledSkillsPath,
+			opencodeWritableSkillsPath,
+		},
 	}
 	if len(agt.Spec.Providers) > 0 {
 		cfg.Provider = make(map[string]opencodeProviderFile, len(agt.Spec.Providers))
@@ -199,6 +221,8 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 		listWorkflowSchedulesToolName:  true,
 		getWorkflowToolName:            true,
 		listWorkflowsToolName:          true,
+		skillToolName:                  true,
+		listSkillsToolName:             true,
 		deleteWorkflowsToolName:        true,
 		deleteWorkflowScheduleToolName: true,
 		setWorkflowRunStatusToolName:   false,
@@ -234,9 +258,9 @@ func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		return nil, "", fmt.Errorf("marshal opencode json: %w", err)
+		return nil, nil, fmt.Errorf("marshal opencode json: %w", err)
 	}
-	return append(data, '\n'), instruction, nil
+	return append(data, '\n'), instructionFiles, nil
 }
 
 type opencodeConfigFile struct {
@@ -244,10 +268,16 @@ type opencodeConfigFile struct {
 	Model        string                            `json:"model,omitempty"`
 	SmallModel   string                            `json:"small_model,omitempty"`
 	Instructions []string                          `json:"instructions,omitempty"`
+	Skills       *opencodeSkillsFile               `json:"skills,omitempty"`
 	Provider     map[string]opencodeProviderFile   `json:"provider,omitempty"`
 	MCP          map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
 	Permission   map[string]opencodePermissionRule `json:"permission,omitempty"`
 	Tools        map[string]bool                   `json:"tools,omitempty"`
+}
+
+type opencodeSkillsFile struct {
+	Paths []string `json:"paths,omitempty"`
+	URLs  []string `json:"urls,omitempty"`
 }
 
 type opencodePermissionRule string
@@ -267,9 +297,13 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config json.RawMessage   `json:"config"`
-	Env    []corev1.EnvVar   `json:"env"`
-	EnvCfg environmentConfig `json:"envConfig"`
+	Config                  json.RawMessage `json:"config"`
+	Instructions            []string        `json:"instructions"`
+	Env                     []corev1.EnvVar `json:"env"`
+	Packages                []string        `json:"packages"`
+	MCPURL                  string          `json:"mcpUrl"`
+	MCPConsentPermissionIDs []string        `json:"mcpConsentPermissionIds"`
+	MCPRefs                 []mcpRefConfig  `json:"mcpRefs"`
 }
 
 type packageJobHashInput struct {
@@ -277,11 +311,20 @@ type packageJobHashInput struct {
 	Packages []string `json:"packages"`
 }
 
-func configHash(opencodeCfg []byte, env []corev1.EnvVar, envCfg environmentConfig) string {
+func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg environmentConfig) string {
+	instructions := make([]string, 0, len(instructionFiles))
+	for _, item := range instructionFiles {
+		instructions = append(instructions, item.Path+"\n"+item.Content)
+	}
+
 	hashInput, _ := json.Marshal(configHashInput{
-		Config: opencodeCfg,
-		Env:    env,
-		EnvCfg: envCfg,
+		Config:                  opencodeCfg,
+		Instructions:            instructions,
+		Env:                     env,
+		Packages:                envCfg.Packages,
+		MCPURL:                  envCfg.MCPURL,
+		MCPConsentPermissionIDs: envCfg.MCPConsentPermissionIDs,
+		MCPRefs:                 envCfg.MCPRefs,
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)
@@ -294,4 +337,29 @@ func packageJobHash(image string, packages []string) string {
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)
+}
+
+func renderOpencodeInstructions(spec clawarmorv1alpha1.AgentSpec) []opencodeInstructionFile {
+	files := []opencodeInstructionFile{{
+		Path:    opencodePhilosophyPath,
+		Content: renderInstructionFile(agentPhilosophy),
+	}}
+
+	if instruction := strings.TrimSpace(spec.Instruction); instruction != "" {
+		files = append(files, opencodeInstructionFile{
+			Path:    opencodeInstructionPath,
+			Content: renderInstructionFile(instruction),
+		})
+	}
+
+	return files
+}
+
+func renderInstructionFile(body string) string {
+	text := strings.TrimSpace(body)
+	if text == "" {
+		return ""
+	}
+
+	return opencodeInstructionPreamble + "\n\n" + text
 }

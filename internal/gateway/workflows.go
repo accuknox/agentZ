@@ -96,6 +96,11 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 				(*node.PreferredTools)[toolIndex] = strings.TrimSpace(toolName)
 			}
 		}
+		if node.PreferredSkills != nil {
+			for skillIndex, skillName := range *node.PreferredSkills {
+				(*node.PreferredSkills)[skillIndex] = strings.TrimSpace(skillName)
+			}
+		}
 	}
 
 	for edgeIndex := range req.Edges {

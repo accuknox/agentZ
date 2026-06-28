@@ -221,6 +221,7 @@ export type WorkflowNode = {
   instructions: string
   goal: string
   done_criteria: string
+  preferred_skills?: Array<string>
   preferred_tools?: Array<string>
 }
 

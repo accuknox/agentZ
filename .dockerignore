@@ -7,6 +7,7 @@
 !**/*.hcl
 !**/*.tmpl
 !internal/workflow/input-schema.json
+!internal/controller/agent/prompts/
 **/*_test.go
 
 # Re-include Go module files

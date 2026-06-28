@@ -173,6 +173,7 @@ var cmd = &cli.Command{
 		managerCmd,
 		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,
+		subcommands.SkillCmd,
 		subcommands.SinjectorCmd,
 		subcommands.WorkflowCmd,
 	},

@@ -6,6 +6,8 @@ export type RequestValidationIssue = {
   message: string
 }
 
+const skillNamePattern = /^[a-z0-9]+(-[a-z0-9]+)*$/
+
 export function workflowAgentName() {
   return process.env.CLAWARMOR_AGENT_NAME?.trim() ?? ""
 }
@@ -62,6 +64,28 @@ export function validateWorkflowDefinition(body: CreateWorkflowRequest) {
     incoming.set(node.name, 0)
     outgoing.set(node.name, 0)
     undirected.set(node.name, new Set())
+
+    const preferredSkills = node.preferred_skills ?? []
+    const seenSkills = new Set<string>()
+    for (const [skillIndex, skillName] of preferredSkills.entries()) {
+      if (!skillNamePattern.test(skillName)) {
+        issues.push({
+          path: `nodes.${index}.preferred_skills.${skillIndex}`,
+          message: `invalid skill name ${skillName}`,
+        })
+        continue
+      }
+
+      if (seenSkills.has(skillName)) {
+        issues.push({
+          path: `nodes.${index}.preferred_skills.${skillIndex}`,
+          message: `duplicate skill name ${skillName}`,
+        })
+        continue
+      }
+
+      seenSkills.add(skillName)
+    }
   }
 
   for (const [index, edge] of body.edges.entries()) {

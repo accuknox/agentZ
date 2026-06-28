@@ -487,6 +487,7 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 
 func sameAgent(a, b gatewayapi.Agent) bool {
 	return a.Name == b.Name &&
+		a.EnvironmentName == b.EnvironmentName &&
 		a.LastActivity.Equal(b.LastActivity) &&
 		a.CreatedAt.Equal(b.CreatedAt) &&
 		a.ModifiedAt.Equal(b.ModifiedAt) &&
@@ -585,7 +586,6 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 	if req.Env != nil {
 		env = envVarsFromMap(*req.Env)
 	}
-
 	agt := &clawarmorv1alpha1.Agent{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),

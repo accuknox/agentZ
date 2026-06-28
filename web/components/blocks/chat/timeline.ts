@@ -276,17 +276,21 @@ export function projectTimeline(input: ProjectInput): TimelineRow[] {
     out.push({ key: message.id, message, type: "local" })
   }
 
-  // Group the server messages into turns (user + its assistants).
+  // Group the server messages into turns by parentID so rendering does not
+  // depend on assistants staying adjacent to their user prompt.
   const turns: { assistants: AssistantMessage[]; user: UserMessage }[] = []
+  const turnsByUserID = new Map<string, (typeof turns)[number]>()
   for (const message of input.messages) {
     if (message.role === "user") {
-      turns.push({ assistants: [], user: message })
+      const turn = { assistants: [], user: message }
+      turns.push(turn)
+      turnsByUserID.set(message.id, turn)
       continue
     }
-    // Message is narrowed to AssistantMessage here since role is the discriminator.
-    const current = turns.at(-1)
-    if (!current) continue
-    current.assistants.push(message)
+    const turn = turnsByUserID.get(message.parentID)
+    if (turn) {
+      turn.assistants.push(message)
+    }
   }
 
   const lastIndex = turns.length - 1

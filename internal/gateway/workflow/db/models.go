@@ -52,6 +52,15 @@ type WorkflowNode struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+type WorkflowNodePreferredSkill struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	NodeName        string `json:"node_name"`
+	Ordinal         int32  `json:"ordinal"`
+	SkillName       string `json:"skill_name"`
+}
+
 type WorkflowNodePreferredTool struct {
 	TenantNamespace string `json:"tenant_namespace"`
 	AgentName       string `json:"agent_name"`

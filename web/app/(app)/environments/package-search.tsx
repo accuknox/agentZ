@@ -27,6 +27,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { searchNixPackagesAction, type NixPackage } from "@/data/nixpkgs.actions"
+import { defaultEnvironmentPackageSet } from "@/data/environment-defaults"
 import { cn } from "@/lib/utils"
 
 const minQueryLength = 2
@@ -110,11 +111,13 @@ function PackageMeta({ children, icon: Icon }: { children: React.ReactNode; icon
 function PackageAction({
   attrName,
   isSelected,
+  isRequired,
   label,
   onToggle,
 }: {
   attrName: string
   isSelected: boolean
+  isRequired: boolean
   label: string
   onToggle: (attrName: string) => void
 }) {
@@ -124,14 +127,17 @@ function PackageAction({
       variant={isSelected ? "secondary" : "outline"}
       size="sm"
       className="h-8 shrink-0"
-      aria-label={isSelected ? `Remove ${label}` : `Add ${label}`}
+      aria-label={
+        isRequired ? `${label} is required` : isSelected ? `Remove ${label}` : `Add ${label}`
+      }
+      disabled={isRequired}
       onClick={(event) => {
         event.stopPropagation()
         onToggle(attrName)
       }}
     >
       {isSelected ? <Check data-icon="inline-start" /> : <PackagePlus data-icon="inline-start" />}
-      {isSelected ? "Selected" : "Select"}
+      {isRequired ? "Required" : isSelected ? "Selected" : "Select"}
     </Button>
   )
 }
@@ -154,6 +160,7 @@ function PackageResult({
   const hasDetails =
     pkg != null &&
     (pkg.package_homepage.length > 0 || licenses.length > 0 || pkg.package_programs.length > 0)
+  const isRequired = defaultEnvironmentPackageSet.has(attrName)
 
   return (
     <AccordionItem
@@ -174,6 +181,11 @@ function PackageResult({
             {pkg?.package_pversion ? (
               <span className="text-muted-foreground font-mono text-xs">
                 v{pkg.package_pversion}
+              </span>
+            ) : null}
+            {isRequired ? (
+              <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
+                Required
               </span>
             ) : null}
           </div>
@@ -200,6 +212,7 @@ function PackageResult({
         <PackageAction
           attrName={attrName}
           isSelected={isSelected}
+          isRequired={isRequired}
           label={label}
           onToggle={onToggle}
         />
@@ -310,6 +323,10 @@ export function PackageSearch({
   }, [])
 
   const togglePackage = (attrName: string) => {
+    if (defaultEnvironmentPackageSet.has(attrName)) {
+      return
+    }
+
     if (selectedSet.has(attrName)) {
       onSelectedChangeAction(selected.filter((pkg) => pkg !== attrName))
       return

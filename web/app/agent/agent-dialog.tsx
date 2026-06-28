@@ -61,7 +61,7 @@ import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actio
 import { listEnvironmentsAction } from "@/data/environment.actions"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import type { Environment } from "@/lib/gateway/client"
-import { createAgentOpencodeClientV2 } from "@/lib/opencode/client"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type { ComponentType, SVGProps } from "react"
 
 type Mode = "create" | "update"
@@ -282,7 +282,7 @@ export function AgentDialog({
           throw new Error("Agent name is required")
         }
 
-        const client = await createAgentOpencodeClientV2(agentName)
+        const client = await createAgentOpencodeClient(agentName)
         const [providersResult, configResult] = await Promise.all([
           client.config.providers(),
           client.config.get(),

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"path"
 	"strconv"
 	"strings"
 
@@ -35,7 +36,7 @@ import (
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, opencodeCfg string, instruction string) error {
+func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, opencodeCfg string, instructionFiles []opencodeInstructionFile) error {
 	if opencodeCfg == "" {
 		current := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -58,8 +59,8 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alp
 		current.Labels = resourceLabels(agt)
 		current.Annotations = agt.Annotations
 		current.Data = map[string]string{opencodeConfigKey: opencodeCfg}
-		if instruction != "" {
-			current.Data[opencodeInstructionKey] = instruction
+		for _, item := range instructionFiles {
+			current.Data[path.Base(item.Path)] = item.Content
 		}
 		return ctrl.SetControllerReference(agt, current, r.Scheme)
 	})

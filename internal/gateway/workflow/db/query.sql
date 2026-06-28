@@ -75,6 +75,28 @@ FROM jsonb_to_recordset(sqlc.arg(preferred_tools)::jsonb) AS t(
   tool_name text
 );
 
+-- name: WorkflowCreatePreferredSkills :exec
+INSERT INTO workflow_node_preferred_skills(
+  tenant_namespace,
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  skill_name
+)
+SELECT
+  sqlc.arg(tenant_namespace)::text,
+  sqlc.arg(agent_name)::text,
+  sqlc.arg(workflow_name)::text,
+  s.node_name,
+  s.ordinal,
+  s.skill_name
+FROM jsonb_to_recordset(sqlc.arg(preferred_skills)::jsonb) AS s(
+  node_name text,
+  ordinal int,
+  skill_name text
+);
+
 -- name: WorkflowCreateEdges :exec
 INSERT INTO workflow_edges(
   tenant_namespace,
@@ -171,6 +193,20 @@ SELECT
   ordinal,
   tool_name
 FROM workflow_node_preferred_tools
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
+  AND workflow_name = sqlc.arg(workflow_name)
+ORDER BY node_name ASC, ordinal ASC;
+
+-- name: WorkflowListPreferredSkills :many
+SELECT
+  tenant_namespace,
+  agent_name,
+  workflow_name,
+  node_name,
+  ordinal,
+  skill_name
+FROM workflow_node_preferred_skills
 WHERE tenant_namespace = sqlc.arg(tenant_namespace)
   AND agent_name = sqlc.arg(agent_name)
   AND workflow_name = sqlc.arg(workflow_name)

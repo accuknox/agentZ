@@ -33,6 +33,12 @@ type storedPreferredTool struct {
 	ToolName string `json:"tool_name"`
 }
 
+type storedPreferredSkill struct {
+	NodeName  string `json:"node_name"`
+	Ordinal   int32  `json:"ordinal"`
+	SkillName string `json:"skill_name"`
+}
+
 type storedEdge struct {
 	SourceNodeName   string `json:"source_node_name"`
 	TargetNodeName   string `json:"target_node_name"`
@@ -90,7 +96,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agt
 		return workflowdb.Workflow{}, fmt.Errorf("create workflow: %w", err)
 	}
 
-	nodesJSON, preferredToolsJSON, err := marshalNodes(req.Nodes)
+	nodesJSON, preferredToolsJSON, preferredSkillsJSON, err := marshalNodes(req.Nodes)
 	if err != nil {
 		return workflowdb.Workflow{}, err
 	}
@@ -114,6 +120,18 @@ func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agt
 		})
 		if err != nil {
 			return workflowdb.Workflow{}, fmt.Errorf("create preferred tools: %w", err)
+		}
+	}
+
+	if len(preferredSkillsJSON) > 0 && string(preferredSkillsJSON) != "[]" {
+		err := queries.WorkflowCreatePreferredSkills(ctx, workflowdb.WorkflowCreatePreferredSkillsParams{
+			TenantNamespace: tenantNamespace,
+			AgentName:       agtName,
+			WorkflowName:    req.WorkflowName,
+			PreferredSkills: preferredSkillsJSON,
+		})
+		if err != nil {
+			return workflowdb.Workflow{}, fmt.Errorf("create preferred skills: %w", err)
 		}
 	}
 
@@ -273,6 +291,15 @@ func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtNam
 		return gatewayapi.Workflow{}, fmt.Errorf("list preferred tools: %w", err)
 	}
 
+	skillRows, err := queries.WorkflowListPreferredSkills(ctx, workflowdb.WorkflowListPreferredSkillsParams{
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    wfName,
+	})
+	if err != nil {
+		return gatewayapi.Workflow{}, fmt.Errorf("list preferred skills: %w", err)
+	}
+
 	edgeRows, err := queries.WorkflowListEdges(ctx, workflowdb.WorkflowListEdgesParams{
 		TenantNamespace: tenantNamespace,
 		AgentName:       agtName,
@@ -290,6 +317,14 @@ func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtNam
 		)
 	}
 
+	preferredSkillsByNode := map[string][]string{}
+	for _, skillRow := range skillRows {
+		preferredSkillsByNode[skillRow.NodeName] = append(
+			preferredSkillsByNode[skillRow.NodeName],
+			skillRow.SkillName,
+		)
+	}
+
 	nodes := make([]gatewayapi.WorkflowNode, 0, len(nodeRows))
 	for _, nodeRow := range nodeRows {
 		var preferredTools *[]string
@@ -298,12 +333,19 @@ func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtNam
 			preferredTools = &clonedToolNames
 		}
 
+		var preferredSkills *[]string
+		if skillNames := preferredSkillsByNode[nodeRow.NodeName]; skillNames != nil {
+			clonedSkillNames := slices.Clone(skillNames)
+			preferredSkills = &clonedSkillNames
+		}
+
 		nodes = append(nodes, gatewayapi.WorkflowNode{
-			Name:           nodeRow.NodeName,
-			Instructions:   nodeRow.Instructions,
-			Goal:           nodeRow.Goal,
-			DoneCriteria:   nodeRow.DoneCriteria,
-			PreferredTools: preferredTools,
+			Name:            nodeRow.NodeName,
+			Instructions:    nodeRow.Instructions,
+			Goal:            nodeRow.Goal,
+			DoneCriteria:    nodeRow.DoneCriteria,
+			PreferredSkills: preferredSkills,
+			PreferredTools:  preferredTools,
 		})
 	}
 
@@ -339,9 +381,10 @@ func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtNam
 	}, nil
 }
 
-func marshalNodes(nodes []gatewayapi.WorkflowNode) ([]byte, []byte, error) {
+func marshalNodes(nodes []gatewayapi.WorkflowNode) ([]byte, []byte, []byte, error) {
 	storedNodes := make([]storedNode, 0, len(nodes))
 	preferredTools := make([]storedPreferredTool, 0)
+	preferredSkills := make([]storedPreferredSkill, 0)
 
 	for nodeIndex, node := range nodes {
 		storedNodes = append(storedNodes, storedNode{
@@ -361,19 +404,34 @@ func marshalNodes(nodes []gatewayapi.WorkflowNode) ([]byte, []byte, error) {
 				})
 			}
 		}
+
+		if node.PreferredSkills != nil {
+			for skillIndex, skillName := range *node.PreferredSkills {
+				preferredSkills = append(preferredSkills, storedPreferredSkill{
+					NodeName:  node.Name,
+					Ordinal:   int32(skillIndex),
+					SkillName: skillName,
+				})
+			}
+		}
 	}
 
 	nodesJSON, err := json.Marshal(storedNodes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal workflow nodes: %w", err)
+		return nil, nil, nil, fmt.Errorf("marshal workflow nodes: %w", err)
 	}
 
 	preferredToolsJSON, err := json.Marshal(preferredTools)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal preferred tools: %w", err)
+		return nil, nil, nil, fmt.Errorf("marshal preferred tools: %w", err)
 	}
 
-	return nodesJSON, preferredToolsJSON, nil
+	preferredSkillsJSON, err := json.Marshal(preferredSkills)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("marshal preferred skills: %w", err)
+	}
+
+	return nodesJSON, preferredToolsJSON, preferredSkillsJSON, nil
 }
 
 func marshalEdges(edges []gatewayapi.WorkflowEdge) ([]byte, error) {

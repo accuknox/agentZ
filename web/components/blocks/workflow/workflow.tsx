@@ -3,7 +3,7 @@
 import * as React from "react"
 import dagre from "@dagrejs/dagre"
 import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
-import { CornerDownLeftIcon, HammerIcon, XIcon } from "lucide-react"
+import { CornerDownLeftIcon, HammerIcon, SparklesIcon, XIcon } from "lucide-react"
 import {
   type EdgeTypes,
   type NodeTypes,
@@ -156,7 +156,18 @@ export default function Workflow({ workflow }: WorkflowProps) {
               </div>
               <Section title="Instructions" value={selectedWorkflowNode.instructions} />
               <Section title="Done criteria" value={selectedWorkflowNode.done_criteria} />
-              <PreferredTools tools={selectedWorkflowNode.preferred_tools} />
+              <PreferenceList
+                emptyLabel="No preferred skills"
+                icon={<SparklesIcon className="size-3.5" />}
+                items={selectedWorkflowNode.preferred_skills}
+                title="Preferred skills"
+              />
+              <PreferenceList
+                emptyLabel="No preferred tools"
+                icon={<HammerIcon className="size-3.5" />}
+                items={selectedWorkflowNode.preferred_tools}
+                title="Preferred tools"
+              />
             </div>
           </Panel>
         ) : null}
@@ -224,7 +235,20 @@ function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvas
         <Section title="Done criteria" value={data.node.done_criteria} clamp />
       </NodeContent>
       <NodeFooter className="flex flex-wrap gap-2">
-        <PreferredTools tools={data.node.preferred_tools} compact />
+        <PreferenceList
+          compact
+          emptyLabel="No preferred skills"
+          icon={<SparklesIcon className="size-3.5" />}
+          items={data.node.preferred_skills}
+          title="Preferred skills"
+        />
+        <PreferenceList
+          compact
+          emptyLabel="No preferred tools"
+          icon={<HammerIcon className="size-3.5" />}
+          items={data.node.preferred_tools}
+          title="Preferred tools"
+        />
       </NodeFooter>
     </Node>
   )
@@ -247,44 +271,48 @@ function Section({
   )
 }
 
-function PreferredTools({
-  tools,
+function PreferenceList({
+  items,
   compact = false,
+  emptyLabel,
+  icon,
+  title,
 }: {
-  tools: WorkflowNode["preferred_tools"]
+  items?: Array<string>
   compact?: boolean
+  emptyLabel: string
+  icon: React.ReactNode
+  title: string
 }) {
-  const preferredTools = tools ?? []
-  const visibleTools = compact ? preferredTools.slice(0, compactPreferredToolLimit) : preferredTools
-  const overflowCount = compact ? Math.max(preferredTools.length - compactPreferredToolLimit, 0) : 0
+  const visibleItems = compact ? (items?.slice(0, compactPreferredToolLimit) ?? []) : (items ?? [])
+  const totalItems = items?.length ?? 0
+  const overflowCount = compact ? Math.max(totalItems - compactPreferredToolLimit, 0) : 0
 
   return (
     <div className={compact ? "contents" : "flex flex-col gap-2"}>
       {!compact ? (
-        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          Preferred tools
-        </p>
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{title}</p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        {preferredTools.length > 0 ? (
+        {totalItems > 0 ? (
           <>
             {compact ? (
               <span
                 className="text-muted-foreground inline-flex h-5 items-center"
-                aria-label="Preferred tools"
+                aria-label={title}
               >
-                <HammerIcon className="size-3.5" />
+                {icon}
               </span>
             ) : null}
-            {visibleTools.map((tool) => (
-              <Badge key={tool} variant="secondary">
-                {tool}
+            {visibleItems.map((item) => (
+              <Badge key={item} variant="secondary">
+                {item}
               </Badge>
             ))}
             {overflowCount > 0 ? <Badge variant="secondary">+{overflowCount} more</Badge> : null}
           </>
         ) : (
-          <span className="text-muted-foreground text-sm">No preferred tools</span>
+          <span className="text-muted-foreground text-sm">{emptyLabel}</span>
         )}
       </div>
     </div>

@@ -53,6 +53,7 @@ import (
 	"github.com/accuknox/clawarmor/internal/controller/agent"
 	environmentcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
 	"github.com/accuknox/clawarmor/internal/controller/mcpconn"
+	"github.com/accuknox/clawarmor/internal/controller/secret"
 	"github.com/accuknox/clawarmor/internal/controller/tenant"
 	workflowruncontroller "github.com/accuknox/clawarmor/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/clawarmor/internal/controller/workflowschedule"
@@ -773,6 +774,10 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "Tenant")
 				os.Exit(1)
 			}
+			if err := webhookv1alpha1.SetupSecretWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "Secret")
+				os.Exit(1)
+			}
 		}
 
 		workflowScheduleReconciler := &workflowschedulecontroller.Reconciler{
@@ -837,6 +842,15 @@ var managerCmd = &cli.Command{
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Tenant")
+			os.Exit(1)
+		}
+
+		secretReconciler := &secret.SecretReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}
+		if err := secretReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "Secret")
 			os.Exit(1)
 		}
 

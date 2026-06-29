@@ -43,6 +43,12 @@ function validateRuntimeEnv() {
   const googleClientSecret = read("GOOGLE_CLIENT_SECRET")
   const githubOrg = read("GITHUB_ORG")
   const githubTeamSlug = read("GITHUB_TEAM_SLUG")
+  const enableEmailPasswordAuth = read("ENABLE_EMAIL_PASSWORD_AUTH")
+  const emailPasswordAllowedUsers = read("EMAIL_PASSWORD_AUTH_ALLOWED_USER")
+  const emailPasswordEnabled =
+    enableEmailPasswordAuth === "1" ||
+    enableEmailPasswordAuth === "true" ||
+    enableEmailPasswordAuth === "TRUE"
 
   if (Boolean(githubClientID) !== Boolean(githubClientSecret)) {
     throw new Error("GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be set together.")
@@ -56,8 +62,21 @@ function validateRuntimeEnv() {
     throw new Error("GITHUB_ALLOWED_USER_ID must contain only digits.")
   }
 
-  if (!githubClientID && !googleClientID) {
-    throw new Error("At least one social provider (GITHUB or GOOGLE) must be configured.")
+  if (!githubClientID && !googleClientID && !emailPasswordEnabled) {
+    throw new Error("At least one auth method must be configured.")
+  }
+
+  if (emailPasswordAllowedUsers) {
+    for (const email of emailPasswordAllowedUsers.split(",")) {
+      const value = email.trim().toLowerCase()
+      if (!value) {
+        continue
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new Error("EMAIL_PASSWORD_AUTH_ALLOWED_USER must contain valid email addresses.")
+      }
+    }
   }
 
   if (githubTeamSlug && !githubOrg) {

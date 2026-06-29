@@ -1,9 +1,11 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
+import { Mail } from "lucide-react"
 import { headers } from "next/headers"
 import { connection } from "next/server"
 import { getAuth } from "@/lib/auth"
+import { PasswordSettings } from "./password-settings"
 import { TwoFactorSettings } from "./two-factor-settings"
 
 export const metadata: Metadata = {
@@ -19,7 +21,10 @@ export default function AccountPage() {
         </div>
       </div>
       <Suspense fallback={<ProviderSkeleton />}>
-        <IdentityProvider />
+        <IdentityProviders />
+      </Suspense>
+      <Suspense fallback={null}>
+        <PasswordGate />
       </Suspense>
       <Suspense fallback={<TwoFactorSkeleton />}>
         <AccountSecurity />
@@ -28,44 +33,83 @@ export default function AccountPage() {
   )
 }
 
-async function IdentityProvider() {
+async function IdentityProviders() {
   await connection()
   const auth = getAuth()
-  let provider: "github" | "google" | string | undefined
+  let providers: string[] | undefined
   let errorMessage: string | undefined
 
   try {
     const accounts = await auth.api.listUserAccounts({
       headers: await headers(),
     })
-    provider = accounts[0]?.providerId
+    providers = [...new Set(accounts.map((account) => account.providerId))]
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Failed to load account"
   }
 
-  if (errorMessage || !provider) {
+  if (errorMessage || !providers?.length) {
     return <ErrorPanel message={errorMessage ?? "No identity provider found"} />
   }
 
-  const providerName =
-    provider === "github" ? "GitHub" : provider === "google" ? "Google" : provider
-
   return (
     <section className="flex flex-col gap-4 px-4 md:px-6">
-      <h2 className="text-lg font-semibold tracking-normal">Identity Provider</h2>
-      <div className="border-border bg-card text-card-foreground flex h-12 w-fit min-w-36 items-center gap-3 rounded-md border px-4 text-sm font-medium">
-        {provider === "github" ? (
-          <>
-            <GitHubLight className="size-5 shrink-0 dark:hidden" />
-            <GitHubDark className="hidden size-5 shrink-0 dark:block" />
-          </>
-        ) : provider === "google" ? (
-          <Google className="size-5 shrink-0" />
-        ) : null}
-        <span>{providerName}</span>
+      <h2 className="text-lg font-semibold tracking-normal">Sign-in method</h2>
+      <div className="flex flex-wrap gap-3">
+        {providers.map((provider) => (
+          <div
+            key={provider}
+            className="border-border bg-card text-card-foreground flex h-12 min-w-36 items-center gap-3 rounded-md border px-4 text-sm font-medium"
+          >
+            {provider === "github" ? (
+              <>
+                <GitHubLight className="size-5 shrink-0 dark:hidden" />
+                <GitHubDark className="hidden size-5 shrink-0 dark:block" />
+              </>
+            ) : provider === "google" ? (
+              <Google className="size-5 shrink-0" />
+            ) : (
+              <Mail className="size-5 shrink-0" />
+            )}
+            <span>
+              {provider === "credential"
+                ? "Email & Password"
+                : provider === "github"
+                  ? "GitHub"
+                  : provider === "google"
+                    ? "Google"
+                    : provider}
+            </span>
+          </div>
+        ))}
       </div>
     </section>
   )
+}
+
+async function PasswordGate() {
+  await connection()
+  const auth = getAuth()
+  let accounts: Awaited<ReturnType<typeof auth.api.listUserAccounts>> | undefined
+  let errorMessage: string | undefined
+
+  try {
+    accounts = await auth.api.listUserAccounts({
+      headers: await headers(),
+    })
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : "Failed to load password settings"
+  }
+
+  if (errorMessage) {
+    return <ErrorPanel message={errorMessage} />
+  }
+
+  if (!accounts?.some((account) => account.providerId === "credential")) {
+    return null
+  }
+
+  return <PasswordSettings />
 }
 
 async function AccountSecurity() {

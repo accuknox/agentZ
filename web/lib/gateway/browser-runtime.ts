@@ -1,7 +1,7 @@
 "use client"
 
 import * as z from "zod"
-import { clientRedirectToLogin } from "@/lib/login-redirect"
+import { clientRedirectToSignIn } from "@/lib/sign-in-redirect"
 import type { ClientOptions } from "@/lib/gateway/client"
 
 const gatewayBaseURLSchema = z
@@ -44,7 +44,7 @@ async function fetchGatewayResponse<T>(
   const response = await fetch(path, gatewayFetchInit)
 
   if (response.status === 401) {
-    clientRedirectToLogin()
+    clientRedirectToSignIn()
     throw new Error("Unauthorized")
   }
   if (!response.ok) {

@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
-import { loginURL } from "@/lib/login-redirect"
+import { signInURL } from "@/lib/sign-in-redirect"
 
 /**
  * proxy is the Next.js 16 request gate. Checks for a session cookie on
- * every matched navigation; redirects to /login if absent. This catches
+ * every matched navigation; redirects to /signin if absent. This catches
  * the no-cookie case (logged out, expired) at the boundary.
  *
  * Revoked sessions (cookie present but DB session deleted) are caught by
@@ -20,13 +20,13 @@ export function proxy(request: NextRequest) {
   }
 
   const returnTo = `${request.nextUrl.pathname}${request.nextUrl.search}`
-  return NextResponse.redirect(new URL(loginURL({ returnTo }), request.url))
+  return NextResponse.redirect(new URL(signInURL({ returnTo }), request.url))
 }
 
 export const config = {
   matcher: [
     {
-      source: "/((?!login|api/auth|_next/static|_next/image|.*\\..*).*)",
+      source: "/((?!signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
       missing: [{ type: "header", key: "next-action" }],
     },
   ],

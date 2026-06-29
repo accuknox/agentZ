@@ -38,7 +38,7 @@ async function BootstrappingGate() {
   })
 
   if (!session) {
-    redirect("/login")
+    redirect("/signin")
   }
 
   const tenant = await ensureTenant({

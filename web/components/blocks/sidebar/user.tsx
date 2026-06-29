@@ -49,7 +49,7 @@ export function NavUser({
     const { error } = await authClient.signOut({
       fetchOptions: {
         onSuccess: () => {
-          router.push("/login")
+          router.push("/signin")
           router.refresh()
         },
       },

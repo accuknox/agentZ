@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import type { DeleteSessionFormState } from "@/data/types"
 import { getAuth } from "@/lib/auth"
-import { loginURL } from "@/lib/login-redirect"
+import { signInURL } from "@/lib/sign-in-redirect"
 
 export async function deleteSessionFormAction(
   _: DeleteSessionFormState,
@@ -27,7 +27,7 @@ export async function deleteSessionFormAction(
     headers: requestHeaders,
   })
   if (!currentSession) {
-    redirect(loginURL({ error: "session_expired" }))
+    redirect(signInURL({ error: "session_expired" }))
   }
 
   if (currentSession.session.token === token) {

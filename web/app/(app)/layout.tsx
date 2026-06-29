@@ -34,7 +34,7 @@ async function AppGate({ children }: { children: React.ReactNode }) {
   })
 
   if (!session) {
-    redirect("/login")
+    redirect("/signin")
   }
 
   const tenant = await ensureTenant({

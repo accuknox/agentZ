@@ -5,7 +5,7 @@ import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk/clie
 import { currentGatewayAuthToken } from "@/lib/gateway/auth"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
-import { loginURL } from "@/lib/login-redirect"
+import { signInURL } from "@/lib/sign-in-redirect"
 
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
 export async function createAgentOpencodeClient(
@@ -17,7 +17,7 @@ export async function createAgentOpencodeClient(
     gatewayToken = await currentGatewayAuthToken()
   } catch (error) {
     if (error instanceof GatewayUnauthorizedError) {
-      redirect(loginURL({ error: "session_expired" }))
+      redirect(signInURL({ error: "session_expired" }))
     }
     throw error
   }

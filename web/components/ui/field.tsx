@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import type { MultipleFieldErrors } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
@@ -193,7 +194,7 @@ function FieldError({
   errors,
   ...props
 }: React.ComponentProps<"div"> & {
-  errors?: Array<{ message?: string } | undefined>
+  errors?: Array<{ message?: string; types?: MultipleFieldErrors } | undefined>
 }) {
   const content = useMemo(() => {
     if (children) {
@@ -204,15 +205,34 @@ function FieldError({
       return null
     }
 
-    const uniqueErrors = [...new Map(errors.map((error) => [error?.message, error])).values()]
+    const messages = errors.flatMap((error) => {
+      if (!error) {
+        return []
+      }
 
-    if (uniqueErrors?.length == 1) {
-      return uniqueErrors[0]?.message
+      if (!error.types) {
+        return error.message ? [error.message] : []
+      }
+
+      return Object.values(error.types).flatMap((value) =>
+        (Array.isArray(value) ? value : [value]).map(String)
+      )
+    })
+    const uniqueErrors = [...new Set(messages)]
+
+    if (uniqueErrors.length === 0) {
+      return null
+    }
+
+    if (uniqueErrors.length === 1) {
+      return uniqueErrors[0]
     }
 
     return (
       <ul className="ml-4 flex list-disc flex-col gap-1">
-        {uniqueErrors.map((error, index) => error?.message && <li key={index}>{error.message}</li>)}
+        {uniqueErrors.map((error) => (
+          <li key={error}>{error}</li>
+        ))}
       </ul>
     )
   }, [children, errors])

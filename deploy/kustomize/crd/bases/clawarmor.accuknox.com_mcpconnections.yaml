@@ -96,13 +96,20 @@ spec:
                             type: object
                         type: object
                       secretRef:
-                        description: SecretRef identifies the OpenBao record containing the credential.
+                        description: |-
+                          SecretRef identifies the canonical MCP OpenBao credential record.
+                          Gateway-managed MCP connections always store credentials at
+                          mcp-connections/<connection-name> under the credentials field.
                         properties:
                           key:
-                            description: Key is the field within the OpenBao record.
+                            description: |-
+                              Key is the field within the OpenBao record. MCP connections use
+                              credentials.
                             type: string
                           path:
-                            description: Path is the OpenBao secret data path.
+                            description: |-
+                              Path is the OpenBao secret data path. MCP connections use
+                              mcp-connections/<connection-name>.
                             type: string
                         required:
                         - key
@@ -165,14 +172,19 @@ spec:
                         type: array
                       secretRef:
                         description: |-
-                          SecretRef identifies the OpenBao record containing OAuth connection
-                          material.
+                          SecretRef identifies the canonical MCP OpenBao credential record.
+                          Gateway-managed MCP connections always store credentials at
+                          mcp-connections/<connection-name> under the credentials field.
                         properties:
                           key:
-                            description: Key is the field within the OpenBao record.
+                            description: |-
+                              Key is the field within the OpenBao record. MCP connections use
+                              credentials.
                             type: string
                           path:
-                            description: Path is the OpenBao secret data path.
+                            description: |-
+                              Path is the OpenBao secret data path. MCP connections use
+                              mcp-connections/<connection-name>.
                             type: string
                         required:
                         - key

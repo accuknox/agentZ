@@ -3,6 +3,7 @@
 import { cookies } from "next/headers"
 import { updateTag } from "next/cache"
 import { redirect } from "next/navigation"
+import * as z from "zod"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { deleteSecret, putSecret } from "@/lib/gateway/client"
 import type { CreateSecretRequest } from "@/lib/gateway/client"
@@ -16,7 +17,7 @@ import {
 } from "@/lib/mcp-oauth"
 import { agentSecretsTag, secretsTag } from "@/data/cache"
 import { defaultMcpAuthLocation, type ParsedMcpForm } from "@/data/mcp.schema"
-import { oauthSecretFormInputSchema, secretHostsInputSchema, secretValueSchema } from "./schema"
+import { oauthSecretFormInputSchema, secretFormInputSchema } from "./schema"
 import type { DeleteSecretFormState, PutSecretFormState } from "./types"
 
 export async function putSecretFormAction(
@@ -24,32 +25,9 @@ export async function putSecretFormAction(
   _: PutSecretFormState,
   formData: FormData
 ): Promise<PutSecretFormState> {
-  const key = formData.get("key")
-  const value = formData.get("value")
-  const hosts = formData.get("hosts")
-
-  const parsedKey = zSecretKey.safeParse(key)
-  if (!parsedKey.success) {
-    return invalidFieldState(
-      "key",
-      parsedKey.error.issues.map((issue) => issue.message)
-    )
-  }
-
-  const parsedValue = secretValueSchema.safeParse(value)
-  if (!parsedValue.success) {
-    return invalidFieldState(
-      "value",
-      parsedValue.error.issues.map((issue) => issue.message)
-    )
-  }
-
-  const parsedHosts = secretHostsInputSchema.safeParse(hosts)
-  if (!parsedHosts.success) {
-    return invalidFieldState(
-      "hosts",
-      parsedHosts.error.issues.map((issue) => issue.message)
-    )
+  const parsed = secretFormInputSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
+    return invalidSchemaState("Secret configuration is invalid", parsed.error)
   }
 
   const result = await putSecret({
@@ -57,9 +35,9 @@ export async function putSecretFormAction(
     path: { agentName },
     body: {
       type: "static",
-      key: parsedKey.data,
-      value: parsedValue.data.trim(),
-      hosts: parsedHosts.data,
+      key: parsed.data.key,
+      value: parsed.data.value,
+      hosts: parsed.data.hosts,
     } satisfies CreateSecretRequest,
   })
   if (result.error) {
@@ -78,45 +56,9 @@ export async function startOAuthSecretFormAction(
 ): Promise<PutSecretFormState> {
   const parsed = oauthSecretFormInputSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "OAuth secret configuration is invalid.",
-        errors: parsed.error.issues.flatMap((issue) => {
-          const field = issue.path[0]
-          return typeof field === "string"
-            ? [
-                {
-                  field,
-                  message: issue.message,
-                },
-              ]
-            : []
-        }),
-      },
-    }
+    return invalidSchemaState("OAuth secret configuration is invalid.", parsed.error)
   }
 
-  const parsedHosts = secretHostsInputSchema.safeParse(parsed.data.hosts)
-  if (!parsedHosts.success) {
-    return invalidFieldState(
-      "hosts",
-      parsedHosts.error.issues.map((issue) => issue.message)
-    )
-  }
-
-  const parsedKey = zSecretKey.safeParse(parsed.data.key)
-  if (!parsedKey.success) {
-    return invalidFieldState(
-      "key",
-      parsedKey.error.issues.map((issue) => issue.message)
-    )
-  }
-
-  const scopes = parsed.data.scopes
-    .split(/\r?\n+/)
-    .map((scope) => scope.trim())
-    .filter(Boolean)
   const form: ParsedMcpForm = {
     name: parsed.data.key,
     endpoint: {
@@ -131,7 +73,7 @@ export async function startOAuthSecretFormAction(
       tokenEndpoint: parsed.data.token_endpoint,
       registrationEndpoint: parsed.data.registration_endpoint,
       resource: parsed.data.resource,
-      scopes,
+      scopes: parsed.data.scopes,
       location: defaultMcpAuthLocation,
       clientId: parsed.data.client_id || undefined,
       clientSecret: parsed.data.client_secret || undefined,
@@ -146,8 +88,8 @@ export async function startOAuthSecretFormAction(
       form,
       secret: {
         agentName,
-        key: parsedKey.data,
-        hosts: parsedHosts.data,
+        key: parsed.data.key,
+        hosts: parsed.data.hosts,
         provider: parsed.data.provider,
       },
     },
@@ -238,6 +180,28 @@ export async function deleteSecretFormAction(
   updateTag(secretsTag)
   updateTag(agentSecretsTag(agentName))
   redirect(`/secrets?agent_name=${encodeURIComponent(agentName)}`)
+}
+
+function invalidSchemaState(message: string, error: z.ZodError): PutSecretFormState {
+  const { fieldErrors, formErrors } = error.flatten()
+  const errors = Object.entries(fieldErrors).flatMap(([field, messages]) => {
+    if (!Array.isArray(messages)) {
+      return []
+    }
+
+    return messages.map((entry) => ({
+      field,
+      message: entry,
+    }))
+  })
+
+  return {
+    error: {
+      code: "INVALID_FORM",
+      message: formErrors[0] ?? message,
+      errors: errors.length > 0 ? errors : undefined,
+    },
+  }
 }
 
 function invalidFieldState(field: string, messages: string[]): PutSecretFormState {

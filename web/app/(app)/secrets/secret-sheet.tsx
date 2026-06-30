@@ -20,7 +20,14 @@ import {
 } from "@/components/ui/sheet"
 import { SecretHostsField } from "./secret-hosts-field"
 
-type SecretFormValues = z.input<typeof secretFormInputSchema>
+type SecretFormInput = z.input<typeof secretFormInputSchema>
+type SecretFormValues = z.output<typeof secretFormInputSchema>
+
+const defaultFormValues: SecretFormInput = {
+  key: "",
+  value: "",
+  hosts: "",
+}
 
 export function SecretSheet({
   agentName,
@@ -34,13 +41,19 @@ export function SecretSheet({
   onOpenChangeAction: (open: boolean) => void
 }) {
   const [state, action, isPending] = React.useActionState(putSecretAction.bind(null, agentName), {})
-  const { control, reset, setError, trigger } = useForm<SecretFormValues>({
+  const {
+    clearErrors,
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+    setError,
+  } = useForm<SecretFormInput, undefined, SecretFormValues>({
     resolver: zodResolver(secretFormInputSchema),
-    defaultValues: {
-      key: "",
-      value: "",
-      hosts: "",
-    },
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    defaultValues: defaultFormValues,
   })
 
   React.useEffect(() => {
@@ -53,15 +66,21 @@ export function SecretSheet({
     }
   }, [setError, state.error])
 
-  async function submitAction(formData: FormData) {
-    const isValid = await trigger()
-    if (!isValid) {
-      return
-    }
+  function submitAction(values: SecretFormValues) {
+    const formData = new FormData()
+    formData.set("key", values.key)
+    formData.set("value", values.value)
+    formData.set("hosts", values.hosts.join("\n"))
 
     React.startTransition(() => {
       action(formData)
     })
+  }
+
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    clearErrors()
+    void handleSubmit(submitAction)()
   }
 
   const generalErrorMessage = (() => {
@@ -83,7 +102,8 @@ export function SecretSheet({
       open={open}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
-          reset()
+          reset(defaultFormValues)
+          clearErrors()
         }
         onOpenChangeAction(nextOpen)
       }}
@@ -93,31 +113,21 @@ export function SecretSheet({
           <SheetTitle>New secret</SheetTitle>
           <SheetDescription>Create a static secret. Values cannot be read later.</SheetDescription>
         </SheetHeader>
-        <form action={submitAction} className="flex flex-1 flex-col gap-4 p-4">
+        <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4 p-4">
           <FieldGroup>
-            <Controller
-              name="key"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="secret-key" required>
-                    Name
-                  </FieldLabel>
-                  <Input
-                    id="secret-key"
-                    name={field.name}
-                    ref={field.ref}
-                    value={field.value}
-                    onBlur={field.onBlur}
-                    onChange={field.onChange}
-                    placeholder="SECRET_NAME"
-                    aria-invalid={fieldState.invalid}
-                    aria-required="true"
-                  />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
+            <Field data-invalid={Boolean(errors.key)}>
+              <FieldLabel htmlFor="secret-key" required>
+                Name
+              </FieldLabel>
+              <Input
+                id="secret-key"
+                placeholder="SECRET_NAME"
+                aria-invalid={Boolean(errors.key)}
+                aria-required="true"
+                {...register("key")}
+              />
+              {errors.key ? <FieldError errors={[errors.key]} /> : null}
+            </Field>
             <Controller
               name="hosts"
               control={control}
@@ -134,30 +144,20 @@ export function SecretSheet({
                 />
               )}
             />
-            <Controller
-              name="value"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="secret-value" required>
-                    Value
-                  </FieldLabel>
-                  <Textarea
-                    id="secret-value"
-                    name={field.name}
-                    ref={field.ref}
-                    value={field.value}
-                    onBlur={field.onBlur}
-                    onChange={field.onChange}
-                    placeholder="Enter secret value..."
-                    className="min-h-32 resize-y font-mono"
-                    aria-invalid={fieldState.invalid}
-                    aria-required="true"
-                  />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
+            <Field data-invalid={Boolean(errors.value)}>
+              <FieldLabel htmlFor="secret-value" required>
+                Value
+              </FieldLabel>
+              <Textarea
+                id="secret-value"
+                placeholder="Enter secret value..."
+                className="min-h-32 resize-y font-mono"
+                aria-invalid={Boolean(errors.value)}
+                aria-required="true"
+                {...register("value")}
+              />
+              {errors.value ? <FieldError errors={[errors.value]} /> : null}
+            </Field>
           </FieldGroup>
           {generalErrorMessage ? (
             <p className="border-destructive/30 bg-destructive/5 text-destructive shrink-0 rounded-md border p-3 text-sm">

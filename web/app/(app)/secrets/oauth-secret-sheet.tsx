@@ -261,7 +261,6 @@ export function OAuthSecretSheet({
     clearErrors,
     control,
     formState: { errors },
-    getValues,
     handleSubmit,
     register,
     reset,
@@ -328,13 +327,17 @@ export function OAuthSecretSheet({
     ...oauthDiscoveryQueryOptions(discoveryURL),
     enabled: open && hasTriggeredDiscovery && isHTTPSURL(discoveryURL),
   })
+  const { refetch: refetchOAuthDiscovery } = oauthQuery
   const provider = findOAuthSecretCatalogByServerURL(trimmedEndpointURL)
   const providerNeedsClientCredentials =
     provider?.id === "gws" && oauthRegistrationEndpoint.trim().length === 0
-  const catalogResults =
-    deferredCatalogQuery.length < 2
-      ? oauthSecretCatalog
-      : oauthSecretSearch.search(deferredCatalogQuery).map((result) => result.item)
+  const catalogResults = React.useMemo(() => {
+    if (deferredCatalogQuery.length < 2) {
+      return oauthSecretCatalog
+    }
+
+    return oauthSecretSearch.search(deferredCatalogQuery).map((result) => result.item)
+  }, [deferredCatalogQuery])
   const discoveryWarningMessage =
     oauthQuery.error instanceof Error ? oauthQuery.error.message : undefined
   const discoveryWarningURL =
@@ -390,36 +393,46 @@ export function OAuthSecretSheet({
     oauthClientSecret.trim().length > 0 ||
     providerNeedsClientCredentials ||
     (oauthDiscoveryState === "success" && oauthRegistrationEndpoint.trim().length === 0)
-  const oauthAdvancedRequiredFields: OAuthAdvancedFieldName[] =
-    oauthDiscoveryState === "manual"
-      ? ["issuer", "authorization_endpoint", "token_endpoint"]
-      : oauthDiscoveryState === "success"
-        ? [
-            ...(oauthIssuer.trim().length === 0 ? (["issuer"] as const) : []),
-            ...(oauthAuthorizationEndpoint.trim().length === 0
-              ? (["authorization_endpoint"] as const)
-              : []),
-            ...(oauthTokenEndpoint.trim().length === 0 ? (["token_endpoint"] as const) : []),
-          ]
-        : []
-  const oauthAdvancedRequiredFieldsKey = oauthAdvancedRequiredFields.join("|")
+  const oauthAdvancedRequiredFields = React.useMemo<OAuthAdvancedFieldName[]>(() => {
+    if (oauthDiscoveryState === "manual") {
+      return ["issuer", "authorization_endpoint", "token_endpoint"]
+    }
+
+    if (oauthDiscoveryState !== "success") {
+      return []
+    }
+
+    return [
+      ...(oauthIssuer.trim().length === 0 ? (["issuer"] as const) : []),
+      ...(oauthAuthorizationEndpoint.trim().length === 0
+        ? (["authorization_endpoint"] as const)
+        : []),
+      ...(oauthTokenEndpoint.trim().length === 0 ? (["token_endpoint"] as const) : []),
+    ]
+  }, [oauthAuthorizationEndpoint, oauthDiscoveryState, oauthIssuer, oauthTokenEndpoint])
+  const requiredConditionalFields = React.useMemo<OAuthRequiredFieldName[]>(
+    () => [
+      ...(oauthClientCredentialsRequired ? (["client_id", "client_secret"] as const) : []),
+      ...oauthAdvancedRequiredFields,
+    ],
+    [oauthAdvancedRequiredFields, oauthClientCredentialsRequired]
+  )
   const hasOAuthClientCredentialsAttention =
     oauthClientCredentialsRequired || Boolean(errors.client_id) || Boolean(errors.client_secret)
   const hasOAuthAdvancedAttention =
     oauthAdvancedRequiredFields.length > 0 ||
     Boolean(discoveryWarningKey && discoveryWarningKey !== dismissedDiscoveryWarningKey) ||
     oauthAdvancedFields.some((field) => Boolean(errors[field.name]))
-  const clientCredentialsRequired =
-    oauthClientCredentialsRequired ||
-    Boolean(errors.client_id) ||
-    Boolean(errors.client_secret) ||
-    submitError?.includes("client credentials") === true
-  const expandedAccordions = Array.from(
-    new Set([
-      ...userExpandedAccordions,
-      ...(hasOAuthClientCredentialsAttention ? [clientCredentialsAccordionItem] : []),
-      ...(hasOAuthAdvancedAttention ? [advancedAccordionItem] : []),
-    ])
+  const expandedAccordions = React.useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...userExpandedAccordions,
+          ...(hasOAuthClientCredentialsAttention ? [clientCredentialsAccordionItem] : []),
+          ...(hasOAuthAdvancedAttention ? [advancedAccordionItem] : []),
+        ])
+      ),
+    [hasOAuthAdvancedAttention, hasOAuthClientCredentialsAttention, userExpandedAccordions]
   )
 
   React.useEffect(() => {
@@ -464,12 +477,6 @@ export function OAuthSecretSheet({
   }, [oauthQuery.data, setValue, trimmedEndpointURL])
 
   React.useEffect(() => {
-    const requiredConditionalFields: OAuthRequiredFieldName[] = [
-      ...(oauthClientCredentialsRequired ? (["client_id", "client_secret"] as const) : []),
-      ...(oauthAdvancedRequiredFieldsKey
-        ? (oauthAdvancedRequiredFieldsKey.split("|") as OAuthAdvancedFieldName[])
-        : []),
-    ]
     const nextRequiredFieldsKey = requiredConditionalFields.join("|")
     if (previousRequiredConditionalFieldsRef.current === nextRequiredFieldsKey) {
       return
@@ -481,7 +488,7 @@ export function OAuthSecretSheet({
     }
 
     void trigger(requiredConditionalFields)
-  }, [oauthAdvancedRequiredFieldsKey, oauthClientCredentialsRequired, trigger])
+  }, [requiredConditionalFields, trigger])
 
   const cleanupPopupFlow = React.useCallback(
     (options?: { closePopup?: boolean; cancelPending?: boolean; resetState?: boolean }) => {
@@ -649,24 +656,24 @@ export function OAuthSecretSheet({
     resetOAuthSheet(item.id === "custom" ? initialFormValues : oauthSecretFormValues(item))
   }
 
-  async function refreshDiscovery() {
-    const valid = await trigger("endpoint_url")
-    if (!valid) {
+  const refreshDiscovery = React.useCallback(async () => {
+    const endpointValid = await trigger("endpoint_url")
+    if (!endpointValid) {
       return
     }
 
-    const nextURL = getValues("endpoint_url").trim()
+    const nextURL = trimmedEndpointURL
     if (!isHTTPSURL(nextURL)) {
       return
     }
 
     setHasTriggeredDiscovery(true)
     if (nextURL === discoveryURL) {
-      await oauthQuery.refetch()
+      await refetchOAuthDiscovery()
       return
     }
     setDiscoveryURLOverride(nextURL)
-  }
+  }, [discoveryURL, refetchOAuthDiscovery, trigger, trimmedEndpointURL])
 
   function onSheetOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
@@ -683,12 +690,21 @@ export function OAuthSecretSheet({
   async function submitAction(values: OAuthSecretFormValues) {
     setClientSubmitError(undefined)
     setServerError(undefined)
-    clearErrors()
     setIsSubmitting(true)
 
     try {
       const formData = new FormData()
       for (const field of scalarFormDataFields) {
+        if (field === "hosts") {
+          formData.set(field, values.hosts.join("\n"))
+          continue
+        }
+
+        if (field === "scopes") {
+          formData.set(field, values.scopes.join("\n"))
+          continue
+        }
+
         formData.set(field, values[field] ?? "")
       }
 
@@ -727,6 +743,9 @@ export function OAuthSecretSheet({
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     event.stopPropagation()
+    setClientSubmitError(undefined)
+    setServerError(undefined)
+    clearErrors()
     void handleSubmit(submitAction, invalidSubmitAction)()
   }
 
@@ -978,7 +997,7 @@ export function OAuthSecretSheet({
                     <Field data-invalid={Boolean(errors.client_id)}>
                       <FieldLabel
                         htmlFor="oauth-secret-client-id"
-                        required={clientCredentialsRequired}
+                        required={oauthClientCredentialsRequired}
                       >
                         Client ID
                       </FieldLabel>
@@ -986,7 +1005,7 @@ export function OAuthSecretSheet({
                         id="oauth-secret-client-id"
                         placeholder="Client ID"
                         aria-invalid={Boolean(errors.client_id)}
-                        aria-required={clientCredentialsRequired}
+                        aria-required={oauthClientCredentialsRequired}
                         {...register("client_id")}
                       />
                       {errors.client_id ? <FieldError errors={[errors.client_id]} /> : null}
@@ -994,7 +1013,7 @@ export function OAuthSecretSheet({
                     <Field data-invalid={Boolean(errors.client_secret)}>
                       <FieldLabel
                         htmlFor="oauth-secret-client-secret"
-                        required={clientCredentialsRequired}
+                        required={oauthClientCredentialsRequired}
                       >
                         Client secret
                       </FieldLabel>
@@ -1003,7 +1022,7 @@ export function OAuthSecretSheet({
                         type="password"
                         placeholder="Client secret"
                         aria-invalid={Boolean(errors.client_secret)}
-                        aria-required={clientCredentialsRequired}
+                        aria-required={oauthClientCredentialsRequired}
                         {...register("client_secret")}
                       />
                       {errors.client_secret ? <FieldError errors={[errors.client_secret]} /> : null}

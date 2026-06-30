@@ -54,6 +54,17 @@ const optionalHTTPSURLSchema = z
     }
   })
 
+const oauthScopesInputSchema = z
+  .string()
+  .optional()
+  .transform((value) => value ?? "")
+  .transform((value) =>
+    value
+      .split(/[\n,\s]+/)
+      .map((scope) => scope.trim())
+      .filter(Boolean)
+  )
+
 export const defaultMcpAuthLocation = {
   header: {
     name: "Authorization",
@@ -126,10 +137,7 @@ const formSchema = z.object({
     .string()
     .optional()
     .transform((value) => value?.trim() || undefined),
-  oauth_scopes: z
-    .string()
-    .optional()
-    .transform((value) => value ?? ""),
+  oauth_scopes: oauthScopesInputSchema,
   oauth_client_id: z
     .string()
     .optional()
@@ -162,7 +170,7 @@ const formSchema = z.object({
 })
 
 export type McpFormInput = z.input<typeof formSchema>
-export type McpFormValues = z.infer<typeof formSchema>
+export type McpFormValues = z.output<typeof formSchema>
 
 function authLocationIssues(
   kind: "bearer" | "oauth",
@@ -362,10 +370,6 @@ export function parseMcpForm(values: McpFormValues): ParsedMcpForm {
       .filter((header) => header.key && header.value)
       .map((header) => [header.key, header.value] as const)
   )
-  const scopes = values.oauth_scopes
-    .split(/[\n,\s]+/)
-    .map((scope) => scope.trim())
-    .filter(Boolean)
 
   return {
     name: zMcpConnectionName.parse(values.name),
@@ -387,7 +391,7 @@ export function parseMcpForm(values: McpFormValues): ParsedMcpForm {
       tokenEndpoint: values.oauth_token_endpoint,
       registrationEndpoint: values.oauth_registration_endpoint,
       resource: values.oauth_resource,
-      scopes: scopes.length > 0 ? scopes : undefined,
+      scopes: values.oauth_scopes.length > 0 ? values.oauth_scopes : undefined,
       location: authLocationFromInputs(
         values.oauth_location_header_name,
         values.oauth_location_header_prefix

@@ -13,6 +13,7 @@ import {
   useWatch,
   type Control,
   type FieldError as RHFFieldError,
+  type UseFormReturn,
 } from "react-hook-form"
 import * as z from "zod"
 import { Check, ChevronDown, CircleAlert, RefreshCw, Settings2, Trash2, X } from "lucide-react"
@@ -52,7 +53,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { type McpFormState, type SubmitMcpFormAction } from "@/data/mcp.actions"
-import { mcpFormSchema, type McpFormInput } from "@/data/mcp.schema"
+import { mcpFormSchema, type McpFormInput, type McpFormValues } from "@/data/mcp.schema"
 import {
   oauthBroadcastChannelName,
   oauthWindowMessageSource,
@@ -309,7 +310,10 @@ function accordionReducer(state: string[], action: AccordionAction) {
   return [...next]
 }
 
-function applyServerErrors(form: ReturnType<typeof useForm<McpFormInput>>, state: McpFormState) {
+function applyServerErrors(
+  form: UseFormReturn<McpFormInput, undefined, McpFormValues>,
+  state: McpFormState
+) {
   if (!state.error?.errors) {
     return
   }
@@ -373,7 +377,7 @@ const ServerURLField = React.memo(function ServerURLField({
   onDiscoveryURLOverrideChangeAction,
   onRefreshDiscoveryAction,
 }: {
-  control: Control<McpFormInput>
+  control: Control<McpFormInput, undefined, McpFormValues>
   authMode: McpFormInput["auth_mode"]
   endpointError?: RHFFieldError
   discoveryIconState: "idle" | "loading" | "error" | "success"
@@ -619,7 +623,7 @@ export function McpSheet({
     submitMcpAction,
     initialSubmitState
   )
-  const form = useForm<McpFormInput>({
+  const form = useForm<McpFormInput, undefined, McpFormValues>({
     resolver: zodResolver(mcpFormSchema),
     mode: "onBlur",
     reValidateMode: "onChange",
@@ -686,6 +690,7 @@ export function McpSheet({
     ...oauthDiscoveryQueryOptions(discoveryURL),
     enabled: authMode === "oauth" && hasTriggeredDiscovery && isHTTPSURL(discoveryURL),
   })
+  const { refetch: refetchOAuthDiscovery } = oauthQuery
   const oauthDiscoveryData = oauthQuery.data?.oauth
   const discoveredDefaultScopes = oauthQuery.data?.default_scopes
   const discoveredSupportedScopes = oauthQuery.data?.supported_scopes
@@ -1136,18 +1141,44 @@ export function McpSheet({
       return
     }
 
-    const nextURL = form.getValues("endpoint_url").trim()
+    const nextURL = trimmedEndpointURL
     if (!isHTTPSURL(nextURL)) {
       return
     }
 
     setHasTriggeredDiscovery(true)
     if (nextURL === discoveryURL) {
-      await oauthQuery.refetch()
+      await refetchOAuthDiscovery()
       return
     }
 
     setDiscoveryURLOverride(nextURL)
+  }
+
+  function submitFormAction(values: McpFormValues) {
+    const formData = new FormData()
+    for (const fieldName of scalarFormDataFields) {
+      if (fieldName === "oauth_scopes") {
+        formData.set(fieldName, values.oauth_scopes.join("\n"))
+        continue
+      }
+
+      formData.set(fieldName, values[fieldName] ?? "")
+    }
+    for (const header of values.extra_headers) {
+      formData.append("extra_header_key", header.key)
+      formData.append("extra_header_value", header.value)
+    }
+    React.startTransition(() => {
+      submitAction({
+        type: "submit",
+        formData,
+      })
+    })
+  }
+
+  function invalidSubmitAction() {
+    setClientSubmitError(undefined)
   }
 
   const title = "Connect MCP server"
@@ -1206,30 +1237,11 @@ export function McpSheet({
           </div>
         ) : (
           <form
-            onSubmit={async (event) => {
+            onSubmit={(event) => {
               event.preventDefault()
               setClientSubmitError(undefined)
               form.clearErrors()
-              const valid = await form.trigger()
-              if (!valid) {
-                return
-              }
-
-              const values = form.getValues()
-              const formData = new FormData()
-              for (const fieldName of scalarFormDataFields) {
-                formData.set(fieldName, values[fieldName] ?? "")
-              }
-              for (const header of values.extra_headers) {
-                formData.append("extra_header_key", header.key)
-                formData.append("extra_header_value", header.value)
-              }
-              React.startTransition(() => {
-                submitAction({
-                  type: "submit",
-                  formData,
-                })
-              })
+              void form.handleSubmit(submitFormAction, invalidSubmitAction)()
             }}
             className="flex flex-1 flex-col gap-5 px-4 pb-2"
           >

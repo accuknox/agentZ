@@ -1,16 +1,13 @@
 import * as z from "zod"
 import ipaddr from "ipaddr.js"
+import { zSecretKey } from "@/lib/gateway/client/zod.gen"
 
-const secretKeySchema = z
-  .string()
-  .trim()
-  .min(1, "Secret name is required")
-  .max(128, "Secret name must be at most 128 characters")
-  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "Use a valid environment variable name")
+const secretKeySchema = zSecretKey
 
 export const secretValueSchema = z
   .string()
-  .refine((value) => value.trim().length > 0, "Secret value is required")
+  .trim()
+  .min(1, "Secret value is required")
   .max(49152, "Secret value must be at most 48 KB")
 
 export const secretHostSchema = z
@@ -39,8 +36,19 @@ export const secretHostsInputSchema = z
 export const secretFormInputSchema = z.object({
   key: secretKeySchema,
   value: secretValueSchema,
-  hosts: z.string().min(1, "At least one host is required"),
+  hosts: secretHostsInputSchema,
 })
+
+const oauthScopesInputSchema = z
+  .string()
+  .trim()
+  .min(1, "At least one scope is required")
+  .transform((value) =>
+    value
+      .split(/\r?\n+/)
+      .map((scope) => scope.trim())
+      .filter(Boolean)
+  )
 
 const httpsURLSchema = z
   .string()
@@ -108,7 +116,7 @@ export const oauthSecretFormInputSchema = z
   .object({
     key: secretKeySchema,
     endpoint_url: z.string().trim().min(1, "OAuth server is required").pipe(httpsURLSchema),
-    hosts: z.string().min(1, "At least one host is required"),
+    hosts: secretHostsInputSchema,
     provider: z
       .string()
       .trim()
@@ -127,7 +135,7 @@ export const oauthSecretFormInputSchema = z
     token_endpoint: optionalHTTPSURLSchema,
     registration_endpoint: optionalHTTPSURLSchema,
     resource: optionalHTTPSURLSchema,
-    scopes: z.string().trim().min(1, "At least one scope is required"),
+    scopes: oauthScopesInputSchema,
   })
   .superRefine((value, ctx) => {
     const hasClientID = Boolean(value.client_id)

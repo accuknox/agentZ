@@ -93,6 +93,11 @@ var sinjectorServeCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.DurationFlag{
+			Name:  "secret-probe-interval",
+			Usage: "Interval between Secret runtime status probe cycles",
+			Value: sinjector.DefaultSecretProbeInterval,
+		},
 		&cli.BoolFlag{
 			Name:  "verbose",
 			Usage: "Enable verbose proxy logging",
@@ -109,6 +114,7 @@ var sinjectorServeCmd = &cli.Command{
 			AgentName:               c.String("agent-name"),
 			CACertPath:              c.String("ca-cert-path"),
 			CAKeyPath:               c.String("ca-key-path"),
+			SecretProbeInterval:     c.Duration("secret-probe-interval"),
 			Verbose:                 c.Bool("verbose"),
 		})
 	},

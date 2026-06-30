@@ -744,7 +744,6 @@ export const zSecretListItem = z.object({
   reason: z.string(),
   message: z.string(),
   created_at: z.iso.datetime(),
-  modified_at: z.iso.datetime(),
   last_refresh_time: z.iso.datetime().optional(),
   token_expiry_time: z.iso.datetime().optional(),
 })
@@ -760,6 +759,14 @@ export const zDeleteSecretsRequest = z.object({
 export const zListSecretsResponse = z.object({
   items: z.array(zSecretListItem),
   next_page_token: z.string(),
+})
+
+export const zWatchSecretsRequest = z.object({
+  keys: z.array(zSecretKey).optional(),
+})
+
+export const zWatchSecretsEvent = z.object({
+  items: z.array(zSecretListItem),
 })
 
 export const zMcpConnectionToolRef = z.object({
@@ -1218,6 +1225,17 @@ export const zPutSecretPath = z.object({
  * Secret created.
  */
 export const zPutSecretResponse = zPutSecretsResponse
+
+export const zWatchSecretsBody = zWatchSecretsRequest
+
+export const zWatchSecretsPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Stream of secret updates.
+ */
+export const zWatchSecretsResponse = zWatchSecretsEvent
 
 export const zDeleteSecretBody = zDeleteSecretsRequest
 

@@ -2,9 +2,11 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -15,8 +17,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/util/retry"
-	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
@@ -26,6 +28,8 @@ import (
 	secretwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/secret"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
+
+var secretKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // PutSecret handles POST /api/secret/{agentName}.
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
@@ -68,7 +72,7 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 		return
 	}
 
-	secret, record, apiErr := s.secretFromRequest(r.Context(), ns, tenant, name, req)
+	secret, record, apiErr := s.secretFromRequest(ns, tenant, name, req)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
 		return
@@ -143,7 +147,7 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 
-	items, err := s.listAgentSecrets(r.Context(), ns, name)
+	items, err := s.listAgentSecrets(ns, name)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -225,7 +229,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	items, err := s.listAgentSecrets(r.Context(), ns, name)
+	items, err := s.listAgentSecrets(ns, name)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -261,9 +265,219 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Service) secretFromRequest(ctx context.Context, ns string, tenant *clawarmorv1alpha1.Tenant, agtName string, req gatewayapi.CreateSecretRequest) (*clawarmorv1alpha1.Secret, secretstore.Record, *apiError) {
+// WatchSecrets handles POST /api/secret/{agentName}/watch.
+//
+//nolint:gocyclo
+func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	name, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
+		return
+	}
+
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+	})
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if !exists {
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
+		return
+	}
+
+	var req gatewayapi.WatchSecretsRequest
+	if r.Body != nil {
+		if !decodeJSONBody(w, r, &req, true) {
+			return
+		}
+	}
+
+	keyFilter := map[string]struct{}{}
+	if req.Keys != nil {
+		for i, rawKey := range *req.Keys {
+			key := strings.TrimSpace(rawKey)
+			if key == "" {
+				writeError(w, r, newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field:   fmt.Sprintf("keys[%d]", i),
+						Message: "required",
+					},
+				))
+				return
+			}
+			if !secretKeyPattern.MatchString(key) {
+				writeError(w, r, newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field:   fmt.Sprintf("keys[%d]", i),
+						Message: "must be a valid environment variable name",
+					},
+				))
+				return
+			}
+			keyFilter[strings.ToLower(key)] = struct{}{}
+		}
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeInternalError(w, r, errors.New("streaming is unavailable"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	prev := map[string]gatewayapi.SecretListItem{}
+	send := func(event string, items []gatewayapi.SecretListItem) bool {
+		if len(items) == 0 {
+			return true
+		}
+
+		raw, err := json.Marshal(gatewayapi.WatchSecretsEvent{Items: items})
+		if err != nil {
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+		if event != "" {
+			if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+				return false
+			}
+		}
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	events, cancel := s.resolver.watchSecrets()
+	defer cancel()
+
+	writeChanges := func() bool {
+		items, err := s.listAgentSecrets(ns, name)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return false
+			}
+			recordRequestError(w, "internal_error", err)
+			return false
+		}
+
+		slices.SortFunc(items, func(a, b clawarmorv1alpha1.Secret) int {
+			return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
+		})
+
+		changed := make([]gatewayapi.SecretListItem, 0, len(items))
+		for _, item := range items {
+			if len(keyFilter) > 0 {
+				if _, ok := keyFilter[strings.ToLower(item.Spec.Key)]; !ok {
+					continue
+				}
+			}
+
+			summary := s.secretListItem(item)
+			prevItem, ok := prev[summary.Key]
+			sameProvider := prevItem.Provider == nil && summary.Provider == nil
+			if prevItem.Provider != nil && summary.Provider != nil {
+				sameProvider = *prevItem.Provider == *summary.Provider
+			}
+			sameLastRefresh := prevItem.LastRefreshTime == nil && summary.LastRefreshTime == nil
+			if prevItem.LastRefreshTime != nil && summary.LastRefreshTime != nil {
+				sameLastRefresh = prevItem.LastRefreshTime.Equal(*summary.LastRefreshTime)
+			}
+			sameTokenExpiry := prevItem.TokenExpiryTime == nil && summary.TokenExpiryTime == nil
+			if prevItem.TokenExpiryTime != nil && summary.TokenExpiryTime != nil {
+				sameTokenExpiry = prevItem.TokenExpiryTime.Equal(*summary.TokenExpiryTime)
+			}
+			unchanged := ok &&
+				prevItem.Key == summary.Key &&
+				prevItem.Type == summary.Type &&
+				slices.Equal(prevItem.Hosts, summary.Hosts) &&
+				sameProvider &&
+				prevItem.Status == summary.Status &&
+				prevItem.Reason == summary.Reason &&
+				prevItem.Message == summary.Message &&
+				prevItem.CreatedAt.Equal(summary.CreatedAt) &&
+				sameLastRefresh &&
+				sameTokenExpiry
+			if unchanged {
+				continue
+			}
+
+			prev[summary.Key] = summary
+			changed = append(changed, summary)
+		}
+
+		return send("", changed)
+	}
+
+	if !writeChanges() {
+		return
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-s.ctx.Done():
+			return
+		case evt, ok := <-events:
+			if !ok {
+				return
+			}
+			if evt.Type == secretWatchEventDeleted {
+				if evt.Secret == nil || evt.Secret.Namespace != ns {
+					continue
+				}
+				if evt.Secret.Spec.AgentRef.Name != name {
+					continue
+				}
+				if len(keyFilter) > 0 {
+					if _, ok := keyFilter[strings.ToLower(evt.Secret.Spec.Key)]; !ok {
+						continue
+					}
+				}
+
+				item, ok := prev[evt.Secret.Spec.Key]
+				delete(prev, evt.Secret.Spec.Key)
+				if ok && !send("DELETE", []gatewayapi.SecretListItem{item}) {
+					return
+				}
+				continue
+			}
+			if !writeChanges() {
+				return
+			}
+		}
+	}
+}
+
+func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant, agtName string, req gatewayapi.CreateSecretRequest) (*clawarmorv1alpha1.Secret, secretstore.Record, *apiError) {
 	key := strings.TrimSpace(req.Key)
-	items, err := s.listAgentSecrets(ctx, ns, agtName)
+	items, err := s.listAgentSecrets(ns, agtName)
 	if err != nil {
 		return nil, nil, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
 	}
@@ -429,17 +643,18 @@ func (s *Service) secretFromRequest(ctx context.Context, ns string, tenant *claw
 	return secret, record, nil
 }
 
-func (s *Service) listAgentSecrets(ctx context.Context, namespace, agentName string) ([]clawarmorv1alpha1.Secret, error) {
-	list := &clawarmorv1alpha1.SecretList{}
-	if err := s.k8sClient.List(ctx, list, ctrlclient.InNamespace(namespace)); err != nil {
+func (s *Service) listAgentSecrets(namespace string, agentName string) ([]clawarmorv1alpha1.Secret, error) {
+	list, err := s.resolver.secrets.Secrets(namespace).List(labels.Everything())
+	if err != nil {
 		return nil, err
 	}
-	items := make([]clawarmorv1alpha1.Secret, 0, len(list.Items))
-	for _, item := range list.Items {
+
+	items := make([]clawarmorv1alpha1.Secret, 0, len(list))
+	for _, item := range list {
 		if item.Spec.AgentRef.Name != agentName {
 			continue
 		}
-		items = append(items, item)
+		items = append(items, *item.DeepCopy())
 	}
 	return items, nil
 }
@@ -447,16 +662,12 @@ func (s *Service) listAgentSecrets(ctx context.Context, namespace, agentName str
 func (s *Service) secretListItem(secret clawarmorv1alpha1.Secret) gatewayapi.SecretListItem {
 	status, reason, message := secretLifecycle(secret)
 	item := gatewayapi.SecretListItem{
-		Key:        secret.Spec.Key,
-		Hosts:      make([]gatewayapi.SecretHost, 0, len(secret.Spec.Hosts)),
-		Status:     status,
-		Reason:     reason,
-		Message:    message,
-		CreatedAt:  secret.CreationTimestamp.UTC(),
-		ModifiedAt: secret.GetCreationTimestamp().UTC(),
-	}
-	if secret.Status.LastRuntimeUpdateTime != nil {
-		item.ModifiedAt = secret.Status.LastRuntimeUpdateTime.UTC()
+		Key:       secret.Spec.Key,
+		Hosts:     make([]gatewayapi.SecretHost, 0, len(secret.Spec.Hosts)),
+		Status:    status,
+		Reason:    reason,
+		Message:   message,
+		CreatedAt: secret.CreationTimestamp.UTC(),
 	}
 	item.Hosts = append(item.Hosts, secret.Spec.Hosts...)
 	if secret.Spec.Type == clawarmorv1alpha1.SecretTypeOAuth {
@@ -515,7 +726,7 @@ func (s *Service) deleteAgentSecretRuntime(ctx context.Context, agentName, key s
 }
 
 func (s *Service) deleteAgentSecretResources(ctx context.Context, namespace, agentName string) error {
-	items, err := s.listAgentSecrets(ctx, namespace, agentName)
+	items, err := s.listAgentSecrets(namespace, agentName)
 	if err != nil {
 		return err
 	}

@@ -42,6 +42,7 @@ export {
   updateWorkflowSchedule,
   watchAgents,
   watchMcpConnections,
+  watchSecrets,
   watchWorkflowRuns,
 } from "./sdk.gen"
 export type {
@@ -355,6 +356,13 @@ export type {
   WatchMcpConnectionsRequest,
   WatchMcpConnectionsResponse,
   WatchMcpConnectionsResponses,
+  WatchSecretsData,
+  WatchSecretsError,
+  WatchSecretsErrors,
+  WatchSecretsEvent,
+  WatchSecretsRequest,
+  WatchSecretsResponse,
+  WatchSecretsResponses,
   WatchWorkflowRunsData,
   WatchWorkflowRunsError,
   WatchWorkflowRunsErrors,

@@ -39,6 +39,10 @@ func (c *FakeClawarmorV1alpha1) MCPConnections(namespace string) v1alpha1.MCPCon
 	return newFakeMCPConnections(c, namespace)
 }
 
+func (c *FakeClawarmorV1alpha1) Secrets(namespace string) v1alpha1.SecretInterface {
+	return newFakeSecrets(c, namespace)
+}
+
 func (c *FakeClawarmorV1alpha1) WorkflowRuns(namespace string) v1alpha1.WorkflowRunInterface {
 	return newFakeWorkflowRuns(c, namespace)
 }

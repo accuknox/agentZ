@@ -37,13 +37,14 @@ rules:
     resources: ["agents"]
     verbs: ["create-workflow", "create-workflow-schedule", "delete-workflow-schedule", "delete-workflows", "get", "get-workflow", "list", "list-workflow-schedules", "list-workflows", "patch", "set-workflowrun-status", "update-workflow-schedule", "watch"]
   - apiGroups: ["clawarmor.accuknox.com"]
-    resources: ["envs", "mcpconnections"]
+    resources: ["envs", "mcpconnections", "secrets"]
     verbs: ["get", "list", "patch", "watch"]
   - apiGroups: ["clawarmor.accuknox.com"]
     resources:
       - agents/finalizers
       - envs/finalizers
       - mcpconnections/finalizers
+      - secrets/finalizers
       - workflowruns/finalizers
     verbs: ["update"]
   - apiGroups: ["clawarmor.accuknox.com"]
@@ -51,6 +52,7 @@ rules:
       - agents/status
       - envs/status
       - mcpconnections/status
+      - secrets/status
       - tenants/status
       - workflowruns/status
       - workflowschedules/status

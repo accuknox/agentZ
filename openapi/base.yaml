@@ -403,8 +403,8 @@ paths:
       operationId: listSecrets
       summary: List secret keys for an agent.
       description: >
-        Returns a paginated list of secret keys with created and last modified
-        timestamps. Secret values are never included in the response.
+        Returns a paginated list of secret keys with creation timestamps.
+        Secret values are never included in the response.
       tags: [secrets]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -446,6 +446,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PutSecretsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/secret/{agentName}/watch:
+    post:
+      operationId: watchSecrets
+      summary: Watch secret status changes for one agent.
+      description: >
+        Returns an SSE stream. Each event data payload is a JSON object matching
+        WatchSecretsEvent. If keys is omitted or empty, all known secrets for
+        the addressed agent are watched.
+      tags: [secrets]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchSecretsRequest'
+      responses:
+        '200':
+          description: Stream of secret updates.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchSecretsEvent'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -3040,16 +3071,13 @@ components:
         created_at:
           type: string
           format: date-time
-        modified_at:
-          type: string
-          format: date-time
         last_refresh_time:
           type: string
           format: date-time
         token_expiry_time:
           type: string
           format: date-time
-      required: [key, type, hosts, status, reason, message, created_at, modified_at]
+      required: [key, type, hosts, status, reason, message, created_at]
 
     PutSecretsResponse:
       type: object
@@ -3081,6 +3109,26 @@ components:
         next_page_token:
           type: string
       required: [items, next_page_token]
+
+    WatchSecretsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretKey'
+          uniqueItems: true
+
+    WatchSecretsEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretListItem'
+      required: [items]
 
     Environment:
       type: object

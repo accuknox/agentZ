@@ -2,9 +2,17 @@
 
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
-import type { SecretListItem } from "@/lib/gateway/client"
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  CircleDashed,
+  MoreHorizontal,
+  Trash2,
+  XCircle,
+} from "lucide-react"
+import type { SecretListItem, SecretState } from "@/lib/gateway/client"
 import { dayjs } from "@/lib/dayjs"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,7 +30,33 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DeleteSecretFormAction } from "@/data/types"
+
+const secretStatusMeta = {
+  accepted: {
+    icon: CircleDashed,
+    label: "Accepted",
+    variant: "pending",
+  },
+  ready: {
+    icon: CheckCircle2,
+    label: "Ready",
+    variant: "success",
+  },
+  degraded: {
+    icon: XCircle,
+    label: "Degraded",
+    variant: "destructive",
+  },
+} satisfies Record<
+  SecretState,
+  {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
+    label: string
+    variant: React.ComponentProps<typeof Badge>["variant"]
+  }
+>
 
 export function createSecretColumns(
   agentName: string,
@@ -41,25 +75,31 @@ export function createSecretColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <span className="font-mono text-sm">{row.original.key}</span>,
+      cell: ({ row }) => (
+        <span className="block min-w-0 truncate font-mono text-sm" title={row.original.key}>
+          {row.original.key}
+        </span>
+      ),
     },
     {
       accessorKey: "type",
       header: "Type",
-      cell: ({ row }) => <span className="text-sm capitalize">{row.original.type}</span>,
+      cell: ({ row }) => (
+        <span className="text-sm whitespace-nowrap capitalize">{row.original.type}</span>
+      ),
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <span className="text-sm capitalize">{row.original.status}</span>,
+      cell: ({ row }) => <SecretStatusBadge secret={row.original} />,
     },
     {
       accessorKey: "hosts",
       header: "Hosts",
       cell: ({ row }) => (
-        <div className="flex max-w-120 flex-wrap gap-x-2 gap-y-0.5 text-xs">
+        <div className="flex min-w-0 flex-nowrap overflow-hidden text-xs">
           {row.original.hosts.map((host, index) => (
-            <span key={host} className="text-muted-foreground font-mono">
+            <span key={host} className="text-muted-foreground min-w-0 shrink font-mono">
               {index > 0 ? <span className="text-border mr-2">/</span> : null}
               {host}
             </span>
@@ -68,18 +108,25 @@ export function createSecretColumns(
       ),
     },
     {
-      accessorKey: "modified_at",
+      id: "age",
+      accessorKey: "created_at",
       header: ({ column }) => (
         <Button
           className="-ml-2"
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Updated
+          Age
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatDate(row.original.modified_at),
+      cell: ({ row }) => {
+        const createdAt = dayjs(row.original.created_at)
+        if (!createdAt.isValid()) {
+          return <span className="whitespace-nowrap">Unknown</span>
+        }
+        return <span className="whitespace-nowrap">{createdAt.fromNow()}</span>
+      },
     },
     {
       id: "actions",
@@ -92,6 +139,28 @@ export function createSecretColumns(
       ),
     },
   ]
+}
+
+function SecretStatusBadge({ secret }: { secret: SecretListItem }) {
+  const meta = secretStatusMeta[secret.status]
+  const message = secret.message.trim()
+  const badge = (
+    <Badge variant={meta.variant}>
+      <meta.icon data-icon="inline-start" />
+      {meta.label}
+    </Badge>
+  )
+
+  if (!message) {
+    return badge
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent>{message}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 function SecretActions({
@@ -185,15 +254,4 @@ function DeleteSecretDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function formatDate(value?: string) {
-  if (!value) {
-    return "Unknown"
-  }
-  const date = dayjs(value)
-  if (!date.isValid()) {
-    return "Unknown"
-  }
-  return `${date.format("MMM D, YYYY, h:mm A")} (${date.fromNow()})`
 }

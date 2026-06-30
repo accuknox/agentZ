@@ -68,7 +68,10 @@ const (
 	probeQueueName        = "extauth-mcp-probe"
 )
 
-var errCredentialUnavailable = errors.New("credential unavailable")
+var (
+	errCredentialPending     = errors.New("credential pending")
+	errCredentialUnavailable = errors.New("credential unavailable")
+)
 
 // Config describes how to start the ext-auth gRPC service.
 type Config struct {
@@ -244,7 +247,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	var bg sync.WaitGroup
 	errCh := make(chan error, 1)
 	go func() {
-		slog.InfoContext(ctx, "starting mcp ext auth service",
+		slog.InfoContext(
+			ctx, "starting mcp ext auth service",
 			slog.String("addr", addr),
 			slog.String("namespace", namespace),
 		)

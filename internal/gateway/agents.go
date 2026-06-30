@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -307,6 +306,8 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 }
 
 // WatchAgents handles POST /api/agent/watch.
+//
+//nolint:gocyclo
 func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -315,13 +316,12 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req gatewayapi.WatchAgentsRequest
-	if r.Body != nil {
-		if !decodeJSONBody(w, r, &req, true) {
-			return
-		}
+	if r.Body != nil && !decodeJSONBody(w, r, &req, true) {
+		return
 	}
 
 	agentNames := []string{}
+	agentFilter := map[string]struct{}{}
 	if req.AgentNames != nil {
 		agentNames = make([]string, 0, len(*req.AgentNames))
 		for _, name := range *req.AgentNames {
@@ -330,6 +330,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			agentNames = append(agentNames, agentName)
+			agentFilter[agentName] = struct{}{}
 		}
 	}
 
@@ -386,10 +387,19 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 		changed := make([]gatewayapi.Agent, 0, len(items))
 		for _, item := range items {
-			if !sameAgent(prev[item.Name], item) {
-				prev[item.Name] = item
-				changed = append(changed, item)
+			prevItem, ok := prev[item.Name]
+			unchanged := ok &&
+				prevItem.Name == item.Name &&
+				prevItem.EnvironmentName == item.EnvironmentName &&
+				prevItem.LastActivity.Equal(item.LastActivity) &&
+				prevItem.CreatedAt.Equal(item.CreatedAt) &&
+				prevItem.ModifiedAt.Equal(item.ModifiedAt) &&
+				prevItem.Status == item.Status
+			if unchanged {
+				continue
 			}
+			prev[item.Name] = item
+			changed = append(changed, item)
 		}
 		return send("", changed)
 	}
@@ -397,9 +407,6 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	if !writeChanges() {
 		return
 	}
-
-	ticker := time.NewTicker(statusPollInterval)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -412,16 +419,25 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if evt.Type == agentWatchEventDeleted {
-				item, ok := deletedAgentEventItem(ns, evt.Agent, prev, agentNames)
+				if evt.Agent == nil || evt.Agent.Namespace != ns {
+					continue
+				}
+				if len(agentFilter) > 0 {
+					if _, ok := agentFilter[evt.Agent.Name]; !ok {
+						continue
+					}
+				}
+
+				item, ok := prev[evt.Agent.Name]
+				delete(prev, evt.Agent.Name)
+				if ok {
+					item.Status = gatewayapi.DELETED
+				}
 				if ok && !send("DELETE", []gatewayapi.Agent{item}) {
 					return
 				}
 				continue
 			}
-			if !writeChanges() {
-				return
-			}
-		case <-ticker.C:
 			if !writeChanges() {
 				return
 			}
@@ -484,36 +500,6 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		})
 	}
 	return items, next, nil
-}
-
-func sameAgent(a, b gatewayapi.Agent) bool {
-	return a.Name == b.Name &&
-		a.EnvironmentName == b.EnvironmentName &&
-		a.LastActivity.Equal(b.LastActivity) &&
-		a.CreatedAt.Equal(b.CreatedAt) &&
-		a.ModifiedAt.Equal(b.ModifiedAt) &&
-		a.Status == b.Status
-}
-
-func deletedAgentEventItem(namespace string, agt *clawarmorv1alpha1.Agent, prev map[string]gatewayapi.Agent, agentNames []string) (gatewayapi.Agent, bool) {
-	if agt == nil {
-		return gatewayapi.Agent{}, false
-	}
-	if agt.Namespace != namespace {
-		return gatewayapi.Agent{}, false
-	}
-	if len(agentNames) > 0 && !slices.Contains(agentNames, agt.Name) {
-		return gatewayapi.Agent{}, false
-	}
-
-	item, ok := prev[agt.Name]
-	delete(prev, agt.Name)
-	if !ok {
-		return gatewayapi.Agent{}, false
-	}
-
-	item.Status = gatewayapi.DELETED
-	return item, true
 }
 
 //nolint:gocyclo

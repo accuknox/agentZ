@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 import { OAuthSecretSheet } from "./oauth-secret-sheet"
 import { SecretSheet } from "./secret-sheet"
 import type { PutSecretFormAction } from "@/data/types"
@@ -22,16 +23,27 @@ export function NewSecretButton({
   putSecretAction: PutSecretFormAction
   startOAuthAction: PutSecretFormAction
 }) {
+  const [menuOpen, setMenuOpen] = React.useState(false)
   const [staticOpen, setStaticOpen] = React.useState(false)
   const [oauthOpen, setOAuthOpen] = React.useState(false)
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
-          <Button className="w-28 justify-between gap-2 px-3" aria-label="Create secret">
+          <Button
+            variant={menuOpen ? "outline-primary" : "default"}
+            className="w-28 justify-between px-3"
+            aria-label="Create secret"
+          >
             <span>Create</span>
-            <ChevronDown className="text-primary-foreground/80" />
+            <ChevronDown
+              data-icon="inline-end"
+              className={cn(
+                "transition-transform motion-reduce:transition-none",
+                menuOpen && "rotate-180"
+              )}
+            />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-48 rounded-lg p-1">

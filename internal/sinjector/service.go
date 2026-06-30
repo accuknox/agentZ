@@ -11,13 +11,15 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	baoapi "github.com/openbao/openbao/api/v2"
 	"golang.org/x/sync/singleflight"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -25,14 +27,20 @@ import (
 	baoclient "github.com/accuknox/clawarmor/internal/openbao"
 	secretstore "github.com/accuknox/clawarmor/internal/secret"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	clawarmorclientset "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
+	clawarmorinformers "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions"
+	clawarmorlisters "github.com/accuknox/clawarmor/pkg/controller/listers/clawarmor/v1alpha1"
 )
 
 const (
 	// DefaultListenAddr is the default SIP listen address.
-	DefaultListenAddr  = "0.0.0.0:4096"
-	defaultHeaderBytes = 1 << 20
-	defaultReadTimeout = 10 * time.Second
-	defaultIdleTimeout = 60 * time.Second
+	DefaultListenAddr = "0.0.0.0:4096"
+	// DefaultSecretProbeInterval bounds how often Secret runtime status is refreshed.
+	DefaultSecretProbeInterval = 2 * time.Minute
+	defaultHeaderBytes         = 1 << 20
+	defaultReadTimeout         = 10 * time.Second
+	defaultIdleTimeout         = 60 * time.Second
+	probeQueueName             = "sinjector-secret-probe"
 )
 
 var errBadSecret = errors.New("secret has invalid value")
@@ -48,25 +56,35 @@ type Config struct {
 	AgentName               string
 	CACertPath              string
 	CAKeyPath               string
+	SecretProbeInterval     time.Duration
 	Verbose                 bool
 }
 
 type resolver struct {
-	kv        *baoapi.KVv2
-	agentName string
-	namespace string
-	http      *http.Client
-	k8sClient ctrlclient.Client
-	sf        singleflight.Group
+	kv            *baoapi.KVv2
+	agentName     string
+	http          *http.Client
+	k8sClient     ctrlclient.Client
+	secrets       clawarmorlisters.SecretNamespaceLister
+	probeQueue    workqueue.TypedInterface[string]
+	probeInterval time.Duration
+	probeTimes    map[string]time.Time
+	probeTimesMu  sync.Mutex
+	sf            singleflight.Group
 }
 
 // Serve starts the secret injection proxy and blocks until shutdown.
 func Serve(ctx context.Context, cfg Config) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	if err := validate(cfg); err != nil {
 		return err
+	}
+	if cfg.SecretProbeInterval <= 0 {
+		cfg.SecretProbeInterval = DefaultSecretProbeInterval
 	}
 
 	baoClient, err := baoclient.NewClient(
@@ -92,26 +110,85 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create kubernetes client: %w", err)
 	}
+	clawarmorClient, err := clawarmorclientset.NewForConfig(kubeCfg)
+	if err != nil {
+		return fmt.Errorf("create clawarmor clientset: %w", err)
+	}
 	namespace, err := podNamespace()
 	if err != nil {
 		return err
 	}
+	informerFactory := clawarmorinformers.NewSharedInformerFactoryWithOptions(
+		clawarmorClient,
+		cfg.SecretProbeInterval,
+		clawarmorinformers.WithNamespace(namespace),
+	)
+	secretInformer := informerFactory.Clawarmor().V1alpha1().Secrets()
 
 	ca, err := tls.LoadX509KeyPair(cfg.CACertPath, cfg.CAKeyPath)
 	if err != nil {
 		return fmt.Errorf("load mitm ca: %w", err)
 	}
 
+	res := &resolver{
+		kv:            baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		agentName:     cfg.AgentName,
+		http:          http.DefaultClient,
+		k8sClient:     k8sClient,
+		secrets:       secretInformer.Lister().Secrets(namespace),
+		probeQueue:    workqueue.NewTypedWithConfig(workqueue.TypedQueueConfig[string]{Name: probeQueueName}),
+		probeInterval: cfg.SecretProbeInterval,
+		probeTimes:    map[string]time.Time{},
+	}
+	_, err = secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			secret, ok := obj.(*clawarmorv1alpha1.Secret)
+			if ok && secret.Spec.AgentRef.Name == cfg.AgentName {
+				res.probeQueue.Add(secret.Name)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			oldSecret, ok := oldObj.(*clawarmorv1alpha1.Secret)
+			if !ok {
+				return
+			}
+			secret, ok := newObj.(*clawarmorv1alpha1.Secret)
+			if !ok || secret.Spec.AgentRef.Name != cfg.AgentName {
+				return
+			}
+			if oldSecret.Generation != secret.Generation {
+				res.probeQueue.Add(secret.Name)
+			}
+		},
+		DeleteFunc: func(obj any) {
+			secret, ok := obj.(*clawarmorv1alpha1.Secret)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				secret, ok = tombstone.Obj.(*clawarmorv1alpha1.Secret)
+				if !ok {
+					return
+				}
+			}
+			res.probeTimesMu.Lock()
+			delete(res.probeTimes, secret.Name)
+			res.probeTimesMu.Unlock()
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("register secret informer handler: %w", err)
+	}
+	informerFactory.Start(ctx.Done())
+	if !cache.WaitForCacheSync(ctx.Done(), secretInformer.Informer().HasSynced) {
+		return fmt.Errorf("sync secret informer cache")
+	}
+
 	p := &proxy{
 		ca:        &ca,
 		certCache: newCertStore(1024),
-		resolver: &resolver{
-			kv:        baoClient.KVv2(cfg.OpenBaoSecretMountPath),
-			agentName: cfg.AgentName,
-			namespace: namespace,
-			http:      http.DefaultClient,
-			k8sClient: k8sClient,
-		},
+		resolver:  res,
 		transport: newProxyTransport(),
 	}
 
@@ -133,6 +210,14 @@ func Serve(ctx context.Context, cfg Config) error {
 		errCh <- srv.ListenAndServe()
 	}()
 
+	var bg sync.WaitGroup
+	bg.Go(func() {
+		res.runSecretProbes(ctx)
+	})
+	bg.Go(func() {
+		res.runProbeQueue(ctx)
+	})
+
 	select {
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -143,6 +228,10 @@ func Serve(ctx context.Context, cfg Config) error {
 		err = <-errCh
 	case err = <-errCh:
 	}
+
+	cancel()
+	res.probeQueue.ShutDown()
+	bg.Wait()
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)
@@ -184,32 +273,55 @@ func newProxyTransport() http.RoundTripper {
 func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, error) {
 	rawSecret, err := r.kv.Get(ctx, secretstore.SecretPath(r.agentName, name))
 	if err != nil {
+		status := secretRuntimeStatus{
+			state:     clawarmorv1alpha1.SecretStateDegraded,
+			condition: clawarmorv1alpha1.SecretConditionDegraded,
+			reason:    clawarmorv1alpha1.SecretReasonReconcileFailed,
+			message:   fmt.Sprintf("read openbao runtime: %v", err),
+		}
+		if errors.Is(err, baoapi.ErrSecretNotFound) {
+			status = acceptedSecretStatus()
+		}
+		r.writeStatusForKey(ctx, name, status)
 		return resolvedSecret{}, fmt.Errorf("read openbao secret %q: %w", name, err)
 	}
-	if rawSecret == nil {
+	if rawSecret == nil || rawSecret.Data == nil {
+		r.writeStatusForKey(ctx, name, acceptedSecretStatus())
 		return resolvedSecret{}, fmt.Errorf("openbao secret %q not found", name)
 	}
 	typ, err := secretstore.RecordType(rawSecret.Data)
 	if err != nil {
+		r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
 		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}
 	switch typ {
 	case clawarmorv1alpha1.SecretTypeStatic:
 		record, err := secretstore.DecodeRecord[secretstore.StaticRecord](rawSecret.Data)
 		if err != nil {
+			r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		hosts, err := ParseSecretHosts(record.Hosts)
 		if err != nil {
+			r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		if err := validateSecretValue(record.Value); err != nil {
+			r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		return resolvedSecret{value: record.Value, hosts: hosts}, nil
 	case clawarmorv1alpha1.SecretTypeOAuth:
 		return r.resolveOAuth(ctx, name, rawSecret.Data)
 	default:
+		r.writeStatusForKey(
+			ctx,
+			name,
+			degradedSecretStatus(
+				clawarmorv1alpha1.SecretReasonReconcileFailed,
+				fmt.Sprintf("unsupported secret type %q", typ),
+			),
+		)
 		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}
 }
@@ -217,11 +329,13 @@ func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, er
 func (r *resolver) resolveOAuth(ctx context.Context, key string, raw map[string]any) (resolvedSecret, error) {
 	record, err := secretstore.DecodeRecord[secretstore.OAuthRecord](raw)
 	if err != nil {
+		r.writeStatusForKey(ctx, key, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
 		return resolvedSecret{}, err
 	}
 
 	hosts, err := ParseSecretHosts(record.Hosts)
 	if err != nil {
+		r.writeStatusForKey(ctx, key, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
 		return resolvedSecret{}, err
 	}
 	now := time.Now().UTC()
@@ -229,20 +343,18 @@ func (r *resolver) resolveOAuth(ctx context.Context, key string, raw map[string]
 		return resolvedSecret{value: record.Token.AccessToken, hosts: hosts}, nil
 	}
 
-	result, err, _ := r.sf.Do(key, func() (any, error) {
-		return r.refreshOAuth(ctx, key, record)
-	})
+	refreshed, err := r.refreshOAuth(ctx, key, record)
 	if err != nil {
+		r.writeStatusForKey(ctx, key, degradedSecretStatus(clawarmorv1alpha1.SecretReasonRefreshFailed, err.Error()))
 		return resolvedSecret{}, err
 	}
-
-	refreshed, ok := result.(secretstore.OAuthRecord)
-	if !ok {
-		return resolvedSecret{}, fmt.Errorf("unexpected oauth refresh result type %T", result)
-	}
 	if refreshed.Token == nil || strings.TrimSpace(refreshed.Token.AccessToken) == "" {
+		r.writeStatusForKey(ctx, key, acceptedSecretStatus())
 		return resolvedSecret{}, fmt.Errorf("oauth refresh did not return an access token")
 	}
+	expiry := refreshed.Token.Expiry.UTC()
+	refreshTime := time.Now().UTC()
+	r.writeStatusForKey(ctx, key, readySecretStatus(&expiry, &refreshTime))
 	return resolvedSecret{
 		value: refreshed.Token.AccessToken,
 		hosts: hosts,
@@ -261,7 +373,6 @@ func (r *resolver) refreshOAuth(ctx context.Context, key string, record secretst
 		Scopes:        record.Config.Scopes,
 	}, record.Record)
 	if err != nil {
-		r.patchRefreshFailure(ctx, record.SecretName, err)
 		return secretstore.OAuthRecord{}, err
 	}
 
@@ -273,79 +384,13 @@ func (r *resolver) refreshOAuth(ctx context.Context, key string, record secretst
 
 	data, err := secretstore.RecordData(record)
 	if err != nil {
-		r.patchRefreshFailure(ctx, record.SecretName, err)
 		return secretstore.OAuthRecord{}, err
 	}
 	if _, err := r.kv.Put(ctx, secretstore.SecretPath(r.agentName, key), data); err != nil {
-		r.patchRefreshFailure(ctx, record.SecretName, err)
 		return secretstore.OAuthRecord{}, err
 	}
 
-	r.patchRefreshSuccess(ctx, record.SecretName, record)
 	return record, nil
-}
-
-func (r *resolver) patchRefreshSuccess(ctx context.Context, name string, record secretstore.OAuthRecord) {
-	if strings.TrimSpace(name) == "" {
-		return
-	}
-	secret := &clawarmorv1alpha1.Secret{}
-	if err := r.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: r.namespace, Name: name}, secret); err != nil {
-		slog.WarnContext(ctx, "load secret status for oauth refresh success", slog.Any("err", err))
-		return
-	}
-
-	now := metav1.NewTime(time.Now().UTC())
-	secret.Status.State = clawarmorv1alpha1.SecretStateReady
-	secret.Status.ObservedGeneration = secret.Generation
-	secret.Status.LastRuntimeUpdateTime = &now
-	secret.Status.LastRefreshTime = &now
-	secret.Status.LastRefreshFailureTime = nil
-	secret.Status.LastRefreshFailureReason = ""
-	secret.Status.LastRefreshFailureMessage = ""
-	if record.Token != nil && !record.Token.Expiry.IsZero() {
-		expiry := metav1.NewTime(record.Token.Expiry.UTC())
-		secret.Status.TokenExpiryTime = &expiry
-	}
-	secretstore.SetCondition(&secret.Status, metav1.Condition{
-		Type:               clawarmorv1alpha1.SecretConditionReady,
-		Status:             metav1.ConditionTrue,
-		Reason:             clawarmorv1alpha1.SecretReasonReady,
-		Message:            "Secret runtime is ready",
-		ObservedGeneration: secret.Generation,
-	})
-	if err := r.k8sClient.Status().Update(ctx, secret); err != nil {
-		slog.WarnContext(ctx, "update secret status for oauth refresh success", slog.Any("err", err))
-	}
-}
-
-func (r *resolver) patchRefreshFailure(ctx context.Context, name string, refreshErr error) {
-	if strings.TrimSpace(name) == "" {
-		return
-	}
-	secret := &clawarmorv1alpha1.Secret{}
-	if err := r.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: r.namespace, Name: name}, secret); err != nil {
-		slog.WarnContext(ctx, "load secret status for oauth refresh failure", slog.Any("err", err))
-		return
-	}
-
-	now := metav1.NewTime(time.Now().UTC())
-	secret.Status.State = clawarmorv1alpha1.SecretStateDegraded
-	secret.Status.ObservedGeneration = secret.Generation
-	secret.Status.LastRuntimeUpdateTime = &now
-	secret.Status.LastRefreshFailureTime = &now
-	secret.Status.LastRefreshFailureReason = clawarmorv1alpha1.SecretReasonRefreshFailed
-	secret.Status.LastRefreshFailureMessage = refreshErr.Error()
-	secretstore.SetCondition(&secret.Status, metav1.Condition{
-		Type:               clawarmorv1alpha1.SecretConditionDegraded,
-		Status:             metav1.ConditionTrue,
-		Reason:             clawarmorv1alpha1.SecretReasonRefreshFailed,
-		Message:            refreshErr.Error(),
-		ObservedGeneration: secret.Generation,
-	})
-	if err := r.k8sClient.Status().Update(ctx, secret); err != nil {
-		slog.WarnContext(ctx, "update secret status for oauth refresh failure", slog.Any("err", err))
-	}
 }
 
 func podNamespace() (string, error) {

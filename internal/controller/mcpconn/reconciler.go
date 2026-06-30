@@ -18,6 +18,7 @@ package mcpconn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -27,6 +28,7 @@ import (
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
+	baoapi "github.com/openbao/openbao/api/v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -565,7 +567,7 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawa
 
 	path := mcp.SecretPath(conn.Name)
 	err = baoClient.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
-	if err != nil {
+	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete mcp connection secret metadata %q: %w", path, err)
 	}
 	return nil

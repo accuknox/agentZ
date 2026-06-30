@@ -532,7 +532,7 @@ export const listSecretsQueryKey = (options: Options<ListSecretsData>) =>
 /**
  * List secret keys for an agent.
  *
- * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
+ * Returns a paginated list of secret keys with creation timestamps. Secret values are never included in the response.
  *
  */
 export const listSecretsOptions = (options: Options<ListSecretsData>) =>

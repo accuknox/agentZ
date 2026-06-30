@@ -611,7 +611,6 @@ export type SecretListItem = {
   reason: string
   message: string
   created_at: string
-  modified_at: string
   last_refresh_time?: string
   token_expiry_time?: string
 }
@@ -627,6 +626,14 @@ export type DeleteSecretsRequest = {
 export type ListSecretsResponse = {
   items: Array<SecretListItem>
   next_page_token: string
+}
+
+export type WatchSecretsRequest = {
+  keys?: Array<SecretKey>
+}
+
+export type WatchSecretsEvent = {
+  items: Array<SecretListItem>
 }
 
 export type Environment = {
@@ -1634,6 +1641,45 @@ export type PutSecretResponses = {
 }
 
 export type PutSecretResponse = PutSecretResponses[keyof PutSecretResponses]
+
+export type WatchSecretsData = {
+  body?: WatchSecretsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/secret/{agentName}/watch"
+}
+
+export type WatchSecretsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchSecretsError = WatchSecretsErrors[keyof WatchSecretsErrors]
+
+export type WatchSecretsResponses = {
+  /**
+   * Stream of secret updates.
+   */
+  200: WatchSecretsEvent
+}
+
+export type WatchSecretsResponse = WatchSecretsResponses[keyof WatchSecretsResponses]
 
 export type DeleteSecretData = {
   body: DeleteSecretsRequest

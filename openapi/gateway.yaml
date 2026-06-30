@@ -9396,9 +9396,6 @@ components:
           type: string
         message:
           type: string
-        modified_at:
-          format: date-time
-          type: string
         provider:
           type: string
         reason:
@@ -9418,7 +9415,6 @@ components:
       - reason
       - message
       - created_at
-      - modified_at
       type: object
     SecretOAuthConfig:
       additionalProperties: false
@@ -9969,6 +9965,25 @@ components:
           items:
             $ref: '#/components/schemas/MCPConnectionName'
           type: array
+      type: object
+    WatchSecretsEvent:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SecretListItem'
+          type: array
+      required:
+      - items
+      type: object
+    WatchSecretsRequest:
+      additionalProperties: false
+      properties:
+        keys:
+          items:
+            $ref: '#/components/schemas/SecretKey'
+          type: array
+          uniqueItems: true
       type: object
     WatchWorkflowRunsEvent:
       additionalProperties: false
@@ -18456,7 +18471,7 @@ paths:
   /api/secret/{agentName}:
     get:
       description: |
-        Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
+        Returns a paginated list of secret keys with creation timestamps. Secret values are never included in the response.
       operationId: listSecrets
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -18529,6 +18544,35 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Delete secrets for an agent.
+      tags:
+      - secrets
+  /api/secret/{agentName}/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each event data payload is a JSON object matching WatchSecretsEvent. If keys is omitted or empty, all known secrets for the addressed agent are watched.
+      operationId: watchSecrets
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchSecretsRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchSecretsEvent'
+          description: Stream of secret updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch secret status changes for one agent.
       tags:
       - secrets
   /api/tenant:

@@ -16,6 +16,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -68,15 +69,22 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 }
 
 // WatchMCPConnections handles POST /api/mcp-connection/watch.
+//
+//nolint:gocyclo
 func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
 	var req gatewayapi.WatchMCPConnectionsRequest
-	if r.Body != nil {
-		if !decodeJSONBody(w, r, &req, true) {
-			return
-		}
+	if r.Body != nil && !decodeJSONBody(w, r, &req, true) {
+		return
 	}
 
 	names := []string{}
+	nameFilter := map[string]struct{}{}
 	if req.Names != nil {
 		names = make([]string, 0, len(*req.Names))
 		for _, rawName := range *req.Names {
@@ -93,6 +101,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			names = append(names, name)
+			nameFilter[name] = struct{}{}
 		}
 	}
 
@@ -108,7 +117,9 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	prev := map[string]gatewayapi.MCPConnectionSummary{}
-	send := func(items []gatewayapi.MCPConnectionSummary) bool {
+	var staleTimer *time.Timer
+	var staleTimerCh <-chan time.Time
+	send := func(event string, items []gatewayapi.MCPConnectionSummary) bool {
 		if len(items) == 0 {
 			return true
 		}
@@ -120,11 +131,51 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 			recordRequestError(w, "internal_error", err)
 			return false
 		}
+		if event != "" {
+			if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+				return false
+			}
+		}
 		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
 			return false
 		}
 		flusher.Flush()
 		return true
+	}
+
+	resetStaleTimer := func(items []gatewayapi.MCPConnectionSummary) {
+		if staleTimer != nil {
+			staleTimer.Stop()
+			staleTimer = nil
+			staleTimerCh = nil
+		}
+
+		now := time.Now()
+		hasPending := false
+		next := s.cfg.MCPProbeStaleAfter
+		for _, item := range items {
+			if item.Status != gatewayapi.MCPConnectionLifecycleAccepted {
+				continue
+			}
+			hasPending = true
+
+			conn, err := s.resolver.mcpConnections.MCPConnections(ns).Get(item.Name)
+			if err != nil || conn.Status.LastProbeTime == nil {
+				next = 0
+				break
+			}
+
+			wait := max(conn.Status.LastProbeTime.Time.Add(s.cfg.MCPProbeStaleAfter).Sub(now), 0)
+			if wait < next {
+				next = wait
+			}
+		}
+
+		if !hasPending {
+			return
+		}
+		staleTimer = time.NewTimer(next)
+		staleTimerCh = staleTimer.C
 	}
 
 	writeChanges := func() bool {
@@ -156,15 +207,21 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 			prev[item.Name] = item
 			changed = append(changed, item)
 		}
-		return send(changed)
+		resetStaleTimer(items)
+		return send("", changed)
 	}
+
+	events, cancel := s.resolver.watchMCPConnections()
+	defer cancel()
+	defer func() {
+		if staleTimer != nil {
+			staleTimer.Stop()
+		}
+	}()
 
 	if !writeChanges() {
 		return
 	}
-
-	ticker := time.NewTicker(statusPollInterval)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -172,7 +229,33 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-s.ctx.Done():
 			return
-		case <-ticker.C:
+		case evt, ok := <-events:
+			if !ok {
+				return
+			}
+			if evt.Type == mcpConnectionWatchEventDeleted {
+				if evt.Connection == nil {
+					continue
+				}
+				if len(nameFilter) > 0 {
+					if _, ok := nameFilter[evt.Connection.Name]; !ok {
+						continue
+					}
+				}
+
+				item, ok := prev[evt.Connection.Name]
+				delete(prev, evt.Connection.Name)
+				if ok {
+					if !send("DELETE", []gatewayapi.MCPConnectionSummary{item}) {
+						return
+					}
+				}
+				continue
+			}
+			if !writeChanges() {
+				return
+			}
+		case <-staleTimerCh:
 			if !writeChanges() {
 				return
 			}
@@ -249,18 +332,16 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
-	if err := s.k8sClient.Create(r.Context(), conn); err != nil {
-		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
+	if err := s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials); err != nil {
+		writeMCPAPIError(w, r, err)
 		return
 	}
-	if err := s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials); err != nil {
-		delErr := s.k8sClient.Delete(r.Context(), conn)
-		if delErr != nil && !apierrors.IsNotFound(delErr) {
-			err := errors.Join(err, delErr)
-			writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
-			return
+	if err := s.k8sClient.Create(r.Context(), conn); err != nil {
+		delErr := s.deleteMCPConnectionCredentials(r.Context(), *conn)
+		if delErr != nil {
+			err = errors.Join(err, delErr)
 		}
-		writeMCPAPIError(w, r, err)
+		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
 
@@ -355,11 +436,16 @@ func (s *Service) listMCPConnections(ctx context.Context) ([]clawarmorv1alpha1.M
 		return nil, err
 	}
 
-	var list clawarmorv1alpha1.MCPConnectionList
-	if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(ns)); err != nil {
+	list, err := s.resolver.mcpConnections.MCPConnections(ns).List(labels.Everything())
+	if err != nil {
 		return nil, fmt.Errorf("list mcp connections: %w", err)
 	}
-	return list.Items, nil
+
+	items := make([]clawarmorv1alpha1.MCPConnection, 0, len(list))
+	for _, item := range list {
+		items = append(items, *item.DeepCopy())
+	}
+	return items, nil
 }
 
 func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string) ([]gatewayapi.MCPConnectionSummary, error) {

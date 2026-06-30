@@ -2,9 +2,12 @@ package extauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	baoapi "github.com/openbao/openbao/api/v2"
 
 	"github.com/accuknox/clawarmor/internal/mcp"
 	"github.com/accuknox/clawarmor/internal/oauth"
@@ -121,6 +124,9 @@ func (s *Service) readBearerRecord(ctx context.Context, ref clawarmorv1alpha1.MC
 		ref.Key,
 	)
 	if err != nil {
+		if errors.Is(err, baoapi.ErrSecretNotFound) {
+			return record, fmt.Errorf("%v: %w", err, errCredentialPending)
+		}
 		return record, fmt.Errorf("%v: %w", err, errCredentialUnavailable)
 	}
 	return record, nil
@@ -138,6 +144,9 @@ func (s *Service) readOAuthRecord(ctx context.Context, ref clawarmorv1alpha1.MCP
 	)
 	if err != nil {
 		var empty mcp.OAuthSecretRecord
+		if errors.Is(err, baoapi.ErrSecretNotFound) {
+			return empty, fmt.Errorf("%v: %w", err, errCredentialPending)
+		}
 		return empty, fmt.Errorf("%v: %w", err, errCredentialUnavailable)
 	}
 	if record.Scopes == nil {

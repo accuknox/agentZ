@@ -11,7 +11,7 @@ import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { opencodeAPIKeyConfigID } from "@/lib/auth"
-import { loginURL } from "@/lib/login-redirect"
+import { signInURL } from "@/lib/sign-in-redirect"
 
 export async function createAPIKeyFormAction(
   _: CreateAPIKeyFormState,
@@ -38,7 +38,7 @@ export async function createAPIKeyFormAction(
     headers: requestHeaders,
   })
   if (!session) {
-    redirect(loginURL({ error: "session_expired" }))
+    redirect(signInURL({ error: "session_expired" }))
   }
 
   const authContext = await currentGatewayAuthContext()
@@ -135,7 +135,7 @@ export async function deleteAPIKeyFormAction(
     headers: requestHeaders,
   })
   if (!session) {
-    redirect(loginURL({ error: "session_expired" }))
+    redirect(signInURL({ error: "session_expired" }))
   }
 
   try {

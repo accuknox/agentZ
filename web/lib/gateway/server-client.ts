@@ -5,7 +5,7 @@ import { createClient, createConfig, type Client } from "@/lib/gateway/client/cl
 import { currentGatewayAuthToken } from "@/lib/gateway/auth"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
-import { loginURL } from "@/lib/login-redirect"
+import { signInURL } from "@/lib/sign-in-redirect"
 
 let client: Client | undefined
 
@@ -26,7 +26,7 @@ export function getGatewayServerClient(): Client {
   )
   client.interceptors.error.use((error) => {
     if (error instanceof GatewayUnauthorizedError) {
-      redirect(loginURL({ error: "session_expired" }))
+      redirect(signInURL({ error: "session_expired" }))
     }
     return error
   })

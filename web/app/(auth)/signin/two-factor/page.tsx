@@ -4,11 +4,11 @@ import { headers } from "next/headers"
 import { connection } from "next/server"
 import { redirect } from "next/navigation"
 import { getAuth } from "@/lib/auth"
-import { loginReturnTo } from "@/lib/login-redirect"
+import { signInReturnTo } from "@/lib/sign-in-redirect"
 import { TwoFactorChallenge } from "./two-factor-challenge"
 
 export const metadata: Metadata = {
-  title: "Verify Login",
+  title: "Verify Sign In",
 }
 
 type TwoFactorPageSearchParams = {
@@ -36,7 +36,7 @@ async function TwoFactorGate({
   const auth = getAuth()
   const params = await searchParams
   const returnTo =
-    loginReturnTo(Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo) ?? "/"
+    signInReturnTo(Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo) ?? "/"
   const session = await auth.api.getSession({
     headers: await headers(),
   })

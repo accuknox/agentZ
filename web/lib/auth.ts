@@ -1,6 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
+import { APIError, BASE_ERROR_CODES } from "@better-auth/core/error"
 import { nextCookies } from "better-auth/next-js"
 import { deleteSessionCookie, expireCookie } from "better-auth/cookies"
 import { apiKey } from "@better-auth/api-key"
@@ -8,11 +9,14 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { jwt } from "better-auth/plugins/jwt"
 import { organization } from "better-auth/plugins/organization"
 import { twoFactor } from "better-auth/plugins/two-factor"
+import { z } from "zod"
+import { authErrorMessages } from "@/app/(auth)/shared"
 import { getDB, schema } from "@/db"
 import { getEnv } from "@/lib/env"
 import { getGithubUserInfo } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
-import { loginReturnTo } from "@/lib/login-redirect"
+import { minPasswordLength } from "@/lib/password-policy"
+import { signInReturnTo } from "@/lib/sign-in-redirect"
 
 export const opencodeAPIKeyConfigID = "opencode"
 
@@ -24,6 +28,9 @@ const twoFactorCookieName = "two_factor"
 const trustDeviceCookieName = "trust_device"
 const defaultTwoFactorCookieMaxAge = 10 * 60
 const defaultTrustDeviceMaxAge = 30 * 24 * 60 * 60
+const credentialEmailSchema = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+})
 let auth: Auth | undefined
 
 const disabledAuthPaths = [
@@ -109,6 +116,30 @@ function buildAuth() {
       },
     },
     hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-in/email" && ctx.path !== "/sign-up/email") {
+          return
+        }
+
+        const allowedUsers = env.EMAIL_PASSWORD_AUTH_ALLOWED_USER
+        if (!allowedUsers) {
+          return
+        }
+
+        const parsed = credentialEmailSchema.safeParse(ctx.body)
+        if (!parsed.success || allowedUsers.includes(parsed.data.email)) {
+          return
+        }
+
+        if (ctx.path === "/sign-in/email") {
+          throw APIError.from("UNAUTHORIZED", BASE_ERROR_CODES.INVALID_EMAIL_OR_PASSWORD)
+        }
+
+        throw APIError.from("FORBIDDEN", {
+          code: "EMAIL_PASSWORD_AUTH_NOT_ALLOWED",
+          message: authErrorMessages.email_password_auth_not_allowed,
+        })
+      }),
       after: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== "/callback/:id") {
           return
@@ -202,16 +233,20 @@ function buildAuth() {
         )
 
         const oauthState = await getOAuthState()
-        const returnTo = loginReturnTo(oauthState?.callbackURL)
+        const returnTo = signInReturnTo(oauthState?.callbackURL)
         const search = new URLSearchParams()
         if (returnTo) {
           search.set("returnTo", returnTo)
         }
 
         throw ctx.redirect(
-          search.size === 0 ? "/login/two-factor" : `/login/two-factor?${search.toString()}`
+          search.size === 0 ? "/signin/two-factor" : `/signin/two-factor?${search.toString()}`
         )
       }),
+    },
+    emailAndPassword: {
+      enabled: env.ENABLE_EMAIL_PASSWORD_AUTH,
+      minPasswordLength,
     },
     socialProviders: {
       // Each provider is enabled only when its env pair is configured; the env

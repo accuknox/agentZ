@@ -1,15 +1,54 @@
 import { z } from "zod"
 
-function optionalTrimmedString() {
-  return z.preprocess((value) => {
-    if (typeof value !== "string") {
-      return value
+const csvEmailListSchema = z
+  .string()
+  .trim()
+  .transform((value) => {
+    if (!value) {
+      return
     }
 
-    const trimmed = value.trim()
-    return trimmed === "" ? undefined : trimmed
-  }, z.string().min(1).optional())
-}
+    return [
+      ...new Set(
+        value
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      ),
+    ]
+  })
+  .pipe(z.array(z.string().trim().toLowerCase().pipe(z.email())).optional())
+
+const csvLowercaseListSchema = z
+  .string()
+  .trim()
+  .transform((value) => {
+    if (!value) {
+      return
+    }
+
+    return [
+      ...new Set(
+        value
+          .split(",")
+          .map((entry) => entry.trim().toLowerCase())
+          .filter(Boolean)
+      ),
+    ]
+  })
+  .pipe(z.array(z.string().min(1)).optional())
+
+const optionalNonEmptyStringSchema = z
+  .string()
+  .trim()
+  .transform((value) => value || undefined)
+  .pipe(z.string().min(1).optional())
+
+const optionalDigitsStringSchema = z
+  .string()
+  .trim()
+  .transform((value) => value || undefined)
+  .pipe(z.string().regex(/^\d+$/).optional())
 
 const envSchema = z
   .object({
@@ -18,39 +57,21 @@ const envSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     MCP_OAUTH_COOKIE_SECRET: z.string().min(32),
     GATEWAY_JWT_AUDIENCE: z.string().trim().min(1).default("clawarmor-gateway"),
+    ENABLE_EMAIL_PASSWORD_AUTH: z.stringbool().default(false),
+    // When set, only these exact email addresses may use credential auth.
+    EMAIL_PASSWORD_AUTH_ALLOWED_USER: csvEmailListSchema.optional(),
     // GitHub is optional: enabled iff GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET
     // are both configured. The cross-validation below enforces the pair.
-    GITHUB_CLIENT_ID: optionalTrimmedString(),
-    GITHUB_CLIENT_SECRET: optionalTrimmedString(),
-    GITHUB_ALLOWED_USER_ID: z.preprocess((value) => {
-      if (typeof value !== "string") {
-        return value
-      }
-
-      const trimmed = value.trim()
-      return trimmed === "" ? undefined : trimmed
-    }, z.string().regex(/^\d+$/).optional()),
-    GITHUB_ORG: optionalTrimmedString(),
-    GITHUB_TEAM_SLUG: optionalTrimmedString(),
+    GITHUB_CLIENT_ID: optionalNonEmptyStringSchema.optional(),
+    GITHUB_CLIENT_SECRET: optionalNonEmptyStringSchema.optional(),
+    GITHUB_ALLOWED_USER_ID: optionalDigitsStringSchema.optional(),
+    GITHUB_ORG: optionalNonEmptyStringSchema.optional(),
+    GITHUB_TEAM_SLUG: optionalNonEmptyStringSchema.optional(),
     // Google is optional and gated by an email-domain allowlist. The OAuth
     // client must whitelist the redirect URI .../api/auth/callback/google.
-    GOOGLE_CLIENT_ID: optionalTrimmedString(),
-    GOOGLE_CLIENT_SECRET: optionalTrimmedString(),
-    GOOGLE_ALLOWED_EMAIL_DOMAINS: z.preprocess(
-      (value) => {
-        if (typeof value !== "string") {
-          return value
-        }
-
-        const domains = value
-          .split(",")
-          .map((entry) => entry.trim().toLowerCase())
-          .filter((entry) => entry.length > 0)
-
-        return domains.length === 0 ? undefined : [...new Set(domains)]
-      },
-      z.array(z.string().min(1)).optional()
-    ),
+    GOOGLE_CLIENT_ID: optionalNonEmptyStringSchema.optional(),
+    GOOGLE_CLIENT_SECRET: optionalNonEmptyStringSchema.optional(),
+    GOOGLE_ALLOWED_EMAIL_DOMAINS: csvLowercaseListSchema.optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   })
   .superRefine((value, ctx) => {
@@ -77,12 +98,11 @@ const envSchema = z
     // unrestricted (any Google account). When set, sign-ups are gated to the
     // listed domains.
 
-    // At least one social provider must be configured for login to function.
-    if (!githubEnabled && !googleEnabled) {
+    if (!githubEnabled && !googleEnabled && !value.ENABLE_EMAIL_PASSWORD_AUTH) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "At least one social provider (GITHUB or GOOGLE) must be configured.",
-        path: ["GITHUB_CLIENT_ID"],
+        message: "At least one auth method must be configured.",
+        path: ["ENABLE_EMAIL_PASSWORD_AUTH"],
       })
     }
 

@@ -5,7 +5,7 @@ import * as React from "react"
 import { TWO_FACTOR_ERROR_CODES } from "better-auth/plugins/two-factor"
 import { Controller, useForm } from "react-hook-form"
 import { authClient } from "@/lib/auth-client"
-import { loginURL } from "@/lib/login-redirect"
+import { signInURL } from "@/lib/sign-in-redirect"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -92,7 +92,7 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
         if (invalidChallengeMessages.has(message)) {
           redirected = true
           setRedirecting(true)
-          window.location.replace(loginURL({ error: "session_expired", returnTo }))
+          window.location.replace(signInURL({ error: "session_expired", returnTo }))
           return
         }
 
@@ -155,11 +155,11 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
 
           <FieldGroup>
             <Field data-invalid={!!form.formState.errors.code}>
-              <FieldLabel htmlFor="two-factor-login-code" required>
+              <FieldLabel htmlFor="two-factor-signin-code" required>
                 {mode === "totp" ? "6-digit code" : "Backup code"}
               </FieldLabel>
               <Input
-                id="two-factor-login-code"
+                id="two-factor-signin-code"
                 inputMode={mode === "totp" ? "numeric" : "text"}
                 autoComplete={mode === "totp" ? "one-time-code" : "off"}
                 maxLength={mode === "totp" ? 6 : undefined}
@@ -211,7 +211,7 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
               disabled={locked}
               onClick={() => {
                 setRedirecting(true)
-                window.location.replace(loginURL({ returnTo }))
+                window.location.replace(signInURL({ returnTo }))
               }}
             >
               Back

@@ -18,37 +18,73 @@ package secret
 
 import (
 	"context"
+	"net/url"
+	"strings"
 
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-
+	"github.com/accuknox/clawarmor/internal/sinjector"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
-
-// TODO(user): EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 
 // +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-secret,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=secrets,verbs=create;update,versions=v1alpha1,name=msecret-v1alpha1.kb.io,admissionReviewVersions=v1
 
-// Defaulter struct is responsible for setting default values on the custom resource of the
-// Kind Secret when those are created or updated.
+// Defaulter sets shared defaults for Secret resources.
 //
-// NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
-// as it is used only for temporary operations and does not need to be deeply copied.
-type Defaulter struct {
-	// TODO(user): Add more fields as needed for defaulting
-}
+// +kubebuilder:object:generate=false
+type Defaulter struct{}
 
 var _ admission.Defaulter[*clawarmorv1alpha1.Secret] = &Defaulter{}
 
-// NewDefaulter builds an Secret defaulter.
+// NewDefaulter builds a Secret defaulter.
 func NewDefaulter() *Defaulter {
 	return &Defaulter{}
 }
 
-// Default implements webhook.CustomDefaulter so a webhook will be registered for the Kind Secret.
-func (d *Defaulter) Default(_ context.Context, obj *clawarmorv1alpha1.Secret) error {
-	secretlog.Info("Defaulting for Secret", "name", obj.GetName())
+// ApplyDefaults stabilizes Secret spec values shared by the gateway and webhook.
+func ApplyDefaults(spec *clawarmorv1alpha1.SecretSpec) {
+	if spec == nil {
+		return
+	}
 
-	// TODO(user): fill in your defaulting logic.
+	spec.Key = strings.TrimSpace(spec.Key)
+	spec.AgentRef.Name = strings.TrimSpace(spec.AgentRef.Name)
 
+	hosts, err := sinjector.ParseSecretHosts(spec.Hosts)
+	if err == nil {
+		spec.Hosts = hosts
+	}
+
+	if spec.OAuth == nil {
+		return
+	}
+
+	spec.OAuth.Provider = strings.TrimSpace(spec.OAuth.Provider)
+	spec.OAuth.Issuer = stableHTTPSURL(spec.OAuth.Issuer)
+	spec.OAuth.AuthorizationEndpoint = stableHTTPSURL(spec.OAuth.AuthorizationEndpoint)
+	spec.OAuth.TokenEndpoint = stableHTTPSURL(spec.OAuth.TokenEndpoint)
+	spec.OAuth.RegistrationEndpoint = stableHTTPSURL(spec.OAuth.RegistrationEndpoint)
+	spec.OAuth.Resource = stableHTTPSURL(spec.OAuth.Resource)
+}
+
+// Default applies defaults to one Secret resource.
+func (d *Defaulter) Default(_ context.Context, secret *clawarmorv1alpha1.Secret) error {
+	ApplyDefaults(&secret.Spec)
 	return nil
+}
+
+func stableHTTPSURL(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return value
+	}
+	parsed.Host = strings.ToLower(parsed.Host)
+	if parsed.Scheme == "https" && parsed.Port() == "443" {
+		parsed.Host = parsed.Hostname()
+	}
+	return parsed.String()
 }

@@ -118,10 +118,19 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.AllowedHosts != nil {
 		rawAllowedHosts = *req.AllowedHosts
 	}
-	allowedHosts, err := envutil.CanonicalHostList(rawAllowedHosts)
-	if err != nil {
-		writeAllowedHostsError(w, r, err)
-		return
+	allowedHosts := make([]string, 0, len(rawAllowedHosts))
+	seenHosts := make(map[string]struct{}, len(rawAllowedHosts))
+	for i, entry := range rawAllowedHosts {
+		host, err := envutil.ParseHost(entry)
+		if err != nil {
+			writeAllowedHostsError(w, r, fmt.Errorf("allowedHosts[%d]: %w", i, err))
+			return
+		}
+		if _, ok := seenHosts[host.Value]; ok {
+			continue
+		}
+		seenHosts[host.Value] = struct{}{}
+		allowedHosts = append(allowedHosts, host.Value)
 	}
 
 	var rawMCPConnectionRefs []gatewayapi.MCPConnectionRef
@@ -269,10 +278,19 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 	}
 
 	envName := strings.TrimSpace(environmentName)
-	allowedHosts, err := envutil.CanonicalHostList(req.AllowedHosts)
-	if err != nil {
-		writeAllowedHostsError(w, r, err)
-		return
+	allowedHosts := make([]string, 0, len(req.AllowedHosts))
+	seenHosts := make(map[string]struct{}, len(req.AllowedHosts))
+	for i, entry := range req.AllowedHosts {
+		host, err := envutil.ParseHost(entry)
+		if err != nil {
+			writeAllowedHostsError(w, r, fmt.Errorf("allowedHosts[%d]: %w", i, err))
+			return
+		}
+		if _, ok := seenHosts[host.Value]; ok {
+			continue
+		}
+		seenHosts[host.Value] = struct{}{}
+		allowedHosts = append(allowedHosts, host.Value)
 	}
 	mcpConnectionRefs := make([]clawarmorv1alpha1.MCPConnectionRef, 0, len(req.McpConnectionRefs))
 	for _, ref := range req.McpConnectionRefs {

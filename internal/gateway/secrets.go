@@ -4,44 +4,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/google/uuid"
 	baoapi "github.com/openbao/openbao/api/v2"
+	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/clawarmor/internal/oauth"
+	secretstore "github.com/accuknox/clawarmor/internal/secret"
 	"github.com/accuknox/clawarmor/internal/sinjector"
+	secretwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/secret"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-const (
-	maxSecretKeyLen   = 128
-	maxSecretValueLen = 49152 // 48 KB
-	maxSecretEntries  = 100
-	agentSecretPage   = 200
-)
-
-type validatedSecretEntry struct {
-	key   string
-	value string
-	hosts []string
-}
-
-type secretKeyMetadata struct {
-	createdAt time.Time
-	updatedAt time.Time
-}
-
-// PutSecret handles POST /api/secret/{agentName}/put.
+// PutSecret handles POST /api/secret/{agentName}.
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	tenant, err := tenantObject(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -70,178 +63,38 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 		return
 	}
 
-	var req gatewayapi.PutSecretsRequest
+	var req gatewayapi.CreateSecretRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
 
-	if len(req.Secrets) == 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "secrets",
-				Message: "must contain at least one entry",
-			},
-		))
-		return
-	}
-	if len(req.Secrets) > maxSecretEntries {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "secrets",
-				Message: fmt.Sprintf("must contain at most %d entries", maxSecretEntries),
-			},
-		))
+	secret, record, apiErr := s.secretFromRequest(r.Context(), ns, tenant, name, req)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
 		return
 	}
 
-	entries, fields := validateSecretEntries(req.Secrets)
-	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+	if err := s.putAgentSecretRuntime(r.Context(), name, secret.Spec.Key, record); err != nil {
+		writeError(w, r, mapOpenBaoError(err))
 		return
 	}
 
-	ctx := r.Context()
-
-	var stored int
-	for _, entry := range entries {
-		path := fmt.Sprintf("%s/%s", name, entry.key)
-		data := map[string]any{
-			"value": entry.value,
-			"hosts": entry.hosts,
-		}
-		if _, err := s.baoKV.Put(ctx, path, data); err != nil {
-			writeError(w, r, mapOpenBaoError(err))
-			return
-		}
-		stored++
+	if err := s.k8sClient.Create(r.Context(), secret); err != nil {
+		_ = s.deleteAgentSecretRuntime(r.Context(), name, secret.Spec.Key)
+		writeError(w, r, mapKubeHTTPError("create secret", err))
+		return
 	}
 
-	if err := s.syncAgentEnv(ctx, name, req.Secrets, nil); err != nil {
+	if err := s.syncAgentEnv(r.Context(), name, []string{secret.Spec.Key}, nil); err != nil {
+		_ = s.k8sClient.Delete(r.Context(), secret)
+		_ = s.deleteAgentSecretRuntime(r.Context(), name, secret.Spec.Key)
 		writeInternalError(w, r, err)
 		return
 	}
 
 	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
-		Stored: int32(stored),
+		Secret: s.secretListItem(*secret),
 	})
-}
-
-func validateSecretEntries(raw []gatewayapi.SecretEntry) ([]validatedSecretEntry, []gatewayapi.FieldError) {
-	entries := make([]validatedSecretEntry, 0, len(raw))
-	fields := make([]gatewayapi.FieldError, 0, len(raw))
-	for i, entry := range raw {
-		key := strings.TrimSpace(entry.Key)
-		if key == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("secrets[%d].key", i),
-				Message: "required",
-			})
-			continue
-		}
-		if utf8.RuneCountInString(key) > maxSecretKeyLen {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("secrets[%d].key", i),
-				Message: fmt.Sprintf("must be at most %d characters", maxSecretKeyLen),
-			})
-			continue
-		}
-		if strings.ContainsRune(key, '/') {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("secrets[%d].key", i),
-				Message: "must not contain '/'",
-			})
-			continue
-		}
-		if len(entry.Value) > maxSecretValueLen {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("secrets[%d].value", i),
-				Message: fmt.Sprintf("must be at most %d bytes", maxSecretValueLen),
-			})
-			continue
-		}
-
-		hosts, err := sinjector.CanonicalSecretHosts(entry.Hosts)
-		if err != nil {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("secrets[%d].hosts", i),
-				Message: err.Error(),
-			})
-			continue
-		}
-
-		entries = append(entries, validatedSecretEntry{
-			key:   key,
-			value: entry.Value,
-			hosts: hosts,
-		})
-	}
-	return entries, fields
-}
-
-func secretListKeys(raw any) []string {
-	switch items := raw.(type) {
-	case []string:
-		return append([]string{}, items...)
-	case []any:
-		keys := make([]string, 0, len(items))
-		for _, item := range items {
-			key, ok := item.(string)
-			if !ok || key == "" {
-				continue
-			}
-			keys = append(keys, key)
-		}
-		return keys
-	default:
-		return []string{}
-	}
-}
-
-func secretListKeyMetadata(raw any) map[string]secretKeyMetadata {
-	items, ok := raw.(map[string]any)
-	if !ok {
-		return map[string]secretKeyMetadata{}
-	}
-
-	metadata := make(map[string]secretKeyMetadata, len(items))
-	for key, item := range items {
-		info, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		metadata[key] = secretKeyMetadata{
-			createdAt: secretMetadataTime(info["created_time"]),
-			updatedAt: secretMetadataTime(info["updated_time"]),
-		}
-	}
-	return metadata
-}
-
-func secretMetadataTime(raw any) time.Time {
-	value, ok := raw.(string)
-	if !ok || value == "" {
-		return time.Time{}
-	}
-
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return time.Time{}
-	}
-	return parsed
 }
 
 // DeleteSecret handles POST /api/secret/{agentName}/delete.
@@ -279,89 +132,57 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-
 	if len(req.Keys) == 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request validation failed",
 			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "keys",
-				Message: "must contain at least one key",
-			},
-		))
-		return
-	}
-	if len(req.Keys) > maxSecretEntries {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "keys",
-				Message: fmt.Sprintf("must contain at most %d keys", maxSecretEntries),
-			},
+			gatewayapi.FieldError{Field: "keys", Message: "must contain at least one key"},
 		))
 		return
 	}
 
-	fields := make([]gatewayapi.FieldError, 0, len(req.Keys))
-	for i, key := range req.Keys {
-		key = strings.TrimSpace(key)
+	items, err := s.listAgentSecrets(r.Context(), ns, name)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	index := make(map[string]*clawarmorv1alpha1.Secret, len(items))
+	for i := range items {
+		index[strings.ToLower(items[i].Spec.Key)] = &items[i]
+	}
+
+	removeKeys := make([]string, 0, len(req.Keys))
+	for i, rawKey := range req.Keys {
+		key := strings.TrimSpace(rawKey)
 		if key == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("keys[%d]", i),
-				Message: "required",
-			})
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   fmt.Sprintf("keys[%d]", i),
+					Message: "required",
+				},
+			))
+			return
+		}
+
+		secret := index[strings.ToLower(key)]
+		if secret == nil {
 			continue
 		}
-		if utf8.RuneCountInString(key) > maxSecretKeyLen {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("keys[%d]", i),
-				Message: fmt.Sprintf("must be at most %d characters", maxSecretKeyLen),
-			})
-			continue
+		if err := s.k8sClient.Delete(r.Context(), secret); err != nil && !apierrors.IsNotFound(err) {
+			writeError(w, r, mapKubeHTTPError("delete secret", err))
+			return
 		}
-		if strings.ContainsRune(key, '/') {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("keys[%d]", i),
-				Message: "must not contain '/'",
-			})
-			continue
-		}
-	}
-	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
-		return
+		removeKeys = append(removeKeys, secret.Spec.Key)
 	}
 
-	ctx := r.Context()
-	for _, key := range req.Keys {
-		path := fmt.Sprintf("%s/%s", name, strings.TrimSpace(key))
-		if err := s.baoKV.Delete(ctx, path); err != nil {
-			if !errors.Is(err, baoapi.ErrSecretNotFound) {
-				writeError(w, r, mapOpenBaoError(err))
-				return
-			}
-		}
-		// also delete metadata so the key no longer appears in listings.
-		if err := s.baoKV.DeleteMetadata(ctx, path); err != nil {
-			if !errors.Is(err, baoapi.ErrSecretNotFound) {
-				writeError(w, r, mapOpenBaoError(err))
-				return
-			}
-		}
-	}
-
-	if err := s.syncAgentEnv(ctx, name, nil, req.Keys); err != nil {
+	if err := s.syncAgentEnv(r.Context(), name, nil, removeKeys); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -369,69 +190,7 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// syncAgentEnv updates the Agent CR spec.env by adding placeholder entries
-// for secrets in add and removing entries whose Name matches keys in remove.
-func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []gatewayapi.SecretEntry, remove []string) error {
-	ns, err := tenantNamespace(ctx)
-	if err != nil {
-		return err
-	}
-
-	removeSet := make(map[string]struct{}, len(remove))
-	for _, key := range remove {
-		removeSet[strings.TrimSpace(key)] = struct{}{}
-	}
-
-	addSet := make(map[string]string, len(add))
-	for _, entry := range add {
-		key := strings.TrimSpace(entry.Key)
-		addSet[key] = sinjector.PlaceholderPrefix + key
-	}
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(ns).Get(
-			ctx,
-			agentName,
-			metav1.GetOptions{},
-		)
-		if err != nil {
-			return err
-		}
-
-		newEnv := make([]corev1.EnvVar, 0, len(agt.Spec.Env))
-		for _, ev := range agt.Spec.Env {
-			if _, ok := removeSet[ev.Name]; ok {
-				continue
-			}
-			if _, ok := addSet[ev.Name]; ok {
-				continue
-			}
-			newEnv = append(newEnv, ev)
-		}
-
-		keys := make([]string, 0, len(addSet))
-		for key := range addSet {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
-		for _, key := range keys {
-			newEnv = append(newEnv, corev1.EnvVar{
-				Name:  key,
-				Value: addSet[key],
-			})
-		}
-
-		agt.Spec.Env = newEnv
-		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Update(
-			ctx,
-			agt,
-			metav1.UpdateOptions{},
-		)
-		return err
-	})
-}
-
-// ListSecrets handles GET /api/secret/{agentName}/list.
+// ListSecrets handles GET /api/secret/{agentName}.
 func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListSecretsParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -440,6 +199,10 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 	}
 
 	name, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
+		return
+	}
+	limit, ok := validLimit(w, r, params.Limit)
 	if !ok {
 		return
 	}
@@ -462,70 +225,365 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	limit := 50
-	if params.Limit != nil {
-		limit = int(*params.Limit)
-	}
-	if limit < 1 || limit > 200 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"limit must be between 1 and 200",
-			errBadRequest,
-		))
-		return
-	}
-
-	var after string
-	if params.PageToken != nil {
-		after = strings.TrimSpace(*params.PageToken)
-	}
-
-	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, name)
-	secret, err := s.bao.Logical().ListPageWithContext(r.Context(), listPath, after, limit+1)
+	items, err := s.listAgentSecrets(r.Context(), ns, name)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "list secrets failed", slog.String("path", listPath), slog.Any("err", err))
-		writeError(w, r, mapOpenBaoError(err))
-		return
-	}
-	if secret == nil || secret.Data == nil {
-		writeJSON(w, http.StatusOK, gatewayapi.ListSecretsResponse{
-			Items:         []gatewayapi.SecretListItem{},
-			NextPageToken: "",
-		})
+		writeInternalError(w, r, err)
 		return
 	}
 
-	keys := secretListKeys(secret.Data["keys"])
-	keyMetadata := secretListKeyMetadata(secret.Data["key_info"])
+	slices.SortFunc(items, func(a, b clawarmorv1alpha1.Secret) int {
+		return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
+	})
 
-	items := make([]gatewayapi.SecretListItem, 0, len(keys))
-	for _, key := range keys {
-		hosts, err := s.readSecretHosts(r.Context(), name, key)
-		if err != nil {
-			writeError(w, r, mapOpenBaoError(err))
-			return
+	start := 0
+	if params.PageToken != nil {
+		after := strings.TrimSpace(*params.PageToken)
+		for i, item := range items {
+			if strings.Compare(strings.ToLower(item.Spec.Key), strings.ToLower(after)) > 0 {
+				start = i
+				break
+			}
+			start = len(items)
 		}
-		item := gatewayapi.SecretListItem{
-			Key:   key,
-			Hosts: hosts,
-		}
-		meta := keyMetadata[key]
-		item.CreatedAt = meta.createdAt
-		item.ModifiedAt = meta.updatedAt
-		items = append(items, item)
 	}
 
+	end := min(start+limit, len(items))
 	resp := gatewayapi.ListSecretsResponse{
-		Items:         items,
+		Items:         make([]gatewayapi.SecretListItem, 0, end-start),
 		NextPageToken: "",
 	}
-	if len(items) > limit {
-		resp.Items = items[:limit]
-		resp.NextPageToken = items[limit-1].Key
+	for _, item := range items[start:end] {
+		resp.Items = append(resp.Items, s.secretListItem(item))
+	}
+	if end < len(items) {
+		resp.NextPageToken = items[end-1].Spec.Key
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Service) secretFromRequest(ctx context.Context, ns string, tenant *clawarmorv1alpha1.Tenant, agtName string, req gatewayapi.CreateSecretRequest) (*clawarmorv1alpha1.Secret, secretstore.Record, *apiError) {
+	key := strings.TrimSpace(req.Key)
+	items, err := s.listAgentSecrets(ctx, ns, agtName)
+	if err != nil {
+		return nil, nil, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+	}
+	for _, item := range items {
+		if strings.EqualFold(item.Spec.Key, key) {
+			return nil, nil, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"secret already exists",
+				errBadRequest,
+				gatewayapi.FieldError{Field: "key", Message: "secret key already exists"},
+			)
+		}
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	spec := clawarmorv1alpha1.SecretSpec{
+		AgentRef: clawarmorv1alpha1.SecretAgentRef{Name: agtName},
+		Key:      key,
+		Hosts:    make([]string, 0, len(req.Hosts)),
+	}
+	spec.Hosts = append(spec.Hosts, req.Hosts...)
+
+	now := time.Now().UTC()
+	secretName := "secret-" + strings.ToLower(uuid.NewString())
+	var record secretstore.Record
+
+	switch req.Type {
+	case gatewayapi.SecretType("static"):
+		if req.Value == nil || strings.TrimSpace(*req.Value) == "" {
+			return nil, nil, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{Field: "value", Message: "required"},
+			)
+		}
+		spec.Type = clawarmorv1alpha1.SecretTypeStatic
+		secretwebhook.ApplyDefaults(&spec)
+		record = secretstore.StaticRecord{
+			Type:       clawarmorv1alpha1.SecretTypeStatic,
+			Hosts:      append([]string{}, spec.Hosts...),
+			Value:      *req.Value,
+			UpdatedAt:  now,
+			SecretName: secretName,
+		}
+	case gatewayapi.SecretType("oauth"):
+		if req.Oauth == nil {
+			return nil, nil, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{Field: "oauth", Message: "required"},
+			)
+		}
+
+		spec.Type = clawarmorv1alpha1.SecretTypeOAuth
+		spec.OAuth = &clawarmorv1alpha1.SecretOAuthSpec{
+			Scopes: append([]string{}, req.Oauth.Scopes...),
+		}
+		if req.Oauth.Provider != nil {
+			spec.OAuth.Provider = strings.TrimSpace(*req.Oauth.Provider)
+		}
+		if req.Oauth.Issuer != nil {
+			spec.OAuth.Issuer = strings.TrimSpace(*req.Oauth.Issuer)
+		}
+		if req.Oauth.AuthorizationEndpoint != nil {
+			spec.OAuth.AuthorizationEndpoint = strings.TrimSpace(*req.Oauth.AuthorizationEndpoint)
+		}
+		spec.OAuth.TokenEndpoint = strings.TrimSpace(req.Oauth.TokenEndpoint)
+		if req.Oauth.RegistrationEndpoint != nil {
+			spec.OAuth.RegistrationEndpoint = strings.TrimSpace(*req.Oauth.RegistrationEndpoint)
+		}
+		if req.Oauth.Resource != nil {
+			spec.OAuth.Resource = strings.TrimSpace(*req.Oauth.Resource)
+		}
+		secretwebhook.ApplyDefaults(&spec)
+
+		runtimeRecord := secretstore.OAuthRecord{
+			Type:       clawarmorv1alpha1.SecretTypeOAuth,
+			SecretName: secretName,
+			Hosts:      append([]string{}, spec.Hosts...),
+			Config: secretstore.OAuthConfig{
+				Scopes:                append([]string{}, spec.OAuth.Scopes...),
+				Provider:              spec.OAuth.Provider,
+				Issuer:                spec.OAuth.Issuer,
+				AuthorizationEndpoint: spec.OAuth.AuthorizationEndpoint,
+				TokenEndpoint:         spec.OAuth.TokenEndpoint,
+				RegistrationEndpoint:  spec.OAuth.RegistrationEndpoint,
+				Resource:              spec.OAuth.Resource,
+			},
+			Record: oauth.Record{
+				UpdatedAt:    now,
+				Registration: map[string]any{},
+				Revocation:   map[string]any{},
+			},
+		}
+
+		if req.Oauth.Credentials.ClientId != nil {
+			runtimeRecord.ClientID = strings.TrimSpace(*req.Oauth.Credentials.ClientId)
+		}
+		if req.Oauth.Credentials.ClientSecret != nil {
+			runtimeRecord.ClientSecret = *req.Oauth.Credentials.ClientSecret
+		}
+		if req.Oauth.Credentials.Scopes != nil {
+			runtimeRecord.Scopes = append([]string{}, (*req.Oauth.Credentials.Scopes)...)
+		}
+		if req.Oauth.Credentials.Registration != nil {
+			runtimeRecord.Registration = copyJSONObject(*req.Oauth.Credentials.Registration)
+		}
+		if req.Oauth.Credentials.Revocation != nil {
+			runtimeRecord.Revocation = copyJSONObject(*req.Oauth.Credentials.Revocation)
+		}
+
+		token := oauth2.Token{}
+		if req.Oauth.Credentials.AccessToken != nil {
+			token.AccessToken = *req.Oauth.Credentials.AccessToken
+		}
+		if req.Oauth.Credentials.RefreshToken != nil {
+			token.RefreshToken = *req.Oauth.Credentials.RefreshToken
+		}
+		if req.Oauth.Credentials.TokenType != nil {
+			token.TokenType = strings.TrimSpace(*req.Oauth.Credentials.TokenType)
+		}
+		if req.Oauth.Credentials.ExpiresAt != nil {
+			token.Expiry = req.Oauth.Credentials.ExpiresAt.UTC()
+		}
+		if token.AccessToken != "" || token.RefreshToken != "" || token.TokenType != "" || !token.Expiry.IsZero() {
+			runtimeRecord.Token = &token
+		}
+		record = runtimeRecord
+	default:
+		return nil, nil, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "type", Message: "must be static or oauth"},
+		)
+	}
+
+	secret := &clawarmorv1alpha1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Tenant",
+				Name:       tenant.Name,
+				UID:        tenant.UID,
+			}},
+		},
+		Spec: spec,
+	}
+	if err := secretwebhook.Validate(secret); err != nil {
+		return nil, nil, mapKubeHTTPError("create secret", err)
+	}
+	return secret, record, nil
+}
+
+func (s *Service) listAgentSecrets(ctx context.Context, namespace, agentName string) ([]clawarmorv1alpha1.Secret, error) {
+	list := &clawarmorv1alpha1.SecretList{}
+	if err := s.k8sClient.List(ctx, list, ctrlclient.InNamespace(namespace)); err != nil {
+		return nil, err
+	}
+	items := make([]clawarmorv1alpha1.Secret, 0, len(list.Items))
+	for _, item := range list.Items {
+		if item.Spec.AgentRef.Name != agentName {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (s *Service) secretListItem(secret clawarmorv1alpha1.Secret) gatewayapi.SecretListItem {
+	status, reason, message := secretLifecycle(secret)
+	item := gatewayapi.SecretListItem{
+		Key:        secret.Spec.Key,
+		Hosts:      make([]gatewayapi.SecretHost, 0, len(secret.Spec.Hosts)),
+		Status:     status,
+		Reason:     reason,
+		Message:    message,
+		CreatedAt:  secret.CreationTimestamp.UTC(),
+		ModifiedAt: secret.GetCreationTimestamp().UTC(),
+	}
+	if secret.Status.LastRuntimeUpdateTime != nil {
+		item.ModifiedAt = secret.Status.LastRuntimeUpdateTime.UTC()
+	}
+	item.Hosts = append(item.Hosts, secret.Spec.Hosts...)
+	if secret.Spec.Type == clawarmorv1alpha1.SecretTypeOAuth {
+		item.Type = gatewayapi.SecretType("oauth")
+		if secret.Spec.OAuth != nil && strings.TrimSpace(secret.Spec.OAuth.Provider) != "" {
+			item.Provider = &secret.Spec.OAuth.Provider
+		}
+		if secret.Status.LastRefreshTime != nil {
+			value := secret.Status.LastRefreshTime.UTC()
+			item.LastRefreshTime = &value
+		}
+		if secret.Status.TokenExpiryTime != nil {
+			value := secret.Status.TokenExpiryTime.UTC()
+			item.TokenExpiryTime = &value
+		}
+		return item
+	}
+	item.Type = gatewayapi.SecretType("static")
+	return item
+}
+
+func secretLifecycle(secret clawarmorv1alpha1.Secret) (gatewayapi.SecretState, string, string) {
+	switch secret.Status.State {
+	case clawarmorv1alpha1.SecretStateReady:
+		return gatewayapi.SecretState("ready"), clawarmorv1alpha1.SecretReasonReady, "Ready"
+	case clawarmorv1alpha1.SecretStateDegraded:
+		reason := secret.Status.LastRefreshFailureReason
+		if reason == "" {
+			reason = clawarmorv1alpha1.SecretReasonReconcileFailed
+		}
+		message := secret.Status.LastRefreshFailureMessage
+		if message == "" {
+			message = "Secret runtime is degraded"
+		}
+		return gatewayapi.SecretState("degraded"), reason, message
+	default:
+		return gatewayapi.SecretState("accepted"), clawarmorv1alpha1.SecretReasonAccepted, "Pending"
+	}
+}
+
+func (s *Service) putAgentSecretRuntime(ctx context.Context, agentName, key string, record secretstore.Record) error {
+	data, err := secretstore.RecordData(record)
+	if err != nil {
+		return err
+	}
+	_, err = s.baoKV.Put(ctx, secretstore.SecretPath(agentName, key), data)
+	return err
+}
+
+func (s *Service) deleteAgentSecretRuntime(ctx context.Context, agentName, key string) error {
+	err := s.baoKV.DeleteMetadata(ctx, secretstore.SecretPath(agentName, key))
+	if errors.Is(err, baoapi.ErrSecretNotFound) {
+		return nil
+	}
+	return err
+}
+
+func (s *Service) deleteAgentSecretResources(ctx context.Context, namespace, agentName string) error {
+	items, err := s.listAgentSecrets(ctx, namespace, agentName)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if err := s.k8sClient.Delete(ctx, &items[i]); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyJSONObject(src gatewayapi.JSONObject) map[string]any {
+	out := make(map[string]any, len(src))
+	for key, value := range src {
+		out[key] = value
+	}
+	return out
+}
+
+// syncAgentEnv updates the Agent CR spec.env by adding placeholder entries
+// for secrets in add and removing entries whose Name matches keys in remove.
+func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []string, remove []string) error {
+	ns, err := tenantNamespace(ctx)
+	if err != nil {
+		return err
+	}
+
+	removeSet := make(map[string]struct{}, len(remove))
+	for _, key := range remove {
+		removeSet[strings.TrimSpace(key)] = struct{}{}
+	}
+
+	addSet := make(map[string]string, len(add))
+	for _, key := range add {
+		name := strings.TrimSpace(key)
+		addSet[name] = sinjector.PlaceholderPrefix + name
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(ns).Get(ctx, agentName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		env := make([]corev1.EnvVar, 0, len(agt.Spec.Env))
+		for _, item := range agt.Spec.Env {
+			if _, ok := removeSet[item.Name]; ok {
+				continue
+			}
+			if _, ok := addSet[item.Name]; ok {
+				continue
+			}
+			env = append(env, item)
+		}
+
+		keys := make([]string, 0, len(addSet))
+		for key := range addSet {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			env = append(env, corev1.EnvVar{Name: key, Value: addSet[key]})
+		}
+
+		agt.Spec.Env = env
+		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Update(ctx, agt, metav1.UpdateOptions{})
+		return err
+	})
 }
 
 func mapOpenBaoError(err error) *apiError {
@@ -533,85 +591,4 @@ func mapOpenBaoError(err error) *apiError {
 		return newAPIError(http.StatusNotFound, "not_found", "secret not found", err)
 	}
 	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
-}
-
-func (s *Service) deleteAgentSecrets(ctx context.Context, agentName string) error {
-	keys, err := s.agentSecretKeys(ctx, agentName)
-	if err != nil {
-		return err
-	}
-
-	for _, key := range keys {
-		path := fmt.Sprintf("%s/%s", agentName, key)
-		if err := s.baoKV.DeleteMetadata(ctx, path); err != nil {
-			if errors.Is(err, baoapi.ErrSecretNotFound) {
-				continue
-			}
-			return err
-		}
-	}
-
-	if err := s.baoKV.DeleteMetadata(ctx, agentName); err != nil {
-		if !errors.Is(err, baoapi.ErrSecretNotFound) {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Service) readSecretHosts(ctx context.Context, agentName, key string) ([]string, error) {
-	path := fmt.Sprintf("%s/%s", agentName, key)
-	secret, err := s.baoKV.Get(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-	if secret == nil {
-		return nil, baoapi.ErrSecretNotFound
-	}
-	hosts, err := secretHostList(secret.Data["hosts"])
-	if err != nil {
-		return nil, err
-	}
-	return hosts, nil
-}
-
-func secretHostList(raw any) ([]string, error) {
-	hosts := secretListKeys(raw)
-	if len(hosts) == 0 {
-		return nil, fmt.Errorf("secret hosts are invalid")
-	}
-	return sinjector.CanonicalSecretHosts(hosts)
-}
-
-func (s *Service) agentSecretKeys(ctx context.Context, agentName string) ([]string, error) {
-	listPath := fmt.Sprintf("%s/detailed-metadata/%s", s.cfg.OpenBaoSecretMountPath, agentName)
-
-	var after string
-	keys := make([]string, 0)
-
-	for {
-		secret, err := s.bao.Logical().ListPageWithContext(ctx, listPath, after, agentSecretPage+1)
-		if err != nil {
-			if errors.Is(err, baoapi.ErrSecretNotFound) {
-				return keys, nil
-			}
-			return nil, err
-		}
-		if secret == nil || secret.Data == nil {
-			return keys, nil
-		}
-
-		page := secretListKeys(secret.Data["keys"])
-		if len(page) == 0 {
-			return keys, nil
-		}
-
-		if len(page) <= agentSecretPage {
-			keys = append(keys, page...)
-			return keys, nil
-		}
-
-		keys = append(keys, page[:agentSecretPage]...)
-		after = page[agentSecretPage-1]
-	}
 }

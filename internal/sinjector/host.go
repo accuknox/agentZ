@@ -36,8 +36,8 @@ type requestTarget struct {
 	addr   netip.Addr
 }
 
-// CanonicalSecretHosts validates secret hosts and returns stable canonical values.
-func CanonicalSecretHosts(hosts []string) ([]string, error) {
+// ParseSecretHosts validates secret hosts and returns stable values.
+func ParseSecretHosts(hosts []string) ([]string, error) {
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("at least one host is required")
 	}

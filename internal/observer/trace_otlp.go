@@ -212,7 +212,9 @@ func traceEventFromOTLPSpan(ctx context.Context, res *resolver, sp *tracepb.Span
 			if conn, name, ok := strings.Cut(rest, "_"); ok && conn != "" && name != "" {
 				connectionName = conn
 				mcpToolName = name
-			} else if res != nil && rest != "" {
+			}
+			if connectionName == "" && mcpToolName == "" && res != nil &&
+				rest != "" {
 				conn, ok := res.resolveSingleMCPConnection(
 					ctx,
 					tenantNamespace,

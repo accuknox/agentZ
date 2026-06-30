@@ -296,6 +296,36 @@ components:
       - auth
       - credentials
       type: object
+    CreateSecretRequest:
+      additionalProperties: false
+      properties:
+        hosts:
+          items:
+            $ref: '#/components/schemas/SecretHost'
+          maxItems: 100
+          minItems: 1
+          type: array
+        key:
+          $ref: '#/components/schemas/SecretKey'
+        oauth:
+          allOf:
+          - $ref: '#/components/schemas/SecretOAuthConfig'
+          - additionalProperties: false
+            properties:
+              credentials:
+                $ref: '#/components/schemas/SecretOAuthCredentials'
+            required:
+            - credentials
+            type: object
+        type:
+          $ref: '#/components/schemas/SecretType'
+        value:
+          $ref: '#/components/schemas/SecretValue'
+      required:
+      - type
+      - key
+      - hosts
+      type: object
     CreateWorkflowRequest:
       additionalProperties: false
       properties:
@@ -9329,45 +9359,13 @@ components:
       - source
       - occurrences
       type: object
-    PutSecretsRequest:
-      additionalProperties: false
-      properties:
-        secrets:
-          items:
-            $ref: '#/components/schemas/SecretEntry'
-          maxItems: 100
-          type: array
-      required:
-      - secrets
-      type: object
     PutSecretsResponse:
       additionalProperties: false
       properties:
-        stored:
-          description: Number of secrets stored.
-          format: int32
-          minimum: 0
-          type: integer
+        secret:
+          $ref: '#/components/schemas/SecretListItem'
       required:
-      - stored
-      type: object
-    SecretEntry:
-      additionalProperties: false
-      properties:
-        hosts:
-          items:
-            $ref: '#/components/schemas/SecretHost'
-          maxItems: 100
-          minItems: 1
-          type: array
-        key:
-          $ref: '#/components/schemas/SecretKey'
-        value:
-          $ref: '#/components/schemas/SecretValue'
-      required:
-      - key
-      - value
-      - hosts
+      - secret
       type: object
     SecretHost:
       description: |
@@ -9376,10 +9374,10 @@ components:
       minLength: 1
       type: string
     SecretKey:
-      description: Secret key name. Alphanumeric and underscores only.
+      description: Secret key name. Must be a valid environment variable name.
       maxLength: 128
       minLength: 1
-      pattern: ^[A-Za-z0-9_]+$
+      pattern: ^[A-Za-z_][A-Za-z0-9_]*$
       type: string
     SecretListItem:
       additionalProperties: false
@@ -9393,15 +9391,102 @@ components:
           type: array
         key:
           $ref: '#/components/schemas/SecretKey'
+        last_refresh_time:
+          format: date-time
+          type: string
+        message:
+          type: string
         modified_at:
           format: date-time
           type: string
+        provider:
+          type: string
+        reason:
+          type: string
+        status:
+          $ref: '#/components/schemas/SecretState'
+        token_expiry_time:
+          format: date-time
+          type: string
+        type:
+          $ref: '#/components/schemas/SecretType'
       required:
       - key
+      - type
       - hosts
+      - status
+      - reason
+      - message
       - created_at
       - modified_at
       type: object
+    SecretOAuthConfig:
+      additionalProperties: false
+      properties:
+        authorization_endpoint:
+          format: uri
+          type: string
+        issuer:
+          format: uri
+          type: string
+        provider:
+          type: string
+        registration_endpoint:
+          format: uri
+          type: string
+        resource:
+          format: uri
+          type: string
+        scopes:
+          items:
+            minLength: 1
+            type: string
+          minItems: 1
+          type: array
+        token_endpoint:
+          format: uri
+          type: string
+      required:
+      - token_endpoint
+      - scopes
+      type: object
+    SecretOAuthCredentials:
+      additionalProperties: false
+      properties:
+        access_token:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        refresh_token:
+          type: string
+        registration:
+          $ref: '#/components/schemas/JSONObject'
+        revocation:
+          $ref: '#/components/schemas/JSONObject'
+        scopes:
+          items:
+            minLength: 1
+            type: string
+          type: array
+        token_type:
+          type: string
+      type: object
+    SecretState:
+      enum:
+      - accepted
+      - ready
+      - degraded
+      type: string
+    SecretType:
+      enum:
+      - static
+      - oauth
+      type: string
     SecretValue:
       description: Secret value. Max 48 KB.
       maxLength: 49152
@@ -18395,7 +18480,7 @@ paths:
       - secrets
     post:
       description: |
-        Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*." or "**.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges. "*." matches exactly one subdomain label, while "**." matches any subdomain depth.
+        Creates one static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
       operationId: putSecret
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -18403,7 +18488,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PutSecretsRequest'
+              $ref: '#/components/schemas/CreateSecretRequest'
         required: true
       responses:
         "201":
@@ -18411,14 +18496,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PutSecretsResponse'
-          description: Secrets stored.
+          description: Secret created.
         "400":
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: Store or overwrite secrets for an agent.
+      summary: Create one secret for an agent.
       tags:
       - secrets
   /api/secret/{agentName}/delete:

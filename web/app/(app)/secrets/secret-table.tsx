@@ -21,12 +21,13 @@ import {
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import { createSecretColumns } from "./secret-columns"
-import type { DeleteSecretFormState, PutSecretFormState } from "@/data/types"
+import type { DeleteSecretFormAction } from "@/data/types"
 
 const columnClassName: Record<string, string> = {
   key: "min-w-48",
+  type: "w-24",
+  status: "w-28",
   hosts: "min-w-72",
-  created_at: "w-65",
   modified_at: "w-65",
   actions: "w-14",
 }
@@ -37,30 +38,20 @@ export function SecretTable({
   hasNextPage,
   nextPageToken,
   deleteSecretAction,
-  putSecretAction,
 }: {
   agentName: string
   secrets: SecretListItem[]
   hasNextPage: boolean
   nextPageToken: string
-  deleteSecretAction: (
-    agentName: string,
-    state: DeleteSecretFormState,
-    formData: FormData
-  ) => Promise<DeleteSecretFormState>
-  putSecretAction: (
-    agentName: string,
-    state: PutSecretFormState,
-    formData: FormData
-  ) => Promise<PutSecretFormState>
+  deleteSecretAction: DeleteSecretFormAction
 }) {
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const columns = React.useMemo(
-    () => createSecretColumns(agentName, deleteSecretAction, putSecretAction),
-    [agentName, deleteSecretAction, putSecretAction]
+    () => createSecretColumns(agentName, deleteSecretAction),
+    [agentName, deleteSecretAction]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

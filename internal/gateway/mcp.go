@@ -21,6 +21,7 @@ import (
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
 	internalmcp "github.com/accuknox/clawarmor/internal/mcp"
+	internaloauth "github.com/accuknox/clawarmor/internal/oauth"
 	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
@@ -786,7 +787,9 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec clawarmo
 			)
 		}
 
-		record := internalmcp.OAuthSecretRecord{UpdatedAt: now}
+		record := internalmcp.OAuthSecretRecord{
+			Record: internaloauth.Record{UpdatedAt: now},
+		}
 		if req.Oauth.ClientId != nil {
 			record.ClientID = strings.TrimSpace(*req.Oauth.ClientId)
 		}

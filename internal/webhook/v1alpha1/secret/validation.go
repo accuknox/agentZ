@@ -18,24 +18,28 @@ package secret
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"regexp"
+	"strings"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/accuknox/clawarmor/internal/sinjector"
 	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
-// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-// NOTE: If you want to customise the 'path', use the flags '--defaulting-path' or '--validation-path'.
+var secretKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 // +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-secret,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=secrets,verbs=create;update,versions=v1alpha1,name=vsecret-v1alpha1.kb.io,admissionReviewVersions=v1
 
-// Validator struct is responsible for validating the Secret resource
-// when it is created, updated, or deleted.
+// Validator validates Secret resources.
 //
-// NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
-// as this struct is used only for temporary operations and does not need to be deeply copied.
-type Validator struct {
-	// TODO(user): Add more fields as needed for validation
-}
+// +kubebuilder:object:generate=false
+type Validator struct{}
 
 var _ admission.Validator[*clawarmorv1alpha1.Secret] = &Validator{}
 
@@ -44,29 +48,144 @@ func NewValidator() *Validator {
 	return &Validator{}
 }
 
-// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Secret.
-func (v *Validator) ValidateCreate(_ context.Context, obj *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
-	secretlog.Info("Validation for Secret upon creation", "name", obj.GetName())
+// Validate checks one Secret resource against the admission rules.
+func Validate(secret *clawarmorv1alpha1.Secret) error {
+	fields := validateSpec(secret.Spec, field.NewPath("spec"))
+	if len(fields) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(secret.GroupVersionKind().GroupKind(), secret.Name, fields)
+}
 
-	// TODO(user): fill in your validation logic upon object creation.
+// ValidateCreate validates Secret creation.
+func (v *Validator) ValidateCreate(_ context.Context, secret *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
+	return nil, Validate(secret)
+}
 
+// ValidateUpdate validates Secret updates.
+func (v *Validator) ValidateUpdate(_ context.Context, oldSecret, newSecret *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
+	if err := Validate(newSecret); err != nil {
+		return nil, err
+	}
+
+	specPath := field.NewPath("spec")
+	fields := field.ErrorList{}
+	if oldSecret.Spec.AgentRef.Name != newSecret.Spec.AgentRef.Name {
+		fields = append(fields, field.Forbidden(specPath.Child("agentRef").Child("name"), "agentRef.name is immutable"))
+	}
+	if oldSecret.Spec.Key != newSecret.Spec.Key {
+		fields = append(fields, field.Forbidden(specPath.Child("key"), "key is immutable"))
+	}
+	if oldSecret.Spec.Type != newSecret.Spec.Type {
+		fields = append(fields, field.Forbidden(specPath.Child("type"), "type is immutable"))
+	}
+	if oldSecret.Spec.Type == clawarmorv1alpha1.SecretTypeOAuth &&
+		!apiequality.Semantic.DeepEqual(oldSecret.Spec, newSecret.Spec) {
+		fields = append(fields, field.Forbidden(specPath, "oauth secret spec is immutable after creation"))
+	}
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	return nil, apierrors.NewInvalid(newSecret.GroupVersionKind().GroupKind(), newSecret.Name, fields)
+}
+
+// ValidateDelete validates Secret deletion.
+func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Secret.
-func (v *Validator) ValidateUpdate(_ context.Context, oldObj, newObj *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
-	secretlog.Info("Validation for Secret upon update", "name", newObj.GetName())
+func validateSpec(spec clawarmorv1alpha1.SecretSpec, path *field.Path) field.ErrorList {
+	fields := field.ErrorList{}
 
-	// TODO(user): fill in your validation logic upon object update.
+	if strings.TrimSpace(spec.AgentRef.Name) == "" {
+		fields = append(fields, field.Required(path.Child("agentRef").Child("name"), "field is required"))
+	}
 
-	return nil, nil
+	key := strings.TrimSpace(spec.Key)
+	if key == "" {
+		fields = append(fields, field.Required(path.Child("key"), "field is required"))
+	}
+	if len(key) > 128 {
+		fields = append(fields, field.Invalid(path.Child("key"), spec.Key, "must be at most 128 characters"))
+	}
+	if key != "" && !secretKeyPattern.MatchString(key) {
+		fields = append(fields, field.Invalid(path.Child("key"), spec.Key, "must be a valid environment variable name"))
+	}
+
+	hosts, err := sinjector.ParseSecretHosts(spec.Hosts)
+	if err != nil {
+		fields = append(fields, field.Invalid(path.Child("hosts"), spec.Hosts, err.Error()))
+	}
+	if err == nil && !apiequality.Semantic.DeepEqual(hosts, spec.Hosts) {
+		fields = append(fields, field.Invalid(path.Child("hosts"), spec.Hosts, "hosts must be canonical"))
+	}
+
+	switch spec.Type {
+	case clawarmorv1alpha1.SecretTypeStatic:
+		if spec.OAuth != nil {
+			fields = append(fields, field.Forbidden(path.Child("oauth"), "oauth config is only valid for oauth secrets"))
+		}
+	case clawarmorv1alpha1.SecretTypeOAuth:
+		fields = append(fields, validateOAuthSpec(spec.OAuth, path.Child("oauth"))...)
+	default:
+		fields = append(fields, field.NotSupported(path.Child("type"), spec.Type, []string{
+			string(clawarmorv1alpha1.SecretTypeStatic),
+			string(clawarmorv1alpha1.SecretTypeOAuth),
+		}))
+	}
+
+	return fields
 }
 
-// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Secret.
-func (v *Validator) ValidateDelete(_ context.Context, obj *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
-	secretlog.Info("Validation for Secret upon deletion", "name", obj.GetName())
+func validateOAuthSpec(spec *clawarmorv1alpha1.SecretOAuthSpec, path *field.Path) field.ErrorList {
+	fields := field.ErrorList{}
+	if spec == nil {
+		fields = append(fields, field.Required(path, "field is required"))
+		return fields
+	}
 
-	// TODO(user): fill in your validation logic upon object deletion.
+	fields = append(fields, validateOptionalHTTPSURL(spec.Issuer, path.Child("issuer"))...)
+	fields = append(fields, validateOptionalHTTPSURL(spec.AuthorizationEndpoint, path.Child("authorizationEndpoint"))...)
+	fields = append(fields, validateOptionalHTTPSURL(spec.TokenEndpoint, path.Child("tokenEndpoint"))...)
+	fields = append(fields, validateOptionalHTTPSURL(spec.RegistrationEndpoint, path.Child("registrationEndpoint"))...)
+	fields = append(fields, validateOptionalHTTPSURL(spec.Resource, path.Child("resource"))...)
 
-	return nil, nil
+	if strings.TrimSpace(spec.TokenEndpoint) == "" {
+		fields = append(fields, field.Required(path.Child("tokenEndpoint"), "field is required"))
+	}
+	if len(spec.Scopes) == 0 {
+		fields = append(fields, field.Required(path.Child("scopes"), "at least one scope is required"))
+	}
+	for i, scope := range spec.Scopes {
+		if strings.TrimSpace(scope) == "" {
+			fields = append(fields, field.Invalid(path.Child("scopes").Index(i), scope, "scope must not be empty"))
+		}
+	}
+
+	return fields
+}
+
+func validateOptionalHTTPSURL(raw string, path *field.Path) field.ErrorList {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return field.ErrorList{field.Invalid(path, raw, fmt.Sprintf("parse url: %v", err))}
+	}
+	fields := field.ErrorList{}
+	if !parsed.IsAbs() {
+		fields = append(fields, field.Invalid(path, raw, "must be an absolute url"))
+	}
+	if parsed.Scheme != "https" {
+		fields = append(fields, field.Invalid(path, raw, "must use https"))
+	}
+	if strings.TrimSpace(parsed.Hostname()) == "" {
+		fields = append(fields, field.Invalid(path, raw, "must include a host"))
+	}
+	if parsed.User != nil {
+		fields = append(fields, field.Invalid(path, raw, "must not include credentials"))
+	}
+	return fields
 }

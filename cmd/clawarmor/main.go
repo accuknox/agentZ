@@ -846,8 +846,14 @@ var managerCmd = &cli.Command{
 		}
 
 		secretReconciler := &secret.SecretReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:                  mgr.GetClient(),
+			Scheme:                  mgr.GetScheme(),
+			OpenBaoAddr:             openBaoAddr,
+			ManagerOpenBaoAddr:      managerOpenBaoAddr,
+			OpenBaoSecretMountPath:  openBaoSecretMountPath,
+			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
+			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
+			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := secretReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Secret")

@@ -676,13 +676,13 @@ export const zSpanDetailResponse = z.object({
 export const zJsonObject = z.record(z.string(), zJsonValue)
 
 /**
- * Secret key name. Alphanumeric and underscores only.
+ * Secret key name. Must be a valid environment variable name.
  */
 export const zSecretKey = z
   .string()
   .min(1)
   .max(128)
-  .regex(/^[A-Za-z0-9_]+$/)
+  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
 
 /**
  * Secret value. Max 48 KB.
@@ -695,28 +695,62 @@ export const zSecretValue = z.string().max(49152)
  */
 export const zSecretHost = z.string().min(1).max(253)
 
-export const zSecretEntry = z.object({
+export const zSecretType = z.enum(["static", "oauth"])
+
+export const zSecretState = z.enum(["accepted", "ready", "degraded"])
+
+export const zSecretOAuthConfig = z.object({
+  provider: z.string().optional(),
+  issuer: z.url().optional(),
+  authorization_endpoint: z.url().optional(),
+  token_endpoint: z.url(),
+  registration_endpoint: z.url().optional(),
+  resource: z.url().optional(),
+  scopes: z.array(z.string().min(1)).min(1),
+})
+
+export const zSecretOAuthCredentials = z.object({
+  client_id: z.string().optional(),
+  client_secret: z.string().optional(),
+  access_token: z.string().optional(),
+  refresh_token: z.string().optional(),
+  expires_at: z.iso.datetime().optional(),
+  token_type: z.string().optional(),
+  scopes: z.array(z.string().min(1)).optional(),
+  registration: zJsonObject.optional(),
+  revocation: zJsonObject.optional(),
+})
+
+export const zCreateSecretRequest = z.object({
+  type: zSecretType,
   key: zSecretKey,
-  value: zSecretValue,
   hosts: z.array(zSecretHost).min(1).max(100),
+  value: zSecretValue.optional(),
+  oauth: zSecretOAuthConfig
+    .and(
+      z.object({
+        credentials: zSecretOAuthCredentials,
+      })
+    )
+    .optional(),
 })
 
 export const zSecretListItem = z.object({
   key: zSecretKey,
+  type: zSecretType,
   hosts: z.array(zSecretHost),
+  provider: z.string().optional(),
+  status: zSecretState,
+  reason: z.string(),
+  message: z.string(),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
-})
-
-export const zPutSecretsRequest = z.object({
-  secrets: z.array(zSecretEntry).max(100),
+  last_refresh_time: z.iso.datetime().optional(),
+  token_expiry_time: z.iso.datetime().optional(),
 })
 
 export const zPutSecretsResponse = z.object({
-  stored: z
-    .int()
-    .gte(0)
-    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  secret: zSecretListItem,
 })
 
 export const zDeleteSecretsRequest = z.object({
@@ -1174,14 +1208,14 @@ export const zListSecretsQuery = z.object({
  */
 export const zListSecretsResponse2 = zListSecretsResponse
 
-export const zPutSecretBody = zPutSecretsRequest
+export const zPutSecretBody = zCreateSecretRequest
 
 export const zPutSecretPath = z.object({
   agentName: zAgentName,
 })
 
 /**
- * Secrets stored.
+ * Secret created.
  */
 export const zPutSecretResponse = zPutSecretsResponse
 

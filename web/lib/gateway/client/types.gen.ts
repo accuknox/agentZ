@@ -551,7 +551,7 @@ export type JsonObject = {
 }
 
 /**
- * Secret key name. Alphanumeric and underscores only.
+ * Secret key name. Must be a valid environment variable name.
  */
 export type SecretKey = string
 
@@ -566,28 +566,58 @@ export type SecretValue = string
  */
 export type SecretHost = string
 
-export type SecretEntry = {
+export type SecretType = "static" | "oauth"
+
+export type SecretState = "accepted" | "ready" | "degraded"
+
+export type SecretOAuthConfig = {
+  provider?: string
+  issuer?: string
+  authorization_endpoint?: string
+  token_endpoint: string
+  registration_endpoint?: string
+  resource?: string
+  scopes: Array<string>
+}
+
+export type SecretOAuthCredentials = {
+  client_id?: string
+  client_secret?: string
+  access_token?: string
+  refresh_token?: string
+  expires_at?: string
+  token_type?: string
+  scopes?: Array<string>
+  registration?: JsonObject
+  revocation?: JsonObject
+}
+
+export type CreateSecretRequest = {
+  type: SecretType
   key: SecretKey
-  value: SecretValue
   hosts: Array<SecretHost>
+  value?: SecretValue
+  oauth?: SecretOAuthConfig & {
+    credentials: SecretOAuthCredentials
+  }
 }
 
 export type SecretListItem = {
   key: SecretKey
+  type: SecretType
   hosts: Array<SecretHost>
+  provider?: string
+  status: SecretState
+  reason: string
+  message: string
   created_at: string
   modified_at: string
-}
-
-export type PutSecretsRequest = {
-  secrets: Array<SecretEntry>
+  last_refresh_time?: string
+  token_expiry_time?: string
 }
 
 export type PutSecretsResponse = {
-  /**
-   * Number of secrets stored.
-   */
-  stored: number
+  secret: SecretListItem
 }
 
 export type DeleteSecretsRequest = {
@@ -1567,7 +1597,7 @@ export type ListSecretsResponses = {
 export type ListSecretsResponse2 = ListSecretsResponses[keyof ListSecretsResponses]
 
 export type PutSecretData = {
-  body: PutSecretsRequest
+  body: CreateSecretRequest
   path: {
     /**
      * Agent name.
@@ -1598,7 +1628,7 @@ export type PutSecretError = PutSecretErrors[keyof PutSecretErrors]
 
 export type PutSecretResponses = {
   /**
-   * Secrets stored.
+   * Secret created.
    */
   201: PutSecretsResponse
 }

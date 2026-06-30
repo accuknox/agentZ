@@ -425,16 +425,11 @@ paths:
           $ref: '#/components/responses/InternalError'
     post:
       operationId: putSecret
-      summary: Store or overwrite secrets for an agent.
+      summary: Create one secret for an agent.
       description: >
-        Creates or overwrites key-value secrets under the agent. Each secret
-        is bound to one or more hosts and is only injected for matching CONNECT
-        destinations.
-        Keys may contain alphanumeric characters and underscores, up to 128
-        characters. Values are limited to 48 KB each. Hosts may be exact
-        hostnames, wildcard hostnames with a leading "*." or "**.", exact
-        IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges. "*." matches exactly
-        one subdomain label, while "**." matches any subdomain depth.
+        Creates one static or OAuth-backed secret for the agent. Secret values
+        are stored only in OpenBao. OAuth secrets keep refresh lifecycle state
+        in the Secret CRD status.
       tags: [secrets]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -443,10 +438,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PutSecretsRequest'
+              $ref: '#/components/schemas/CreateSecretRequest'
       responses:
         '201':
-          description: Secrets stored.
+          description: Secret created.
           content:
             application/json:
               schema:
@@ -2913,8 +2908,8 @@ components:
       type: string
       minLength: 1
       maxLength: 128
-      pattern: '^[A-Za-z0-9_]+$'
-      description: Secret key name. Alphanumeric and underscores only.
+      pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+      description: Secret key name. Must be a valid environment variable name.
 
     SecretValue:
       type: string
@@ -2931,21 +2926,96 @@ components:
         range. "*." matches exactly one subdomain label, while "**." matches
         any subdomain depth. Wildcards do not match the apex domain.
 
-    SecretEntry:
+    SecretType:
+      type: string
+      enum: [static, oauth]
+
+    SecretState:
+      type: string
+      enum: [accepted, ready, degraded]
+
+    SecretOAuthConfig:
       type: object
       additionalProperties: false
       properties:
+        provider:
+          type: string
+        issuer:
+          type: string
+          format: uri
+        authorization_endpoint:
+          type: string
+          format: uri
+        token_endpoint:
+          type: string
+          format: uri
+        registration_endpoint:
+          type: string
+          format: uri
+        resource:
+          type: string
+          format: uri
+        scopes:
+          type: array
+          items:
+            type: string
+            minLength: 1
+          minItems: 1
+      required: [token_endpoint, scopes]
+
+    SecretOAuthCredentials:
+      type: object
+      additionalProperties: false
+      properties:
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        token_type:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        registration:
+          $ref: '#/components/schemas/JSONObject'
+        revocation:
+          $ref: '#/components/schemas/JSONObject'
+
+    CreateSecretRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          $ref: '#/components/schemas/SecretType'
         key:
           $ref: '#/components/schemas/SecretKey'
-        value:
-          $ref: '#/components/schemas/SecretValue'
         hosts:
           type: array
           items:
             $ref: '#/components/schemas/SecretHost'
           minItems: 1
           maxItems: 100
-      required: [key, value, hosts]
+        value:
+          $ref: '#/components/schemas/SecretValue'
+        oauth:
+          allOf:
+          - $ref: '#/components/schemas/SecretOAuthConfig'
+          - type: object
+            additionalProperties: false
+            properties:
+              credentials:
+                $ref: '#/components/schemas/SecretOAuthCredentials'
+            required: [credentials]
+      required: [type, key, hosts]
 
     SecretListItem:
       type: object
@@ -2953,39 +3023,41 @@ components:
       properties:
         key:
           $ref: '#/components/schemas/SecretKey'
+        type:
+          $ref: '#/components/schemas/SecretType'
         hosts:
           type: array
           items:
             $ref: '#/components/schemas/SecretHost'
+        provider:
+          type: string
+        status:
+          $ref: '#/components/schemas/SecretState'
+        reason:
+          type: string
+        message:
+          type: string
         created_at:
           type: string
           format: date-time
         modified_at:
           type: string
           format: date-time
-      required: [key, hosts, created_at, modified_at]
-
-    PutSecretsRequest:
-      type: object
-      additionalProperties: false
-      properties:
-        secrets:
-          type: array
-          items:
-            $ref: '#/components/schemas/SecretEntry'
-          maxItems: 100
-      required: [secrets]
+        last_refresh_time:
+          type: string
+          format: date-time
+        token_expiry_time:
+          type: string
+          format: date-time
+      required: [key, type, hosts, status, reason, message, created_at, modified_at]
 
     PutSecretsResponse:
       type: object
       additionalProperties: false
       properties:
-        stored:
-          type: integer
-          format: int32
-          minimum: 0
-          description: Number of secrets stored.
-      required: [stored]
+        secret:
+          $ref: '#/components/schemas/SecretListItem'
+      required: [secret]
 
     DeleteSecretsRequest:
       type: object

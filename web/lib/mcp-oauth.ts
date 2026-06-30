@@ -40,7 +40,18 @@ type PendingCreateOperation = {
   form: ParsedMcpForm
 }
 
-export type PendingOAuthOperation = PendingCreateOperation
+type PendingSecretOperation = {
+  kind: "secret"
+  form: ParsedMcpForm
+  secret: {
+    agentName: string
+    key: string
+    hosts: string[]
+    provider?: string
+  }
+}
+
+export type PendingOAuthOperation = PendingCreateOperation | PendingSecretOperation
 export type PendingOAuthInitiator = {
   organizationId: string
   sessionId: string
@@ -142,6 +153,16 @@ const pendingOAuthOperationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("create"),
     form: parsedMcpFormSchema,
   }),
+  z.object({
+    kind: z.literal("secret"),
+    form: parsedMcpFormSchema,
+    secret: z.object({
+      agentName: z.string().min(1),
+      key: z.string().min(1),
+      hosts: z.array(z.string().min(1)).min(1),
+      provider: z.string().min(1).optional(),
+    }),
+  }),
 ])
 
 const oauthClientInformationMixedSchema = z
@@ -242,12 +263,24 @@ type RuntimeOAuthState = {
   discoveryState?: StoredOAuthDiscoveryState
 }
 
+const jsonValueSchema: z.ZodType<JsonObject[keyof JsonObject]> = z.lazy(() =>
+  z.union([
+    z.boolean(),
+    z.number(),
+    z.string(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ])
+)
+const jsonObjectSchema = z.record(z.string(), jsonValueSchema)
+
 export function parseStoredOAuthDiscoveryState(input: unknown): StoredOAuthDiscoveryState {
   return oauthDiscoveryStateSchema.parse(input)
 }
 
 export const mcpOAuthCookieName = "clawarmor-mcp-oauth"
 const oauthCookieTTLSeconds = 15 * 60
+const oauthFetchTimeoutMs = 15_000
 const googleAuthorizationHosts = new Set(["accounts.google.com"])
 const dropboxAuthorizationHosts = new Set(["www.dropbox.com", "dropbox.com"])
 
@@ -309,6 +342,9 @@ export const publicOAuthFetch: FetchLike = async (input, init) => {
     ...init,
     cache: "no-store",
     redirect: "error",
+    signal: init?.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(oauthFetchTimeoutMs)])
+      : AbortSignal.timeout(oauthFetchTimeoutMs),
   }
 
   if (input instanceof Request) {
@@ -352,7 +388,7 @@ function redirectURL() {
 function oauthClientMetadata(redirectURL: URL): OAuthClientMetadata {
   const base = new URL("/", redirectURL)
   return {
-    client_name: "AccuKnox ClawArmor MCP Gateway",
+    client_name: "AccuKnox ClawArmor OAuth Client",
     redirect_uris: [redirectURL.toString()],
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
@@ -649,7 +685,7 @@ function oauthFlowErrorFrom(error: unknown, fallback: OAuthFlowErrorCode): OAuth
         code: "manual_client_credentials_required",
         field: oauthErrorFieldNames[0],
         message:
-          "This MCP server requires client credentials for re-authorization. Enter the client ID and client secret to continue.",
+          "This OAuth server requires client credentials for re-authorization. Enter the client ID and client secret to continue.",
       }
     }
     return {
@@ -672,17 +708,7 @@ function oauthFlowErrorFrom(error: unknown, fallback: OAuthFlowErrorCode): OAuth
 }
 
 function registrationPayload(clientInformation: OAuthClientInformationMixed) {
-  const jsonValueSchema: z.ZodType<JsonObject[keyof JsonObject]> = z.lazy(() =>
-    z.union([
-      z.boolean(),
-      z.number(),
-      z.string(),
-      z.array(jsonValueSchema),
-      z.record(z.string(), jsonValueSchema),
-    ])
-  )
-  const registrationSchema = z.record(z.string(), jsonValueSchema)
-  const parsed = registrationSchema.safeParse(clientInformation)
+  const parsed = jsonObjectSchema.safeParse(clientInformation)
   if (!parsed.success) {
     return undefined
   }
@@ -723,7 +749,7 @@ export async function beginOAuthFlow(input: {
   try {
     const serverURL = await requirePublicOAuthURL(
       input.operation.form.endpoint.url,
-      "MCP server URL"
+      "OAuth server URL"
     )
     const runtime: RuntimeOAuthState = {
       discoveryState: await effectiveDiscoveryState({
@@ -744,7 +770,7 @@ export async function beginOAuthFlow(input: {
       if (!runtime.discoveryState?.authorizationServerMetadata?.registration_endpoint) {
         throw new OAuthError(
           OAuthErrorCode.InvalidClient,
-          "Client ID and client secret are required because this MCP server does not support dynamic client registration."
+          "Client ID and client secret are required because this OAuth server does not support dynamic client registration."
         )
       }
     }
@@ -893,7 +919,7 @@ export async function completeOAuthFlow(input: {
   try {
     const serverURL = await requirePublicOAuthURL(
       input.pending.operation.form.endpoint.url,
-      "MCP server URL"
+      "OAuth server URL"
     )
     const runtime: RuntimeOAuthState = {
       codeVerifier: input.pending.codeVerifier,
@@ -1039,7 +1065,7 @@ export function oauthCallbackResultPage(input: {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MCP OAuth</title>
+    <title>OAuth</title>
   </head>
   <body>
     <script>

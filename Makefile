@@ -35,6 +35,7 @@ generate:
 .PHONY: fmt
 fmt:
 	go fmt $(GO_PKGS)
+	goimports -w cmd hack internal pkg
 	yamlfmt .
 
 .PHONY: test

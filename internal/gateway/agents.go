@@ -280,8 +280,8 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	if err := s.deleteAgentSecrets(r.Context(), agentName); err != nil {
-		writeError(w, r, mapOpenBaoError(err))
+	if err := s.deleteAgentSecretResources(r.Context(), ns, agentName); err != nil {
+		writeError(w, r, mapKubeHTTPError("delete agent secrets", err))
 		return
 	}
 
@@ -443,7 +443,8 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 			Limit:           int32(limit + 1),
 			Offset:          int32(offset),
 		})
-	} else {
+	}
+	if len(agentNames) == 0 {
 		rows, err = s.queries.GatewayListAgents(ctx, gatewaydb.GatewayListAgentsParams{
 			TenantNamespace: ns,
 			Limit:           int32(limit + 1),

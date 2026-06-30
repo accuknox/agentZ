@@ -281,6 +281,7 @@ export function parseStoredOAuthDiscoveryState(input: unknown): StoredOAuthDisco
 export const mcpOAuthCookieName = "clawarmor-mcp-oauth"
 const oauthCookieTTLSeconds = 15 * 60
 const oauthFetchTimeoutMs = 15_000
+const oauthFetchMaxRedirects = 5
 const googleAuthorizationHosts = new Set(["accounts.google.com"])
 const dropboxAuthorizationHosts = new Set(["www.dropbox.com", "dropbox.com"])
 
@@ -338,22 +339,60 @@ export async function requirePublicOAuthURL(input: string | URL, label: string) 
 }
 
 export const publicOAuthFetch: FetchLike = async (input, init) => {
-  const fetchInit: RequestInit = {
-    ...init,
-    cache: "no-store",
-    redirect: "error",
-    signal: init?.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(oauthFetchTimeoutMs)])
-      : AbortSignal.timeout(oauthFetchTimeoutMs),
-  }
+  let requestURL = input instanceof Request ? input.url : input.toString()
+  let method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase()
+  let body = init?.body
+  let headers = init?.headers
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, AbortSignal.timeout(oauthFetchTimeoutMs)])
+    : AbortSignal.timeout(oauthFetchTimeoutMs)
 
-  if (input instanceof Request) {
-    await requirePublicOAuthURL(input.url, "OAuth fetch URL")
-    return fetch(input, fetchInit)
-  }
+  for (let redirects = 0; ; redirects += 1) {
+    await requirePublicOAuthURL(requestURL, "OAuth fetch URL")
 
-  await requirePublicOAuthURL(input, "OAuth fetch URL")
-  return fetch(input, fetchInit)
+    const response = await fetch(requestURL, {
+      ...init,
+      method,
+      body,
+      headers,
+      cache: "no-store",
+      redirect: "manual",
+      signal,
+    })
+    if (
+      response.status !== 301 &&
+      response.status !== 302 &&
+      response.status !== 303 &&
+      response.status !== 307 &&
+      response.status !== 308
+    ) {
+      return response
+    }
+    if (redirects >= oauthFetchMaxRedirects) {
+      throw new Error("OAuth fetch exceeded redirect limit")
+    }
+
+    const location = response.headers.get("location")
+    if (!location) {
+      return response
+    }
+
+    requestURL = new URL(location, requestURL).toString()
+    await requirePublicOAuthURL(requestURL, "OAuth fetch redirect URL")
+
+    if (
+      response.status === 303 ||
+      ((response.status === 301 || response.status === 302) && method === "POST")
+    ) {
+      method = "GET"
+      body = undefined
+
+      const nextHeaders = new Headers(headers)
+      nextHeaders.delete("content-length")
+      nextHeaders.delete("content-type")
+      headers = nextHeaders
+    }
+  }
 }
 
 export async function requirePublicOAuthDiscoveryState(discoveryState: StoredOAuthDiscoveryState) {

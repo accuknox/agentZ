@@ -18,6 +18,7 @@ import (
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	baoapi "github.com/openbao/openbao/api/v2"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
@@ -35,6 +36,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/accuknox/agentz/internal/mcp"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -164,6 +166,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("listen ext auth grpc %s: %w", addr, err)
 	}
+	mcpAddr := fmt.Sprintf(":%d", mcp.ExtAuthMCPPort)
+	mcpListener, err := net.Listen("tcp", mcpAddr)
+	if err != nil {
+		return fmt.Errorf("listen ext auth mcp %s: %w", mcpAddr, err)
+	}
 
 	svc := &Service{
 		namespace:     namespace,
@@ -243,17 +250,40 @@ func Serve(ctx context.Context, cfg Config) error {
 	healthSrv := health.NewServer()
 	healthpb.RegisterHealthServer(srv, healthSrv)
 	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	mcpServer := &http.Server{
+		Addr:    mcpAddr,
+		Handler: newMCPHandler(),
+	}
 
 	var bg sync.WaitGroup
-	errCh := make(chan error, 1)
-	go func() {
+	serveCtx, stopServers := context.WithCancel(ctx)
+	serverGroup, serverCtx := errgroup.WithContext(serveCtx)
+	serverGroup.Go(func() error {
 		slog.InfoContext(
-			ctx, "starting mcp ext auth service",
+			serverCtx,
+			"starting mcp ext auth service",
 			slog.String("addr", addr),
 			slog.String("namespace", namespace),
 		)
-		errCh <- srv.Serve(lis)
-	}()
+		err := srv.Serve(lis)
+		if err == nil || errors.Is(err, grpc.ErrServerStopped) {
+			return nil
+		}
+		return fmt.Errorf("serve ext auth grpc: %w", err)
+	})
+	serverGroup.Go(func() error {
+		slog.InfoContext(
+			serverCtx,
+			"starting internal mcp helper",
+			slog.String("addr", mcpAddr),
+			slog.String("namespace", namespace),
+		)
+		err := mcpServer.Serve(mcpListener)
+		if err == nil || errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return fmt.Errorf("serve ext auth mcp helper: %w", err)
+	})
 	bg.Go(func() {
 		svc.runMCPProbes(ctx)
 	})
@@ -261,9 +291,13 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.runProbeQueue(ctx)
 	})
 
-	select {
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), grpcShutdownTimeout)
+	shutdownServers := func() error {
+		stopServers()
+
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			grpcShutdownTimeout,
+		)
 		defer cancel()
 
 		doneCh := make(chan struct{})
@@ -278,18 +312,34 @@ func Serve(ctx context.Context, cfg Config) error {
 			srv.Stop()
 		}
 
-		err = <-errCh
-	case err = <-errCh:
+		if err := mcpServer.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("shutdown ext auth mcp helper: %w", err)
+		}
+
+		return nil
+	}
+
+	var serveErr error
+	select {
+	case <-ctx.Done():
+		if err := shutdownServers(); err != nil {
+			return err
+		}
+	case <-serverCtx.Done():
+		serveErr = serverGroup.Wait()
+		if err := shutdownServers(); err != nil {
+			return err
+		}
 	}
 
 	cancel()
 	svc.probeQueue.ShutDown()
 	bg.Wait()
 
-	if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-		return fmt.Errorf("serve ext auth grpc: %w", err)
+	if serveErr == nil {
+		serveErr = serverGroup.Wait()
 	}
-	return nil
+	return serveErr
 }
 
 // Service implements Envoy ext_authz for MCP authorization and credential injection.

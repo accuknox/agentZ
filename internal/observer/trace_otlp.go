@@ -147,7 +147,7 @@ func traceEventsFromOTLPRequest(ctx context.Context, res *resolver, req *tracev1
 	return events, rejected
 }
 
-func traceEventFromOTLPSpan(ctx context.Context, res *resolver, sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) (traceSpanEvent, error) {
+func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) (traceSpanEvent, error) {
 	if sp == nil || len(sp.GetTraceId()) != 16 || len(sp.GetSpanId()) != 8 {
 		return traceSpanEvent{}, errTraceAgentNameMissing
 	}
@@ -208,24 +208,8 @@ func traceEventFromOTLPSpan(ctx context.Context, res *resolver, sp *tracepb.Span
 	if spanClass == spanClassTool && toolName != "" {
 		prefix := mcp.OpenCodeGatewayToolsetName + "_"
 		if rest, ok := strings.CutPrefix(toolName, prefix); ok {
-			var connectionName, mcpToolName string
-			if conn, name, ok := strings.Cut(rest, "_"); ok && conn != "" && name != "" {
-				connectionName = conn
-				mcpToolName = name
-			}
-			if connectionName == "" && mcpToolName == "" && res != nil &&
-				rest != "" {
-				conn, ok := res.resolveSingleMCPConnection(
-					ctx,
-					tenantNamespace,
-					agentName,
-				)
-				if ok && conn != "" {
-					connectionName = conn
-					mcpToolName = rest
-				}
-			}
-			if connectionName != "" && mcpToolName != "" {
+			connectionName, mcpToolName, ok := strings.Cut(rest, "_")
+			if ok && connectionName != "" && mcpToolName != "" {
 				mcpToolCall = &mcpToolCallEvent{
 					agentName:         agentName,
 					traceID:           cloneBytes(sp.GetTraceId()),

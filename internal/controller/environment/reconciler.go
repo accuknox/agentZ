@@ -31,6 +31,7 @@ import (
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -393,7 +394,11 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *agentzv1alpha1.E
 		}
 	}
 
-	targets := make([]agentgatewayv1alpha1.McpTargetSelector, 0, len(conns))
+	targetCount := len(conns)
+	if targetCount == 1 {
+		targetCount++
+	}
+	targets := make([]agentgatewayv1alpha1.McpTargetSelector, 0, targetCount)
 	matchExpressions := make([]agentgatewayshared.CELExpression, 0, len(env.Spec.MCPConnectionRefs))
 	for _, conn := range conns {
 		target, err := mcp.ParseTarget(&conn)
@@ -444,6 +449,21 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *agentzv1alpha1.E
 				),
 			))
 		}
+	}
+	if len(conns) == 1 {
+		path := agentgatewayv1alpha1.LongString(mcp.ExtAuthMCPPath)
+		protocol := agentgatewayv1alpha1.MCPProtocolStreamableHTTP
+		targets = append(targets, agentgatewayv1alpha1.McpTargetSelector{
+			Name: gwv1.SectionName(mcp.MCPHelperTargetName),
+			Static: &agentgatewayv1alpha1.McpTarget{
+				BackendRef: &corev1.LocalObjectReference{
+					Name: mcp.ExtAuthServiceName,
+				},
+				Port:     mcp.ExtAuthMCPPort,
+				Path:     &path,
+				Protocol: &protocol,
+			},
+		})
 	}
 
 	currentSpec := obj.Spec.DeepCopy()

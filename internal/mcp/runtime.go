@@ -26,13 +26,16 @@ const (
 	EnvironmentFinalizer            = "agentz.accuknox.com/environment-protection"
 	OpenCodeGatewayToolsetName      = "gateway"
 	// SecretPathDir is the OpenBao directory for MCP credential records.
-	SecretPathDir            = "mcp-connections"
-	GatewayClassName         = "agentgateway"
-	GatewayName              = "mcp"
-	ExtAuthServiceName       = "extauth"
-	ExtAuthRolePrefix        = "extauth-"
-	ExtAuthPort        int32 = 18081
-	AppProtocolMCP           = "agentgateway.dev/mcp"
+	SecretPathDir             = "mcp-connections"
+	GatewayClassName          = "agentgateway"
+	GatewayName               = "mcp"
+	ExtAuthServiceName        = "extauth"
+	ExtAuthRolePrefix         = "extauth-"
+	ExtAuthPort         int32 = 18081
+	ExtAuthMCPPort      int32 = 18082
+	ExtAuthMCPPath            = "/mcp"
+	MCPHelperTargetName       = "agentz-internal"
+	AppProtocolMCP            = "agentgateway.dev/mcp"
 	// AgentgatewayParametersName is the name of the AgentgatewayParameters
 	// resource that configures the Gateway proxy Service type.
 	AgentgatewayParametersName = "mcp-clusterip"

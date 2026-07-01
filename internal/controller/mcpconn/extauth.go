@@ -243,12 +243,20 @@ func (r *MCPConnectionReconciler) reconcileExtAuthService(ctx context.Context, n
 		svc.OwnerReferences = ownerRefs
 		svc.Spec = corev1.ServiceSpec{
 			Selector: maps.Clone(labels),
-			Ports: []corev1.ServicePort{{
-				Name:        "grpc",
-				Port:        mcp.ExtAuthPort,
-				Protocol:    corev1.ProtocolTCP,
-				AppProtocol: new("kubernetes.io/h2c"),
-			}},
+			Ports: []corev1.ServicePort{
+				{
+					Name:        "grpc",
+					Port:        mcp.ExtAuthPort,
+					Protocol:    corev1.ProtocolTCP,
+					AppProtocol: new("kubernetes.io/h2c"),
+				},
+				{
+					Name:        "mcp",
+					Port:        mcp.ExtAuthMCPPort,
+					Protocol:    corev1.ProtocolTCP,
+					AppProtocol: new(mcp.AppProtocolMCP),
+				},
+			},
 		}
 		return nil
 	})
@@ -312,11 +320,18 @@ func (r *MCPConnectionReconciler) reconcileExtAuthDeployment(ctx context.Context
 						Image:           r.ControllerImage,
 						ImagePullPolicy: corev1.PullIfNotPresent,
 						Args:            args,
-						Ports: []corev1.ContainerPort{{
-							Name:          "grpc",
-							ContainerPort: mcp.ExtAuthPort,
-							Protocol:      corev1.ProtocolTCP,
-						}},
+						Ports: []corev1.ContainerPort{
+							{
+								Name:          "grpc",
+								ContainerPort: mcp.ExtAuthPort,
+								Protocol:      corev1.ProtocolTCP,
+							},
+							{
+								Name:          "mcp",
+								ContainerPort: mcp.ExtAuthMCPPort,
+								Protocol:      corev1.ProtocolTCP,
+							},
+						},
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: &allowPrivilegeEscalation,
 							ReadOnlyRootFilesystem:   &readOnly,
@@ -391,10 +406,16 @@ func extAuthPolicySpec(ns string) *ciliumapi.Rule {
 				},
 			},
 			ToPorts: ciliumapi.PortRules{{
-				Ports: []ciliumapi.PortProtocol{{
-					Port:     "18081",
-					Protocol: ciliumapi.ProtoTCP,
-				}},
+				Ports: []ciliumapi.PortProtocol{
+					{
+						Port:     "18081",
+						Protocol: ciliumapi.ProtoTCP,
+					},
+					{
+						Port:     "18082",
+						Protocol: ciliumapi.ProtoTCP,
+					},
+				},
 			}},
 		}},
 		Egress: []ciliumapi.EgressRule{{

@@ -108,7 +108,7 @@ reliability or are rewritten repeatedly.
 - **When to include**: When repeated rewrites would be costly
 - **Example**: `scripts/rotate_pdf.py` for PDF rotation tasks
 - **Benefits**: Token efficient, deterministic, may be executed without loading into context
-- **Note**: Scripts may still need to be read by you for patching or environment-specific adjustments
+- **Note**: Scripts may still need to be read by you for patching or sandbox-specific adjustments
 
 ##### References (`references/`)
 

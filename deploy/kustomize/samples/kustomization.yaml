@@ -1,7 +1,7 @@
 ## Append samples of your project ##
 resources:
 - agentz_v1alpha1_agent.yaml
-- agentz_v1alpha1_environment.yaml
+- agentz_v1alpha1_sandbox.yaml
 - agentz_v1alpha1_workflowschedule.yaml
 - agentz_v1alpha1_workflowrun.yaml
 - agentz_v1alpha1_mcpconnection.yaml

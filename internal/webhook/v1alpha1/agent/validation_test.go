@@ -18,9 +18,9 @@ func TestValidatorValidateCreateRejectsInvalidAgentConfig(t *testing.T) {
 	agt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
 		Spec: agentzv1alpha1.AgentSpec{
-			EnvironmentRef: &corev1.LocalObjectReference{},
-			Model:          "gpt-5",
-			Instruction:    strings.Repeat("a", 4097),
+			SandboxRef:  &corev1.LocalObjectReference{},
+			Model:       "gpt-5",
+			Instruction: strings.Repeat("a", 4097),
 			Providers: map[string]agentzv1alpha1.OpencodeProviderConfig{
 				"openai": {
 					Env:     []string{"bad-name"},
@@ -68,7 +68,7 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 	}
 
 	valid := oldAgt.DeepCopy()
-	valid.Spec.EnvironmentRef = &corev1.LocalObjectReference{Name: "python"}
+	valid.Spec.SandboxRef = &corev1.LocalObjectReference{Name: "python"}
 	valid.Spec.Model = "openai/gpt-5"
 	valid.Spec.SmallModel = "openai/gpt-5-mini"
 	valid.Spec.Instruction = "Follow repository instructions strictly."

@@ -243,7 +243,7 @@ function parseSecretHost(value: string, ctx: z.RefinementCtx) {
   return host
 }
 
-function parseEnvironmentHost(value: string, ctx: z.RefinementCtx) {
+function parseSandboxHost(value: string, ctx: z.RefinementCtx) {
   const host = parseHost(value, false)
   if (!host) {
     ctx.addIssue({
@@ -304,33 +304,33 @@ export const agentNameSchema = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
   .refine((name) => name !== "mcp-connection", "Agent name is reserved")
 
-export const environmentNameSchema = z
+export const sandboxNameSchema = z
   .string()
   .trim()
-  .min(1, "Environment name is required")
-  .max(32, "Environment name must be at most 32 characters")
+  .min(1, "Sandbox name is required")
+  .max(32, "Sandbox name must be at most 32 characters")
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
 
-export const environmentAllowedHostSchema = z
+export const sandboxAllowedHostSchema = z
   .string()
   .trim()
   .min(1, "Host is required")
   .max(253, "Host must be at most 253 characters")
-  .transform(parseEnvironmentHost)
+  .transform(parseSandboxHost)
 
 export const createAgentSimpleFormSchema = z.object({
   name: agentNameSchema,
-  environmentName: environmentNameSchema,
+  sandboxName: sandboxNameSchema,
 })
 
 export const updateAgentSimpleFormSchema = z.object({
-  environmentName: environmentNameSchema,
+  sandboxName: sandboxNameSchema,
   model: z.string().trim().min(1).optional(),
   smallModel: z.string().trim().min(1).optional(),
 })
 
-export const createEnvironmentFormSchema = z.object({
-  name: environmentNameSchema,
+export const createSandboxFormSchema = z.object({
+  name: sandboxNameSchema,
   packages: z.array(z.string()),
   mcpConnectionRefs: z
     .array(
@@ -382,6 +382,6 @@ export const createEnvironmentFormSchema = z.object({
         }))
     ),
   allowedHosts: z
-    .array(environmentAllowedHostSchema)
+    .array(sandboxAllowedHostSchema)
     .transform((hosts) => Array.from(new Set(hosts)).sort()),
 })

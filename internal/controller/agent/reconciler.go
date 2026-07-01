@@ -42,8 +42,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/accuknox/agentz/internal/envutil"
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -59,7 +59,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=create-workflow;create-workflow-schedule;delete-workflow-schedule;delete-workflows;get-workflow;list-workflow-schedules;list-workflows;set-workflowrun-status;update-workflow-schedule
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/finalizers,verbs=update
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=envs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
@@ -103,13 +103,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("invalid agent config: %w", err)
 	}
 
-	envCfg, err := r.resolveEnvironment(ctx, agt)
+	envCfg, err := r.resolveSandbox(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("resolve environment: %w", err)
+		return ctrl.Result{}, fmt.Errorf("resolve sandbox: %w", err)
 	}
 
 	var opencodeCfg []byte
@@ -250,7 +250,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Agent{}).
-		Watches(&agentzv1alpha1.Environment{}, handler.EnqueueRequestsFromMapFunc(r.agentsForEnvironment)).
+		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSandbox)).
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{}).
@@ -263,7 +263,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-type environmentConfig struct {
+type sandboxConfig struct {
 	Packages                []string
 	AllowedHosts            []string
 	MCPURL                  string
@@ -281,10 +281,10 @@ type mcpToolConfig struct {
 	RequireConsent bool
 }
 
-func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *agentzv1alpha1.Agent) (environmentConfig, error) {
-	ref := agt.Spec.EnvironmentRef
+func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Agent) (sandboxConfig, error) {
+	ref := agt.Spec.SandboxRef
 	if ref == nil {
-		return environmentConfig{
+		return sandboxConfig{
 			Packages:                []string{},
 			AllowedHosts:            []string{},
 			MCPURL:                  "",
@@ -293,13 +293,13 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *agentzv1alpha1
 		}, nil
 	}
 
-	env := &agentzv1alpha1.Environment{}
+	sandbox := &agentzv1alpha1.Sandbox{}
 	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
-	if err := r.Get(ctx, key, env); err != nil {
-		return environmentConfig{}, fmt.Errorf("get environment %q: %w", ref.Name, err)
+	if err := r.Get(ctx, key, sandbox); err != nil {
+		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
-	packages := make([]string, 0, len(env.Spec.Packages))
-	for _, pkg := range env.Spec.Packages {
+	packages := make([]string, 0, len(sandbox.Spec.Packages))
+	for _, pkg := range sandbox.Spec.Packages {
 		pkg = strings.TrimSpace(pkg)
 		if pkg == "" {
 			continue
@@ -308,11 +308,11 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *agentzv1alpha1
 	}
 	slices.Sort(packages)
 	packages = slices.Compact(packages)
-	allowedHosts := make([]string, len(env.Spec.AllowedHosts))
-	copy(allowedHosts, env.Spec.AllowedHosts)
-	mcpConsentPermissionIDs := make([]string, 0, len(env.Spec.MCPConnectionRefs))
-	mcpRefs := make([]mcpRefConfig, 0, len(env.Spec.MCPConnectionRefs))
-	for _, ref := range env.Spec.MCPConnectionRefs {
+	allowedHosts := make([]string, len(sandbox.Spec.AllowedHosts))
+	copy(allowedHosts, sandbox.Spec.AllowedHosts)
+	mcpConsentPermissionIDs := make([]string, 0, len(sandbox.Spec.MCPConnectionRefs))
+	mcpRefs := make([]mcpRefConfig, 0, len(sandbox.Spec.MCPConnectionRefs))
+	for _, ref := range sandbox.Spec.MCPConnectionRefs {
 		tools := make([]mcpToolConfig, 0, len(ref.Tools))
 		for _, tool := range ref.Tools {
 			tools = append(tools, mcpToolConfig{
@@ -333,17 +333,17 @@ func (r *Reconciler) resolveEnvironment(ctx context.Context, agt *agentzv1alpha1
 		})
 	}
 	slices.Sort(mcpConsentPermissionIDs)
-	return environmentConfig{
+	return sandboxConfig{
 		Packages:                packages,
 		AllowedHosts:            allowedHosts,
-		MCPURL:                  r.environmentMCPURL(ctx, agt.Namespace, env),
+		MCPURL:                  r.sandboxMCPURL(ctx, agt.Namespace, sandbox),
 		MCPConsentPermissionIDs: mcpConsentPermissionIDs,
 		MCPRefs:                 mcpRefs,
 	}, nil
 }
 
-func (r *Reconciler) environmentMCPURL(ctx context.Context, namespace string, env *agentzv1alpha1.Environment) string {
-	conns, err := mcp.LoadConnections(ctx, r.Client, env)
+func (r *Reconciler) sandboxMCPURL(ctx context.Context, namespace string, sandbox *agentzv1alpha1.Sandbox) string {
+	conns, err := mcp.LoadConnections(ctx, r.Client, sandbox)
 	if err != nil || len(conns) == 0 {
 		return ""
 	}
@@ -351,12 +351,12 @@ func (r *Reconciler) environmentMCPURL(ctx context.Context, namespace string, en
 		"http://%s.%s.svc.cluster.local%s",
 		mcp.GatewayName,
 		namespace,
-		mcp.EnvironmentRoutePath(env.Name),
+		mcp.SandboxRoutePath(sandbox.Name),
 	)
 }
 
-func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object) []reconcile.Request {
-	env, ok := obj.(*agentzv1alpha1.Environment)
+func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []reconcile.Request {
+	sandbox, ok := obj.(*agentzv1alpha1.Sandbox)
 	if !ok {
 		return []reconcile.Request{}
 	}
@@ -365,8 +365,8 @@ func (r *Reconciler) agentsForEnvironment(ctx context.Context, obj client.Object
 	err := r.List(
 		ctx,
 		agents,
-		client.InNamespace(env.Namespace),
-		client.MatchingFields{envutil.AgentByEnvironmentIndex: env.Name},
+		client.InNamespace(sandbox.Namespace),
+		client.MatchingFields{sandboxutil.AgentBySandboxIndex: sandbox.Name},
 	)
 	if err != nil {
 		return []reconcile.Request{}

@@ -51,15 +51,15 @@ import (
 
 	"github.com/accuknox/agentz/cmd/agentz/subcommands"
 	"github.com/accuknox/agentz/internal/controller/agent"
-	environmentcontroller "github.com/accuknox/agentz/internal/controller/environment"
 	"github.com/accuknox/agentz/internal/controller/mcpconn"
+	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
 	"github.com/accuknox/agentz/internal/controller/secret"
 	"github.com/accuknox/agentz/internal/controller/tenant"
 	workflowruncontroller "github.com/accuknox/agentz/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/agentz/internal/controller/workflowschedule"
-	"github.com/accuknox/agentz/internal/envutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/sandboxutil"
 	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	// +kubebuilder:scaffold:imports
@@ -606,7 +606,7 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "failed to start manager")
 			os.Exit(1)
 		}
-		err = mcp.IndexEnvironmentMCPConnections(
+		err = mcp.IndexSandboxMCPConnections(
 			context.Background(),
 			mgr.GetFieldIndexer(),
 		)
@@ -614,11 +614,11 @@ var managerCmd = &cli.Command{
 			setupLog.Error(
 				err,
 				"failed to register shared field index",
-				"index", mcp.EnvironmentByMCPConnectionIndex,
+				"index", mcp.SandboxByMCPConnectionIndex,
 			)
 			os.Exit(1)
 		}
-		err = envutil.IndexAgentsByEnvironment(
+		err = sandboxutil.IndexAgentsBySandbox(
 			context.Background(),
 			mgr.GetFieldIndexer(),
 		)
@@ -626,7 +626,7 @@ var managerCmd = &cli.Command{
 			setupLog.Error(
 				err,
 				"failed to register shared field index",
-				"index", envutil.AgentByEnvironmentIndex,
+				"index", sandboxutil.AgentBySandboxIndex,
 			)
 			os.Exit(1)
 		}
@@ -736,13 +736,13 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
-		envReconciler := &environmentcontroller.Reconciler{
+		sandboxReconciler := &sandboxcontroller.Reconciler{
 			Client:       mgr.GetClient(),
 			Scheme:       mgr.GetScheme(),
 			AgentGateway: agClient,
 		}
-		if err := envReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "Environment")
+		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "Sandbox")
 			os.Exit(1)
 		}
 
@@ -754,8 +754,8 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "Agent")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupEnvironmentWebhookWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Environment")
+			if err := webhookv1alpha1.SetupSandboxWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "Sandbox")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {

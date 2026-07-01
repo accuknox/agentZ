@@ -12,7 +12,7 @@ Traditional approaches to secret management in AI agents have a fundamental
 flaw: the agent needs access to secrets (API keys, tokens, credentials) to
 make authenticated requests to external services. This creates risk:
 
-- The agent's runtime environment contains sensitive credentials
+- The agent's runtime sandbox contains sensitive credentials
 - If the agent is compromised, all secrets are exposed
 
 AgentZ eliminates this attack surface by removing secrets from the agent

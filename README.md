@@ -22,7 +22,7 @@ graph TB
 ## Core Ideas
 
 1. **Default-Deny Networking**: Agents can only reach destinations explicitly
-   configured in their Environment. All other network traffic is blocked by
+   configured in their Sandbox. All other network traffic is blocked by
    Cilium network policies.
 2. **Zero-Trust Secrets**: Agent containers never receive secrets directly.
    Instead, a sidecar proxy intercepts outbound requests and substitutes
@@ -35,8 +35,8 @@ graph TB
 
 | Component | Purpose                                                                             |
 |-----------|-------------------------------------------------------------------------------------|
-| Manager   | Kubernetes operator that reconciles Agent and Environment custom resources          |
-| Gateway   | HTTP API for managing agents, secrets and environments, querying observability data |
+| Manager   | Kubernetes operator that reconciles Agent and Sandbox custom resources          |
+| Gateway   | HTTP API for managing agents, secrets and sandboxes, querying observability data |
 | Sinjector | Sidecar proxy that performs secret injection via MITM                               |
 | Observer  | Collects telemetry from KubeArmor, Hubble, and OTLP sources                         |
 
@@ -44,5 +44,5 @@ graph TB
 
 - [Agent Sandbox](./docs/agent-sandbox.md)
 - [Secret Injection](./docs/secret-injection.md)
-- [Environments](./docs/environments.md)
+- [Sandboxes](./docs/sandboxes.md)
 - [OpenCode Interoperability](./docs/opencode.md)

@@ -28,7 +28,7 @@ resources:
   controller: true
   domain: accuknox.com
   group: agentz
-  kind: Environment
+  kind: Sandbox
   path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   plural: envs
   version: v1alpha1

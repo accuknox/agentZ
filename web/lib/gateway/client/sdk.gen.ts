@@ -8,12 +8,12 @@ import type {
   CreateAgentData,
   CreateAgentErrors,
   CreateAgentResponses,
-  CreateEnvironmentData,
-  CreateEnvironmentErrors,
-  CreateEnvironmentResponses,
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
+  CreateSandboxData,
+  CreateSandboxErrors,
+  CreateSandboxResponses,
   CreateWorkflowData,
   CreateWorkflowErrors,
   CreateWorkflowResponses,
@@ -26,12 +26,12 @@ import type {
   DeleteAgentData,
   DeleteAgentErrors,
   DeleteAgentResponses,
-  DeleteEnvironmentData,
-  DeleteEnvironmentErrors,
-  DeleteEnvironmentResponses,
   DeleteMcpConnectionData,
   DeleteMcpConnectionErrors,
   DeleteMcpConnectionResponses,
+  DeleteSandboxData,
+  DeleteSandboxErrors,
+  DeleteSandboxResponses,
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
@@ -71,9 +71,6 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
-  ListEnvironmentsData,
-  ListEnvironmentsErrors,
-  ListEnvironmentsResponses,
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
@@ -86,6 +83,9 @@ import type {
   ListProcessObservabilityData,
   ListProcessObservabilityErrors,
   ListProcessObservabilityResponses,
+  ListSandboxesData,
+  ListSandboxesErrors,
+  ListSandboxesResponses,
   ListSecretsData,
   ListSecretsErrors,
   ListSecretsResponses,
@@ -113,9 +113,9 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
-  UpdateEnvironmentData,
-  UpdateEnvironmentErrors,
-  UpdateEnvironmentResponses,
+  UpdateSandboxData,
+  UpdateSandboxErrors,
+  UpdateSandboxResponses,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
@@ -138,16 +138,16 @@ import type {
 } from "./types.gen"
 import {
   zCreateAgentBody,
-  zCreateEnvironmentBody,
   zCreateMcpConnectionBody,
+  zCreateSandboxBody,
   zCreateWorkflowBody,
   zCreateWorkflowPath,
   zCreateWorkflowRunPath,
   zCreateWorkflowScheduleBody,
   zCreateWorkflowSchedulePath,
   zDeleteAgentPath,
-  zDeleteEnvironmentPath,
   zDeleteMcpConnectionPath,
+  zDeleteSandboxPath,
   zDeleteSecretBody,
   zDeleteSecretPath,
   zDeleteWorkflowRunPath,
@@ -163,7 +163,6 @@ import {
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
-  zListEnvironmentsQuery,
   zListFileObservabilityPath,
   zListFileObservabilityQuery,
   zListMcpConnectionsQuery,
@@ -171,6 +170,7 @@ import {
   zListNetworkObservabilityQuery,
   zListProcessObservabilityPath,
   zListProcessObservabilityQuery,
+  zListSandboxesQuery,
   zListSecretsPath,
   zListSecretsQuery,
   zListSpansPath,
@@ -188,8 +188,8 @@ import {
   zPutSecretPath,
   zUpdateAgentBody,
   zUpdateAgentPath,
-  zUpdateEnvironmentBody,
-  zUpdateEnvironmentPath,
+  zUpdateSandboxBody,
+  zUpdateSandboxPath,
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
@@ -641,46 +641,42 @@ export const deleteSecret = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List paginated Environment resources.
+ * List paginated Sandbox resources.
  */
-export const listEnvironments = <ThrowOnError extends boolean = false>(
-  options?: Options<ListEnvironmentsData, ThrowOnError>
+export const listSandboxes = <ThrowOnError extends boolean = false>(
+  options?: Options<ListSandboxesData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<ListEnvironmentsResponses, ListEnvironmentsErrors, ThrowOnError>({
+  (options?.client ?? client).get<ListSandboxesResponses, ListSandboxesErrors, ThrowOnError>({
     requestValidator: async (data) =>
       await z
         .object({
           body: z.never().optional(),
           path: z.never().optional(),
-          query: zListEnvironmentsQuery.optional(),
+          query: zListSandboxesQuery.optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/environment",
+    url: "/api/sandbox",
     ...options,
   })
 
 /**
- * Create an Environment resource.
+ * Create a Sandbox resource.
  */
-export const createEnvironment = <ThrowOnError extends boolean = false>(
-  options: Options<CreateEnvironmentData, ThrowOnError>
+export const createSandbox = <ThrowOnError extends boolean = false>(
+  options: Options<CreateSandboxData, ThrowOnError>
 ) =>
-  (options.client ?? client).post<
-    CreateEnvironmentResponses,
-    CreateEnvironmentErrors,
-    ThrowOnError
-  >({
+  (options.client ?? client).post<CreateSandboxResponses, CreateSandboxErrors, ThrowOnError>({
     requestValidator: async (data) =>
       await z
         .object({
-          body: zCreateEnvironmentBody,
+          body: zCreateSandboxBody,
           path: z.never().optional(),
           query: z.never().optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/environment",
+    url: "/api/sandbox",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -689,57 +685,51 @@ export const createEnvironment = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Delete an Environment resource.
+ * Delete a Sandbox resource.
  */
-export const deleteEnvironment = <ThrowOnError extends boolean = false>(
-  options: Options<DeleteEnvironmentData, ThrowOnError>
+export const deleteSandbox = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteSandboxData, ThrowOnError>
 ) =>
-  (options.client ?? client).delete<
-    DeleteEnvironmentResponses,
-    DeleteEnvironmentErrors,
-    ThrowOnError
-  >({
+  (options.client ?? client).delete<DeleteSandboxResponses, DeleteSandboxErrors, ThrowOnError>({
     requestValidator: async (data) =>
       await z
         .object({
           body: z.never().optional(),
-          path: zDeleteEnvironmentPath,
+          path: zDeleteSandboxPath,
           query: z.never().optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/environment/{environmentName}",
+    url: "/api/sandbox/{sandboxName}",
     ...options,
   })
 
 /**
- * Update an Environment resource.
+ * Update a Sandbox resource.
  *
- * Updates the packages list for an existing Environment. The name in the path identifies the Environment.
+ * Updates the packages list for an existing Sandbox. The name in the path identifies the Sandbox.
  *
  */
-export const updateEnvironment = <ThrowOnError extends boolean = false>(
-  options: Options<UpdateEnvironmentData, ThrowOnError>
+export const updateSandbox = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateSandboxData, ThrowOnError>
 ) =>
-  (options.client ?? client).put<UpdateEnvironmentResponses, UpdateEnvironmentErrors, ThrowOnError>(
-    {
-      requestValidator: async (data) =>
-        await z
-          .object({
-            body: zUpdateEnvironmentBody,
-            path: zUpdateEnvironmentPath,
-            query: z.never().optional(),
-          })
-          .parseAsync(data),
-      security: [{ scheme: "bearer", type: "http" }],
-      url: "/api/environment/{environmentName}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    }
-  )
+  (options.client ?? client).put<UpdateSandboxResponses, UpdateSandboxErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateSandboxBody,
+          path: zUpdateSandboxPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/sandbox/{sandboxName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
 
 /**
  * List paginated MCPConnection resources.

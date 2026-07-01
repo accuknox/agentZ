@@ -14,7 +14,7 @@ export async function createAgentFormAction(
 ): Promise<CreateAgentFormState> {
   const parsed = createAgentSimpleFormSchema.safeParse({
     name: formData.get("name"),
-    environmentName: formData.get("environmentName"),
+    sandboxName: formData.get("sandboxName"),
   })
   if (!parsed.success) {
     return {
@@ -44,7 +44,7 @@ export async function updateAgentFormAction(
   formData: FormData
 ): Promise<CreateAgentFormState> {
   const parsed = updateAgentSimpleFormSchema.safeParse({
-    environmentName: formData.get("environmentName"),
+    sandboxName: formData.get("sandboxName"),
     model: formData.get("model"),
     smallModel: formData.get("smallModel"),
   })
@@ -71,7 +71,7 @@ export async function updateAgentFormAction(
 
   const result = await updateAgent({
     body: {
-      environmentName: parsed.data.environmentName,
+      sandboxName: parsed.data.sandboxName,
       ...(opencode ? { opencode } : {}),
     },
     client: getGatewayServerClient(),

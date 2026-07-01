@@ -19,9 +19,9 @@ package v1alpha1
 
 type AgentExpansion interface{}
 
-type EnvironmentExpansion interface{}
-
 type MCPConnectionExpansion interface{}
+
+type SandboxExpansion interface{}
 
 type SecretExpansion interface{}
 

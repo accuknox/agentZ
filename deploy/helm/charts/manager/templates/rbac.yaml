@@ -258,7 +258,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "manager.fullname" . }}-environment-admin-role
+  name: {{ include "manager.fullname" . }}-sandbox-admin-role
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "manager.labels" . | nindent 4 }}
@@ -273,7 +273,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "manager.fullname" . }}-environment-editor-role
+  name: {{ include "manager.fullname" . }}-sandbox-editor-role
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "manager.labels" . | nindent 4 }}
@@ -288,7 +288,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "manager.fullname" . }}-environment-viewer-role
+  name: {{ include "manager.fullname" . }}-sandbox-viewer-role
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "manager.labels" . | nindent 4 }}

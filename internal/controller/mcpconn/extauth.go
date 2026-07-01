@@ -182,7 +182,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthRole(ctx context.Context, ns s
 			},
 			{
 				APIGroups: []string{"agentz.accuknox.com"},
-				Resources: []string{"agents", "envs", "mcpconnections"},
+				Resources: []string{"agents", "sandboxes", "mcpconnections"},
 				Verbs:     []string{"get", "list", "watch"},
 			},
 			{

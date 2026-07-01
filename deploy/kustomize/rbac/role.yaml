@@ -66,8 +66,8 @@ rules:
   - agentz.accuknox.com
   resources:
   - agents/finalizers
-  - envs/finalizers
   - mcpconnections/finalizers
+  - sandboxes/finalizers
   - secrets/finalizers
   - workflowruns/finalizers
   verbs:
@@ -76,8 +76,8 @@ rules:
   - agentz.accuknox.com
   resources:
   - agents/status
-  - envs/status
   - mcpconnections/status
+  - sandboxes/status
   - secrets/status
   - tenants/status
   - workflowruns/status
@@ -89,8 +89,8 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - envs
   - mcpconnections
+  - sandboxes
   - secrets
   verbs:
   - get

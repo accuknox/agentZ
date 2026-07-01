@@ -42,9 +42,9 @@ export type ObservabilityAction = "Allowed" | "Blocked"
 export type AgentName = string
 
 /**
- * Environment resource name.
+ * Sandbox resource name.
  */
-export type EnvironmentName = string
+export type SandboxName = string
 
 /**
  * MCPConnection resource name.
@@ -109,7 +109,7 @@ export type ListWorkflowRunsResponse = {
 
 export type Agent = {
   name: AgentName
-  environmentName: EnvironmentName
+  sandboxName: SandboxName
   last_activity: string
   created_at: string
   modified_at: string
@@ -123,7 +123,7 @@ export type CreateAgentRequest = {
   env?: {
     [key: string]: string
   }
-  environmentName: EnvironmentName
+  sandboxName: SandboxName
   opencode?: AgentOpencodeConfig
 }
 
@@ -274,7 +274,7 @@ export type UpdateAgentRequest = {
   env?: {
     [key: string]: string
   }
-  environmentName?: EnvironmentName
+  sandboxName?: SandboxName
   opencode?: AgentOpencodeConfig
 }
 
@@ -636,8 +636,8 @@ export type WatchSecretsEvent = {
   items: Array<SecretListItem>
 }
 
-export type Environment = {
-  name: EnvironmentName
+export type Sandbox = {
+  name: SandboxName
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
@@ -649,19 +649,19 @@ export type Environment = {
   }
 }
 
-export type ListEnvironmentsResponse = {
-  environments: Array<Environment>
+export type ListSandboxesResponse = {
+  sandboxes: Array<Sandbox>
   next_page_token: string
 }
 
-export type CreateEnvironmentRequest = {
-  name: EnvironmentName
+export type CreateSandboxRequest = {
+  name: SandboxName
   packages?: Array<string>
   allowed_hosts?: Array<string>
   mcp_connection_refs?: Array<McpConnectionRef>
 }
 
-export type UpdateEnvironmentRequest = {
+export type UpdateSandboxRequest = {
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
@@ -814,9 +814,9 @@ export type AgentNameQuery = AgentName
 export type AgentNamePath = AgentName
 
 /**
- * Environment name.
+ * Sandbox name.
  */
-export type EnvironmentNamePath = EnvironmentName
+export type SandboxNamePath = SandboxName
 
 /**
  * MCPConnection name.
@@ -1720,7 +1720,7 @@ export type DeleteSecretResponses = {
 
 export type DeleteSecretResponse = DeleteSecretResponses[keyof DeleteSecretResponses]
 
-export type ListEnvironmentsData = {
+export type ListSandboxesData = {
   body?: never
   path?: never
   query?: {
@@ -1733,10 +1733,10 @@ export type ListEnvironmentsData = {
      */
     page_token?: string
   }
-  url: "/api/environment"
+  url: "/api/sandbox"
 }
 
-export type ListEnvironmentsErrors = {
+export type ListSandboxesErrors = {
   /**
    * Request validation failed.
    */
@@ -1747,25 +1747,25 @@ export type ListEnvironmentsErrors = {
   500: Error
 }
 
-export type ListEnvironmentsError = ListEnvironmentsErrors[keyof ListEnvironmentsErrors]
+export type ListSandboxesError = ListSandboxesErrors[keyof ListSandboxesErrors]
 
-export type ListEnvironmentsResponses = {
+export type ListSandboxesResponses = {
   /**
-   * Paginated environments.
+   * Paginated sandboxes.
    */
-  200: ListEnvironmentsResponse
+  200: ListSandboxesResponse
 }
 
-export type ListEnvironmentsResponse2 = ListEnvironmentsResponses[keyof ListEnvironmentsResponses]
+export type ListSandboxesResponse2 = ListSandboxesResponses[keyof ListSandboxesResponses]
 
-export type CreateEnvironmentData = {
-  body: CreateEnvironmentRequest
+export type CreateSandboxData = {
+  body: CreateSandboxRequest
   path?: never
   query?: never
-  url: "/api/environment"
+  url: "/api/sandbox"
 }
 
-export type CreateEnvironmentErrors = {
+export type CreateSandboxErrors = {
   /**
    * Request validation failed.
    */
@@ -1781,30 +1781,30 @@ export type CreateEnvironmentErrors = {
   500: Error
 }
 
-export type CreateEnvironmentError = CreateEnvironmentErrors[keyof CreateEnvironmentErrors]
+export type CreateSandboxError = CreateSandboxErrors[keyof CreateSandboxErrors]
 
-export type CreateEnvironmentResponses = {
+export type CreateSandboxResponses = {
   /**
-   * Environment created.
+   * Sandbox created.
    */
-  201: Environment
+  201: Sandbox
 }
 
-export type CreateEnvironmentResponse = CreateEnvironmentResponses[keyof CreateEnvironmentResponses]
+export type CreateSandboxResponse = CreateSandboxResponses[keyof CreateSandboxResponses]
 
-export type DeleteEnvironmentData = {
+export type DeleteSandboxData = {
   body?: never
   path: {
     /**
-     * Environment resource name.
+     * Sandbox resource name.
      */
-    environmentName: EnvironmentName
+    sandboxName: SandboxName
   }
   query?: never
-  url: "/api/environment/{environmentName}"
+  url: "/api/sandbox/{sandboxName}"
 }
 
-export type DeleteEnvironmentErrors = {
+export type DeleteSandboxErrors = {
   /**
    * Request validation failed.
    */
@@ -1820,30 +1820,30 @@ export type DeleteEnvironmentErrors = {
   500: Error
 }
 
-export type DeleteEnvironmentError = DeleteEnvironmentErrors[keyof DeleteEnvironmentErrors]
+export type DeleteSandboxError = DeleteSandboxErrors[keyof DeleteSandboxErrors]
 
-export type DeleteEnvironmentResponses = {
+export type DeleteSandboxResponses = {
   /**
-   * Environment deleted.
+   * Sandbox deleted.
    */
   204: void
 }
 
-export type DeleteEnvironmentResponse = DeleteEnvironmentResponses[keyof DeleteEnvironmentResponses]
+export type DeleteSandboxResponse = DeleteSandboxResponses[keyof DeleteSandboxResponses]
 
-export type UpdateEnvironmentData = {
-  body: UpdateEnvironmentRequest
+export type UpdateSandboxData = {
+  body: UpdateSandboxRequest
   path: {
     /**
-     * Environment resource name.
+     * Sandbox resource name.
      */
-    environmentName: EnvironmentName
+    sandboxName: SandboxName
   }
   query?: never
-  url: "/api/environment/{environmentName}"
+  url: "/api/sandbox/{sandboxName}"
 }
 
-export type UpdateEnvironmentErrors = {
+export type UpdateSandboxErrors = {
   /**
    * Request validation failed.
    */
@@ -1859,16 +1859,16 @@ export type UpdateEnvironmentErrors = {
   500: Error
 }
 
-export type UpdateEnvironmentError = UpdateEnvironmentErrors[keyof UpdateEnvironmentErrors]
+export type UpdateSandboxError = UpdateSandboxErrors[keyof UpdateSandboxErrors]
 
-export type UpdateEnvironmentResponses = {
+export type UpdateSandboxResponses = {
   /**
-   * Environment updated.
+   * Sandbox updated.
    */
-  200: Environment
+  200: Sandbox
 }
 
-export type UpdateEnvironmentResponse = UpdateEnvironmentResponses[keyof UpdateEnvironmentResponses]
+export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses]
 
 export type ListMcpConnectionsData = {
   body?: never

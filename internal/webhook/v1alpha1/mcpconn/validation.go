@@ -114,25 +114,25 @@ func (v *Validator) ValidateDelete(ctx context.Context, conn *agentzv1alpha1.MCP
 		return nil, nil
 	}
 
-	envs := &agentzv1alpha1.EnvironmentList{}
+	sandboxes := &agentzv1alpha1.SandboxList{}
 	err := v.kubeClient.List(
 		ctx,
-		envs,
+		sandboxes,
 		client.InNamespace(conn.Namespace),
-		client.MatchingFields{mcp.EnvironmentByMCPConnectionIndex: conn.Name},
+		client.MatchingFields{mcp.SandboxByMCPConnectionIndex: conn.Name},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list referencing environments: %w", err)
+		return nil, fmt.Errorf("list referencing sandboxes: %w", err)
 	}
-	if len(envs.Items) == 0 {
+	if len(sandboxes.Items) == 0 {
 		return nil, nil
 	}
 
-	names := make([]string, 0, len(envs.Items))
-	for _, env := range envs.Items {
-		names = append(names, env.Name)
+	names := make([]string, 0, len(sandboxes.Items))
+	for _, sandbox := range sandboxes.Items {
+		names = append(names, sandbox.Name)
 	}
-	return nil, fmt.Errorf("mcp connection is referenced by environments: %s", strings.Join(names, ", "))
+	return nil, fmt.Errorf("mcp connection is referenced by sandboxes: %s", strings.Join(names, ", "))
 }
 
 func validateEndpoint(endpoint agentzv1alpha1.MCPConnectionEndpoint, path *field.Path) field.ErrorList {

@@ -8,7 +8,7 @@ metadata:
 spec:
   image: murtazau/agentz-agent:latest
   imagePullPolicy: Never
-  environmentRef:
+  sandboxRef:
     name: cluster-debugger
   env:
   - name: OPENAI_API_KEY

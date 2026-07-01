@@ -29,9 +29,9 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-agentz-accuknox-com-v1alpha1-environment
+        path: /mutate-agentz-accuknox-com-v1alpha1-sandbox
     failurePolicy: Fail
-    name: menvironment-v1alpha1.kb.io
+    name: msandbox-v1alpha1.kb.io
     rules:
       - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
@@ -125,9 +125,9 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-agentz-accuknox-com-v1alpha1-environment
+        path: /validate-agentz-accuknox-com-v1alpha1-sandbox
     failurePolicy: Fail
-    name: venvironment-v1alpha1.kb.io
+    name: vsandbox-v1alpha1.kb.io
     rules:
       - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]

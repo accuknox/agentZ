@@ -55,19 +55,19 @@ const (
 	// DefaultMCPProbeTimeout bounds one end-to-end MCP probe.
 	DefaultMCPProbeTimeout = 15 * time.Second
 
-	managedLabelKey       = "agentz.accuknox.com/managed"
-	managedLabelValue     = "true"
-	agentLabelKey         = "agentz.accuknox.com/agent"
-	appNameLabelKey       = "app.kubernetes.io/name"
-	appNameAgent          = "agentz-agent"
-	sessionHeaderName     = "x-opencode-session-id"
-	contextNamespaceKey   = "agentz.namespace"
-	contextEnvironmentKey = "agentz.environment"
-	contextConnectionKey  = "agentz.mcp_connection"
-	kubeRequestTimeout    = 5 * time.Second
-	grpcShutdownTimeout   = 15 * time.Second
-	httpClientTimeout     = 15 * time.Second
-	probeQueueName        = "extauth-mcp-probe"
+	managedLabelKey      = "agentz.accuknox.com/managed"
+	managedLabelValue    = "true"
+	agentLabelKey        = "agentz.accuknox.com/agent"
+	appNameLabelKey      = "app.kubernetes.io/name"
+	appNameAgent         = "agentz-agent"
+	sessionHeaderName    = "x-opencode-session-id"
+	contextNamespaceKey  = "agentz.namespace"
+	contextSandboxKey    = "agentz.sandbox"
+	contextConnectionKey = "agentz.mcp_connection"
+	kubeRequestTimeout   = 5 * time.Second
+	grpcShutdownTimeout  = 15 * time.Second
+	httpClientTimeout    = 15 * time.Second
+	probeQueueName       = "extauth-mcp-probe"
 )
 
 var (
@@ -367,7 +367,7 @@ func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.
 
 	logAttrs := []slog.Attr{
 		slog.String("namespace", attrs.namespace),
-		slog.String("environment", attrs.environment),
+		slog.String("sandbox", attrs.sandbox),
 		slog.String("connection", attrs.connection),
 		slog.String("agent", attrs.agent),
 		slog.String("source_ip", attrs.sourceIP),
@@ -392,7 +392,7 @@ func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.
 
 type requestAttrs struct {
 	namespace        string
-	environment      string
+	sandbox          string
 	connection       string
 	agent            string
 	sourceIP         string
@@ -436,17 +436,17 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	}
 	attrs.connection = connName
 
-	environmentName := strings.TrimSpace(checkAttrs.GetContextExtensions()[contextEnvironmentKey])
-	if environmentName == "" {
+	sandboxName := strings.TrimSpace(checkAttrs.GetContextExtensions()[contextSandboxKey])
+	if sandboxName == "" {
 		return denyDecision(
 			codes.Unavailable,
 			typev3.StatusCode_ServiceUnavailable,
-			"mcp environment context is missing",
-			"missing_environment_context",
+			"mcp sandbox context is missing",
+			"missing_sandbox_context",
 			slog.LevelError,
 		), attrs
 	}
-	attrs.environment = environmentName
+	attrs.sandbox = sandboxName
 
 	if ns := strings.TrimSpace(checkAttrs.GetContextExtensions()[contextNamespaceKey]); ns != "" {
 		attrs.namespace = ns
@@ -486,7 +486,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		ctx,
 		attrs.namespace,
 		attrs.sourceIP,
-		environmentName,
+		sandboxName,
 		connName,
 	)
 	if err != nil {
@@ -534,7 +534,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	return allowDecision(injection), attrs
 }
 
-func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, environmentName, connName string) (string, error) {
+func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, sandboxName, connName string) (string, error) {
 	pod, err := s.lookupAgentPodByIP(ctx, namespace, sourceIP)
 	if err != nil {
 		return "", err
@@ -565,44 +565,44 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 		)
 	}
 
-	if agent.Spec.EnvironmentRef == nil || strings.TrimSpace(agent.Spec.EnvironmentRef.Name) == "" {
-		return "", fmt.Errorf("agent %q has no environment", agentName)
+	if agent.Spec.SandboxRef == nil || strings.TrimSpace(agent.Spec.SandboxRef.Name) == "" {
+		return "", fmt.Errorf("agent %q has no sandbox", agentName)
 	}
-	agentEnvironmentName := strings.TrimSpace(agent.Spec.EnvironmentRef.Name)
-	if agentEnvironmentName != environmentName {
+	agentSandboxName := strings.TrimSpace(agent.Spec.SandboxRef.Name)
+	if agentSandboxName != sandboxName {
 		return "", fmt.Errorf(
-			"agent %q is bound to environment %q, not %q",
+			"agent %q is bound to sandbox %q, not %q",
 			agentName,
-			agentEnvironmentName,
-			environmentName,
+			agentSandboxName,
+			sandboxName,
 		)
 	}
 
 	envCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 
-	env := &agentzv1alpha1.Environment{}
-	envKey := ctrlclient.ObjectKey{
+	sandbox := &agentzv1alpha1.Sandbox{}
+	sandboxKey := ctrlclient.ObjectKey{
 		Namespace: namespace,
-		Name:      environmentName,
+		Name:      sandboxName,
 	}
-	if err := s.kube.Get(envCtx, envKey, env); err != nil {
+	if err := s.kube.Get(envCtx, sandboxKey, sandbox); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("environment %q does not exist", environmentName)
+			return "", fmt.Errorf("sandbox %q does not exist", sandboxName)
 		}
 		return "", fmt.Errorf(
-			"get environment %q: %w: %w",
-			environmentName,
+			"get sandbox %q: %w: %w",
+			sandboxName,
 			err,
 			errCredentialUnavailable,
 		)
 	}
 
-	hasConnection := slices.ContainsFunc(env.Spec.MCPConnectionRefs, func(ref agentzv1alpha1.MCPConnectionRef) bool {
+	hasConnection := slices.ContainsFunc(sandbox.Spec.MCPConnectionRefs, func(ref agentzv1alpha1.MCPConnectionRef) bool {
 		return ref.Name == connName
 	})
 	if !hasConnection {
-		return "", fmt.Errorf("environment %q does not include mcp connection %q", environmentName, connName)
+		return "", fmt.Errorf("sandbox %q does not include mcp connection %q", sandboxName, connName)
 	}
 
 	return agentName, nil

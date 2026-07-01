@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
-import type { Agent, Environment } from "@/lib/gateway/client"
+import type { Agent, Sandbox } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,9 +32,9 @@ type DeleteAgentAction = (
 
 export function createAgentColumns(
   deleteAgentAction: DeleteAgentAction,
-  environments: Environment[],
-  initialHasNextEnvironmentPage: boolean,
-  initialNextEnvironmentPageToken: string
+  sandboxes: Sandbox[],
+  initialHasNextSandboxPage: boolean,
+  initialNextSandboxPageToken: string
 ): ColumnDef<Agent>[] {
   return [
     {
@@ -78,9 +78,9 @@ export function createAgentColumns(
           <AgentActions
             agent={agent}
             deleteAgentAction={deleteAgentAction}
-            environments={environments}
-            initialHasNextEnvironmentPage={initialHasNextEnvironmentPage}
-            initialNextEnvironmentPageToken={initialNextEnvironmentPageToken}
+            sandboxes={sandboxes}
+            initialHasNextSandboxPage={initialHasNextSandboxPage}
+            initialNextSandboxPageToken={initialNextSandboxPageToken}
           />
         )
       },
@@ -91,15 +91,15 @@ export function createAgentColumns(
 function AgentActions({
   agent,
   deleteAgentAction,
-  environments,
-  initialHasNextEnvironmentPage,
-  initialNextEnvironmentPageToken,
+  sandboxes,
+  initialHasNextSandboxPage,
+  initialNextSandboxPageToken,
 }: {
   agent: Agent
   deleteAgentAction: DeleteAgentAction
-  environments: Environment[]
-  initialHasNextEnvironmentPage: boolean
-  initialNextEnvironmentPageToken: string
+  sandboxes: Sandbox[]
+  initialHasNextSandboxPage: boolean
+  initialNextSandboxPageToken: string
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
@@ -131,10 +131,10 @@ function AgentActions({
       <AgentDialog
         mode="update"
         agentName={agent.name}
-        initialEnvironmentName={agent.environmentName}
-        environments={environments}
-        initialHasNextEnvironmentPage={initialHasNextEnvironmentPage}
-        initialNextEnvironmentPageToken={initialNextEnvironmentPageToken}
+        initialSandboxName={agent.sandboxName}
+        sandboxes={sandboxes}
+        initialHasNextSandboxPage={initialHasNextSandboxPage}
+        initialNextSandboxPageToken={initialNextSandboxPageToken}
         open={editOpen}
         onOpenChangeAction={setEditOpen}
       />

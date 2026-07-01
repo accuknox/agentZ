@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { deleteAgentFormAction } from "@/data/agent.actions"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { listEnvironmentsCachedQuery } from "@/data/environment.queries"
+import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { AgentTable } from "@/app/agent-table"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { BotIcon } from "@/components/bot-icon"
@@ -25,11 +25,11 @@ export default async function Home({
           <h1 className="text-2xl font-semibold tracking-normal">Agents</h1>
         </div>
         <Suspense fallback={null}>
-          <EnvironmentsHeader />
+          <SandboxesHeader />
         </Suspense>
       </div>
       <Suspense fallback={null}>
-        <EnvironmentsInfo />
+        <SandboxesInfo />
       </Suspense>
       <Suspense fallback={<AgentsSkeleton />}>
         <Agents searchParams={searchParams} deleteAgentAction={deleteAgentFormAction} />
@@ -38,26 +38,26 @@ export default async function Home({
   )
 }
 
-async function EnvironmentsHeader() {
-  const environments = await listEnvironmentsCachedQuery({ limit: 50 })
-  if (environments.error) return null
+async function SandboxesHeader() {
+  const sandboxes = await listSandboxesCachedQuery({ limit: 50 })
+  if (sandboxes.error) return null
   return (
     <AgentDialog
       mode="create"
-      environments={environments.environments}
-      initialHasNextEnvironmentPage={environments.hasNextPage}
-      initialNextEnvironmentPageToken={environments.nextPageToken}
+      sandboxes={sandboxes.sandboxes}
+      initialHasNextSandboxPage={sandboxes.hasNextPage}
+      initialNextSandboxPageToken={sandboxes.nextPageToken}
     />
   )
 }
 
-async function EnvironmentsInfo() {
-  const environments = await listEnvironmentsCachedQuery({ limit: 50 })
-  if (!environments.error) return null
+async function SandboxesInfo() {
+  const sandboxes = await listSandboxesCachedQuery({ limit: 50 })
+  if (!sandboxes.error) return null
   return (
     <div className="px-4 md:px-6">
       <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-        {environments.error.message}
+        {sandboxes.error.message}
       </div>
     </div>
   )
@@ -76,9 +76,9 @@ async function Agents({
 }) {
   const params = searchParams ? await searchParams : undefined
   const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
-  const [result, environments] = await Promise.all([
+  const [result, sandboxes] = await Promise.all([
     listAgentsCachedQuery({ limit: 50, page_token: pageToken }),
-    listEnvironmentsCachedQuery({ limit: 50 }),
+    listSandboxesCachedQuery({ limit: 50 }),
   ])
 
   if (result.error) {
@@ -92,10 +92,10 @@ async function Agents({
   return (
     <AgentTable
       agents={result.agents}
-      environments={environments.error ? [] : environments.environments}
+      sandboxes={sandboxes.error ? [] : sandboxes.sandboxes}
       hasNextPage={result.hasNextPage}
-      initialHasNextEnvironmentPage={environments.error ? false : environments.hasNextPage}
-      initialNextEnvironmentPageToken={environments.error ? "" : environments.nextPageToken}
+      initialHasNextSandboxPage={sandboxes.error ? false : sandboxes.hasNextPage}
+      initialNextSandboxPageToken={sandboxes.error ? "" : sandboxes.nextPageToken}
       nextPageToken={result.nextPageToken}
       deleteAgentAction={deleteAgentAction}
     />

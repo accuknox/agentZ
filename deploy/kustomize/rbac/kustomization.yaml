@@ -37,9 +37,9 @@ resources:
 - workflowschedule_admin_role.yaml
 - workflowschedule_editor_role.yaml
 - workflowschedule_viewer_role.yaml
-- environment_admin_role.yaml
-- environment_editor_role.yaml
-- environment_viewer_role.yaml
+- sandbox_admin_role.yaml
+- sandbox_editor_role.yaml
+- sandbox_viewer_role.yaml
 - agent_admin_role.yaml
 - agent_editor_role.yaml
 - agent_viewer_role.yaml

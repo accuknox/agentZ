@@ -25,14 +25,6 @@ type AgentListerExpansion interface{}
 // AgentNamespaceLister.
 type AgentNamespaceListerExpansion interface{}
 
-// EnvironmentListerExpansion allows custom methods to be added to
-// EnvironmentLister.
-type EnvironmentListerExpansion interface{}
-
-// EnvironmentNamespaceListerExpansion allows custom methods to be added to
-// EnvironmentNamespaceLister.
-type EnvironmentNamespaceListerExpansion interface{}
-
 // MCPConnectionListerExpansion allows custom methods to be added to
 // MCPConnectionLister.
 type MCPConnectionListerExpansion interface{}
@@ -40,6 +32,14 @@ type MCPConnectionListerExpansion interface{}
 // MCPConnectionNamespaceListerExpansion allows custom methods to be added to
 // MCPConnectionNamespaceLister.
 type MCPConnectionNamespaceListerExpansion interface{}
+
+// SandboxListerExpansion allows custom methods to be added to
+// SandboxLister.
+type SandboxListerExpansion interface{}
+
+// SandboxNamespaceListerExpansion allows custom methods to be added to
+// SandboxNamespaceLister.
+type SandboxNamespaceListerExpansion interface{}
 
 // SecretListerExpansion allows custom methods to be added to
 // SecretLister.

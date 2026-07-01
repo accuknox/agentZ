@@ -28,8 +28,8 @@ import (
 type AgentzV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	AgentsGetter
-	EnvironmentsGetter
 	MCPConnectionsGetter
+	SandboxesGetter
 	SecretsGetter
 	WorkflowRunsGetter
 	WorkflowSchedulesGetter
@@ -44,12 +44,12 @@ func (c *AgentzV1alpha1Client) Agents(namespace string) AgentInterface {
 	return newAgents(c, namespace)
 }
 
-func (c *AgentzV1alpha1Client) Environments(namespace string) EnvironmentInterface {
-	return newEnvironments(c, namespace)
-}
-
 func (c *AgentzV1alpha1Client) MCPConnections(namespace string) MCPConnectionInterface {
 	return newMCPConnections(c, namespace)
+}
+
+func (c *AgentzV1alpha1Client) Sandboxes(namespace string) SandboxInterface {
+	return newSandboxes(c, namespace)
 }
 
 func (c *AgentzV1alpha1Client) Secrets(namespace string) SecretInterface {

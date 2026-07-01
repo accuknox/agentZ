@@ -53,9 +53,9 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
- * Environment resource name.
+ * Sandbox resource name.
  */
-export const zEnvironmentName = z
+export const zSandboxName = z
   .string()
   .min(1)
   .max(32)
@@ -124,7 +124,7 @@ export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "D
 
 export const zAgent = z.object({
   name: zAgentName,
-  environmentName: zEnvironmentName,
+  sandboxName: zSandboxName,
   last_activity: z.iso.datetime(),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
@@ -259,13 +259,13 @@ export const zAgentOpencodeConfig = z.object({
 export const zCreateAgentRequest = z.object({
   name: zAgentName,
   env: z.record(z.string(), z.string()).optional(),
-  environmentName: zEnvironmentName,
+  sandboxName: zSandboxName,
   opencode: zAgentOpencodeConfig.optional(),
 })
 
 export const zUpdateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),
-  environmentName: zEnvironmentName.optional(),
+  sandboxName: zSandboxName.optional(),
   opencode: zAgentOpencodeConfig.optional(),
 })
 
@@ -779,8 +779,8 @@ export const zMcpConnectionRef = z.object({
   name: zMcpConnectionName,
 })
 
-export const zEnvironment = z.object({
-  name: zEnvironmentName,
+export const zSandbox = z.object({
+  name: zSandboxName,
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
@@ -798,19 +798,19 @@ export const zEnvironment = z.object({
   }),
 })
 
-export const zListEnvironmentsResponse = z.object({
-  environments: z.array(zEnvironment),
+export const zListSandboxesResponse = z.object({
+  sandboxes: z.array(zSandbox),
   next_page_token: z.string(),
 })
 
-export const zCreateEnvironmentRequest = z.object({
-  name: zEnvironmentName,
+export const zCreateSandboxRequest = z.object({
+  name: zSandboxName,
   packages: z.array(z.string().min(1)).optional(),
   allowed_hosts: z.array(z.string().min(1)).optional(),
   mcp_connection_refs: z.array(zMcpConnectionRef).optional(),
 })
 
-export const zUpdateEnvironmentRequest = z.object({
+export const zUpdateSandboxRequest = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
@@ -954,9 +954,9 @@ export const zAgentNameQuery = zAgentName
 export const zAgentNamePath = zAgentName
 
 /**
- * Environment name.
+ * Sandbox name.
  */
-export const zEnvironmentNamePath = zEnvironmentName
+export const zSandboxNamePath = zSandboxName
 
 /**
  * MCPConnection name.
@@ -1248,42 +1248,42 @@ export const zDeleteSecretPath = z.object({
  */
 export const zDeleteSecretResponse = z.void()
 
-export const zListEnvironmentsQuery = z.object({
+export const zListSandboxesQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
 })
 
 /**
- * Paginated environments.
+ * Paginated sandboxes.
  */
-export const zListEnvironmentsResponse2 = zListEnvironmentsResponse
+export const zListSandboxesResponse2 = zListSandboxesResponse
 
-export const zCreateEnvironmentBody = zCreateEnvironmentRequest
+export const zCreateSandboxBody = zCreateSandboxRequest
 
 /**
- * Environment created.
+ * Sandbox created.
  */
-export const zCreateEnvironmentResponse = zEnvironment
+export const zCreateSandboxResponse = zSandbox
 
-export const zDeleteEnvironmentPath = z.object({
-  environmentName: zEnvironmentName,
+export const zDeleteSandboxPath = z.object({
+  sandboxName: zSandboxName,
 })
 
 /**
- * Environment deleted.
+ * Sandbox deleted.
  */
-export const zDeleteEnvironmentResponse = z.void()
+export const zDeleteSandboxResponse = z.void()
 
-export const zUpdateEnvironmentBody = zUpdateEnvironmentRequest
+export const zUpdateSandboxBody = zUpdateSandboxRequest
 
-export const zUpdateEnvironmentPath = z.object({
-  environmentName: zEnvironmentName,
+export const zUpdateSandboxPath = z.object({
+  sandboxName: zSandboxName,
 })
 
 /**
- * Environment updated.
+ * Sandbox updated.
  */
-export const zUpdateEnvironmentResponse = zEnvironment
+export const zUpdateSandboxResponse = zSandbox
 
 export const zListMcpConnectionsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),

@@ -58,9 +58,9 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
-import { listEnvironmentsAction } from "@/data/environment.actions"
+import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
-import type { Environment } from "@/lib/gateway/client"
+import type { Sandbox } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type { ComponentType, SVGProps } from "react"
 
@@ -68,11 +68,11 @@ type Mode = "create" | "update"
 
 type AgentDialogProps = {
   mode: Mode
-  environments: Environment[]
-  initialHasNextEnvironmentPage: boolean
-  initialNextEnvironmentPageToken: string
+  sandboxes: Sandbox[]
+  initialHasNextSandboxPage: boolean
+  initialNextSandboxPageToken: string
   agentName?: string
-  initialEnvironmentName?: string
+  initialSandboxName?: string
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
   trigger?: React.ReactNode
@@ -80,7 +80,7 @@ type AgentDialogProps = {
 
 type AgentSimpleForm = {
   name?: string
-  environmentName: string
+  sandboxName: string
   model?: string
   smallModel?: string
 }
@@ -119,11 +119,11 @@ const providerLogos: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   vercel: themedIcon(VercelDark, VercelLight),
 }
 
-function EnvironmentSelect({
+function SandboxSelect({
   "aria-invalid": ariaInvalid,
   disabled,
   id,
-  initialEnvironments,
+  initialSandboxes,
   initialHasNextPage,
   initialNextPageToken,
   name,
@@ -134,7 +134,7 @@ function EnvironmentSelect({
   "aria-invalid"?: boolean
   disabled?: boolean
   id: string
-  initialEnvironments: Environment[]
+  initialSandboxes: Sandbox[]
   initialHasNextPage: boolean
   initialNextPageToken: string
   name: string
@@ -142,10 +142,8 @@ function EnvironmentSelect({
   onValueChangeAction: (value: string) => void
   value: string
 }) {
-  const [environments, setEnvironments] = useState(() => {
-    return Array.from(
-      new Map(initialEnvironments.map((environment) => [environment.name, environment])).values()
-    )
+  const [sandboxes, setSandboxes] = useState(() => {
+    return Array.from(new Map(initialSandboxes.map((sandbox) => [sandbox.name, sandbox])).values())
   })
   const [hasNextPage, setHasNextPage] = useState(initialHasNextPage)
   const [nextPageToken, setNextPageToken] = useState(initialNextPageToken)
@@ -157,7 +155,7 @@ function EnvironmentSelect({
 
     setLoading(true)
     setError(undefined)
-    const result = await listEnvironmentsAction({
+    const result = await listSandboxesAction({
       limit: 50,
       page_token: nextPageToken,
     })
@@ -168,10 +166,10 @@ function EnvironmentSelect({
       return
     }
 
-    setEnvironments((current) => {
+    setSandboxes((current) => {
       return Array.from(
         new Map(
-          [...current, ...result.environments].map((environment) => [environment.name, environment])
+          [...current, ...result.sandboxes].map((sandbox) => [sandbox.name, sandbox])
         ).values()
       )
     })
@@ -179,7 +177,7 @@ function EnvironmentSelect({
     setNextPageToken(result.nextPageToken)
   })
 
-  const selectedIsLoaded = environments.some((environment) => environment.name === value)
+  const selectedIsLoaded = sandboxes.some((sandbox) => sandbox.name === value)
   const options =
     value && !selectedIsLoaded
       ? [
@@ -194,9 +192,9 @@ function EnvironmentSelect({
             },
             allowed_hosts: [],
           },
-          ...environments,
+          ...sandboxes,
         ]
-      : environments
+      : sandboxes
 
   useEffect(() => {
     if (!sentinel || !hasNextPage) return
@@ -217,13 +215,13 @@ function EnvironmentSelect({
   return (
     <Select value={value} disabled={disabled} onValueChange={onValueChangeAction} name={name}>
       <SelectTrigger id={id} onBlur={onBlurAction} aria-invalid={ariaInvalid} className="w-full">
-        <SelectValue placeholder="Select an environment" />
+        <SelectValue placeholder="Select a sandbox" />
       </SelectTrigger>
       <SelectContent className="max-h-72">
         <SelectGroup>
-          {options.map((environment) => (
-            <SelectItem key={environment.name} value={environment.name}>
-              {environment.name}
+          {options.map((sandbox) => (
+            <SelectItem key={sandbox.name} value={sandbox.name}>
+              {sandbox.name}
             </SelectItem>
           ))}
         </SelectGroup>
@@ -233,7 +231,7 @@ function EnvironmentSelect({
             className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 text-xs"
           >
             {loading ? <Spinner aria-hidden="true" /> : null}
-            {loading ? "Loading environments..." : "Scroll for more environments"}
+            {loading ? "Loading sandboxes..." : "Scroll for more sandboxes"}
           </div>
         ) : null}
         {error ? <div className="text-destructive px-2 py-1.5 text-xs">{error}</div> : null}
@@ -244,11 +242,11 @@ function EnvironmentSelect({
 
 export function AgentDialog({
   mode,
-  environments,
-  initialHasNextEnvironmentPage,
-  initialNextEnvironmentPageToken,
+  sandboxes,
+  initialHasNextSandboxPage,
+  initialNextSandboxPageToken,
   agentName,
-  initialEnvironmentName,
+  initialSandboxName,
   open,
   onOpenChangeAction,
   trigger,
@@ -256,7 +254,7 @@ export function AgentDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const router = useRouter()
   const dialogOpen = open ?? internalOpen
-  const hasEnvironments = environments.length > 0
+  const hasSandboxes = sandboxes.length > 0
   const formAction =
     mode === "update" && agentName
       ? updateAgentFormAction.bind(null, agentName)
@@ -268,8 +266,7 @@ export function AgentDialog({
     ),
     defaultValues: {
       name: agentName ?? "",
-      environmentName:
-        initialEnvironmentName ?? (mode === "create" ? (environments[0]?.name ?? "") : ""),
+      sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
       model: undefined,
       smallModel: undefined,
     },
@@ -389,8 +386,8 @@ export function AgentDialog({
           <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
           <DialogDescription>
             {mode === "create"
-              ? "Create an agent with a name and environment."
-              : "Update the environment and live model settings for this agent."}
+              ? "Create an agent with a name and sandbox."
+              : "Update the sandbox and live model settings for this agent."}
           </DialogDescription>
         </DialogHeader>
         <form id="agent-form-simple" action={submit} className="space-y-5">
@@ -426,35 +423,35 @@ export function AgentDialog({
               </Field>
             )}
             <Controller
-              name="environmentName"
+              name="sandboxName"
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="agent-form-environment" required>
-                    Environment
+                  <FieldLabel htmlFor="agent-form-sandbox" required>
+                    Sandbox
                   </FieldLabel>
-                  <EnvironmentSelect
-                    disabled={!hasEnvironments}
-                    id="agent-form-environment"
+                  <SandboxSelect
+                    disabled={!hasSandboxes}
+                    id="agent-form-sandbox"
                     name={field.name}
                     value={field.value}
-                    initialEnvironments={environments}
-                    initialHasNextPage={initialHasNextEnvironmentPage}
-                    initialNextPageToken={initialNextEnvironmentPageToken}
+                    initialSandboxes={sandboxes}
+                    initialHasNextPage={initialHasNextSandboxPage}
+                    initialNextPageToken={initialNextSandboxPageToken}
                     onBlurAction={field.onBlur}
                     onValueChangeAction={field.onChange}
                     aria-invalid={fieldState.invalid}
                     aria-required="true"
                   />
-                  {!hasEnvironments ? (
+                  {!hasSandboxes ? (
                     <FieldDescription>
-                      Create an environment{" "}
+                      Create a sandbox{" "}
                       <button
                         type="button"
                         className="text-foreground underline"
                         onClick={() => {
                           onOpenChange(false)
-                          router.push("/environments/new")
+                          router.push("/sandboxes/new")
                         }}
                       >
                         here
@@ -584,7 +581,7 @@ export function AgentDialog({
               Cancel
             </Button>
           </DialogClose>
-          <Button type="submit" form="agent-form-simple" disabled={isPending || !hasEnvironments}>
+          <Button type="submit" form="agent-form-simple" disabled={isPending || !hasSandboxes}>
             {isPending ? <Spinner aria-hidden="true" /> : null}
             {mode === "create" ? "Create agent" : "Update agent"}
           </Button>

@@ -31,12 +31,12 @@ func (c *FakeAgentzV1alpha1) Agents(namespace string) v1alpha1.AgentInterface {
 	return newFakeAgents(c, namespace)
 }
 
-func (c *FakeAgentzV1alpha1) Environments(namespace string) v1alpha1.EnvironmentInterface {
-	return newFakeEnvironments(c, namespace)
-}
-
 func (c *FakeAgentzV1alpha1) MCPConnections(namespace string) v1alpha1.MCPConnectionInterface {
 	return newFakeMCPConnections(c, namespace)
+}
+
+func (c *FakeAgentzV1alpha1) Sandboxes(namespace string) v1alpha1.SandboxInterface {
+	return newFakeSandboxes(c, namespace)
 }
 
 func (c *FakeAgentzV1alpha1) Secrets(namespace string) v1alpha1.SecretInterface {

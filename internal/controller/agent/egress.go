@@ -32,12 +32,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/agentz/internal/envutil"
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *agentzv1alpha1.Agent, envCfg environmentConfig) error {
+func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *agentzv1alpha1.Agent, envCfg sandboxConfig) error {
 	name := egressPolicyName(agt)
 	spec, err := r.buildEgressPolicySpec(agt, envCfg)
 	if err != nil {
@@ -68,13 +68,13 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *agentzv1alp
 	return nil
 }
 
-func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg environmentConfig) (*ciliumapi.Rule, error) {
-	hosts, err := envutil.ParseHostList(envCfg.AllowedHosts)
+func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) (*ciliumapi.Rule, error) {
+	hosts, err := sandboxutil.ParseHostList(envCfg.AllowedHosts)
 	if err != nil {
 		return nil, err
 	}
-	egressHosts := append([]envutil.Host{}, hosts...)
-	dnsHosts := append([]envutil.Host{}, hosts...)
+	egressHosts := append([]sandboxutil.Host{}, hosts...)
+	dnsHosts := append([]sandboxutil.Host{}, hosts...)
 	if agt.Spec.Telemetry.Enabled {
 		endpointHosts := egressHostForEndpoint(agt.Spec.Telemetry.TraceEndpoint)
 		egressHosts = append(egressHosts, endpointHosts...)
@@ -111,16 +111,16 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg env
 	}, nil
 }
 
-func buildHostEgressRules(hosts []envutil.Host, dnsHosts []envutil.Host) []ciliumapi.EgressRule {
+func buildHostEgressRules(hosts []sandboxutil.Host, dnsHosts []sandboxutil.Host) []ciliumapi.EgressRule {
 	fqdns := ciliumapi.FQDNSelectorSlice{}
 	cidrs := ciliumapi.CIDRRuleSlice{}
 	for _, host := range hosts {
 		switch host.Kind {
-		case envutil.HostKindDomain:
+		case sandboxutil.HostKindDomain:
 			fqdns = append(fqdns, ciliumapi.FQDNSelector{MatchName: host.Value})
-		case envutil.HostKindWildcard, envutil.HostKindDeepWildcard:
+		case sandboxutil.HostKindWildcard, sandboxutil.HostKindDeepWildcard:
 			fqdns = append(fqdns, ciliumapi.FQDNSelector{MatchPattern: host.Value})
-		case envutil.HostKindCIDR:
+		case sandboxutil.HostKindCIDR:
 			cidrs = append(cidrs, ciliumapi.CIDRRule{Cidr: ciliumapi.CIDR(host.Value)})
 		}
 	}
@@ -141,9 +141,9 @@ func buildHostEgressRules(hosts []envutil.Host, dnsHosts []envutil.Host) []ciliu
 	return egress
 }
 
-func uniqueHosts(hosts []envutil.Host) []envutil.Host {
-	seen := make(map[envutil.Host]struct{}, len(hosts))
-	out := make([]envutil.Host, 0, len(hosts))
+func uniqueHosts(hosts []sandboxutil.Host) []sandboxutil.Host {
+	seen := make(map[sandboxutil.Host]struct{}, len(hosts))
+	out := make([]sandboxutil.Host, 0, len(hosts))
 	for _, host := range hosts {
 		if _, ok := seen[host]; ok {
 			continue
@@ -154,13 +154,13 @@ func uniqueHosts(hosts []envutil.Host) []envutil.Host {
 	return out
 }
 
-func dnsEgressRule(hosts []envutil.Host) *ciliumapi.EgressRule {
+func dnsEgressRule(hosts []sandboxutil.Host) *ciliumapi.EgressRule {
 	dns := make(ciliumapi.PortRulesDNS, 0, len(hosts))
 	for _, host := range hosts {
 		switch host.Kind {
-		case envutil.HostKindDomain:
+		case sandboxutil.HostKindDomain:
 			dns = append(dns, ciliumapi.PortRuleDNS{MatchName: host.Value})
-		case envutil.HostKindWildcard, envutil.HostKindDeepWildcard:
+		case sandboxutil.HostKindWildcard, sandboxutil.HostKindDeepWildcard:
 			dns = append(dns, ciliumapi.PortRuleDNS{MatchPattern: host.Value})
 		}
 	}
@@ -293,33 +293,33 @@ func (r *Reconciler) agentNoProxyHosts(agt *agentzv1alpha1.Agent) []string {
 	return hosts
 }
 
-func egressHostForEndpoint(endpoint string) []envutil.Host {
+func egressHostForEndpoint(endpoint string) []sandboxutil.Host {
 	if _, ok := parseServiceEgressTarget(endpoint); ok {
-		return []envutil.Host{}
+		return []sandboxutil.Host{}
 	}
 	return dnsHostForEndpoint(endpoint)
 }
 
-func dnsHostForEndpoint(endpoint string) []envutil.Host {
+func dnsHostForEndpoint(endpoint string) []sandboxutil.Host {
 	host := endpointHost(endpoint)
 	if host == "" {
-		return []envutil.Host{}
+		return []sandboxutil.Host{}
 	}
 	if addr, err := netip.ParseAddr(host); err == nil {
 		bits := 128
 		if addr.Is4() {
 			bits = 32
 		}
-		return []envutil.Host{{
-			Kind:  envutil.HostKindCIDR,
+		return []sandboxutil.Host{{
+			Kind:  sandboxutil.HostKindCIDR,
 			Value: netip.PrefixFrom(addr, bits).String(),
 		}}
 	}
-	parsed, err := envutil.ParseHost(host)
+	parsed, err := sandboxutil.ParseHost(host)
 	if err != nil {
-		return []envutil.Host{}
+		return []sandboxutil.Host{}
 	}
-	return []envutil.Host{parsed}
+	return []sandboxutil.Host{parsed}
 }
 
 func endpointHost(endpoint string) string {

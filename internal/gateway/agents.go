@@ -83,7 +83,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name, fields := validateCreateAgentRequest(req)
-	envFields, err := s.validateAgentEnvironmentName(r.Context(), ns, req.EnvironmentName)
+	envFields, err := s.validateAgentSandboxName(r.Context(), ns, req.SandboxName)
 	fields = append(fields, envFields...)
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -133,12 +133,12 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
-		Name:            row.AgentName,
-		EnvironmentName: req.EnvironmentName,
-		CreatedAt:       row.CreatedAt,
-		ModifiedAt:      row.UpdatedAt,
-		LastActivity:    row.UpdatedAt,
-		Status:          gatewayapi.PROGRESSING,
+		Name:         row.AgentName,
+		SandboxName:  req.SandboxName,
+		CreatedAt:    row.CreatedAt,
+		ModifiedAt:   row.UpdatedAt,
+		LastActivity: row.UpdatedAt,
+		Status:       gatewayapi.PROGRESSING,
 	})
 }
 
@@ -169,8 +169,8 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		))
 		return
 	}
-	if req.EnvironmentName != nil {
-		envFields, err := s.validateAgentEnvironmentName(r.Context(), ns, *req.EnvironmentName)
+	if req.SandboxName != nil {
+		envFields, err := s.validateAgentSandboxName(r.Context(), ns, *req.SandboxName)
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
@@ -237,12 +237,12 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		status = statusFromView(view)
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.Agent{
-		Name:            row.AgentName,
-		EnvironmentName: updated.Spec.EnvironmentRef.Name,
-		CreatedAt:       row.CreatedAt,
-		ModifiedAt:      row.UpdatedAt,
-		LastActivity:    row.UpdatedAt,
-		Status:          status,
+		Name:         row.AgentName,
+		SandboxName:  updated.Spec.SandboxRef.Name,
+		CreatedAt:    row.CreatedAt,
+		ModifiedAt:   row.UpdatedAt,
+		LastActivity: row.UpdatedAt,
+		Status:       status,
 	})
 }
 
@@ -390,7 +390,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 			prevItem, ok := prev[item.Name]
 			unchanged := ok &&
 				prevItem.Name == item.Name &&
-				prevItem.EnvironmentName == item.EnvironmentName &&
+				prevItem.SandboxName == item.SandboxName &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
 				prevItem.ModifiedAt.Equal(item.ModifiedAt) &&
@@ -480,23 +480,23 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		}
 
 		status := gatewayapi.UNSPECIFIED
-		environmentName := gatewayapi.EnvironmentName("")
+		sandboxName := gatewayapi.SandboxName("")
 		resolved, resolveErr := s.resolver.resolveAgent(ctx, ns, row.AgentName)
 		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
 		}
 		if resolved != nil && resolved.Agent != nil {
 			status = statusFromView(statusFromAgent(resolved.Agent))
-			environmentName = resolved.Agent.Spec.EnvironmentRef.Name
+			sandboxName = resolved.Agent.Spec.SandboxRef.Name
 		}
 
 		items = append(items, gatewayapi.Agent{
-			Name:            row.AgentName,
-			EnvironmentName: environmentName,
-			LastActivity:    row.UpdatedAt,
-			CreatedAt:       row.CreatedAt,
-			ModifiedAt:      row.UpdatedAt,
-			Status:          status,
+			Name:         row.AgentName,
+			SandboxName:  sandboxName,
+			LastActivity: row.UpdatedAt,
+			CreatedAt:    row.CreatedAt,
+			ModifiedAt:   row.UpdatedAt,
+			Status:       status,
 		})
 	}
 	return items, next, nil
@@ -534,50 +534,50 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 	return name, fields
 }
 
-func validateAgentEnvironmentNameField(fields []gatewayapi.FieldError, name string) []gatewayapi.FieldError {
+func validateAgentSandboxNameField(fields []gatewayapi.FieldError, name string) []gatewayapi.FieldError {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return append(fields, gatewayapi.FieldError{
-			Field: "environmentName", Message: "required",
+			Field: "sandboxName", Message: "required",
 		})
 	}
 	if len(name) > 32 {
 		fields = append(fields, gatewayapi.FieldError{
-			Field: "environmentName", Message: "must be at most 32 characters",
+			Field: "sandboxName", Message: "must be at most 32 characters",
 		})
 	}
 	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
 		fields = append(fields, gatewayapi.FieldError{
-			Field: "environmentName", Message: "must be a valid DNS label",
+			Field: "sandboxName", Message: "must be a valid DNS label",
 		})
 	}
 	return fields
 }
 
-func (s *Service) validateAgentEnvironmentName(ctx context.Context, namespace string, name gatewayapi.EnvironmentName) ([]gatewayapi.FieldError, error) {
-	fields := validateAgentEnvironmentNameField(nil, name)
+func (s *Service) validateAgentSandboxName(ctx context.Context, namespace string, name gatewayapi.SandboxName) ([]gatewayapi.FieldError, error) {
+	fields := validateAgentSandboxNameField(nil, name)
 	if len(fields) > 0 {
 		return fields, nil
 	}
 
-	var env agentzv1alpha1.Environment
+	var sandbox agentzv1alpha1.Sandbox
 	key := types.NamespacedName{Namespace: namespace, Name: name}
-	if err := s.k8sClient.Get(ctx, key, &env); err != nil {
+	if err := s.k8sClient.Get(ctx, key, &sandbox); err != nil {
 		if apierrors.IsNotFound(err) {
 			return []gatewayapi.FieldError{{
-				Field:   "environmentName",
-				Message: "environment not found",
+				Field:   "sandboxName",
+				Message: "sandbox not found",
 			}}, nil
 		}
-		return nil, fmt.Errorf("get environment %q: %w", name, err)
+		return nil, fmt.Errorf("get sandbox %q: %w", name, err)
 	}
 	return nil, nil
 }
 
 func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, namespace string, tenant *agentzv1alpha1.Tenant, name string) *agentzv1alpha1.Agent {
-	env := []corev1.EnvVar{}
+	sandbox := []corev1.EnvVar{}
 	if req.Env != nil {
-		env = envVarsFromMap(*req.Env)
+		sandbox = envVarsFromMap(*req.Env)
 	}
 	agt := &agentzv1alpha1.Agent{
 		TypeMeta: metav1.TypeMeta{
@@ -599,13 +599,13 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 		},
 		Spec: agentzv1alpha1.AgentSpec{
 			Image: s.cfg.AgentImage,
-			Env:   env,
+			Env:   sandbox,
 			Telemetry: agentzv1alpha1.TelemetryConfig{
 				Enabled:       true,
 				TraceEndpoint: s.cfg.AgentTraceEndpoint,
 			},
-			EnvironmentRef: &corev1.LocalObjectReference{
-				Name: req.EnvironmentName,
+			SandboxRef: &corev1.LocalObjectReference{
+				Name: req.SandboxName,
 			},
 		},
 	}
@@ -617,7 +617,7 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 	if req.Env != nil {
 		return true
 	}
-	if req.EnvironmentName != nil {
+	if req.SandboxName != nil {
 		return true
 	}
 	if req.Opencode != nil {
@@ -634,9 +634,9 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 	if req.Env != nil {
 		agt.Spec.Env = envVarsFromMap(*req.Env)
 	}
-	if req.EnvironmentName != nil {
-		agt.Spec.EnvironmentRef = &corev1.LocalObjectReference{
-			Name: *req.EnvironmentName,
+	if req.SandboxName != nil {
+		agt.Spec.SandboxRef = &corev1.LocalObjectReference{
+			Name: *req.SandboxName,
 		}
 	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
@@ -649,11 +649,11 @@ func envVarsFromMap(items map[string]string) []corev1.EnvVar {
 	}
 	slices.Sort(keys)
 
-	env := make([]corev1.EnvVar, 0, len(keys))
+	sandbox := make([]corev1.EnvVar, 0, len(keys))
 	for _, key := range keys {
-		env = append(env, corev1.EnvVar{Name: key, Value: items[key]})
+		sandbox = append(sandbox, corev1.EnvVar{Name: key, Value: items[key]})
 	}
-	return env
+	return sandbox
 }
 
 func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.FieldError {
@@ -700,17 +700,17 @@ func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.F
 			})
 		}
 		if provider.Env != nil {
-			for i, envName := range *provider.Env {
-				if strings.TrimSpace(envName) == "" {
+			for i, sandboxName := range *provider.Env {
+				if strings.TrimSpace(sandboxName) == "" {
 					fields = append(fields, gatewayapi.FieldError{
-						Field:   fmt.Sprintf("opencode.providers.%s.env.%d", name, i),
-						Message: "env var name must not be empty",
+						Field:   fmt.Sprintf("opencode.providers.%s.sandbox.%d", name, i),
+						Message: "sandbox var name must not be empty",
 					})
 					continue
 				}
-				if errs := validation.IsEnvVarName(envName); len(errs) > 0 {
+				if errs := validation.IsEnvVarName(sandboxName); len(errs) > 0 {
 					fields = append(fields, gatewayapi.FieldError{
-						Field:   fmt.Sprintf("opencode.providers.%s.env.%d", name, i),
+						Field:   fmt.Sprintf("opencode.providers.%s.sandbox.%d", name, i),
 						Message: strings.Join(errs, ", "),
 					})
 				}

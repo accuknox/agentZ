@@ -305,23 +305,23 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	if err != nil {
 		return fmt.Errorf("get agent %q: %w", run.Spec.AgentName, err)
 	}
-	if agt.Spec.EnvironmentRef != nil {
-		env := &agentzv1alpha1.Environment{}
-		envKey := client.ObjectKey{
-			Name:      agt.Spec.EnvironmentRef.Name,
+	if agt.Spec.SandboxRef != nil {
+		sandbox := &agentzv1alpha1.Sandbox{}
+		sandboxKey := client.ObjectKey{
+			Name:      agt.Spec.SandboxRef.Name,
 			Namespace: run.Namespace,
 		}
-		err = r.Get(ctx, envKey, env)
+		err = r.Get(ctx, sandboxKey, sandbox)
 		if err != nil {
 			return fmt.Errorf(
-				"get environment %q for agent %q: %w",
-				agt.Spec.EnvironmentRef.Name,
+				"get sandbox %q for agent %q: %w",
+				agt.Spec.SandboxRef.Name,
 				run.Spec.AgentName,
 				err,
 			)
 		}
 
-		for _, ref := range env.Spec.MCPConnectionRefs {
+		for _, ref := range sandbox.Spec.MCPConnectionRefs {
 			for _, tool := range ref.Tools {
 				if !tool.RequireConsent {
 					continue

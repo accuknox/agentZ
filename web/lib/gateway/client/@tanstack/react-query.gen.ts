@@ -5,14 +5,14 @@ import { queryOptions, type UseMutationOptions } from "@tanstack/react-query"
 import { client } from "../client.gen"
 import {
   createAgent,
-  createEnvironment,
   createMcpConnection,
+  createSandbox,
   createWorkflow,
   createWorkflowRun,
   createWorkflowSchedule,
   deleteAgent,
-  deleteEnvironment,
   deleteMcpConnection,
+  deleteSandbox,
   deleteSecret,
   deleteWorkflowRun,
   deleteWorkflows,
@@ -26,11 +26,11 @@ import {
   getWorkflowRun,
   listAgents,
   listAgentWorkflowSchedules,
-  listEnvironments,
   listFileObservability,
   listMcpConnections,
   listNetworkObservability,
   listProcessObservability,
+  listSandboxes,
   listSecrets,
   listSpans,
   listTraceSessions,
@@ -41,19 +41,19 @@ import {
   patchWorkflowRunStatus,
   putSecret,
   updateAgent,
-  updateEnvironment,
+  updateSandbox,
   updateWorkflowSchedule,
 } from "../sdk.gen"
 import type {
   CreateAgentData,
   CreateAgentError,
   CreateAgentResponse,
-  CreateEnvironmentData,
-  CreateEnvironmentError,
-  CreateEnvironmentResponse,
   CreateMcpConnectionData,
   CreateMcpConnectionError,
   CreateMcpConnectionResponse,
+  CreateSandboxData,
+  CreateSandboxError,
+  CreateSandboxResponse,
   CreateWorkflowData,
   CreateWorkflowError,
   CreateWorkflowResponse,
@@ -66,12 +66,12 @@ import type {
   DeleteAgentData,
   DeleteAgentError,
   DeleteAgentResponse,
-  DeleteEnvironmentData,
-  DeleteEnvironmentError,
-  DeleteEnvironmentResponse,
   DeleteMcpConnectionData,
   DeleteMcpConnectionError,
   DeleteMcpConnectionResponse,
+  DeleteSandboxData,
+  DeleteSandboxError,
+  DeleteSandboxResponse,
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
@@ -111,9 +111,6 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
-  ListEnvironmentsData,
-  ListEnvironmentsError,
-  ListEnvironmentsResponse2,
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
@@ -126,6 +123,9 @@ import type {
   ListProcessObservabilityData,
   ListProcessObservabilityError,
   ListProcessObservabilityResponse2,
+  ListSandboxesData,
+  ListSandboxesError,
+  ListSandboxesResponse2,
   ListSecretsData,
   ListSecretsError,
   ListSecretsResponse2,
@@ -153,9 +153,9 @@ import type {
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
-  UpdateEnvironmentData,
-  UpdateEnvironmentError,
-  UpdateEnvironmentResponse,
+  UpdateSandboxData,
+  UpdateSandboxError,
+  UpdateSandboxResponse,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleError,
   UpdateWorkflowScheduleResponse,
@@ -606,21 +606,21 @@ export const deleteSecretMutation = (
   return mutationOptions
 }
 
-export const listEnvironmentsQueryKey = (options?: Options<ListEnvironmentsData>) =>
-  createQueryKey("listEnvironments", options)
+export const listSandboxesQueryKey = (options?: Options<ListSandboxesData>) =>
+  createQueryKey("listSandboxes", options)
 
 /**
- * List paginated Environment resources.
+ * List paginated Sandbox resources.
  */
-export const listEnvironmentsOptions = (options?: Options<ListEnvironmentsData>) =>
+export const listSandboxesOptions = (options?: Options<ListSandboxesData>) =>
   queryOptions<
-    ListEnvironmentsResponse2,
-    ListEnvironmentsError,
-    ListEnvironmentsResponse2,
-    ReturnType<typeof listEnvironmentsQueryKey>
+    ListSandboxesResponse2,
+    ListSandboxesError,
+    ListSandboxesResponse2,
+    ReturnType<typeof listSandboxesQueryKey>
   >({
     queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listEnvironments({
+      const { data } = await listSandboxes({
         ...options,
         ...queryKey[0],
         signal,
@@ -628,26 +628,22 @@ export const listEnvironmentsOptions = (options?: Options<ListEnvironmentsData>)
       })
       return data
     },
-    queryKey: listEnvironmentsQueryKey(options),
+    queryKey: listSandboxesQueryKey(options),
   })
 
 /**
- * Create an Environment resource.
+ * Create a Sandbox resource.
  */
-export const createEnvironmentMutation = (
-  options?: Partial<Options<CreateEnvironmentData>>
-): UseMutationOptions<
-  CreateEnvironmentResponse,
-  CreateEnvironmentError,
-  Options<CreateEnvironmentData>
-> => {
+export const createSandboxMutation = (
+  options?: Partial<Options<CreateSandboxData>>
+): UseMutationOptions<CreateSandboxResponse, CreateSandboxError, Options<CreateSandboxData>> => {
   const mutationOptions: UseMutationOptions<
-    CreateEnvironmentResponse,
-    CreateEnvironmentError,
-    Options<CreateEnvironmentData>
+    CreateSandboxResponse,
+    CreateSandboxError,
+    Options<CreateSandboxData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await createEnvironment({
+      const { data } = await createSandbox({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -659,22 +655,18 @@ export const createEnvironmentMutation = (
 }
 
 /**
- * Delete an Environment resource.
+ * Delete a Sandbox resource.
  */
-export const deleteEnvironmentMutation = (
-  options?: Partial<Options<DeleteEnvironmentData>>
-): UseMutationOptions<
-  DeleteEnvironmentResponse,
-  DeleteEnvironmentError,
-  Options<DeleteEnvironmentData>
-> => {
+export const deleteSandboxMutation = (
+  options?: Partial<Options<DeleteSandboxData>>
+): UseMutationOptions<DeleteSandboxResponse, DeleteSandboxError, Options<DeleteSandboxData>> => {
   const mutationOptions: UseMutationOptions<
-    DeleteEnvironmentResponse,
-    DeleteEnvironmentError,
-    Options<DeleteEnvironmentData>
+    DeleteSandboxResponse,
+    DeleteSandboxError,
+    Options<DeleteSandboxData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await deleteEnvironment({
+      const { data } = await deleteSandbox({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -686,25 +678,21 @@ export const deleteEnvironmentMutation = (
 }
 
 /**
- * Update an Environment resource.
+ * Update a Sandbox resource.
  *
- * Updates the packages list for an existing Environment. The name in the path identifies the Environment.
+ * Updates the packages list for an existing Sandbox. The name in the path identifies the Sandbox.
  *
  */
-export const updateEnvironmentMutation = (
-  options?: Partial<Options<UpdateEnvironmentData>>
-): UseMutationOptions<
-  UpdateEnvironmentResponse,
-  UpdateEnvironmentError,
-  Options<UpdateEnvironmentData>
-> => {
+export const updateSandboxMutation = (
+  options?: Partial<Options<UpdateSandboxData>>
+): UseMutationOptions<UpdateSandboxResponse, UpdateSandboxError, Options<UpdateSandboxData>> => {
   const mutationOptions: UseMutationOptions<
-    UpdateEnvironmentResponse,
-    UpdateEnvironmentError,
-    Options<UpdateEnvironmentData>
+    UpdateSandboxResponse,
+    UpdateSandboxError,
+    Options<UpdateSandboxData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await updateEnvironment({
+      const { data } = await updateSandbox({
         ...options,
         ...fnOptions,
         throwOnError: true,

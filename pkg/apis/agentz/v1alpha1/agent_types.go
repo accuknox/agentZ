@@ -105,9 +105,9 @@ type AgentSpec struct {
 	// +optional
 	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
 
-	// EnvironmentRef references reusable package and policy configuration.
+	// SandboxRef references reusable package and policy configuration.
 	// +optional
-	EnvironmentRef *corev1.LocalObjectReference `json:"environmentRef,omitempty"`
+	SandboxRef *corev1.LocalObjectReference `json:"sandboxRef,omitempty"`
 
 	// NixStoreSize sets the size of the agent-specific nix store PVC.
 	// +kubebuilder:default="5Gi"

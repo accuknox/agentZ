@@ -205,7 +205,7 @@ type opencodeInstructionFile struct {
 	Content string
 }
 
-func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg environmentConfig) ([]byte, []opencodeInstructionFile, error) {
+func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]byte, []opencodeInstructionFile, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
 		Permission: map[string]opencodePermissionRule{
@@ -342,7 +342,7 @@ type packageJobHashInput struct {
 	Packages []string `json:"packages"`
 }
 
-func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg environmentConfig) string {
+func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) string {
 	instructions := make([]string, 0, len(instructionFiles))
 	for _, item := range instructionFiles {
 		instructions = append(instructions, item.Path+"\n"+item.Content)

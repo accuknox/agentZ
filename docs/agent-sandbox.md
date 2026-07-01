@@ -53,7 +53,7 @@ policy that controls all outbound traffic. The policy permits:
 1. **DNS Resolution** - Outbound traffic to the cluster's DNS service on port
    53. This allows the agent to resolve host names for permitted destinations.
 2. **Allowed Hosts** - Outbound traffic to hosts explicitly listed in the
-   Environment's `allowedHosts` field. This includes:
+   Sandbox's `allowedHosts` field. This includes:
    - Exact domains (e.g., `api.github.com`)
    - Wildcard patterns (e.g., `*.github.com`)
    - CIDR ranges (e.g., `10.0.0.0/24`, `2001:db8::/32`)

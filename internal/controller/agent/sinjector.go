@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/agentz/internal/envutil"
+	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -263,11 +263,11 @@ func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *agentzv1
 }
 
 func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *agentzv1alpha1.Agent, allowedHosts []string) error {
-	hosts, err := envutil.ParseHostList(allowedHosts)
+	hosts, err := sandboxutil.ParseHostList(allowedHosts)
 	if err != nil {
 		return err
 	}
-	dnsHosts := append([]envutil.Host{}, hosts...)
+	dnsHosts := append([]sandboxutil.Host{}, hosts...)
 	dnsHosts = append(dnsHosts, dnsHostForEndpoint(r.Config.OpenBaoAddr)...)
 	egress := buildHostEgressRules(uniqueHosts(hosts), uniqueHosts(dnsHosts))
 	egress = append(egress, openBaoEgressRule())

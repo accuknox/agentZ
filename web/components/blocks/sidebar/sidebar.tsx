@@ -14,7 +14,7 @@ import {
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
-import { NavEnvironments } from "./environments"
+import { NavSandboxes } from "./sandboxes"
 import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
 
@@ -39,7 +39,7 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
             <NavLens />
           </Suspense>
           <NavSecrets />
-          <NavEnvironments />
+          <NavSandboxes />
           <NavWorkflows />
           <NavMCPs />
         </SidebarGroup>

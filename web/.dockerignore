@@ -9,7 +9,7 @@ build
 .vercel
 .ref
 
-# Local environment and logs should not be sent to the builder.
+# Local sandbox and logs should not be sent to the builder.
 .env
 .env.*
 npm-debug.log*

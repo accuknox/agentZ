@@ -22,8 +22,8 @@ import (
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/agent"
-	environmentwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/environment"
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
+	sandboxwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/sandbox"
 	secretwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/secret"
 	tenantwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/tenant"
 	workflowrunwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowrun"
@@ -38,9 +38,9 @@ func SetupAgentWebhookWithManager(mgr ctrl.Manager, cfg AgentWebhookConfig) erro
 	return agentwebhook.RegisterWithManager(mgr, cfg)
 }
 
-// SetupEnvironmentWebhookWithManager registers the webhook for Environment in the manager.
-func SetupEnvironmentWebhookWithManager(mgr ctrl.Manager) error {
-	return environmentwebhook.RegisterWithManager(mgr)
+// SetupSandboxWebhookWithManager registers the webhook for Sandbox in the manager.
+func SetupSandboxWebhookWithManager(mgr ctrl.Manager) error {
+	return sandboxwebhook.RegisterWithManager(mgr)
 }
 
 // SetupWorkflowScheduleWebhookWithManager registers the WorkflowSchedule webhook.

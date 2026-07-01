@@ -3,7 +3,7 @@
 # It should be run by deploy/kustomize/default
 resources:
 - bases/agentz.accuknox.com_agents.yaml
-- bases/agentz.accuknox.com_envs.yaml
+- bases/agentz.accuknox.com_sandboxes.yaml
 - bases/agentz.accuknox.com_workflowschedules.yaml
 - bases/agentz.accuknox.com_workflowruns.yaml
 - bases/agentz.accuknox.com_mcpconnections.yaml

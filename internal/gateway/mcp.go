@@ -364,20 +364,20 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 
-	referrers, err := s.referencingEnvironments(r.Context(), conn.Name)
+	referrers, err := s.referencingSandboxes(r.Context(), conn.Name)
 	if err != nil {
-		writeMCPInternalError(w, r, fmt.Errorf("list environment references: %w", err))
+		writeMCPInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
 		return
 	}
 	if len(referrers) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"conflict",
-			"mcp connection is referenced by environments: "+strings.Join(referrers, ", "),
+			"mcp connection is referenced by sandboxes: "+strings.Join(referrers, ", "),
 			errBadRequest,
 			gatewayapi.FieldError{
 				Field:   "name",
-				Message: "referenced by environments: " + strings.Join(referrers, ", "),
+				Message: "referenced by sandboxes: " + strings.Join(referrers, ", "),
 			},
 		))
 		return
@@ -764,24 +764,24 @@ func validateMCPConnectionName(name string, fieldName string) []gatewayapi.Field
 	return fields
 }
 
-func (s *Service) referencingEnvironments(ctx context.Context, connectionName string) ([]string, error) {
+func (s *Service) referencingSandboxes(ctx context.Context, connectionName string) ([]string, error) {
 	ns, err := tenantNamespace(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var envList agentzv1alpha1.EnvironmentList
-	if err := s.k8sClient.List(ctx, &envList, ctrlclient.InNamespace(ns)); err != nil {
+	var sandboxList agentzv1alpha1.SandboxList
+	if err := s.k8sClient.List(ctx, &sandboxList, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, err
 	}
 
 	referrers := []string{}
-	for _, env := range envList.Items {
-		for _, ref := range env.Spec.MCPConnectionRefs {
+	for _, sandbox := range sandboxList.Items {
+		for _, ref := range sandbox.Spec.MCPConnectionRefs {
 			if ref.Name != connectionName {
 				continue
 			}
-			referrers = append(referrers, env.Name)
+			referrers = append(referrers, sandbox.Name)
 			break
 		}
 	}

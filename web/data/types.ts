@@ -1,10 +1,4 @@
-import type {
-  Agent,
-  Environment,
-  Error,
-  McpGraphResponse,
-  WorkflowInputs,
-} from "@/lib/gateway/client"
+import type { Agent, Sandbox, Error, McpGraphResponse, WorkflowInputs } from "@/lib/gateway/client"
 
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
@@ -304,25 +298,25 @@ export type DeleteAgentFormState = {
   error?: Error
 }
 
-export type ListEnvironmentActionResponse =
+export type ListSandboxActionResponse =
   | {
-      environments: Environment[]
+      sandboxes: Sandbox[]
       nextPageToken: string
       hasNextPage: boolean
       error: undefined
     }
   | {
-      environments: undefined
+      sandboxes: undefined
       nextPageToken?: undefined
       hasNextPage?: undefined
       error: Error
     }
 
-export type DeleteEnvironmentFormState = {
+export type DeleteSandboxFormState = {
   error?: Error
 }
 
-export type CreateEnvironmentFormState = {
+export type CreateSandboxFormState = {
   error?: Error
 }
 

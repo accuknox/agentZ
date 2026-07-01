@@ -1,0 +1,20 @@
+apiVersion: agentz.accuknox.com/v1alpha1
+kind: Sandbox
+metadata:
+  labels:
+    app.kubernetes.io/name: agentz
+    app.kubernetes.io/managed-by: kustomize
+  name: sandbox-sample
+spec:
+  packages:
+  - python3
+  - nodejs_22
+  - ripgrep
+  allowedHosts:
+  - api.github.com
+  - "*.github.com"
+  - "**.github.com"
+  - 10.0.0.0/24
+  - 2001:db8::/32
+  mcpConnectionRefs:
+  - name: slack

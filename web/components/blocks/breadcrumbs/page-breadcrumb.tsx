@@ -20,8 +20,8 @@ type Crumb = {
 
 const genericBreadcrumbHrefs = new Set([
   "/",
-  "/environments",
-  "/environments/new",
+  "/sandboxes",
+  "/sandboxes/new",
   "/lens/mcp",
   "/lens/runtime-telemetry",
   "/lens/traces",

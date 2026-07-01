@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: AgentZ HTTP API
   version: 0.1.0
-  description: HTTP API for AgentZ agents, lens, secrets, and environments.
+  description: HTTP API for AgentZ agents, lens, secrets, and sandboxes.
 servers:
 - url: /
   description: Current origin
@@ -17,8 +17,8 @@ tags:
   description: Trace, span, and OS observability APIs.
 - name: secrets
   description: Session secret management APIs.
-- name: environments
-  description: Environment resource management APIs.
+- name: sandboxes
+  description: Sandbox resource management APIs.
 - name: mcp-connections
   description: MCPConnection resource and credential management APIs.
 - name: workflows
@@ -510,42 +510,42 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/environment:
+  /api/sandbox:
     get:
-      operationId: listEnvironments
-      summary: List paginated Environment resources.
-      tags: [environments]
+      operationId: listSandboxes
+      summary: List paginated Sandbox resources.
+      tags: [sandboxes]
       parameters:
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
-          description: Paginated environments.
+          description: Paginated sandboxes.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListEnvironmentsResponse'
+                $ref: '#/components/schemas/ListSandboxesResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
     post:
-      operationId: createEnvironment
-      summary: Create an Environment resource.
-      tags: [environments]
+      operationId: createSandbox
+      summary: Create a Sandbox resource.
+      tags: [sandboxes]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateEnvironmentRequest'
+              $ref: '#/components/schemas/CreateSandboxRequest'
       responses:
         '201':
-          description: Environment created.
+          description: Sandbox created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Environment'
+                $ref: '#/components/schemas/Sandbox'
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -553,34 +553,34 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/environment/{environmentName}:
+  /api/sandbox/{sandboxName}:
     put:
-      operationId: updateEnvironment
-      summary: Update an Environment resource.
+      operationId: updateSandbox
+      summary: Update a Sandbox resource.
       description: >
-        Updates the packages list for an existing Environment. The name in the
-        path identifies the Environment.
-      tags: [environments]
+        Updates the packages list for an existing Sandbox. The name in the
+        path identifies the Sandbox.
+      tags: [sandboxes]
       parameters:
-      - name: environmentName
+      - name: sandboxName
         in: path
         required: true
-        description: Environment resource name.
+        description: Sandbox resource name.
         schema:
-          $ref: '#/components/schemas/EnvironmentName'
+          $ref: '#/components/schemas/SandboxName'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateEnvironmentRequest'
+              $ref: '#/components/schemas/UpdateSandboxRequest'
       responses:
         '200':
-          description: Environment updated.
+          description: Sandbox updated.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Environment'
+                $ref: '#/components/schemas/Sandbox'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -588,19 +588,19 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
     delete:
-      operationId: deleteEnvironment
-      summary: Delete an Environment resource.
-      tags: [environments]
+      operationId: deleteSandbox
+      summary: Delete a Sandbox resource.
+      tags: [sandboxes]
       parameters:
-      - name: environmentName
+      - name: sandboxName
         in: path
         required: true
-        description: Environment resource name.
+        description: Sandbox resource name.
         schema:
-          $ref: '#/components/schemas/EnvironmentName'
+          $ref: '#/components/schemas/SandboxName'
       responses:
         '204':
-          description: Environment deleted.
+          description: Sandbox deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1253,13 +1253,13 @@ components:
       schema:
         $ref: '#/components/schemas/AgentName'
 
-    EnvironmentNamePath:
+    SandboxNamePath:
       name: name
       in: path
       required: true
-      description: Environment name.
+      description: Sandbox name.
       schema:
-        $ref: '#/components/schemas/EnvironmentName'
+        $ref: '#/components/schemas/SandboxName'
 
     MCPConnectionNamePath:
       name: name
@@ -1498,12 +1498,12 @@ components:
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
 
-    EnvironmentName:
+    SandboxName:
       type: string
       minLength: 1
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-      description: Environment resource name.
+      description: Sandbox resource name.
 
     MCPConnectionName:
       type: string
@@ -1638,8 +1638,8 @@ components:
       properties:
         name:
           $ref: '#/components/schemas/AgentName'
-        environmentName:
-          $ref: '#/components/schemas/EnvironmentName'
+        sandboxName:
+          $ref: '#/components/schemas/SandboxName'
         last_activity:
           type: string
           format: date-time
@@ -1653,7 +1653,7 @@ components:
           $ref: '#/components/schemas/AgentStatus'
       required:
       - name
-      - environmentName
+      - sandboxName
       - last_activity
       - created_at
       - modified_at
@@ -1678,11 +1678,11 @@ components:
           type: object
           additionalProperties:
             type: string
-        environmentName:
-          $ref: '#/components/schemas/EnvironmentName'
+        sandboxName:
+          $ref: '#/components/schemas/SandboxName'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
-      required: [name, environmentName]
+      required: [name, sandboxName]
 
     CreateWorkflowRequest:
       type: object
@@ -2127,8 +2127,8 @@ components:
           type: object
           additionalProperties:
             type: string
-        environmentName:
-          $ref: '#/components/schemas/EnvironmentName'
+        sandboxName:
+          $ref: '#/components/schemas/SandboxName'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
       minProperties: 1
@@ -3130,12 +3130,12 @@ components:
             $ref: '#/components/schemas/SecretListItem'
       required: [items]
 
-    Environment:
+    Sandbox:
       type: object
       additionalProperties: false
       properties:
         name:
-          $ref: '#/components/schemas/EnvironmentName'
+          $ref: '#/components/schemas/SandboxName'
         packages:
           type: array
           items:
@@ -3170,24 +3170,24 @@ components:
           required: [package_count, allowed_host_count, referenced_by_agent]
       required: [name, packages, allowed_hosts, mcp_connection_refs, created_at, metadata]
 
-    ListEnvironmentsResponse:
+    ListSandboxesResponse:
       type: object
       additionalProperties: false
       properties:
-        environments:
+        sandboxes:
           type: array
           items:
-            $ref: '#/components/schemas/Environment'
+            $ref: '#/components/schemas/Sandbox'
         next_page_token:
           type: string
-      required: [environments, next_page_token]
+      required: [sandboxes, next_page_token]
 
-    CreateEnvironmentRequest:
+    CreateSandboxRequest:
       type: object
       additionalProperties: false
       properties:
         name:
-          $ref: '#/components/schemas/EnvironmentName'
+          $ref: '#/components/schemas/SandboxName'
         packages:
           type: array
           items:
@@ -3204,7 +3204,7 @@ components:
             $ref: '#/components/schemas/MCPConnectionRef'
       required: [name]
 
-    UpdateEnvironmentRequest:
+    UpdateSandboxRequest:
       type: object
       additionalProperties: false
       properties:

@@ -25,10 +25,10 @@ import (
 type Interface interface {
 	// Agents returns a AgentInformer.
 	Agents() AgentInformer
-	// Environments returns a EnvironmentInformer.
-	Environments() EnvironmentInformer
 	// MCPConnections returns a MCPConnectionInformer.
 	MCPConnections() MCPConnectionInformer
+	// Sandboxes returns a SandboxInformer.
+	Sandboxes() SandboxInformer
 	// Secrets returns a SecretInformer.
 	Secrets() SecretInformer
 	// WorkflowRuns returns a WorkflowRunInformer.
@@ -53,14 +53,14 @@ func (v *version) Agents() AgentInformer {
 	return &agentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// Environments returns a EnvironmentInformer.
-func (v *version) Environments() EnvironmentInformer {
-	return &environmentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
 // MCPConnections returns a MCPConnectionInformer.
 func (v *version) MCPConnections() MCPConnectionInformer {
 	return &mCPConnectionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Sandboxes returns a SandboxInformer.
+func (v *version) Sandboxes() SandboxInformer {
+	return &sandboxInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Secrets returns a SecretInformer.

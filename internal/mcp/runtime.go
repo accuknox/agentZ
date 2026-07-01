@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	EnvironmentByMCPConnectionIndex = "spec.mcpConnectionRefs.name"
-	MCPConnectionFinalizer          = "agentz.accuknox.com/mcpconnection"
-	EnvironmentFinalizer            = "agentz.accuknox.com/environment-protection"
-	OpenCodeGatewayToolsetName      = "gateway"
+	SandboxByMCPConnectionIndex = "spec.mcpConnectionRefs.name"
+	MCPConnectionFinalizer      = "agentz.accuknox.com/mcpconnection"
+	SandboxFinalizer            = "agentz.accuknox.com/sandbox-protection"
+	OpenCodeGatewayToolsetName  = "gateway"
 	// SecretPathDir is the OpenBao directory for MCP credential records.
 	SecretPathDir             = "mcp-connections"
 	GatewayClassName          = "agentgateway"
@@ -87,10 +87,10 @@ func ParseTarget(conn *agentzv1alpha1.MCPConnection) (Target, error) {
 	}, nil
 }
 
-// EnvironmentAuthPolicyName returns the auth policy name for one environment
+// SandboxAuthPolicyName returns the auth policy name for one sandbox
 // and connection pair.
-func EnvironmentAuthPolicyName(environmentName, connectionName string) string {
-	return dnsLabel("env-" + environmentName + "-mcpconn-" + connectionName + "-auth")
+func SandboxAuthPolicyName(sandboxName, connectionName string) string {
+	return dnsLabel("env-" + sandboxName + "-mcpconn-" + connectionName + "-auth")
 }
 
 // ExtAuthOpenBaoName returns the shared OpenBao role and policy name.
@@ -98,18 +98,18 @@ func ExtAuthOpenBaoName(namespace string) string {
 	return dnsLabel(ExtAuthRolePrefix + namespace)
 }
 
-// EnvironmentBackendName returns the MCP backend name for one environment.
-func EnvironmentBackendName(name string) string {
+// SandboxBackendName returns the MCP backend name for one sandbox.
+func SandboxBackendName(name string) string {
 	return dnsLabel("env-" + name + "-mcp")
 }
 
-// EnvironmentRouteName returns the HTTPRoute name for one environment.
-func EnvironmentRouteName(name string) string {
+// SandboxRouteName returns the HTTPRoute name for one sandbox.
+func SandboxRouteName(name string) string {
 	return dnsLabel("env-" + name + "-route")
 }
 
-// EnvironmentRoutePath returns the route path exposed for one environment.
-func EnvironmentRoutePath(name string) string {
+// SandboxRoutePath returns the route path exposed for one sandbox.
+func SandboxRoutePath(name string) string {
 	return "/mcp/" + name
 }
 
@@ -151,14 +151,14 @@ func Gateway(namespace string) *gwv1.Gateway {
 	}
 }
 
-// IndexEnvironmentMCPConnections registers the environment MCP ref index.
-func IndexEnvironmentMCPConnections(ctx context.Context, idx client.FieldIndexer) error {
+// IndexSandboxMCPConnections registers the sandbox MCP ref index.
+func IndexSandboxMCPConnections(ctx context.Context, idx client.FieldIndexer) error {
 	return idx.IndexField(
 		ctx,
-		&agentzv1alpha1.Environment{},
-		EnvironmentByMCPConnectionIndex,
+		&agentzv1alpha1.Sandbox{},
+		SandboxByMCPConnectionIndex,
 		func(obj client.Object) []string {
-			env, ok := obj.(*agentzv1alpha1.Environment)
+			env, ok := obj.(*agentzv1alpha1.Sandbox)
 			if !ok {
 				return nil
 			}
@@ -168,7 +168,7 @@ func IndexEnvironmentMCPConnections(ctx context.Context, idx client.FieldIndexer
 }
 
 // MCPConnectionRefNames returns trimmed, non-empty MCP connection names.
-func MCPConnectionRefNames(env *agentzv1alpha1.Environment) []string {
+func MCPConnectionRefNames(env *agentzv1alpha1.Sandbox) []string {
 	names := make([]string, 0, len(env.Spec.MCPConnectionRefs))
 	for _, ref := range env.Spec.MCPConnectionRefs {
 		name := strings.TrimSpace(ref.Name)
@@ -184,7 +184,7 @@ func MCPConnectionRefNames(env *agentzv1alpha1.Environment) []string {
 //
 // Missing references are ignored so callers can converge runtime state from
 // currently resolvable connections.
-func LoadConnections(ctx context.Context, c client.Reader, env *agentzv1alpha1.Environment) ([]agentzv1alpha1.MCPConnection, error) {
+func LoadConnections(ctx context.Context, c client.Reader, env *agentzv1alpha1.Sandbox) ([]agentzv1alpha1.MCPConnection, error) {
 	names := MCPConnectionRefNames(env)
 	conns := make([]agentzv1alpha1.MCPConnection, 0, len(names))
 	for _, name := range names {

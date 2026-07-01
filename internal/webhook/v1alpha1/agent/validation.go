@@ -96,10 +96,10 @@ func validateAgent(agt *agentzv1alpha1.Agent) field.ErrorList {
 		))
 	}
 
-	if agt.Spec.EnvironmentRef != nil && strings.TrimSpace(agt.Spec.EnvironmentRef.Name) == "" {
+	if agt.Spec.SandboxRef != nil && strings.TrimSpace(agt.Spec.SandboxRef.Name) == "" {
 		allErrs = append(allErrs, field.Required(
-			specPath.Child("environmentRef").Child("name"),
-			"field is required when environmentRef is set",
+			specPath.Child("sandboxRef").Child("name"),
+			"field is required when sandboxRef is set",
 		))
 	}
 

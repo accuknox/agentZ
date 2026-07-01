@@ -56,7 +56,7 @@ spec:
               env:
                 description: Env defines environment variables injected into the Agent pod.
                 items:
-                  description: EnvVar represents an environment variable present in a Container.
+                  description: EnvVar represents a environment variable present in a Container.
                   properties:
                     name:
                       description: |-
@@ -200,8 +200,8 @@ spec:
                   - name
                   type: object
                 type: array
-              environmentRef:
-                description: EnvironmentRef references reusable package and policy configuration.
+              sandboxRef:
+                description: SandboxRef references reusable package and policy configuration.
                 properties:
                   name:
                     default: ""

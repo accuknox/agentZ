@@ -1,7 +1,7 @@
 import * as z from "zod"
 
-export const oauthWindowMessageSource = "clawarmor:mcp-oauth"
-export const oauthBroadcastChannelName = "clawarmor:mcp-oauth"
+export const oauthWindowMessageSource = "agentz:mcp-oauth"
+export const oauthBroadcastChannelName = "agentz:mcp-oauth"
 
 export const oauthPendingCookieBudget = 3000
 

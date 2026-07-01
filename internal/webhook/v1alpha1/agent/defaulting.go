@@ -23,10 +23,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-// +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-agent,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=agents,verbs=create;update,versions=v1alpha1,name=magent-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-agentz-accuknox-com-v1alpha1-agent,mutating=true,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=agents,verbs=create;update,versions=v1alpha1,name=magent-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Defaulter sets default values for Agent resources.
 //
@@ -35,7 +35,7 @@ type Defaulter struct {
 	agentDefaultImage string
 }
 
-var _ admission.Defaulter[*clawarmorv1alpha1.Agent] = &Defaulter{}
+var _ admission.Defaulter[*agentzv1alpha1.Agent] = &Defaulter{}
 
 // NewDefaulter builds an Agent defaulter.
 func NewDefaulter(cfg WebhookConfig) *Defaulter {
@@ -43,7 +43,7 @@ func NewDefaulter(cfg WebhookConfig) *Defaulter {
 }
 
 // Default applies defaults to an Agent resource.
-func (d *Defaulter) Default(_ context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (d *Defaulter) Default(_ context.Context, agt *agentzv1alpha1.Agent) error {
 	if agt.Spec.Image == "" {
 		agt.Spec.Image = d.agentDefaultImage
 	}

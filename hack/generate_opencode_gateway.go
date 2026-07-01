@@ -337,7 +337,7 @@ func prependAgentParameter(value any) []any {
 		"name":        "agentName",
 		"in":          "path",
 		"required":    true,
-		"description": "ClawArmor agent name.",
+		"description": "AgentZ agent name.",
 		"schema": map[string]any{
 			"type":      "string",
 			"maxLength": 32,

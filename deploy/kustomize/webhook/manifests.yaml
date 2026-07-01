@@ -9,12 +9,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-clawarmor-accuknox-com-v1alpha1-agent
+      path: /mutate-agentz-accuknox-com-v1alpha1-agent
   failurePolicy: Fail
   name: magent-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -29,12 +29,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-clawarmor-accuknox-com-v1alpha1-environment
+      path: /mutate-agentz-accuknox-com-v1alpha1-environment
   failurePolicy: Fail
   name: menvironment-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -49,12 +49,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-clawarmor-accuknox-com-v1alpha1-mcpconnection
+      path: /mutate-agentz-accuknox-com-v1alpha1-mcpconnection
   failurePolicy: Fail
   name: mmcpconnection-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -69,12 +69,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-clawarmor-accuknox-com-v1alpha1-secret
+      path: /mutate-agentz-accuknox-com-v1alpha1-secret
   failurePolicy: Fail
   name: msecret-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -89,12 +89,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-clawarmor-accuknox-com-v1alpha1-workflowrun
+      path: /mutate-agentz-accuknox-com-v1alpha1-workflowrun
   failurePolicy: Fail
   name: mworkflowrun-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -109,12 +109,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-clawarmor-accuknox-com-v1alpha1-workflowschedule
+      path: /mutate-agentz-accuknox-com-v1alpha1-workflowschedule
   failurePolicy: Fail
   name: mworkflowschedule-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -135,12 +135,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-clawarmor-accuknox-com-v1alpha1-agent
+      path: /validate-agentz-accuknox-com-v1alpha1-agent
   failurePolicy: Fail
   name: vagent-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -155,12 +155,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-clawarmor-accuknox-com-v1alpha1-environment
+      path: /validate-agentz-accuknox-com-v1alpha1-environment
   failurePolicy: Fail
   name: venvironment-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -176,12 +176,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-clawarmor-accuknox-com-v1alpha1-mcpconnection
+      path: /validate-agentz-accuknox-com-v1alpha1-mcpconnection
   failurePolicy: Fail
   name: vmcpconnection-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -196,12 +196,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-clawarmor-accuknox-com-v1alpha1-secret
+      path: /validate-agentz-accuknox-com-v1alpha1-secret
   failurePolicy: Fail
   name: vsecret-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -216,12 +216,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-clawarmor-accuknox-com-v1alpha1-tenant
+      path: /validate-agentz-accuknox-com-v1alpha1-tenant
   failurePolicy: Fail
   name: vtenant-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -237,12 +237,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-clawarmor-accuknox-com-v1alpha1-workflowrun
+      path: /validate-agentz-accuknox-com-v1alpha1-workflowrun
   failurePolicy: Fail
   name: vworkflowrun-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:
@@ -257,12 +257,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-clawarmor-accuknox-com-v1alpha1-workflowschedule
+      path: /validate-agentz-accuknox-com-v1alpha1-workflowschedule
   failurePolicy: Fail
   name: vworkflowschedule-v1alpha1.kb.io
   rules:
   - apiGroups:
-    - clawarmor.accuknox.com
+    - agentz.accuknox.com
     apiVersions:
     - v1alpha1
     operations:

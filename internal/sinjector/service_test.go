@@ -10,7 +10,7 @@ import (
 )
 
 func TestRewriteRequestRewritesBasicAuth(t *testing.T) {
-	raw := "user:clawarmor:resolve:env:TOKEN"
+	raw := "user:agentz:resolve:env:TOKEN"
 	req := &http.Request{
 		Method: http.MethodGet,
 		URL:    &url.URL{Scheme: "https", Host: "example.com", Path: "/v1"},

@@ -10360,8 +10360,8 @@ components:
       scheme: bearer
       type: http
 info:
-  description: HTTP API for ClawArmor agents, lens, secrets, and environments.
-  title: ClawArmor HTTP API
+  description: HTTP API for AgentZ agents, lens, secrets, and environments.
+  title: AgentZ HTTP API
   version: 0.1.0
 openapi: 3.0.3
 paths:
@@ -10941,7 +10941,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11034,7 +11034,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11044,7 +11044,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/session/{sessionID}/compact:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11130,7 +11130,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11204,7 +11204,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11214,7 +11214,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/session/{sessionID}/prompt:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11276,7 +11276,7 @@ paths:
           })
   /api/opencode/{agentName}/api/session/{sessionID}/wait:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11356,7 +11356,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11442,7 +11442,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11485,7 +11485,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11586,7 +11586,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11629,7 +11629,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11678,7 +11678,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11757,7 +11757,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11767,7 +11767,7 @@ paths:
         type: string
   /api/opencode/{agentName}/experimental/console/switch:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11861,7 +11861,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -11947,7 +11947,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12006,7 +12006,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12055,7 +12055,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12101,7 +12101,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12217,7 +12217,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12275,7 +12275,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12335,7 +12335,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12345,7 +12345,7 @@ paths:
         type: string
   /api/opencode/{agentName}/experimental/workspace/sync-list:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12384,7 +12384,7 @@ paths:
           })
   /api/opencode/{agentName}/experimental/workspace/warp:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12530,7 +12530,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12584,7 +12584,7 @@ paths:
           })
   /api/opencode/{agentName}/experimental/worktree/reset:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12680,7 +12680,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12728,7 +12728,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12774,7 +12774,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12879,7 +12879,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -12953,7 +12953,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13004,7 +13004,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13050,7 +13050,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13083,7 +13083,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13127,7 +13127,7 @@ paths:
           })
   /api/opencode/{agentName}/global/dispose:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13184,7 +13184,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13229,7 +13229,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13239,7 +13239,7 @@ paths:
         type: string
   /api/opencode/{agentName}/global/upgrade:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13312,7 +13312,7 @@ paths:
           })
   /api/opencode/{agentName}/instance/dispose:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13356,7 +13356,7 @@ paths:
           })
   /api/opencode/{agentName}/log:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13469,7 +13469,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13515,7 +13515,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13636,7 +13636,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13706,7 +13706,7 @@ paths:
           })
   /api/opencode/{agentName}/mcp/{name}/auth/authenticate:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13766,7 +13766,7 @@ paths:
           })
   /api/opencode/{agentName}/mcp/{name}/auth/callback:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13837,7 +13837,7 @@ paths:
           })
   /api/opencode/{agentName}/mcp/{name}/connect:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13885,7 +13885,7 @@ paths:
           })
   /api/opencode/{agentName}/mcp/{name}/disconnect:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -13966,7 +13966,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14012,7 +14012,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14022,7 +14022,7 @@ paths:
         type: string
   /api/opencode/{agentName}/permission/{requestID}/reply:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14137,7 +14137,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14147,7 +14147,7 @@ paths:
         type: string
   /api/opencode/{agentName}/project/{projectID}:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14266,7 +14266,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14276,7 +14276,7 @@ paths:
         type: string
   /api/opencode/{agentName}/project/git/init:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14371,7 +14371,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14381,7 +14381,7 @@ paths:
         type: string
   /api/opencode/{agentName}/provider/{providerID}/oauth/authorize:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14451,7 +14451,7 @@ paths:
           })
   /api/opencode/{agentName}/provider/{providerID}/oauth/callback:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14558,7 +14558,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14604,7 +14604,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14765,7 +14765,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14896,7 +14896,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -14906,7 +14906,7 @@ paths:
         type: string
   /api/opencode/{agentName}/pty/{ptyID}/connect-token:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15027,7 +15027,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15073,7 +15073,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15083,7 +15083,7 @@ paths:
         type: string
   /api/opencode/{agentName}/question/{requestID}/reject:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15145,7 +15145,7 @@ paths:
           })
   /api/opencode/{agentName}/question/{requestID}/reply:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15294,7 +15294,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15476,7 +15476,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15554,7 +15554,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/abort:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15670,7 +15670,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15680,7 +15680,7 @@ paths:
         type: string
   /api/opencode/{agentName}/session/{sessionID}/command:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15845,7 +15845,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15855,7 +15855,7 @@ paths:
         type: string
   /api/opencode/{agentName}/session/{sessionID}/fork:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -15919,7 +15919,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/init:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16075,7 +16075,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16317,7 +16317,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16390,7 +16390,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16467,7 +16467,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID}:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16551,7 +16551,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/prompt_async:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16652,7 +16652,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/revert:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16777,7 +16777,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16838,7 +16838,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/shell:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -16938,7 +16938,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/summarize:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17070,7 +17070,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17080,7 +17080,7 @@ paths:
         type: string
   /api/opencode/{agentName}/session/{sessionID}/unrevert:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17183,7 +17183,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17243,7 +17243,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17253,7 +17253,7 @@ paths:
         type: string
   /api/opencode/{agentName}/sync/history:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17332,7 +17332,7 @@ paths:
           })
   /api/opencode/{agentName}/sync/replay:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17424,7 +17424,7 @@ paths:
           })
   /api/opencode/{agentName}/sync/start:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17468,7 +17468,7 @@ paths:
           })
   /api/opencode/{agentName}/sync/steal:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17535,7 +17535,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/append-prompt:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17596,7 +17596,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/clear-prompt:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17682,7 +17682,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17692,7 +17692,7 @@ paths:
         type: string
   /api/opencode/{agentName}/tui/control/response:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17740,7 +17740,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/execute-command:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17801,7 +17801,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/open-help:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17845,7 +17845,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/open-models:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17889,7 +17889,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/open-sessions:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17933,7 +17933,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/open-themes:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -17977,7 +17977,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/publish:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18036,7 +18036,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/select-session:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18104,7 +18104,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/show-toast:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18173,7 +18173,7 @@ paths:
           })
   /api/opencode/{agentName}/tui/submit-prompt:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18250,7 +18250,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18260,7 +18260,7 @@ paths:
         type: string
   /api/opencode/{agentName}/vcs/apply:
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18371,7 +18371,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18414,7 +18414,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true
@@ -18460,7 +18460,7 @@ paths:
             ...
           })
     parameters:
-    - description: ClawArmor agent name.
+    - description: AgentZ agent name.
       in: path
       name: agentName
       required: true

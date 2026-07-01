@@ -20,9 +20,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	internalmcp "github.com/accuknox/clawarmor/internal/mcp"
-	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	internalmcp "github.com/accuknox/agentz/internal/mcp"
+	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 type mcpProbeOutcome struct {
@@ -30,7 +30,7 @@ type mcpProbeOutcome struct {
 	healthy       bool
 	reason        string
 	message       string
-	tools         []clawarmorv1alpha1.MCPConnectionTool
+	tools         []agentzv1alpha1.MCPConnectionTool
 }
 
 const (
@@ -116,7 +116,7 @@ func (s *Service) runProbeQueue(ctx context.Context) {
 }
 
 func (s *Service) probeMCPConnections(ctx context.Context) error {
-	var list clawarmorv1alpha1.MCPConnectionList
+	var list agentzv1alpha1.MCPConnectionList
 	if err := s.kube.List(ctx, &list, ctrlclient.InNamespace(s.namespace)); err != nil {
 		return fmt.Errorf("list mcp connections: %w", err)
 	}
@@ -154,7 +154,7 @@ func (s *Service) probeMCPConnections(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) probeMCPConnection(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) mcpProbeOutcome {
+func (s *Service) probeMCPConnection(ctx context.Context, conn *agentzv1alpha1.MCPConnection) mcpProbeOutcome {
 	outcome := mcpProbeOutcome{
 		lastProbeTime: metav1.NewTime(time.Now().UTC()),
 		healthy:       false,
@@ -195,7 +195,7 @@ func (s *Service) probeMCPConnection(ctx context.Context, conn *clawarmorv1alpha
 	return outcome
 }
 
-func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) mcpProbeOutcome {
+func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *agentzv1alpha1.MCPConnection) mcpProbeOutcome {
 	outcome := mcpProbeOutcome{
 		lastProbeTime: metav1.NewTime(time.Now().UTC()),
 		healthy:       false,
@@ -222,7 +222,7 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1a
 
 	client := mcpsdk.NewClient(
 		&mcpsdk.Implementation{
-			Name:    "clawarmor-extauth",
+			Name:    "agentz-extauth",
 			Version: "v0.0.1",
 		},
 		&mcpsdk.ClientOptions{
@@ -268,9 +268,9 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1a
 		)
 		return outcome
 	}
-	outcome.tools = make([]clawarmorv1alpha1.MCPConnectionTool, 0, len(tools.Tools))
+	outcome.tools = make([]agentzv1alpha1.MCPConnectionTool, 0, len(tools.Tools))
 	for _, tool := range tools.Tools {
-		outcome.tools = append(outcome.tools, clawarmorv1alpha1.MCPConnectionTool{
+		outcome.tools = append(outcome.tools, agentzv1alpha1.MCPConnectionTool{
 			Name: strings.TrimSpace(tool.Name),
 		})
 	}
@@ -281,7 +281,7 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1a
 	return outcome
 }
 
-func (s *Service) probeTransport(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (*probeRoundTripper, error) {
+func (s *Service) probeTransport(ctx context.Context, conn *agentzv1alpha1.MCPConnection) (*probeRoundTripper, error) {
 	conn = conn.DeepCopy()
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 
@@ -335,7 +335,7 @@ func (s *Service) probeTransport(ctx context.Context, conn *clawarmorv1alpha1.MC
 	}, nil
 }
 
-func (s *Service) probeToken(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (string, *clawarmorv1alpha1.MCPConnectionAuthLocation, error) {
+func (s *Service) probeToken(ctx context.Context, conn *agentzv1alpha1.MCPConnection) (string, *agentzv1alpha1.MCPConnectionAuthLocation, error) {
 	if conn.Spec.Auth.Bearer != nil {
 		auth := conn.Spec.Auth.Bearer
 		if auth.SecretRef == nil {
@@ -393,7 +393,7 @@ func isReachabilityError(err error) bool {
 
 func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name string, outcome mcpProbeOutcome) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		conn := &clawarmorv1alpha1.MCPConnection{}
+		conn := &agentzv1alpha1.MCPConnection{}
 		key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
 		if err := s.kube.Get(ctx, key, conn); err != nil {
 			return ctrlclient.IgnoreNotFound(err)
@@ -445,7 +445,7 @@ func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name strin
 	})
 }
 
-func setProbeErrorCondition(conn *clawarmorv1alpha1.MCPConnection, typ string, active bool, outcome mcpProbeOutcome) {
+func setProbeErrorCondition(conn *agentzv1alpha1.MCPConnection, typ string, active bool, outcome mcpProbeOutcome) {
 	status := metav1.ConditionFalse
 	reason := internalmcp.ReasonReady
 	message := "probe did not report this error"

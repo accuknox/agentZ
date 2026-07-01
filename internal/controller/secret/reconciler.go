@@ -30,12 +30,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/clawarmor/internal/openbao"
-	secretstore "github.com/accuknox/clawarmor/internal/secret"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/openbao"
+	secretstore "github.com/accuknox/agentz/internal/secret"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-const secretFinalizer = "clawarmor.accuknox.com/secret"
+const secretFinalizer = "agentz.accuknox.com/secret"
 
 // SecretReconciler reconciles Secret lifecycle and runtime status.
 type SecretReconciler struct {
@@ -49,13 +49,13 @@ type SecretReconciler struct {
 	OpenBaoK8sAuthTokenPath string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=secrets,verbs=get;list;watch;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=secrets/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=secrets/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=secrets,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=secrets/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=secrets/finalizers,verbs=update
 
 // Reconcile moves Secret runtime state toward the declared spec.
 func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	secret := &clawarmorv1alpha1.Secret{}
+	secret := &agentzv1alpha1.Secret{}
 	if err := r.Get(ctx, req.NamespacedName, secret); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -87,14 +87,14 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 // SetupWithManager sets up the controller with the Manager.
 func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clawarmorv1alpha1.Secret{}).
+		For(&agentzv1alpha1.Secret{}).
 		Named("secret").
 		Complete(r)
 }
 
-func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *clawarmorv1alpha1.Secret) error {
+func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *agentzv1alpha1.Secret) error {
 	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
-	current := &clawarmorv1alpha1.Secret{}
+	current := &agentzv1alpha1.Secret{}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(secret), current); err != nil {
 		return err
 	}
@@ -106,8 +106,8 @@ func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *clawarmo
 
 	status := current.Status
 	status.ObservedGeneration = current.Generation
-	status.State = clawarmorv1alpha1.SecretStateAccepted
-	status.RuntimeRef = &clawarmorv1alpha1.SecretRuntimeRef{Path: path}
+	status.State = agentzv1alpha1.SecretStateAccepted
+	status.RuntimeRef = &agentzv1alpha1.SecretRuntimeRef{Path: path}
 	now := metav1.Now()
 	status.LastRuntimeUpdateTime = &now
 	status.TokenExpiryTime = nil
@@ -115,9 +115,9 @@ func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *clawarmo
 	status.LastRefreshFailureMessage = ""
 	status.LastRefreshFailureTime = nil
 	secretstore.SetCondition(&status, metav1.Condition{
-		Type:               clawarmorv1alpha1.SecretConditionAccepted,
+		Type:               agentzv1alpha1.SecretConditionAccepted,
 		Status:             metav1.ConditionTrue,
-		Reason:             clawarmorv1alpha1.SecretReasonAccepted,
+		Reason:             agentzv1alpha1.SecretReasonAccepted,
 		Message:            "Secret runtime is pending",
 		ObservedGeneration: current.Generation,
 	})
@@ -134,7 +134,7 @@ func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *clawarmo
 	return r.Status().Update(ctx, current)
 }
 
-func (r *SecretReconciler) deleteRuntime(ctx context.Context, secret *clawarmorv1alpha1.Secret) error {
+func (r *SecretReconciler) deleteRuntime(ctx context.Context, secret *agentzv1alpha1.Secret) error {
 	kv, err := r.openBaoMetadata(ctx)
 	if err != nil {
 		return fmt.Errorf("create openbao client for secret cleanup: %w", err)

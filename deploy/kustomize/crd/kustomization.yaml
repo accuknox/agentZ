@@ -2,13 +2,13 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by deploy/kustomize/default
 resources:
-- bases/clawarmor.accuknox.com_agents.yaml
-- bases/clawarmor.accuknox.com_envs.yaml
-- bases/clawarmor.accuknox.com_workflowschedules.yaml
-- bases/clawarmor.accuknox.com_workflowruns.yaml
-- bases/clawarmor.accuknox.com_mcpconnections.yaml
-- bases/clawarmor.accuknox.com_tenants.yaml
-- bases/clawarmor.accuknox.com_secrets.yaml
+- bases/agentz.accuknox.com_agents.yaml
+- bases/agentz.accuknox.com_envs.yaml
+- bases/agentz.accuknox.com_workflowschedules.yaml
+- bases/agentz.accuknox.com_workflowruns.yaml
+- bases/agentz.accuknox.com_mcpconnections.yaml
+- bases/agentz.accuknox.com_tenants.yaml
+- bases/agentz.accuknox.com_secrets.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 # patches:

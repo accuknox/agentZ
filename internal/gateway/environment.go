@@ -12,9 +12,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/accuknox/clawarmor/internal/envutil"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/envutil"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // ListEnvironments handles GET /api/environment.
@@ -44,7 +44,7 @@ func (s *Service) ListEnvironments(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 
-	var envList clawarmorv1alpha1.EnvironmentList
+	var envList agentzv1alpha1.EnvironmentList
 	if err := s.k8sClient.List(r.Context(), &envList, ctrlclient.InNamespace(ns)); err != nil {
 		writeInternalError(w, r, fmt.Errorf("list environments: %w", err))
 		return
@@ -137,24 +137,24 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if req.McpConnectionRefs != nil {
 		rawMCPConnectionRefs = *req.McpConnectionRefs
 	}
-	mcpConnectionRefs := make([]clawarmorv1alpha1.MCPConnectionRef, 0, len(rawMCPConnectionRefs))
+	mcpConnectionRefs := make([]agentzv1alpha1.MCPConnectionRef, 0, len(rawMCPConnectionRefs))
 	for _, ref := range rawMCPConnectionRefs {
 		name := strings.TrimSpace(ref.Name)
 		if name == "" {
 			continue
 		}
-		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		tools := make([]agentzv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
 		for _, rawTool := range ref.Tools {
 			toolName := strings.TrimSpace(rawTool.Name)
 			if toolName == "" {
 				continue
 			}
-			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+			tools = append(tools, agentzv1alpha1.EnvironmentMCPTool{
 				Name:           toolName,
 				RequireConsent: rawTool.RequireConsent,
 			})
 		}
-		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
+		mcpConnectionRefs = append(mcpConnectionRefs, agentzv1alpha1.MCPConnectionRef{
 			Name:  name,
 			Tools: tools,
 		})
@@ -171,9 +171,9 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	env := &clawarmorv1alpha1.Environment{
+	env := &agentzv1alpha1.Environment{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "Environment",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -182,11 +182,11 @@ func (s *Service) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(
 					tenant,
-					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+					agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
 				),
 			},
 		},
-		Spec: clawarmorv1alpha1.EnvironmentSpec{
+		Spec: agentzv1alpha1.EnvironmentSpec{
 			Packages:          packages,
 			AllowedHosts:      allowedHosts,
 			MCPConnectionRefs: mcpConnectionRefs,
@@ -221,7 +221,7 @@ func (s *Service) DeleteEnvironment(w http.ResponseWriter, r *http.Request, envi
 		return
 	}
 
-	env := &clawarmorv1alpha1.Environment{}
+	env := &agentzv1alpha1.Environment{}
 	env.Name = name
 	env.Namespace = ns
 	agentName, err := envutil.ReferencingAgentName(
@@ -292,24 +292,24 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 		seenHosts[host.Value] = struct{}{}
 		allowedHosts = append(allowedHosts, host.Value)
 	}
-	mcpConnectionRefs := make([]clawarmorv1alpha1.MCPConnectionRef, 0, len(req.McpConnectionRefs))
+	mcpConnectionRefs := make([]agentzv1alpha1.MCPConnectionRef, 0, len(req.McpConnectionRefs))
 	for _, ref := range req.McpConnectionRefs {
 		name := strings.TrimSpace(ref.Name)
 		if name == "" {
 			continue
 		}
-		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		tools := make([]agentzv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
 		for _, rawTool := range ref.Tools {
 			toolName := strings.TrimSpace(rawTool.Name)
 			if toolName == "" {
 				continue
 			}
-			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+			tools = append(tools, agentzv1alpha1.EnvironmentMCPTool{
 				Name:           toolName,
 				RequireConsent: rawTool.RequireConsent,
 			})
 		}
-		mcpConnectionRefs = append(mcpConnectionRefs, clawarmorv1alpha1.MCPConnectionRef{
+		mcpConnectionRefs = append(mcpConnectionRefs, agentzv1alpha1.MCPConnectionRef{
 			Name:  name,
 			Tools: tools,
 		})
@@ -327,9 +327,9 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 		return
 	}
 
-	var updated *clawarmorv1alpha1.Environment
+	var updated *agentzv1alpha1.Environment
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		env := &clawarmorv1alpha1.Environment{}
+		env := &agentzv1alpha1.Environment{}
 		if getErr := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{
 			Name:      envName,
 			Namespace: ns,
@@ -365,7 +365,7 @@ func (s *Service) UpdateEnvironment(w http.ResponseWriter, r *http.Request, envi
 	writeJSON(w, http.StatusOK, environmentFromCRD(*updated, agentName != ""))
 }
 
-func environmentFromCRD(env clawarmorv1alpha1.Environment, referenced bool) gatewayapi.Environment {
+func environmentFromCRD(env agentzv1alpha1.Environment, referenced bool) gatewayapi.Environment {
 	packages := []string{}
 	if env.Spec.Packages != nil {
 		packages = env.Spec.Packages
@@ -515,7 +515,7 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 	return fields
 }
 
-func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []clawarmorv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
+func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []agentzv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
 	ns, err := tenantNamespace(ctx)
 	if err != nil {
 		return []gatewayapi.FieldError{{
@@ -526,7 +526,7 @@ func (s *Service) validateEnvironmentMCPConnections(ctx context.Context, refs []
 
 	fields := []gatewayapi.FieldError{}
 	for i, ref := range refs {
-		conn := &clawarmorv1alpha1.MCPConnection{}
+		conn := &agentzv1alpha1.MCPConnection{}
 		key := ctrlclient.ObjectKey{
 			Namespace: ns,
 			Name:      ref.Name,

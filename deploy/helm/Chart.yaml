@@ -1,6 +1,6 @@
 apiVersion: v2
-name: clawarmor
-description: Helm umbrella chart for ClawArmor platform services.
+name: agentz
+description: Helm umbrella chart for AgentZ platform services.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

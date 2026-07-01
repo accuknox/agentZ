@@ -27,14 +27,14 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/accuknox/clawarmor/internal/mcp"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/mcp"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
 	opencodeConfigKey              = "opencode.json"
 	configVolume                   = "config"
-	opencodeConfigDir              = "/etc/clawarmor/opencode"
+	opencodeConfigDir              = "/etc/agentz/opencode"
 	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
 	opencodePhilosophyKey          = "philosophy.md"
 	opencodeInstructionKey         = "instruction.md"
@@ -62,27 +62,27 @@ const (
 	nixLinkVolume                  = "nix-link"
 	nixLinkMount                   = "/tmp/nix-link"
 	nixLinkStage                   = "/tmp/nix-link"
-	nixInitImage                   = "murtazau/clawarmor-init:latest"
+	nixInitImage                   = "murtazau/agentz-init:latest"
 	homeInitName                   = "home-init"
 	agentRuntimeUID                = int64(1000)
 	agentRuntimeGID                = int64(1000)
 	nixPkgEnv                      = "NIX_PACKAGES"
-	packageJobLabelKey             = "clawarmor.accuknox.com/agent-package-job"
+	packageJobLabelKey             = "agentz.accuknox.com/agent-package-job"
 	packageJobNameSuffix           = "-packages"
-	packageJobHashAnnotation       = "clawarmor.accuknox.com/package-job-hash"
+	packageJobHashAnnotation       = "agentz.accuknox.com/package-job-hash"
 	packageJobRootVolume           = "nix-agent-root"
 	packageJobSharedVolume         = "nix-shared"
 	sinjectorNameSuffix            = "-sinjector"
 	sinjectorCAVolume              = "sinjector-ca"
-	sinjectorCAMountPath           = "/etc/clawarmor/sinjector-ca"
-	sinjectorFinalizer             = "clawarmor.accuknox.com/sinjector"
+	sinjectorCAMountPath           = "/etc/agentz/sinjector-ca"
+	sinjectorFinalizer             = "agentz.accuknox.com/sinjector"
 	gatewayRoleNameSuffix          = "-gateway"
 	gatewayTokenVolume             = "gateway-token"
-	gatewayTokenMountPath          = "/var/run/secrets/clawarmor/gateway"
+	gatewayTokenMountPath          = "/var/run/secrets/agentz/gateway"
 	gatewayTokenPath               = gatewayTokenMountPath + "/token"
 	egressPolicySuffix             = "-egress"
 	opencodeConfigSchema           = "https://opencode.ai/config.json"
-	agentHomeDir                   = "/home/clawarmor"
+	agentHomeDir                   = "/home/agentz"
 	opencodeWritableSkillsPath     = agentHomeDir + "/.agents/skills"
 	opencodeBundledSkillsPath      = "/etc/opencode/skills/defaults"
 )
@@ -116,50 +116,50 @@ type RuntimeConfig struct {
 	GatewayTokenAudience             string
 }
 
-func selectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
+func selectorLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	return map[string]string{
-		"app.kubernetes.io/name":         "clawarmor-agent",
-		"app.kubernetes.io/instance":     agt.Name,
-		"clawarmor.accuknox.com/agent":   agt.Name,
-		"clawarmor.accuknox.com/managed": "true",
+		"app.kubernetes.io/name":      "agentz-agent",
+		"app.kubernetes.io/instance":  agt.Name,
+		"agentz.accuknox.com/agent":   agt.Name,
+		"agentz.accuknox.com/managed": "true",
 	}
 }
 
-func packageJobLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
+func packageJobLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	labels := make(map[string]string, len(agt.Labels)+4)
 	maps.Copy(labels, agt.Labels)
-	labels["app.kubernetes.io/name"] = "clawarmor-agent-packages"
+	labels["app.kubernetes.io/name"] = "agentz-agent-packages"
 	labels["app.kubernetes.io/instance"] = agt.Name
 	labels[packageJobLabelKey] = agt.Name
-	labels["clawarmor.accuknox.com/managed"] = "true"
+	labels["agentz.accuknox.com/managed"] = "true"
 	return labels
 }
 
-func packageJobName(agt *clawarmorv1alpha1.Agent) string {
+func packageJobName(agt *agentzv1alpha1.Agent) string {
 	return agt.Name + packageJobNameSuffix
 }
 
-func sinjectorSelectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
+func sinjectorSelectorLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	return map[string]string{
-		"app.kubernetes.io/name":           "clawarmor-sinjector",
-		"app.kubernetes.io/instance":       agt.Name,
-		"clawarmor.accuknox.com/sinjector": agt.Name,
-		"clawarmor.accuknox.com/managed":   "true",
+		"app.kubernetes.io/name":        "agentz-sinjector",
+		"app.kubernetes.io/instance":    agt.Name,
+		"agentz.accuknox.com/sinjector": agt.Name,
+		"agentz.accuknox.com/managed":   "true",
 	}
 }
 
-func sinjectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
+func sinjectorLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	labels := make(map[string]string, len(agt.Labels)+4)
 	maps.Copy(labels, agt.Labels)
 	maps.Copy(labels, sinjectorSelectorLabels(agt))
 	return labels
 }
 
-func sinjectorName(agt *clawarmorv1alpha1.Agent) string {
+func sinjectorName(agt *agentzv1alpha1.Agent) string {
 	return agt.Name + sinjectorNameSuffix
 }
 
-func openBaoSinjectorName(agt *clawarmorv1alpha1.Agent) string {
+func openBaoSinjectorName(agt *agentzv1alpha1.Agent) string {
 	name := "sinjector-" + agt.Namespace + "-" + agt.Name
 	if len(name) <= 63 {
 		return name
@@ -189,11 +189,11 @@ func openBaoSinjectorName(agt *clawarmorv1alpha1.Agent) string {
 	return "sinjector-" + namespace + "-" + agent + "-" + suffix
 }
 
-func egressPolicyName(agt *clawarmorv1alpha1.Agent) string {
+func egressPolicyName(agt *agentzv1alpha1.Agent) string {
 	return agt.Name + egressPolicySuffix
 }
 
-func resourceLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
+func resourceLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	labels := make(map[string]string, len(agt.Labels)+4)
 	maps.Copy(labels, agt.Labels)
 	maps.Copy(labels, selectorLabels(agt))
@@ -205,7 +205,7 @@ type opencodeInstructionFile struct {
 	Content string
 }
 
-func renderOpencodeConfig(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) ([]byte, []opencodeInstructionFile, error) {
+func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg environmentConfig) ([]byte, []opencodeInstructionFile, error) {
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
 		Permission: map[string]opencodePermissionRule{
@@ -370,7 +370,7 @@ func packageJobHash(image string, packages []string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
-func renderOpencodeInstructions(spec clawarmorv1alpha1.AgentSpec) []opencodeInstructionFile {
+func renderOpencodeInstructions(spec agentzv1alpha1.AgentSpec) []opencodeInstructionFile {
 	files := []opencodeInstructionFile{{
 		Path:    opencodePhilosophyPath,
 		Content: renderInstructionFile(agentPhilosophy),

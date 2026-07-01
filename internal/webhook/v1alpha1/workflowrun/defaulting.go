@@ -21,7 +21,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const defaultWorkflowRunTimeoutSeconds int32 = 3600
@@ -31,12 +31,12 @@ const defaultWorkflowRunTimeoutSeconds int32 = 3600
 // +kubebuilder:object:generate=false
 type Defaulter struct{}
 
-var _ admission.Defaulter[*clawarmorv1alpha1.WorkflowRun] = &Defaulter{}
+var _ admission.Defaulter[*agentzv1alpha1.WorkflowRun] = &Defaulter{}
 
-// +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-workflowrun,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowruns,verbs=create;update,versions=v1alpha1,name=mworkflowrun-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-agentz-accuknox-com-v1alpha1-workflowrun,mutating=true,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=workflowruns,verbs=create;update,versions=v1alpha1,name=mworkflowrun-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Default applies defaults to a WorkflowRun resource.
-func (d *Defaulter) Default(_ context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
+func (d *Defaulter) Default(_ context.Context, run *agentzv1alpha1.WorkflowRun) error {
 	if run.Spec.TimeoutSeconds == 0 {
 		run.Spec.TimeoutSeconds = defaultWorkflowRunTimeoutSeconds
 	}

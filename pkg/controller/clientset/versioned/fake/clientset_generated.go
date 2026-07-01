@@ -18,9 +18,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned/typed/clawarmor/v1alpha1"
-	fakeclawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned/typed/clawarmor/v1alpha1/fake"
+	clientset "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/controller/clientset/versioned/typed/agentz/v1alpha1"
+	fakeagentzv1alpha1 "github.com/accuknox/agentz/pkg/controller/clientset/versioned/typed/agentz/v1alpha1/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -94,7 +94,7 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// ClawarmorV1alpha1 retrieves the ClawarmorV1alpha1Client
-func (c *Clientset) ClawarmorV1alpha1() clawarmorv1alpha1.ClawarmorV1alpha1Interface {
-	return &fakeclawarmorv1alpha1.FakeClawarmorV1alpha1{Fake: &c.Fake}
+// AgentzV1alpha1 retrieves the AgentzV1alpha1Client
+func (c *Clientset) AgentzV1alpha1() agentzv1alpha1.AgentzV1alpha1Interface {
+	return &fakeagentzv1alpha1.FakeAgentzV1alpha1{Fake: &c.Fake}
 }

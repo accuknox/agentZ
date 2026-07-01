@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/accuknox/clawarmor/internal/oauth"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/oauth"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // Record is one supported OpenBao runtime record.
@@ -17,11 +17,11 @@ type Record interface {
 
 // StaticRecord stores one static agent secret runtime record in OpenBao.
 type StaticRecord struct {
-	Type       clawarmorv1alpha1.SecretType `json:"type"`
-	SecretName string                       `json:"secretName"`
-	Hosts      []string                     `json:"hosts"`
-	Value      string                       `json:"value"`
-	UpdatedAt  time.Time                    `json:"updatedAt"`
+	Type       agentzv1alpha1.SecretType `json:"type"`
+	SecretName string                    `json:"secretName"`
+	Hosts      []string                  `json:"hosts"`
+	Value      string                    `json:"value"`
+	UpdatedAt  time.Time                 `json:"updatedAt"`
 }
 
 // OAuthConfig stores the non-sensitive OAuth metadata needed at runtime.
@@ -37,10 +37,10 @@ type OAuthConfig struct {
 
 // OAuthRecord stores one OAuth-backed agent secret runtime record in OpenBao.
 type OAuthRecord struct {
-	Type       clawarmorv1alpha1.SecretType `json:"type"`
-	SecretName string                       `json:"secretName"`
-	Hosts      []string                     `json:"hosts"`
-	Config     OAuthConfig                  `json:"config"`
+	Type       agentzv1alpha1.SecretType `json:"type"`
+	SecretName string                    `json:"secretName"`
+	Hosts      []string                  `json:"hosts"`
+	Config     OAuthConfig               `json:"config"`
 	oauth.Record
 }
 
@@ -54,14 +54,14 @@ func SecretPath(tenantNamespace, agentName, key string) string {
 }
 
 // RecordType reads the generated Secret type enum from raw OpenBao data.
-func RecordType(raw map[string]any) (clawarmorv1alpha1.SecretType, error) {
+func RecordType(raw map[string]any) (agentzv1alpha1.SecretType, error) {
 	payload, err := json.Marshal(raw)
 	if err != nil {
 		return "", fmt.Errorf("marshal runtime record header: %w", err)
 	}
 
 	var header struct {
-		Type clawarmorv1alpha1.SecretType `json:"type"`
+		Type agentzv1alpha1.SecretType `json:"type"`
 	}
 	if err := json.Unmarshal(payload, &header); err != nil {
 		return "", fmt.Errorf("decode runtime record header: %w", err)

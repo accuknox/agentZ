@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
-	clawarmor "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions/clawarmor"
-	internalinterfaces "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions/internalinterfaces"
+	versioned "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
+	agentz "github.com/accuknox/agentz/pkg/controller/informers/externalversions/agentz"
+	internalinterfaces "github.com/accuknox/agentz/pkg/controller/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -324,9 +324,9 @@ type SharedInformerFactory interface {
 	// client.
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
-	Clawarmor() clawarmor.Interface
+	Agentz() agentz.Interface
 }
 
-func (f *sharedInformerFactory) Clawarmor() clawarmor.Interface {
-	return clawarmor.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Agentz() agentz.Interface {
+	return agentz.New(f, f.namespace, f.tweakListOptions)
 }

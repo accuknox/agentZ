@@ -24,7 +24,7 @@ export default tool({
         title: "Workflow listing unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return "CLAWARMOR_AGENT_NAME is not set. Configure the agent runtime before using list_workflows."
+      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before using list_workflows."
     }
 
     context.metadata({

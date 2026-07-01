@@ -6,10 +6,10 @@ metadata:
   labels:
     {{- include "observer.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents"]
     verbs: ["get"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs"]
     verbs: ["get"]
   - apiGroups: [""]

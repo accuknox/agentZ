@@ -15,11 +15,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-clawarmor-accuknox-com-v1alpha1-agent
+        path: /mutate-agentz-accuknox-com-v1alpha1-agent
     failurePolicy: Fail
     name: magent-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["agents"]
@@ -29,11 +29,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-clawarmor-accuknox-com-v1alpha1-environment
+        path: /mutate-agentz-accuknox-com-v1alpha1-environment
     failurePolicy: Fail
     name: menvironment-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["envs"]
@@ -43,11 +43,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-clawarmor-accuknox-com-v1alpha1-mcpconnection
+        path: /mutate-agentz-accuknox-com-v1alpha1-mcpconnection
     failurePolicy: Fail
     name: mmcpconnection-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["mcpconnections"]
@@ -57,11 +57,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-clawarmor-accuknox-com-v1alpha1-tenant
+        path: /validate-agentz-accuknox-com-v1alpha1-tenant
     failurePolicy: Fail
     name: vtenant-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE", "DELETE"]
         resources: ["tenants"]
@@ -71,11 +71,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-clawarmor-accuknox-com-v1alpha1-workflowrun
+        path: /mutate-agentz-accuknox-com-v1alpha1-workflowrun
     failurePolicy: Fail
     name: mworkflowrun-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["workflowruns"]
@@ -85,11 +85,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-clawarmor-accuknox-com-v1alpha1-workflowschedule
+        path: /mutate-agentz-accuknox-com-v1alpha1-workflowschedule
     failurePolicy: Fail
     name: mworkflowschedule-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["workflowschedules"]
@@ -111,11 +111,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-clawarmor-accuknox-com-v1alpha1-agent
+        path: /validate-agentz-accuknox-com-v1alpha1-agent
     failurePolicy: Fail
     name: vagent-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["agents"]
@@ -125,11 +125,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-clawarmor-accuknox-com-v1alpha1-environment
+        path: /validate-agentz-accuknox-com-v1alpha1-environment
     failurePolicy: Fail
     name: venvironment-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE", "DELETE"]
         resources: ["envs"]
@@ -139,11 +139,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-clawarmor-accuknox-com-v1alpha1-mcpconnection
+        path: /validate-agentz-accuknox-com-v1alpha1-mcpconnection
     failurePolicy: Fail
     name: vmcpconnection-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["mcpconnections"]
@@ -153,11 +153,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-clawarmor-accuknox-com-v1alpha1-workflowrun
+        path: /validate-agentz-accuknox-com-v1alpha1-workflowrun
     failurePolicy: Fail
     name: vworkflowrun-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["workflowruns"]
@@ -167,11 +167,11 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-clawarmor-accuknox-com-v1alpha1-workflowschedule
+        path: /validate-agentz-accuknox-com-v1alpha1-workflowschedule
     failurePolicy: Fail
     name: vworkflowschedule-v1alpha1.kb.io
     rules:
-      - apiGroups: ["clawarmor.accuknox.com"]
+      - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["workflowschedules"]

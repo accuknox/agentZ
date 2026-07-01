@@ -26,17 +26,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-// +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-agent,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=agents,verbs=create;update,versions=v1alpha1,name=vagent-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-agentz-accuknox-com-v1alpha1-agent,mutating=false,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=agents,verbs=create;update,versions=v1alpha1,name=vagent-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Validator validates Agent resources.
 //
 // +kubebuilder:object:generate=false
 type Validator struct{}
 
-var _ admission.Validator[*clawarmorv1alpha1.Agent] = &Validator{}
+var _ admission.Validator[*agentzv1alpha1.Agent] = &Validator{}
 
 // NewValidator builds an Agent validator.
 func NewValidator() *Validator {
@@ -44,7 +44,7 @@ func NewValidator() *Validator {
 }
 
 // ValidateCreate validates Agent creation.
-func (v *Validator) ValidateCreate(_ context.Context, agt *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
+func (v *Validator) ValidateCreate(_ context.Context, agt *agentzv1alpha1.Agent) (admission.Warnings, error) {
 	allErrs := validateAgent(agt)
 	if len(allErrs) == 0 {
 		return nil, nil
@@ -58,7 +58,7 @@ func (v *Validator) ValidateCreate(_ context.Context, agt *clawarmorv1alpha1.Age
 }
 
 // ValidateUpdate validates Agent updates.
-func (v *Validator) ValidateUpdate(_ context.Context, oldAgt, newAgt *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(_ context.Context, oldAgt, newAgt *agentzv1alpha1.Agent) (admission.Warnings, error) {
 	allErrs := validateAgent(newAgt)
 	if oldAgt.Spec.NixStoreSize.Cmp(newAgt.Spec.NixStoreSize) != 0 {
 		path := field.NewPath("spec").Child("nixStoreSize")
@@ -80,15 +80,15 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldAgt, newAgt *clawarmorv
 }
 
 // ValidateDelete validates Agent deletion.
-func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.Agent) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.Agent) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func validateAgent(agt *clawarmorv1alpha1.Agent) field.ErrorList {
+func validateAgent(agt *agentzv1alpha1.Agent) field.ErrorList {
 	var allErrs field.ErrorList
 	specPath := field.NewPath("spec")
 
-	if agt.Name == clawarmorv1alpha1.AgentNameMCPConnection {
+	if agt.Name == agentzv1alpha1.AgentNameMCPConnection {
 		allErrs = append(allErrs, field.Invalid(
 			field.NewPath("metadata").Child("name"),
 			agt.Name,
@@ -108,7 +108,7 @@ func validateAgent(agt *clawarmorv1alpha1.Agent) field.ErrorList {
 	return allErrs
 }
 
-func validateAgentOpencodeConfig(spec clawarmorv1alpha1.AgentSpec, path *field.Path) field.ErrorList {
+func validateAgentOpencodeConfig(spec agentzv1alpha1.AgentSpec, path *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
 
 	if spec.Model != "" && !isValidModelRef(spec.Model) {

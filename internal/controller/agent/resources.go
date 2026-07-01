@@ -33,10 +33,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alpha1.Agent, opencodeCfg string, instructionFiles []opencodeInstructionFile) error {
+func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *agentzv1alpha1.Agent, opencodeCfg string, instructionFiles []opencodeInstructionFile) error {
 	if opencodeCfg == "" {
 		current := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -70,7 +70,7 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *clawarmorv1alp
 	return nil
 }
 
-func (r *Reconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) reconcileService(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	desired := r.buildService(agt)
 	current := &corev1.Service{}
 	current.Name = desired.Name
@@ -90,7 +90,7 @@ func (r *Reconciler) reconcileService(ctx context.Context, agt *clawarmorv1alpha
 	return nil
 }
 
-func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent, hash string, packages []string, mountConfig bool) error {
+func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *agentzv1alpha1.Agent, hash string, packages []string, mountConfig bool) error {
 	desired := r.buildDeployment(agt, hash, packages, mountConfig)
 	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return fmt.Errorf("set controller reference: %w", err)
@@ -129,7 +129,7 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *clawarmorv1al
 	return nil
 }
 
-func (r *Reconciler) deleteDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) deleteDeployment(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      agt.Name,
@@ -143,7 +143,7 @@ func (r *Reconciler) deleteDeployment(ctx context.Context, agt *clawarmorv1alpha
 	return nil
 }
 
-func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) *corev1.Service {
+func (r *Reconciler) buildService(agt *agentzv1alpha1.Agent) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        agt.Name,
@@ -166,7 +166,7 @@ func (r *Reconciler) buildService(agt *clawarmorv1alpha1.Agent) *corev1.Service 
 	}
 }
 
-func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, packages []string, mountConfig bool) *appsv1.Deployment {
+func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, packages []string, mountConfig bool) *appsv1.Deployment {
 	image := agt.Spec.Image
 	if image == "" {
 		image = r.Config.AgentDefaultImage
@@ -178,7 +178,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 
 	podAnnotations := make(map[string]string, len(agt.Annotations)+2)
 	maps.Copy(podAnnotations, agt.Annotations)
-	podAnnotations["clawarmor.accuknox.com/config-hash"] = hash
+	podAnnotations["agentz.accuknox.com/config-hash"] = hash
 	podAnnotations["kubearmor-visibility"] = "process"
 
 	var volumes []corev1.Volume
@@ -200,7 +200,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	})
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      nixAgentVolume,
-		MountPath: "/home/clawarmor",
+		MountPath: "/home/agentz",
 		SubPath:   nixHomeSubPath,
 	})
 	initContainers = append(initContainers, corev1.Container{
@@ -402,7 +402,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 							Name:            "agent",
 							Image:           image,
 							ImagePullPolicy: agt.Spec.ImagePullPolicy,
-							WorkingDir:      "/home/clawarmor",
+							WorkingDir:      "/home/agentz",
 							Args: []string{
 								"serve",
 								"--hostname=0.0.0.0",
@@ -436,7 +436,7 @@ func (r *Reconciler) buildDeployment(agt *clawarmorv1alpha1.Agent, hash string, 
 	}
 }
 
-func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, mountConfig bool) []corev1.EnvVar {
+func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, packages []string, mountConfig bool) []corev1.EnvVar {
 	proxy := r.proxyAddress(agt)
 	proxy = strings.TrimPrefix(proxy, "https://")
 	proxy = strings.TrimPrefix(proxy, "http://")
@@ -468,7 +468,7 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 	if telemetryEndpoint != "" {
 		telemetryURL = "http://" + telemetryEndpoint
 	}
-	resourceAttributes := "clawarmor.agent_name=" + agt.Name + ",clawarmor.tenant_namespace=" + agt.Namespace
+	resourceAttributes := "agentz.agent_name=" + agt.Name + ",agentz.tenant_namespace=" + agt.Namespace
 	forced = append(
 		forced,
 		corev1.EnvVar{
@@ -477,7 +477,7 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 		},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
-		corev1.EnvVar{Name: "CLAWARMOR_AGENT_NAME", Value: agt.Name},
+		corev1.EnvVar{Name: "AGENTZ_AGENT_NAME", Value: agt.Name},
 		corev1.EnvVar{
 			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
 			Value: resourceAttributes,
@@ -486,8 +486,8 @@ func (r *Reconciler) agentEnv(agt *clawarmorv1alpha1.Agent, packages []string, m
 			Name:  "OTEL_RESOURCE_ATTRIBUTES",
 			Value: resourceAttributes,
 		},
-		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_URL", Value: r.Config.GatewayURL},
-		corev1.EnvVar{Name: "CLAWARMOR_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
+		corev1.EnvVar{Name: "AGENTZ_GATEWAY_URL", Value: r.Config.GatewayURL},
+		corev1.EnvVar{Name: "AGENTZ_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
 	)
 
 	forcedNames := make(map[string]struct{}, len(forced))

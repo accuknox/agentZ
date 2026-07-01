@@ -1,10 +1,10 @@
 SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
 
-IMAGE ?= murtazau/clawarmor:latest
-AGENT_IMAGE ?= murtazau/clawarmor-agent:latest
+IMAGE ?= murtazau/agentz:latest
+AGENT_IMAGE ?= murtazau/agentz-agent:latest
 BETTER_AUTH_URL ?= http://localhost:3000
-GATEWAY_JWT_AUDIENCE ?= clawarmor-gateway
+GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
 IGNORE_NOT_FOUND ?= false
@@ -13,7 +13,7 @@ KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
 CONTROLLER_GEN ?= controller-gen
 
-GO_PKGS := ./cmd/... ./hack ./internal/... ./pkg/...
+GO_PKGS := ./cmd ./hack ./internal/... ./pkg/...
 
 .PHONY: all
 all: generate lint build
@@ -61,7 +61,7 @@ build:
 .PHONY: run-gateway
 run-gateway:
 	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
-	go run ./cmd/clawarmor gateway serve \
+	go run ./cmd/agentz gateway serve \
 		--addr 0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
@@ -80,7 +80,7 @@ run-gateway:
 run-manager:
 	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
 	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --audience=$(GATEWAY_JWT_AUDIENCE) --duration=24h > /tmp/gateway-sa-token
-	go run ./cmd/clawarmor manager \
+	go run ./cmd/agentz manager \
 		--health-probe-bind-address=:8888 \
 		--enable-webhooks=false \
 		--controller-image=$(IMAGE) \
@@ -102,12 +102,12 @@ run-manager:
 
 .PHONY: run-observer
 run-observer:
-	go run ./cmd/clawarmor observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
+	go run ./cmd/agentz observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
 
 .PHONY: run-extauth
 run-extauth:
 	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
-	go run ./cmd/clawarmor extauth serve \
+	go run ./cmd/agentz extauth serve \
 		--addr 0.0.0.0:18081 \
 		--namespace=$(K8S_NAMESPACE) \
 		--openbao-addr=http://localhost:8200 \

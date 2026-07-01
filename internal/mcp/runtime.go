@@ -17,13 +17,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
 	EnvironmentByMCPConnectionIndex = "spec.mcpConnectionRefs.name"
-	MCPConnectionFinalizer          = "clawarmor.accuknox.com/mcpconnection"
-	EnvironmentFinalizer            = "clawarmor.accuknox.com/environment-protection"
+	MCPConnectionFinalizer          = "agentz.accuknox.com/mcpconnection"
+	EnvironmentFinalizer            = "agentz.accuknox.com/environment-protection"
 	OpenCodeGatewayToolsetName      = "gateway"
 	// SecretPathDir is the OpenBao directory for MCP credential records.
 	SecretPathDir            = "mcp-connections"
@@ -48,7 +48,7 @@ type Target struct {
 }
 
 // ParseTarget resolves one MCPConnection into the runtime target shape.
-func ParseTarget(conn *clawarmorv1alpha1.MCPConnection) (Target, error) {
+func ParseTarget(conn *agentzv1alpha1.MCPConnection) (Target, error) {
 	rawURL := strings.TrimSpace(conn.Spec.Endpoint.URL)
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -116,8 +116,8 @@ func SecretPath(tenantNamespace, name string) string {
 }
 
 // ManagedRef returns a status reference for one namespaced object.
-func ManagedRef(namespace, name string) *clawarmorv1alpha1.MCPConnectionManagedResourceRef {
-	return &clawarmorv1alpha1.MCPConnectionManagedResourceRef{
+func ManagedRef(namespace, name string) *agentzv1alpha1.MCPConnectionManagedResourceRef {
+	return &agentzv1alpha1.MCPConnectionManagedResourceRef{
 		Namespace: namespace,
 		Name:      name,
 	}
@@ -152,10 +152,10 @@ func Gateway(namespace string) *gwv1.Gateway {
 func IndexEnvironmentMCPConnections(ctx context.Context, idx client.FieldIndexer) error {
 	return idx.IndexField(
 		ctx,
-		&clawarmorv1alpha1.Environment{},
+		&agentzv1alpha1.Environment{},
 		EnvironmentByMCPConnectionIndex,
 		func(obj client.Object) []string {
-			env, ok := obj.(*clawarmorv1alpha1.Environment)
+			env, ok := obj.(*agentzv1alpha1.Environment)
 			if !ok {
 				return nil
 			}
@@ -165,7 +165,7 @@ func IndexEnvironmentMCPConnections(ctx context.Context, idx client.FieldIndexer
 }
 
 // MCPConnectionRefNames returns trimmed, non-empty MCP connection names.
-func MCPConnectionRefNames(env *clawarmorv1alpha1.Environment) []string {
+func MCPConnectionRefNames(env *agentzv1alpha1.Environment) []string {
 	names := make([]string, 0, len(env.Spec.MCPConnectionRefs))
 	for _, ref := range env.Spec.MCPConnectionRefs {
 		name := strings.TrimSpace(ref.Name)
@@ -181,11 +181,11 @@ func MCPConnectionRefNames(env *clawarmorv1alpha1.Environment) []string {
 //
 // Missing references are ignored so callers can converge runtime state from
 // currently resolvable connections.
-func LoadConnections(ctx context.Context, c client.Reader, env *clawarmorv1alpha1.Environment) ([]clawarmorv1alpha1.MCPConnection, error) {
+func LoadConnections(ctx context.Context, c client.Reader, env *agentzv1alpha1.Environment) ([]agentzv1alpha1.MCPConnection, error) {
 	names := MCPConnectionRefNames(env)
-	conns := make([]clawarmorv1alpha1.MCPConnection, 0, len(names))
+	conns := make([]agentzv1alpha1.MCPConnection, 0, len(names))
 	for _, name := range names {
-		conn := &clawarmorv1alpha1.MCPConnection{}
+		conn := &agentzv1alpha1.MCPConnection{}
 		key := types.NamespacedName{Namespace: env.Namespace, Name: name}
 		err := c.Get(ctx, key, conn)
 		if apierrors.IsNotFound(err) {

@@ -28,13 +28,13 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/accuknox/clawarmor/internal/envutil"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/envutil"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 var log = logf.Log.WithName("environment-resource")
 
-// +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-environment,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=envs,verbs=create;update;delete,versions=v1alpha1,name=venvironment-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-agentz-accuknox-com-v1alpha1-environment,mutating=false,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=envs,verbs=create;update;delete,versions=v1alpha1,name=venvironment-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Validator validates Environment resources.
 //
@@ -43,7 +43,7 @@ type Validator struct {
 	client client.Client
 }
 
-var _ admission.Validator[*clawarmorv1alpha1.Environment] = &Validator{}
+var _ admission.Validator[*agentzv1alpha1.Environment] = &Validator{}
 
 // NewValidator builds an Environment validator.
 func NewValidator(c client.Client) *Validator {
@@ -51,17 +51,17 @@ func NewValidator(c client.Client) *Validator {
 }
 
 // ValidateCreate validates Environment creation.
-func (v *Validator) ValidateCreate(ctx context.Context, env *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
+func (v *Validator) ValidateCreate(ctx context.Context, env *agentzv1alpha1.Environment) (admission.Warnings, error) {
 	return nil, v.validateEnvironment(ctx, env)
 }
 
 // ValidateUpdate validates Environment updates.
-func (v *Validator) ValidateUpdate(ctx context.Context, _, newEnv *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(ctx context.Context, _, newEnv *agentzv1alpha1.Environment) (admission.Warnings, error) {
 	return nil, v.validateEnvironment(ctx, newEnv)
 }
 
 // ValidateDelete validates Environment deletion.
-func (v *Validator) ValidateDelete(ctx context.Context, env *clawarmorv1alpha1.Environment) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(ctx context.Context, env *agentzv1alpha1.Environment) (admission.Warnings, error) {
 	log.Info("Validation for Environment upon deletion", "name", env.GetName())
 	if v.client == nil {
 		return nil, nil
@@ -86,7 +86,7 @@ func (v *Validator) ValidateDelete(ctx context.Context, env *clawarmorv1alpha1.E
 	)
 }
 
-func (v *Validator) validateEnvironment(ctx context.Context, env *clawarmorv1alpha1.Environment) error {
+func (v *Validator) validateEnvironment(ctx context.Context, env *agentzv1alpha1.Environment) error {
 	fields := validateAllowedHostFields(env)
 	fields = append(fields, v.validateMCPConnectionRefs(ctx, env)...)
 	if len(fields) == 0 {
@@ -96,7 +96,7 @@ func (v *Validator) validateEnvironment(ctx context.Context, env *clawarmorv1alp
 	return apierrors.NewInvalid(env.GroupVersionKind().GroupKind(), env.Name, fields)
 }
 
-func validateAllowedHostFields(env *clawarmorv1alpha1.Environment) field.ErrorList {
+func validateAllowedHostFields(env *agentzv1alpha1.Environment) field.ErrorList {
 	fields := field.ErrorList{}
 	path := field.NewPath("spec").Child("allowedHosts")
 	for i, entry := range env.Spec.AllowedHosts {
@@ -111,7 +111,7 @@ func validateAllowedHostFields(env *clawarmorv1alpha1.Environment) field.ErrorLi
 	return fields
 }
 
-func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *clawarmorv1alpha1.Environment) field.ErrorList {
+func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *agentzv1alpha1.Environment) field.ErrorList {
 	fields := field.ErrorList{}
 	path := field.NewPath("spec").Child("mcpConnectionRefs")
 	seen := map[string]int{}
@@ -139,7 +139,7 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, env *clawarmo
 			continue
 		}
 
-		conn := &clawarmorv1alpha1.MCPConnection{}
+		conn := &agentzv1alpha1.MCPConnection{}
 		key := client.ObjectKey{Namespace: env.Namespace, Name: name}
 		err := v.client.Get(ctx, key, conn)
 		if apierrors.IsNotFound(err) {

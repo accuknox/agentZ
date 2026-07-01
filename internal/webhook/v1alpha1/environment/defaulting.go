@@ -21,19 +21,19 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	envcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
-	"github.com/accuknox/clawarmor/internal/envutil"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	envcontroller "github.com/accuknox/agentz/internal/controller/environment"
+	"github.com/accuknox/agentz/internal/envutil"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-// +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-environment,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=envs,verbs=create;update,versions=v1alpha1,name=menvironment-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-agentz-accuknox-com-v1alpha1-environment,mutating=true,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=envs,verbs=create;update,versions=v1alpha1,name=menvironment-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Defaulter sets default values for Environment resources.
 //
 // +kubebuilder:object:generate=false
 type Defaulter struct{}
 
-var _ admission.Defaulter[*clawarmorv1alpha1.Environment] = &Defaulter{}
+var _ admission.Defaulter[*agentzv1alpha1.Environment] = &Defaulter{}
 
 // NewDefaulter builds an Environment defaulter.
 func NewDefaulter() *Defaulter {
@@ -41,7 +41,7 @@ func NewDefaulter() *Defaulter {
 }
 
 // Default applies defaults to an Environment resource.
-func (d *Defaulter) Default(_ context.Context, env *clawarmorv1alpha1.Environment) error {
+func (d *Defaulter) Default(_ context.Context, env *agentzv1alpha1.Environment) error {
 	env.Spec.Packages = envcontroller.DefaultPackagesForWebhook(env.Spec.Packages)
 	hosts := make([]string, 0, len(env.Spec.AllowedHosts))
 	seen := make(map[string]struct{}, len(env.Spec.AllowedHosts))

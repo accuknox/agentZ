@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/accuknox/clawarmor/internal/mcp"
+	"github.com/accuknox/agentz/internal/mcp"
 	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -19,18 +19,18 @@ import (
 )
 
 var (
-	errTraceAgentNameMissing       = errors.New("clawarmor.agent_name missing")
+	errTraceAgentNameMissing       = errors.New("agentz.agent_name missing")
 	errTraceSessionIDMissing       = errors.New("session.id missing")
 	errTraceTenantNamespaceMissing = errors.New("tenant namespace missing")
 )
 
 const (
-	attrClawArmorAgentName       = "clawarmor.agent_name"
-	attrClawArmorTenantNamespace = "clawarmor.tenant_namespace"
-	attrK8sNamespaceName         = "k8s.namespace.name"
-	attrSessionID                = "session.id"
-	attrServiceNamespace         = "service.namespace"
-	attrSpanKind                 = "openinference.span.kind"
+	attrAgentZAgentName       = "agentz.agent_name"
+	attrAgentZTenantNamespace = "agentz.tenant_namespace"
+	attrK8sNamespaceName      = "k8s.namespace.name"
+	attrSessionID             = "session.id"
+	attrServiceNamespace      = "service.namespace"
+	attrSpanKind              = "openinference.span.kind"
 
 	attrInputValue     = "input.value"
 	attrInputMimeType  = "input.mime_type"
@@ -154,7 +154,7 @@ func traceEventFromOTLPSpan(ctx context.Context, res *resolver, sp *tracepb.Span
 
 	spanAttrs := attrsMap(sp.GetAttributes())
 
-	agentName, err := requiredStringAttr(spanAttrs, resourceAttrs, attrClawArmorAgentName, errTraceAgentNameMissing)
+	agentName, err := requiredStringAttr(spanAttrs, resourceAttrs, attrAgentZAgentName, errTraceAgentNameMissing)
 	if err != nil {
 		return traceSpanEvent{}, err
 	}
@@ -167,7 +167,7 @@ func traceEventFromOTLPSpan(ctx context.Context, res *resolver, sp *tracepb.Span
 	tenantNamespace := strings.TrimSpace(firstStringAttr(
 		spanAttrs,
 		resourceAttrs,
-		attrClawArmorTenantNamespace,
+		attrAgentZTenantNamespace,
 	))
 	if tenantNamespace == "" {
 		tenantNamespace = strings.TrimSpace(firstStringAttr(

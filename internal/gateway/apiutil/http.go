@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 // APIError describes an HTTP API error response.

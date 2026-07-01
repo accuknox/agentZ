@@ -1,4 +1,4 @@
-ClawArmor is a platform for running AI agents. It provides strong isolation
+AgentZ is a platform for running AI agents. It provides strong isolation
 guarantees, zero-trust secret management, default-deny network posture and
 control over the software packages your agents have access to.
 

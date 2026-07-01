@@ -3,7 +3,7 @@ package mcp
 import (
 	"time"
 
-	"github.com/accuknox/clawarmor/internal/oauth"
+	"github.com/accuknox/agentz/internal/oauth"
 )
 
 // SecretRecordKey is the OpenBao field key for stored MCP credentials.

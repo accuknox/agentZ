@@ -11,7 +11,7 @@ import (
 
 	baoapi "github.com/openbao/openbao/api/v2"
 
-	baoclient "github.com/accuknox/clawarmor/internal/openbao"
+	baoclient "github.com/accuknox/agentz/internal/openbao"
 )
 
 //go:embed policies/sinjector-readonly.hcl

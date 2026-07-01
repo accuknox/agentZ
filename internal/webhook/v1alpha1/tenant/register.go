@@ -19,12 +19,12 @@ package v1alpha1
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // RegisterWithManager registers the Tenant webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.Tenant{}).
+	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.Tenant{}).
 		WithValidator(&Validator{}).
 		Complete()
 }

@@ -1,6 +1,6 @@
 # Controller manager chart.
 manager:
-  # Enable the ClawArmor controller manager subchart.
+  # Enable the AgentZ controller manager subchart.
   enabled: true
 
   # Override the chart name portion of generated resource names.
@@ -14,8 +14,8 @@ manager:
   replicaCount: 1
 
   image:
-    # Image repository for the `clawarmor` binary used by the manager pod.
-    repository: murtazau/clawarmor
+    # Image repository for the `agentz` binary used by the manager pod.
+    repository: murtazau/agentz
 
     # Image tag for the manager image.
     tag: latest
@@ -89,7 +89,7 @@ manager:
       - ALL
 
   config:
-    # Application log level passed to `clawarmor manager`.
+    # Application log level passed to `agentz manager`.
     # Supported values are `debug`, `info`, `warn`, `error`.
     logLevel: info
 
@@ -163,11 +163,11 @@ manager:
     managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
 
     # Projected ServiceAccount token path used by the manager for gateway auth.
-    managerGatewayTokenPath: /var/run/secrets/clawarmor/gateway/token
+    managerGatewayTokenPath: /var/run/secrets/agentz/gateway/token
 
     # Audience bound onto the projected ServiceAccount token used for gateway
     # auth.
-    managerGatewayTokenAudience: clawarmor-gateway
+    managerGatewayTokenAudience: agentz-gateway
 
     # Secret name that stores the sinjector CA materials.
     sinjectorCASecretName: sinjector
@@ -182,13 +182,13 @@ manager:
     sinjectorCASecretBundleKey: ca.crt
 
     # CA certificate path inside the sinjector container.
-    sinjectorCACertPath: /etc/clawarmor/sinjector-ca/tls.crt
+    sinjectorCACertPath: /etc/agentz/sinjector-ca/tls.crt
 
     # CA private key path inside the sinjector container.
-    sinjectorCAKeyPath: /etc/clawarmor/sinjector-ca/tls.key
+    sinjectorCAKeyPath: /etc/agentz/sinjector-ca/tls.key
 
     # CA bundle path mounted into agent containers.
-    agentCABundlePath: /etc/clawarmor/sinjector-ca/ca.crt
+    agentCABundlePath: /etc/agentz/sinjector-ca/ca.crt
 
     # Pre-created ClusterIssuer used for tenant sinjector CA certificates.
     tenantSinjectorClusterIssuerName: ""
@@ -231,7 +231,7 @@ manager:
     # Secret name mounted into the manager pod for webhook TLS.
     webhookSecretName: webhook-server-cert
 
-  # Extra CLI arguments appended to `clawarmor manager`.
+  # Extra CLI arguments appended to `agentz manager`.
   extraArgs: []
 
 # Gateway API chart.
@@ -250,7 +250,7 @@ gateway:
 
   image:
     # Image repository for the gateway workload.
-    repository: murtazau/clawarmor
+    repository: murtazau/agentz
 
     # Image tag for the gateway workload.
     tag: latest
@@ -308,7 +308,7 @@ gateway:
     port: 8090
 
   config:
-    # Application log level passed to `clawarmor gateway serve`.
+    # Application log level passed to `agentz gateway serve`.
     logLevel: info
 
     # Application log format.
@@ -317,7 +317,7 @@ gateway:
     # Include file and line information in logs.
     logWithSource: false
 
-    # Namespace where the gateway resolves and manages ClawArmor resources.
+    # Namespace where the gateway resolves and manages AgentZ resources.
     namespace: default
 
     # Optional backend target override for local or special routing scenarios.
@@ -352,10 +352,10 @@ gateway:
     externalJWTIssuer: ""
 
     # Required Better Auth audience used to verify external bearer tokens.
-    externalJWTAudience: clawarmor-gateway
+    externalJWTAudience: agentz-gateway
 
     # Required audience for internal projected ServiceAccount bearer tokens.
-    internalK8sTokenAudience: clawarmor-gateway
+    internalK8sTokenAudience: agentz-gateway
 
     # Maximum age before MCP probe results are treated as stale.
     mcpProbeStaleAfter: 5m
@@ -363,7 +363,7 @@ gateway:
     # Required PostgreSQL DSN for gateway state.
     postgresDSN: ""
 
-  # Extra CLI arguments appended to `clawarmor gateway serve`.
+  # Extra CLI arguments appended to `agentz gateway serve`.
   extraArgs: []
 
 # Telemetry observer chart.
@@ -382,7 +382,7 @@ observer:
 
   image:
     # Image repository for the observer workload.
-    repository: murtazau/clawarmor
+    repository: murtazau/agentz
 
     # Image tag for the observer workload.
     tag: latest
@@ -430,7 +430,7 @@ observer:
     otlpGrpcPort: 4317
 
   config:
-    # Application log level passed to `clawarmor observer serve`.
+    # Application log level passed to `agentz observer serve`.
     logLevel: info
 
     # Application log format.
@@ -457,7 +457,7 @@ observer:
     # Max time between PostgreSQL flushes.
     flushInterval: 1s
 
-  # Extra CLI arguments appended to `clawarmor observer serve`.
+  # Extra CLI arguments appended to `agentz observer serve`.
   extraArgs: []
 
 # Next.js web UI chart.
@@ -476,7 +476,7 @@ web:
 
   image:
     # Image repository for the built Next.js web application.
-    repository: murtazau/clawarmor-web
+    repository: murtazau/agentz-web
 
     # Image tag for the web workload.
     tag: latest
@@ -530,7 +530,7 @@ web:
     internalGatewayBaseURL: ""
 
     # Audience for Better Auth JWTs consumed by the gateway.
-    gatewayJWTAudience: clawarmor-gateway
+    gatewayJWTAudience: agentz-gateway
 
     # Optional GitHub OAuth client ID.
     githubClientID: ""
@@ -594,7 +594,7 @@ ingress:
 
   # Host routing rules for the shared ingress.
   hosts:
-  - host: clawarmor.local
+  - host: agentz.local
 
   # TLS blocks passed through directly to the Ingress.
   tls: []

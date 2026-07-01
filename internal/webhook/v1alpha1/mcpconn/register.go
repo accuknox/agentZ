@@ -20,12 +20,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // RegisterWithManager registers the MCPConnection webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager, kubeClient client.Client) error {
-	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.MCPConnection{}).
+	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.MCPConnection{}).
 		WithValidator(NewValidator(kubeClient)).
 		WithDefaulter(NewDefaulter()).
 		Complete()

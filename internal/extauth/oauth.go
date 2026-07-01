@@ -9,13 +9,13 @@ import (
 
 	baoapi "github.com/openbao/openbao/api/v2"
 
-	"github.com/accuknox/clawarmor/internal/mcp"
-	"github.com/accuknox/clawarmor/internal/oauth"
-	secretstore "github.com/accuknox/clawarmor/internal/secret"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/oauth"
+	secretstore "github.com/accuknox/agentz/internal/secret"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (s *Service) resolveOAuthRequest(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, attrs *requestAttrs) (injectedRequest, error) {
+func (s *Service) resolveOAuthRequest(ctx context.Context, conn *agentzv1alpha1.MCPConnection, attrs *requestAttrs) (injectedRequest, error) {
 	token, location, refreshAttempted, err := s.resolveOAuthAccessToken(ctx, conn)
 	if refreshAttempted {
 		attrs.refreshAttempted = true
@@ -29,7 +29,7 @@ func (s *Service) resolveOAuthRequest(ctx context.Context, conn *clawarmorv1alph
 	return injectionForLocation(location, token)
 }
 
-func (s *Service) resolveOAuthAccessToken(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (string, *clawarmorv1alpha1.MCPConnectionAuthLocation, bool, error) {
+func (s *Service) resolveOAuthAccessToken(ctx context.Context, conn *agentzv1alpha1.MCPConnection) (string, *agentzv1alpha1.MCPConnectionAuthLocation, bool, error) {
 	auth := conn.Spec.Auth.OAuth
 	if auth == nil || auth.SecretRef == nil {
 		return "", nil, false, fmt.Errorf("oauth secret ref is missing: %w", errCredentialUnavailable)
@@ -70,7 +70,7 @@ func (s *Service) resolveOAuthAccessToken(ctx context.Context, conn *clawarmorv1
 	return refreshed.Token.AccessToken, auth.Location, true, nil
 }
 
-func (s *Service) refreshOAuthToken(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (*mcp.OAuthSecretRecord, error) {
+func (s *Service) refreshOAuthToken(ctx context.Context, conn *agentzv1alpha1.MCPConnection) (*mcp.OAuthSecretRecord, error) {
 	auth := conn.Spec.Auth.OAuth
 	if auth == nil || auth.SecretRef == nil {
 		return nil, fmt.Errorf("oauth secret ref is missing: %w", errCredentialUnavailable)
@@ -112,7 +112,7 @@ func (s *Service) refreshOAuthToken(ctx context.Context, conn *clawarmorv1alpha1
 	return &record, nil
 }
 
-func (s *Service) readBearerRecord(ctx context.Context, ref clawarmorv1alpha1.MCPConnectionSecretRef) (mcp.BearerSecretRecord, error) {
+func (s *Service) readBearerRecord(ctx context.Context, ref agentzv1alpha1.MCPConnectionSecretRef) (mcp.BearerSecretRecord, error) {
 	var record mcp.BearerSecretRecord
 	secretCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
@@ -132,7 +132,7 @@ func (s *Service) readBearerRecord(ctx context.Context, ref clawarmorv1alpha1.MC
 	return record, nil
 }
 
-func (s *Service) readOAuthRecord(ctx context.Context, ref clawarmorv1alpha1.MCPConnectionSecretRef) (mcp.OAuthSecretRecord, error) {
+func (s *Service) readOAuthRecord(ctx context.Context, ref agentzv1alpha1.MCPConnectionSecretRef) (mcp.OAuthSecretRecord, error) {
 	secretCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 

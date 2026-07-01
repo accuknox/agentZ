@@ -9,7 +9,7 @@ import { BotIcon } from "@/components/bot-icon"
 import type { DeleteAgentFormState } from "@/data/types"
 
 export const metadata: Metadata = {
-  title: "Agents | ClawArmor - AccuKnox",
+  title: "Agents | AgentZ - AccuKnox",
 }
 
 export default async function Home({

@@ -32,22 +32,22 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/clawarmor/internal/workflow"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/workflow"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
-	workflowScheduleLabel      = "clawarmor.accuknox.com/workflow-schedule"
-	scheduleRunnerLabel        = "clawarmor.accuknox.com/workflow-schedule-runner"
+	workflowScheduleLabel      = "agentz.accuknox.com/workflow-schedule"
+	scheduleRunnerLabel        = "agentz.accuknox.com/workflow-schedule-runner"
 	scheduleRunnerRoleSuffix   = "-schedule-runner"
 	scheduleRunnerPolicySuffix = "-schedule-runner"
 )
 
-func scheduleRunnerName(schedule *clawarmorv1alpha1.WorkflowSchedule) string {
+func scheduleRunnerName(schedule *agentzv1alpha1.WorkflowSchedule) string {
 	return schedule.Name + scheduleRunnerRoleSuffix
 }
 
-func scheduleLabels(schedule *clawarmorv1alpha1.WorkflowSchedule) map[string]string {
+func scheduleLabels(schedule *agentzv1alpha1.WorkflowSchedule) map[string]string {
 	labels := map[string]string{
 		workflowScheduleLabel: schedule.Name,
 	}
@@ -55,17 +55,17 @@ func scheduleLabels(schedule *clawarmorv1alpha1.WorkflowSchedule) map[string]str
 	return labels
 }
 
-func scheduleRunnerPodLabels(schedule *clawarmorv1alpha1.WorkflowSchedule) map[string]string {
+func scheduleRunnerPodLabels(schedule *agentzv1alpha1.WorkflowSchedule) map[string]string {
 	labels := scheduleLabels(schedule)
 	labels[scheduleRunnerLabel] = schedule.Name
 	return labels
 }
 
-func scheduleRunnerPolicyName(schedule *clawarmorv1alpha1.WorkflowSchedule) string {
+func scheduleRunnerPolicyName(schedule *agentzv1alpha1.WorkflowSchedule) string {
 	return schedule.Name + scheduleRunnerPolicySuffix
 }
 
-func (r *Reconciler) reconcileServiceAccount(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+func (r *Reconciler) reconcileServiceAccount(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      scheduleRunnerName(schedule),
@@ -83,7 +83,7 @@ func (r *Reconciler) reconcileServiceAccount(ctx context.Context, schedule *claw
 	return nil
 }
 
-func (r *Reconciler) reconcileRole(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+func (r *Reconciler) reconcileRole(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      scheduleRunnerName(schedule),
@@ -95,12 +95,12 @@ func (r *Reconciler) reconcileRole(ctx context.Context, schedule *clawarmorv1alp
 		role.Annotations = schedule.Annotations
 		role.Rules = []rbacv1.PolicyRule{
 			{
-				APIGroups: []string{"clawarmor.accuknox.com"},
+				APIGroups: []string{"agentz.accuknox.com"},
 				Resources: []string{"workflowschedules"},
 				Verbs:     []string{"get"},
 			},
 			{
-				APIGroups: []string{"clawarmor.accuknox.com"},
+				APIGroups: []string{"agentz.accuknox.com"},
 				Resources: []string{"workflowruns"},
 				Verbs:     []string{"create", "get", "list", "watch"},
 			},
@@ -113,7 +113,7 @@ func (r *Reconciler) reconcileRole(ctx context.Context, schedule *clawarmorv1alp
 	return nil
 }
 
-func (r *Reconciler) reconcileRoleBinding(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+func (r *Reconciler) reconcileRoleBinding(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	roleBinding := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      scheduleRunnerName(schedule),
@@ -141,7 +141,7 @@ func (r *Reconciler) reconcileRoleBinding(ctx context.Context, schedule *clawarm
 	return nil
 }
 
-func (r *Reconciler) reconcileRunnerPolicy(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+func (r *Reconciler) reconcileRunnerPolicy(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      scheduleRunnerPolicyName(schedule),
@@ -201,7 +201,7 @@ func (r *Reconciler) reconcileRunnerPolicy(ctx context.Context, schedule *clawar
 	return nil
 }
 
-func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) (string, error) {
+func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) (string, error) {
 	name := schedule.Name
 	err := workflow.ValidateCronSchedule(schedule.Spec.Schedule)
 	if err != nil {

@@ -42,7 +42,7 @@ spec:
         - name: gateway
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["/clawarmor"]
+          command: ["/agentz"]
           args:
             - gateway
             - serve

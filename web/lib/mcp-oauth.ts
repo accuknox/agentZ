@@ -278,7 +278,7 @@ export function parseStoredOAuthDiscoveryState(input: unknown): StoredOAuthDisco
   return oauthDiscoveryStateSchema.parse(input)
 }
 
-export const mcpOAuthCookieName = "clawarmor-mcp-oauth"
+export const mcpOAuthCookieName = "agentz-mcp-oauth"
 const oauthCookieTTLSeconds = 15 * 60
 const oauthFetchTimeoutMs = 15_000
 const oauthFetchMaxRedirects = 5
@@ -427,7 +427,7 @@ function redirectURL() {
 function oauthClientMetadata(redirectURL: URL): OAuthClientMetadata {
   const base = new URL("/", redirectURL)
   return {
-    client_name: "AccuKnox ClawArmor OAuth Client",
+    client_name: "AccuKnox AgentZ OAuth Client",
     redirect_uris: [redirectURL.toString()],
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],

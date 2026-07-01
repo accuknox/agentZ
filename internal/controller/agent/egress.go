@@ -32,12 +32,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/clawarmor/internal/envutil"
-	"github.com/accuknox/clawarmor/internal/mcp"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/envutil"
+	"github.com/accuknox/agentz/internal/mcp"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) error {
+func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *agentzv1alpha1.Agent, envCfg environmentConfig) error {
 	name := egressPolicyName(agt)
 	spec, err := r.buildEgressPolicySpec(agt, envCfg)
 	if err != nil {
@@ -68,7 +68,7 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *clawarmorv1
 	return nil
 }
 
-func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, envCfg environmentConfig) (*ciliumapi.Rule, error) {
+func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg environmentConfig) (*ciliumapi.Rule, error) {
 	hosts, err := envutil.ParseHostList(envCfg.AllowedHosts)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (r *Reconciler) buildEgressPolicySpec(agt *clawarmorv1alpha1.Agent, envCfg 
 	return &ciliumapi.Rule{
 		EndpointSelector: ciliumapi.NewESFromLabels(
 			ciliumlabels.NewLabel(
-				"clawarmor.accuknox.com/agent",
+				"agentz.accuknox.com/agent",
 				agt.Name,
 				ciliumlabels.LabelSourceK8s,
 			),
@@ -233,7 +233,7 @@ func gatewayMcpEgressRule(namespace string) ciliumapi.EgressRule {
 	}
 }
 
-func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent) ciliumapi.EgressRule {
+func sinjectorEgressRule(agt *agentzv1alpha1.Agent) ciliumapi.EgressRule {
 	return ciliumapi.EgressRule{
 		EgressCommonRule: ciliumapi.EgressCommonRule{
 			ToEndpoints: []ciliumapi.EndpointSelector{
@@ -244,7 +244,7 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent) ciliumapi.EgressRule {
 						ciliumlabels.LabelSourceK8s,
 					),
 					ciliumlabels.NewLabel(
-						"clawarmor.accuknox.com/sinjector",
+						"agentz.accuknox.com/sinjector",
 						agt.Name,
 						ciliumlabels.LabelSourceK8s,
 					),
@@ -262,7 +262,7 @@ func sinjectorEgressRule(agt *clawarmorv1alpha1.Agent) ciliumapi.EgressRule {
 	}
 }
 
-func (r *Reconciler) agentNoProxyHosts(agt *clawarmorv1alpha1.Agent) []string {
+func (r *Reconciler) agentNoProxyHosts(agt *agentzv1alpha1.Agent) []string {
 	rawHosts := []string{
 		"127.0.0.1",
 		"::1",

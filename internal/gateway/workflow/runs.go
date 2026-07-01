@@ -21,8 +21,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -36,8 +36,8 @@ var (
 )
 
 type RunPhaseConflictError struct {
-	Current clawarmorv1alpha1.WorkflowRunPhase
-	Target  clawarmorv1alpha1.WorkflowRunPhase
+	Current agentzv1alpha1.WorkflowRunPhase
+	Target  agentzv1alpha1.WorkflowRunPhase
 }
 
 func (e *RunPhaseConflictError) Error() string {
@@ -129,11 +129,11 @@ func ValidateRunWatchNames(runNames *[]gatewayapi.WorkflowRunName) []gatewayapi.
 
 func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, req gatewayapi.PatchWorkflowRunStatusRequest, msg string) error {
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
-	phase := clawarmorv1alpha1.WorkflowRunPhase(req.Phase)
+	phase := agentzv1alpha1.WorkflowRunPhase(req.Phase)
 	var resultErr error
 
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &clawarmorv1alpha1.WorkflowRun{}
+		current := &agentzv1alpha1.WorkflowRun{}
 		if err := k8sClient.Get(ctx, key, current); err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			resultErr = ErrWorkflowRunTerminal
 			return nil
 		}
-		if current.Status.Phase != clawarmorv1alpha1.WorkflowRunPhaseRunning {
+		if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
 			resultErr = &RunPhaseConflictError{
 				Current: current.Status.Phase,
 				Target:  phase,
@@ -185,25 +185,25 @@ func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 		return gatewayapi.WorkflowRunSummary{}, err
 	}
 
-	run := &clawarmorv1alpha1.WorkflowRun{
+	run := &agentzv1alpha1.WorkflowRun{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "WorkflowRun",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      schedule.Name + "-" + workflowRunSuffix(),
 			Namespace: ns,
 			Labels: map[string]string{
-				"clawarmor.accuknox.com/workflow-schedule": schedule.Name,
+				"agentz.accuknox.com/workflow-schedule": schedule.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(
 					schedule,
-					clawarmorv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
+					agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
 				),
 			},
 		},
-		Spec: clawarmorv1alpha1.WorkflowRunSpec{
+		Spec: agentzv1alpha1.WorkflowRunSpec{
 			AgentName:      schedule.Spec.AgentName,
 			WorkflowName:   schedule.Spec.WorkflowName,
 			Inputs:         apiextensionsv1.JSON{Raw: schedule.Spec.Inputs.Raw},
@@ -228,7 +228,7 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		return nil, 0, err
 	}
 
-	list := &clawarmorv1alpha1.WorkflowRunList{}
+	list := &agentzv1alpha1.WorkflowRunList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
 	}
@@ -273,7 +273,7 @@ func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName
 		return gatewayapi.WorkflowRunDetail{}, err
 	}
 
-	run := &clawarmorv1alpha1.WorkflowRun{}
+	run := &agentzv1alpha1.WorkflowRun{}
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	if err := k8sClient.Get(ctx, key, run); err != nil {
 		return gatewayapi.WorkflowRunDetail{}, err
@@ -293,7 +293,7 @@ func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 		return err
 	}
 
-	run := &clawarmorv1alpha1.WorkflowRun{}
+	run := &agentzv1alpha1.WorkflowRun{}
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	if err := k8sClient.Get(ctx, key, run); err != nil {
 		return err
@@ -313,7 +313,7 @@ func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 	defer ticker.Stop()
 
 	for {
-		current := &clawarmorv1alpha1.WorkflowRun{}
+		current := &agentzv1alpha1.WorkflowRun{}
 		err := k8sClient.Get(ctx, key, current)
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -330,7 +330,7 @@ func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 	}
 }
 
-func runSummaryFromCRD(run *clawarmorv1alpha1.WorkflowRun) gatewayapi.WorkflowRunSummary {
+func runSummaryFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunSummary {
 	summary := gatewayapi.WorkflowRunSummary{
 		Name:         run.Name,
 		WorkflowName: run.Spec.WorkflowName,
@@ -345,7 +345,7 @@ func runSummaryFromCRD(run *clawarmorv1alpha1.WorkflowRun) gatewayapi.WorkflowRu
 	return summary
 }
 
-func runDetailFromCRD(run *clawarmorv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDetail {
+func runDetailFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDetail {
 	inputs := gatewayapi.JSONValue{}
 	raw := run.Spec.Inputs.Raw
 	if len(raw) == 0 {
@@ -385,24 +385,24 @@ func runDetailFromCRD(run *clawarmorv1alpha1.WorkflowRun) gatewayapi.WorkflowRun
 	return detail
 }
 
-func workflowRunStatus(phase clawarmorv1alpha1.WorkflowRunPhase) gatewayapi.WorkflowRunStatus {
+func workflowRunStatus(phase agentzv1alpha1.WorkflowRunPhase) gatewayapi.WorkflowRunStatus {
 	switch phase {
-	case clawarmorv1alpha1.WorkflowRunPhasePending:
+	case agentzv1alpha1.WorkflowRunPhasePending:
 		return gatewayapi.WorkflowRunStatusPending
-	case clawarmorv1alpha1.WorkflowRunPhaseRunning:
+	case agentzv1alpha1.WorkflowRunPhaseRunning:
 		return gatewayapi.WorkflowRunStatusRunning
-	case clawarmorv1alpha1.WorkflowRunPhaseSucceeded:
+	case agentzv1alpha1.WorkflowRunPhaseSucceeded:
 		return gatewayapi.WorkflowRunStatusSucceeded
-	case clawarmorv1alpha1.WorkflowRunPhaseFailed:
+	case agentzv1alpha1.WorkflowRunPhaseFailed:
 		return gatewayapi.WorkflowRunStatusFailed
-	case clawarmorv1alpha1.WorkflowRunPhaseUnacked:
+	case agentzv1alpha1.WorkflowRunPhaseUnacked:
 		return gatewayapi.WorkflowRunStatusUnacked
 	default:
 		return gatewayapi.WorkflowRunStatusPending
 	}
 }
 
-func workflowRunReason(run *clawarmorv1alpha1.WorkflowRun) string {
+func workflowRunReason(run *agentzv1alpha1.WorkflowRun) string {
 	if run == nil {
 		return ""
 	}
@@ -410,7 +410,7 @@ func workflowRunReason(run *clawarmorv1alpha1.WorkflowRun) string {
 	if run.Status.Phase.Terminal() {
 		cond := apimeta.FindStatusCondition(
 			run.Status.Conditions,
-			clawarmorv1alpha1.WorkflowRunConditionReady,
+			agentzv1alpha1.WorkflowRunConditionReady,
 		)
 		if cond != nil && cond.Message != "" {
 			return cond.Message
@@ -420,19 +420,19 @@ func workflowRunReason(run *clawarmorv1alpha1.WorkflowRun) string {
 
 	cond := apimeta.FindStatusCondition(
 		run.Status.Conditions,
-		clawarmorv1alpha1.WorkflowRunConditionProgressing,
+		agentzv1alpha1.WorkflowRunConditionProgressing,
 	)
 	if cond != nil && cond.Message != "" {
 		return cond.Message
 	}
-	if run.Status.Phase != clawarmorv1alpha1.WorkflowRunPhaseUnknown {
+	if run.Status.Phase != agentzv1alpha1.WorkflowRunPhaseUnknown {
 		return string(run.Status.Phase)
 	}
-	return clawarmorv1alpha1.WorkflowRunReasonPending
+	return agentzv1alpha1.WorkflowRunReasonPending
 }
 
-func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (*clawarmorv1alpha1.WorkflowSchedule, error) {
-	schedule := &clawarmorv1alpha1.WorkflowSchedule{}
+func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (*agentzv1alpha1.WorkflowSchedule, error) {
+	schedule := &agentzv1alpha1.WorkflowSchedule{}
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(schName)}
 	if err := k8sClient.Get(ctx, key, schedule); err != nil {
 		return nil, err

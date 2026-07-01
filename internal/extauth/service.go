@@ -35,12 +35,12 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	baoclient "github.com/accuknox/clawarmor/internal/openbao"
-	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
-	clawarmorclientset "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
-	clawarmorinformers "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions"
-	clawarmorlisters "github.com/accuknox/clawarmor/pkg/controller/listers/clawarmor/v1alpha1"
+	baoclient "github.com/accuknox/agentz/internal/openbao"
+	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	agentzclientset "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
+	agentzinformers "github.com/accuknox/agentz/pkg/controller/informers/externalversions"
+	agentzlisters "github.com/accuknox/agentz/pkg/controller/listers/agentz/v1alpha1"
 )
 
 const (
@@ -53,15 +53,15 @@ const (
 	// DefaultMCPProbeTimeout bounds one end-to-end MCP probe.
 	DefaultMCPProbeTimeout = 15 * time.Second
 
-	managedLabelKey       = "clawarmor.accuknox.com/managed"
+	managedLabelKey       = "agentz.accuknox.com/managed"
 	managedLabelValue     = "true"
-	agentLabelKey         = "clawarmor.accuknox.com/agent"
+	agentLabelKey         = "agentz.accuknox.com/agent"
 	appNameLabelKey       = "app.kubernetes.io/name"
-	appNameAgent          = "clawarmor-agent"
+	appNameAgent          = "agentz-agent"
 	sessionHeaderName     = "x-opencode-session-id"
-	contextNamespaceKey   = "clawarmor.namespace"
-	contextEnvironmentKey = "clawarmor.environment"
-	contextConnectionKey  = "clawarmor.mcp_connection"
+	contextNamespaceKey   = "agentz.namespace"
+	contextEnvironmentKey = "agentz.environment"
+	contextConnectionKey  = "agentz.mcp_connection"
 	kubeRequestTimeout    = 5 * time.Second
 	grpcShutdownTimeout   = 15 * time.Second
 	httpClientTimeout     = 15 * time.Second
@@ -126,8 +126,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("add core scheme: %w", err)
 	}
-	if err := clawarmorv1alpha1.AddToScheme(scheme); err != nil {
-		return fmt.Errorf("add clawarmor scheme: %w", err)
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add agentz scheme: %w", err)
 	}
 
 	kubeCfg, err := ctrlconfig.GetConfig()
@@ -144,9 +144,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create kube clientset: %w", err)
 	}
-	clawarmorClient, err := clawarmorclientset.NewForConfig(kubeCfg)
+	agentzClient, err := agentzclientset.NewForConfig(kubeCfg)
 	if err != nil {
-		return fmt.Errorf("create clawarmor clientset: %w", err)
+		return fmt.Errorf("create agentz clientset: %w", err)
 	}
 
 	baoClient, err := baoclient.NewClient(
@@ -180,18 +180,18 @@ func Serve(ctx context.Context, cfg Config) error {
 		}),
 	}
 
-	informerFactory := clawarmorinformers.NewSharedInformerFactoryWithOptions(
-		clawarmorClient,
+	informerFactory := agentzinformers.NewSharedInformerFactoryWithOptions(
+		agentzClient,
 		cfg.MCPProbeInterval,
-		clawarmorinformers.WithNamespace(namespace),
+		agentzinformers.WithNamespace(namespace),
 	)
-	mcpInformer := informerFactory.Clawarmor().V1alpha1().MCPConnections()
+	mcpInformer := informerFactory.Agentz().V1alpha1().MCPConnections()
 	svc.mcpConnections = mcpInformer.Lister().MCPConnections(namespace)
 	svc.probeTimes = map[string]time.Time{}
 
 	mcpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			conn, ok := obj.(*clawarmorv1alpha1.MCPConnection)
+			conn, ok := obj.(*agentzv1alpha1.MCPConnection)
 			if !ok {
 				return
 			}
@@ -200,11 +200,11 @@ func Serve(ctx context.Context, cfg Config) error {
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			oldConn, ok := oldObj.(*clawarmorv1alpha1.MCPConnection)
+			oldConn, ok := oldObj.(*agentzv1alpha1.MCPConnection)
 			if !ok {
 				return
 			}
-			newConn, ok := newObj.(*clawarmorv1alpha1.MCPConnection)
+			newConn, ok := newObj.(*agentzv1alpha1.MCPConnection)
 			if !ok {
 				return
 			}
@@ -216,13 +216,13 @@ func Serve(ctx context.Context, cfg Config) error {
 			}
 		},
 		DeleteFunc: func(obj any) {
-			conn, ok := obj.(*clawarmorv1alpha1.MCPConnection)
+			conn, ok := obj.(*agentzv1alpha1.MCPConnection)
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
 					return
 				}
-				conn, ok = tombstone.Obj.(*clawarmorv1alpha1.MCPConnection)
+				conn, ok = tombstone.Obj.(*agentzv1alpha1.MCPConnection)
 				if !ok {
 					return
 				}
@@ -304,7 +304,7 @@ type Service struct {
 	kv             *baoapi.KVv2
 	http           *http.Client
 	sf             singleflight.Group
-	mcpConnections clawarmorlisters.MCPConnectionNamespaceLister
+	mcpConnections agentzlisters.MCPConnectionNamespaceLister
 	probeQueue     workqueue.TypedInterface[string]
 	probeTimes     map[string]time.Time
 	probeTimesMu   sync.Mutex
@@ -498,7 +498,7 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 	agentCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 
-	agent := &clawarmorv1alpha1.Agent{}
+	agent := &agentzv1alpha1.Agent{}
 	agentKey := ctrlclient.ObjectKey{
 		Namespace: namespace,
 		Name:      agentName,
@@ -531,7 +531,7 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 	envCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 
-	env := &clawarmorv1alpha1.Environment{}
+	env := &agentzv1alpha1.Environment{}
 	envKey := ctrlclient.ObjectKey{
 		Namespace: namespace,
 		Name:      environmentName,
@@ -548,7 +548,7 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 		)
 	}
 
-	hasConnection := slices.ContainsFunc(env.Spec.MCPConnectionRefs, func(ref clawarmorv1alpha1.MCPConnectionRef) bool {
+	hasConnection := slices.ContainsFunc(env.Spec.MCPConnectionRefs, func(ref agentzv1alpha1.MCPConnectionRef) bool {
 		return ref.Name == connName
 	})
 	if !hasConnection {
@@ -582,11 +582,11 @@ func (s *Service) lookupAgentPodByIP(ctx context.Context, namespace, ip string) 
 	return &pod, nil
 }
 
-func (s *Service) loadConnection(ctx context.Context, namespace, name string) (*clawarmorv1alpha1.MCPConnection, error) {
+func (s *Service) loadConnection(ctx context.Context, namespace, name string) (*agentzv1alpha1.MCPConnection, error) {
 	connCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 
-	conn := &clawarmorv1alpha1.MCPConnection{}
+	conn := &agentzv1alpha1.MCPConnection{}
 	key := ctrlclient.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
@@ -605,7 +605,7 @@ type injectedRequest struct {
 	queryParameters []*corev3.QueryParameter
 }
 
-func (s *Service) resolveInjectedRequest(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, attrs *requestAttrs) (injectedRequest, error) {
+func (s *Service) resolveInjectedRequest(ctx context.Context, conn *agentzv1alpha1.MCPConnection, attrs *requestAttrs) (injectedRequest, error) {
 	conn = conn.DeepCopy()
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 
@@ -623,7 +623,7 @@ func (s *Service) resolveInjectedRequest(ctx context.Context, conn *clawarmorv1a
 	}
 }
 
-func (s *Service) resolveBearerRequest(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (injectedRequest, error) {
+func (s *Service) resolveBearerRequest(ctx context.Context, conn *agentzv1alpha1.MCPConnection) (injectedRequest, error) {
 	auth := conn.Spec.Auth.Bearer
 	if auth == nil || auth.SecretRef == nil {
 		return injectedRequest{}, fmt.Errorf("bearer secret ref is missing: %w", errCredentialUnavailable)
@@ -664,7 +664,7 @@ type authHeaderLocation struct {
 	prefix string
 }
 
-func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (authHeaderLocation, error) {
+func headerLocation(location *agentzv1alpha1.MCPConnectionAuthLocation) (authHeaderLocation, error) {
 	if location == nil {
 		return authHeaderLocation{
 			name:   "Authorization",
@@ -697,7 +697,7 @@ func headerLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation) (auth
 	}, nil
 }
 
-func injectionForLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation, token string) (injectedRequest, error) {
+func injectionForLocation(location *agentzv1alpha1.MCPConnectionAuthLocation, token string) (injectedRequest, error) {
 	if location == nil || location.Header != nil {
 		header, err := headerLocation(location)
 		if err != nil {

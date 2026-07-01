@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/accuknox/clawarmor/internal/gateway/apiutil"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	workflowstore "github.com/accuknox/clawarmor/internal/gateway/workflow"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	workflowstore "github.com/accuknox/agentz/internal/gateway/workflow"
 )
 
 // GetWorkflow handles GET /api/workflow/{agentName}/{workflowName}.

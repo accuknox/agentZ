@@ -70,7 +70,7 @@ function buildAuth() {
   const env = getEnv()
 
   return betterAuth({
-    appName: "ClawArmor",
+    appName: "AgentZ",
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [new URL(env.BETTER_AUTH_URL).origin],
     disabledPaths: disabledAuthPaths,
@@ -335,7 +335,7 @@ function buildAuth() {
       }),
       twoFactor({
         allowPasswordless: true,
-        issuer: "ClawArmor",
+        issuer: "AgentZ",
       }),
       nextCookies(), // make sure this is the last plugin in the array
     ],

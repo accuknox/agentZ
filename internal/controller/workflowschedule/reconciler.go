@@ -33,7 +33,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const WorkflowRunByScheduleIndex = "spec.scheduleRef.name"
@@ -45,9 +45,9 @@ type Reconciler struct {
 	ControllerImage string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=get;list;watch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowschedules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowschedules,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowschedules/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=batch,resources=cronjobs;jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -55,7 +55,7 @@ type Reconciler struct {
 
 // Reconcile keeps one CronJob and its access resources aligned with the schedule.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	schedule := &clawarmorv1alpha1.WorkflowSchedule{}
+	schedule := &agentzv1alpha1.WorkflowSchedule{}
 	err := r.Get(ctx, req.NamespacedName, schedule)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -107,13 +107,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clawarmorv1alpha1.WorkflowSchedule{}).
+		For(&agentzv1alpha1.WorkflowSchedule{}).
 		Owns(&batchv1.CronJob{}).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&ciliumv2.CiliumNetworkPolicy{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
-		Owns(&clawarmorv1alpha1.WorkflowRun{}).
+		Owns(&agentzv1alpha1.WorkflowRun{}).
 		Named("workflowschedule").
 		Complete(r)
 }
@@ -122,10 +122,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 func IndexWorkflowRunsBySchedule(ctx context.Context, idx client.FieldIndexer) error {
 	return idx.IndexField(
 		ctx,
-		&clawarmorv1alpha1.WorkflowRun{},
+		&agentzv1alpha1.WorkflowRun{},
 		WorkflowRunByScheduleIndex,
 		func(obj client.Object) []string {
-			run, ok := obj.(*clawarmorv1alpha1.WorkflowRun)
+			run, ok := obj.(*agentzv1alpha1.WorkflowRun)
 			if !ok {
 				return nil
 			}
@@ -137,20 +137,20 @@ func IndexWorkflowRunsBySchedule(ctx context.Context, idx client.FieldIndexer) e
 	)
 }
 
-func (r *Reconciler) failSchedule(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule, err error) error {
-	updateErr := r.updateStatus(ctx, schedule, func(status *clawarmorv1alpha1.WorkflowScheduleStatus) {
+func (r *Reconciler) failSchedule(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, err error) error {
+	updateErr := r.updateStatus(ctx, schedule, func(status *agentzv1alpha1.WorkflowScheduleStatus) {
 		status.ObservedGeneration = schedule.Generation
 		status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.WorkflowScheduleConditionReady,
+			Type:               agentzv1alpha1.WorkflowScheduleConditionReady,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.WorkflowScheduleReasonReconcileFailed,
+			Reason:             agentzv1alpha1.WorkflowScheduleReasonReconcileFailed,
 			Message:            err.Error(),
 			ObservedGeneration: schedule.Generation,
 		})
 		status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.WorkflowScheduleConditionProgressing,
+			Type:               agentzv1alpha1.WorkflowScheduleConditionProgressing,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.WorkflowScheduleReasonReconcileFailed,
+			Reason:             agentzv1alpha1.WorkflowScheduleReasonReconcileFailed,
 			Message:            err.Error(),
 			ObservedGeneration: schedule.Generation,
 		})
@@ -161,7 +161,7 @@ func (r *Reconciler) failSchedule(ctx context.Context, schedule *clawarmorv1alph
 	return err
 }
 
-func (r *Reconciler) refreshStatus(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule, cronJobName string) error {
+func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJobName string) error {
 	cronJob := &batchv1.CronJob{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: schedule.Namespace,
@@ -176,7 +176,7 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *clawarmorv1alp
 		return err
 	}
 
-	var lastRun *clawarmorv1alpha1.WorkflowRun
+	var lastRun *agentzv1alpha1.WorkflowRun
 	for i := range runs {
 		run := &runs[i]
 		if lastRun == nil || run.CreationTimestamp.After(lastRun.CreationTimestamp.Time) {
@@ -184,7 +184,7 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *clawarmorv1alp
 		}
 	}
 
-	return r.updateStatus(ctx, schedule, func(status *clawarmorv1alpha1.WorkflowScheduleStatus) {
+	return r.updateStatus(ctx, schedule, func(status *agentzv1alpha1.WorkflowScheduleStatus) {
 		status.ObservedGeneration = schedule.Generation
 		status.CronJobName = cronJobName
 		status.LastScheduledAt = cronJob.Status.LastScheduleTime
@@ -193,9 +193,9 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *clawarmorv1alp
 			status.LastRunName = lastRun.Name
 		}
 		status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.WorkflowScheduleConditionReady,
+			Type:               agentzv1alpha1.WorkflowScheduleConditionReady,
 			Status:             metav1.ConditionTrue,
-			Reason:             clawarmorv1alpha1.WorkflowScheduleReasonCronJobReady,
+			Reason:             agentzv1alpha1.WorkflowScheduleReasonCronJobReady,
 			Message:            "cronjob is ready",
 			ObservedGeneration: schedule.Generation,
 		})
@@ -204,28 +204,28 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *clawarmorv1alp
 			progressing = metav1.ConditionFalse
 		}
 		status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.WorkflowScheduleConditionProgressing,
+			Type:               agentzv1alpha1.WorkflowScheduleConditionProgressing,
 			Status:             progressing,
-			Reason:             clawarmorv1alpha1.WorkflowScheduleReasonCronJobReady,
+			Reason:             agentzv1alpha1.WorkflowScheduleReasonCronJobReady,
 			Message:            "cronjob is reconciled",
 			ObservedGeneration: schedule.Generation,
 		})
 	})
 }
 
-func (r *Reconciler) pruneRuns(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+func (r *Reconciler) pruneRuns(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	runs, err := r.listOwnedRuns(ctx, schedule)
 	if err != nil {
 		return err
 	}
 
-	successful := []clawarmorv1alpha1.WorkflowRun{}
-	failed := []clawarmorv1alpha1.WorkflowRun{}
+	successful := []agentzv1alpha1.WorkflowRun{}
+	failed := []agentzv1alpha1.WorkflowRun{}
 	for _, run := range runs {
 		switch run.Status.Phase {
-		case clawarmorv1alpha1.WorkflowRunPhaseSucceeded:
+		case agentzv1alpha1.WorkflowRunPhaseSucceeded:
 			successful = append(successful, run)
-		case clawarmorv1alpha1.WorkflowRunPhaseFailed:
+		case agentzv1alpha1.WorkflowRunPhaseFailed:
 			failed = append(failed, run)
 		}
 	}
@@ -252,8 +252,8 @@ func (r *Reconciler) pruneRuns(ctx context.Context, schedule *clawarmorv1alpha1.
 	return nil
 }
 
-func (r *Reconciler) listOwnedRuns(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) ([]clawarmorv1alpha1.WorkflowRun, error) {
-	runList := &clawarmorv1alpha1.WorkflowRunList{}
+func (r *Reconciler) listOwnedRuns(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) ([]agentzv1alpha1.WorkflowRun, error) {
+	runList := &agentzv1alpha1.WorkflowRunList{}
 	err := r.List(
 		ctx,
 		runList,
@@ -264,7 +264,7 @@ func (r *Reconciler) listOwnedRuns(ctx context.Context, schedule *clawarmorv1alp
 		return nil, fmt.Errorf("list workflow runs: %w", err)
 	}
 
-	runs := make([]clawarmorv1alpha1.WorkflowRun, 0, len(runList.Items))
+	runs := make([]agentzv1alpha1.WorkflowRun, 0, len(runList.Items))
 	for _, run := range runList.Items {
 		if !metav1.IsControlledBy(&run, schedule) {
 			continue
@@ -274,7 +274,7 @@ func (r *Reconciler) listOwnedRuns(ctx context.Context, schedule *clawarmorv1alp
 	return runs, nil
 }
 
-func (r *Reconciler) deleteRunsAfterLimit(ctx context.Context, runs []clawarmorv1alpha1.WorkflowRun, limit int32) error {
+func (r *Reconciler) deleteRunsAfterLimit(ctx context.Context, runs []agentzv1alpha1.WorkflowRun, limit int32) error {
 	if len(runs) <= int(limit) {
 		return nil
 	}
@@ -287,8 +287,8 @@ func (r *Reconciler) deleteRunsAfterLimit(ctx context.Context, runs []clawarmorv
 	return nil
 }
 
-func (r *Reconciler) updateStatus(ctx context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule, mutate func(*clawarmorv1alpha1.WorkflowScheduleStatus)) error {
-	current := &clawarmorv1alpha1.WorkflowSchedule{}
+func (r *Reconciler) updateStatus(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, mutate func(*agentzv1alpha1.WorkflowScheduleStatus)) error {
+	current := &agentzv1alpha1.WorkflowSchedule{}
 	err := r.Get(ctx, client.ObjectKeyFromObject(schedule), current)
 	if err != nil {
 		return err
@@ -303,7 +303,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, schedule *clawarmorv1alph
 	return r.Status().Patch(ctx, current, patch)
 }
 
-func newerFirst(left, right clawarmorv1alpha1.WorkflowRun) int {
+func newerFirst(left, right agentzv1alpha1.WorkflowRun) int {
 	switch {
 	case left.CreationTimestamp.After(right.CreationTimestamp.Time):
 		return -1

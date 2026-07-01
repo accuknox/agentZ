@@ -139,7 +139,7 @@ function writeSnapshot(storageKey: string, payload: ChatModelStoragePayload) {
 }
 
 export function useChatModelStorage(agentName: string): UseChatModelStorageResult {
-  const storageKey = `clawarmor:chat-model-state:${agentName}`
+  const storageKey = `agentz:chat-model-state:${agentName}`
   const snapshot = useSyncExternalStore(
     (onStoreChange) => {
       const listeners = storageListeners.get(storageKey) ?? new Set<() => void>()

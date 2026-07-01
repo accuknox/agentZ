@@ -32,7 +32,7 @@ func TestReplacePlaceholders(t *testing.T) {
 	}
 	got, changed := replacePlaceholders(
 		context.Background(),
-		"Bearer clawarmor:resolve:env:OPENAI_API_KEY",
+		"Bearer agentz:resolve:env:OPENAI_API_KEY",
 		res,
 		"example.com:443",
 	)
@@ -54,14 +54,14 @@ func TestReplacePlaceholdersLeavesInvalidNameUnchanged(t *testing.T) {
 	}
 	got, changed := replacePlaceholders(
 		context.Background(),
-		"Bearer clawarmor:resolve:env:TOKEN-NAME",
+		"Bearer agentz:resolve:env:TOKEN-NAME",
 		res,
 		"example.com:443",
 	)
 	if changed {
 		t.Fatal("changed = true, want false")
 	}
-	if got != "Bearer clawarmor:resolve:env:TOKEN-NAME" {
+	if got != "Bearer agentz:resolve:env:TOKEN-NAME" {
 		t.Fatalf("got %q, want unchanged text", got)
 	}
 	if res.calls["TOKEN"] != 0 {
@@ -76,14 +76,14 @@ func TestReplacePlaceholdersLeavesDangerousSecretUnchanged(t *testing.T) {
 	}
 	got, changed := replacePlaceholders(
 		context.Background(),
-		"Bearer clawarmor:resolve:env:TOKEN",
+		"Bearer agentz:resolve:env:TOKEN",
 		res,
 		"example.com:443",
 	)
 	if changed {
 		t.Fatal("changed = true, want false")
 	}
-	if got != "Bearer clawarmor:resolve:env:TOKEN" {
+	if got != "Bearer agentz:resolve:env:TOKEN" {
 		t.Fatalf("got %q, want unchanged text", got)
 	}
 }
@@ -95,7 +95,7 @@ func TestReplacePath(t *testing.T) {
 	}
 	got, changed := replacePath(
 		context.Background(),
-		"/bot/clawarmor:resolve:env:TOKEN/sendMessage",
+		"/bot/agentz:resolve:env:TOKEN/sendMessage",
 		res,
 		"example.com:443",
 	)
@@ -114,14 +114,14 @@ func TestReplacePathLeavesTraversalSecretUnchanged(t *testing.T) {
 	}
 	got, changed := replacePath(
 		context.Background(),
-		"/bot/clawarmor:resolve:env:TOKEN/sendMessage",
+		"/bot/agentz:resolve:env:TOKEN/sendMessage",
 		res,
 		"example.com:443",
 	)
 	if changed {
 		t.Fatal("changed = true, want false")
 	}
-	if got != "/bot/clawarmor:resolve:env:TOKEN/sendMessage" {
+	if got != "/bot/agentz:resolve:env:TOKEN/sendMessage" {
 		t.Fatalf("got %q, want unchanged path", got)
 	}
 }
@@ -134,14 +134,14 @@ func TestReplacePlaceholdersLeavesMismatchedHostUnchanged(t *testing.T) {
 	}
 	got, changed := replacePlaceholders(
 		context.Background(),
-		"Bearer clawarmor:resolve:env:TOKEN",
+		"Bearer agentz:resolve:env:TOKEN",
 		res,
 		"other.example.com:443",
 	)
 	if changed {
 		t.Fatal("changed = true, want false")
 	}
-	if got != "Bearer clawarmor:resolve:env:TOKEN" {
+	if got != "Bearer agentz:resolve:env:TOKEN" {
 		t.Fatalf("got %q, want unchanged text", got)
 	}
 }

@@ -170,7 +170,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const response: SetupResponse = {
     backupCodes,
     status: "ok",
-    totpURI: createOTP(secret, { digits: 6 }).url("ClawArmor", session.user.email),
+    totpURI: createOTP(secret, { digits: 6 }).url("AgentZ", session.user.email),
   }
   return NextResponse.json(response)
 }

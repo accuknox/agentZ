@@ -56,7 +56,7 @@ const envSchema = z
     BETTER_AUTH_URL: z.url(),
     BETTER_AUTH_SECRET: z.string().min(32),
     MCP_OAUTH_COOKIE_SECRET: z.string().min(32),
-    GATEWAY_JWT_AUDIENCE: z.string().trim().min(1).default("clawarmor-gateway"),
+    GATEWAY_JWT_AUDIENCE: z.string().trim().min(1).default("agentz-gateway"),
     ENABLE_EMAIL_PASSWORD_AUTH: z.stringbool().default(false),
     // When set, only these exact email addresses may use credential auth.
     EMAIL_PASSWORD_AUTH_ALLOWED_USER: csvEmailListSchema.optional(),

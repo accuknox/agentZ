@@ -19,13 +19,13 @@ package workflowschedule
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // RegisterWithManager registers the WorkflowSchedule webhook.
 func RegisterWithManager(mgr ctrl.Manager, gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) error {
-	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.WorkflowSchedule{}).
+	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.WorkflowSchedule{}).
 		WithValidator(NewValidator(gatewayClient, tokenPath)).
 		WithDefaulter(&Defaulter{}).
 		Complete()

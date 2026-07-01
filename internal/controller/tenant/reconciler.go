@@ -40,12 +40,12 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
-	packageJobLabelKey             = "clawarmor.accuknox.com/agent-package-job"
-	workflowScheduleRunnerLabelKey = "clawarmor.accuknox.com/workflow-schedule-runner"
+	packageJobLabelKey             = "agentz.accuknox.com/agent-package-job"
+	workflowScheduleRunnerLabelKey = "agentz.accuknox.com/workflow-schedule-runner"
 )
 
 // Reconciler reconciles a Tenant object.
@@ -64,9 +64,9 @@ type Reconciler struct {
 	ManagerServiceAccountNamespace string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants,verbs=get;list;watch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants,verbs=use
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=tenants/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=use
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch
@@ -77,7 +77,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	var tenant clawarmorv1alpha1.Tenant
+	var tenant agentzv1alpha1.Tenant
 	if err := r.Get(ctx, req.NamespacedName, &tenant); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -85,28 +85,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("get tenant: %w", err)
 	}
 
-	nsName := clawarmorv1alpha1.TenantName(tenant.Spec.OrganizationID)
-	err := r.updateStatus(ctx, tenant.Name, func(current *clawarmorv1alpha1.Tenant) {
+	nsName := agentzv1alpha1.TenantName(tenant.Spec.OrganizationID)
+	err := r.updateStatus(ctx, tenant.Name, func(current *agentzv1alpha1.Tenant) {
 		current.Status.Namespace = nsName
 		current.Status.ObservedGeneration = current.Generation
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionProgressing,
+			Type:               agentzv1alpha1.TenantConditionProgressing,
 			Status:             metav1.ConditionTrue,
-			Reason:             clawarmorv1alpha1.TenantReasonBootstrapping,
+			Reason:             agentzv1alpha1.TenantReasonBootstrapping,
 			Message:            "tenant bootstrap in progress",
 			ObservedGeneration: current.Generation,
 		})
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionReady,
+			Type:               agentzv1alpha1.TenantConditionReady,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.TenantReasonBootstrapping,
+			Reason:             agentzv1alpha1.TenantReasonBootstrapping,
 			Message:            "tenant bootstrap in progress",
 			ObservedGeneration: current.Generation,
 		})
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionDegraded,
+			Type:               agentzv1alpha1.TenantConditionDegraded,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.TenantReasonBootstrapping,
+			Reason:             agentzv1alpha1.TenantReasonBootstrapping,
 			Message:            "tenant bootstrap in progress",
 			ObservedGeneration: current.Generation,
 		})
@@ -136,27 +136,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.failTenant(ctx, &tenant, err)
 	}
 
-	err = r.updateStatus(ctx, tenant.Name, func(current *clawarmorv1alpha1.Tenant) {
+	err = r.updateStatus(ctx, tenant.Name, func(current *agentzv1alpha1.Tenant) {
 		current.Status.Namespace = nsName
 		current.Status.ObservedGeneration = current.Generation
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionProgressing,
+			Type:               agentzv1alpha1.TenantConditionProgressing,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.TenantReasonNamespaceReady,
+			Reason:             agentzv1alpha1.TenantReasonNamespaceReady,
 			Message:            "tenant bootstrap completed",
 			ObservedGeneration: current.Generation,
 		})
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionReady,
+			Type:               agentzv1alpha1.TenantConditionReady,
 			Status:             metav1.ConditionTrue,
-			Reason:             clawarmorv1alpha1.TenantReasonNamespaceReady,
+			Reason:             agentzv1alpha1.TenantReasonNamespaceReady,
 			Message:            "tenant namespace is ready",
 			ObservedGeneration: current.Generation,
 		})
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionDegraded,
+			Type:               agentzv1alpha1.TenantConditionDegraded,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.TenantReasonNamespaceReady,
+			Reason:             agentzv1alpha1.TenantReasonNamespaceReady,
 			Message:            "tenant namespace is ready",
 			ObservedGeneration: current.Generation,
 		})
@@ -171,30 +171,30 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clawarmorv1alpha1.Tenant{}).
+		For(&agentzv1alpha1.Tenant{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Named("tenant").
 		Complete(r)
 }
 
-func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *clawarmorv1alpha1.Tenant, nsName string) error {
+func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *agentzv1alpha1.Tenant, nsName string) error {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	_, err := controllerutil.CreateOrPatch(ctx, r.directClient(), ns, func() error {
 		if ns.Labels == nil {
 			ns.Labels = map[string]string{}
 		}
-		ns.Labels[clawarmorv1alpha1.TenantManagedByLabel] = clawarmorv1alpha1.TenantManagedByValue
-		ns.Labels[clawarmorv1alpha1.TenantNameLabel] = tenant.Name
+		ns.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
+		ns.Labels[agentzv1alpha1.TenantNameLabel] = tenant.Name
 
 		if ns.Annotations == nil {
 			ns.Annotations = map[string]string{}
 		}
-		ns.Annotations[clawarmorv1alpha1.TenantOrganizationIDAnnotation] = tenant.Spec.OrganizationID
-		ns.Annotations[clawarmorv1alpha1.TenantUserIDAnnotation] = tenant.Spec.UserID
-		ns.Annotations[clawarmorv1alpha1.KubeArmorVisibilityAnnotation] = "process"
+		ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] = tenant.Spec.OrganizationID
+		ns.Annotations[agentzv1alpha1.TenantUserIDAnnotation] = tenant.Spec.UserID
+		ns.Annotations[agentzv1alpha1.KubeArmorVisibilityAnnotation] = "process"
 		ns.OwnerReferences = []metav1.OwnerReference{
 			{
-				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 				Kind:       "Tenant",
 				Name:       tenant.Name,
 				UID:        tenant.UID,
@@ -208,7 +208,7 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *clawarmorv1
 	return nil
 }
 
-func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, tenant *clawarmorv1alpha1.Tenant, nsName string) error {
+func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, tenant *agentzv1alpha1.Tenant, nsName string) error {
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.NixStorePVCName,
@@ -217,8 +217,8 @@ func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, tenant *clawarmor
 	}
 	_, err := controllerutil.CreateOrPatch(ctx, r.directClient(), pvc, func() error {
 		pvc.Labels = map[string]string{
-			clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
-			clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+			agentzv1alpha1.TenantManagedByLabel: agentzv1alpha1.TenantManagedByValue,
+			agentzv1alpha1.TenantNameLabel:      tenant.Name,
 		}
 		pvc.Spec.AccessModes = append([]corev1.PersistentVolumeAccessMode{}, r.NixStorePVCAccessModes...)
 		pvc.Spec.Resources.Requests = corev1.ResourceList{
@@ -235,7 +235,7 @@ func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, tenant *clawarmor
 	return nil
 }
 
-func (r *Reconciler) reconcileSinjectorCertificate(ctx context.Context, tenant *clawarmorv1alpha1.Tenant, nsName string) error {
+func (r *Reconciler) reconcileSinjectorCertificate(ctx context.Context, tenant *agentzv1alpha1.Tenant, nsName string) error {
 	current, err := r.CertClient.CertmanagerV1().Certificates(nsName).Get(
 		ctx,
 		r.SinjectorCASecretName,
@@ -255,8 +255,8 @@ func (r *Reconciler) reconcileSinjectorCertificate(ctx context.Context, tenant *
 
 	desired := current.DeepCopy()
 	desired.Labels = map[string]string{
-		clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
-		clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+		agentzv1alpha1.TenantManagedByLabel: agentzv1alpha1.TenantManagedByValue,
+		agentzv1alpha1.TenantNameLabel:      tenant.Name,
 	}
 	desired.Spec = cmapi.CertificateSpec{
 		CommonName: r.SinjectorCASecretName,
@@ -304,10 +304,10 @@ func (r *Reconciler) reconcileSinjectorCertificate(ctx context.Context, tenant *
 	return nil
 }
 
-func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawarmorv1alpha1.Tenant, nsName string) error {
+func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agentzv1alpha1.Tenant, nsName string) error {
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      clawarmorv1alpha1.TenantIsolationPolicyName,
+			Name:      agentzv1alpha1.TenantIsolationPolicyName,
 			Namespace: nsName,
 		},
 	}
@@ -315,8 +315,8 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 		if policy.Labels == nil {
 			policy.Labels = map[string]string{}
 		}
-		policy.Labels[clawarmorv1alpha1.TenantManagedByLabel] = clawarmorv1alpha1.TenantManagedByValue
-		policy.Labels[clawarmorv1alpha1.TenantNameLabel] = tenant.Name
+		policy.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
+		policy.Labels[agentzv1alpha1.TenantNameLabel] = tenant.Name
 		selector := ciliumpolicyapi.NewESFromK8sLabelSelector(
 			ciliumlabels.LabelSourceK8sKeyPrefix,
 			&slimv1.LabelSelector{
@@ -350,7 +350,7 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 							ciliumpolicyapi.NewESFromLabels(
 								ciliumlabels.NewLabel(
 									"io.kubernetes.pod.namespace",
-									"clawarmor-system",
+									"agentz-system",
 									ciliumlabels.LabelSourceK8s,
 								),
 							),
@@ -399,7 +399,7 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *clawa
 	return nil
 }
 
-func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, tenant *clawarmorv1alpha1.Tenant) error {
+func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, tenant *agentzv1alpha1.Tenant) error {
 	if r.ManagerServiceAccountName == "" {
 		return fmt.Errorf("manager service account name is required")
 	}
@@ -413,17 +413,17 @@ func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, tenant *clawarm
 	}
 	_, err := controllerutil.CreateOrPatch(ctx, r.directClient(), role, func() error {
 		role.Labels = map[string]string{
-			clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
-			clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+			agentzv1alpha1.TenantManagedByLabel: agentzv1alpha1.TenantManagedByValue,
+			agentzv1alpha1.TenantNameLabel:      tenant.Name,
 		}
 		role.OwnerReferences = []metav1.OwnerReference{{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "Tenant",
 			Name:       tenant.Name,
 			UID:        tenant.UID,
 		}}
 		role.Rules = []rbacv1.PolicyRule{{
-			APIGroups:     []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+			APIGroups:     []string{agentzv1alpha1.SchemeGroupVersion.Group},
 			Resources:     []string{"tenants"},
 			ResourceNames: []string{tenant.Name},
 			Verbs:         []string{"use"},
@@ -439,11 +439,11 @@ func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, tenant *clawarm
 	}
 	_, err = controllerutil.CreateOrPatch(ctx, r.directClient(), binding, func() error {
 		binding.Labels = map[string]string{
-			clawarmorv1alpha1.TenantManagedByLabel: clawarmorv1alpha1.TenantManagedByValue,
-			clawarmorv1alpha1.TenantNameLabel:      tenant.Name,
+			agentzv1alpha1.TenantManagedByLabel: agentzv1alpha1.TenantManagedByValue,
+			agentzv1alpha1.TenantNameLabel:      tenant.Name,
 		}
 		binding.OwnerReferences = []metav1.OwnerReference{{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "Tenant",
 			Name:       tenant.Name,
 			UID:        tenant.UID,
@@ -476,28 +476,28 @@ func (r *Reconciler) directClient() client.Client {
 	return r.Client
 }
 
-func (r *Reconciler) failTenant(ctx context.Context, tenant *clawarmorv1alpha1.Tenant, cause error) (ctrl.Result, error) {
-	err := r.updateStatus(ctx, tenant.Name, func(current *clawarmorv1alpha1.Tenant) {
-		current.Status.Namespace = clawarmorv1alpha1.TenantName(current.Spec.OrganizationID)
+func (r *Reconciler) failTenant(ctx context.Context, tenant *agentzv1alpha1.Tenant, cause error) (ctrl.Result, error) {
+	err := r.updateStatus(ctx, tenant.Name, func(current *agentzv1alpha1.Tenant) {
+		current.Status.Namespace = agentzv1alpha1.TenantName(current.Spec.OrganizationID)
 		current.Status.ObservedGeneration = current.Generation
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionProgressing,
+			Type:               agentzv1alpha1.TenantConditionProgressing,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.TenantReasonBootstrapFailed,
+			Reason:             agentzv1alpha1.TenantReasonBootstrapFailed,
 			Message:            cause.Error(),
 			ObservedGeneration: current.Generation,
 		})
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionReady,
+			Type:               agentzv1alpha1.TenantConditionReady,
 			Status:             metav1.ConditionFalse,
-			Reason:             clawarmorv1alpha1.TenantReasonBootstrapFailed,
+			Reason:             agentzv1alpha1.TenantReasonBootstrapFailed,
 			Message:            cause.Error(),
 			ObservedGeneration: current.Generation,
 		})
 		current.Status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.TenantConditionDegraded,
+			Type:               agentzv1alpha1.TenantConditionDegraded,
 			Status:             metav1.ConditionTrue,
-			Reason:             clawarmorv1alpha1.TenantReasonBootstrapFailed,
+			Reason:             agentzv1alpha1.TenantReasonBootstrapFailed,
 			Message:            cause.Error(),
 			ObservedGeneration: current.Generation,
 		})
@@ -508,9 +508,9 @@ func (r *Reconciler) failTenant(ctx context.Context, tenant *clawarmorv1alpha1.T
 	return ctrl.Result{}, cause
 }
 
-func (r *Reconciler) updateStatus(ctx context.Context, name string, mutate func(*clawarmorv1alpha1.Tenant)) error {
+func (r *Reconciler) updateStatus(ctx context.Context, name string, mutate func(*agentzv1alpha1.Tenant)) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var tenant clawarmorv1alpha1.Tenant
+		var tenant agentzv1alpha1.Tenant
 		if err := r.Get(ctx, client.ObjectKey{Name: name}, &tenant); err != nil {
 			return err
 		}

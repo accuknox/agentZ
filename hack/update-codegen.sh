@@ -11,5 +11,5 @@ source "$CODEGEN_PKG/kube_codegen.sh"
 kube::codegen::gen_client ./pkg/apis \
    --with-watch \
    --output-dir pkg/controller \
-   --output-pkg github.com/accuknox/clawarmor/pkg/controller \
+   --output-pkg github.com/accuknox/agentz/pkg/controller \
    --boilerplate hack/boilerplate.go.txt

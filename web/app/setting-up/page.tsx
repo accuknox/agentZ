@@ -10,7 +10,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { BootstrappingStatus } from "./status"
 
 export const metadata: Metadata = {
-  title: "Setting up | ClawArmor - AccuKnox",
+  title: "Setting up | AgentZ - AccuKnox",
 }
 
 export default function BootstrappingPage() {

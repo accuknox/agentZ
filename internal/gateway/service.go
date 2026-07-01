@@ -25,10 +25,10 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	baoclient "github.com/accuknox/clawarmor/internal/openbao"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	baoclient "github.com/accuknox/agentz/internal/openbao"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const labelManagedBy = "app.kubernetes.io/managed-by"
@@ -160,8 +160,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	defer resolver.Close()
 
 	scheme := runtime.NewScheme()
-	if err := clawarmorv1alpha1.AddToScheme(scheme); err != nil {
-		return fmt.Errorf("add clawarmor scheme: %w", err)
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add agentz scheme: %w", err)
 	}
 	kubeCfg, err := ctrlconfig.GetConfig()
 	if err != nil {

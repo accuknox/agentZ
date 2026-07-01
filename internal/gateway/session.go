@@ -3,7 +3,7 @@ package gateway
 import (
 	"net/http"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 func (s *Service) SessionList(w http.ResponseWriter, r *http.Request, _ string, _ gatewayapi.SessionListParams) {

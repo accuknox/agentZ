@@ -28,20 +28,20 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/accuknox/clawarmor/internal/sinjector"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/sinjector"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 var secretKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-secret,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=secrets,verbs=create;update,versions=v1alpha1,name=vsecret-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-agentz-accuknox-com-v1alpha1-secret,mutating=false,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=secrets,verbs=create;update,versions=v1alpha1,name=vsecret-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Validator validates Secret resources.
 //
 // +kubebuilder:object:generate=false
 type Validator struct{}
 
-var _ admission.Validator[*clawarmorv1alpha1.Secret] = &Validator{}
+var _ admission.Validator[*agentzv1alpha1.Secret] = &Validator{}
 
 // NewValidator builds a Secret validator.
 func NewValidator() *Validator {
@@ -49,7 +49,7 @@ func NewValidator() *Validator {
 }
 
 // Validate checks one Secret resource against the admission rules.
-func Validate(secret *clawarmorv1alpha1.Secret) error {
+func Validate(secret *agentzv1alpha1.Secret) error {
 	fields := validateSpec(secret.Spec, field.NewPath("spec"))
 	if len(fields) == 0 {
 		return nil
@@ -58,12 +58,12 @@ func Validate(secret *clawarmorv1alpha1.Secret) error {
 }
 
 // ValidateCreate validates Secret creation.
-func (v *Validator) ValidateCreate(_ context.Context, secret *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
+func (v *Validator) ValidateCreate(_ context.Context, secret *agentzv1alpha1.Secret) (admission.Warnings, error) {
 	return nil, Validate(secret)
 }
 
 // ValidateUpdate validates Secret updates.
-func (v *Validator) ValidateUpdate(_ context.Context, oldSecret, newSecret *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(_ context.Context, oldSecret, newSecret *agentzv1alpha1.Secret) (admission.Warnings, error) {
 	if err := Validate(newSecret); err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldSecret, newSecret *claw
 	if oldSecret.Spec.Type != newSecret.Spec.Type {
 		fields = append(fields, field.Forbidden(specPath.Child("type"), "type is immutable"))
 	}
-	if oldSecret.Spec.Type == clawarmorv1alpha1.SecretTypeOAuth &&
+	if oldSecret.Spec.Type == agentzv1alpha1.SecretTypeOAuth &&
 		!apiequality.Semantic.DeepEqual(oldSecret.Spec, newSecret.Spec) {
 		fields = append(fields, field.Forbidden(specPath, "oauth secret spec is immutable after creation"))
 	}
@@ -90,11 +90,11 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldSecret, newSecret *claw
 }
 
 // ValidateDelete validates Secret deletion.
-func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.Secret) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.Secret) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func validateSpec(spec clawarmorv1alpha1.SecretSpec, path *field.Path) field.ErrorList {
+func validateSpec(spec agentzv1alpha1.SecretSpec, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 
 	if strings.TrimSpace(spec.AgentRef.Name) == "" {
@@ -121,23 +121,23 @@ func validateSpec(spec clawarmorv1alpha1.SecretSpec, path *field.Path) field.Err
 	}
 
 	switch spec.Type {
-	case clawarmorv1alpha1.SecretTypeStatic:
+	case agentzv1alpha1.SecretTypeStatic:
 		if spec.OAuth != nil {
 			fields = append(fields, field.Forbidden(path.Child("oauth"), "oauth config is only valid for oauth secrets"))
 		}
-	case clawarmorv1alpha1.SecretTypeOAuth:
+	case agentzv1alpha1.SecretTypeOAuth:
 		fields = append(fields, validateOAuthSpec(spec.OAuth, path.Child("oauth"))...)
 	default:
 		fields = append(fields, field.NotSupported(path.Child("type"), spec.Type, []string{
-			string(clawarmorv1alpha1.SecretTypeStatic),
-			string(clawarmorv1alpha1.SecretTypeOAuth),
+			string(agentzv1alpha1.SecretTypeStatic),
+			string(agentzv1alpha1.SecretTypeOAuth),
 		}))
 	}
 
 	return fields
 }
 
-func validateOAuthSpec(spec *clawarmorv1alpha1.SecretOAuthSpec, path *field.Path) field.ErrorList {
+func validateOAuthSpec(spec *agentzv1alpha1.SecretOAuthSpec, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if spec == nil {
 		fields = append(fields, field.Required(path, "field is required"))

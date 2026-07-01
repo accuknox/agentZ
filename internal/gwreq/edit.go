@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
-const internalTenantNamespaceHeader = "X-ClawArmor-Tenant-Namespace"
+const internalTenantNamespaceHeader = "X-AgentZ-Tenant-Namespace"
 
 // RequestEditor attaches the manager token and tenant namespace to gateway
 // requests made on behalf of one tenant.

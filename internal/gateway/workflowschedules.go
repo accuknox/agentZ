@@ -8,9 +8,9 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	"github.com/accuknox/clawarmor/internal/gateway/workflow"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/gateway/workflow"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // CreateWorkflowSchedule handles POST /api/workflow/{agentName}/{workflowName}/schedule.
@@ -243,7 +243,7 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 				http.StatusNotFound,
 				"not_found",
 				"delete workflow schedule not found",
-				apierrors.NewNotFound(clawarmorv1alpha1.Resource("workflowschedule"), scheduleName),
+				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
 			))
 			return
 		}
@@ -325,7 +325,7 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 				http.StatusNotFound,
 				"not_found",
 				"update workflow schedule not found",
-				apierrors.NewNotFound(clawarmorv1alpha1.Resource("workflowschedule"), scheduleName),
+				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
 			))
 			return
 		}
@@ -373,7 +373,7 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 				http.StatusNotFound,
 				"not_found",
 				"create workflow run not found",
-				apierrors.NewNotFound(clawarmorv1alpha1.Resource("workflowschedule"), scheduleName),
+				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
 			))
 			return
 		}

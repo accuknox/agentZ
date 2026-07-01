@@ -45,6 +45,88 @@ rules:
   - update
   - watch
 - apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - agents
+  verbs:
+  - create-workflow
+  - create-workflow-schedule
+  - delete-workflow-schedule
+  - delete-workflows
+  - get
+  - get-workflow
+  - list
+  - list-workflow-schedules
+  - list-workflows
+  - patch
+  - set-workflowrun-status
+  - update-workflow-schedule
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - agents/finalizers
+  - envs/finalizers
+  - mcpconnections/finalizers
+  - secrets/finalizers
+  - workflowruns/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - agents/status
+  - envs/status
+  - mcpconnections/status
+  - secrets/status
+  - tenants/status
+  - workflowruns/status
+  - workflowschedules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - envs
+  - mcpconnections
+  - secrets
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - tenants
+  verbs:
+  - get
+  - list
+  - use
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - workflowruns
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - workflowschedules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - apps
   resources:
   - deployments
@@ -97,88 +179,6 @@ rules:
   - list
   - patch
   - update
-  - watch
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - agents
-  verbs:
-  - create-workflow
-  - create-workflow-schedule
-  - delete-workflow-schedule
-  - delete-workflows
-  - get
-  - get-workflow
-  - list
-  - list-workflow-schedules
-  - list-workflows
-  - patch
-  - set-workflowrun-status
-  - update-workflow-schedule
-  - watch
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - agents/finalizers
-  - envs/finalizers
-  - mcpconnections/finalizers
-  - secrets/finalizers
-  - workflowruns/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - agents/status
-  - envs/status
-  - mcpconnections/status
-  - secrets/status
-  - tenants/status
-  - workflowruns/status
-  - workflowschedules/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - envs
-  - mcpconnections
-  - secrets
-  verbs:
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - tenants
-  verbs:
-  - get
-  - list
-  - use
-  - watch
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - workflowruns
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - clawarmor.accuknox.com
-  resources:
-  - workflowschedules
-  verbs:
-  - get
-  - list
   - watch
 - apiGroups:
   - gateway.networking.k8s.io

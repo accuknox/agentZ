@@ -11,15 +11,15 @@ import (
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
-	clientset "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
-	informers "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions"
-	listersv1alpha1 "github.com/accuknox/clawarmor/pkg/controller/listers/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	clientset "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
+	informers "github.com/accuknox/agentz/pkg/controller/informers/externalversions"
+	listersv1alpha1 "github.com/accuknox/agentz/pkg/controller/listers/agentz/v1alpha1"
 )
 
 type resolvedAgent struct {
 	Target string
-	Agent  *clawarmorv1alpha1.Agent
+	Agent  *agentzv1alpha1.Agent
 }
 
 type agentWatchEventType string
@@ -31,7 +31,7 @@ const (
 
 type agentWatchEvent struct {
 	Type  agentWatchEventType
-	Agent *clawarmorv1alpha1.Agent
+	Agent *agentzv1alpha1.Agent
 }
 
 type workflowRunWatchEventType string
@@ -43,7 +43,7 @@ const (
 
 type workflowRunWatchEvent struct {
 	Type workflowRunWatchEventType
-	Run  *clawarmorv1alpha1.WorkflowRun
+	Run  *agentzv1alpha1.WorkflowRun
 }
 
 type secretWatchEventType string
@@ -55,7 +55,7 @@ const (
 
 type secretWatchEvent struct {
 	Type   secretWatchEventType
-	Secret *clawarmorv1alpha1.Secret
+	Secret *agentzv1alpha1.Secret
 }
 
 type mcpConnectionWatchEventType string
@@ -67,7 +67,7 @@ const (
 
 type mcpConnectionWatchEvent struct {
 	Type       mcpConnectionWatchEventType
-	Connection *clawarmorv1alpha1.MCPConnection
+	Connection *agentzv1alpha1.MCPConnection
 }
 
 type resolver struct {
@@ -97,10 +97,10 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 	}
 
 	factory := informers.NewSharedInformerFactoryWithOptions(cs, 30*time.Second)
-	agentInformer := factory.Clawarmor().V1alpha1().Agents()
-	workflowRunInformer := factory.Clawarmor().V1alpha1().WorkflowRuns()
-	secretInformer := factory.Clawarmor().V1alpha1().Secrets()
-	mcpInformer := factory.Clawarmor().V1alpha1().MCPConnections()
+	agentInformer := factory.Agentz().V1alpha1().Agents()
+	workflowRunInformer := factory.Agentz().V1alpha1().WorkflowRuns()
+	secretInformer := factory.Agentz().V1alpha1().Secrets()
+	mcpInformer := factory.Agentz().V1alpha1().MCPConnections()
 
 	r := &resolver{
 		targetOverride: strings.TrimSpace(targetOverride),
@@ -299,7 +299,7 @@ func (r *resolver) watchMCPConnections() (<-chan mcpConnectionWatchEvent, func()
 	return ch, cancel
 }
 
-func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *clawarmorv1alpha1.Agent) {
+func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *agentzv1alpha1.Agent) {
 	if agt == nil {
 		return
 	}
@@ -318,7 +318,7 @@ func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *clawarmorv1
 	}
 }
 
-func (r *resolver) broadcastWorkflowRunEvent(typ workflowRunWatchEventType, run *clawarmorv1alpha1.WorkflowRun) {
+func (r *resolver) broadcastWorkflowRunEvent(typ workflowRunWatchEventType, run *agentzv1alpha1.WorkflowRun) {
 	if run == nil {
 		return
 	}
@@ -337,7 +337,7 @@ func (r *resolver) broadcastWorkflowRunEvent(typ workflowRunWatchEventType, run 
 	}
 }
 
-func (r *resolver) broadcastSecretEvent(typ secretWatchEventType, secret *clawarmorv1alpha1.Secret) {
+func (r *resolver) broadcastSecretEvent(typ secretWatchEventType, secret *agentzv1alpha1.Secret) {
 	if secret == nil {
 		return
 	}
@@ -356,7 +356,7 @@ func (r *resolver) broadcastSecretEvent(typ secretWatchEventType, secret *clawar
 	}
 }
 
-func (r *resolver) broadcastMCPConnectionEvent(typ mcpConnectionWatchEventType, conn *clawarmorv1alpha1.MCPConnection) {
+func (r *resolver) broadcastMCPConnectionEvent(typ mcpConnectionWatchEventType, conn *agentzv1alpha1.MCPConnection) {
 	if conn == nil {
 		return
 	}
@@ -395,7 +395,7 @@ func (r *resolver) resolveAgent(_ context.Context, namespace, agentName string) 
 	}, nil
 }
 
-func (r *resolver) agentTarget(agt *clawarmorv1alpha1.Agent) string {
+func (r *resolver) agentTarget(agt *agentzv1alpha1.Agent) string {
 	if r.targetOverride != "" {
 		return r.targetOverride
 	}
@@ -406,12 +406,12 @@ func (r *resolver) agentTarget(agt *clawarmorv1alpha1.Agent) string {
 	return fmt.Sprintf("%s.%s.svc.cluster.local:%d", svcName, agt.Namespace, 4096)
 }
 
-func agentFromInformerObject(obj any) *clawarmorv1alpha1.Agent {
+func agentFromInformerObject(obj any) *agentzv1alpha1.Agent {
 	switch item := obj.(type) {
-	case *clawarmorv1alpha1.Agent:
+	case *agentzv1alpha1.Agent:
 		return item
 	case cache.DeletedFinalStateUnknown:
-		if agt, ok := item.Obj.(*clawarmorv1alpha1.Agent); ok {
+		if agt, ok := item.Obj.(*agentzv1alpha1.Agent); ok {
 			return agt
 		}
 	default:
@@ -420,12 +420,12 @@ func agentFromInformerObject(obj any) *clawarmorv1alpha1.Agent {
 	return nil
 }
 
-func workflowRunFromInformerObject(obj any) *clawarmorv1alpha1.WorkflowRun {
+func workflowRunFromInformerObject(obj any) *agentzv1alpha1.WorkflowRun {
 	switch item := obj.(type) {
-	case *clawarmorv1alpha1.WorkflowRun:
+	case *agentzv1alpha1.WorkflowRun:
 		return item
 	case cache.DeletedFinalStateUnknown:
-		if run, ok := item.Obj.(*clawarmorv1alpha1.WorkflowRun); ok {
+		if run, ok := item.Obj.(*agentzv1alpha1.WorkflowRun); ok {
 			return run
 		}
 	default:
@@ -434,12 +434,12 @@ func workflowRunFromInformerObject(obj any) *clawarmorv1alpha1.WorkflowRun {
 	return nil
 }
 
-func secretFromInformerObject(obj any) *clawarmorv1alpha1.Secret {
+func secretFromInformerObject(obj any) *agentzv1alpha1.Secret {
 	switch item := obj.(type) {
-	case *clawarmorv1alpha1.Secret:
+	case *agentzv1alpha1.Secret:
 		return item
 	case cache.DeletedFinalStateUnknown:
-		if secret, ok := item.Obj.(*clawarmorv1alpha1.Secret); ok {
+		if secret, ok := item.Obj.(*agentzv1alpha1.Secret); ok {
 			return secret
 		}
 	default:
@@ -448,12 +448,12 @@ func secretFromInformerObject(obj any) *clawarmorv1alpha1.Secret {
 	return nil
 }
 
-func mcpConnectionFromInformerObject(obj any) *clawarmorv1alpha1.MCPConnection {
+func mcpConnectionFromInformerObject(obj any) *agentzv1alpha1.MCPConnection {
 	switch item := obj.(type) {
-	case *clawarmorv1alpha1.MCPConnection:
+	case *agentzv1alpha1.MCPConnection:
 		return item
 	case cache.DeletedFinalStateUnknown:
-		if conn, ok := item.Obj.(*clawarmorv1alpha1.MCPConnection); ok {
+		if conn, ok := item.Obj.(*agentzv1alpha1.MCPConnection); ok {
 			return conn
 		}
 	default:
@@ -479,7 +479,7 @@ type agentStatusView struct {
 	Message   string
 }
 
-func statusFromAgent(agt *clawarmorv1alpha1.Agent) *agentStatusView {
+func statusFromAgent(agt *agentzv1alpha1.Agent) *agentStatusView {
 	view := &agentStatusView{
 		Name:      agt.Name,
 		Namespace: agt.Namespace,
@@ -490,7 +490,7 @@ func statusFromAgent(agt *clawarmorv1alpha1.Agent) *agentStatusView {
 
 	cond := apimeta.FindStatusCondition(
 		agt.Status.Conditions,
-		clawarmorv1alpha1.ConditionTypeReady.String(),
+		agentzv1alpha1.ConditionTypeReady.String(),
 	)
 	if cond != nil && cond.Status == "True" {
 		view.Phase = agentPhaseReady
@@ -501,7 +501,7 @@ func statusFromAgent(agt *clawarmorv1alpha1.Agent) *agentStatusView {
 
 	cond = apimeta.FindStatusCondition(
 		agt.Status.Conditions,
-		clawarmorv1alpha1.ConditionTypeDegraded.String(),
+		agentzv1alpha1.ConditionTypeDegraded.String(),
 	)
 	if cond != nil && cond.Status == "True" {
 		view.Phase = agentPhaseDegraded
@@ -512,7 +512,7 @@ func statusFromAgent(agt *clawarmorv1alpha1.Agent) *agentStatusView {
 
 	cond = apimeta.FindStatusCondition(
 		agt.Status.Conditions,
-		clawarmorv1alpha1.ConditionTypeProgressing.String(),
+		agentzv1alpha1.ConditionTypeProgressing.String(),
 	)
 	if cond != nil {
 		view.Phase = agentPhaseProgressing

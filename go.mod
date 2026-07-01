@@ -1,4 +1,4 @@
-module github.com/accuknox/clawarmor
+module github.com/accuknox/agentz
 
 go 1.26.4
 

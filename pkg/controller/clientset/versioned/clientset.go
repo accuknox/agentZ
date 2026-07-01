@@ -21,7 +21,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned/typed/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/controller/clientset/versioned/typed/agentz/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -29,18 +29,18 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	ClawarmorV1alpha1() clawarmorv1alpha1.ClawarmorV1alpha1Interface
+	AgentzV1alpha1() agentzv1alpha1.AgentzV1alpha1Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	clawarmorV1alpha1 *clawarmorv1alpha1.ClawarmorV1alpha1Client
+	agentzV1alpha1 *agentzv1alpha1.AgentzV1alpha1Client
 }
 
-// ClawarmorV1alpha1 retrieves the ClawarmorV1alpha1Client
-func (c *Clientset) ClawarmorV1alpha1() clawarmorv1alpha1.ClawarmorV1alpha1Interface {
-	return c.clawarmorV1alpha1
+// AgentzV1alpha1 retrieves the AgentzV1alpha1Client
+func (c *Clientset) AgentzV1alpha1() agentzv1alpha1.AgentzV1alpha1Interface {
+	return c.agentzV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -87,7 +87,7 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
-	cs.clawarmorV1alpha1, err = clawarmorv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	cs.agentzV1alpha1, err = agentzv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.clawarmorV1alpha1 = clawarmorv1alpha1.New(c)
+	cs.agentzV1alpha1 = agentzv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

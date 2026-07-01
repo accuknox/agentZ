@@ -4,7 +4,7 @@ fullnameOverride: ""
 replicaCount: 1
 
 image:
-  repository: murtazau/clawarmor
+  repository: murtazau/agentz
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -38,11 +38,11 @@ config:
   logLevel: info
   logFormat: text
   logWithSource: false
-  namespace: clawarmor-system
+  namespace: agentz-system
   externalJWTJWKSURL: ""
   externalJWTIssuer: ""
-  externalJWTAudience: clawarmor-gateway
-  internalK8sTokenAudience: clawarmor-gateway
+  externalJWTAudience: agentz-gateway
+  internalK8sTokenAudience: agentz-gateway
   targetOverride: ""
   agentImage: ""
   agentTraceEndpoint: ""

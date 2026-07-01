@@ -20,13 +20,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/util/retry"
 
-	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	"github.com/accuknox/clawarmor/internal/oauth"
-	secretstore "github.com/accuknox/clawarmor/internal/secret"
-	"github.com/accuknox/clawarmor/internal/sinjector"
-	secretwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/secret"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/oauth"
+	secretstore "github.com/accuknox/agentz/internal/secret"
+	"github.com/accuknox/agentz/internal/sinjector"
+	secretwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/secret"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 var secretKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -153,7 +153,7 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 
-	index := make(map[string]*clawarmorv1alpha1.Secret, len(items))
+	index := make(map[string]*agentzv1alpha1.Secret, len(items))
 	for i := range items {
 		index[strings.ToLower(items[i].Spec.Key)] = &items[i]
 	}
@@ -235,7 +235,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	slices.SortFunc(items, func(a, b clawarmorv1alpha1.Secret) int {
+	slices.SortFunc(items, func(a, b agentzv1alpha1.Secret) int {
 		return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
 	})
 
@@ -386,7 +386,7 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 			return false
 		}
 
-		slices.SortFunc(items, func(a, b clawarmorv1alpha1.Secret) int {
+		slices.SortFunc(items, func(a, b agentzv1alpha1.Secret) int {
 			return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
 		})
 
@@ -475,7 +475,7 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 	}
 }
 
-func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant, agtName string, req gatewayapi.CreateSecretRequest) (*clawarmorv1alpha1.Secret, secretstore.Record, *apiError) {
+func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, agtName string, req gatewayapi.CreateSecretRequest) (*agentzv1alpha1.Secret, secretstore.Record, *apiError) {
 	key := strings.TrimSpace(req.Key)
 	items, err := s.listAgentSecrets(ns, agtName)
 	if err != nil {
@@ -493,8 +493,8 @@ func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant,
 		}
 	}
 
-	spec := clawarmorv1alpha1.SecretSpec{
-		AgentRef: clawarmorv1alpha1.SecretAgentRef{Name: agtName},
+	spec := agentzv1alpha1.SecretSpec{
+		AgentRef: agentzv1alpha1.SecretAgentRef{Name: agtName},
 		Key:      key,
 		Hosts:    make([]string, 0, len(req.Hosts)),
 	}
@@ -515,10 +515,10 @@ func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant,
 				gatewayapi.FieldError{Field: "value", Message: "required"},
 			)
 		}
-		spec.Type = clawarmorv1alpha1.SecretTypeStatic
+		spec.Type = agentzv1alpha1.SecretTypeStatic
 		secretwebhook.ApplyDefaults(&spec)
 		record = secretstore.StaticRecord{
-			Type:       clawarmorv1alpha1.SecretTypeStatic,
+			Type:       agentzv1alpha1.SecretTypeStatic,
 			Hosts:      append([]string{}, spec.Hosts...),
 			Value:      *req.Value,
 			UpdatedAt:  now,
@@ -535,8 +535,8 @@ func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant,
 			)
 		}
 
-		spec.Type = clawarmorv1alpha1.SecretTypeOAuth
-		spec.OAuth = &clawarmorv1alpha1.SecretOAuthSpec{
+		spec.Type = agentzv1alpha1.SecretTypeOAuth
+		spec.OAuth = &agentzv1alpha1.SecretOAuthSpec{
 			Scopes: append([]string{}, req.Oauth.Scopes...),
 		}
 		if req.Oauth.Provider != nil {
@@ -558,7 +558,7 @@ func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant,
 		secretwebhook.ApplyDefaults(&spec)
 
 		runtimeRecord := secretstore.OAuthRecord{
-			Type:       clawarmorv1alpha1.SecretTypeOAuth,
+			Type:       agentzv1alpha1.SecretTypeOAuth,
 			SecretName: secretName,
 			Hosts:      append([]string{}, spec.Hosts...),
 			Config: secretstore.OAuthConfig{
@@ -620,16 +620,16 @@ func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant,
 		)
 	}
 
-	secret := &clawarmorv1alpha1.Secret{
+	secret := &agentzv1alpha1.Secret{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: ns,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 				Kind:       "Tenant",
 				Name:       tenant.Name,
 				UID:        tenant.UID,
@@ -643,13 +643,13 @@ func (s *Service) secretFromRequest(ns string, tenant *clawarmorv1alpha1.Tenant,
 	return secret, record, nil
 }
 
-func (s *Service) listAgentSecrets(namespace string, agentName string) ([]clawarmorv1alpha1.Secret, error) {
+func (s *Service) listAgentSecrets(namespace string, agentName string) ([]agentzv1alpha1.Secret, error) {
 	list, err := s.resolver.secrets.Secrets(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]clawarmorv1alpha1.Secret, 0, len(list))
+	items := make([]agentzv1alpha1.Secret, 0, len(list))
 	for _, item := range list {
 		if item.Spec.AgentRef.Name != agentName {
 			continue
@@ -659,7 +659,7 @@ func (s *Service) listAgentSecrets(namespace string, agentName string) ([]clawar
 	return items, nil
 }
 
-func (s *Service) secretListItem(secret clawarmorv1alpha1.Secret) gatewayapi.SecretListItem {
+func (s *Service) secretListItem(secret agentzv1alpha1.Secret) gatewayapi.SecretListItem {
 	status, reason, message := secretLifecycle(secret)
 	item := gatewayapi.SecretListItem{
 		Key:       secret.Spec.Key,
@@ -670,7 +670,7 @@ func (s *Service) secretListItem(secret clawarmorv1alpha1.Secret) gatewayapi.Sec
 		CreatedAt: secret.CreationTimestamp.UTC(),
 	}
 	item.Hosts = append(item.Hosts, secret.Spec.Hosts...)
-	if secret.Spec.Type == clawarmorv1alpha1.SecretTypeOAuth {
+	if secret.Spec.Type == agentzv1alpha1.SecretTypeOAuth {
 		item.Type = gatewayapi.SecretType("oauth")
 		if secret.Spec.OAuth != nil && strings.TrimSpace(secret.Spec.OAuth.Provider) != "" {
 			item.Provider = &secret.Spec.OAuth.Provider
@@ -689,14 +689,14 @@ func (s *Service) secretListItem(secret clawarmorv1alpha1.Secret) gatewayapi.Sec
 	return item
 }
 
-func secretLifecycle(secret clawarmorv1alpha1.Secret) (gatewayapi.SecretState, string, string) {
+func secretLifecycle(secret agentzv1alpha1.Secret) (gatewayapi.SecretState, string, string) {
 	switch secret.Status.State {
-	case clawarmorv1alpha1.SecretStateReady:
-		return gatewayapi.SecretState("ready"), clawarmorv1alpha1.SecretReasonReady, "Ready"
-	case clawarmorv1alpha1.SecretStateDegraded:
+	case agentzv1alpha1.SecretStateReady:
+		return gatewayapi.SecretState("ready"), agentzv1alpha1.SecretReasonReady, "Ready"
+	case agentzv1alpha1.SecretStateDegraded:
 		reason := secret.Status.LastRefreshFailureReason
 		if reason == "" {
-			reason = clawarmorv1alpha1.SecretReasonReconcileFailed
+			reason = agentzv1alpha1.SecretReasonReconcileFailed
 		}
 		message := secret.Status.LastRefreshFailureMessage
 		if message == "" {
@@ -704,7 +704,7 @@ func secretLifecycle(secret clawarmorv1alpha1.Secret) (gatewayapi.SecretState, s
 		}
 		return gatewayapi.SecretState("degraded"), reason, message
 	default:
-		return gatewayapi.SecretState("accepted"), clawarmorv1alpha1.SecretReasonAccepted, "Pending"
+		return gatewayapi.SecretState("accepted"), agentzv1alpha1.SecretReasonAccepted, "Pending"
 	}
 }
 
@@ -766,7 +766,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []stri
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, err := s.resolver.client.ClawarmorV1alpha1().Agents(ns).Get(ctx, agentName, metav1.GetOptions{})
+		agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(ctx, agentName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -792,7 +792,7 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []stri
 		}
 
 		agt.Spec.Env = env
-		_, err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Update(ctx, agt, metav1.UpdateOptions{})
+		_, err = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(ctx, agt, metav1.UpdateOptions{})
 		return err
 	})
 }

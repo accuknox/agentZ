@@ -23,13 +23,13 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/accuknox/clawarmor/internal/oauth"
-	baoclient "github.com/accuknox/clawarmor/internal/openbao"
-	secretstore "github.com/accuknox/clawarmor/internal/secret"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
-	clawarmorclientset "github.com/accuknox/clawarmor/pkg/controller/clientset/versioned"
-	clawarmorinformers "github.com/accuknox/clawarmor/pkg/controller/informers/externalversions"
-	clawarmorlisters "github.com/accuknox/clawarmor/pkg/controller/listers/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/oauth"
+	baoclient "github.com/accuknox/agentz/internal/openbao"
+	secretstore "github.com/accuknox/agentz/internal/secret"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	agentzclientset "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
+	agentzinformers "github.com/accuknox/agentz/pkg/controller/informers/externalversions"
+	agentzlisters "github.com/accuknox/agentz/pkg/controller/listers/agentz/v1alpha1"
 )
 
 const (
@@ -66,7 +66,7 @@ type resolver struct {
 	agentName     string
 	http          *http.Client
 	k8sClient     ctrlclient.Client
-	secrets       clawarmorlisters.SecretNamespaceLister
+	secrets       agentzlisters.SecretNamespaceLister
 	probeQueue    workqueue.TypedInterface[string]
 	probeInterval time.Duration
 	probeTimes    map[string]time.Time
@@ -100,8 +100,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	scheme := runtime.NewScheme()
-	if err := clawarmorv1alpha1.AddToScheme(scheme); err != nil {
-		return fmt.Errorf("add clawarmor scheme: %w", err)
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add agentz scheme: %w", err)
 	}
 	kubeCfg, err := ctrlconfig.GetConfig()
 	if err != nil {
@@ -111,20 +111,20 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create kubernetes client: %w", err)
 	}
-	clawarmorClient, err := clawarmorclientset.NewForConfig(kubeCfg)
+	agentzClient, err := agentzclientset.NewForConfig(kubeCfg)
 	if err != nil {
-		return fmt.Errorf("create clawarmor clientset: %w", err)
+		return fmt.Errorf("create agentz clientset: %w", err)
 	}
 	namespace, err := podNamespace()
 	if err != nil {
 		return err
 	}
-	informerFactory := clawarmorinformers.NewSharedInformerFactoryWithOptions(
-		clawarmorClient,
+	informerFactory := agentzinformers.NewSharedInformerFactoryWithOptions(
+		agentzClient,
 		cfg.SecretProbeInterval,
-		clawarmorinformers.WithNamespace(namespace),
+		agentzinformers.WithNamespace(namespace),
 	)
-	secretInformer := informerFactory.Clawarmor().V1alpha1().Secrets()
+	secretInformer := informerFactory.Agentz().V1alpha1().Secrets()
 
 	ca, err := tls.LoadX509KeyPair(cfg.CACertPath, cfg.CAKeyPath)
 	if err != nil {
@@ -144,17 +144,17 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	_, err = secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			secret, ok := obj.(*clawarmorv1alpha1.Secret)
+			secret, ok := obj.(*agentzv1alpha1.Secret)
 			if ok && secret.Spec.AgentRef.Name == cfg.AgentName {
 				res.probeQueue.Add(secret.Name)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			oldSecret, ok := oldObj.(*clawarmorv1alpha1.Secret)
+			oldSecret, ok := oldObj.(*agentzv1alpha1.Secret)
 			if !ok {
 				return
 			}
-			secret, ok := newObj.(*clawarmorv1alpha1.Secret)
+			secret, ok := newObj.(*agentzv1alpha1.Secret)
 			if !ok || secret.Spec.AgentRef.Name != cfg.AgentName {
 				return
 			}
@@ -163,13 +163,13 @@ func Serve(ctx context.Context, cfg Config) error {
 			}
 		},
 		DeleteFunc: func(obj any) {
-			secret, ok := obj.(*clawarmorv1alpha1.Secret)
+			secret, ok := obj.(*agentzv1alpha1.Secret)
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
 					return
 				}
-				secret, ok = tombstone.Obj.(*clawarmorv1alpha1.Secret)
+				secret, ok = tombstone.Obj.(*agentzv1alpha1.Secret)
 				if !ok {
 					return
 				}
@@ -276,9 +276,9 @@ func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, er
 	rawSecret, err := r.kv.Get(ctx, secretstore.SecretPath(r.namespace, r.agentName, name))
 	if err != nil {
 		status := secretRuntimeStatus{
-			state:     clawarmorv1alpha1.SecretStateDegraded,
-			condition: clawarmorv1alpha1.SecretConditionDegraded,
-			reason:    clawarmorv1alpha1.SecretReasonReconcileFailed,
+			state:     agentzv1alpha1.SecretStateDegraded,
+			condition: agentzv1alpha1.SecretConditionDegraded,
+			reason:    agentzv1alpha1.SecretReasonReconcileFailed,
 			message:   fmt.Sprintf("read openbao runtime: %v", err),
 		}
 		if errors.Is(err, baoapi.ErrSecretNotFound) {
@@ -293,34 +293,34 @@ func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, er
 	}
 	typ, err := secretstore.RecordType(rawSecret.Data)
 	if err != nil {
-		r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
+		r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
 		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}
 	switch typ {
-	case clawarmorv1alpha1.SecretTypeStatic:
+	case agentzv1alpha1.SecretTypeStatic:
 		record, err := secretstore.DecodeRecord[secretstore.StaticRecord](rawSecret.Data)
 		if err != nil {
-			r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
+			r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		hosts, err := ParseSecretHosts(record.Hosts)
 		if err != nil {
-			r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
+			r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		if err := validateSecretValue(record.Value); err != nil {
-			r.writeStatusForKey(ctx, name, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
+			r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		return resolvedSecret{value: record.Value, hosts: hosts}, nil
-	case clawarmorv1alpha1.SecretTypeOAuth:
+	case agentzv1alpha1.SecretTypeOAuth:
 		return r.resolveOAuth(ctx, name, rawSecret.Data)
 	default:
 		r.writeStatusForKey(
 			ctx,
 			name,
 			degradedSecretStatus(
-				clawarmorv1alpha1.SecretReasonReconcileFailed,
+				agentzv1alpha1.SecretReasonReconcileFailed,
 				fmt.Sprintf("unsupported secret type %q", typ),
 			),
 		)
@@ -331,13 +331,13 @@ func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, er
 func (r *resolver) resolveOAuth(ctx context.Context, key string, raw map[string]any) (resolvedSecret, error) {
 	record, err := secretstore.DecodeRecord[secretstore.OAuthRecord](raw)
 	if err != nil {
-		r.writeStatusForKey(ctx, key, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
+		r.writeStatusForKey(ctx, key, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
 		return resolvedSecret{}, err
 	}
 
 	hosts, err := ParseSecretHosts(record.Hosts)
 	if err != nil {
-		r.writeStatusForKey(ctx, key, degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error()))
+		r.writeStatusForKey(ctx, key, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
 		return resolvedSecret{}, err
 	}
 	now := time.Now().UTC()
@@ -347,7 +347,7 @@ func (r *resolver) resolveOAuth(ctx context.Context, key string, raw map[string]
 
 	refreshed, err := r.refreshOAuth(ctx, key, record)
 	if err != nil {
-		r.writeStatusForKey(ctx, key, degradedSecretStatus(clawarmorv1alpha1.SecretReasonRefreshFailed, err.Error()))
+		r.writeStatusForKey(ctx, key, degradedSecretStatus(agentzv1alpha1.SecretReasonRefreshFailed, err.Error()))
 		return resolvedSecret{}, err
 	}
 	if refreshed.Token == nil || strings.TrimSpace(refreshed.Token.AccessToken) == "" {

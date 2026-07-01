@@ -14,16 +14,16 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
-	labelAgentName     = "clawarmor.accuknox.com/agent"
-	labelSinjectorName = "clawarmor.accuknox.com/sinjector"
-	labelManaged       = "clawarmor.accuknox.com/managed"
+	labelAgentName     = "agentz.accuknox.com/agent"
+	labelSinjectorName = "agentz.accuknox.com/sinjector"
+	labelManaged       = "agentz.accuknox.com/managed"
 	labelAppName       = "app.kubernetes.io/name"
-	appNameAgent       = "clawarmor-agent"
-	appNameSinjector   = "clawarmor-sinjector"
+	appNameAgent       = "agentz-agent"
+	appNameSinjector   = "agentz-sinjector"
 )
 
 type resolver struct {
@@ -46,7 +46,7 @@ func newResolver() (*resolver, error) {
 	if err := discoveryv1.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("add discovery scheme: %w", err)
 	}
-	if err := clawarmorv1alpha1.AddToScheme(scheme); err != nil {
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("add agent scheme: %w", err)
 	}
 
@@ -119,7 +119,7 @@ func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string
 		return name, true
 	}
 
-	agt := &clawarmorv1alpha1.Agent{}
+	agt := &agentzv1alpha1.Agent{}
 	err := r.client.Get(ctx, ctrlclient.ObjectKey{
 		Namespace: namespace,
 		Name:      agentName,
@@ -135,7 +135,7 @@ func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string
 }
 
 func (r *resolver) resolveSingleMCPConnection(ctx context.Context, namespace, agentName string) (string, bool) {
-	agt := &clawarmorv1alpha1.Agent{}
+	agt := &agentzv1alpha1.Agent{}
 	agtKey := ctrlclient.ObjectKey{Namespace: namespace, Name: agentName}
 	err := r.client.Get(ctx, agtKey, agt)
 	if err != nil {
@@ -150,7 +150,7 @@ func (r *resolver) resolveSingleMCPConnection(ctx context.Context, namespace, ag
 		return "", false
 	}
 
-	env := &clawarmorv1alpha1.Environment{}
+	env := &agentzv1alpha1.Environment{}
 	envKey := ctrlclient.ObjectKey{Namespace: namespace, Name: envName}
 	err = r.client.Get(ctx, envKey, env)
 	if err != nil {

@@ -1,1 +1,1 @@
-clawarmor/main.go
+agentz/main.go

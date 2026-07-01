@@ -26,37 +26,37 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-// +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-tenant,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=tenants,verbs=create;update;delete,versions=v1alpha1,name=vtenant-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-agentz-accuknox-com-v1alpha1-tenant,mutating=false,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=tenants,verbs=create;update;delete,versions=v1alpha1,name=vtenant-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Validator validates Tenant resources.
 type Validator struct{}
 
-var _ admission.Validator[*clawarmorv1alpha1.Tenant] = &Validator{}
+var _ admission.Validator[*agentzv1alpha1.Tenant] = &Validator{}
 
 var tenantGroupKind = schema.GroupKind{
-	Group: clawarmorv1alpha1.SchemeGroupVersion.Group,
+	Group: agentzv1alpha1.SchemeGroupVersion.Group,
 	Kind:  "Tenant",
 }
 
 // ValidateCreate validates Tenant creation.
-func (v *Validator) ValidateCreate(_ context.Context, obj *clawarmorv1alpha1.Tenant) (admission.Warnings, error) {
+func (v *Validator) ValidateCreate(_ context.Context, obj *agentzv1alpha1.Tenant) (admission.Warnings, error) {
 	return nil, validateTenant(nil, obj)
 }
 
 // ValidateUpdate validates Tenant updates.
-func (v *Validator) ValidateUpdate(_ context.Context, oldObj, newObj *clawarmorv1alpha1.Tenant) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(_ context.Context, oldObj, newObj *agentzv1alpha1.Tenant) (admission.Warnings, error) {
 	return nil, validateTenant(oldObj, newObj)
 }
 
 // ValidateDelete validates Tenant deletion.
-func (v *Validator) ValidateDelete(_ context.Context, obj *clawarmorv1alpha1.Tenant) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(_ context.Context, obj *agentzv1alpha1.Tenant) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func validateTenant(oldObj, newObj *clawarmorv1alpha1.Tenant) error {
+func validateTenant(oldObj, newObj *agentzv1alpha1.Tenant) error {
 	issues := field.ErrorList{}
 	specPath := field.NewPath("spec")
 
@@ -67,7 +67,7 @@ func validateTenant(oldObj, newObj *clawarmorv1alpha1.Tenant) error {
 		issues = append(issues, field.Required(specPath.Child("userID"), "is required"))
 	}
 
-	expectedName := clawarmorv1alpha1.TenantName(newObj.Spec.OrganizationID)
+	expectedName := agentzv1alpha1.TenantName(newObj.Spec.OrganizationID)
 	if newObj.Name != expectedName {
 		issues = append(issues, field.Invalid(
 			field.NewPath("metadata").Child("name"),

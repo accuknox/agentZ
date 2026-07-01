@@ -11,7 +11,7 @@ import { signInReturnTo } from "@/lib/sign-in-redirect"
 import { AuthSearchParams, socialProviders, type SocialProvider } from "../shared"
 
 export const metadata: Metadata = {
-  title: "Sign In | ClawArmor - AccuKnox",
+  title: "Sign In | AgentZ - AccuKnox",
 }
 
 const providerActions = {

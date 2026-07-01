@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: ClawArmor HTTP API
+  title: AgentZ HTTP API
   version: 0.1.0
-  description: HTTP API for ClawArmor agents, lens, secrets, and environments.
+  description: HTTP API for AgentZ agents, lens, secrets, and environments.
 servers:
 - url: /
   description: Current origin

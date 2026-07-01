@@ -41,9 +41,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/accuknox/clawarmor/internal/mcp"
-	"github.com/accuknox/clawarmor/internal/openbao"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/openbao"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -69,10 +69,10 @@ type MCPConnectionReconciler struct {
 	OpenBaoK8sAuthTokenPath string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=get;list;watch;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections/finalizers,verbs=update
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=envs,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods;serviceaccounts;services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
@@ -81,7 +81,7 @@ type MCPConnectionReconciler struct {
 
 // Reconcile moves MCP runtime resources toward the declared connection state.
 func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	conn := &clawarmorv1alpha1.MCPConnection{}
+	conn := &agentzv1alpha1.MCPConnection{}
 	if err := r.Get(ctx, req.NamespacedName, conn); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -125,7 +125,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		statusErr := r.updateStatus(
 			ctx,
 			conn,
-			clawarmorv1alpha1.MCPConnectionStateDegraded,
+			agentzv1alpha1.MCPConnectionStateDegraded,
 			nil,
 			nil,
 			false,
@@ -146,7 +146,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		err = r.updateStatus(
 			ctx,
 			conn,
-			clawarmorv1alpha1.MCPConnectionStateAccepted,
+			agentzv1alpha1.MCPConnectionStateAccepted,
 			nil,
 			extAuth,
 			false,
@@ -163,7 +163,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		statusErr := r.updateStatus(
 			ctx,
 			conn,
-			clawarmorv1alpha1.MCPConnectionStateDegraded,
+			agentzv1alpha1.MCPConnectionStateDegraded,
 			nil,
 			extAuth,
 			requiresExtAuth,
@@ -180,7 +180,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		statusErr := r.updateStatus(
 			ctx,
 			conn,
-			clawarmorv1alpha1.MCPConnectionStateDegraded,
+			agentzv1alpha1.MCPConnectionStateDegraded,
 			nil,
 			extAuth,
 			requiresExtAuth,
@@ -195,7 +195,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	err = r.updateStatus(
 		ctx,
 		conn,
-		clawarmorv1alpha1.MCPConnectionStateReady,
+		agentzv1alpha1.MCPConnectionStateReady,
 		policy,
 		extAuth,
 		requiresExtAuth,
@@ -210,14 +210,14 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // SetupWithManager sets up the controller with the Manager.
 func (r *MCPConnectionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clawarmorv1alpha1.MCPConnection{}).
-		Watches(&clawarmorv1alpha1.Environment{}, handler.EnqueueRequestsFromMapFunc(r.mcpConnectionsForEnvironment)).
+		For(&agentzv1alpha1.MCPConnection{}).
+		Watches(&agentzv1alpha1.Environment{}, handler.EnqueueRequestsFromMapFunc(r.mcpConnectionsForEnvironment)).
 		Named("mcpconnection").
 		Complete(r)
 }
 
 func (r *MCPConnectionReconciler) mcpConnectionsForEnvironment(_ context.Context, obj client.Object) []reconcile.Request {
-	env, ok := obj.(*clawarmorv1alpha1.Environment)
+	env, ok := obj.(*agentzv1alpha1.Environment)
 	if !ok {
 		return nil
 	}
@@ -234,8 +234,8 @@ func (r *MCPConnectionReconciler) mcpConnectionsForEnvironment(_ context.Context
 	return requests
 }
 
-func (r *MCPConnectionReconciler) referencingEnvironments(ctx context.Context, namespace, name string) ([]clawarmorv1alpha1.Environment, error) {
-	envs := &clawarmorv1alpha1.EnvironmentList{}
+func (r *MCPConnectionReconciler) referencingEnvironments(ctx context.Context, namespace, name string) ([]agentzv1alpha1.Environment, error) {
+	envs := &agentzv1alpha1.EnvironmentList{}
 	err := r.List(
 		ctx,
 		envs,
@@ -248,9 +248,9 @@ func (r *MCPConnectionReconciler) referencingEnvironments(ctx context.Context, n
 	return envs.Items, nil
 }
 
-func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, refs []clawarmorv1alpha1.Environment) (*clawarmorv1alpha1.MCPConnectionManagedResourceRef, error) {
+func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Context, conn *agentzv1alpha1.MCPConnection, refs []agentzv1alpha1.Environment) (*agentzv1alpha1.MCPConnectionManagedResourceRef, error) {
 	policies := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(conn.Namespace)
-	namespaceEnvs := &clawarmorv1alpha1.EnvironmentList{}
+	namespaceEnvs := &agentzv1alpha1.EnvironmentList{}
 	err := r.List(ctx, namespaceEnvs, client.InNamespace(conn.Namespace))
 	if err != nil {
 		return nil, fmt.Errorf("list namespace environments: %w", err)
@@ -282,7 +282,7 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 		}
 	}
 
-	var managedRef *clawarmorv1alpha1.MCPConnectionManagedResourceRef
+	var managedRef *agentzv1alpha1.MCPConnectionManagedResourceRef
 	for _, env := range refs {
 		name := mcp.EnvironmentAuthPolicyName(env.Name, conn.Name)
 		obj, err := policies.Get(ctx, name, metav1.GetOptions{})
@@ -329,14 +329,14 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 				},
 				GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
 					ContextExtensions: map[string]string{
-						"clawarmor.namespace":      conn.Namespace,
-						"clawarmor.environment":    env.Name,
-						"clawarmor.mcp_connection": conn.Name,
+						"agentz.namespace":      conn.Namespace,
+						"agentz.environment":    env.Name,
+						"agentz.mcp_connection": conn.Name,
 					},
 					RequestMetadata: map[string]agentgatewayshared.CELExpression{
-						"clawarmor.namespace":      agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
-						"clawarmor.environment":    agentgatewayshared.CELExpression(fmt.Sprintf("%q", env.Name)),
-						"clawarmor.mcp_connection": agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Name)),
+						"agentz.namespace":      agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
+						"agentz.environment":    agentgatewayshared.CELExpression(fmt.Sprintf("%q", env.Name)),
+						"agentz.mcp_connection": agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Name)),
 					},
 				},
 			}
@@ -384,9 +384,9 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 	return managedRef, nil
 }
 
-func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection, state clawarmorv1alpha1.MCPConnectionState, authRef *clawarmorv1alpha1.MCPConnectionManagedResourceRef, extAuth *extAuthStatus, extAuthRequired bool, recErr error) error {
+func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *agentzv1alpha1.MCPConnection, state agentzv1alpha1.MCPConnectionState, authRef *agentzv1alpha1.MCPConnectionManagedResourceRef, extAuth *extAuthStatus, extAuthRequired bool, recErr error) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &clawarmorv1alpha1.MCPConnection{}
+		current := &agentzv1alpha1.MCPConnection{}
 		if err := r.Get(ctx, types.NamespacedName{Namespace: conn.Namespace, Name: conn.Name}, current); err != nil {
 			return client.IgnoreNotFound(err)
 		}
@@ -410,12 +410,12 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawar
 		readyMessage := "MCP runtime is accepted"
 		degradedReason := reasonAccepted
 		degradedMessage := "No MCP runtime failure detected"
-		if state == clawarmorv1alpha1.MCPConnectionStateReady {
+		if state == agentzv1alpha1.MCPConnectionStateReady {
 			ready = metav1.ConditionTrue
 			readyReason = reasonReady
 			readyMessage = "MCP runtime is ready"
 		}
-		if recErr != nil || state == clawarmorv1alpha1.MCPConnectionStateDegraded {
+		if recErr != nil || state == agentzv1alpha1.MCPConnectionStateDegraded {
 			degraded = metav1.ConditionTrue
 			degradedReason = reasonDegraded
 			degradedMessage = "MCP runtime reconcile failed"
@@ -477,7 +477,7 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *clawar
 
 // resolveAuthMode returns a human-readable auth mode string for a given Auth
 // spec pointer.
-func resolveAuthMode(auth *clawarmorv1alpha1.MCPConnectionAuth) string {
+func resolveAuthMode(auth *agentzv1alpha1.MCPConnectionAuth) string {
 	if auth == nil {
 		return "None"
 	}
@@ -490,8 +490,8 @@ func resolveAuthMode(auth *clawarmorv1alpha1.MCPConnectionAuth) string {
 	return "None"
 }
 
-func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
-	envs := &clawarmorv1alpha1.EnvironmentList{}
+func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *agentzv1alpha1.MCPConnection) error {
+	envs := &agentzv1alpha1.EnvironmentList{}
 	err := r.List(ctx, envs, client.InNamespace(conn.Namespace))
 	if err != nil {
 		return fmt.Errorf("list namespace environments for auth policy cleanup: %w", err)
@@ -513,7 +513,7 @@ func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *
 	return nil
 }
 
-func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
+func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *agentzv1alpha1.MCPConnection) error {
 	if err := r.deleteAuthPolicies(ctx, conn); err != nil {
 		return err
 	}
@@ -523,7 +523,7 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawa
 		return fmt.Errorf("list namespace ext auth connections: %w", err)
 	}
 
-	remaining := make([]clawarmorv1alpha1.MCPConnection, 0, len(conns))
+	remaining := make([]agentzv1alpha1.MCPConnection, 0, len(conns))
 	for _, item := range conns {
 		if item.Name == conn.Name {
 			continue
@@ -533,7 +533,7 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawa
 		}
 		remaining = append(remaining, item)
 	}
-	slices.SortFunc(remaining, func(a, b clawarmorv1alpha1.MCPConnection) int {
+	slices.SortFunc(remaining, func(a, b agentzv1alpha1.MCPConnection) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 

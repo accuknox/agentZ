@@ -10,7 +10,7 @@ let
 
   patchedSrc = pkgs.stdenvNoCC.mkDerivation {
     pname = "opencode-plugin-otel-src";
-    version = "0.9.0-clawarmor";
+    version = "0.9.0-agentz";
     inherit src;
 
     patches = [ ./opencode-plugin-otel.patch ];
@@ -24,7 +24,7 @@ let
 
   nodeModules = pkgs.stdenvNoCC.mkDerivation {
     pname = "opencode-plugin-otel-node_modules";
-    version = "0.9.0-clawarmor";
+    version = "0.9.0-agentz";
     src = patchedSrc;
 
     nativeBuildInputs = [ pkgs.bun ];
@@ -55,7 +55,7 @@ let
 in
 pkgs.stdenvNoCC.mkDerivation {
   pname = "opencode-plugin-otel";
-  version = "0.9.0-clawarmor";
+  version = "0.9.0-agentz";
   src = patchedSrc;
 
   nativeBuildInputs = [

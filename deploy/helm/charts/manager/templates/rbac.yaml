@@ -33,13 +33,13 @@ rules:
   - apiGroups: ["cert-manager.io"]
     resources: ["certificates"]
     verbs: ["create", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents"]
     verbs: ["create-workflow", "create-workflow-schedule", "delete-workflow-schedule", "delete-workflows", "get", "get-workflow", "list", "list-workflow-schedules", "list-workflows", "patch", "set-workflowrun-status", "update-workflow-schedule", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs", "mcpconnections", "secrets"]
     verbs: ["get", "list", "patch", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources:
       - agents/finalizers
       - envs/finalizers
@@ -47,7 +47,7 @@ rules:
       - secrets/finalizers
       - workflowruns/finalizers
     verbs: ["update"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources:
       - agents/status
       - envs/status
@@ -57,10 +57,10 @@ rules:
       - workflowruns/status
       - workflowschedules/status
     verbs: ["get", "patch", "update"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants", "workflowschedules"]
     verbs: ["get", "list", "use", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowruns"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["gateway.networking.k8s.io"]
@@ -170,10 +170,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants"]
     verbs: ["*"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants/status"]
     verbs: ["get"]
 ---
@@ -185,10 +185,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants/status"]
     verbs: ["get"]
 ---
@@ -200,10 +200,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants/status"]
     verbs: ["get"]
 ---
@@ -215,10 +215,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents"]
     verbs: ["*"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents/status"]
     verbs: ["get"]
 ---
@@ -230,10 +230,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents/status"]
     verbs: ["get"]
 ---
@@ -245,10 +245,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents/status"]
     verbs: ["get"]
 ---
@@ -260,10 +260,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs"]
     verbs: ["*"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs/status"]
     verbs: ["get"]
 ---
@@ -275,10 +275,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs/status"]
     verbs: ["get"]
 ---
@@ -290,10 +290,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["envs/status"]
     verbs: ["get"]
 ---
@@ -305,10 +305,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections"]
     verbs: ["*"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections/status"]
     verbs: ["get"]
 ---
@@ -320,10 +320,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections/status"]
     verbs: ["get"]
 ---
@@ -335,10 +335,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections/status"]
     verbs: ["get"]
 ---
@@ -350,10 +350,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowruns"]
     verbs: ["*"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowruns/status"]
     verbs: ["get"]
 ---
@@ -365,10 +365,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowruns"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowruns/status"]
     verbs: ["get"]
 ---
@@ -380,10 +380,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowruns"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowruns/status"]
     verbs: ["get"]
 ---
@@ -395,10 +395,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules"]
     verbs: ["*"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules/status"]
     verbs: ["get"]
 ---
@@ -410,10 +410,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules/status"]
     verbs: ["get"]
 ---
@@ -425,10 +425,10 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["clawarmor.accuknox.com"]
+  - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules/status"]
     verbs: ["get"]
 {{- end }}

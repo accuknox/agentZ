@@ -9,7 +9,7 @@ export type RequestValidationIssue = {
 const skillNamePattern = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
 export function workflowAgentName() {
-  return process.env.CLAWARMOR_AGENT_NAME?.trim() ?? ""
+  return process.env.AGENTZ_AGENT_NAME?.trim() ?? ""
 }
 
 export function workflowErrorOutput(error: GatewayError) {

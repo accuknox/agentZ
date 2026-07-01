@@ -22,14 +22,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/clawarmor/internal/mcp"
-	"github.com/accuknox/clawarmor/internal/openbao"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/openbao"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
 	extAuthConditionType = mcp.ConditionExtAuthReady
-	extAuthLabelName     = "clawarmor-extauth"
+	extAuthLabelName     = "agentz-extauth"
 	extAuthTokenPath     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 )
 
@@ -39,8 +39,8 @@ var extAuthPolicyTemplate string
 var extAuthPolicy = template.Must(template.New("extauth-policy").Parse(extAuthPolicyTemplate))
 
 type extAuthStatus struct {
-	serviceRef    *clawarmorv1alpha1.MCPConnectionManagedResourceRef
-	deploymentRef *clawarmorv1alpha1.MCPConnectionManagedResourceRef
+	serviceRef    *agentzv1alpha1.MCPConnectionManagedResourceRef
+	deploymentRef *agentzv1alpha1.MCPConnectionManagedResourceRef
 	ready         bool
 }
 
@@ -49,16 +49,16 @@ type extAuthPolicyData struct {
 	MetadataPath string
 }
 
-func (r *MCPConnectionReconciler) extAuthConnections(ctx context.Context, ns string) ([]clawarmorv1alpha1.MCPConnection, error) {
-	list := &clawarmorv1alpha1.MCPConnectionList{}
+func (r *MCPConnectionReconciler) extAuthConnections(ctx context.Context, ns string) ([]agentzv1alpha1.MCPConnection, error) {
+	list := &agentzv1alpha1.MCPConnectionList{}
 	if err := r.List(ctx, list, client.InNamespace(ns)); err != nil {
 		return nil, fmt.Errorf("list mcp connections: %w", err)
 	}
-	slices.SortFunc(list.Items, func(a, b clawarmorv1alpha1.MCPConnection) int {
+	slices.SortFunc(list.Items, func(a, b agentzv1alpha1.MCPConnection) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 
-	active := make([]clawarmorv1alpha1.MCPConnection, 0, len(list.Items))
+	active := make([]agentzv1alpha1.MCPConnection, 0, len(list.Items))
 	for _, conn := range list.Items {
 		if !conn.DeletionTimestamp.IsZero() {
 			continue
@@ -69,7 +69,7 @@ func (r *MCPConnectionReconciler) extAuthConnections(ctx context.Context, ns str
 	return active, nil
 }
 
-func (r *MCPConnectionReconciler) reconcileExtAuthRuntime(ctx context.Context, ns string, conns []clawarmorv1alpha1.MCPConnection) (*extAuthStatus, error) {
+func (r *MCPConnectionReconciler) reconcileExtAuthRuntime(ctx context.Context, ns string, conns []agentzv1alpha1.MCPConnection) (*extAuthStatus, error) {
 	if len(conns) == 0 {
 		return nil, nil
 	}
@@ -93,7 +93,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthRuntime(ctx context.Context, n
 			continue
 		}
 		ownerRefs = append(ownerRefs, metav1.OwnerReference{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "MCPConnection",
 			Name:       conn.Name,
 			UID:        conn.UID,
@@ -104,9 +104,9 @@ func (r *MCPConnectionReconciler) reconcileExtAuthRuntime(ctx context.Context, n
 	}
 
 	labels := map[string]string{
-		"app.kubernetes.io/name":         extAuthLabelName,
-		"app.kubernetes.io/managed-by":   "clawarmor-mcp-controller",
-		"clawarmor.accuknox.com/managed": "true",
+		"app.kubernetes.io/name":       extAuthLabelName,
+		"app.kubernetes.io/managed-by": "agentz-mcp-controller",
+		"agentz.accuknox.com/managed":  "true",
 	}
 
 	if err := r.reconcileExtAuthServiceAccount(ctx, ns, labels, ownerRefs); err != nil {
@@ -181,12 +181,12 @@ func (r *MCPConnectionReconciler) reconcileExtAuthRole(ctx context.Context, ns s
 				Verbs:     []string{"get", "list"},
 			},
 			{
-				APIGroups: []string{"clawarmor.accuknox.com"},
+				APIGroups: []string{"agentz.accuknox.com"},
 				Resources: []string{"agents", "envs", "mcpconnections"},
 				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
-				APIGroups: []string{"clawarmor.accuknox.com"},
+				APIGroups: []string{"agentz.accuknox.com"},
 				Resources: []string{"mcpconnections/status"},
 				Verbs:     []string{"get", "update", "patch"},
 			},

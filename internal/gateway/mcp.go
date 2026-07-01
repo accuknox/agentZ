@@ -20,11 +20,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	internalmcp "github.com/accuknox/clawarmor/internal/mcp"
-	internaloauth "github.com/accuknox/clawarmor/internal/oauth"
-	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	internalmcp "github.com/accuknox/agentz/internal/mcp"
+	internaloauth "github.com/accuknox/agentz/internal/oauth"
+	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const mcpInternalErrorMessage = "Internal error"
@@ -294,9 +294,9 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn := &clawarmorv1alpha1.MCPConnection{
+	conn := &agentzv1alpha1.MCPConnection{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "MCPConnection",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -304,7 +304,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 			Namespace: ns,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+					APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 					Kind:       "Tenant",
 					Name:       tenant.Name,
 					UID:        tenant.UID,
@@ -399,7 +399,7 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawName string) (*clawarmorv1alpha1.MCPConnection, bool) {
+func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawName string) (*agentzv1alpha1.MCPConnection, bool) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -419,7 +419,7 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 		return nil, false
 	}
 
-	conn := &clawarmorv1alpha1.MCPConnection{}
+	conn := &agentzv1alpha1.MCPConnection{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
 	if err := s.k8sClient.Get(r.Context(), key, conn); err != nil {
 		writeMCPAPIError(w, r, mapKubeHTTPError("get mcp connection", err))
@@ -430,7 +430,7 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 
 // listMCPConnections returns all MCPConnection resources in the service
 // namespace.
-func (s *Service) listMCPConnections(ctx context.Context) ([]clawarmorv1alpha1.MCPConnection, error) {
+func (s *Service) listMCPConnections(ctx context.Context) ([]agentzv1alpha1.MCPConnection, error) {
 	ns, err := tenantNamespace(ctx)
 	if err != nil {
 		return nil, err
@@ -441,7 +441,7 @@ func (s *Service) listMCPConnections(ctx context.Context) ([]clawarmorv1alpha1.M
 		return nil, fmt.Errorf("list mcp connections: %w", err)
 	}
 
-	items := make([]clawarmorv1alpha1.MCPConnection, 0, len(list))
+	items := make([]agentzv1alpha1.MCPConnection, 0, len(list))
 	for _, item := range list {
 		items = append(items, *item.DeepCopy())
 	}
@@ -467,7 +467,7 @@ func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string
 	return summaries, nil
 }
 
-func (s *Service) mcpConnectionSummary(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
+func (s *Service) mcpConnectionSummary(conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
 	status, reason, message := s.mcpConnectionStatus(conn)
 	return gatewayapi.MCPConnectionSummary{
 		Name:             conn.Name,
@@ -482,7 +482,7 @@ func (s *Service) mcpConnectionSummary(conn clawarmorv1alpha1.MCPConnection) gat
 	}
 }
 
-func (s *Service) mcpConnectionDetail(conn clawarmorv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
+func (s *Service) mcpConnectionDetail(conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
 	headers := map[string]string{}
 	maps.Copy(headers, conn.Spec.Endpoint.Headers)
 
@@ -550,7 +550,7 @@ func (s *Service) mcpConnectionDetail(conn clawarmorv1alpha1.MCPConnection) gate
 	}
 }
 
-func (s *Service) mcpConnectionStatus(conn clawarmorv1alpha1.MCPConnection) (gatewayapi.MCPConnectionLifecycle, gatewayapi.MCPConnectionReason, string) {
+func (s *Service) mcpConnectionStatus(conn agentzv1alpha1.MCPConnection) (gatewayapi.MCPConnectionLifecycle, gatewayapi.MCPConnectionReason, string) {
 	accepted := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionAccepted)
 	degraded := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionDegraded)
 	probeHealthy := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProbeHealthy)
@@ -558,7 +558,7 @@ func (s *Service) mcpConnectionStatus(conn clawarmorv1alpha1.MCPConnection) (gat
 	credentialsInvalid := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionCredentialsInvalid)
 	protocolError := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProtocolError)
 
-	if conn.Status.State == clawarmorv1alpha1.MCPConnectionStateDegraded ||
+	if conn.Status.State == agentzv1alpha1.MCPConnectionStateDegraded ||
 		(accepted != nil && accepted.Status == metav1.ConditionFalse) ||
 		(degraded != nil && degraded.Status == metav1.ConditionTrue) {
 		message := statusConditionMessage(mcpInternalErrorMessage, degraded, accepted)
@@ -620,7 +620,7 @@ func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string)
 	defer ticker.Stop()
 
 	for {
-		conn := &clawarmorv1alpha1.MCPConnection{}
+		conn := &agentzv1alpha1.MCPConnection{}
 		key := ctrlclient.ObjectKey{Namespace: ns, Name: name}
 		err := s.k8sClient.Get(ctx, key, conn)
 		if apierrors.IsNotFound(err) {
@@ -647,9 +647,9 @@ func writeMCPInternalError(w http.ResponseWriter, r *http.Request, err error) {
 	))
 }
 
-func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, auth *gatewayapi.MCPConnectionAuth) (clawarmorv1alpha1.MCPConnectionSpec, []gatewayapi.FieldError) {
-	spec := clawarmorv1alpha1.MCPConnectionSpec{
-		Endpoint: clawarmorv1alpha1.MCPConnectionEndpoint{
+func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, auth *gatewayapi.MCPConnectionAuth) (agentzv1alpha1.MCPConnectionSpec, []gatewayapi.FieldError) {
+	spec := agentzv1alpha1.MCPConnectionSpec{
+		Endpoint: agentzv1alpha1.MCPConnectionEndpoint{
 			URL:                strings.TrimSpace(endpoint.Url),
 			InsecureSkipVerify: endpoint.InsecureSkipVerify,
 			Headers:            map[string]string{},
@@ -671,14 +671,14 @@ func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, aut
 		return spec, nil
 	}
 
-	spec.Auth = &clawarmorv1alpha1.MCPConnectionAuth{}
+	spec.Auth = &agentzv1alpha1.MCPConnectionAuth{}
 	if auth.Bearer != nil {
-		spec.Auth.Bearer = &clawarmorv1alpha1.MCPConnectionBearerAuth{
+		spec.Auth.Bearer = &agentzv1alpha1.MCPConnectionBearerAuth{
 			Location: authLocationFromRequest(auth.Bearer.Location),
 		}
 	}
 	if auth.Oauth != nil {
-		spec.Auth.OAuth = &clawarmorv1alpha1.MCPConnectionOAuthAuth{
+		spec.Auth.OAuth = &agentzv1alpha1.MCPConnectionOAuthAuth{
 			Location: authLocationFromRequest(auth.Oauth.Location),
 		}
 		if auth.Oauth.Issuer != nil {
@@ -706,29 +706,29 @@ func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, aut
 	return spec, nil
 }
 
-func authLocationFromRequest(location *gatewayapi.MCPConnectionAuthLocation) *clawarmorv1alpha1.MCPConnectionAuthLocation {
+func authLocationFromRequest(location *gatewayapi.MCPConnectionAuthLocation) *agentzv1alpha1.MCPConnectionAuthLocation {
 	if location == nil {
 		return nil
 	}
 
-	out := &clawarmorv1alpha1.MCPConnectionAuthLocation{}
+	out := &agentzv1alpha1.MCPConnectionAuthLocation{}
 	if location.Header != nil {
-		out.Header = &clawarmorv1alpha1.MCPConnectionHeaderLocation{Name: strings.TrimSpace(location.Header.Name)}
+		out.Header = &agentzv1alpha1.MCPConnectionHeaderLocation{Name: strings.TrimSpace(location.Header.Name)}
 		if location.Header.Prefix != nil {
 			prefix := strings.TrimSpace(*location.Header.Prefix)
 			out.Header.Prefix = &prefix
 		}
 	}
 	if location.QueryParameter != nil {
-		out.QueryParameter = &clawarmorv1alpha1.MCPConnectionQueryParameterLocation{Name: strings.TrimSpace(location.QueryParameter.Name)}
+		out.QueryParameter = &agentzv1alpha1.MCPConnectionQueryParameterLocation{Name: strings.TrimSpace(location.QueryParameter.Name)}
 	}
 	if location.Cookie != nil {
-		out.Cookie = &clawarmorv1alpha1.MCPConnectionCookieLocation{Name: strings.TrimSpace(location.Cookie.Name)}
+		out.Cookie = &agentzv1alpha1.MCPConnectionCookieLocation{Name: strings.TrimSpace(location.Cookie.Name)}
 	}
 	return out
 }
 
-func authLocationToResponse(location *clawarmorv1alpha1.MCPConnectionAuthLocation) *gatewayapi.MCPConnectionAuthLocation {
+func authLocationToResponse(location *agentzv1alpha1.MCPConnectionAuthLocation) *gatewayapi.MCPConnectionAuthLocation {
 	if location == nil {
 		return nil
 	}
@@ -770,7 +770,7 @@ func (s *Service) referencingEnvironments(ctx context.Context, connectionName st
 		return nil, err
 	}
 
-	var envList clawarmorv1alpha1.EnvironmentList
+	var envList agentzv1alpha1.EnvironmentList
 	if err := s.k8sClient.List(ctx, &envList, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, err
 	}
@@ -789,7 +789,7 @@ func (s *Service) referencingEnvironments(ctx context.Context, connectionName st
 	return referrers, nil
 }
 
-func (s *Service) putMCPConnectionSecret(ctx context.Context, ref clawarmorv1alpha1.MCPConnectionSecretRef, record any) error {
+func (s *Service) putMCPConnectionSecret(ctx context.Context, ref agentzv1alpha1.MCPConnectionSecretRef, record any) error {
 	encoded, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("marshal mcp connection secret: %w", err)
@@ -802,7 +802,7 @@ func (s *Service) putMCPConnectionSecret(ctx context.Context, ref clawarmorv1alp
 	return nil
 }
 
-func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec clawarmorv1alpha1.MCPConnectionSpec, req gatewayapi.MCPConnectionCredentials) *apiError {
+func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1alpha1.MCPConnectionSpec, req gatewayapi.MCPConnectionCredentials) *apiError {
 	if spec.Auth == nil {
 		return newAPIError(
 			http.StatusBadRequest,
@@ -929,27 +929,27 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec clawarmo
 	}
 }
 
-func setMCPConnectionSecretRef(namespace, name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
+func setMCPConnectionSecretRef(namespace, name string, spec *agentzv1alpha1.MCPConnectionSpec) {
 	if spec == nil || spec.Auth == nil {
 		return
 	}
 
 	path := internalmcp.SecretPath(namespace, name)
 	if spec.Auth.Bearer != nil {
-		spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+		spec.Auth.Bearer.SecretRef = &agentzv1alpha1.MCPConnectionSecretRef{
 			Path: path,
 			Key:  internalmcp.SecretRecordKey,
 		}
 	}
 	if spec.Auth.OAuth != nil {
-		spec.Auth.OAuth.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
+		spec.Auth.OAuth.SecretRef = &agentzv1alpha1.MCPConnectionSecretRef{
 			Path: path,
 			Key:  internalmcp.SecretRecordKey,
 		}
 	}
 }
 
-func (s *Service) deleteMCPConnectionCredentials(ctx context.Context, conn clawarmorv1alpha1.MCPConnection) error {
+func (s *Service) deleteMCPConnectionCredentials(ctx context.Context, conn agentzv1alpha1.MCPConnection) error {
 	if conn.Spec.Auth == nil {
 		return nil
 	}
@@ -962,7 +962,7 @@ func (s *Service) deleteMCPConnectionCredentials(ctx context.Context, conn clawa
 	return nil
 }
 
-func (s *Service) deleteMCPConnectionSecret(ctx context.Context, ref clawarmorv1alpha1.MCPConnectionSecretRef) error {
+func (s *Service) deleteMCPConnectionSecret(ctx context.Context, ref agentzv1alpha1.MCPConnectionSecretRef) error {
 	if err := s.baoKV.DeleteMetadata(ctx, ref.Path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return err
 	}

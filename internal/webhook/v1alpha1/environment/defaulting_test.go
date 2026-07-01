@@ -5,15 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	envcontroller "github.com/accuknox/clawarmor/internal/controller/environment"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	envcontroller "github.com/accuknox/agentz/internal/controller/environment"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 func TestDefaulterDefaultCanonicalizesHosts(t *testing.T) {
 	t.Parallel()
 
-	env := &clawarmorv1alpha1.Environment{
-		Spec: clawarmorv1alpha1.EnvironmentSpec{
+	env := &agentzv1alpha1.Environment{
+		Spec: agentzv1alpha1.EnvironmentSpec{
 			AllowedHosts: []string{
 				" GitHub.com ",
 				"*.GitHub.com",

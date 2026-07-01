@@ -3,17 +3,17 @@
 set -euo pipefail
 
 readonly nixpkgs_ref='github:NixOS/nixpkgs/567a49d1913ce81ac6e9582e3553dd90a955875f'
-readonly nixpkgs_path_file='/etc/clawarmor/nixpkgs.path'
-readonly agent_root="${CLAWARMOR_NIX_ROOT:-/mnt/nix}"
+readonly nixpkgs_path_file='/etc/agentz/nixpkgs.path'
+readonly agent_root="${AGENTZ_NIX_ROOT:-/mnt/nix}"
 readonly agent_store_root="${agent_root}/nix"
 readonly agent_profile_link="${agent_root}/profile"
-readonly agent_cache_key_file="${agent_root}/.clawarmor-env-key"
+readonly agent_cache_key_file="${agent_root}/.agentz-env-key"
 readonly link_root='/tmp/nix-link'
 readonly runtime_store='/runtime-nix-store'
-readonly cache_schema='clawarmor-nix-init-v3-full-env'
-readonly shared_cache_root='/nix-shared/.clawarmor-nix-init'
-readonly shared_cache_meta_dir='/nix-shared/.clawarmor-nix-init/envs'
-readonly shared_cache_lock_dir='/nix-shared/.clawarmor-nix-init/locks'
+readonly cache_schema='agentz-nix-init-v3-full-env'
+readonly shared_cache_root='/nix-shared/.agentz-nix-init'
+readonly shared_cache_meta_dir='/nix-shared/.agentz-nix-init/envs'
+readonly shared_cache_lock_dir='/nix-shared/.agentz-nix-init/locks'
 readonly shared_cache_uri='file:///nix-shared?compression=none'
 readonly shared_cache_substituter='file:///nix-shared?compression=none&priority=100'
 readonly mode="${1:-prepare-agent-store}"
@@ -227,7 +227,7 @@ write_env_expr() {
         echo '    )'
         echo '  else'
         echo '    pkgs.buildEnv {'
-        echo '      name = "clawarmor-env";'
+        echo '      name = "agentz-env";'
         echo '      paths = plainPaths ++ runtimePaths;'
         echo '      pathsToLink = [ "/" ];'
         echo '      derivationArgs = {'
@@ -388,7 +388,7 @@ build_env_path() {
     local nixpkgs_path
     local env_path
 
-    expr_path='/tmp/clawarmor-env.nix'
+    expr_path='/tmp/agentz-env.nix'
     nixpkgs_path="$(read_nixpkgs_path)"
 
     write_env_expr "$expr_path" "$nixpkgs_path"
@@ -401,7 +401,7 @@ eval_env_path() {
     local nixpkgs_path
     local env_path
 
-    expr_path='/tmp/clawarmor-env.nix'
+    expr_path='/tmp/agentz-env.nix'
     nixpkgs_path="$(read_nixpkgs_path)"
 
     write_env_expr "$expr_path" "$nixpkgs_path"

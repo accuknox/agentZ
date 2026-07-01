@@ -1,5 +1,5 @@
 {
-  description = "Infra for your AI agents";
+  description = "Control-plane for your AI agents";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
@@ -11,10 +11,10 @@
           pkgs = import nixpkgs { inherit system; };
           otel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
           cli = pkgs.buildGoModule {
-            pname = "clawarmor";
+            pname = "agentz";
             version = "0.1.0";
             src = ./.;
-            subPackages = [ "cmd/clawarmor" ];
+            subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
             vendorHash = "sha256-51d7SeEKb/1UUdC+woytR9uGe3b6JAoPDYdUQAcn6LQ=";
           };
@@ -127,7 +127,7 @@
               ];
             };
             agentImage = pkgs.dockerTools.buildLayeredImage {
-              name = "murtazau/clawarmor-agent";
+              name = "murtazau/agentz-agent";
               tag = "latest";
               contents = [
                 (pkgs.buildEnv {
@@ -143,25 +143,25 @@
               fakeRootCommands = ''
                 ${pkgs.dockerTools.shadowSetup}
 
-                groupadd -g 1000 clawarmor
+                groupadd -g 1000 agentz
                 useradd \
                   -u 1000 \
                   -g 1000 \
-                  -d /home/clawarmor \
+                  -d /home/agentz \
                   -s ${pkgs.bashInteractive}/bin/bash \
-                  clawarmor
+                  agentz
 
-                mkdir -p /home/clawarmor /tmp
-                chown -R 1000:1000 /home/clawarmor
+                mkdir -p /home/agentz /tmp
+                chown -R 1000:1000 /home/agentz
                 chmod 1777 /tmp
               '';
               enableFakechroot = true;
               config = {
                 User = "1000:1000";
-                WorkingDir = "/home/clawarmor";
+                WorkingDir = "/home/agentz";
                 Env = [
-                  "HOME=/home/clawarmor"
-                  "USER=clawarmor"
+                  "HOME=/home/agentz"
+                  "USER=agentz"
                   "PATH=/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin"
                   "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
                 ];

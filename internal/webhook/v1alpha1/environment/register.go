@@ -19,12 +19,12 @@ package environment
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // RegisterWithManager registers the Environment webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.Environment{}).
+	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.Environment{}).
 		WithValidator(NewValidator(mgr.GetClient())).
 		WithDefaulter(NewDefaulter()).
 		Complete()

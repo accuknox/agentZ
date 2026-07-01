@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 const mcpGraphAgentNodePrefix = "agent:"

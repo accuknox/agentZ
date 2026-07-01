@@ -1,10 +1,10 @@
 ## Append samples of your project ##
 resources:
-- clawarmor_v1alpha1_agent.yaml
-- clawarmor_v1alpha1_environment.yaml
-- clawarmor_v1alpha1_workflowschedule.yaml
-- clawarmor_v1alpha1_workflowrun.yaml
-- clawarmor_v1alpha1_mcpconnection.yaml
-- clawarmor_v1alpha1_tenant.yaml
-- clawarmor_v1alpha1_secret.yaml
+- agentz_v1alpha1_agent.yaml
+- agentz_v1alpha1_environment.yaml
+- agentz_v1alpha1_workflowschedule.yaml
+- agentz_v1alpha1_workflowrun.yaml
+- agentz_v1alpha1_mcpconnection.yaml
+- agentz_v1alpha1_tenant.yaml
+- agentz_v1alpha1_secret.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

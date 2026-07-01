@@ -24,9 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	"github.com/accuknox/clawarmor/internal/workflow"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/workflow"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // Validator validates WorkflowRun resources.
@@ -37,22 +37,22 @@ type Validator struct {
 	tokenPath     string
 }
 
-var _ admission.Validator[*clawarmorv1alpha1.WorkflowRun] = &Validator{}
+var _ admission.Validator[*agentzv1alpha1.WorkflowRun] = &Validator{}
 
 // NewValidator builds a WorkflowRun validator.
 func NewValidator(gatewayClient *gatewayapi.ClientWithResponses, tokenPath string) *Validator {
 	return &Validator{gatewayClient: gatewayClient, tokenPath: tokenPath}
 }
 
-// +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-workflowrun,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowruns,verbs=create;update,versions=v1alpha1,name=vworkflowrun-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-agentz-accuknox-com-v1alpha1-workflowrun,mutating=false,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=workflowruns,verbs=create;update,versions=v1alpha1,name=vworkflowrun-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // ValidateCreate validates WorkflowRun creation.
-func (v *Validator) ValidateCreate(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) (admission.Warnings, error) {
+func (v *Validator) ValidateCreate(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
 	return nil, v.validateRun(ctx, run)
 }
 
 // ValidateUpdate validates WorkflowRun updates.
-func (v *Validator) ValidateUpdate(ctx context.Context, oldRun, newRun *clawarmorv1alpha1.WorkflowRun) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(ctx context.Context, oldRun, newRun *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
 	err := v.validateRun(ctx, newRun)
 	if err != nil {
 		return nil, err
@@ -74,11 +74,11 @@ func (v *Validator) ValidateUpdate(ctx context.Context, oldRun, newRun *clawarmo
 }
 
 // ValidateDelete validates WorkflowRun deletion.
-func (v *Validator) ValidateDelete(_ context.Context, _ *clawarmorv1alpha1.WorkflowRun) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func (v *Validator) validateRun(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
+func (v *Validator) validateRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
 	var fields field.ErrorList
 	if run.Spec.ScheduleRef != nil && run.Spec.ScheduleRef.Name == "" {
 		fields = append(fields, field.Invalid(

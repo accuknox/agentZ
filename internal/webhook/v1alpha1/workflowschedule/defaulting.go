@@ -21,7 +21,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -35,12 +35,12 @@ const (
 // +kubebuilder:object:generate=false
 type Defaulter struct{}
 
-var _ admission.Defaulter[*clawarmorv1alpha1.WorkflowSchedule] = &Defaulter{}
+var _ admission.Defaulter[*agentzv1alpha1.WorkflowSchedule] = &Defaulter{}
 
-// +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-workflowschedule,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=workflowschedules,verbs=create;update,versions=v1alpha1,name=mworkflowschedule-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-agentz-accuknox-com-v1alpha1-workflowschedule,mutating=true,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=workflowschedules,verbs=create;update,versions=v1alpha1,name=mworkflowschedule-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Default applies fallback defaults when schema-level defaulting does not.
-func (d *Defaulter) Default(_ context.Context, schedule *clawarmorv1alpha1.WorkflowSchedule) error {
+func (d *Defaulter) Default(_ context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	if schedule.Spec.SuccessfulRunsHistoryLimit == nil {
 		schedule.Spec.SuccessfulRunsHistoryLimit = new(defaultSuccessfulRunsHistoryLimit)
 	}

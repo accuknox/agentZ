@@ -1,0 +1,10 @@
+apiVersion: agentz.accuknox.com/v1alpha1
+kind: Tenant
+metadata:
+  labels:
+    app.kubernetes.io/name: agentz
+    app.kubernetes.io/managed-by: kustomize
+  name: knox-sample
+spec:
+  organizationID: sample
+  userID: sample-user

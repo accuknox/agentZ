@@ -20,7 +20,7 @@ package externalversions
 import (
 	fmt "fmt"
 
-	v1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	v1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -51,19 +51,19 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=clawarmor, Version=v1alpha1
+	// Group=agentz, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("agents"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Agents().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().Agents().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("environments"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Environments().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().Environments().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("mcpconnections"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().MCPConnections().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().MCPConnections().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("secrets"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Secrets().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().Secrets().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowruns"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().WorkflowRuns().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().WorkflowRuns().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowschedules"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().WorkflowSchedules().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().WorkflowSchedules().Informer()}, nil
 
 	}
 

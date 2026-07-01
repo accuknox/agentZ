@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	observerdb "github.com/accuknox/clawarmor/internal/observer/db"
+	observerdb "github.com/accuknox/agentz/internal/observer/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

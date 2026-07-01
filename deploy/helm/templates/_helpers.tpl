@@ -1,16 +1,16 @@
-{{- define "clawarmor.chart" -}}
+{{- define "agentz.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" -}}
 {{- end -}}
 
-{{- define "clawarmor.labels" -}}
-helm.sh/chart: {{ include "clawarmor.chart" . }}
+{{- define "agentz.labels" -}}
+helm.sh/chart: {{ include "agentz.chart" . }}
 app.kubernetes.io/name: {{ .Chart.Name }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
-{{- define "clawarmor.gatewayFullname" -}}
+{{- define "agentz.gatewayFullname" -}}
 {{- if .Values.gateway.fullnameOverride -}}
 {{- .Values.gateway.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -18,7 +18,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 {{- end -}}
 
-{{- define "clawarmor.webFullname" -}}
+{{- define "agentz.webFullname" -}}
 {{- if .Values.web.fullnameOverride -}}
 {{- .Values.web.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}

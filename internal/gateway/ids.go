@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 type traceSessionPageCursor struct {
@@ -50,7 +50,7 @@ func requestID(r *http.Request) string {
 
 func validAgentName(w http.ResponseWriter, r *http.Request, agentName string, fields ...string) (string, bool) {
 	name := strings.TrimSpace(agentName)
-	if name != "" && name != clawarmorv1alpha1.AgentNameMCPConnection && len(name) <= 32 && len(validation.IsDNS1123Label(name)) == 0 {
+	if name != "" && name != agentzv1alpha1.AgentNameMCPConnection && len(name) <= 32 && len(validation.IsDNS1123Label(name)) == 0 {
 		return name, true
 	}
 

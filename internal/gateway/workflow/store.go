@@ -12,9 +12,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	workflowdb "github.com/accuknox/clawarmor/internal/gateway/workflow/db"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 var ErrWorkflowNotFound = errors.New("workflow not found")
@@ -199,7 +199,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 		wfSet[name] = struct{}{}
 	}
 
-	runList := &clawarmorv1alpha1.WorkflowRunList{}
+	runList := &agentzv1alpha1.WorkflowRunList{}
 	err = k8sClient.List(ctx, runList, ctrlclient.InNamespace(tenantNamespace))
 	if err != nil {
 		return nil, fmt.Errorf("list workflow runs: %w", err)
@@ -218,7 +218,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 		}
 	}
 
-	scheduleList := &clawarmorv1alpha1.WorkflowScheduleList{}
+	scheduleList := &agentzv1alpha1.WorkflowScheduleList{}
 	err = k8sClient.List(ctx, scheduleList, ctrlclient.InNamespace(tenantNamespace))
 	if err != nil {
 		return nil, fmt.Errorf("list workflow schedules: %w", err)

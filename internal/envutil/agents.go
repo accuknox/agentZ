@@ -5,7 +5,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const AgentByEnvironmentIndex = "spec.environmentRef.name"
@@ -14,10 +14,10 @@ const AgentByEnvironmentIndex = "spec.environmentRef.name"
 func IndexAgentsByEnvironment(ctx context.Context, idx client.FieldIndexer) error {
 	return idx.IndexField(
 		ctx,
-		&clawarmorv1alpha1.Agent{},
+		&agentzv1alpha1.Agent{},
 		AgentByEnvironmentIndex,
 		func(obj client.Object) []string {
-			agt, ok := obj.(*clawarmorv1alpha1.Agent)
+			agt, ok := obj.(*agentzv1alpha1.Agent)
 			if !ok {
 				return nil
 			}
@@ -33,7 +33,7 @@ func IndexAgentsByEnvironment(ctx context.Context, idx client.FieldIndexer) erro
 // ReferencedNames returns environment names referenced by agents.
 func ReferencedNames(ctx context.Context, c client.Client, ns string) (map[string]bool, error) {
 	refs := map[string]bool{}
-	agents := &clawarmorv1alpha1.AgentList{}
+	agents := &agentzv1alpha1.AgentList{}
 	if err := c.List(ctx, agents, client.InNamespace(ns)); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func ReferencedNames(ctx context.Context, c client.Client, ns string) (map[strin
 // spec.environmentRef.name. Scan the namespace in memory so the helper works
 // with both cached and uncached clients.
 func ReferencingAgentName(ctx context.Context, c client.Client, ns string, environmentName string) (string, error) {
-	agents := &clawarmorv1alpha1.AgentList{}
+	agents := &agentzv1alpha1.AgentList{}
 	if err := c.List(ctx, agents, client.InNamespace(ns)); err != nil {
 		return "", err
 	}

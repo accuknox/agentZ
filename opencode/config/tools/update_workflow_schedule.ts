@@ -65,7 +65,7 @@ export default tool({
         title: "Workflow schedule update unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return "CLAWARMOR_AGENT_NAME is not set. Configure the agent runtime before using update_workflow_schedule."
+      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before using update_workflow_schedule."
     }
 
     context.metadata({

@@ -9,19 +9,19 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 func TestValidatorValidateCreateRejectsInvalidAgentConfig(t *testing.T) {
 	t.Parallel()
 
-	agt := &clawarmorv1alpha1.Agent{
+	agt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
-		Spec: clawarmorv1alpha1.AgentSpec{
+		Spec: agentzv1alpha1.AgentSpec{
 			EnvironmentRef: &corev1.LocalObjectReference{},
 			Model:          "gpt-5",
 			Instruction:    strings.Repeat("a", 4097),
-			Providers: map[string]clawarmorv1alpha1.OpencodeProviderConfig{
+			Providers: map[string]agentzv1alpha1.OpencodeProviderConfig{
 				"openai": {
 					Env:     []string{"bad-name"},
 					BaseURL: "/v1",
@@ -39,8 +39,8 @@ func TestValidatorValidateCreateRejectsInvalidAgentConfig(t *testing.T) {
 func TestValidatorValidateCreateRejectsReservedAgentName(t *testing.T) {
 	t.Parallel()
 
-	agt := &clawarmorv1alpha1.Agent{
-		ObjectMeta: metav1.ObjectMeta{Name: clawarmorv1alpha1.AgentNameMCPConnection},
+	agt := &agentzv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: agentzv1alpha1.AgentNameMCPConnection},
 	}
 
 	_, err := NewValidator().ValidateCreate(context.Background(), agt)
@@ -53,9 +53,9 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 	t.Parallel()
 
 	validator := NewValidator()
-	oldAgt := &clawarmorv1alpha1.Agent{
+	oldAgt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
-		Spec: clawarmorv1alpha1.AgentSpec{
+		Spec: agentzv1alpha1.AgentSpec{
 			NixStoreSize: resource.MustParse("5Gi"),
 		},
 	}
@@ -72,7 +72,7 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 	valid.Spec.Model = "openai/gpt-5"
 	valid.Spec.SmallModel = "openai/gpt-5-mini"
 	valid.Spec.Instruction = "Follow repository instructions strictly."
-	valid.Spec.Providers = map[string]clawarmorv1alpha1.OpencodeProviderConfig{
+	valid.Spec.Providers = map[string]agentzv1alpha1.OpencodeProviderConfig{
 		"openai": {
 			Env:     []string{"OPENAI_API_KEY"},
 			BaseURL: "https://api.openai.com/v1",

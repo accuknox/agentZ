@@ -9,15 +9,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 func TestValidatorValidateCreateRejectsInvalidAllowedHosts(t *testing.T) {
 	t.Parallel()
 
-	env := &clawarmorv1alpha1.Environment{
+	env := &agentzv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{Name: "env"},
-		Spec: clawarmorv1alpha1.EnvironmentSpec{
+		Spec: agentzv1alpha1.EnvironmentSpec{
 			AllowedHosts: []string{"api.*.github.com", "10.0.0.1"},
 		},
 	}
@@ -32,21 +32,21 @@ func TestValidatorValidateDeleteRejectsReferencedEnvironment(t *testing.T) {
 	t.Parallel()
 
 	scheme := runtime.NewScheme()
-	if err := clawarmorv1alpha1.AddToScheme(scheme); err != nil {
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v", err)
 	}
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(&clawarmorv1alpha1.Agent{
+		WithObjects(&agentzv1alpha1.Agent{
 			ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "default"},
-			Spec: clawarmorv1alpha1.AgentSpec{
+			Spec: agentzv1alpha1.AgentSpec{
 				EnvironmentRef: &corev1.LocalObjectReference{Name: "env"},
 			},
 		}).
 		Build()
 
-	env := &clawarmorv1alpha1.Environment{
+	env := &agentzv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{Name: "env", Namespace: "default"},
 	}
 

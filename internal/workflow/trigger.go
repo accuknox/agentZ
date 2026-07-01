@@ -32,7 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const pollInterval = 2 * time.Second
@@ -73,9 +73,9 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 	}
 
 	scheme := runtime.NewScheme()
-	err := clawarmorv1alpha1.AddToScheme(scheme)
+	err := agentzv1alpha1.AddToScheme(scheme)
 	if err != nil {
-		return fmt.Errorf("add clawarmor scheme: %w", err)
+		return fmt.Errorf("add agentz scheme: %w", err)
 	}
 
 	restCfg, err := ctrl.GetConfig()
@@ -87,28 +87,28 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("create kubernetes client: %w", err)
 	}
 
-	schedule := &clawarmorv1alpha1.WorkflowSchedule{}
+	schedule := &agentzv1alpha1.WorkflowSchedule{}
 	key := types.NamespacedName{Namespace: cfg.Namespace, Name: cfg.ScheduleName}
 	err = k8sClient.Get(ctx, key, schedule)
 	if err != nil {
 		return fmt.Errorf("get workflow schedule: %w", err)
 	}
 
-	run := &clawarmorv1alpha1.WorkflowRun{
+	run := &agentzv1alpha1.WorkflowRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    cfg.Namespace,
 			GenerateName: cfg.ScheduleName + "-",
 			Labels: map[string]string{
-				"clawarmor.accuknox.com/workflow-schedule": cfg.ScheduleName,
+				"agentz.accuknox.com/workflow-schedule": cfg.ScheduleName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(
 					schedule,
-					clawarmorv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
+					agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
 				),
 			},
 		},
-		Spec: clawarmorv1alpha1.WorkflowRunSpec{
+		Spec: agentzv1alpha1.WorkflowRunSpec{
 			AgentName:      cfg.AgentName,
 			WorkflowName:   cfg.WorkflowName,
 			Inputs:         apiextensionsv1.JSON{Raw: rawInputs},
@@ -144,7 +144,7 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("wait for workflow run: %w", err)
 	}
-	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseSucceeded {
+	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseSucceeded {
 		slog.InfoContext(
 			ctx,
 			"workflow run finished successfully",
@@ -157,7 +157,7 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 		)
 		return nil
 	}
-	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseUnacked {
+	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseUnacked {
 		msg := run.Status.Message
 		if msg == "" {
 			msg = "workflow run completed without terminal status update"
@@ -200,12 +200,12 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-func waitForRun(ctx context.Context, k8sClient client.Client, key types.NamespacedName) (*clawarmorv1alpha1.WorkflowRun, error) {
+func waitForRun(ctx context.Context, k8sClient client.Client, key types.NamespacedName) (*agentzv1alpha1.WorkflowRun, error) {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
-		run := &clawarmorv1alpha1.WorkflowRun{}
+		run := &agentzv1alpha1.WorkflowRun{}
 		err := k8sClient.Get(ctx, key, run)
 		if err != nil {
 			if apierrors.IsNotFound(err) {

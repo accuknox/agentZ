@@ -35,11 +35,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/clawarmor/internal/envutil"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/envutil"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
+func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *agentzv1alpha1.Agent, allowedHosts []string) error {
 	sipLabels := sinjectorLabels(agt)
 	sipName := sinjectorName(agt)
 	if err := r.reconcileServiceAccount(ctx, agt, sipName, sipLabels); err != nil {
@@ -75,7 +75,7 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alp
 	return nil
 }
 
-func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	if r.Bao == nil {
 		return fmt.Errorf("openbao provisioner is not configured")
 	}
@@ -88,7 +88,7 @@ func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *clawarmorv1alpha
 	})
 }
 
-func (r *Reconciler) reconcileServiceAccount(ctx context.Context, agt *clawarmorv1alpha1.Agent, name string, labels map[string]string) error {
+func (r *Reconciler) reconcileServiceAccount(ctx context.Context, agt *agentzv1alpha1.Agent, name string, labels map[string]string) error {
 	current := &corev1.ServiceAccount{}
 	current.Name = name
 	current.Namespace = agt.Namespace
@@ -103,7 +103,7 @@ func (r *Reconciler) reconcileServiceAccount(ctx context.Context, agt *clawarmor
 	return nil
 }
 
-func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	role := &rbacv1.Role{}
 	role.Name = agt.Name + gatewayRoleNameSuffix
 	role.Namespace = agt.Namespace
@@ -111,7 +111,7 @@ func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *clawarmorv
 		role.Labels = resourceLabels(agt)
 		role.Annotations = agt.Annotations
 		role.Rules = []rbacv1.PolicyRule{{
-			APIGroups:     []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+			APIGroups:     []string{agentzv1alpha1.SchemeGroupVersion.Group},
 			Resources:     []string{"agents"},
 			ResourceNames: []string{agt.Name},
 			Verbs: []string{
@@ -157,7 +157,7 @@ func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *clawarmorv
 	return nil
 }
 
-func (r *Reconciler) reconcileSinjectorService(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) reconcileSinjectorService(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	current := &corev1.Service{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
@@ -180,7 +180,7 @@ func (r *Reconciler) reconcileSinjectorService(ctx context.Context, agt *clawarm
 	return nil
 }
 
-func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	desired := r.buildSinjectorDeployment(agt)
 	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return fmt.Errorf("set controller reference: %w", err)
@@ -213,7 +213,7 @@ func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *claw
 	return nil
 }
 
-func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	role := &rbacv1.Role{}
 	role.Name = sinjectorName(agt)
 	role.Namespace = agt.Namespace
@@ -222,12 +222,12 @@ func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *clawarmo
 		role.Annotations = agt.Annotations
 		role.Rules = []rbacv1.PolicyRule{
 			{
-				APIGroups: []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+				APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
 				Resources: []string{"secrets"},
 				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
-				APIGroups: []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+				APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
 				Resources: []string{"secrets/status"},
 				Verbs:     []string{"get", "update", "patch"},
 			},
@@ -262,7 +262,7 @@ func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *clawarmo
 	return nil
 }
 
-func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
+func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *agentzv1alpha1.Agent, allowedHosts []string) error {
 	hosts, err := envutil.ParseHostList(allowedHosts)
 	if err != nil {
 		return err
@@ -281,7 +281,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 		current.Spec = &ciliumapi.Rule{
 			EndpointSelector: ciliumapi.NewESFromLabels(
 				ciliumlabels.NewLabel(
-					"clawarmor.accuknox.com/sinjector",
+					"agentz.accuknox.com/sinjector",
 					agt.Name,
 					ciliumlabels.LabelSourceK8s,
 				),
@@ -301,7 +301,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 								ciliumlabels.LabelSourceK8s,
 							),
 							ciliumlabels.NewLabel(
-								"clawarmor.accuknox.com/agent",
+								"agentz.accuknox.com/agent",
 								agt.Name,
 								ciliumlabels.LabelSourceK8s,
 							),
@@ -384,7 +384,7 @@ func kubeAPIServerEgressRule() ciliumapi.EgressRule {
 	}
 }
 
-func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *appsv1.Deployment {
+func (r *Reconciler) buildSinjectorDeployment(agt *agentzv1alpha1.Agent) *appsv1.Deployment {
 	labels := sinjectorLabels(agt)
 	podLabels := make(map[string]string, len(labels))
 	maps.Copy(podLabels, labels)
@@ -472,7 +472,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 	}
 }
 
-func (r *Reconciler) sinjectorReady(ctx context.Context, agt *clawarmorv1alpha1.Agent) (bool, error) {
+func (r *Reconciler) sinjectorReady(ctx context.Context, agt *agentzv1alpha1.Agent) (bool, error) {
 	dep := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: sinjectorName(agt), Namespace: agt.Namespace}, dep)
 	if err != nil {

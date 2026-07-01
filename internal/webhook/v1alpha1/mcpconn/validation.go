@@ -30,8 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/accuknox/clawarmor/internal/mcp"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/mcp"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 var reservedAuthHeaders = map[string]struct{}{
@@ -43,7 +43,7 @@ var reservedAuthHeaders = map[string]struct{}{
 	"Connection":          {},
 }
 
-// +kubebuilder:webhook:path=/validate-clawarmor-accuknox-com-v1alpha1-mcpconnection,mutating=false,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=create;update,versions=v1alpha1,name=vmcpconnection-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-agentz-accuknox-com-v1alpha1-mcpconnection,mutating=false,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=mcpconnections,verbs=create;update,versions=v1alpha1,name=vmcpconnection-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Validator validates MCPConnection resources.
 //
@@ -52,7 +52,7 @@ type Validator struct {
 	kubeClient client.Client
 }
 
-var _ admission.Validator[*clawarmorv1alpha1.MCPConnection] = &Validator{}
+var _ admission.Validator[*agentzv1alpha1.MCPConnection] = &Validator{}
 
 // NewValidator builds an MCPConnection validator.
 func NewValidator(kubeClient client.Client) *Validator {
@@ -60,7 +60,7 @@ func NewValidator(kubeClient client.Client) *Validator {
 }
 
 // Validate checks one MCPConnection resource against the admission rules.
-func Validate(conn *clawarmorv1alpha1.MCPConnection) error {
+func Validate(conn *agentzv1alpha1.MCPConnection) error {
 	fields := field.ErrorList{}
 	specPath := field.NewPath("spec")
 
@@ -83,12 +83,12 @@ func Validate(conn *clawarmorv1alpha1.MCPConnection) error {
 }
 
 // ValidateCreate validates MCPConnection creation.
-func (v *Validator) ValidateCreate(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
+func (v *Validator) ValidateCreate(_ context.Context, conn *agentzv1alpha1.MCPConnection) (admission.Warnings, error) {
 	return nil, Validate(conn)
 }
 
 // ValidateUpdate validates MCPConnection updates.
-func (v *Validator) ValidateUpdate(_ context.Context, oldConn, newConn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(_ context.Context, oldConn, newConn *agentzv1alpha1.MCPConnection) (admission.Warnings, error) {
 	if err := Validate(newConn); err != nil {
 		return nil, err
 	}
@@ -109,12 +109,12 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldConn, newConn *clawarmo
 }
 
 // ValidateDelete validates MCPConnection deletion.
-func (v *Validator) ValidateDelete(ctx context.Context, conn *clawarmorv1alpha1.MCPConnection) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(ctx context.Context, conn *agentzv1alpha1.MCPConnection) (admission.Warnings, error) {
 	if v.kubeClient == nil {
 		return nil, nil
 	}
 
-	envs := &clawarmorv1alpha1.EnvironmentList{}
+	envs := &agentzv1alpha1.EnvironmentList{}
 	err := v.kubeClient.List(
 		ctx,
 		envs,
@@ -135,7 +135,7 @@ func (v *Validator) ValidateDelete(ctx context.Context, conn *clawarmorv1alpha1.
 	return nil, fmt.Errorf("mcp connection is referenced by environments: %s", strings.Join(names, ", "))
 }
 
-func validateEndpoint(endpoint clawarmorv1alpha1.MCPConnectionEndpoint, path *field.Path) field.ErrorList {
+func validateEndpoint(endpoint agentzv1alpha1.MCPConnectionEndpoint, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 
 	rawURL := strings.TrimSpace(endpoint.URL)
@@ -212,7 +212,7 @@ func validateEndpoint(endpoint clawarmorv1alpha1.MCPConnectionEndpoint, path *fi
 	return fields
 }
 
-func validateAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
+func validateAuth(namespace, name string, auth *agentzv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth == nil {
 		return fields
@@ -238,7 +238,7 @@ func validateAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnectionA
 	return fields
 }
 
-func validateBearerAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnectionBearerAuth, path *field.Path) field.ErrorList {
+func validateBearerAuth(namespace, name string, auth *agentzv1alpha1.MCPConnectionBearerAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth.SecretRef != nil {
 		fields = append(fields, validateSecretRef(
@@ -252,7 +252,7 @@ func validateBearerAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConne
 	return fields
 }
 
-func validateOAuthAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, path *field.Path) field.ErrorList {
+func validateOAuthAuth(namespace, name string, auth *agentzv1alpha1.MCPConnectionOAuthAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	fields = append(fields, validateOptionalHTTPSURL(
 		auth.Issuer,
@@ -296,7 +296,7 @@ func validateOAuthAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnec
 	return fields
 }
 
-func validateSecretRef(namespace, name string, ref *clawarmorv1alpha1.MCPConnectionSecretRef, path *field.Path) field.ErrorList {
+func validateSecretRef(namespace, name string, ref *agentzv1alpha1.MCPConnectionSecretRef, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	wantPath := mcp.SecretPath(namespace, name)
 
@@ -337,7 +337,7 @@ func validateSecretRef(namespace, name string, ref *clawarmorv1alpha1.MCPConnect
 	return fields
 }
 
-func validateAuthLocation(location *clawarmorv1alpha1.MCPConnectionAuthLocation, path *field.Path) field.ErrorList {
+func validateAuthLocation(location *agentzv1alpha1.MCPConnectionAuthLocation, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if location == nil {
 		return fields
@@ -439,7 +439,7 @@ func validateOptionalHTTPSURL(raw string, path *field.Path) field.ErrorList {
 	return fields
 }
 
-func validateAuthHeaderConflicts(headers map[string]string, auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
+func validateAuthHeaderConflicts(headers map[string]string, auth *agentzv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth == nil {
 		return fields

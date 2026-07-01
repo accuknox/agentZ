@@ -35,9 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	"github.com/accuknox/clawarmor/internal/gwreq"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/gwreq"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -48,7 +48,7 @@ const (
 	sessionStartupGrace = 30 * time.Second
 )
 
-const workflowRunFinalizer = "clawarmor.accuknox.com/workflowrun-session"
+const workflowRunFinalizer = "agentz.accuknox.com/workflowrun-session"
 
 //go:embed prompt.tmpl
 var promptTemplateText string
@@ -69,13 +69,13 @@ type Reconciler struct {
 	TokenPath     string
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=workflowruns/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns/finalizers,verbs=update
 
 // Reconcile drives one WorkflowRun through session start, timeout, and completion.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	run := &clawarmorv1alpha1.WorkflowRun{}
+	run := &agentzv1alpha1.WorkflowRun{}
 	err := r.Get(ctx, req.NamespacedName, run)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -97,7 +97,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	if run.Status.Phase == clawarmorv1alpha1.WorkflowRunPhaseUnknown {
+	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseUnknown {
 		if run.Status.CompletedAt != nil {
 			err = r.syncTerminalStatus(ctx, run)
 			if err != nil {
@@ -127,7 +127,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		err = r.failRun(
 			ctx,
 			run,
-			clawarmorv1alpha1.WorkflowRunReasonTimedOut,
+			agentzv1alpha1.WorkflowRunReasonTimedOut,
 			"workflow run timed out",
 			true,
 		)
@@ -138,9 +138,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	switch run.Status.Phase {
-	case clawarmorv1alpha1.WorkflowRunPhasePending:
+	case agentzv1alpha1.WorkflowRunPhasePending:
 		return r.reconcilePending(ctx, run)
-	case clawarmorv1alpha1.WorkflowRunPhaseRunning:
+	case agentzv1alpha1.WorkflowRunPhaseRunning:
 		return r.reconcileRunning(ctx, run)
 	default:
 		return ctrl.Result{}, nil
@@ -150,14 +150,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clawarmorv1alpha1.WorkflowRun{}).
+		For(&agentzv1alpha1.WorkflowRun{}).
 		Named("workflowrun").
 		Complete(r)
 }
 
-func (r *Reconciler) addFinalizer(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
+func (r *Reconciler) addFinalizer(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &clawarmorv1alpha1.WorkflowRun{}
+		current := &agentzv1alpha1.WorkflowRun{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
 		if err != nil {
 			return err
@@ -170,7 +170,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, run *clawarmorv1alpha1.Wo
 	})
 }
 
-func (r *Reconciler) finalizeRun(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
+func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
 	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
 		return nil
 	}
@@ -197,7 +197,7 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *clawarmorv1alpha1.Wor
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &clawarmorv1alpha1.WorkflowRun{}
+		current := &agentzv1alpha1.WorkflowRun{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -217,7 +217,7 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *clawarmorv1alpha1.Wor
 	})
 }
 
-func (r *Reconciler) reconcilePending(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) (ctrl.Result, error) {
+func (r *Reconciler) reconcilePending(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (ctrl.Result, error) {
 	err := r.startRun(ctx, run)
 	if err == nil {
 		return ctrl.Result{RequeueAfter: runRequeueInterval}, nil
@@ -226,7 +226,7 @@ func (r *Reconciler) reconcilePending(ctx context.Context, run *clawarmorv1alpha
 	failErr := r.failRun(
 		ctx,
 		run,
-		clawarmorv1alpha1.WorkflowRunReasonGatewayError,
+		agentzv1alpha1.WorkflowRunReasonGatewayError,
 		err.Error(),
 		false,
 	)
@@ -236,7 +236,7 @@ func (r *Reconciler) reconcilePending(ctx context.Context, run *clawarmorv1alpha
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) reconcileRunning(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) (ctrl.Result, error) {
+func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (ctrl.Result, error) {
 	done, err := r.sessionIdle(ctx, run)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("inspect workflow session status: %w", err)
@@ -259,13 +259,13 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *clawarmorv1alpha
 	}
 
 	now := metav1.Now()
-	err = r.patchStatus(ctx, run, func(status *clawarmorv1alpha1.WorkflowRunStatus) {
-		status.Phase = clawarmorv1alpha1.WorkflowRunPhaseUnacked
+	err = r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
+		status.Phase = agentzv1alpha1.WorkflowRunPhaseUnacked
 		status.Message = message
 		r.setTerminalStatus(
 			status,
 			run.Generation,
-			clawarmorv1alpha1.WorkflowRunReasonUnacked,
+			agentzv1alpha1.WorkflowRunReasonUnacked,
 			message,
 			&now,
 		)
@@ -276,7 +276,7 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *clawarmorv1alpha
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
+func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
 	if r.GatewayClient == nil {
 		return fmt.Errorf("gateway client is not configured")
 	}
@@ -299,14 +299,14 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 		},
 	}
 
-	agt := &clawarmorv1alpha1.Agent{}
+	agt := &agentzv1alpha1.Agent{}
 	agtKey := client.ObjectKey{Name: run.Spec.AgentName, Namespace: run.Namespace}
 	err := r.Get(ctx, agtKey, agt)
 	if err != nil {
 		return fmt.Errorf("get agent %q: %w", run.Spec.AgentName, err)
 	}
 	if agt.Spec.EnvironmentRef != nil {
-		env := &clawarmorv1alpha1.Environment{}
+		env := &agentzv1alpha1.Environment{}
 		envKey := client.ObjectKey{
 			Name:      agt.Spec.EnvironmentRef.Name,
 			Namespace: run.Namespace,
@@ -376,8 +376,8 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 	}
 
 	now := metav1.Now()
-	return r.patchStatus(ctx, run, func(status *clawarmorv1alpha1.WorkflowRunStatus) {
-		status.Phase = clawarmorv1alpha1.WorkflowRunPhaseRunning
+	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
+		status.Phase = agentzv1alpha1.WorkflowRunPhaseRunning
 		status.ObservedGeneration = run.Generation
 		status.SessionID = sessionID
 		status.StartedAt = &now
@@ -385,13 +385,13 @@ func (r *Reconciler) startRun(ctx context.Context, run *clawarmorv1alpha1.Workfl
 		r.setActiveConditions(
 			status,
 			run.Generation,
-			clawarmorv1alpha1.WorkflowRunReasonSessionRunning,
+			agentzv1alpha1.WorkflowRunReasonSessionRunning,
 			"workflow run is executing",
 		)
 	})
 }
 
-func (r *Reconciler) failRun(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
+func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
 	if abort && run.Status.SessionID != "" {
 		if r.GatewayClient != nil {
 			resp, err := r.GatewayClient.SessionAbortWithResponse(
@@ -425,16 +425,16 @@ func (r *Reconciler) failRun(ctx context.Context, run *clawarmorv1alpha1.Workflo
 	}
 
 	now := metav1.Now()
-	return r.patchStatus(ctx, run, func(status *clawarmorv1alpha1.WorkflowRunStatus) {
-		status.Phase = clawarmorv1alpha1.WorkflowRunPhaseFailed
+	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
+		status.Phase = agentzv1alpha1.WorkflowRunPhaseFailed
 		status.Message = message
 		r.setTerminalStatus(status, run.Generation, reason, message, &now)
 	})
 }
 
-func (r *Reconciler) patchStatus(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun, mutate func(*clawarmorv1alpha1.WorkflowRunStatus)) error {
+func (r *Reconciler) patchStatus(ctx context.Context, run *agentzv1alpha1.WorkflowRun, mutate func(*agentzv1alpha1.WorkflowRunStatus)) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &clawarmorv1alpha1.WorkflowRun{}
+		current := &agentzv1alpha1.WorkflowRun{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
 		if err != nil {
 			return err
@@ -445,7 +445,7 @@ func (r *Reconciler) patchStatus(ctx context.Context, run *clawarmorv1alpha1.Wor
 	})
 }
 
-func timedOut(run *clawarmorv1alpha1.WorkflowRun) bool {
+func timedOut(run *agentzv1alpha1.WorkflowRun) bool {
 	if run.Status.StartedAt == nil || run.Spec.TimeoutSeconds == 0 {
 		return false
 	}
@@ -453,20 +453,20 @@ func timedOut(run *clawarmorv1alpha1.WorkflowRun) bool {
 	return time.Now().After(deadline)
 }
 
-func sessionMayStillStart(run *clawarmorv1alpha1.WorkflowRun) bool {
+func sessionMayStillStart(run *agentzv1alpha1.WorkflowRun) bool {
 	if run.Status.StartedAt == nil {
 		return false
 	}
 	return time.Since(run.Status.StartedAt.Time) < sessionStartupGrace
 }
 
-func (r *Reconciler) syncTerminalStatus(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
-	reason := clawarmorv1alpha1.WorkflowRunReasonSucceeded
+func (r *Reconciler) syncTerminalStatus(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
+	reason := agentzv1alpha1.WorkflowRunReasonSucceeded
 	switch run.Status.Phase {
-	case clawarmorv1alpha1.WorkflowRunPhaseFailed:
-		reason = clawarmorv1alpha1.WorkflowRunReasonFailed
-	case clawarmorv1alpha1.WorkflowRunPhaseUnacked:
-		reason = clawarmorv1alpha1.WorkflowRunReasonUnacked
+	case agentzv1alpha1.WorkflowRunPhaseFailed:
+		reason = agentzv1alpha1.WorkflowRunReasonFailed
+	case agentzv1alpha1.WorkflowRunPhaseUnacked:
+		reason = agentzv1alpha1.WorkflowRunReasonUnacked
 	}
 	message := run.Status.Message
 	if message == "" {
@@ -478,42 +478,42 @@ func (r *Reconciler) syncTerminalStatus(ctx context.Context, run *clawarmorv1alp
 		completedAt = &now
 	}
 
-	return r.patchStatus(ctx, run, func(status *clawarmorv1alpha1.WorkflowRunStatus) {
+	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
 		status.Message = message
 		r.setTerminalStatus(status, run.Generation, reason, message, completedAt)
 	})
 }
 
-func (r *Reconciler) markPending(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) error {
-	return r.patchStatus(ctx, run, func(status *clawarmorv1alpha1.WorkflowRunStatus) {
-		status.Phase = clawarmorv1alpha1.WorkflowRunPhasePending
+func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
+	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
+		status.Phase = agentzv1alpha1.WorkflowRunPhasePending
 		status.ObservedGeneration = run.Generation
 		r.setActiveConditions(
 			status,
 			run.Generation,
-			clawarmorv1alpha1.WorkflowRunReasonPending,
+			agentzv1alpha1.WorkflowRunReasonPending,
 			"workflow run is pending",
 		)
 		status.SetCondition(metav1.Condition{
-			Type:               clawarmorv1alpha1.WorkflowRunConditionProgressing,
+			Type:               agentzv1alpha1.WorkflowRunConditionProgressing,
 			Status:             metav1.ConditionTrue,
-			Reason:             clawarmorv1alpha1.WorkflowRunReasonPending,
+			Reason:             agentzv1alpha1.WorkflowRunReasonPending,
 			Message:            "workflow run is waiting to start",
 			ObservedGeneration: run.Generation,
 		})
 	})
 }
 
-func (r *Reconciler) setActiveConditions(status *clawarmorv1alpha1.WorkflowRunStatus, generation int64, reason string, message string) {
+func (r *Reconciler) setActiveConditions(status *agentzv1alpha1.WorkflowRunStatus, generation int64, reason string, message string) {
 	status.SetCondition(metav1.Condition{
-		Type:               clawarmorv1alpha1.WorkflowRunConditionReady,
+		Type:               agentzv1alpha1.WorkflowRunConditionReady,
 		Status:             metav1.ConditionFalse,
 		Reason:             reason,
 		Message:            message,
 		ObservedGeneration: generation,
 	})
 	status.SetCondition(metav1.Condition{
-		Type:               clawarmorv1alpha1.WorkflowRunConditionProgressing,
+		Type:               agentzv1alpha1.WorkflowRunConditionProgressing,
 		Status:             metav1.ConditionTrue,
 		Reason:             reason,
 		Message:            message,
@@ -521,20 +521,20 @@ func (r *Reconciler) setActiveConditions(status *clawarmorv1alpha1.WorkflowRunSt
 	})
 }
 
-func (r *Reconciler) setTerminalStatus(status *clawarmorv1alpha1.WorkflowRunStatus, generation int64, reason string, message string, completedAt *metav1.Time) {
+func (r *Reconciler) setTerminalStatus(status *agentzv1alpha1.WorkflowRunStatus, generation int64, reason string, message string, completedAt *metav1.Time) {
 	status.ObservedGeneration = generation
 	if status.CompletedAt == nil {
 		status.CompletedAt = completedAt
 	}
 	status.SetCondition(metav1.Condition{
-		Type:               clawarmorv1alpha1.WorkflowRunConditionReady,
+		Type:               agentzv1alpha1.WorkflowRunConditionReady,
 		Status:             metav1.ConditionTrue,
 		Reason:             reason,
 		Message:            message,
 		ObservedGeneration: generation,
 	})
 	status.SetCondition(metav1.Condition{
-		Type:               clawarmorv1alpha1.WorkflowRunConditionProgressing,
+		Type:               agentzv1alpha1.WorkflowRunConditionProgressing,
 		Status:             metav1.ConditionFalse,
 		Reason:             reason,
 		Message:            message,
@@ -542,7 +542,7 @@ func (r *Reconciler) setTerminalStatus(status *clawarmorv1alpha1.WorkflowRunStat
 	})
 }
 
-func buildPromptRequest(run *clawarmorv1alpha1.WorkflowRun) ([]byte, error) {
+func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) ([]byte, error) {
 	inputs := "null"
 	if len(run.Spec.Inputs.Raw) > 0 {
 		inputs = string(run.Spec.Inputs.Raw)
@@ -577,7 +577,7 @@ func buildPromptRequest(run *clawarmorv1alpha1.WorkflowRun) ([]byte, error) {
 	return data, nil
 }
 
-func (r *Reconciler) sessionIdle(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) (bool, error) {
+func (r *Reconciler) sessionIdle(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (bool, error) {
 	if run.Status.SessionID == "" {
 		return false, nil
 	}
@@ -616,7 +616,7 @@ func (r *Reconciler) sessionIdle(ctx context.Context, run *clawarmorv1alpha1.Wor
 	return false, nil
 }
 
-func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *clawarmorv1alpha1.WorkflowRun) (string, error) {
+func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (string, error) {
 	if run.Status.SessionID == "" {
 		return "", nil
 	}

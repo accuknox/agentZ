@@ -23,17 +23,17 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-// +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-mcpconnection,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=create;update,versions=v1alpha1,name=mmcpconnection-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-agentz-accuknox-com-v1alpha1-mcpconnection,mutating=true,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=mcpconnections,verbs=create;update,versions=v1alpha1,name=mmcpconnection-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Defaulter sets default values for MCPConnection resources.
 //
 // +kubebuilder:object:generate=false
 type Defaulter struct{}
 
-var _ admission.Defaulter[*clawarmorv1alpha1.MCPConnection] = &Defaulter{}
+var _ admission.Defaulter[*agentzv1alpha1.MCPConnection] = &Defaulter{}
 
 // NewDefaulter builds an MCPConnection defaulter.
 func NewDefaulter() *Defaulter {
@@ -41,7 +41,7 @@ func NewDefaulter() *Defaulter {
 }
 
 // ApplyDefaults fills MCPConnection spec defaults shared by the gateway and webhook.
-func ApplyDefaults(spec *clawarmorv1alpha1.MCPConnectionSpec) {
+func ApplyDefaults(spec *agentzv1alpha1.MCPConnectionSpec) {
 	if spec == nil {
 		return
 	}
@@ -60,7 +60,7 @@ func ApplyDefaults(spec *clawarmorv1alpha1.MCPConnectionSpec) {
 }
 
 // Default applies defaults to an MCPConnection resource.
-func (d *Defaulter) Default(_ context.Context, conn *clawarmorv1alpha1.MCPConnection) error {
+func (d *Defaulter) Default(_ context.Context, conn *agentzv1alpha1.MCPConnection) error {
 	ApplyDefaults(&conn.Spec)
 	return nil
 }

@@ -44,9 +44,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/accuknox/clawarmor/internal/envutil"
-	"github.com/accuknox/clawarmor/internal/mcp"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/envutil"
+	"github.com/accuknox/agentz/internal/mcp"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // Reconciler reconciles Environment lifecycle protection and MCP runtime.
@@ -56,18 +56,18 @@ type Reconciler struct {
 	AgentGateway agentgatewayclientset.Interface
 }
 
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs,verbs=get;list;watch;patch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/finalizers,verbs=update
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=envs/status,verbs=get;patch;update
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=agents,verbs=get;list;watch
-// +kubebuilder:rbac:groups=clawarmor.accuknox.com,resources=mcpconnections,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=envs,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=envs/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=envs/status,verbs=get;patch;update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;httproutes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends;agentgatewayparameters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile prevents unsafe deletion and manages namespace MCP runtime.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	env := &clawarmorv1alpha1.Environment{}
+	env := &agentzv1alpha1.Environment{}
 	if err := r.Get(ctx, req.NamespacedName, env); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -143,9 +143,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // updateStatus computes spec-derived counters and persists them to status.
-func (r *Reconciler) updateStatus(ctx context.Context, env *clawarmorv1alpha1.Environment) error {
+func (r *Reconciler) updateStatus(ctx context.Context, env *agentzv1alpha1.Environment) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &clawarmorv1alpha1.Environment{}
+		current := &agentzv1alpha1.Environment{}
 		key := types.NamespacedName{Namespace: env.Namespace, Name: env.Name}
 		if err := r.Get(ctx, key, current); err != nil {
 			return client.IgnoreNotFound(err)
@@ -166,15 +166,15 @@ func (r *Reconciler) updateStatus(ctx context.Context, env *clawarmorv1alpha1.En
 // SetupWithManager sets up the Environment controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clawarmorv1alpha1.Environment{}).
-		Watches(&clawarmorv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.environmentForAgent)).
-		Watches(&clawarmorv1alpha1.MCPConnection{}, handler.EnqueueRequestsFromMapFunc(r.environmentsForMCPConnection)).
+		For(&agentzv1alpha1.Environment{}).
+		Watches(&agentzv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.environmentForAgent)).
+		Watches(&agentzv1alpha1.MCPConnection{}, handler.EnqueueRequestsFromMapFunc(r.environmentsForMCPConnection)).
 		Named("environment").
 		Complete(r)
 }
 
 func (r *Reconciler) environmentForAgent(_ context.Context, obj client.Object) []reconcile.Request {
-	agt, ok := obj.(*clawarmorv1alpha1.Agent)
+	agt, ok := obj.(*agentzv1alpha1.Agent)
 	if !ok {
 		return nil
 	}
@@ -191,12 +191,12 @@ func (r *Reconciler) environmentForAgent(_ context.Context, obj client.Object) [
 }
 
 func (r *Reconciler) environmentsForMCPConnection(ctx context.Context, obj client.Object) []reconcile.Request {
-	conn, ok := obj.(*clawarmorv1alpha1.MCPConnection)
+	conn, ok := obj.(*agentzv1alpha1.MCPConnection)
 	if !ok {
 		return nil
 	}
 
-	envs := &clawarmorv1alpha1.EnvironmentList{}
+	envs := &agentzv1alpha1.EnvironmentList{}
 	err := r.List(
 		ctx,
 		envs,
@@ -267,7 +267,7 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		refs := make([]metav1.OwnerReference, 0, len(owners))
 		for _, env := range owners {
 			refs = append(refs, metav1.OwnerReference{
-				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 				Kind:       "Environment",
 				Name:       env.Name,
 				UID:        env.UID,
@@ -286,7 +286,7 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 }
 
 //nolint:gocyclo
-func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha1.Environment, conns []clawarmorv1alpha1.MCPConnection) error {
+func (r *Reconciler) reconcileBackend(ctx context.Context, env *agentzv1alpha1.Environment, conns []agentzv1alpha1.MCPConnection) error {
 	client := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayBackends(env.Namespace)
 	name := mcp.EnvironmentBackendName(env.Name)
 
@@ -303,7 +303,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 		}
 	}
 
-	refsByName := make(map[string]clawarmorv1alpha1.MCPConnectionRef, len(env.Spec.MCPConnectionRefs))
+	refsByName := make(map[string]agentzv1alpha1.MCPConnectionRef, len(env.Spec.MCPConnectionRefs))
 	for _, ref := range env.Spec.MCPConnectionRefs {
 		name := strings.TrimSpace(ref.Name)
 		if name == "" {
@@ -316,7 +316,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 				name,
 			)
 		}
-		tools := make([]clawarmorv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
+		tools := make([]agentzv1alpha1.EnvironmentMCPTool, 0, len(ref.Tools))
 		seenTools := make(map[string]struct{}, len(ref.Tools))
 		for _, rawTool := range ref.Tools {
 			toolName := strings.TrimSpace(rawTool.Name)
@@ -336,18 +336,18 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 				)
 			}
 			seenTools[toolName] = struct{}{}
-			tools = append(tools, clawarmorv1alpha1.EnvironmentMCPTool{
+			tools = append(tools, agentzv1alpha1.EnvironmentMCPTool{
 				Name:           toolName,
 				RequireConsent: rawTool.RequireConsent,
 			})
 		}
-		refsByName[name] = clawarmorv1alpha1.MCPConnectionRef{
+		refsByName[name] = agentzv1alpha1.MCPConnectionRef{
 			Name:  name,
 			Tools: tools,
 		}
 	}
 
-	connsByName := make(map[string]clawarmorv1alpha1.MCPConnection, len(conns))
+	connsByName := make(map[string]agentzv1alpha1.MCPConnection, len(conns))
 	for _, conn := range conns {
 		connsByName[conn.Name] = conn
 	}
@@ -487,7 +487,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, env *clawarmorv1alpha
 	return nil
 }
 
-func (r *Reconciler) reconcileRoute(ctx context.Context, env *clawarmorv1alpha1.Environment) error {
+func (r *Reconciler) reconcileRoute(ctx context.Context, env *agentzv1alpha1.Environment) error {
 	route := &gwv1.HTTPRoute{}
 	route.Name = mcp.EnvironmentRouteName(env.Name)
 	route.Namespace = env.Namespace
@@ -529,7 +529,7 @@ func (r *Reconciler) reconcileRoute(ctx context.Context, env *clawarmorv1alpha1.
 	return nil
 }
 
-func (r *Reconciler) cleanupEnvironmentRuntime(ctx context.Context, env *clawarmorv1alpha1.Environment) error {
+func (r *Reconciler) cleanupEnvironmentRuntime(ctx context.Context, env *agentzv1alpha1.Environment) error {
 	route := &gwv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: env.Namespace,
@@ -551,13 +551,13 @@ func (r *Reconciler) cleanupEnvironmentRuntime(ctx context.Context, env *clawarm
 	return nil
 }
 
-func (r *Reconciler) gatewayOwners(ctx context.Context, namespace string) ([]clawarmorv1alpha1.Environment, error) {
-	envs := &clawarmorv1alpha1.EnvironmentList{}
+func (r *Reconciler) gatewayOwners(ctx context.Context, namespace string) ([]agentzv1alpha1.Environment, error) {
+	envs := &agentzv1alpha1.EnvironmentList{}
 	if err := r.List(ctx, envs, client.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list environments: %w", err)
 	}
 
-	owners := make([]clawarmorv1alpha1.Environment, 0, len(envs.Items))
+	owners := make([]agentzv1alpha1.Environment, 0, len(envs.Items))
 	for _, env := range envs.Items {
 		if !env.DeletionTimestamp.IsZero() {
 			continue
@@ -571,13 +571,13 @@ func (r *Reconciler) gatewayOwners(ctx context.Context, namespace string) ([]cla
 		}
 		owners = append(owners, env)
 	}
-	slices.SortFunc(owners, func(a, b clawarmorv1alpha1.Environment) int {
+	slices.SortFunc(owners, func(a, b agentzv1alpha1.Environment) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 	return owners, nil
 }
 
-func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespace string, owners []clawarmorv1alpha1.Environment) error {
+func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespace string, owners []agentzv1alpha1.Environment) error {
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.GatewayName,
@@ -589,7 +589,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 		refs := make([]metav1.OwnerReference, 0, len(owners))
 		for _, env := range owners {
 			refs = append(refs, metav1.OwnerReference{
-				APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+				APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 				Kind:       "Environment",
 				Name:       env.Name,
 				UID:        env.UID,
@@ -640,11 +640,11 @@ func gatewayNetworkPolicySpec(namespace string) *ciliumapi.Rule {
 						),
 						ciliumlabels.NewLabel(
 							"app.kubernetes.io/name",
-							"clawarmor-agent",
+							"agentz-agent",
 							ciliumlabels.LabelSourceK8s,
 						),
 						ciliumlabels.NewLabel(
-							"clawarmor.accuknox.com/managed",
+							"agentz.accuknox.com/managed",
 							"true",
 							ciliumlabels.LabelSourceK8s,
 						),

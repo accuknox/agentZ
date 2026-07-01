@@ -16,12 +16,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-const internalTenantNamespaceHeader = "X-ClawArmor-Tenant-Namespace"
+const internalTenantNamespaceHeader = "X-AgentZ-Tenant-Namespace"
 
 type authContextKey struct{}
 
@@ -34,7 +34,7 @@ type requestAuth struct {
 }
 
 type tenantRequest struct {
-	tenant *clawarmorv1alpha1.Tenant
+	tenant *agentzv1alpha1.Tenant
 }
 
 // GetTenant handles GET /api/tenant.
@@ -50,8 +50,8 @@ func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantName := clawarmorv1alpha1.TenantName(auth.claims.TenantID)
-	var tenant clawarmorv1alpha1.Tenant
+	tenantName := agentzv1alpha1.TenantName(auth.claims.TenantID)
+	var tenant agentzv1alpha1.Tenant
 	err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Name: tenantName}, &tenant)
 	if err != nil {
 		writeError(w, r, mapKubeHTTPError("get tenant", err))
@@ -74,12 +74,12 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantName := clawarmorv1alpha1.TenantName(auth.claims.TenantID)
-	tenant := clawarmorv1alpha1.Tenant{
+	tenantName := agentzv1alpha1.TenantName(auth.claims.TenantID)
+	tenant := agentzv1alpha1.Tenant{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tenantName,
 		},
-		Spec: clawarmorv1alpha1.TenantSpec{
+		Spec: agentzv1alpha1.TenantSpec{
 			OrganizationID: auth.claims.TenantID,
 			UserID:         auth.claims.UserID,
 		},
@@ -115,7 +115,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tenantView(&tenant))
 }
 
-func tenantView(tenant *clawarmorv1alpha1.Tenant) gatewayapi.Tenant {
+func tenantView(tenant *agentzv1alpha1.Tenant) gatewayapi.Tenant {
 	conditions := make([]gatewayapi.TenantCondition, 0, len(tenant.Status.Conditions))
 	var ready, degraded bool
 	for _, cond := range tenant.Status.Conditions {
@@ -125,10 +125,10 @@ func tenantView(tenant *clawarmorv1alpha1.Tenant) gatewayapi.Tenant {
 			Status:  gatewayapi.TenantConditionStatus(cond.Status),
 			Type:    cond.Type,
 		})
-		if cond.Type == clawarmorv1alpha1.TenantConditionReady && cond.Status == metav1.ConditionTrue {
+		if cond.Type == agentzv1alpha1.TenantConditionReady && cond.Status == metav1.ConditionTrue {
 			ready = true
 		}
-		if cond.Type == clawarmorv1alpha1.TenantConditionDegraded && cond.Status == metav1.ConditionTrue {
+		if cond.Type == agentzv1alpha1.TenantConditionDegraded && cond.Status == metav1.ConditionTrue {
 			degraded = true
 		}
 	}
@@ -214,7 +214,7 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 			case apierrors.IsNotFound(err):
 				cleanupNamespace := auth.tenantNamespace
 				if cleanupNamespace == "" && auth.claims != nil {
-					cleanupNamespace = clawarmorv1alpha1.TenantName(
+					cleanupNamespace = agentzv1alpha1.TenantName(
 						auth.claims.TenantID,
 					)
 				}
@@ -294,7 +294,7 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 		return nil
 	}
 
-	list := &clawarmorv1alpha1.AgentList{}
+	list := &agentzv1alpha1.AgentList{}
 	err := s.k8sClient.List(ctx, list, ctrlclient.InNamespace(namespace))
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("list tenant agents: %w", err)
@@ -429,7 +429,7 @@ func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, tenantNam
 		review.Status.User,
 		authorizationv1.ResourceAttributes{
 			Verb:     "use",
-			Group:    clawarmorv1alpha1.SchemeGroupVersion.Group,
+			Group:    agentzv1alpha1.SchemeGroupVersion.Group,
 			Resource: "tenants",
 			Name:     tenant.Name,
 		},
@@ -479,7 +479,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		)
 	}
 
-	agt := &clawarmorv1alpha1.Agent{}
+	agt := &agentzv1alpha1.Agent{}
 	err = s.k8sClient.Get(
 		r.Context(),
 		ctrlclient.ObjectKey{
@@ -502,7 +502,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		review.Status.User,
 		authorizationv1.ResourceAttributes{
 			Verb:      verb,
-			Group:     clawarmorv1alpha1.SchemeGroupVersion.Group,
+			Group:     agentzv1alpha1.SchemeGroupVersion.Group,
 			Resource:  "agents",
 			Namespace: agt.Namespace,
 			Name:      agt.Name,
@@ -677,7 +677,7 @@ func tenantNamespace(ctx context.Context) (string, error) {
 	return req.tenant.Status.Namespace, nil
 }
 
-func tenantObject(ctx context.Context) (*clawarmorv1alpha1.Tenant, error) {
+func tenantObject(ctx context.Context) (*agentzv1alpha1.Tenant, error) {
 	req, ok := tenantState(ctx)
 	if !ok || req.tenant == nil {
 		return nil, fmt.Errorf("missing tenant context")
@@ -689,12 +689,12 @@ func tenantRoute(r *http.Request) bool {
 	return r.URL.Path == "/api/tenant"
 }
 
-func tenantReady(tenant *clawarmorv1alpha1.Tenant) bool {
+func tenantReady(tenant *agentzv1alpha1.Tenant) bool {
 	if tenant == nil {
 		return false
 	}
 	for _, cond := range tenant.Status.Conditions {
-		if cond.Type != clawarmorv1alpha1.TenantConditionReady {
+		if cond.Type != agentzv1alpha1.TenantConditionReady {
 			continue
 		}
 		return cond.Status == metav1.ConditionTrue
@@ -702,10 +702,10 @@ func tenantReady(tenant *clawarmorv1alpha1.Tenant) bool {
 	return false
 }
 
-func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*clawarmorv1alpha1.Tenant, error) {
+func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1alpha1.Tenant, error) {
 	if auth.claims != nil {
-		tenant := &clawarmorv1alpha1.Tenant{}
-		name := clawarmorv1alpha1.TenantName(auth.claims.TenantID)
+		tenant := &agentzv1alpha1.Tenant{}
+		name := agentzv1alpha1.TenantName(auth.claims.TenantID)
 		err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: name}, tenant)
 		if err != nil {
 			return nil, err
@@ -722,7 +722,7 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*clawarmorv
 	}
 
 	if auth.tenantName != "" {
-		tenant := &clawarmorv1alpha1.Tenant{}
+		tenant := &agentzv1alpha1.Tenant{}
 		err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: auth.tenantName}, tenant)
 		if err != nil {
 			return nil, err
@@ -733,7 +733,7 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*clawarmorv
 	return s.findTenantByNamespace(ctx, auth.tenantNamespace)
 }
 
-func tenantMatchesClaims(tenant *clawarmorv1alpha1.Tenant, claims *gatewayClaims) bool {
+func tenantMatchesClaims(tenant *agentzv1alpha1.Tenant, claims *gatewayClaims) bool {
 	if tenant == nil || claims == nil {
 		return false
 	}
@@ -741,8 +741,8 @@ func tenantMatchesClaims(tenant *clawarmorv1alpha1.Tenant, claims *gatewayClaims
 		tenant.Spec.UserID == strings.TrimSpace(claims.UserID)
 }
 
-func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace string) (*clawarmorv1alpha1.Tenant, error) {
-	list := &clawarmorv1alpha1.TenantList{}
+func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace string) (*agentzv1alpha1.Tenant, error) {
+	list := &agentzv1alpha1.TenantList{}
 	if err := s.k8sClient.List(ctx, list); err != nil {
 		return nil, fmt.Errorf("list tenants: %w", err)
 	}
@@ -753,7 +753,7 @@ func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace str
 		}
 	}
 	return nil, apierrors.NewNotFound(
-		clawarmorv1alpha1.Resource("tenant"),
+		agentzv1alpha1.Resource("tenant"),
 		tenantNamespace,
 	)
 }

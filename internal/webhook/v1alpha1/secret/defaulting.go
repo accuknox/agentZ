@@ -21,19 +21,19 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/accuknox/clawarmor/internal/sinjector"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/sinjector"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// +kubebuilder:webhook:path=/mutate-clawarmor-accuknox-com-v1alpha1-secret,mutating=true,failurePolicy=fail,sideEffects=None,groups=clawarmor.accuknox.com,resources=secrets,verbs=create;update,versions=v1alpha1,name=msecret-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-agentz-accuknox-com-v1alpha1-secret,mutating=true,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=secrets,verbs=create;update,versions=v1alpha1,name=msecret-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // Defaulter sets shared defaults for Secret resources.
 //
 // +kubebuilder:object:generate=false
 type Defaulter struct{}
 
-var _ admission.Defaulter[*clawarmorv1alpha1.Secret] = &Defaulter{}
+var _ admission.Defaulter[*agentzv1alpha1.Secret] = &Defaulter{}
 
 // NewDefaulter builds a Secret defaulter.
 func NewDefaulter() *Defaulter {
@@ -41,7 +41,7 @@ func NewDefaulter() *Defaulter {
 }
 
 // ApplyDefaults stabilizes Secret spec values shared by the gateway and webhook.
-func ApplyDefaults(spec *clawarmorv1alpha1.SecretSpec) {
+func ApplyDefaults(spec *agentzv1alpha1.SecretSpec) {
 	if spec == nil {
 		return
 	}
@@ -67,7 +67,7 @@ func ApplyDefaults(spec *clawarmorv1alpha1.SecretSpec) {
 }
 
 // Default applies defaults to one Secret resource.
-func (d *Defaulter) Default(_ context.Context, secret *clawarmorv1alpha1.Secret) error {
+func (d *Defaulter) Default(_ context.Context, secret *agentzv1alpha1.Secret) error {
 	ApplyDefaults(&secret.Spec)
 	return nil
 }

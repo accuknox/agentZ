@@ -1,6 +1,6 @@
 # Secret Injection
 
-ClawArmor implements a zero-trust secret management model where agent
+AgentZ implements a zero-trust secret management model where agent
 containers never receive secret values directly. Instead, a per-agent proxy
 (sinjector) intercepts outbound requests, resolves secret references from
 OpenBao, and injects the actual values before forwarding traffic to upstream
@@ -15,7 +15,7 @@ make authenticated requests to external services. This creates risk:
 - The agent's runtime environment contains sensitive credentials
 - If the agent is compromised, all secrets are exposed
 
-ClawArmor eliminates this attack surface by removing secrets from the agent
+AgentZ eliminates this attack surface by removing secrets from the agent
 container entirely.
 
 ## Architecture
@@ -29,9 +29,9 @@ sequenceDiagram
     participant OpenBao as OpenBao
     participant Upstream as Upstream Service
 
-    Note over Agent: ENV: OPENAI_API_KEY<br/>= clawarmor:resolve:env:api-key
+    Note over Agent: ENV: OPENAI_API_KEY<br/>= agentz:resolve:env:api-key
 
-    Agent->>Proxy: HTTP Request<br/>Authorization: Bearer<br/>clawarmor:resolve:env:api-key
+    Agent->>Proxy: HTTP Request<br/>Authorization: Bearer<br/>agentz:resolve:env:api-key
 
     Note over Proxy: Intercept TLS<br/>Decrypt with CA cert
 
@@ -49,14 +49,14 @@ The sinjector is a sidecar container running alongside the agent. It
 implements an HTTP proxy with man-in-the-middle (MITM) capabilities:
 
 1. **Certificate Management**: The proxy presents a dynamically-generated TLS
-   certificate signed by a CA that ClawArmor manages. The agent trusts this CA
+   certificate signed by a CA that AgentZ manages. The agent trusts this CA
    implicitly because the CA bundle is mounted into the agent's trust store.
 2. **Request Interception**: The agent container is configured to use the
    sinjector as its HTTP/HTTPS proxy. All outbound traffic flows through the
    proxy.
 3. **Placeholder Rewriting**: The proxy scans request headers, query
    parameters, and URL paths for secret placeholders in the format
-   `clawarmor:resolve:env:{secret-name}`.
+   `agentz:resolve:env:{secret-name}`.
 4. **Secret Resolution**: When a placeholder is found, the proxy fetches the
    corresponding secret from OpenBao using the agent's Kubernetes service
    account identity.

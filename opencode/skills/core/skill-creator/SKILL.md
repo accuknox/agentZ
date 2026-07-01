@@ -250,9 +250,9 @@ Skill creation involves these steps:
 
 1. Understand the skill with concrete examples
 2. Plan reusable skill contents (scripts, references, assets)
-3. Initialize the skill (run `clawarmor skill init <skill-name>`)
+3. Initialize the skill (run `agentz skill init <skill-name>`)
 4. Edit the skill (implement resources and write SKILL.md)
-5. Validate the skill (run `clawarmor skill validate ~/.agents/skills/<skill-name>`)
+5. Validate the skill (run `agentz skill validate ~/.agents/skills/<skill-name>`)
 6. Iterate based on real usage
 
 Follow these steps in order.
@@ -321,20 +321,20 @@ list of the reusable resources to include: scripts, references, and assets.
 Skip this step only if the skill being developed already exists. In this case,
 continue to the next step.
 
-Run `clawarmor skill init <skill-name>` for a new skill.
+Run `agentz skill init <skill-name>` for a new skill.
 
 Usage:
 
 ```bash
-clawarmor skill init <skill-name> [--resource scripts] [--resource references] [--resource assets] [--examples]
+agentz skill init <skill-name> [--resource scripts] [--resource references] [--resource assets] [--examples]
 ```
 
 Examples:
 
 ```bash
-clawarmor skill init my-skill
-clawarmor skill init my-skill --resource scripts --resource references
-clawarmor skill init my-skill --resource scripts --examples
+agentz skill init my-skill
+agentz skill init my-skill --resource scripts --resource references
+agentz skill init my-skill --resource scripts --examples
 ```
 
 It:
@@ -393,7 +393,7 @@ Once development of the skill is complete, validate the skill folder to catch
 basic issues early:
 
 ```bash
-clawarmor skill validate <path/to/skill-folder>
+agentz skill validate <path/to/skill-folder>
 ```
 
 The command checks YAML front matter format, required fields, and naming

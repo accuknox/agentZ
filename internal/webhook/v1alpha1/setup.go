@@ -20,14 +20,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	agentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/agent"
-	environmentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/environment"
-	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
-	secretwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/secret"
-	tenantwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/tenant"
-	workflowrunwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowrun"
-	workflowschedulewebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowschedule"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/agent"
+	environmentwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/environment"
+	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
+	secretwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/secret"
+	tenantwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/tenant"
+	workflowrunwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowrun"
+	workflowschedulewebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowschedule"
 )
 
 // AgentWebhookConfig configures Agent defaulting behavior.

@@ -19,7 +19,7 @@ package agent
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // WebhookConfig configures Agent defaulting behavior.
@@ -29,7 +29,7 @@ type WebhookConfig struct {
 
 // RegisterWithManager registers the Agent webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager, cfg WebhookConfig) error {
-	return ctrl.NewWebhookManagedBy(mgr, &clawarmorv1alpha1.Agent{}).
+	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.Agent{}).
 		WithValidator(NewValidator()).
 		WithDefaulter(NewDefaulter(cfg)).
 		Complete()

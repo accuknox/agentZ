@@ -36,7 +36,7 @@ spec:
         - name: manager
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["/clawarmor"]
+          command: ["/agentz"]
           args:
             - manager
             - --log-level={{ .Values.config.logLevel }}
@@ -123,7 +123,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            - mountPath: /var/run/secrets/clawarmor/gateway
+            - mountPath: /var/run/secrets/agentz/gateway
               name: gateway-token
               readOnly: true
           {{- if .Values.config.enableWebhooks }}

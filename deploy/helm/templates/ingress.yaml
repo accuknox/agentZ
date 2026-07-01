@@ -11,7 +11,7 @@ metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "clawarmor.labels" . | nindent 4 }}
+    {{- include "agentz.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -29,28 +29,28 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "clawarmor.webFullname" $ }}
+                name: {{ include "agentz.webFullname" $ }}
                 port:
                   number: {{ $.Values.web.service.port }}
           - path: /api/gateway
             pathType: Prefix
             backend:
               service:
-                name: {{ include "clawarmor.webFullname" $ }}
+                name: {{ include "agentz.webFullname" $ }}
                 port:
                   number: {{ $.Values.web.service.port }}
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: {{ include "clawarmor.gatewayFullname" $ }}
+                name: {{ include "agentz.gatewayFullname" $ }}
                 port:
                   number: {{ $.Values.gateway.service.port }}
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "clawarmor.webFullname" $ }}
+                name: {{ include "agentz.webFullname" $ }}
                 port:
                   number: {{ $.Values.web.service.port }}
     {{- end }}

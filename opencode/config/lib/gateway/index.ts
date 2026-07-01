@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs"
 
 import { client } from "./client/client.gen"
 
-const gatewayUrl = process.env.CLAWARMOR_GATEWAY_URL?.trim()
+const gatewayUrl = process.env.AGENTZ_GATEWAY_URL?.trim()
 const gatewayBaseUrl = gatewayUrl ? gatewayUrl.replace(/\/+$/, "") : "http://localhost:8090"
-const gatewayTokenPath = process.env.CLAWARMOR_GATEWAY_TOKEN_PATH?.trim()
+const gatewayTokenPath = process.env.AGENTZ_GATEWAY_TOKEN_PATH?.trim()
 
 client.setConfig({
   auth: () => {

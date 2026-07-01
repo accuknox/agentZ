@@ -14,13 +14,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/accuknox/clawarmor/internal/oauth"
-	secretstore "github.com/accuknox/clawarmor/internal/secret"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	"github.com/accuknox/agentz/internal/oauth"
+	secretstore "github.com/accuknox/agentz/internal/secret"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 type secretRuntimeStatus struct {
-	state       clawarmorv1alpha1.SecretState
+	state       agentzv1alpha1.SecretState
 	condition   string
 	reason      string
 	message     string
@@ -112,7 +112,7 @@ func (r *resolver) probeSecrets(ctx context.Context) error {
 	return nil
 }
 
-func (r *resolver) probeSecret(ctx context.Context, secret *clawarmorv1alpha1.Secret) error {
+func (r *resolver) probeSecret(ctx context.Context, secret *agentzv1alpha1.Secret) error {
 	status := r.secretRuntimeStatus(ctx, secret)
 	now := time.Now().UTC()
 	r.probeTimesMu.Lock()
@@ -121,7 +121,7 @@ func (r *resolver) probeSecret(ctx context.Context, secret *clawarmorv1alpha1.Se
 	return r.writeSecretStatus(ctx, secret.Namespace, secret.Name, status)
 }
 
-func (r *resolver) secretRuntimeStatus(ctx context.Context, secret *clawarmorv1alpha1.Secret) secretRuntimeStatus {
+func (r *resolver) secretRuntimeStatus(ctx context.Context, secret *agentzv1alpha1.Secret) secretRuntimeStatus {
 	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
 	rawSecret, err := r.kv.Get(ctx, path)
 	if err != nil {
@@ -129,7 +129,7 @@ func (r *resolver) secretRuntimeStatus(ctx context.Context, secret *clawarmorv1a
 			return acceptedSecretStatus()
 		}
 		return degradedSecretStatus(
-			clawarmorv1alpha1.SecretReasonReconcileFailed,
+			agentzv1alpha1.SecretReasonReconcileFailed,
 			fmt.Sprintf("read openbao runtime: %v", err),
 		)
 	}
@@ -138,47 +138,47 @@ func (r *resolver) secretRuntimeStatus(ctx context.Context, secret *clawarmorv1a
 	}
 
 	switch secret.Spec.Type {
-	case clawarmorv1alpha1.SecretTypeStatic:
+	case agentzv1alpha1.SecretTypeStatic:
 		record, err := secretstore.DecodeRecord[secretstore.StaticRecord](rawSecret.Data)
 		if err != nil {
-			return degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error())
+			return degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error())
 		}
-		if record.Type != clawarmorv1alpha1.SecretTypeStatic {
+		if record.Type != agentzv1alpha1.SecretTypeStatic {
 			return degradedSecretStatus(
-				clawarmorv1alpha1.SecretReasonReconcileFailed,
+				agentzv1alpha1.SecretReasonReconcileFailed,
 				fmt.Sprintf("runtime record type %q does not match secret type %q", record.Type, secret.Spec.Type),
 			)
 		}
 		if _, err := ParseSecretHosts(record.Hosts); err != nil {
-			return degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error())
+			return degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error())
 		}
 		if err := validateSecretValue(record.Value); err != nil {
-			return degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error())
+			return degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error())
 		}
 		return readySecretStatus(nil, nil)
-	case clawarmorv1alpha1.SecretTypeOAuth:
+	case agentzv1alpha1.SecretTypeOAuth:
 		return r.oauthRuntimeStatus(ctx, secret, rawSecret.Data)
 	default:
 		return degradedSecretStatus(
-			clawarmorv1alpha1.SecretReasonReconcileFailed,
+			agentzv1alpha1.SecretReasonReconcileFailed,
 			fmt.Sprintf("unsupported secret type %q", secret.Spec.Type),
 		)
 	}
 }
 
-func (r *resolver) oauthRuntimeStatus(ctx context.Context, secret *clawarmorv1alpha1.Secret, raw map[string]any) secretRuntimeStatus {
+func (r *resolver) oauthRuntimeStatus(ctx context.Context, secret *agentzv1alpha1.Secret, raw map[string]any) secretRuntimeStatus {
 	record, err := secretstore.DecodeRecord[secretstore.OAuthRecord](raw)
 	if err != nil {
-		return degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error())
+		return degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error())
 	}
-	if record.Type != clawarmorv1alpha1.SecretTypeOAuth {
+	if record.Type != agentzv1alpha1.SecretTypeOAuth {
 		return degradedSecretStatus(
-			clawarmorv1alpha1.SecretReasonReconcileFailed,
+			agentzv1alpha1.SecretReasonReconcileFailed,
 			fmt.Sprintf("runtime record type %q does not match secret type %q", record.Type, secret.Spec.Type),
 		)
 	}
 	if _, err := ParseSecretHosts(record.Hosts); err != nil {
-		return degradedSecretStatus(clawarmorv1alpha1.SecretReasonReconcileFailed, err.Error())
+		return degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error())
 	}
 	if record.Token == nil || strings.TrimSpace(record.Token.AccessToken) == "" {
 		return acceptedSecretStatus()
@@ -192,7 +192,7 @@ func (r *resolver) oauthRuntimeStatus(ctx context.Context, secret *clawarmorv1al
 
 	refreshed, err := r.refreshOAuth(ctx, secret.Spec.Key, record)
 	if err != nil {
-		return degradedSecretStatus(clawarmorv1alpha1.SecretReasonRefreshFailed, err.Error())
+		return degradedSecretStatus(agentzv1alpha1.SecretReasonRefreshFailed, err.Error())
 	}
 	if refreshed.Token == nil || strings.TrimSpace(refreshed.Token.AccessToken) == "" {
 		return acceptedSecretStatus()
@@ -213,7 +213,7 @@ func (r *resolver) writeStatusForKey(ctx context.Context, key string, status sec
 	}
 }
 
-func (r *resolver) secretForKey(key string) (*clawarmorv1alpha1.Secret, error) {
+func (r *resolver) secretForKey(key string) (*agentzv1alpha1.Secret, error) {
 	items, err := r.secrets.List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ func (r *resolver) secretForKey(key string) (*clawarmorv1alpha1.Secret, error) {
 
 func (r *resolver) writeSecretStatus(ctx context.Context, namespace, name string, next secretRuntimeStatus) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		secret := &clawarmorv1alpha1.Secret{}
+		secret := &agentzv1alpha1.Secret{}
 		key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
 		if err := r.k8sClient.Get(ctx, key, secret); err != nil {
 			return ctrlclient.IgnoreNotFound(err)
@@ -238,7 +238,7 @@ func (r *resolver) writeSecretStatus(ctx context.Context, namespace, name string
 		now := metav1.NewTime(time.Now().UTC())
 		secret.Status.State = next.state
 		secret.Status.ObservedGeneration = secret.Generation
-		secret.Status.RuntimeRef = &clawarmorv1alpha1.SecretRuntimeRef{Path: path}
+		secret.Status.RuntimeRef = &agentzv1alpha1.SecretRuntimeRef{Path: path}
 		secret.Status.LastRuntimeUpdateTime = &now
 		secret.Status.TokenExpiryTime = nil
 		if next.tokenExpiry != nil && !next.tokenExpiry.IsZero() {
@@ -253,7 +253,7 @@ func (r *resolver) writeSecretStatus(ctx context.Context, namespace, name string
 		secret.Status.LastRefreshFailureTime = nil
 		secret.Status.LastRefreshFailureReason = ""
 		secret.Status.LastRefreshFailureMessage = ""
-		if next.state == clawarmorv1alpha1.SecretStateDegraded {
+		if next.state == agentzv1alpha1.SecretStateDegraded {
 			secret.Status.LastRefreshFailureTime = &now
 			secret.Status.LastRefreshFailureReason = next.reason
 			secret.Status.LastRefreshFailureMessage = next.message
@@ -272,18 +272,18 @@ func (r *resolver) writeSecretStatus(ctx context.Context, namespace, name string
 
 func acceptedSecretStatus() secretRuntimeStatus {
 	return secretRuntimeStatus{
-		state:     clawarmorv1alpha1.SecretStateAccepted,
-		condition: clawarmorv1alpha1.SecretConditionAccepted,
-		reason:    clawarmorv1alpha1.SecretReasonAccepted,
+		state:     agentzv1alpha1.SecretStateAccepted,
+		condition: agentzv1alpha1.SecretConditionAccepted,
+		reason:    agentzv1alpha1.SecretReasonAccepted,
 		message:   "Secret runtime is pending",
 	}
 }
 
 func readySecretStatus(tokenExpiry *time.Time, refreshTime *time.Time) secretRuntimeStatus {
 	return secretRuntimeStatus{
-		state:       clawarmorv1alpha1.SecretStateReady,
-		condition:   clawarmorv1alpha1.SecretConditionReady,
-		reason:      clawarmorv1alpha1.SecretReasonReady,
+		state:       agentzv1alpha1.SecretStateReady,
+		condition:   agentzv1alpha1.SecretConditionReady,
+		reason:      agentzv1alpha1.SecretReasonReady,
 		message:     "Secret runtime is ready",
 		tokenExpiry: tokenExpiry,
 		refreshTime: refreshTime,
@@ -292,8 +292,8 @@ func readySecretStatus(tokenExpiry *time.Time, refreshTime *time.Time) secretRun
 
 func degradedSecretStatus(reason, message string) secretRuntimeStatus {
 	return secretRuntimeStatus{
-		state:     clawarmorv1alpha1.SecretStateDegraded,
-		condition: clawarmorv1alpha1.SecretConditionDegraded,
+		state:     agentzv1alpha1.SecretStateDegraded,
+		condition: agentzv1alpha1.SecretConditionDegraded,
 		reason:    reason,
 		message:   message,
 	}

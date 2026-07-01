@@ -7,16 +7,16 @@ domain: accuknox.com
 layout:
 - go.kubebuilder.io/v4
 namespaced: true
-projectName: clawarmor
-repo: github.com/accuknox/clawarmor
+projectName: agentz
+repo: github.com/accuknox/agentz
 resources:
 - api:
     crdVersion: v1
   controller: true
   domain: accuknox.com
-  group: clawarmor
+  group: agentz
   kind: Agent
-  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -27,9 +27,9 @@ resources:
     namespaced: true
   controller: true
   domain: accuknox.com
-  group: clawarmor
+  group: agentz
   kind: Environment
-  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   plural: envs
   version: v1alpha1
   webhooks:
@@ -41,9 +41,9 @@ resources:
     namespaced: true
   controller: true
   domain: accuknox.com
-  group: clawarmor
+  group: agentz
   kind: WorkflowSchedule
-  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -54,9 +54,9 @@ resources:
     namespaced: true
   controller: true
   domain: accuknox.com
-  group: clawarmor
+  group: agentz
   kind: WorkflowRun
-  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -67,9 +67,9 @@ resources:
     namespaced: true
   controller: true
   domain: accuknox.com
-  group: clawarmor
+  group: agentz
   kind: MCPConnection
-  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -80,9 +80,9 @@ resources:
     namespaced: true
   controller: true
   domain: accuknox.com
-  group: clawarmor
+  group: agentz
   kind: Tenant
-  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -93,9 +93,9 @@ resources:
     namespaced: true
   controller: true
   domain: accuknox.com
-  group: clawarmor
+  group: agentz
   kind: Secret
-  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true

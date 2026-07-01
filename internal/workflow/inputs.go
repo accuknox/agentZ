@@ -13,7 +13,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 const draft202012SchemaURL = "https://json-schema.org/draft/2020-12/schema"

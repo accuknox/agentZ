@@ -17,8 +17,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -389,7 +389,7 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 		)
 	}
 
-	tenantName := clawarmorv1alpha1.TenantName(strings.TrimSpace(key.ReferenceID))
+	tenantName := agentzv1alpha1.TenantName(strings.TrimSpace(key.ReferenceID))
 	if tenantName == "" {
 		return requestAuth{}, newAPIError(
 			http.StatusUnauthorized,

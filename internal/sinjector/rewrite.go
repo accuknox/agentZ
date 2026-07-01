@@ -9,7 +9,7 @@ import (
 
 const (
 	// PlaceholderPrefix marks an env secret reference in proxied requests.
-	PlaceholderPrefix = "clawarmor:resolve:env:"
+	PlaceholderPrefix = "agentz:resolve:env:"
 	maxSecretNameLen  = 128
 )
 

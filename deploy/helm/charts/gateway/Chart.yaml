@@ -1,6 +1,6 @@
 apiVersion: v2
 name: gateway
-description: ClawArmor gateway service.
+description: AgentZ gateway service.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

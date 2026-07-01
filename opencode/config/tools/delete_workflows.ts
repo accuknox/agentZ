@@ -53,7 +53,7 @@ export default tool({
         title: "Workflow deletion unavailable",
         metadata: { reason: "missing_agent_name" },
       })
-      return "CLAWARMOR_AGENT_NAME is not set. Configure the agent runtime before using delete_workflows."
+      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before using delete_workflows."
     }
 
     const workflowNames = Array.from(new Set(args.workflow_names))

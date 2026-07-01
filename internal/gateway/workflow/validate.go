@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	"github.com/accuknox/clawarmor/internal/gateway/apiutil"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	"github.com/accuknox/clawarmor/internal/workflow"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/workflow"
 )
 
 var skillNamePattern = regexp.MustCompile("^[a-z0-9]+(-[a-z0-9]+)*$")

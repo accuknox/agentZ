@@ -62,7 +62,7 @@ func signHost(ca tls.Certificate, hosts []string) (*tls.Certificate, error) {
 	template := x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			Organization: []string{"clawarmor"},
+			Organization: []string{"agentz"},
 		},
 		NotBefore:   time.Now().Add(-24 * time.Hour),
 		NotAfter:    time.Now().Add(365 * 24 * time.Hour),

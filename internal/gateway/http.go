@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/accuknox/clawarmor/internal/gateway/apiutil"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 type apiError = apiutil.APIError

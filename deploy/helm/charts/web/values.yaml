@@ -4,7 +4,7 @@ fullnameOverride: ""
 replicaCount: 1
 
 image:
-  repository: murtazau/clawarmor-web
+  repository: murtazau/agentz-web
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -34,7 +34,7 @@ env:
   # Optional internal gateway base URL used only by server-side web requests.
   internalGatewayBaseURL: ""
   # Audience for Better Auth JWTs consumed by the gateway.
-  gatewayJWTAudience: clawarmor-gateway
+  gatewayJWTAudience: agentz-gateway
   # Optional GitHub OAuth client ID.
   githubClientID: ""
   # Optional GitHub allow-list user ID.

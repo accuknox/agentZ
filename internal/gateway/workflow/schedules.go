@@ -15,9 +15,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	inputworkflow "github.com/accuknox/clawarmor/internal/workflow"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	inputworkflow "github.com/accuknox/agentz/internal/workflow"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 var ErrScheduleAgentMismatch = errors.New("workflow schedule agent mismatch")
@@ -158,7 +158,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		return gatewayapi.WorkflowSchedule{}, err
 	}
 
-	agt := &clawarmorv1alpha1.Agent{}
+	agt := &agentzv1alpha1.Agent{}
 	agtKey := ctrlclient.ObjectKey{
 		Name:      agtName,
 		Namespace: ns,
@@ -172,9 +172,9 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		)
 	}
 
-	schedule := &clawarmorv1alpha1.WorkflowSchedule{
+	schedule := &agentzv1alpha1.WorkflowSchedule{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "WorkflowSchedule",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -183,7 +183,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(
 					agt,
-					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Agent"),
+					agentzv1alpha1.SchemeGroupVersion.WithKind("Agent"),
 				),
 			},
 		},
@@ -201,7 +201,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 }
 
 func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, limit int, offset int) ([]gatewayapi.WorkflowSchedule, int, error) {
-	list := &clawarmorv1alpha1.WorkflowScheduleList{}
+	list := &agentzv1alpha1.WorkflowScheduleList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
 	}
@@ -240,7 +240,7 @@ func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, 
 }
 
 func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string) error {
-	schedule := &clawarmorv1alpha1.WorkflowSchedule{}
+	schedule := &agentzv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
 	if err := k8sClient.Get(ctx, key, schedule); err != nil {
 		return err
@@ -255,7 +255,7 @@ func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 }
 
 func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string, req gatewayapi.UpdateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
-	current := &clawarmorv1alpha1.WorkflowSchedule{}
+	current := &agentzv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
 	if err := k8sClient.Get(ctx, key, current); err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
@@ -282,7 +282,7 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		return gatewayapi.WorkflowSchedule{}, err
 	}
 
-	updated := &clawarmorv1alpha1.WorkflowSchedule{}
+	updated := &agentzv1alpha1.WorkflowSchedule{}
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := k8sClient.Get(ctx, key, current); err != nil {
 			return err
@@ -306,7 +306,7 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	return scheduleViewFromCRD(updated)
 }
 
-func scheduleViewFromCRD(schedule *clawarmorv1alpha1.WorkflowSchedule) (gatewayapi.WorkflowSchedule, error) {
+func scheduleViewFromCRD(schedule *agentzv1alpha1.WorkflowSchedule) (gatewayapi.WorkflowSchedule, error) {
 	inputs := gatewayapi.JSONValue{}
 	raw := schedule.Spec.Inputs.Raw
 	if len(raw) == 0 {
@@ -382,7 +382,7 @@ func validateScheduleRequest(agtName string, wfName string, name string, specInp
 	return fields
 }
 
-func applyScheduleSpec(spec *clawarmorv1alpha1.WorkflowScheduleSpec, agtName string, wfName string, specInput scheduleSpecInput, inputsJSON []byte) {
+func applyScheduleSpec(spec *agentzv1alpha1.WorkflowScheduleSpec, agtName string, wfName string, specInput scheduleSpecInput, inputsJSON []byte) {
 	spec.AgentName = agtName
 	spec.WorkflowName = wfName
 	spec.Schedule = specInput.schedule

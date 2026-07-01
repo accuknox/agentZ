@@ -1,10 +1,10 @@
 # Agent Sandbox
 
-Every ClawArmor agent runs inside a security sandbox that enforces strict
+Every AgentZ agent runs inside a security sandbox that enforces strict
 boundaries around network access, OS-level (process, file and network)
 visibility, and compute resources.
 
-ClawArmor uses Cilium network policies to implement a default-deny posture. An
+AgentZ uses Cilium network policies to implement a default-deny posture. An
 agent pod cannot send traffic to any destination unless an explicit rule
 permits it.
 
@@ -47,7 +47,7 @@ graph TB
     CNP -.->|All Other| B3
 ```
 
-When an agent is created, the ClawArmor controller generates a Cilium network
+When an agent is created, the AgentZ controller generates a Cilium network
 policy that controls all outbound traffic. The policy permits:
 
 1. **DNS Resolution** - Outbound traffic to the cluster's DNS service on port

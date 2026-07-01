@@ -17,9 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
 
-	gatewaydb "github.com/accuknox/clawarmor/internal/gateway/db"
-	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // ListAgents handles GET /api/agent.
@@ -116,7 +116,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agt := s.agentFromCreateRequest(req, ns, tenant, name)
-	_, err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Create(
+	_, err = s.resolver.client.AgentzV1alpha1().Agents(ns).Create(
 		r.Context(),
 		agt,
 		metav1.CreateOptions{},
@@ -209,9 +209,9 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	var updated *clawarmorv1alpha1.Agent
+	var updated *agentzv1alpha1.Agent
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, getErr := s.resolver.client.ClawarmorV1alpha1().Agents(ns).Get(
+		agt, getErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(
 			r.Context(),
 			row.AgentName,
 			metav1.GetOptions{},
@@ -220,7 +220,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return getErr
 		}
 		applyUpdateAgentRequest(agt, req)
-		updated, getErr = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Update(
+		updated, getErr = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(
 			r.Context(),
 			agt,
 			metav1.UpdateOptions{},
@@ -267,7 +267,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		writeError(w, r, mapGatewayStoreError("get agent", err))
 		return
 	}
-	err = s.resolver.client.ClawarmorV1alpha1().Agents(ns).Delete(
+	err = s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(
 		r.Context(),
 		row.AgentName,
 		metav1.DeleteOptions{
@@ -521,7 +521,7 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 				Field: "name", Message: "must be a valid DNS label",
 			})
 		}
-		if name == clawarmorv1alpha1.AgentNameMCPConnection {
+		if name == agentzv1alpha1.AgentNameMCPConnection {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   "name",
 				Message: "reserved agent name",
@@ -560,7 +560,7 @@ func (s *Service) validateAgentEnvironmentName(ctx context.Context, namespace st
 		return fields, nil
 	}
 
-	var env clawarmorv1alpha1.Environment
+	var env agentzv1alpha1.Environment
 	key := types.NamespacedName{Namespace: namespace, Name: name}
 	if err := s.k8sClient.Get(ctx, key, &env); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -574,33 +574,33 @@ func (s *Service) validateAgentEnvironmentName(ctx context.Context, namespace st
 	return nil, nil
 }
 
-func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, namespace string, tenant *clawarmorv1alpha1.Tenant, name string) *clawarmorv1alpha1.Agent {
+func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, namespace string, tenant *agentzv1alpha1.Tenant, name string) *agentzv1alpha1.Agent {
 	env := []corev1.EnvVar{}
 	if req.Env != nil {
 		env = envVarsFromMap(*req.Env)
 	}
-	agt := &clawarmorv1alpha1.Agent{
+	agt := &agentzv1alpha1.Agent{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clawarmorv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "Agent",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				labelManagedBy: "clawarmor-agent-gateway",
+				labelManagedBy: "agentz-agent-gateway",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(
 					tenant,
-					clawarmorv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+					agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
 				),
 			},
 		},
-		Spec: clawarmorv1alpha1.AgentSpec{
+		Spec: agentzv1alpha1.AgentSpec{
 			Image: s.cfg.AgentImage,
 			Env:   env,
-			Telemetry: clawarmorv1alpha1.TelemetryConfig{
+			Telemetry: agentzv1alpha1.TelemetryConfig{
 				Enabled:       true,
 				TraceEndpoint: s.cfg.AgentTraceEndpoint,
 			},
@@ -630,7 +630,7 @@ func validateUpdateAgentRequest(req gatewayapi.UpdateAgentRequest) []gatewayapi.
 	return validateOpenCodeRequest(req.Opencode)
 }
 
-func applyUpdateAgentRequest(agt *clawarmorv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
+func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
 	if req.Env != nil {
 		agt.Spec.Env = envVarsFromMap(*req.Env)
 	}
@@ -738,7 +738,7 @@ func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.F
 	return fields
 }
 
-func applyOpencodeRequest(spec *clawarmorv1alpha1.AgentSpec, cfg *gatewayapi.AgentOpencodeConfig) {
+func applyOpencodeRequest(spec *agentzv1alpha1.AgentSpec, cfg *gatewayapi.AgentOpencodeConfig) {
 	if cfg == nil {
 		return
 	}
@@ -757,11 +757,11 @@ func applyOpencodeRequest(spec *clawarmorv1alpha1.AgentSpec, cfg *gatewayapi.Age
 	}
 
 	spec.Providers = make(
-		map[string]clawarmorv1alpha1.OpencodeProviderConfig,
+		map[string]agentzv1alpha1.OpencodeProviderConfig,
 		len(*cfg.Providers),
 	)
 	for name, provider := range *cfg.Providers {
-		item := clawarmorv1alpha1.OpencodeProviderConfig{}
+		item := agentzv1alpha1.OpencodeProviderConfig{}
 		if provider.Env != nil && len(*provider.Env) > 0 {
 			item.Env = append([]string{}, (*provider.Env)...)
 		}

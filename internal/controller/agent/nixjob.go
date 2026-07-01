@@ -29,10 +29,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *clawarmorv1alpha1.Agent, packages []string) (bool, error) {
+func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *agentzv1alpha1.Agent, packages []string) (bool, error) {
 	desired := r.buildPackageJob(agt, packages)
 	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return false, fmt.Errorf("set controller reference: %w", err)
@@ -88,7 +88,7 @@ func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *clawarmorv1al
 	return false, nil
 }
 
-func (r *Reconciler) buildPackageJob(agt *clawarmorv1alpha1.Agent, packages []string) *batchv1.Job {
+func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, packages []string) *batchv1.Job {
 	image := r.Config.AgentInitImage
 	if image == "" {
 		image = nixInitImage
@@ -113,7 +113,7 @@ func (r *Reconciler) buildPackageJob(agt *clawarmorv1alpha1.Agent, packages []st
 		MountPath: nixVolumeRootMount,
 	}}
 	env := []corev1.EnvVar{{
-		Name:  "CLAWARMOR_NIX_ROOT",
+		Name:  "AGENTZ_NIX_ROOT",
 		Value: nixVolumeRootMount + "/" + nixStoreSubPath,
 	}}
 

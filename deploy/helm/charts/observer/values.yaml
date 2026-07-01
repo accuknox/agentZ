@@ -4,7 +4,7 @@ fullnameOverride: ""
 replicaCount: 1
 
 image:
-  repository: murtazau/clawarmor
+  repository: murtazau/agentz
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -36,7 +36,7 @@ config:
   postgresDSN: ""
   kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
   hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
-  namespace: clawarmor-system
+  namespace: agentz-system
   batchSize: 500
   flushInterval: 1s
 

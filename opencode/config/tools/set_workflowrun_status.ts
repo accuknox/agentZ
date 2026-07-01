@@ -33,7 +33,7 @@ export default tool({
   async execute(input, context) {
     const agentName = workflowAgentName()
     if (!agentName) {
-      return "CLAWARMOR_AGENT_NAME is not set. Configure the agent runtime before using set_workflowrun_status."
+      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before using set_workflowrun_status."
     }
 
     context.metadata({

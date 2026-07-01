@@ -51,11 +51,12 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alp
 	if r.Bao == nil {
 		return fmt.Errorf("openbao provisioner is not configured")
 	}
+	baoName := openBaoSinjectorName(agt)
 	err := r.Bao.ProvisionSinjector(ctx, r.Config, SinjectorOpenBaoOptions{
 		Namespace:          agt.Namespace,
 		ServiceAccountName: sipName,
-		RoleName:           sinjectorName(agt),
-		PolicyName:         sinjectorName(agt),
+		RoleName:           baoName,
+		PolicyName:         baoName,
 		AgentName:          agt.Name,
 	})
 	if err != nil {
@@ -78,11 +79,12 @@ func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *clawarmorv1alpha
 	if r.Bao == nil {
 		return fmt.Errorf("openbao provisioner is not configured")
 	}
+	baoName := openBaoSinjectorName(agt)
 	return r.Bao.CleanupSinjector(ctx, r.Config, SinjectorOpenBaoOptions{
 		Namespace:          agt.Namespace,
 		ServiceAccountName: sinjectorName(agt),
-		RoleName:           sinjectorName(agt),
-		PolicyName:         sinjectorName(agt),
+		RoleName:           baoName,
+		PolicyName:         baoName,
 	})
 }
 
@@ -386,6 +388,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 	labels := sinjectorLabels(agt)
 	podLabels := make(map[string]string, len(labels))
 	maps.Copy(podLabels, labels)
+	baoName := openBaoSinjectorName(agt)
 
 	args := []string{
 		"sinjector",
@@ -393,7 +396,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *clawarmorv1alpha1.Agent) *app
 		"--agent-name", agt.Name,
 		"--openbao-addr", r.Config.OpenBaoAddr,
 		"--openbao-secret-mount-path", r.Config.OpenBaoSecretMountPath,
-		"--openbao-k8s-auth-role", sinjectorName(agt),
+		"--openbao-k8s-auth-role", baoName,
 		"--openbao-k8s-auth-mount-path", r.Config.OpenBaoK8sAuthMountPath,
 		"--openbao-k8s-auth-token-path", r.Config.SinjectorOpenBaoK8sAuthTokenPath,
 		"--ca-cert-path", r.Config.SinjectorCACertPath,

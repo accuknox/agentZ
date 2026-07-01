@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.16.5
   name: mcpconnections.clawarmor.accuknox.com
 spec:
   group: clawarmor.accuknox.com
@@ -99,7 +99,7 @@ spec:
                         description: |-
                           SecretRef identifies the canonical MCP OpenBao credential record.
                           Gateway-managed MCP connections always store credentials at
-                          mcp-connections/<connection-name> under the credentials field.
+                          <tenant>/mcp-connections/<connection-name> under the credentials field.
                         properties:
                           key:
                             description: |-
@@ -109,7 +109,7 @@ spec:
                           path:
                             description: |-
                               Path is the OpenBao secret data path. MCP connections use
-                              mcp-connections/<connection-name>.
+                              <tenant>/mcp-connections/<connection-name>.
                             type: string
                         required:
                         - key
@@ -174,7 +174,7 @@ spec:
                         description: |-
                           SecretRef identifies the canonical MCP OpenBao credential record.
                           Gateway-managed MCP connections always store credentials at
-                          mcp-connections/<connection-name> under the credentials field.
+                          <tenant>/mcp-connections/<connection-name> under the credentials field.
                         properties:
                           key:
                             description: |-
@@ -184,7 +184,7 @@ spec:
                           path:
                             description: |-
                               Path is the OpenBao secret data path. MCP connections use
-                              mcp-connections/<connection-name>.
+                              <tenant>/mcp-connections/<connection-name>.
                             type: string
                         required:
                         - key

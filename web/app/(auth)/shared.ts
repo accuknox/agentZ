@@ -12,10 +12,12 @@ export const authErrorMessages = {
 } as const satisfies Record<string, string>
 
 export type AuthError = keyof typeof authErrorMessages
+export type AuthPath = "/signin" | "/signup"
 export type SocialProvider = "github" | "google"
 
 export type AuthSearchParams = {
   error?: AuthError | AuthError[]
+  provider?: SocialProvider | SocialProvider[]
   returnTo?: string | string[]
 }
 

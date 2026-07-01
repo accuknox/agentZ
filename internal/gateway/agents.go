@@ -521,6 +521,12 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 				Field: "name", Message: "must be a valid DNS label",
 			})
 		}
+		if name == clawarmorv1alpha1.AgentNameMCPConnection {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "name",
+				Message: "reserved agent name",
+			})
+		}
 	}
 
 	fields = append(fields, validateOpenCodeRequest(req.Opencode)...)

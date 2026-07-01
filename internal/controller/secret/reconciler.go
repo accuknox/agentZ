@@ -93,7 +93,7 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *clawarmorv1alpha1.Secret) error {
-	path := secretstore.SecretPath(secret.Spec.AgentRef.Name, secret.Spec.Key)
+	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
 	current := &clawarmorv1alpha1.Secret{}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(secret), current); err != nil {
 		return err
@@ -140,7 +140,7 @@ func (r *SecretReconciler) deleteRuntime(ctx context.Context, secret *clawarmorv
 		return fmt.Errorf("create openbao client for secret cleanup: %w", err)
 	}
 
-	path := secretstore.SecretPath(secret.Spec.AgentRef.Name, secret.Spec.Key)
+	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
 	if err := kv.DeleteMetadata(ctx, path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete secret runtime metadata %q: %w", path, err)
 	}

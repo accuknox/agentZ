@@ -122,7 +122,7 @@ func (r *resolver) probeSecret(ctx context.Context, secret *clawarmorv1alpha1.Se
 }
 
 func (r *resolver) secretRuntimeStatus(ctx context.Context, secret *clawarmorv1alpha1.Secret) secretRuntimeStatus {
-	path := secretstore.SecretPath(secret.Spec.AgentRef.Name, secret.Spec.Key)
+	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
 	rawSecret, err := r.kv.Get(ctx, path)
 	if err != nil {
 		if errors.Is(err, baoapi.ErrSecretNotFound) {
@@ -234,7 +234,7 @@ func (r *resolver) writeSecretStatus(ctx context.Context, namespace, name string
 			return ctrlclient.IgnoreNotFound(err)
 		}
 
-		path := secretstore.SecretPath(secret.Spec.AgentRef.Name, secret.Spec.Key)
+		path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
 		now := metav1.NewTime(time.Now().UTC())
 		secret.Status.State = next.state
 		secret.Status.ObservedGeneration = secret.Generation

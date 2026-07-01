@@ -36,6 +36,19 @@ func TestValidatorValidateCreateRejectsInvalidAgentConfig(t *testing.T) {
 	}
 }
 
+func TestValidatorValidateCreateRejectsReservedAgentName(t *testing.T) {
+	t.Parallel()
+
+	agt := &clawarmorv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: clawarmorv1alpha1.AgentNameMCPConnection},
+	}
+
+	_, err := NewValidator().ValidateCreate(context.Background(), agt)
+	if err == nil {
+		t.Fatal("ValidateCreate() unexpectedly accepted reserved agent name")
+	}
+}
+
 func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T) {
 	t.Parallel()
 

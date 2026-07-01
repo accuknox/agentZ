@@ -43,6 +43,9 @@ const (
 )
 
 const (
+	// AgentNameMCPConnection is reserved for tenant-scoped MCP credentials.
+	AgentNameMCPConnection = "mcp-connection"
+
 	// ReasonConfigInvalid indicates the Agent spec cannot produce a runtime.
 	ReasonConfigInvalid = "ConfigInvalid"
 	// ReasonPackageJobCreating indicates the package preparation Job is not created yet.

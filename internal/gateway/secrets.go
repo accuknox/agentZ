@@ -78,20 +78,20 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 		return
 	}
 
-	if err := s.putAgentSecretRuntime(r.Context(), name, secret.Spec.Key, record); err != nil {
+	if err := s.putAgentSecretRuntime(r.Context(), ns, name, secret.Spec.Key, record); err != nil {
 		writeError(w, r, mapOpenBaoError(err))
 		return
 	}
 
 	if err := s.k8sClient.Create(r.Context(), secret); err != nil {
-		_ = s.deleteAgentSecretRuntime(r.Context(), name, secret.Spec.Key)
+		_ = s.deleteAgentSecretRuntime(r.Context(), ns, name, secret.Spec.Key)
 		writeError(w, r, mapKubeHTTPError("create secret", err))
 		return
 	}
 
 	if err := s.syncAgentEnv(r.Context(), name, []string{secret.Spec.Key}, nil); err != nil {
 		_ = s.k8sClient.Delete(r.Context(), secret)
-		_ = s.deleteAgentSecretRuntime(r.Context(), name, secret.Spec.Key)
+		_ = s.deleteAgentSecretRuntime(r.Context(), ns, name, secret.Spec.Key)
 		writeInternalError(w, r, err)
 		return
 	}
@@ -708,17 +708,17 @@ func secretLifecycle(secret clawarmorv1alpha1.Secret) (gatewayapi.SecretState, s
 	}
 }
 
-func (s *Service) putAgentSecretRuntime(ctx context.Context, agentName, key string, record secretstore.Record) error {
+func (s *Service) putAgentSecretRuntime(ctx context.Context, namespace, agentName, key string, record secretstore.Record) error {
 	data, err := secretstore.RecordData(record)
 	if err != nil {
 		return err
 	}
-	_, err = s.baoKV.Put(ctx, secretstore.SecretPath(agentName, key), data)
+	_, err = s.baoKV.Put(ctx, secretstore.SecretPath(namespace, agentName, key), data)
 	return err
 }
 
-func (s *Service) deleteAgentSecretRuntime(ctx context.Context, agentName, key string) error {
-	err := s.baoKV.DeleteMetadata(ctx, secretstore.SecretPath(agentName, key))
+func (s *Service) deleteAgentSecretRuntime(ctx context.Context, namespace, agentName, key string) error {
+	err := s.baoKV.DeleteMetadata(ctx, secretstore.SecretPath(namespace, agentName, key))
 	if errors.Is(err, baoapi.ErrSecretNotFound) {
 		return nil
 	}

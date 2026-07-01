@@ -46,24 +46,28 @@ async function SignInGate({ searchParams }: { searchParams: Promise<AuthSearchPa
   await connection()
   const auth = getAuth()
   const params = await searchParams
+  const error = Array.isArray(params.error) ? params.error[0] : params.error
+  const provider = Array.isArray(params.provider) ? params.provider[0] : params.provider
+  const returnTo = signInReturnTo(
+    Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo
+  )
   const session = await auth.api.getSession({
     headers: await headers(),
   })
-  const returnToParam = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo
 
   if (session) {
-    redirect(signInReturnTo(returnToParam) ?? "/")
+    redirect(returnTo ?? "/")
   }
 
-  const error = Array.isArray(params.error) ? params.error[0] : params.error
-  const returnTo = signInReturnTo(returnToParam)
   const showPasswordAuth = getEnv().ENABLE_EMAIL_PASSWORD_AUTH
 
   return (
     <SignInForm
+      key={`${error ?? ""}:${provider ?? ""}:${returnTo ?? ""}`}
       actions={providerActions}
-      error={error}
       providers={socialProviders()}
+      routeError={error}
+      routeProvider={provider}
       returnTo={returnTo}
       showPasswordAuth={showPasswordAuth}
       showSignUpLink={showPasswordAuth}

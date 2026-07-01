@@ -25,8 +25,8 @@ const (
 	MCPConnectionFinalizer          = "clawarmor.accuknox.com/mcpconnection"
 	EnvironmentFinalizer            = "clawarmor.accuknox.com/environment-protection"
 	OpenCodeGatewayToolsetName      = "gateway"
-	// SecretPathPrefix is the OpenBao prefix for MCP credential records.
-	SecretPathPrefix         = "mcp-connections/"
+	// SecretPathDir is the OpenBao directory for MCP credential records.
+	SecretPathDir            = "mcp-connections"
 	GatewayClassName         = "agentgateway"
 	GatewayName              = "mcp"
 	ExtAuthServiceName       = "extauth"
@@ -110,9 +110,9 @@ func EnvironmentRoutePath(name string) string {
 	return "/mcp/" + name
 }
 
-// SecretPath returns the OpenBao path for one MCP credential record.
-func SecretPath(name string) string {
-	return SecretPathPrefix + name
+// SecretPath returns the tenant-scoped OpenBao path for one MCP credential record.
+func SecretPath(tenantNamespace, name string) string {
+	return tenantNamespace + "/" + SecretPathDir + "/" + name
 }
 
 // ManagedRef returns a status reference for one namespaced object.

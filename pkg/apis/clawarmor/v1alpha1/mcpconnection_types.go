@@ -76,7 +76,7 @@ type MCPConnectionAuth struct {
 type MCPConnectionBearerAuth struct {
 	// SecretRef identifies the canonical MCP OpenBao credential record.
 	// Gateway-managed MCP connections always store credentials at
-	// mcp-connections/<connection-name> under the credentials field.
+	// <tenant>/mcp-connections/<connection-name> under the credentials field.
 	// +optional
 	SecretRef *MCPConnectionSecretRef `json:"secretRef,omitempty"`
 
@@ -113,7 +113,7 @@ type MCPConnectionOAuthAuth struct {
 
 	// SecretRef identifies the canonical MCP OpenBao credential record.
 	// Gateway-managed MCP connections always store credentials at
-	// mcp-connections/<connection-name> under the credentials field.
+	// <tenant>/mcp-connections/<connection-name> under the credentials field.
 	// +optional
 	SecretRef *MCPConnectionSecretRef `json:"secretRef,omitempty"`
 
@@ -126,7 +126,7 @@ type MCPConnectionOAuthAuth struct {
 // one MCP connection credential payload.
 type MCPConnectionSecretRef struct {
 	// Path is the OpenBao secret data path. MCP connections use
-	// mcp-connections/<connection-name>.
+	// <tenant>/mcp-connections/<connection-name>.
 	Path string `json:"path"`
 
 	// Key is the field within the OpenBao record. MCP connections use

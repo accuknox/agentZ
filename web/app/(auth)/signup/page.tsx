@@ -40,6 +40,8 @@ async function SignUpGate({ searchParams }: { searchParams: Promise<AuthSearchPa
 
   const auth = getAuth()
   const params = await searchParams
+  const error = Array.isArray(params.error) ? params.error[0] : params.error
+  const provider = Array.isArray(params.provider) ? params.provider[0] : params.provider
   const returnTo = signInReturnTo(
     Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo
   )
@@ -50,5 +52,14 @@ async function SignUpGate({ searchParams }: { searchParams: Promise<AuthSearchPa
     redirect(returnTo ?? "/")
   }
 
-  return <SignUpForm actions={providerActions} providers={socialProviders()} returnTo={returnTo} />
+  return (
+    <SignUpForm
+      key={`${error ?? ""}:${provider ?? ""}:${returnTo ?? ""}`}
+      actions={providerActions}
+      providers={socialProviders()}
+      routeError={error}
+      routeProvider={provider}
+      returnTo={returnTo}
+    />
+  )
 }

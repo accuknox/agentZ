@@ -62,6 +62,7 @@ type Config struct {
 
 type resolver struct {
 	kv            *baoapi.KVv2
+	namespace     string
 	agentName     string
 	http          *http.Client
 	k8sClient     ctrlclient.Client
@@ -132,6 +133,7 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	res := &resolver{
 		kv:            baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		namespace:     namespace,
 		agentName:     cfg.AgentName,
 		http:          http.DefaultClient,
 		k8sClient:     k8sClient,
@@ -271,7 +273,7 @@ func newProxyTransport() http.RoundTripper {
 }
 
 func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, error) {
-	rawSecret, err := r.kv.Get(ctx, secretstore.SecretPath(r.agentName, name))
+	rawSecret, err := r.kv.Get(ctx, secretstore.SecretPath(r.namespace, r.agentName, name))
 	if err != nil {
 		status := secretRuntimeStatus{
 			state:     clawarmorv1alpha1.SecretStateDegraded,
@@ -386,7 +388,7 @@ func (r *resolver) refreshOAuth(ctx context.Context, key string, record secretst
 	if err != nil {
 		return secretstore.OAuthRecord{}, err
 	}
-	if _, err := r.kv.Put(ctx, secretstore.SecretPath(r.agentName, key), data); err != nil {
+	if _, err := r.kv.Put(ctx, secretstore.SecretPath(r.namespace, r.agentName, key), data); err != nil {
 		return secretstore.OAuthRecord{}, err
 	}
 

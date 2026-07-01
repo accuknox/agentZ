@@ -325,7 +325,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn.Spec = spec
-	setMCPConnectionSecretRef(name, &conn.Spec)
+	setMCPConnectionSecretRef(ns, name, &conn.Spec)
 
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 	if err := mcpconnwebhook.Validate(conn); err != nil {
@@ -929,12 +929,12 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec clawarmo
 	}
 }
 
-func setMCPConnectionSecretRef(name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
+func setMCPConnectionSecretRef(namespace, name string, spec *clawarmorv1alpha1.MCPConnectionSpec) {
 	if spec == nil || spec.Auth == nil {
 		return
 	}
 
-	path := internalmcp.SecretPath(name)
+	path := internalmcp.SecretPath(namespace, name)
 	if spec.Auth.Bearer != nil {
 		spec.Auth.Bearer.SecretRef = &clawarmorv1alpha1.MCPConnectionSecretRef{
 			Path: path,

@@ -565,7 +565,7 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawa
 		return fmt.Errorf("create openbao client for mcp cleanup: %w", err)
 	}
 
-	path := mcp.SecretPath(conn.Name)
+	path := mcp.SecretPath(conn.Namespace, conn.Name)
 	err = baoClient.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
 	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete mcp connection secret metadata %q: %w", path, err)

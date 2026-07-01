@@ -18,14 +18,19 @@ export function signInReturnTo(value?: string): string | undefined {
  */
 export function signInURL({
   error,
+  provider,
   returnTo,
 }: {
   error?: string
+  provider?: string
   returnTo?: string
 } = {}): string {
   const params = new URLSearchParams()
   if (error) {
     params.set("error", error)
+  }
+  if (provider) {
+    params.set("provider", provider)
   }
 
   const path = signInReturnTo(returnTo)

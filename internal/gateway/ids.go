@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	gatewayapi "github.com/accuknox/clawarmor/internal/gateway/openapi"
+	clawarmorv1alpha1 "github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1"
 )
 
 type traceSessionPageCursor struct {
@@ -49,7 +50,7 @@ func requestID(r *http.Request) string {
 
 func validAgentName(w http.ResponseWriter, r *http.Request, agentName string, fields ...string) (string, bool) {
 	name := strings.TrimSpace(agentName)
-	if name != "" && len(name) <= 32 && len(validation.IsDNS1123Label(name)) == 0 {
+	if name != "" && name != clawarmorv1alpha1.AgentNameMCPConnection && len(name) <= 32 && len(validation.IsDNS1123Label(name)) == 0 {
 		return name, true
 	}
 
@@ -64,7 +65,7 @@ func validAgentName(w http.ResponseWriter, r *http.Request, agentName string, fi
 		errBadRequest,
 		gatewayapi.FieldError{
 			Field:   field,
-			Message: "must be a valid DNS label",
+			Message: "must be a valid agent name",
 		},
 	))
 	return "", false

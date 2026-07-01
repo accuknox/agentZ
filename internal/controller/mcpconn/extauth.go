@@ -418,7 +418,7 @@ func (r *MCPConnectionReconciler) reconcileExtAuthOpenBao(ctx context.Context, n
 	}
 
 	name := mcp.ExtAuthOpenBaoName(ns)
-	policy, err := renderExtAuthPolicy(r.OpenBaoSecretMountPath)
+	policy, err := renderExtAuthPolicy(r.OpenBaoSecretMountPath, ns)
 	if err != nil {
 		return err
 	}
@@ -441,10 +441,11 @@ func (r *MCPConnectionReconciler) reconcileExtAuthOpenBao(ctx context.Context, n
 	return nil
 }
 
-func renderExtAuthPolicy(mount string) (string, error) {
+func renderExtAuthPolicy(mount, namespace string) (string, error) {
+	prefix := mcp.SecretPath(namespace, "*")
 	data := extAuthPolicyData{
-		DataPath:     fmt.Sprintf("%s/data/%s*", strings.Trim(mount, "/"), mcp.SecretPathPrefix),
-		MetadataPath: fmt.Sprintf("%s/metadata/%s*", strings.Trim(mount, "/"), mcp.SecretPathPrefix),
+		DataPath:     fmt.Sprintf("%s/data/%s", strings.Trim(mount, "/"), prefix),
+		MetadataPath: fmt.Sprintf("%s/metadata/%s", strings.Trim(mount, "/"), prefix),
 	}
 
 	var out bytes.Buffer

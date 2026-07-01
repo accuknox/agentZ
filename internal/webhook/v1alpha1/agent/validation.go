@@ -88,6 +88,14 @@ func validateAgent(agt *clawarmorv1alpha1.Agent) field.ErrorList {
 	var allErrs field.ErrorList
 	specPath := field.NewPath("spec")
 
+	if agt.Name == clawarmorv1alpha1.AgentNameMCPConnection {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("metadata").Child("name"),
+			agt.Name,
+			"reserved agent name",
+		))
+	}
+
 	if agt.Spec.EnvironmentRef != nil && strings.TrimSpace(agt.Spec.EnvironmentRef.Name) == "" {
 		allErrs = append(allErrs, field.Required(
 			specPath.Child("environmentRef").Child("name"),

@@ -6,9 +6,9 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
-import { authClient } from "@/lib/auth-client"
 import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
+import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -24,26 +24,53 @@ type SignInValues = z.infer<typeof signInSchema>
 
 type SignInFormProps = {
   actions: Record<SocialProvider, (formData: FormData) => Promise<void>>
-  error?: AuthError
   providers: SocialProvider[]
   returnTo?: string
+  routeError?: AuthError
+  routeProvider?: SocialProvider
   showPasswordAuth?: boolean
   showSignUpLink?: boolean
 }
 
 const invalidCredentialsMessage = authErrorMessages.invalid_email_or_password
 const genericSignInError = "Sign-in could not be completed. Try again."
+const emailNotVerifiedMessage = "Your email is not verified."
+const emailPasswordDisabledMessage = "Email/password sign-in is not available."
 
 export function SignInForm({
   actions,
-  error,
   providers,
   returnTo,
+  routeError,
+  routeProvider,
   showPasswordAuth = true,
   showSignUpLink = true,
 }: SignInFormProps) {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState<"password" | SocialProvider>()
+  const [routeCredentialErrorVisible, setRouteCredentialErrorVisible] = React.useState(
+    routeError === "invalid_email_or_password"
+  )
+  const [passwordActionError, setPasswordActionError] = React.useState<string | undefined>(() => {
+    if (!routeError || routeError === "invalid_email_or_password") {
+      return
+    }
+
+    if (routeProvider && providers.includes(routeProvider)) {
+      return
+    }
+
+    return authErrorMessages[routeError]
+  })
+  const [providerErrors, setProviderErrors] = React.useState<
+    Partial<Record<SocialProvider, string>>
+  >(() => {
+    if (!routeError || !routeProvider || !providers.includes(routeProvider)) {
+      return {}
+    }
+
+    return { [routeProvider]: authErrorMessages[routeError] }
+  })
   const { control, clearErrors, formState, handleSubmit, setError } = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
@@ -54,33 +81,42 @@ export function SignInForm({
     reValidateMode: "onBlur",
   })
 
-  React.useEffect(() => {
-    if (error === "invalid_email_or_password") {
-      clearErrors("root")
-      setError("email", {
-        type: "server",
-        message: invalidCredentialsMessage,
-      })
-      setError("password", {
-        type: "server",
-        message: invalidCredentialsMessage,
-      })
+  function clearPasswordAction(): void {
+    setPasswordActionError(undefined)
+    setRouteCredentialErrorVisible(false)
+  }
+
+  function clearProviderAction(provider?: SocialProvider): void {
+    if (!provider) {
+      setProviderErrors({})
       return
     }
 
-    if (!error) {
-      return
-    }
+    setProviderErrors((current) => {
+      if (!current[provider]) {
+        return current
+      }
 
-    setError("root.server", {
-      type: "server",
-      message: authErrorMessages[error],
+      return {
+        ...current,
+        [provider]: undefined,
+      }
     })
-  }, [clearErrors, error, setError])
+  }
 
-  function submit(values: SignInValues) {
+  function clearCredentialFieldErrors(): void {
+    if (!formState.errors.email && !formState.errors.password && !routeCredentialErrorVisible) {
+      return
+    }
+
+    clearErrors(["email", "password"])
+    setRouteCredentialErrorVisible(false)
+  }
+
+  function submit(values: SignInValues): void {
     setPendingAction("password")
-    clearErrors("root")
+    clearPasswordAction()
+    clearProviderAction()
     startTransition(async () => {
       const result = await authClient.signIn.email({
         callbackURL: returnTo ?? "/",
@@ -89,8 +125,8 @@ export function SignInForm({
       })
 
       if (result.error) {
+        setPendingAction(undefined)
         if (result.error.status === 401) {
-          setPendingAction(undefined)
           setError("email", {
             type: "server",
             message: invalidCredentialsMessage,
@@ -102,11 +138,34 @@ export function SignInForm({
           return
         }
 
-        setError("root.server", {
-          type: "server",
-          message: result.error.message ?? genericSignInError,
-        })
-        setPendingAction(undefined)
+        if (result.error.code === "EMAIL_NOT_VERIFIED") {
+          setPasswordActionError(emailNotVerifiedMessage)
+          return
+        }
+
+        if (result.error.code === "EMAIL_PASSWORD_DISABLED") {
+          setPasswordActionError(emailPasswordDisabledMessage)
+          return
+        }
+
+        setPasswordActionError(result.error.message ?? genericSignInError)
+        return
+      }
+
+      const data = result.data
+      if (
+        data &&
+        typeof data === "object" &&
+        "twoFactorRedirect" in data &&
+        data.twoFactorRedirect === true
+      ) {
+        const search = new URLSearchParams()
+        if (returnTo) {
+          search.set("returnTo", returnTo)
+        }
+
+        const target = search.size === 0 ? "/signin/two-factor" : `/signin/two-factor?${search}`
+        window.location.replace(target)
         return
       }
 
@@ -117,7 +176,6 @@ export function SignInForm({
   const pendingProvider =
     pendingAction === "github" || pendingAction === "google" ? pendingAction : undefined
   const locked = pendingAction !== undefined
-  const rootError = formState.errors.root?.server?.message
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
@@ -132,7 +190,7 @@ export function SignInForm({
               name="email"
               control={control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
+                <Field data-invalid={fieldState.invalid || routeCredentialErrorVisible}>
                   <FieldLabel htmlFor="signin-email" required>
                     Email
                   </FieldLabel>
@@ -142,16 +200,19 @@ export function SignInForm({
                     type="email"
                     autoComplete="email"
                     suppressHydrationWarning
-                    aria-invalid={fieldState.invalid}
+                    aria-invalid={fieldState.invalid || routeCredentialErrorVisible}
                     disabled={locked}
                     onBlur={() => {
-                      if (fieldState.error?.type === "server") {
-                        clearErrors(["email", "password"])
+                      if (fieldState.error?.type === "server" || routeCredentialErrorVisible) {
+                        clearCredentialFieldErrors()
                       }
                       field.onBlur()
                     }}
                   />
-                  <FieldError errors={[fieldState.error]} />
+                  <FieldError errors={[fieldState.error]}>
+                    {fieldState.error?.message ??
+                      (routeCredentialErrorVisible ? invalidCredentialsMessage : undefined)}
+                  </FieldError>
                 </Field>
               )}
             />
@@ -159,7 +220,7 @@ export function SignInForm({
               name="password"
               control={control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
+                <Field data-invalid={fieldState.invalid || routeCredentialErrorVisible}>
                   <FieldLabel htmlFor="signin-password" required>
                     Password
                   </FieldLabel>
@@ -169,25 +230,35 @@ export function SignInForm({
                     type="password"
                     autoComplete="current-password"
                     suppressHydrationWarning
-                    aria-invalid={fieldState.invalid}
+                    aria-invalid={fieldState.invalid || routeCredentialErrorVisible}
                     disabled={locked}
                     onBlur={() => {
-                      if (fieldState.error?.type === "server") {
-                        clearErrors(["email", "password"])
+                      if (fieldState.error?.type === "server" || routeCredentialErrorVisible) {
+                        clearCredentialFieldErrors()
                       }
                       field.onBlur()
                     }}
                   />
-                  <FieldError errors={[fieldState.error]} />
+                  <FieldError errors={[fieldState.error]}>
+                    {fieldState.error?.message ??
+                      (routeCredentialErrorVisible ? invalidCredentialsMessage : undefined)}
+                  </FieldError>
                 </Field>
               )}
             />
           </FieldGroup>
-          {rootError ? <FieldError>{rootError}</FieldError> : null}
-          <Button type="submit" size="lg" disabled={locked}>
-            {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
-            Sign in
-          </Button>
+          <div className="flex flex-col gap-3">
+            <Button
+              type="submit"
+              size="lg"
+              aria-invalid={passwordActionError ? "true" : undefined}
+              disabled={locked}
+            >
+              {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
+              Sign in
+            </Button>
+            {passwordActionError ? <FieldError>{passwordActionError}</FieldError> : null}
+          </div>
         </form>
       ) : null}
       {providers.length > 0 ? (
@@ -195,12 +266,18 @@ export function SignInForm({
           {showPasswordAuth ? <FieldSeparator>or</FieldSeparator> : null}
           <SocialAuthButtons
             actions={actions}
+            authPath="/signin"
             disabled={locked}
+            errors={providerErrors}
             providers={providers}
             returnTo={returnTo}
             submitLabel="Sign in"
             pendingProvider={pendingProvider}
-            onPendingChangeAction={setPendingAction}
+            onPendingChangeAction={(provider) => {
+              setPendingAction(provider)
+              clearPasswordAction()
+              clearProviderAction(provider)
+            }}
           />
         </div>
       ) : null}

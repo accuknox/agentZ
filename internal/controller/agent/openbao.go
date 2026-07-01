@@ -71,7 +71,7 @@ func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvi
 }
 
 func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
-	policy, err := renderSinjectorPolicy(cfg.OpenBaoSecretMountPath, opts.AgentName)
+	policy, err := renderSinjectorPolicy(cfg.OpenBaoSecretMountPath, opts.Namespace, opts.AgentName)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 	_, err = p.client.Logical().WriteWithContext(ctx, rolePath, map[string]any{
 		"bound_service_account_names":      opts.ServiceAccountName,
 		"bound_service_account_namespaces": opts.Namespace,
-		"policies":                         opts.PolicyName,
+		"token_policies":                   opts.PolicyName,
 		"token_period":                     "1h",
 		"token_type":                       "service",
 	})
@@ -93,11 +93,11 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 	return nil
 }
 
-func renderSinjectorPolicy(mount, agentName string) (string, error) {
+func renderSinjectorPolicy(mount, namespace, agentName string) (string, error) {
 	mount = strings.Trim(mount, "/")
 	data := sinjectorPolicyData{
-		DataPath:     fmt.Sprintf("%s/data/%s/*", mount, agentName),
-		MetadataPath: fmt.Sprintf("%s/metadata/%s/*", mount, agentName),
+		DataPath:     fmt.Sprintf("%s/data/%s/%s/*", mount, namespace, agentName),
+		MetadataPath: fmt.Sprintf("%s/metadata/%s/%s/*", mount, namespace, agentName),
 	}
 	var out bytes.Buffer
 	if err := sinjectorPolicy.Execute(&out, data); err != nil {

@@ -6,9 +6,10 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
-import { authClient } from "@/lib/auth-client"
+import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
-import type { SocialProvider } from "@/app/(auth)/shared"
+import { authClient } from "@/lib/auth-client"
+import { passwordFieldDescription, passwordSchema } from "@/lib/password-policy"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -20,7 +21,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
-import { passwordFieldDescription, passwordSchema } from "@/lib/password-policy"
 import { SocialAuthButtons } from "./social-auth-buttons"
 
 const signUpSchema = z
@@ -41,17 +41,44 @@ type SignUpFormProps = {
   actions: Record<SocialProvider, (formData: FormData) => Promise<void>>
   providers: SocialProvider[]
   returnTo?: string
+  routeError?: AuthError
+  routeProvider?: SocialProvider
 }
 
 const genericSignUpError = "Sign-up could not be completed. Try again."
 const emailInUseMessage = authErrorMessages.user_exists
 const emailPasswordNotAllowedMessage = authErrorMessages.email_password_auth_not_allowed
-const emailPasswordNotAllowedCode = "EMAIL_PASSWORD_AUTH_NOT_ALLOWED"
-const userExistsCode = "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"
+const emailPasswordDisabledMessage = "Email/password sign-up is not available."
 
-export function SignUpForm({ actions, providers, returnTo }: SignUpFormProps) {
+export function SignUpForm({
+  actions,
+  providers,
+  returnTo,
+  routeError,
+  routeProvider,
+}: SignUpFormProps) {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState<"password" | SocialProvider>()
+  const [passwordActionError, setPasswordActionError] = React.useState<string | undefined>(() => {
+    if (!routeError) {
+      return
+    }
+
+    if (routeProvider && providers.includes(routeProvider)) {
+      return
+    }
+
+    return authErrorMessages[routeError]
+  })
+  const [providerErrors, setProviderErrors] = React.useState<
+    Partial<Record<SocialProvider, string>>
+  >(() => {
+    if (!routeError || !routeProvider || !providers.includes(routeProvider)) {
+      return {}
+    }
+
+    return { [routeProvider]: authErrorMessages[routeError] }
+  })
   const { clearErrors, control, formState, handleSubmit, setError } = useForm<SignUpValues>({
     criteriaMode: "all",
     resolver: zodResolver(signUpSchema),
@@ -65,9 +92,32 @@ export function SignUpForm({ actions, providers, returnTo }: SignUpFormProps) {
     reValidateMode: "onBlur",
   })
 
-  function submit(values: SignUpValues) {
+  function clearPasswordAction(): void {
+    setPasswordActionError(undefined)
+  }
+
+  function clearProviderAction(provider?: SocialProvider): void {
+    if (!provider) {
+      setProviderErrors({})
+      return
+    }
+
+    setProviderErrors((current) => {
+      if (!current[provider]) {
+        return current
+      }
+
+      return {
+        ...current,
+        [provider]: undefined,
+      }
+    })
+  }
+
+  function submit(values: SignUpValues): void {
     setPendingAction("password")
-    clearErrors("root")
+    clearPasswordAction()
+    clearProviderAction()
     startTransition(async () => {
       const result = await authClient.signUp.email({
         callbackURL: returnTo ?? "/",
@@ -77,26 +127,29 @@ export function SignUpForm({ actions, providers, returnTo }: SignUpFormProps) {
       })
 
       if (result.error) {
-        if (
-          result.error.code === userExistsCode ||
-          result.error.code === emailPasswordNotAllowedCode
-        ) {
-          setPendingAction(undefined)
+        setPendingAction(undefined)
+        if (result.error.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL") {
           setError("email", {
             type: "server",
-            message:
-              result.error.code === userExistsCode
-                ? emailInUseMessage
-                : emailPasswordNotAllowedMessage,
+            message: emailInUseMessage,
           })
           return
         }
 
-        setError("root.server", {
-          type: "server",
-          message: result.error.message ?? genericSignUpError,
-        })
-        setPendingAction(undefined)
+        if (result.error.code === "EMAIL_PASSWORD_AUTH_NOT_ALLOWED") {
+          setError("email", {
+            type: "server",
+            message: emailPasswordNotAllowedMessage,
+          })
+          return
+        }
+
+        if (result.error.code === "EMAIL_PASSWORD_SIGN_UP_DISABLED") {
+          setPasswordActionError(emailPasswordDisabledMessage)
+          return
+        }
+
+        setPasswordActionError(result.error.message ?? genericSignUpError)
         return
       }
 
@@ -107,7 +160,6 @@ export function SignUpForm({ actions, providers, returnTo }: SignUpFormProps) {
   const pendingProvider =
     pendingAction === "github" || pendingAction === "google" ? pendingAction : undefined
   const locked = pendingAction !== undefined
-  const rootError = formState.errors.root?.server?.message
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
@@ -207,29 +259,45 @@ export function SignUpForm({ actions, providers, returnTo }: SignUpFormProps) {
             )}
           />
         </FieldGroup>
-        {rootError ? <FieldError>{rootError}</FieldError> : null}
-        <Button type="submit" size="lg" disabled={locked}>
-          {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
-          Sign up
-        </Button>
+        <div className="flex flex-col gap-3">
+          <Button
+            type="submit"
+            size="lg"
+            aria-invalid={passwordActionError ? "true" : undefined}
+            disabled={locked}
+          >
+            {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
+            Sign up
+          </Button>
+          {passwordActionError ? <FieldError>{passwordActionError}</FieldError> : null}
+        </div>
       </form>
       {providers.length > 0 ? (
         <div className="flex flex-col gap-5">
           <FieldSeparator>or</FieldSeparator>
           <SocialAuthButtons
             actions={actions}
+            authPath="/signup"
             disabled={locked}
+            errors={providerErrors}
             providers={providers}
             returnTo={returnTo}
             submitLabel="Sign up"
             pendingProvider={pendingProvider}
-            onPendingChangeAction={setPendingAction}
+            onPendingChangeAction={(provider) => {
+              setPendingAction(provider)
+              clearPasswordAction()
+              clearProviderAction(provider)
+            }}
           />
         </div>
       ) : null}
       <p className="text-muted-foreground text-center text-sm">
         Already have an account?{" "}
-        <Link className="text-foreground underline underline-offset-4" href="/signin">
+        <Link
+          className="text-foreground underline underline-offset-4"
+          href={returnTo ? `/signin?returnTo=${encodeURIComponent(returnTo)}` : "/signin"}
+        >
           Sign in
         </Link>
       </p>

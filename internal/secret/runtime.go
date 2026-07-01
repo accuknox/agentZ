@@ -48,9 +48,9 @@ func (StaticRecord) record() {}
 
 func (OAuthRecord) record() {}
 
-// SecretPath returns the OpenBao path for one agent secret key.
-func SecretPath(agentName, key string) string {
-	return agentName + "/" + key
+// SecretPath returns the tenant-scoped OpenBao path for one agent secret key.
+func SecretPath(tenantNamespace, agentName, key string) string {
+	return tenantNamespace + "/" + agentName + "/" + key
 }
 
 // RecordType reads the generated Secret type enum from raw OpenBao data.

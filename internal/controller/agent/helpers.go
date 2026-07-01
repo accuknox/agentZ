@@ -18,6 +18,7 @@ package agent
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -156,6 +157,36 @@ func sinjectorLabels(agt *clawarmorv1alpha1.Agent) map[string]string {
 
 func sinjectorName(agt *clawarmorv1alpha1.Agent) string {
 	return agt.Name + sinjectorNameSuffix
+}
+
+func openBaoSinjectorName(agt *clawarmorv1alpha1.Agent) string {
+	name := "sinjector-" + agt.Namespace + "-" + agt.Name
+	if len(name) <= 63 {
+		return name
+	}
+
+	sum := sha256.Sum256([]byte(name))
+	suffix := hex.EncodeToString(sum[:])[:10]
+	limit := 63 - len("sinjector---") - len(suffix)
+	agentLimit := min(len(agt.Name), limit/2)
+	if agentLimit < 8 {
+		agentLimit = min(len(agt.Name), 8)
+	}
+	namespaceLimit := limit - agentLimit
+	if namespaceLimit < 8 {
+		namespaceLimit = 8
+		agentLimit = limit - namespaceLimit
+	}
+
+	namespace := strings.Trim(agt.Namespace[:min(len(agt.Namespace), namespaceLimit)], "-")
+	agent := strings.Trim(agt.Name[:min(len(agt.Name), agentLimit)], "-")
+	if namespace == "" {
+		namespace = "tenant"
+	}
+	if agent == "" {
+		agent = "agent"
+	}
+	return "sinjector-" + namespace + "-" + agent + "-" + suffix
 }
 
 func egressPolicyName(agt *clawarmorv1alpha1.Agent) string {

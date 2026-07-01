@@ -65,7 +65,7 @@ func Validate(conn *clawarmorv1alpha1.MCPConnection) error {
 	specPath := field.NewPath("spec")
 
 	fields = append(fields, validateEndpoint(conn.Spec.Endpoint, specPath.Child("endpoint"))...)
-	fields = append(fields, validateAuth(conn.Name, conn.Spec.Auth, specPath.Child("auth"))...)
+	fields = append(fields, validateAuth(conn.Namespace, conn.Name, conn.Spec.Auth, specPath.Child("auth"))...)
 	fields = append(fields, validateAuthHeaderConflicts(
 		conn.Spec.Endpoint.Headers,
 		conn.Spec.Auth,
@@ -212,7 +212,7 @@ func validateEndpoint(endpoint clawarmorv1alpha1.MCPConnectionEndpoint, path *fi
 	return fields
 }
 
-func validateAuth(name string, auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
+func validateAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth == nil {
 		return fields
@@ -221,11 +221,11 @@ func validateAuth(name string, auth *clawarmorv1alpha1.MCPConnectionAuth, path *
 	authModes := 0
 	if auth.Bearer != nil {
 		authModes++
-		fields = append(fields, validateBearerAuth(name, auth.Bearer, path.Child("bearer"))...)
+		fields = append(fields, validateBearerAuth(namespace, name, auth.Bearer, path.Child("bearer"))...)
 	}
 	if auth.OAuth != nil {
 		authModes++
-		fields = append(fields, validateOAuthAuth(name, auth.OAuth, path.Child("oauth"))...)
+		fields = append(fields, validateOAuthAuth(namespace, name, auth.OAuth, path.Child("oauth"))...)
 	}
 	if authModes > 1 {
 		fields = append(fields, field.Invalid(
@@ -238,10 +238,11 @@ func validateAuth(name string, auth *clawarmorv1alpha1.MCPConnectionAuth, path *
 	return fields
 }
 
-func validateBearerAuth(name string, auth *clawarmorv1alpha1.MCPConnectionBearerAuth, path *field.Path) field.ErrorList {
+func validateBearerAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnectionBearerAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth.SecretRef != nil {
 		fields = append(fields, validateSecretRef(
+			namespace,
 			name,
 			auth.SecretRef,
 			path.Child("secretRef"),
@@ -251,7 +252,7 @@ func validateBearerAuth(name string, auth *clawarmorv1alpha1.MCPConnectionBearer
 	return fields
 }
 
-func validateOAuthAuth(name string, auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, path *field.Path) field.ErrorList {
+func validateOAuthAuth(namespace, name string, auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	fields = append(fields, validateOptionalHTTPSURL(
 		auth.Issuer,
@@ -285,6 +286,7 @@ func validateOAuthAuth(name string, auth *clawarmorv1alpha1.MCPConnectionOAuthAu
 	}
 	if auth.SecretRef != nil {
 		fields = append(fields, validateSecretRef(
+			namespace,
 			name,
 			auth.SecretRef,
 			path.Child("secretRef"),
@@ -294,9 +296,9 @@ func validateOAuthAuth(name string, auth *clawarmorv1alpha1.MCPConnectionOAuthAu
 	return fields
 }
 
-func validateSecretRef(name string, ref *clawarmorv1alpha1.MCPConnectionSecretRef, path *field.Path) field.ErrorList {
+func validateSecretRef(namespace, name string, ref *clawarmorv1alpha1.MCPConnectionSecretRef, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
-	wantPath := mcp.SecretPath(name)
+	wantPath := mcp.SecretPath(namespace, name)
 
 	if ref.Path == "" {
 		fields = append(fields, field.Required(path.Child("path"), "field is required"))

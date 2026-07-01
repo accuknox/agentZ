@@ -302,6 +302,7 @@ export const agentNameSchema = z
   .min(1, "Agent name is required")
   .max(32, "Agent name must be at most 32 characters")
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+  .refine((name) => name !== "mcp-connection", "Agent name is reserved")
 
 export const environmentNameSchema = z
   .string()

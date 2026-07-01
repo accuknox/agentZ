@@ -1,12 +1,8 @@
 import * as z from "zod"
 import ipaddr from "ipaddr.js"
+import { zSecretKey } from "@/lib/gateway/client/zod.gen"
 
-const secretKeySchema = z
-  .string()
-  .trim()
-  .min(1, "Secret name is required")
-  .max(128, "Secret name must be at most 128 characters")
-  .regex(/^[A-Za-z0-9_]+$/, "Use letters, numbers, and underscores only")
+const secretKeySchema = zSecretKey
 
 export const secretValueSchema = z
   .string()
@@ -40,8 +36,198 @@ export const secretHostsInputSchema = z
 export const secretFormInputSchema = z.object({
   key: secretKeySchema,
   value: secretValueSchema,
-  hosts: z.string().min(1, "At least one host is required"),
+  hosts: secretHostsInputSchema,
 })
+
+const oauthScopesInputSchema = z
+  .string()
+  .trim()
+  .min(1, "At least one scope is required")
+  .transform((value) =>
+    value
+      .split(/\r?\n+/)
+      .map((scope) => scope.trim())
+      .filter(Boolean)
+  )
+
+const httpsURLSchema = z
+  .string()
+  .trim()
+  .superRefine((value, ctx) => {
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must be valid",
+      })
+      return
+    }
+    if (url.protocol !== "https:") {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must use HTTPS",
+      })
+    }
+    if (url.username || url.password) {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must not include credentials",
+      })
+    }
+  })
+
+const optionalHTTPSURLSchema = z
+  .string()
+  .trim()
+  .superRefine((value, ctx) => {
+    if (!value) {
+      return
+    }
+
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must be valid",
+      })
+      return
+    }
+
+    if (url.protocol !== "https:") {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must use HTTPS",
+      })
+    }
+    if (url.username || url.password) {
+      ctx.addIssue({
+        code: "custom",
+        message: "URL must not include credentials",
+      })
+    }
+  })
+  .transform((value) => value || undefined)
+
+export const oauthSecretFormInputSchema = z
+  .object({
+    key: secretKeySchema,
+    endpoint_url: z.string().trim().min(1, "OAuth server is required").pipe(httpsURLSchema),
+    hosts: secretHostsInputSchema,
+    provider: z
+      .string()
+      .trim()
+      .transform((value) => value || undefined),
+    oauth_discovery_state: z.enum(["idle", "discovering", "success", "manual"]).default("idle"),
+    client_id: z
+      .string()
+      .trim()
+      .transform((value) => value || undefined),
+    client_secret: z
+      .string()
+      .trim()
+      .transform((value) => value || undefined),
+    issuer: optionalHTTPSURLSchema,
+    authorization_endpoint: optionalHTTPSURLSchema,
+    token_endpoint: optionalHTTPSURLSchema,
+    registration_endpoint: optionalHTTPSURLSchema,
+    resource: optionalHTTPSURLSchema,
+    scopes: oauthScopesInputSchema,
+  })
+  .superRefine((value, ctx) => {
+    const hasClientID = Boolean(value.client_id)
+    const hasClientSecret = Boolean(value.client_secret)
+    const hasRegistrationEndpoint = Boolean(value.registration_endpoint)
+    let hasEndpointURL = false
+    try {
+      const endpointURL = new URL(value.endpoint_url)
+      hasEndpointURL =
+        endpointURL.protocol === "https:" && !endpointURL.username && !endpointURL.password
+    } catch {
+      hasEndpointURL = false
+    }
+    const hasRequiredOAuthMetadata = Boolean(
+      value.issuer && value.authorization_endpoint && value.token_endpoint
+    )
+    const needsManualFields =
+      value.oauth_discovery_state === "manual" ||
+      (value.oauth_discovery_state === "idle" && hasEndpointURL)
+    const needsOAuthMetadata = needsManualFields || value.oauth_discovery_state === "success"
+    const discoveryNeedsClientCredentials =
+      value.oauth_discovery_state === "success" && !hasRegistrationEndpoint
+    const providerNeedsClientCredentials = value.provider === "gws" && !hasRegistrationEndpoint
+    const needsClientCredentials = Boolean(
+      hasClientID ||
+      hasClientSecret ||
+      discoveryNeedsClientCredentials ||
+      (providerNeedsClientCredentials && hasRequiredOAuthMetadata)
+    )
+
+    if (value.oauth_discovery_state === "discovering") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["endpoint_url"],
+        message: "OAuth discovery is still running.",
+      })
+    }
+
+    if (needsClientCredentials && !hasClientID) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["client_id"],
+        message: "Client ID is required.",
+      })
+    }
+
+    if (needsClientCredentials && !hasClientSecret) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["client_secret"],
+        message: "Client secret is required.",
+      })
+    }
+
+    if (needsOAuthMetadata) {
+      if (!value.issuer) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["issuer"],
+          message: "Issuer is required.",
+        })
+      }
+      if (!value.authorization_endpoint) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["authorization_endpoint"],
+          message: "Authorization endpoint is required.",
+        })
+      }
+      if (!value.token_endpoint) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["token_endpoint"],
+          message: "Token endpoint is required.",
+        })
+      }
+    }
+
+    if (
+      needsManualFields &&
+      !providerNeedsClientCredentials &&
+      !hasClientID &&
+      !hasClientSecret &&
+      !hasRegistrationEndpoint
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["registration_endpoint"],
+        message: "Registration endpoint is required.",
+      })
+    }
+  })
 
 const domainLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/
 

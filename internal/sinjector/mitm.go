@@ -73,9 +73,9 @@ func signHost(ca tls.Certificate, hosts []string) (*tls.Certificate, error) {
 	for _, h := range hosts {
 		if ip := net.ParseIP(h); ip != nil {
 			template.IPAddresses = append(template.IPAddresses, ip)
-		} else {
-			template.DNSNames = append(template.DNSNames, h)
+			continue
 		}
+		template.DNSNames = append(template.DNSNames, h)
 	}
 
 	certDER, err := x509.CreateCertificate(

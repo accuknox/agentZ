@@ -1,5 +1,5 @@
 path "{{ .DataPath }}" {
-  capabilities = ["read"]
+  capabilities = ["read", "update"]
 }
 
 path "{{ .MetadataPath }}" {

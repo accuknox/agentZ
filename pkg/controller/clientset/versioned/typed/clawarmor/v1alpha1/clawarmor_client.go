@@ -30,6 +30,7 @@ type ClawarmorV1alpha1Interface interface {
 	AgentsGetter
 	EnvironmentsGetter
 	MCPConnectionsGetter
+	SecretsGetter
 	WorkflowRunsGetter
 	WorkflowSchedulesGetter
 }
@@ -49,6 +50,10 @@ func (c *ClawarmorV1alpha1Client) Environments(namespace string) EnvironmentInte
 
 func (c *ClawarmorV1alpha1Client) MCPConnections(namespace string) MCPConnectionInterface {
 	return newMCPConnections(c, namespace)
+}
+
+func (c *ClawarmorV1alpha1Client) Secrets(namespace string) SecretInterface {
+	return newSecrets(c, namespace)
 }
 
 func (c *ClawarmorV1alpha1Client) WorkflowRuns(namespace string) WorkflowRunInterface {

@@ -3,19 +3,12 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
-import type { PutSecretFormState } from "@/data/types"
-import { secretFormInputSchema, secretHostSchema } from "@/data/schema"
+import type { PutSecretFormAction } from "@/data/types"
+import { secretFormInputSchema } from "@/data/schema"
 import type * as z from "zod"
-import { Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -25,131 +18,71 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { SecretHostsField } from "./secret-hosts-field"
 
-type SecretFormValues = z.infer<typeof secretFormInputSchema>
+type SecretFormInput = z.input<typeof secretFormInputSchema>
+type SecretFormValues = z.output<typeof secretFormInputSchema>
 
-type PutSecretAction = (
-  agentName: string,
-  state: PutSecretFormState,
-  formData: FormData
-) => Promise<PutSecretFormState>
+const defaultFormValues: SecretFormInput = {
+  key: "",
+  value: "",
+  hosts: "",
+}
 
 export function SecretSheet({
   agentName,
-  mode,
-  secretKey,
-  hosts,
   putSecretAction,
   open,
   onOpenChangeAction,
 }: {
   agentName: string
-  mode: "create" | "update"
-  secretKey?: string
-  hosts?: string[]
-  putSecretAction: PutSecretAction
+  putSecretAction: PutSecretFormAction
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }) {
   const [state, action, isPending] = React.useActionState(putSecretAction.bind(null, agentName), {})
-  const [hostDraft, setHostDraft] = React.useState("")
-  const [hostDraftError, setHostDraftError] = React.useState<string>()
-
-  const form = useForm<SecretFormValues>({
+  const {
+    clearErrors,
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+    setError,
+  } = useForm<SecretFormInput, undefined, SecretFormValues>({
     resolver: zodResolver(secretFormInputSchema),
-    defaultValues: {
-      key: secretKey ?? "",
-      value: "",
-      hosts: hosts?.join("\n") ?? "",
-    },
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    defaultValues: defaultFormValues,
   })
-
-  React.useEffect(() => {
-    if (!isPending && !state.error) {
-      form.reset()
-      onOpenChangeAction(false)
-    }
-  }, [isPending, state.error, onOpenChangeAction, form])
-
-  React.useEffect(() => {
-    if (open) {
-      const nextHosts = hosts ?? []
-      form.reset({
-        key: secretKey ?? "",
-        value: "",
-        hosts: nextHosts.join("\n"),
-      })
-    }
-  }, [open, secretKey, hosts, form])
 
   React.useEffect(() => {
     if (state.error?.errors) {
       for (const err of state.error.errors) {
         if (err.field === "key" || err.field === "value" || err.field === "hosts") {
-          form.setError(err.field, { type: "server", message: err.message })
+          setError(err.field, { type: "server", message: err.message })
         }
       }
     }
-  }, [state.error, form])
+  }, [setError, state.error])
 
-  async function submitAction(formData: FormData) {
-    const isValid = await form.trigger()
-    if (!isValid) {
-      return
-    }
-
-    if (hostDraft.trim() !== "") {
-      setHostDraftError("Add or clear the host before submitting")
-      return
-    }
+  function submitAction(values: SecretFormValues) {
+    const formData = new FormData()
+    formData.set("key", values.key)
+    formData.set("value", values.value)
+    formData.set("hosts", values.hosts.join("\n"))
 
     React.startTransition(() => {
       action(formData)
     })
   }
 
-  function addHost() {
-    const parsed = secretHostSchema.safeParse(hostDraft)
-    if (!parsed.success) {
-      setHostDraftError(parsed.error.issues[0]?.message ?? "Host is invalid")
-      return
-    }
-
-    const host = parsed.data
-    const hosts = parseHostsValue(form.getValues("hosts"))
-    const nextHosts = Array.from(new Set([...hosts, host])).sort()
-    setHostDraft("")
-    setHostDraftError(undefined)
-    form.setValue("hosts", nextHosts.join("\n"), {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    form.clearErrors("hosts")
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    clearErrors()
+    void handleSubmit(submitAction)()
   }
 
-  function removeHost(host: string) {
-    const hosts = parseHostsValue(form.getValues("hosts"))
-    const nextHosts = hosts.filter((item) => item !== host)
-    form.setValue("hosts", nextHosts.join("\n"), {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-  }
-
-  function onSheetOpenChange(nextOpen: boolean) {
-    if (!nextOpen) {
-      setHostDraft("")
-      setHostDraftError(undefined)
-    }
-    onOpenChangeAction(nextOpen)
-  }
-
-  const title = mode === "create" ? "New secret" : "Update secret"
-  const description =
-    mode === "create"
-      ? "Create a new secret for this agent. Secret values cannot be read after creation."
-      : `Override the value for "${secretKey}". The previous value will be permanently replaced.`
-  const submitLabel = mode === "create" ? "Create secret" : "Update secret"
   const generalErrorMessage = (() => {
     if (!state.error) {
       return undefined
@@ -165,132 +98,66 @@ export function SecretSheet({
   })()
 
   return (
-    <Sheet open={open} onOpenChange={onSheetOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          reset(defaultFormValues)
+          clearErrors()
+        }
+        onOpenChangeAction(nextOpen)
+      }}
+    >
       <SheetContent className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!">
         <SheetHeader className="shrink-0">
-          <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
+          <SheetTitle>New secret</SheetTitle>
+          <SheetDescription>Create a static secret. Values cannot be read later.</SheetDescription>
         </SheetHeader>
-        <form action={submitAction} className="flex flex-1 flex-col gap-4 p-4">
-          <input type="hidden" name="mode" value={mode} />
+        <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4 p-4">
           <FieldGroup>
-            <Controller
-              name="key"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="secret-key" required>
-                    Name
-                  </FieldLabel>
-                  <Input
-                    id="secret-key"
-                    name={field.name}
-                    ref={field.ref}
-                    value={field.value}
-                    onBlur={field.onBlur}
-                    onChange={field.onChange}
-                    placeholder="SECRET_NAME"
-                    readOnly={mode === "update"}
-                    aria-invalid={fieldState.invalid}
-                    aria-required="true"
-                  />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
+            <Field data-invalid={Boolean(errors.key)}>
+              <FieldLabel htmlFor="secret-key" required>
+                Name
+              </FieldLabel>
+              <Input
+                id="secret-key"
+                placeholder="SECRET_NAME"
+                aria-invalid={Boolean(errors.key)}
+                aria-required="true"
+                {...register("key")}
+              />
+              {errors.key ? <FieldError errors={[errors.key]} /> : null}
+            </Field>
             <Controller
               name="hosts"
-              control={form.control}
-              render={({ field, fieldState }) => {
-                const hostList = parseHostsValue(field.value)
-
-                return (
-                  <Field data-invalid={fieldState.invalid || Boolean(hostDraftError)}>
-                    <FieldLabel htmlFor="secret-hosts" required>
-                      Hosts
-                    </FieldLabel>
-                    <FieldDescription className="text-muted-foreground/80">
-                      Exact host, wildcard host, IP, or CIDR. Use `*.` for one label and `**.` for
-                      any subdomain depth.
-                    </FieldDescription>
-                    <input type="hidden" name={field.name} ref={field.ref} value={field.value} />
-                    <InputGroup className="h-9">
-                      <InputGroupInput
-                        id="secret-hosts"
-                        value={hostDraft}
-                        onBlur={field.onBlur}
-                        onChange={(event) => {
-                          setHostDraft(event.target.value)
-                          setHostDraftError(undefined)
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter") {
-                            return
-                          }
-                          event.preventDefault()
-                          addHost()
-                        }}
-                        placeholder="api.example.com, *.example.com, **.example.com, 10.0.0.0/24"
-                        className="font-mono"
-                        aria-invalid={fieldState.invalid || Boolean(hostDraftError)}
-                      />
-                      <InputGroupAddon align="inline-end">
-                        <InputGroupButton onClick={addHost} aria-label="Add host">
-                          <Plus />
-                          Add
-                        </InputGroupButton>
-                      </InputGroupAddon>
-                    </InputGroup>
-                    {hostList.length > 0 ? (
-                      <div className="overflow-hidden rounded-md border">
-                        {hostList.map((host) => (
-                          <div
-                            key={host}
-                            className="flex h-8 items-center justify-between gap-3 border-b px-2.5 last:border-b-0"
-                          >
-                            <span className="truncate font-mono text-sm">{host}</span>
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm transition-colors"
-                              onClick={() => removeHost(host)}
-                              aria-label={`Remove ${host}`}
-                            >
-                              <X data-icon="inline-end" size={15} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {hostDraftError ? <FieldError errors={[{ message: hostDraftError }]} /> : null}
-                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                  </Field>
-                )
-              }}
-            />
-            <Controller
-              name="value"
-              control={form.control}
+              control={control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="secret-value" required>
-                    Value
-                  </FieldLabel>
-                  <Textarea
-                    id="secret-value"
-                    name={field.name}
-                    ref={field.ref}
-                    value={field.value}
-                    onBlur={field.onBlur}
-                    onChange={field.onChange}
-                    placeholder="Enter secret value..."
-                    className="min-h-32 resize-y font-mono"
-                    aria-invalid={fieldState.invalid}
-                    aria-required="true"
-                  />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
+                <SecretHostsField
+                  name={field.name}
+                  value={field.value}
+                  inputRef={field.ref}
+                  onBlur={field.onBlur}
+                  onChange={field.onChange}
+                  invalid={fieldState.invalid}
+                  error={fieldState.error}
+                  inputID="secret-hosts"
+                />
               )}
             />
+            <Field data-invalid={Boolean(errors.value)}>
+              <FieldLabel htmlFor="secret-value" required>
+                Value
+              </FieldLabel>
+              <Textarea
+                id="secret-value"
+                placeholder="Enter secret value..."
+                className="min-h-32 resize-y font-mono"
+                aria-invalid={Boolean(errors.value)}
+                aria-required="true"
+                {...register("value")}
+              />
+              {errors.value ? <FieldError errors={[errors.value]} /> : null}
+            </Field>
           </FieldGroup>
           {generalErrorMessage ? (
             <p className="border-destructive/30 bg-destructive/5 text-destructive shrink-0 rounded-md border p-3 text-sm">
@@ -300,18 +167,11 @@ export function SecretSheet({
           <div className="shrink-0">
             <Button type="submit" disabled={isPending} className="w-full">
               {isPending ? <Spinner /> : null}
-              {isPending ? (mode === "create" ? "Creating..." : "Updating...") : submitLabel}
+              {isPending ? "Creating..." : "Create secret"}
             </Button>
           </div>
         </form>
       </SheetContent>
     </Sheet>
   )
-}
-
-function parseHostsValue(value: string) {
-  return value
-    .split("\n")
-    .map((host) => host.trim())
-    .filter(Boolean)
 }

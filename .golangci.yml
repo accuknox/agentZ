@@ -38,6 +38,9 @@ linters:
     - examples$
     - web
     - opencode
+    - internal/gateway/openapi/
+    - pkg/controller/
+    - '^*.sql.go$'
 formatters:
   enable:
   - gofmt

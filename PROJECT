@@ -12,7 +12,6 @@ repo: github.com/accuknox/clawarmor
 resources:
 - api:
     crdVersion: v1
-    namespaced: false
   controller: true
   domain: accuknox.com
   group: clawarmor
@@ -83,6 +82,19 @@ resources:
   domain: accuknox.com
   group: clawarmor
   kind: Tenant
+  path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
+  version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: accuknox.com
+  group: clawarmor
+  kind: Secret
   path: github.com/accuknox/clawarmor/pkg/apis/clawarmor/v1alpha1
   version: v1alpha1
   webhooks:

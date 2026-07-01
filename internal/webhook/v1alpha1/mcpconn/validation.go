@@ -65,7 +65,7 @@ func Validate(conn *clawarmorv1alpha1.MCPConnection) error {
 	specPath := field.NewPath("spec")
 
 	fields = append(fields, validateEndpoint(conn.Spec.Endpoint, specPath.Child("endpoint"))...)
-	fields = append(fields, validateAuth(conn.Spec.Auth, specPath.Child("auth"))...)
+	fields = append(fields, validateAuth(conn.Name, conn.Spec.Auth, specPath.Child("auth"))...)
 	fields = append(fields, validateAuthHeaderConflicts(
 		conn.Spec.Endpoint.Headers,
 		conn.Spec.Auth,
@@ -212,7 +212,7 @@ func validateEndpoint(endpoint clawarmorv1alpha1.MCPConnectionEndpoint, path *fi
 	return fields
 }
 
-func validateAuth(auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
+func validateAuth(name string, auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth == nil {
 		return fields
@@ -221,11 +221,11 @@ func validateAuth(auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) f
 	authModes := 0
 	if auth.Bearer != nil {
 		authModes++
-		fields = append(fields, validateBearerAuth(auth.Bearer, path.Child("bearer"))...)
+		fields = append(fields, validateBearerAuth(name, auth.Bearer, path.Child("bearer"))...)
 	}
 	if auth.OAuth != nil {
 		authModes++
-		fields = append(fields, validateOAuthAuth(auth.OAuth, path.Child("oauth"))...)
+		fields = append(fields, validateOAuthAuth(name, auth.OAuth, path.Child("oauth"))...)
 	}
 	if authModes > 1 {
 		fields = append(fields, field.Invalid(
@@ -238,16 +238,20 @@ func validateAuth(auth *clawarmorv1alpha1.MCPConnectionAuth, path *field.Path) f
 	return fields
 }
 
-func validateBearerAuth(auth *clawarmorv1alpha1.MCPConnectionBearerAuth, path *field.Path) field.ErrorList {
+func validateBearerAuth(name string, auth *clawarmorv1alpha1.MCPConnectionBearerAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth.SecretRef != nil {
-		fields = append(fields, validateSecretRef(auth.SecretRef, path.Child("secretRef"))...)
+		fields = append(fields, validateSecretRef(
+			name,
+			auth.SecretRef,
+			path.Child("secretRef"),
+		)...)
 	}
 	fields = append(fields, validateAuthLocation(auth.Location, path.Child("location"))...)
 	return fields
 }
 
-func validateOAuthAuth(auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, path *field.Path) field.ErrorList {
+func validateOAuthAuth(name string, auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	fields = append(fields, validateOptionalHTTPSURL(
 		auth.Issuer,
@@ -280,18 +284,24 @@ func validateOAuthAuth(auth *clawarmorv1alpha1.MCPConnectionOAuthAuth, path *fie
 		}
 	}
 	if auth.SecretRef != nil {
-		fields = append(fields, validateSecretRef(auth.SecretRef, path.Child("secretRef"))...)
+		fields = append(fields, validateSecretRef(
+			name,
+			auth.SecretRef,
+			path.Child("secretRef"),
+		)...)
 	}
 	fields = append(fields, validateAuthLocation(auth.Location, path.Child("location"))...)
 	return fields
 }
 
-func validateSecretRef(ref *clawarmorv1alpha1.MCPConnectionSecretRef, path *field.Path) field.ErrorList {
+func validateSecretRef(name string, ref *clawarmorv1alpha1.MCPConnectionSecretRef, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
-	if strings.TrimSpace(ref.Path) == "" {
+	wantPath := mcp.SecretPath(name)
+
+	if ref.Path == "" {
 		fields = append(fields, field.Required(path.Child("path"), "field is required"))
 	}
-	if strings.TrimSpace(ref.Key) == "" {
+	if ref.Key == "" {
 		fields = append(fields, field.Required(path.Child("key"), "field is required"))
 	}
 	if ref.Path != strings.TrimSpace(ref.Path) {
@@ -306,6 +316,20 @@ func validateSecretRef(ref *clawarmorv1alpha1.MCPConnectionSecretRef, path *fiel
 			path.Child("key"),
 			ref.Key,
 			"key must not contain leading or trailing whitespace",
+		))
+	}
+	if ref.Path != "" && ref.Path != wantPath {
+		fields = append(fields, field.Invalid(
+			path.Child("path"),
+			ref.Path,
+			fmt.Sprintf("must be %q", wantPath),
+		))
+	}
+	if ref.Key != "" && ref.Key != mcp.SecretRecordKey {
+		fields = append(fields, field.Invalid(
+			path.Child("key"),
+			ref.Key,
+			fmt.Sprintf("must be %q", mcp.SecretRecordKey),
 		))
 	}
 	return fields

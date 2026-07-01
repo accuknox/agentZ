@@ -45,6 +45,9 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *clawarmorv1alp
 	if err := r.reconcileServiceAccount(ctx, agt, sipName, sipLabels); err != nil {
 		return err
 	}
+	if err := r.reconcileSinjectorAccess(ctx, agt); err != nil {
+		return err
+	}
 	if r.Bao == nil {
 		return fmt.Errorf("openbao provisioner is not configured")
 	}
@@ -208,6 +211,55 @@ func (r *Reconciler) reconcileSinjectorDeployment(ctx context.Context, agt *claw
 	return nil
 }
 
+func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *clawarmorv1alpha1.Agent) error {
+	role := &rbacv1.Role{}
+	role.Name = sinjectorName(agt)
+	role.Namespace = agt.Namespace
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
+		role.Labels = sinjectorLabels(agt)
+		role.Annotations = agt.Annotations
+		role.Rules = []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{clawarmorv1alpha1.SchemeGroupVersion.Group},
+				Resources: []string{"secrets/status"},
+				Verbs:     []string{"get", "update", "patch"},
+			},
+		}
+		return ctrl.SetControllerReference(agt, role, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch sinjector role: %w", err)
+	}
+
+	binding := &rbacv1.RoleBinding{}
+	binding.Name = sinjectorName(agt)
+	binding.Namespace = agt.Namespace
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, binding, func() error {
+		binding.Labels = sinjectorLabels(agt)
+		binding.Annotations = agt.Annotations
+		binding.RoleRef = rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "Role",
+			Name:     role.Name,
+		}
+		binding.Subjects = []rbacv1.Subject{{
+			Kind:      rbacv1.ServiceAccountKind,
+			Name:      sinjectorName(agt),
+			Namespace: agt.Namespace,
+		}}
+		return ctrl.SetControllerReference(agt, binding, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch sinjector rolebinding: %w", err)
+	}
+	return nil
+}
+
 func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmorv1alpha1.Agent, allowedHosts []string) error {
 	hosts, err := envutil.ParseHostList(allowedHosts)
 	if err != nil {
@@ -217,6 +269,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *clawarmo
 	dnsHosts = append(dnsHosts, dnsHostForEndpoint(r.Config.OpenBaoAddr)...)
 	egress := buildHostEgressRules(uniqueHosts(hosts), uniqueHosts(dnsHosts))
 	egress = append(egress, openBaoEgressRule())
+	egress = append(egress, kubeAPIServerEgressRule())
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
@@ -303,6 +356,28 @@ func openBaoEgressRule() ciliumapi.EgressRule {
 				Port:     "8200",
 				Protocol: ciliumapi.ProtoTCP,
 			}},
+		}},
+	}
+}
+
+func kubeAPIServerEgressRule() ciliumapi.EgressRule {
+	return ciliumapi.EgressRule{
+		EgressCommonRule: ciliumapi.EgressCommonRule{
+			ToEntities: ciliumapi.EntitySlice{
+				ciliumapi.EntityKubeAPIServer,
+			},
+		},
+		ToPorts: ciliumapi.PortRules{{
+			Ports: []ciliumapi.PortProtocol{
+				{
+					Port:     "443",
+					Protocol: ciliumapi.ProtoTCP,
+				},
+				{
+					Port:     "6443",
+					Protocol: ciliumapi.ProtoTCP,
+				},
+			},
 		}},
 	}
 }

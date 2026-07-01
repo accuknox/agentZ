@@ -3,7 +3,7 @@ package mcp
 import (
 	"time"
 
-	"golang.org/x/oauth2"
+	"github.com/accuknox/clawarmor/internal/oauth"
 )
 
 // SecretRecordKey is the OpenBao field key for stored MCP credentials.
@@ -17,11 +17,5 @@ type BearerSecretRecord struct {
 
 // OAuthSecretRecord stores one OAuth credential record in OpenBao.
 type OAuthSecretRecord struct {
-	ClientID     string         `json:"clientId,omitempty"`
-	ClientSecret string         `json:"clientSecret,omitempty"`
-	Token        *oauth2.Token  `json:"token,omitempty"`
-	Scopes       []string       `json:"scopes,omitempty"`
-	Registration map[string]any `json:"registration,omitempty"`
-	Revocation   map[string]any `json:"revocation,omitempty"`
-	UpdatedAt    time.Time      `json:"updatedAt"`
+	oauth.Record
 }

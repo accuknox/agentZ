@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { experimental_streamedQuery as streamedQuery } from "@tanstack/react-query"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import {
   flexRender,
   getCoreRowModel,
@@ -8,7 +10,8 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import type { SecretListItem } from "@/lib/gateway/client"
+import { watchSecrets, type SecretListItem, type WatchSecretsEvent } from "@/lib/gateway/client"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -21,15 +24,62 @@ import {
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import { createSecretColumns } from "./secret-columns"
-import type { DeleteSecretFormState, PutSecretFormState } from "@/data/types"
+import type { DeleteSecretFormAction } from "@/data/types"
 
 const columnClassName: Record<string, string> = {
-  key: "min-w-48",
-  hosts: "min-w-72",
-  created_at: "w-65",
-  modified_at: "w-65",
-  actions: "w-14",
+  key: "w-[29%]",
+  type: "w-[8%]",
+  status: "w-[10%]",
+  hosts: "w-[26%]",
+  age: "w-[24%]",
+  actions: "w-[3%]",
 }
+
+const watchSecretsQueryOptions = (agentName: string, secrets: SecretListItem[]) =>
+  queryOptions({
+    queryKey: ["watchSecrets", agentName, secrets.map((secret) => secret.key)] as const,
+    enabled: secrets.length > 0,
+    placeholderData: secrets,
+    queryFn: streamedQuery<
+      WatchSecretsEvent,
+      SecretListItem[],
+      readonly ["watchSecrets", string, string[]]
+    >({
+      initialValue: secrets,
+      reducer: (rows, event) => {
+        const byKey = new Map(rows.map((row) => [row.key, row]))
+
+        for (const secret of event.items) {
+          if (!byKey.has(secret.key)) {
+            continue
+          }
+          byKey.set(secret.key, secret)
+        }
+
+        return rows.map((row) => byKey.get(row.key) ?? row)
+      },
+      refetchMode: "reset",
+      streamFn: async ({ signal }) => {
+        const result = await watchSecrets({
+          baseUrl: await getGatewayBaseURL(),
+          path: {
+            agentName,
+          },
+          body: {
+            keys: secrets.map((secret) => secret.key),
+          },
+          signal,
+        })
+        return result.stream
+      },
+    }),
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: false,
+    retry: true,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    staleTime: Infinity,
+  })
 
 export function SecretTable({
   agentName,
@@ -37,35 +87,27 @@ export function SecretTable({
   hasNextPage,
   nextPageToken,
   deleteSecretAction,
-  putSecretAction,
 }: {
   agentName: string
   secrets: SecretListItem[]
   hasNextPage: boolean
   nextPageToken: string
-  deleteSecretAction: (
-    agentName: string,
-    state: DeleteSecretFormState,
-    formData: FormData
-  ) => Promise<DeleteSecretFormState>
-  putSecretAction: (
-    agentName: string,
-    state: PutSecretFormState,
-    formData: FormData
-  ) => Promise<PutSecretFormState>
+  deleteSecretAction: DeleteSecretFormAction
 }) {
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const query = useQuery(watchSecretsQueryOptions(agentName, secrets))
+  const rows = query.data ?? secrets
   const columns = React.useMemo(
-    () => createSecretColumns(agentName, deleteSecretAction, putSecretAction),
-    [agentName, deleteSecretAction, putSecretAction]
+    () => createSecretColumns(agentName, deleteSecretAction),
+    [agentName, deleteSecretAction]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data: secrets,
+    data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -78,7 +120,7 @@ export function SecretTable({
   return (
     <div className="min-w-0 space-y-4">
       <div className="w-full min-w-0 overflow-hidden border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

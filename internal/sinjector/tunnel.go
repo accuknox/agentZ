@@ -317,7 +317,8 @@ func upstreamRequest(req *http.Request, target, scheme string) *http.Request {
 	out := req.Clone(req.Context())
 	if out.URL == nil {
 		out.URL = &url.URL{}
-	} else {
+	}
+	if out.URL != nil {
 		clonedURL := *out.URL
 		out.URL = &clonedURL
 	}

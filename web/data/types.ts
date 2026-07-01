@@ -328,11 +328,28 @@ export type CreateEnvironmentFormState = {
 
 export type PutSecretFormState = {
   error?: Error
+  status?: "oauth_pending"
+  oauth?: {
+    flowId: string
+    url: string
+  }
 }
 
 export type DeleteSecretFormState = {
   error?: Error
 }
+
+export type PutSecretFormAction = (
+  agentName: string,
+  state: PutSecretFormState,
+  formData: FormData
+) => Promise<PutSecretFormState>
+
+export type DeleteSecretFormAction = (
+  agentName: string,
+  state: DeleteSecretFormState,
+  formData: FormData
+) => Promise<DeleteSecretFormState>
 
 export type DeleteSessionFormState = {
   error?: Error

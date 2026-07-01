@@ -532,7 +532,7 @@ export const listSecretsQueryKey = (options: Options<ListSecretsData>) =>
 /**
  * List secret keys for an agent.
  *
- * Returns a paginated list of secret keys with created and last modified timestamps. Secret values are never included in the response.
+ * Returns a paginated list of secret keys with creation timestamps. Secret values are never included in the response.
  *
  */
 export const listSecretsOptions = (options: Options<ListSecretsData>) =>
@@ -555,9 +555,9 @@ export const listSecretsOptions = (options: Options<ListSecretsData>) =>
   })
 
 /**
- * Store or overwrite secrets for an agent.
+ * Create one secret for an agent.
  *
- * Creates or overwrites key-value secrets under the agent. Each secret is bound to one or more hosts and is only injected for matching CONNECT destinations. Keys may contain alphanumeric characters and underscores, up to 128 characters. Values are limited to 48 KB each. Hosts may be exact hostnames, wildcard hostnames with a leading "*." or "**.", exact IPv4/IPv6 addresses, or IPv4/IPv6 CIDR ranges. "*." matches exactly one subdomain label, while "**." matches any subdomain depth.
+ * Creates one static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
  *
  */
 export const putSecretMutation = (

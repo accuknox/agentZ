@@ -58,6 +58,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Environments().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("mcpconnections"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().MCPConnections().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("secrets"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().Secrets().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowruns"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clawarmor().V1alpha1().WorkflowRuns().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowschedules"):

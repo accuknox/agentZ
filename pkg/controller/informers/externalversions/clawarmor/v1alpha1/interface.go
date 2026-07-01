@@ -29,6 +29,8 @@ type Interface interface {
 	Environments() EnvironmentInformer
 	// MCPConnections returns a MCPConnectionInformer.
 	MCPConnections() MCPConnectionInformer
+	// Secrets returns a SecretInformer.
+	Secrets() SecretInformer
 	// WorkflowRuns returns a WorkflowRunInformer.
 	WorkflowRuns() WorkflowRunInformer
 	// WorkflowSchedules returns a WorkflowScheduleInformer.
@@ -59,6 +61,11 @@ func (v *version) Environments() EnvironmentInformer {
 // MCPConnections returns a MCPConnectionInformer.
 func (v *version) MCPConnections() MCPConnectionInformer {
 	return &mCPConnectionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Secrets returns a SecretInformer.
+func (v *version) Secrets() SecretInformer {
+	return &secretInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // WorkflowRuns returns a WorkflowRunInformer.

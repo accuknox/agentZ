@@ -46,15 +46,43 @@ type workflowRunWatchEvent struct {
 	Run  *clawarmorv1alpha1.WorkflowRun
 }
 
+type secretWatchEventType string
+
+const (
+	secretWatchEventChanged secretWatchEventType = "changed"
+	secretWatchEventDeleted secretWatchEventType = "deleted"
+)
+
+type secretWatchEvent struct {
+	Type   secretWatchEventType
+	Secret *clawarmorv1alpha1.Secret
+}
+
+type mcpConnectionWatchEventType string
+
+const (
+	mcpConnectionWatchEventChanged mcpConnectionWatchEventType = "changed"
+	mcpConnectionWatchEventDeleted mcpConnectionWatchEventType = "deleted"
+)
+
+type mcpConnectionWatchEvent struct {
+	Type       mcpConnectionWatchEventType
+	Connection *clawarmorv1alpha1.MCPConnection
+}
+
 type resolver struct {
 	targetOverride string
 	client         clientset.Interface
-	lister         listersv1alpha1.AgentLister
+	agents         listersv1alpha1.AgentLister
+	secrets        listersv1alpha1.SecretLister
+	mcpConnections listersv1alpha1.MCPConnectionLister
 	stopCh         chan struct{}
 	stopOnce       sync.Once
 	watchMu        sync.Mutex
-	watchers       map[chan agentWatchEvent]struct{}
+	agentWatchers  map[chan agentWatchEvent]struct{}
 	runWatchers    map[chan workflowRunWatchEvent]struct{}
+	secretWatchers map[chan secretWatchEvent]struct{}
+	mcpWatchers    map[chan mcpConnectionWatchEvent]struct{}
 }
 
 func newResolver(ctx context.Context, targetOverride string) (*resolver, error) {
@@ -71,19 +99,22 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 	factory := informers.NewSharedInformerFactoryWithOptions(cs, 30*time.Second)
 	agentInformer := factory.Clawarmor().V1alpha1().Agents()
 	workflowRunInformer := factory.Clawarmor().V1alpha1().WorkflowRuns()
-	informer := agentInformer.Informer()
-	runInformer := workflowRunInformer.Informer()
-	lister := agentInformer.Lister()
+	secretInformer := factory.Clawarmor().V1alpha1().Secrets()
+	mcpInformer := factory.Clawarmor().V1alpha1().MCPConnections()
 
 	r := &resolver{
 		targetOverride: strings.TrimSpace(targetOverride),
 		client:         cs,
-		lister:         lister,
+		agents:         agentInformer.Lister(),
+		secrets:        secretInformer.Lister(),
+		mcpConnections: mcpInformer.Lister(),
 		stopCh:         make(chan struct{}),
-		watchers:       make(map[chan agentWatchEvent]struct{}),
+		agentWatchers:  make(map[chan agentWatchEvent]struct{}),
 		runWatchers:    make(map[chan workflowRunWatchEvent]struct{}),
+		secretWatchers: make(map[chan secretWatchEvent]struct{}),
+		mcpWatchers:    make(map[chan mcpConnectionWatchEvent]struct{}),
 	}
-	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = agentInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			r.broadcastAgentEvent(agentWatchEventChanged, agentFromInformerObject(obj))
 		},
@@ -98,7 +129,7 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 		r.Close()
 		return nil, fmt.Errorf("register agent informer handler: %w", err)
 	}
-	_, err = runInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = workflowRunInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			r.broadcastWorkflowRunEvent(workflowRunWatchEventChanged, workflowRunFromInformerObject(obj))
 		},
@@ -113,6 +144,45 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 		r.Close()
 		return nil, fmt.Errorf("register workflow run informer handler: %w", err)
 	}
+	_, err = secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			r.broadcastSecretEvent(secretWatchEventChanged, secretFromInformerObject(obj))
+		},
+		UpdateFunc: func(_, newObj any) {
+			r.broadcastSecretEvent(secretWatchEventChanged, secretFromInformerObject(newObj))
+		},
+		DeleteFunc: func(obj any) {
+			r.broadcastSecretEvent(secretWatchEventDeleted, secretFromInformerObject(obj))
+		},
+	})
+	if err != nil {
+		r.Close()
+		return nil, fmt.Errorf("register secret informer handler: %w", err)
+	}
+	_, err = mcpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			r.broadcastMCPConnectionEvent(
+				mcpConnectionWatchEventChanged,
+				mcpConnectionFromInformerObject(obj),
+			)
+		},
+		UpdateFunc: func(_, newObj any) {
+			r.broadcastMCPConnectionEvent(
+				mcpConnectionWatchEventChanged,
+				mcpConnectionFromInformerObject(newObj),
+			)
+		},
+		DeleteFunc: func(obj any) {
+			r.broadcastMCPConnectionEvent(
+				mcpConnectionWatchEventDeleted,
+				mcpConnectionFromInformerObject(obj),
+			)
+		},
+	})
+	if err != nil {
+		r.Close()
+		return nil, fmt.Errorf("register mcp connection informer handler: %w", err)
+	}
 	go func() {
 		<-ctx.Done()
 		r.Close()
@@ -120,10 +190,16 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 
 	factory.Start(r.stopCh)
 
-	ok := cache.WaitForCacheSync(r.stopCh, informer.HasSynced, runInformer.HasSynced)
+	ok := cache.WaitForCacheSync(
+		r.stopCh,
+		agentInformer.Informer().HasSynced,
+		workflowRunInformer.Informer().HasSynced,
+		secretInformer.Informer().HasSynced,
+		mcpInformer.Informer().HasSynced,
+	)
 	if !ok {
 		r.Close()
-		return nil, fmt.Errorf("agent informer cache did not sync")
+		return nil, fmt.Errorf("gateway informer cache did not sync")
 	}
 	return r, nil
 }
@@ -133,6 +209,24 @@ func (r *resolver) Close() {
 		return
 	}
 	r.stopOnce.Do(func() {
+		r.watchMu.Lock()
+		for ch := range r.agentWatchers {
+			close(ch)
+		}
+		clear(r.agentWatchers)
+		for ch := range r.runWatchers {
+			close(ch)
+		}
+		clear(r.runWatchers)
+		for ch := range r.secretWatchers {
+			close(ch)
+		}
+		clear(r.secretWatchers)
+		for ch := range r.mcpWatchers {
+			close(ch)
+		}
+		clear(r.mcpWatchers)
+		r.watchMu.Unlock()
 		close(r.stopCh)
 	})
 }
@@ -140,13 +234,13 @@ func (r *resolver) Close() {
 func (r *resolver) watchAgents() (<-chan agentWatchEvent, func()) {
 	ch := make(chan agentWatchEvent, 16)
 	r.watchMu.Lock()
-	r.watchers[ch] = struct{}{}
+	r.agentWatchers[ch] = struct{}{}
 	r.watchMu.Unlock()
 
 	cancel := func() {
 		r.watchMu.Lock()
-		if _, ok := r.watchers[ch]; ok {
-			delete(r.watchers, ch)
+		if _, ok := r.agentWatchers[ch]; ok {
+			delete(r.agentWatchers, ch)
 			close(ch)
 		}
 		r.watchMu.Unlock()
@@ -171,6 +265,40 @@ func (r *resolver) watchWorkflowRuns() (<-chan workflowRunWatchEvent, func()) {
 	return ch, cancel
 }
 
+func (r *resolver) watchSecrets() (<-chan secretWatchEvent, func()) {
+	ch := make(chan secretWatchEvent, 16)
+	r.watchMu.Lock()
+	r.secretWatchers[ch] = struct{}{}
+	r.watchMu.Unlock()
+
+	cancel := func() {
+		r.watchMu.Lock()
+		if _, ok := r.secretWatchers[ch]; ok {
+			delete(r.secretWatchers, ch)
+			close(ch)
+		}
+		r.watchMu.Unlock()
+	}
+	return ch, cancel
+}
+
+func (r *resolver) watchMCPConnections() (<-chan mcpConnectionWatchEvent, func()) {
+	ch := make(chan mcpConnectionWatchEvent, 16)
+	r.watchMu.Lock()
+	r.mcpWatchers[ch] = struct{}{}
+	r.watchMu.Unlock()
+
+	cancel := func() {
+		r.watchMu.Lock()
+		if _, ok := r.mcpWatchers[ch]; ok {
+			delete(r.mcpWatchers, ch)
+			close(ch)
+		}
+		r.watchMu.Unlock()
+	}
+	return ch, cancel
+}
+
 func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *clawarmorv1alpha1.Agent) {
 	if agt == nil {
 		return
@@ -182,7 +310,7 @@ func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *clawarmorv1
 
 	r.watchMu.Lock()
 	defer r.watchMu.Unlock()
-	for ch := range r.watchers {
+	for ch := range r.agentWatchers {
 		select {
 		case ch <- evt:
 		default:
@@ -209,6 +337,44 @@ func (r *resolver) broadcastWorkflowRunEvent(typ workflowRunWatchEventType, run 
 	}
 }
 
+func (r *resolver) broadcastSecretEvent(typ secretWatchEventType, secret *clawarmorv1alpha1.Secret) {
+	if secret == nil {
+		return
+	}
+	evt := secretWatchEvent{
+		Type:   typ,
+		Secret: secret.DeepCopy(),
+	}
+
+	r.watchMu.Lock()
+	defer r.watchMu.Unlock()
+	for ch := range r.secretWatchers {
+		select {
+		case ch <- evt:
+		default:
+		}
+	}
+}
+
+func (r *resolver) broadcastMCPConnectionEvent(typ mcpConnectionWatchEventType, conn *clawarmorv1alpha1.MCPConnection) {
+	if conn == nil {
+		return
+	}
+	evt := mcpConnectionWatchEvent{
+		Type:       typ,
+		Connection: conn.DeepCopy(),
+	}
+
+	r.watchMu.Lock()
+	defer r.watchMu.Unlock()
+	for ch := range r.mcpWatchers {
+		select {
+		case ch <- evt:
+		default:
+		}
+	}
+}
+
 func (r *resolver) resolveAgent(_ context.Context, namespace, agentName string) (*resolvedAgent, error) {
 	agentName = strings.TrimSpace(agentName)
 	if agentName == "" {
@@ -219,7 +385,7 @@ func (r *resolver) resolveAgent(_ context.Context, namespace, agentName string) 
 		return nil, fmt.Errorf("agent namespace is required")
 	}
 
-	agt, err := r.lister.Agents(namespace).Get(agentName)
+	agt, err := r.agents.Agents(namespace).Get(agentName)
 	if err != nil {
 		return nil, errAgentNotFound
 	}
@@ -261,6 +427,34 @@ func workflowRunFromInformerObject(obj any) *clawarmorv1alpha1.WorkflowRun {
 	case cache.DeletedFinalStateUnknown:
 		if run, ok := item.Obj.(*clawarmorv1alpha1.WorkflowRun); ok {
 			return run
+		}
+	default:
+		return nil
+	}
+	return nil
+}
+
+func secretFromInformerObject(obj any) *clawarmorv1alpha1.Secret {
+	switch item := obj.(type) {
+	case *clawarmorv1alpha1.Secret:
+		return item
+	case cache.DeletedFinalStateUnknown:
+		if secret, ok := item.Obj.(*clawarmorv1alpha1.Secret); ok {
+			return secret
+		}
+	default:
+		return nil
+	}
+	return nil
+}
+
+func mcpConnectionFromInformerObject(obj any) *clawarmorv1alpha1.MCPConnection {
+	switch item := obj.(type) {
+	case *clawarmorv1alpha1.MCPConnection:
+		return item
+	case cache.DeletedFinalStateUnknown:
+		if conn, ok := item.Obj.(*clawarmorv1alpha1.MCPConnection); ok {
+			return conn
 		}
 	default:
 		return nil

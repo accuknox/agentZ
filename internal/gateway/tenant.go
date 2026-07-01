@@ -136,7 +136,8 @@ func tenantView(tenant *clawarmorv1alpha1.Tenant) gatewayapi.Tenant {
 	phase := gatewayapi.BOOTSTRAPPING
 	if ready {
 		phase = gatewayapi.READY
-	} else if degraded {
+	}
+	if !ready && degraded {
 		phase = gatewayapi.FAILED
 	}
 

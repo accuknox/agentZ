@@ -3,7 +3,11 @@ import { Suspense } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { deleteSecretFormAction, putSecretFormAction } from "@/data/secret.actions"
+import {
+  deleteSecretFormAction,
+  putSecretFormAction,
+  startOAuthSecretFormAction,
+} from "@/data/secret.actions"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
@@ -33,22 +37,22 @@ export default async function SecretsPage({
           fallback={
             <Button disabled>
               <Plus />
-              New secret
+              Create
             </Button>
           }
         >
-          <NewSecretButtonShell searchParams={searchParams} putSecretAction={putSecretFormAction} />
+          <NewSecretButtonShell
+            searchParams={searchParams}
+            putSecretAction={putSecretFormAction}
+            startOAuthAction={startOAuthSecretFormAction}
+          />
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
         <Filters searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={<TableSkeleton />}>
-        <Secrets
-          searchParams={searchParams}
-          deleteSecretAction={deleteSecretFormAction}
-          putSecretAction={putSecretFormAction}
-        />
+        <Secrets searchParams={searchParams} deleteSecretAction={deleteSecretFormAction} />
       </Suspense>
     </main>
   )
@@ -57,9 +61,11 @@ export default async function SecretsPage({
 async function NewSecretButtonShell({
   searchParams,
   putSecretAction,
+  startOAuthAction,
 }: {
   searchParams: Promise<SearchParams>
   putSecretAction: typeof putSecretFormAction
+  startOAuthAction: typeof startOAuthSecretFormAction
 }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
@@ -69,7 +75,7 @@ async function NewSecretButtonShell({
     return (
       <Button disabled>
         <Plus />
-        New secret
+        Create
       </Button>
     )
   }
@@ -81,6 +87,7 @@ async function NewSecretButtonShell({
       key={selectedAgent.name}
       agentName={selectedAgent.name}
       putSecretAction={putSecretAction}
+      startOAuthAction={startOAuthAction}
     />
   )
 }
@@ -102,11 +109,9 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
 async function Secrets({
   searchParams,
   deleteSecretAction,
-  putSecretAction,
 }: {
   searchParams: Promise<SearchParams>
   deleteSecretAction: typeof deleteSecretFormAction
-  putSecretAction: typeof putSecretFormAction
 }) {
   const agents = listAgentsCachedQuery()
   const params = await searchParams
@@ -139,7 +144,6 @@ async function Secrets({
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}
       deleteSecretAction={deleteSecretAction}
-      putSecretAction={putSecretAction}
     />
   )
 }

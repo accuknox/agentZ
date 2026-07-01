@@ -23,6 +23,8 @@ type EnvironmentExpansion interface{}
 
 type MCPConnectionExpansion interface{}
 
+type SecretExpansion interface{}
+
 type WorkflowRunExpansion interface{}
 
 type WorkflowScheduleExpansion interface{}

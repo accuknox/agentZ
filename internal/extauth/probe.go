@@ -208,6 +208,11 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *clawarmorv1a
 
 	rt, err := s.probeTransport(reqCtx, conn)
 	if err != nil {
+		if errors.Is(err, errCredentialPending) {
+			outcome.reason = internalmcp.ReasonProbePending
+			outcome.message = "mcp credentials are pending"
+			return outcome
+		}
 		if errors.Is(err, errCredentialUnavailable) {
 			outcome.reason = internalmcp.ReasonCredentialsInvalid
 		}
@@ -334,7 +339,10 @@ func (s *Service) probeToken(ctx context.Context, conn *clawarmorv1alpha1.MCPCon
 	if conn.Spec.Auth.Bearer != nil {
 		auth := conn.Spec.Auth.Bearer
 		if auth.SecretRef == nil {
-			return "", nil, fmt.Errorf("bearer secret ref is missing: %w", errCredentialUnavailable)
+			return "", nil, fmt.Errorf(
+				"bearer secret ref is missing: %w",
+				errCredentialUnavailable,
+			)
 		}
 		record, err := s.readBearerRecord(ctx, *auth.SecretRef)
 		if err != nil {
@@ -397,6 +405,9 @@ func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name strin
 		status := metav1.ConditionFalse
 		if outcome.healthy {
 			status = metav1.ConditionTrue
+		}
+		if outcome.reason == internalmcp.ReasonProbePending {
+			status = metav1.ConditionUnknown
 		}
 		conn.Status.SetCondition(metav1.Condition{
 			Type:               internalmcp.ConditionProbeHealthy,

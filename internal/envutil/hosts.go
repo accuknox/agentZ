@@ -34,24 +34,6 @@ type Host struct {
 	Value string
 }
 
-// CanonicalHostList validates host entries and returns stable canonical values.
-func CanonicalHostList(raw []string) ([]string, error) {
-	hosts := make([]string, 0, len(raw))
-	seen := make(map[string]struct{}, len(raw))
-	for i, entry := range raw {
-		host, err := ParseHost(entry)
-		if err != nil {
-			return nil, fmt.Errorf("allowedHosts[%d]: %w", i, err)
-		}
-		if _, ok := seen[host.Value]; ok {
-			continue
-		}
-		seen[host.Value] = struct{}{}
-		hosts = append(hosts, host.Value)
-	}
-	return hosts, nil
-}
-
 // ParseHost validates one environment host entry and returns its canonical form.
 func ParseHost(raw string) (Host, error) {
 	value := strings.TrimSpace(raw)
@@ -105,11 +87,16 @@ func validateDomain(value string) error {
 // ParseHostList validates canonical host entries and groups them by kind.
 func ParseHostList(raw []string) ([]Host, error) {
 	hosts := make([]Host, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
 	for i, entry := range raw {
 		host, err := ParseHost(entry)
 		if err != nil {
 			return nil, fmt.Errorf("allowedHosts[%d]: %w", i, err)
 		}
+		if _, ok := seen[host.Value]; ok {
+			continue
+		}
+		seen[host.Value] = struct{}{}
 		hosts = append(hosts, host)
 	}
 	slices.SortFunc(hosts, func(a, b Host) int {

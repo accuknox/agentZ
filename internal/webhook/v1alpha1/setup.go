@@ -24,6 +24,7 @@ import (
 	agentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/agent"
 	environmentwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/environment"
 	mcpconnwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/mcpconn"
+	secretwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/secret"
 	tenantwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/tenant"
 	workflowrunwebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowrun"
 	workflowschedulewebhook "github.com/accuknox/clawarmor/internal/webhook/v1alpha1/workflowschedule"
@@ -60,4 +61,9 @@ func SetupMCPConnectionWebhookWithManager(mgr ctrl.Manager, kubeClient client.Cl
 // SetupTenantWebhookWithManager registers the Tenant webhook.
 func SetupTenantWebhookWithManager(mgr ctrl.Manager) error {
 	return tenantwebhook.RegisterWithManager(mgr)
+}
+
+// SetupSecretWebhookWithManager registers the Secret webhook.
+func SetupSecretWebhookWithManager(mgr ctrl.Manager) error {
+	return secretwebhook.RegisterWithManager(mgr)
 }

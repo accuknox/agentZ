@@ -41,6 +41,14 @@ type MCPConnectionListerExpansion interface{}
 // MCPConnectionNamespaceLister.
 type MCPConnectionNamespaceListerExpansion interface{}
 
+// SecretListerExpansion allows custom methods to be added to
+// SecretLister.
+type SecretListerExpansion interface{}
+
+// SecretNamespaceListerExpansion allows custom methods to be added to
+// SecretNamespaceLister.
+type SecretNamespaceListerExpansion interface{}
+
 // WorkflowRunListerExpansion allows custom methods to be added to
 // WorkflowRunLister.
 type WorkflowRunListerExpansion interface{}

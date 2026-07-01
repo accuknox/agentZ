@@ -43,9 +43,18 @@ func NewDefaulter() *Defaulter {
 // Default applies defaults to an Environment resource.
 func (d *Defaulter) Default(_ context.Context, env *clawarmorv1alpha1.Environment) error {
 	env.Spec.Packages = envcontroller.DefaultPackagesForWebhook(env.Spec.Packages)
-	hosts, err := envutil.CanonicalHostList(env.Spec.AllowedHosts)
-	if err != nil {
-		return nil
+	hosts := make([]string, 0, len(env.Spec.AllowedHosts))
+	seen := make(map[string]struct{}, len(env.Spec.AllowedHosts))
+	for _, entry := range env.Spec.AllowedHosts {
+		host, err := envutil.ParseHost(entry)
+		if err != nil {
+			return nil
+		}
+		if _, ok := seen[host.Value]; ok {
+			continue
+		}
+		seen[host.Value] = struct{}{}
+		hosts = append(hosts, host.Value)
 	}
 	env.Spec.AllowedHosts = hosts
 	return nil

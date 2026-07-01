@@ -18,6 +18,7 @@ package mcpconn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -27,6 +28,7 @@ import (
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
+	baoapi "github.com/openbao/openbao/api/v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -84,15 +86,7 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if conn.DeletionTimestamp.IsZero() {
-		if !ctrlutil.ContainsFinalizer(conn, mcp.MCPConnectionFinalizer) {
-			patch := client.MergeFrom(conn.DeepCopy())
-			ctrlutil.AddFinalizer(conn, mcp.MCPConnectionFinalizer)
-			if err := r.Patch(ctx, conn, patch); err != nil {
-				return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-			}
-		}
-	} else {
+	if !conn.DeletionTimestamp.IsZero() {
 		if err := r.deleteRuntime(ctx, conn); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -104,6 +98,13 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 		return ctrl.Result{}, nil
+	}
+	if !ctrlutil.ContainsFinalizer(conn, mcp.MCPConnectionFinalizer) {
+		patch := client.MergeFrom(conn.DeepCopy())
+		ctrlutil.AddFinalizer(conn, mcp.MCPConnectionFinalizer)
+		if err := r.Patch(ctx, conn, patch); err != nil {
+			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
+		}
 	}
 
 	refs, err := r.referencingEnvironments(ctx, conn.Namespace, conn.Name)
@@ -365,7 +366,10 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			if _, err := policies.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 				return nil, fmt.Errorf("create auth policy %q: %w", name, err)
 			}
-		} else if !reflect.DeepEqual(currentSpec, obj.Spec) || !reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+		}
+		if !obj.CreationTimestamp.IsZero() &&
+			(!reflect.DeepEqual(currentSpec, obj.Spec) ||
+				!reflect.DeepEqual(currentOwners, obj.OwnerReferences)) {
 			_, err := policies.Update(ctx, obj, metav1.UpdateOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("update auth policy %q: %w", name, err)
@@ -563,7 +567,7 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *clawa
 
 	path := mcp.SecretPath(conn.Name)
 	err = baoClient.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
-	if err != nil {
+	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete mcp connection secret metadata %q: %w", path, err)
 	}
 	return nil

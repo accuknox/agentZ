@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
-	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -223,11 +221,11 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		return
 	}
 
-	var runNames []string
+	runFilter := map[string]struct{}{}
 	if req.RunNames != nil {
-		runNames = make([]string, 0, len(*req.RunNames))
 		for _, runName := range *req.RunNames {
-			runNames = append(runNames, strings.TrimSpace(runName))
+			name := strings.TrimSpace(runName)
+			runFilter[name] = struct{}{}
 		}
 	}
 
@@ -296,13 +294,28 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 
 		changed := make([]gatewayapi.WorkflowRunSummary, 0, len(items))
 		for _, item := range items {
-			if len(runNames) > 0 && !slices.Contains(runNames, item.Name) {
+			if len(runFilter) > 0 {
+				if _, ok := runFilter[item.Name]; !ok {
+					continue
+				}
+			}
+			prevItem, ok := prev[item.Name]
+			durationEqual := prevItem.DurationSeconds == nil && item.DurationSeconds == nil
+			if prevItem.DurationSeconds != nil && item.DurationSeconds != nil {
+				durationEqual = *prevItem.DurationSeconds == *item.DurationSeconds
+			}
+			unchanged := ok &&
+				prevItem.Name == item.Name &&
+				prevItem.WorkflowName == item.WorkflowName &&
+				prevItem.Status == item.Status &&
+				prevItem.Reason == item.Reason &&
+				durationEqual &&
+				prevItem.CreatedAt.Equal(item.CreatedAt)
+			if unchanged {
 				continue
 			}
-			if !sameWorkflowRunSummary(prev[item.Name], item) {
-				prev[item.Name] = item
-				changed = append(changed, item)
-			}
+			prev[item.Name] = item
+			changed = append(changed, item)
 		}
 		return send("", changed)
 	}
@@ -310,9 +323,6 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	if !writeChanges() {
 		return
 	}
-
-	ticker := time.NewTicker(statusPollInterval)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -325,23 +335,28 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return
 			}
 			if evt.Type == workflowRunWatchEventDeleted {
-				item, ok := deletedWorkflowRunEventItem(
-					ns,
-					evt.Run,
-					prev,
-					agtName,
-					schName,
-					runNames,
-				)
+				if evt.Run == nil || evt.Run.Namespace != ns {
+					continue
+				}
+				if evt.Run.Spec.AgentName != agtName {
+					continue
+				}
+				if evt.Run.Spec.ScheduleRef == nil || evt.Run.Spec.ScheduleRef.Name != schName {
+					continue
+				}
+				if len(runFilter) > 0 {
+					if _, ok := runFilter[evt.Run.Name]; !ok {
+						continue
+					}
+				}
+
+				item, ok := prev[evt.Run.Name]
+				delete(prev, evt.Run.Name)
 				if ok && !send("DELETE", []gatewayapi.WorkflowRunSummary{item}) {
 					return
 				}
 				continue
 			}
-			if !writeChanges() {
-				return
-			}
-		case <-ticker.C:
 			if !writeChanges() {
 				return
 			}
@@ -454,43 +469,4 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func sameWorkflowRunSummary(a, b gatewayapi.WorkflowRunSummary) bool {
-	durationSecondsEqual := a.DurationSeconds == nil && b.DurationSeconds == nil
-	if a.DurationSeconds != nil && b.DurationSeconds != nil {
-		durationSecondsEqual = *a.DurationSeconds == *b.DurationSeconds
-	}
-
-	return a.Name == b.Name &&
-		a.WorkflowName == b.WorkflowName &&
-		a.Status == b.Status &&
-		a.Reason == b.Reason &&
-		durationSecondsEqual &&
-		a.CreatedAt.Equal(b.CreatedAt)
-}
-
-func deletedWorkflowRunEventItem(namespace string, run *clawarmorv1alpha1.WorkflowRun, prev map[string]gatewayapi.WorkflowRunSummary, agtName string, schName string, runNames []string) (gatewayapi.WorkflowRunSummary, bool) {
-	if run == nil {
-		return gatewayapi.WorkflowRunSummary{}, false
-	}
-	if run.Namespace != namespace {
-		return gatewayapi.WorkflowRunSummary{}, false
-	}
-	if run.Spec.AgentName != agtName {
-		return gatewayapi.WorkflowRunSummary{}, false
-	}
-	if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != schName {
-		return gatewayapi.WorkflowRunSummary{}, false
-	}
-	if len(runNames) > 0 && !slices.Contains(runNames, run.Name) {
-		return gatewayapi.WorkflowRunSummary{}, false
-	}
-
-	item, ok := prev[run.Name]
-	delete(prev, run.Name)
-	if !ok {
-		return gatewayapi.WorkflowRunSummary{}, false
-	}
-	return item, true
 }

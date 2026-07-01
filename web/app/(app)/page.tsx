@@ -8,10 +8,6 @@ import { AgentDialog } from "@/app/agent/agent-dialog"
 import { BotIcon } from "@/components/bot-icon"
 import type { DeleteAgentFormState } from "@/data/types"
 
-export const metadata: Metadata = {
-  title: "Agents | AgentZ - AccuKnox",
-}
-
 export default async function Home({
   searchParams,
 }: {

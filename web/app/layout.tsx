@@ -7,8 +7,8 @@ const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
 
 export const metadata: Metadata = {
   title: {
-    default: "AgentZ - AccuKnox",
-    template: "%s | AgentZ - AccuKnox",
+    default: "AccuKnox AgentZ",
+    template: "%s | AccuKnox AgentZ",
   },
   description: "Control-plane for your AI agents",
   icons: ["/favicon.svg"],

@@ -12,7 +12,7 @@ export function TeamSwitcher() {
               <AvatarImage src="/emblem.svg" />
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">AccuKnox</span>
+              <span className="truncate font-medium">AgentZ</span>
             </div>
           </Link>
         </SidebarMenuButton>

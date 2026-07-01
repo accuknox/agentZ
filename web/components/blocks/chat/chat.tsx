@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-storage"
+import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
 import { useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
 import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
 import {
@@ -102,6 +103,7 @@ import type { LanguageModelUsage } from "ai"
 
 type ChatProps = {
   agentName: string
+  firstName?: string
   sessionId?: string
 }
 
@@ -289,7 +291,7 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
   return result
 }
 
-function ChatInner({ agentName, sessionId }: ChatProps) {
+function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
   const {
     blocked,
     historyError,
@@ -638,6 +640,7 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
     ]
   )
   const inputDisabled = blocked || isBusy
+  const showGreeting = !sessionId && !isPending && rows.length === 0
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -657,6 +660,8 @@ function ChatInner({ agentName, sessionId }: ChatProps) {
               <Skeleton className="h-24 w-full rounded-md" />
               <Skeleton className="h-16 w-2/3 rounded-md" />
             </div>
+          ) : showGreeting ? (
+            <NewSessionGreeting firstName={firstName} />
           ) : (
             <>
               <div className="mx-auto flex w-full flex-col gap-4 lg:w-4/5">

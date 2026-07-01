@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { motion } from "motion/react"
-import { use, useCallback, useEffect, useMemo, useState, useTransition } from "react"
+import { AgentDialog } from "@/app/agent/agent-dialog"
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Dialog,
@@ -43,7 +44,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
-import type { AgentSessionListItem, ListAgentActionResponse } from "@/data/types"
+import type {
+  AgentSessionListItem,
+  ListAgentActionResponse,
+  ListSandboxActionResponse,
+} from "@/data/types"
 import { usePathname } from "next/navigation"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type {
@@ -77,35 +82,14 @@ function sortSessions(sessions: readonly AgentSessionListItem[]): AgentSessionLi
   })
 }
 
-export function NavAgentsSkeleton() {
-  return (
-    <SidebarMenu>
-      <Collapsible asChild defaultOpen className="group/collapsible">
-        <SidebarMenuItem>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton tooltip="Agents">
-              <BotIcon />
-              <span>Agents</span>
-              <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <SidebarMenuSub>
-              <SidebarMenuSubItem key="skeleton">
-                <SidebarMenuSkeleton />
-                <SidebarMenuSkeleton />
-              </SidebarMenuSubItem>
-            </SidebarMenuSub>
-          </CollapsibleContent>
-        </SidebarMenuItem>
-      </Collapsible>
-    </SidebarMenu>
-  )
-}
-
-export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse> }) {
-  const list = use(agents)
-  const initialAgents = list.agents ?? []
+export function NavAgents({
+  agents,
+  sandboxes,
+}: {
+  agents: ListAgentActionResponse
+  sandboxes: ListSandboxActionResponse
+}) {
+  const initialAgents = agents.agents ?? []
   const path = usePathname()
   const currentAgentName = agentNameFromPath(path)
   const [manualOpenAgentName, setManualOpenAgentName] = useState<string | null>(null)
@@ -113,7 +97,7 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
 
   const query = useQuery(
     queryOptions({
-      enabled: Boolean(list.agents),
+      enabled: Boolean(agents.agents),
       placeholderData: initialAgents,
       queryFn: streamedQuery<WatchAgentsResponse, Agent[], ["watchAgents"]>({
         initialValue: initialAgents,
@@ -154,7 +138,7 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
     })
   )
 
-  const error = list.error ?? toGatewayError(query.error)
+  const error = agents.error ?? toGatewayError(query.error)
   const queryAgents = query.data ?? initialAgents
 
   if (error) {
@@ -166,7 +150,27 @@ export function NavAgents({ agents }: { agents: Promise<ListAgentActionResponse>
   }
 
   if (queryAgents.length === 0) {
-    return <></>
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <AgentDialog
+            mode="create"
+            sandboxes={sandboxes.error ? [] : sandboxes.sandboxes}
+            initialHasNextSandboxPage={sandboxes.error ? false : sandboxes.hasNextPage}
+            initialNextSandboxPageToken={sandboxes.error ? "" : sandboxes.nextPageToken}
+            trigger={
+              <SidebarMenuButton
+                tooltip="Create"
+                className="border-primary text-primary hover:bg-primary/5 hover:text-primary justify-center border border-dashed"
+              >
+                <Plus />
+                <span className="group-data-[collapsible=icon]:hidden">Create</span>
+              </SidebarMenuButton>
+            }
+          />
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
   }
 
   return (

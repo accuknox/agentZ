@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { NavAgents, NavAgentsSkeleton } from "./agents"
+import { NavAgents } from "./agents"
 import { NavUser } from "./user"
 import { TeamSwitcher } from "./team-switcher"
 import {
@@ -12,6 +12,7 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
 import { NavSandboxes } from "./sandboxes"
@@ -27,7 +28,11 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 }
 
 export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
-  const agents = listAgentsCachedQuery()
+  const [agents, sandboxes] = await Promise.all([
+    listAgentsCachedQuery(),
+    listSandboxesCachedQuery({ limit: 50 }),
+  ])
+
   return (
     <Sidebar collapsible="icon" {...sidebarProps}>
       <SidebarHeader>
@@ -45,9 +50,7 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
         </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupLabel>Agents</SidebarGroupLabel>
-          <Suspense fallback={<NavAgentsSkeleton />}>
-            <NavAgents agents={agents} />
-          </Suspense>
+          <NavAgents agents={agents} sandboxes={sandboxes} />
         </SidebarGroup>
       </SidebarContent>
       {user ? (

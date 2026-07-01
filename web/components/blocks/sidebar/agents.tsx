@@ -204,6 +204,7 @@ function AgentSessionsItem({
     return sessions.filter((session) => !session.parentID)
   }, [sessions])
   const router = useRouter()
+  const newSessionPath = `/agents/${agent.name}/session/new`
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setOpenAgentName(open ? agent.name : null)
@@ -220,8 +221,8 @@ function AgentSessionsItem({
     if (query.isError) return
     if (sessions.some((session) => session.id === sessionID)) return
 
-    void router.push(`/agents/${agent.name}/session/new`)
-  }, [agent.name, isOpen, path, query.isError, query.isPending, router, sessions])
+    void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}`)
+  }, [agent.name, isOpen, newSessionPath, path, query.isError, query.isPending, router, sessions])
 
   return (
     <SidebarMenu>
@@ -240,7 +241,14 @@ function AgentSessionsItem({
             </SidebarMenuButton>
           </CollapsibleTrigger>
           <SidebarMenuAction>
-            <Link href={`/agents/${agent.name}/session/new`}>
+            <Link
+              href={newSessionPath}
+              onClick={(event) => {
+                event.preventDefault()
+                void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}`)
+              }}
+              prefetch={false}
+            >
               <Plus size={16} />
               <span className="sr-only">New Session</span>
             </Link>
@@ -318,6 +326,7 @@ function SessionItem({
   const [isPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
   const router = useRouter()
+  const newSessionPath = `/agents/${agentName}/session/new`
 
   const handleDelete = useCallback(
     async (formData: FormData) => {
@@ -337,12 +346,12 @@ function SessionItem({
         })
 
         if (path === href) {
-          router.push(`/agents/${agentName}/session/new`)
+          router.push(`${newSessionPath}?draft=${crypto.randomUUID()}`)
           router.refresh()
         }
       })
     },
-    [agentName, href, path, queryClient, router]
+    [agentName, href, newSessionPath, path, queryClient, router]
   )
 
   return (

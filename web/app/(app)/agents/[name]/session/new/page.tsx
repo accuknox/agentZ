@@ -1,9 +1,12 @@
 import type { Metadata } from "next"
-import { Suspense } from "react"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 
 type ChatPageParams = {
   name: string
+}
+
+type ChatPageSearchParams = {
+  draft?: string
 }
 
 export async function generateMetadata({
@@ -18,20 +21,19 @@ export async function generateMetadata({
   }
 }
 
-export default async function ChatPage({ params }: { params: Promise<ChatPageParams> }) {
-  return (
-    <Suspense fallback={null}>
-      <ChatPageContent params={params} />
-    </Suspense>
-  )
-}
-
-async function ChatPageContent({ params }: { params: Promise<ChatPageParams> }) {
+export default async function ChatPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<ChatPageParams>
+  searchParams: Promise<ChatPageSearchParams>
+}) {
   const { name } = await params
+  const { draft } = await searchParams
 
   return (
     <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
-      <ChatShell agentName={name} />
+      <ChatShell agentName={name} draftKey={draft} />
     </main>
   )
 }

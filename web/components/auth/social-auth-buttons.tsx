@@ -10,6 +10,7 @@ type SocialAuthButtonsProps = {
   authPath: AuthPath
   disabled?: boolean
   errors?: Partial<Record<SocialProvider, string>>
+  hiddenFields?: Record<string, string | undefined>
   pendingProvider?: SocialProvider
   providers: SocialProvider[]
   returnTo?: string
@@ -23,6 +24,7 @@ export function SocialAuthButtons({
   authPath,
   disabled = false,
   errors,
+  hiddenFields,
   onPendingChangeAction,
   pendingProvider,
   providers,
@@ -42,6 +44,11 @@ export function SocialAuthButtons({
         >
           <input type="hidden" name="authPath" value={authPath} />
           {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
+          {hiddenFields
+            ? Object.entries(hiddenFields).map(([name, value]) =>
+                value ? <input key={name} type="hidden" name={name} value={value} /> : null
+              )
+            : null}
           <Button
             type="submit"
             variant="outline"

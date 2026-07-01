@@ -4,6 +4,7 @@ import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { Mail } from "lucide-react"
 import { headers } from "next/headers"
 import { connection } from "next/server"
+import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
 import { PasswordSettings } from "./password-settings"
 import { TwoFactorSettings } from "./two-factor-settings"
@@ -12,7 +13,17 @@ export const metadata: Metadata = {
   title: "Account",
 }
 
-export default function AccountPage() {
+type AccountSearchParams = {
+  error?: AuthError | AuthError[]
+  manage2fa?: "disable" | "enable" | Array<"disable" | "enable">
+  provider?: SocialProvider | SocialProvider[]
+}
+
+export default function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<AccountSearchParams>
+}) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -27,7 +38,7 @@ export default function AccountPage() {
         <PasswordGate />
       </Suspense>
       <Suspense fallback={<TwoFactorSkeleton />}>
-        <AccountSecurity />
+        <AccountSecurity searchParams={searchParams} />
       </Suspense>
     </main>
   )
@@ -112,21 +123,43 @@ async function PasswordGate() {
   return <PasswordSettings />
 }
 
-async function AccountSecurity() {
+async function AccountSecurity({ searchParams }: { searchParams: Promise<AccountSearchParams> }) {
   await connection()
   const auth = getAuth()
+  const requestHeaders = await headers()
   let enabled = false
+  let email = ""
   let errorMessage: string | undefined
+  let intent: "disable" | "enable" | undefined
+  let provider: "credential" | "github" | "google" = "credential"
+  let routeError: AuthError | undefined
+  const params = await searchParams
+  const error = Array.isArray(params.error) ? params.error[0] : params.error
+  const manage2FA = Array.isArray(params.manage2fa) ? params.manage2fa[0] : params.manage2fa
+  const routeProvider = Array.isArray(params.provider) ? params.provider[0] : params.provider
 
   try {
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: requestHeaders,
+      query: {
+        disableCookieCache: true,
+      },
     })
 
     if (!session) {
       errorMessage = "Unauthorized"
     } else {
+      const accounts = await auth.api.listUserAccounts({
+        headers: requestHeaders,
+      })
+      email = session.user.email
       enabled = !!session.user.twoFactorEnabled
+      if (!accounts.some((account) => account.providerId === "credential")) {
+        const currentProvider = accounts[0]?.providerId
+        if (currentProvider === "github" || currentProvider === "google") {
+          provider = currentProvider
+        }
+      }
     }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Failed to load security settings"
@@ -136,7 +169,23 @@ async function AccountSecurity() {
     return <ErrorPanel message={errorMessage} />
   }
 
-  return <TwoFactorSettings enabled={enabled} />
+  if (manage2FA === "enable" || manage2FA === "disable") {
+    intent = manage2FA
+  }
+  if (routeProvider === "github" || routeProvider === "google") {
+    provider = routeProvider
+  }
+  routeError = error
+
+  return (
+    <TwoFactorSettings
+      email={email}
+      enabled={enabled}
+      intent={intent}
+      provider={provider}
+      routeError={routeError}
+    />
+  )
 }
 
 function ProviderSkeleton() {

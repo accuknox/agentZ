@@ -1,10 +1,16 @@
 "use client"
 
 import * as React from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useRouter } from "next/navigation"
 import QRCode from "react-qr-code"
+import { z } from "zod"
 import { Download, ShieldCheck, ShieldOff, XIcon } from "lucide-react"
+import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
+import { authErrorMessages } from "@/app/(auth)/shared"
+import { reauthenticateWithGithub, reauthenticateWithGoogle } from "./actions"
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
@@ -22,49 +28,243 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { authClient } from "@/lib/auth-client"
 
-type TwoFactorSetup = NonNullable<Awaited<ReturnType<typeof authClient.twoFactor.enable>>["data"]>
-type TOTPEnrollmentVerificationValues = {
-  code: string
+type ManageAction = "disable" | "enable"
+type Provider = "credential" | SocialProvider
+type TwoFactorSetup = {
+  backupCodes: string[]
+  totpURI: string
 }
+
+type ManageResponse =
+  | {
+      action: ManageAction
+      provider: Provider
+      status: "reauth_required"
+    }
+  | ({
+      status: "ok"
+    } & Partial<TwoFactorSetup>)
 
 type TwoFactorSettingsProps = {
+  email: string
   enabled: boolean
+  intent?: ManageAction
+  provider: Provider
+  routeError?: AuthError
 }
 
-export function TwoFactorSettings({ enabled }: TwoFactorSettingsProps) {
-  const [enableOpen, setEnableOpen] = React.useState(false)
-  const [disableOpen, setDisableOpen] = React.useState(false)
-  const [enableSetup, setEnableSetup] = React.useState<TwoFactorSetup>()
-  const [enablePending, setEnablePending] = React.useState(false)
-  const [enableError, setEnableError] = React.useState<string>()
-  const enableRequestIDRef = React.useRef(0)
+const reauthenticateSchema = z.object({
+  password: z.string().min(1, "Enter your current password."),
+})
 
-  async function startEnableSetup() {
-    const requestID = enableRequestIDRef.current + 1
-    enableRequestIDRef.current = requestID
-    setEnableOpen(true)
-    setEnablePending(true)
-    setEnableError(undefined)
-    try {
-      const result = await authClient.twoFactor.enable({})
-      if (requestID !== enableRequestIDRef.current) {
-        return
-      }
-      if (result.error || !result.data) {
-        setEnableError(result.error?.message ?? "Failed to start setup")
-        return
-      }
-      new URL(result.data.totpURI)
-      setEnableSetup(result.data)
-    } catch {
-      if (requestID === enableRequestIDRef.current) {
-        setEnableError("Failed to start setup")
-      }
-    } finally {
-      if (requestID === enableRequestIDRef.current) {
-        setEnablePending(false)
-      }
+/**
+ * TwoFactorSettings keeps 2FA management behind a recent-sign-in gate and
+ * resumes the intended action after re-auth instead of surfacing raw auth
+ * plugin errors in the enrollment dialog.
+ */
+export function TwoFactorSettings({
+  email,
+  enabled,
+  intent,
+  provider,
+  routeError,
+}: TwoFactorSettingsProps) {
+  const router = useRouter()
+  const consumedIntentRef = React.useRef<string | undefined>(undefined)
+  const [setup, setSetup] = React.useState<TwoFactorSetup>()
+  const [mode, setMode] = React.useState<"disable" | "idle" | "loading" | "reauth" | "setup">(
+    "idle"
+  )
+  const [pendingAction, setPendingAction] = React.useState<ManageAction>()
+  const [requestedAction, setRequestedAction] = React.useState<ManageAction>("enable")
+  const [error, setError] = React.useState<string>()
+  const [pendingProvider, setPendingProvider] = React.useState<SocialProvider>()
+  const [, startTransition] = React.useTransition()
+  const form = useForm<z.infer<typeof reauthenticateSchema>>({
+    criteriaMode: "all",
+    defaultValues: {
+      password: "",
+    },
+    mode: "onSubmit",
+    reValidateMode: "onBlur",
+    resolver: zodResolver(reauthenticateSchema),
+  })
+
+  const open = mode !== "idle"
+  const verifying = pendingAction === "enable" && mode === "setup"
+  const disabling = pendingAction === "disable" && mode === "disable"
+  const reauthenticating = pendingAction !== undefined && mode === "reauth"
+  const socialError =
+    routeError && provider !== "credential" ? authErrorMessages[routeError] : undefined
+
+  const socialActions = {
+    github: reauthenticateWithGithub,
+    google: reauthenticateWithGoogle,
+  } satisfies Record<SocialProvider, (formData: FormData) => Promise<void>>
+
+  React.useEffect(() => {
+    if (!intent) {
+      return
     }
+
+    queueMicrotask(() => {
+      if (consumedIntentRef.current === intent) {
+        return
+      }
+
+      consumedIntentRef.current = intent
+      window.history.replaceState({}, "", window.location.pathname)
+      setPendingProvider(undefined)
+      if (intent === "disable") {
+        setError(undefined)
+        setMode("disable")
+        return
+      }
+
+      void startEnable()
+    })
+  }, [intent])
+
+  async function manage(action: ManageAction): Promise<ManageResponse> {
+    const response = await fetch("/api/account/two-factor", {
+      body: JSON.stringify({ action }),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    })
+    const data = (await response.json()) as ManageResponse | { message?: string }
+    if (!response.ok && "status" in data && data.status === "reauth_required") {
+      return data
+    }
+    if (!response.ok || !("status" in data) || data.status !== "ok") {
+      throw new Error("message" in data ? data.message || "Request failed" : "Request failed")
+    }
+    return data
+  }
+
+  const startEnable = React.useEffectEvent(async (): Promise<void> => {
+    setPendingAction("enable")
+    setRequestedAction("enable")
+    setError(undefined)
+    setSetup(undefined)
+    setMode("loading")
+
+    try {
+      const result = await manage("enable")
+      if (result.status === "reauth_required") {
+        setMode("reauth")
+        return
+      }
+      if (!result.totpURI || !result.backupCodes) {
+        throw new Error("Failed to start setup")
+      }
+      setSetup({
+        backupCodes: result.backupCodes,
+        totpURI: result.totpURI,
+      })
+      setMode("setup")
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to start setup")
+      setMode("idle")
+    } finally {
+      setPendingAction(undefined)
+    }
+  })
+
+  async function submitCredentialReauth(
+    values: z.infer<typeof reauthenticateSchema>
+  ): Promise<void> {
+    const returnTo = `/settings/account?manage2fa=${requestedAction}`
+    setPendingAction(requestedAction)
+    setError(undefined)
+
+    try {
+      const result = await authClient.signIn.email({
+        callbackURL: returnTo,
+        email,
+        password: values.password,
+      })
+      if (result.error) {
+        form.setError("password", {
+          message:
+            result.error.status === 401
+              ? authErrorMessages.invalid_email_or_password
+              : (result.error.message ?? "Sign-in could not be completed. Try again."),
+          type: "server",
+        })
+        return
+      }
+
+      const data = result.data
+      if (
+        data &&
+        typeof data === "object" &&
+        "twoFactorRedirect" in data &&
+        data.twoFactorRedirect === true
+      ) {
+        window.location.replace(`/signin/two-factor?returnTo=${encodeURIComponent(returnTo)}`)
+        return
+      }
+
+      window.location.replace(returnTo)
+    } finally {
+      setPendingAction(undefined)
+    }
+  }
+
+  async function verify(code: string): Promise<string | undefined> {
+    if (!/^\d{6}$/.test(code)) {
+      return "Enter a valid 6-digit code"
+    }
+
+    setPendingAction("enable")
+    try {
+      const result = await authClient.twoFactor.verifyTotp({ code })
+      if (result.error) {
+        return result.error.message ?? "Invalid code"
+      }
+      close()
+      startTransition(() => {
+        router.refresh()
+      })
+    } catch {
+      return "Invalid code"
+    } finally {
+      setPendingAction(undefined)
+    }
+  }
+
+  async function disable(): Promise<void> {
+    setPendingAction("disable")
+    setRequestedAction("disable")
+    setError(undefined)
+
+    try {
+      const result = await manage("disable")
+      if (result.status === "reauth_required") {
+        setMode("reauth")
+        return
+      }
+      close()
+      startTransition(() => {
+        router.refresh()
+      })
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to disable 2FA")
+    } finally {
+      setPendingAction(undefined)
+    }
+  }
+
+  function close(): void {
+    setMode("idle")
+    setError(undefined)
+    setPendingProvider(undefined)
+    setSetup(undefined)
+    setRequestedAction("enable")
+    form.reset()
+    form.clearErrors()
   }
 
   return (
@@ -80,292 +280,340 @@ export function TwoFactorSettings({ enabled }: TwoFactorSettingsProps) {
           </div>
           <Switch
             checked={enabled}
-            disabled={enablePending}
+            disabled={open}
             onCheckedChange={(checked) => {
               if (checked) {
-                void startEnableSetup()
+                void startEnable()
                 return
               }
-              setDisableOpen(true)
+              setError(undefined)
+              setMode("disable")
             }}
             aria-label={enabled ? "Disable authenticator app" : "Enable authenticator app"}
           />
         </div>
       </div>
-      <EnableTwoFactorDialog
-        enableError={enableError}
-        open={enableOpen}
-        pending={enablePending}
-        setup={enableSetup}
-        onOpenChangeAction={(open) => {
-          setEnableOpen(open)
-          if (open) {
+      {!open && error ? <FieldError>{error}</FieldError> : null}
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
             return
           }
-          enableRequestIDRef.current += 1
-          setEnableSetup(undefined)
-          setEnableError(undefined)
-          setEnablePending(false)
+          close()
         }}
-      />
-      <DisableTwoFactorDialog open={disableOpen} onOpenChangeAction={setDisableOpen} />
+      >
+        <DialogContent
+          className={
+            mode === "setup"
+              ? "flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-xl"
+              : undefined
+          }
+          showCloseButton={mode !== "setup"}
+        >
+          {mode === "setup" && setup ? (
+            <SetupDialog
+              error={error}
+              pending={verifying}
+              setup={setup}
+              onCloseAction={close}
+              onVerifyAction={verify}
+            />
+          ) : null}
+          {mode === "loading" ? <LoadingDialog /> : null}
+          {mode === "reauth" ? (
+            <ReauthDialog
+              action={requestedAction}
+              credential={provider === "credential"}
+              error={error ?? socialError}
+              form={form}
+              pending={reauthenticating}
+              pendingProvider={pendingProvider}
+              provider={provider}
+              socialActions={socialActions}
+              onCredentialSubmitAction={submitCredentialReauth}
+              onPendingProviderAction={setPendingProvider}
+            />
+          ) : null}
+          {mode === "disable" ? (
+            <DisableDialog error={error} pending={disabling} onDisableAction={disable} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
 
-function EnableTwoFactorDialog({
-  enableError,
-  onOpenChangeAction,
-  open,
-  pending: enablePending,
+function SetupDialog({
+  error,
+  onCloseAction,
+  onVerifyAction,
+  pending,
   setup,
 }: {
-  enableError: string | undefined
-  onOpenChangeAction: (open: boolean) => void
-  open: boolean
+  error: string | undefined
+  onCloseAction: () => void
+  onVerifyAction: (code: string) => Promise<string | undefined>
   pending: boolean
-  setup: TwoFactorSetup | undefined
+  setup: TwoFactorSetup
 }) {
-  const router = useRouter()
-  const [, startTransition] = React.useTransition()
-  const [pending, setPending] = React.useState(false)
   const [secretMode, setSecretMode] = React.useState(false)
-  const form = useForm<TOTPEnrollmentVerificationValues>({
-    defaultValues: {
-      code: "",
-    },
-  })
-  const secret = setup ? (new URL(setup.totpURI).searchParams.get("secret") ?? "") : ""
+  const [code, setCode] = React.useState("")
+  const [codeError, setCodeError] = React.useState<string>()
+  const secret = new URL(setup.totpURI).searchParams.get("secret") ?? ""
 
-  async function verify(values: TOTPEnrollmentVerificationValues) {
-    if (!/^\d{6}$/.test(values.code)) {
-      form.setError("code", {
-        type: "validate",
-        message: "Enter a valid 6-digit code",
-      })
-      return
-    }
+  async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+    setCodeError(undefined)
 
-    setPending(true)
-
-    try {
-      const result = await authClient.twoFactor.verifyTotp({
-        code: values.code,
-      })
-      if (result.error) {
-        form.setError("code", {
-          type: "server",
-          message: result.error.message ?? "Invalid code",
-        })
-        return
-      }
-
-      onOpenChangeAction(false)
-      form.reset()
-      startTransition(() => {
-        router.refresh()
-      })
-    } catch {
-      form.setError("code", {
-        type: "server",
-        message: "Invalid code",
-      })
-    } finally {
-      setPending(false)
+    const nextError = await onVerifyAction(code)
+    if (nextError) {
+      setCodeError(nextError)
     }
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        onOpenChangeAction(nextOpen)
-        if (nextOpen) {
-          return
-        }
-        form.reset()
-        setSecretMode(false)
-      }}
-    >
-      <DialogContent
-        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-xl"
-        showCloseButton={false}
-      >
-        <div className="bg-popover flex shrink-0 items-start justify-between gap-4 p-4">
-          <DialogHeader className="min-w-0 pt-1">
-            <DialogTitle>Connect your authenticator app</DialogTitle>
-            <DialogDescription className="sr-only">
-              Scan the QR code or enter the secret, then verify the 6-digit code.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogClose asChild>
-            <Button variant="ghost" className="shrink-0" size="icon-sm">
-              <XIcon />
-              <span className="sr-only">Close</span>
-            </Button>
-          </DialogClose>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="px-4 pb-4">
-            {enableError ? <FieldError>{enableError}</FieldError> : null}
-            {setup ? (
-              <form className="flex flex-col gap-6" onSubmit={form.handleSubmit(verify)}>
-                <div className="flex flex-col gap-6">
-                  {secretMode ? (
-                    <div className="flex flex-col gap-4">
-                      <p className="font-medium">
-                        Step 1: Enter the secret code below in your authenticator app, then enter
-                        the 6-digit code from the app.
-                      </p>
-                      <div className="border-border flex min-h-44 flex-col items-center justify-center gap-4 rounded-lg border p-6">
-                        <div className="border-border bg-background w-full rounded-md border px-4 py-3 text-center font-mono text-lg break-all">
-                          {secret}
-                        </div>
-                        <CopyButton content={secret} label="Copy code" />
-                        <Button type="button" variant="link" onClick={() => setSecretMode(false)}>
-                          Show QR code instead
-                        </Button>
-                      </div>
+    <>
+      <div className="bg-popover flex shrink-0 items-start justify-between gap-4 p-4">
+        <DialogHeader className="min-w-0 pt-1">
+          <DialogTitle>Connect your authenticator app</DialogTitle>
+          <DialogDescription className="sr-only">
+            Scan the QR code or enter the secret, then verify the 6-digit code.
+          </DialogDescription>
+        </DialogHeader>
+        <Button variant="ghost" className="shrink-0" size="icon-sm" onClick={onCloseAction}>
+          <XIcon />
+          <span className="sr-only">Close</span>
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="px-4 pb-4">
+          {error ? <FieldError>{error}</FieldError> : null}
+          <form className="flex flex-col gap-6" onSubmit={(event) => void submit(event)}>
+            <div className="flex flex-col gap-6">
+              {secretMode ? (
+                <div className="flex flex-col gap-4">
+                  <p className="font-medium">
+                    Step 1: Enter the secret code below in your authenticator app, then enter the
+                    6-digit code from the app.
+                  </p>
+                  <div className="border-border flex min-h-44 flex-col items-center justify-center gap-4 rounded-lg border p-6">
+                    <div className="border-border bg-background w-full rounded-md border px-4 py-3 text-center font-mono text-lg break-all">
+                      {secret}
                     </div>
-                  ) : (
-                    <div className="flex flex-col gap-4">
-                      <p className="font-medium">
-                        Step 1: Scan the QR code using your authenticator app, then enter the
-                        6-digit code from the app.
-                      </p>
-                      <div className="border-border flex min-h-80 flex-col items-center justify-center gap-3 rounded-lg border p-6">
-                        <div className="bg-background p-3 text-black">
-                          <QRCode value={setup.totpURI} className="size-56" />
-                        </div>
-                        <Button type="button" variant="link" onClick={() => setSecretMode(true)}>
-                          Trouble scanning?
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  <FieldGroup>
-                    <Field data-invalid={!!form.formState.errors.code}>
-                      <FieldLabel htmlFor="two-factor-code" required>
-                        Step 2: Enter your 6-digit code
-                      </FieldLabel>
-                      <Input
-                        id="two-factor-code"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        aria-invalid={!!form.formState.errors.code}
-                        aria-required="true"
-                        placeholder="Enter your 6-digit code"
-                        {...form.register("code")}
-                      />
-                      {form.formState.errors.code ? (
-                        <FieldError errors={[form.formState.errors.code]} />
-                      ) : null}
-                    </Field>
-                    <BackupCodes codes={setup.backupCodes} />
-                  </FieldGroup>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button type="button" variant="outline" disabled={pending}>
-                      Cancel
+                    <CopyButton content={secret} label="Copy code" />
+                    <Button type="button" variant="link" onClick={() => setSecretMode(false)}>
+                      Show QR code instead
                     </Button>
-                  </DialogClose>
-                  <Button type="submit" disabled={pending}>
-                    {pending ? (
-                      <Spinner data-icon="inline-start" />
-                    ) : (
-                      <ShieldCheck data-icon="inline-start" />
-                    )}
-                    Verify
-                  </Button>
-                </DialogFooter>
-              </form>
-            ) : (
-              <div className="flex min-h-36 items-center justify-center">
-                {enablePending ? <Spinner /> : null}
-              </div>
-            )}
-          </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <p className="font-medium">
+                    Step 1: Scan the QR code using your authenticator app, then enter the 6-digit
+                    code from the app.
+                  </p>
+                  <div className="border-border flex min-h-80 flex-col items-center justify-center gap-3 rounded-lg border p-6">
+                    <div className="bg-background p-3 text-black">
+                      <QRCode value={setup.totpURI} className="size-56" />
+                    </div>
+                    <Button type="button" variant="link" onClick={() => setSecretMode(true)}>
+                      Trouble scanning?
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <FieldGroup>
+                <Field data-invalid={!!codeError}>
+                  <FieldLabel htmlFor="two-factor-code" required>
+                    Step 2: Enter your 6-digit code
+                  </FieldLabel>
+                  <Input
+                    id="two-factor-code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    aria-invalid={!!codeError}
+                    aria-required="true"
+                    disabled={pending}
+                    placeholder="Enter your 6-digit code"
+                    value={code}
+                    onChange={(event) => {
+                      setCode(event.target.value)
+                      if (codeError) {
+                        setCodeError(undefined)
+                      }
+                    }}
+                  />
+                  {codeError ? <FieldError>{codeError}</FieldError> : null}
+                </Field>
+                <BackupCodes codes={setup.backupCodes} />
+              </FieldGroup>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={pending}>
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={pending}>
+                {pending ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <ShieldCheck data-icon="inline-start" />
+                )}
+                Verify
+              </Button>
+            </DialogFooter>
+          </form>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </>
   )
 }
 
-function DisableTwoFactorDialog({
-  onOpenChangeAction,
-  open,
-}: {
-  onOpenChangeAction: (open: boolean) => void
-  open: boolean
-}) {
-  const router = useRouter()
-  const [, startTransition] = React.useTransition()
-  const [pending, setPending] = React.useState(false)
-  const [error, setError] = React.useState<string>()
-
-  async function disable() {
-    setPending(true)
-    setError(undefined)
-    try {
-      const result = await authClient.twoFactor.disable({})
-      if (result.error) {
-        setError(result.error.message ?? "Failed to disable 2FA")
-        return
-      }
-
-      onOpenChangeAction(false)
-      startTransition(() => {
-        router.refresh()
-      })
-    } catch {
-      setError("Failed to disable 2FA")
-    } finally {
-      setPending(false)
-    }
-  }
-
+function LoadingDialog() {
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        onOpenChangeAction(nextOpen)
-        if (!nextOpen) {
-          setError(undefined)
-        }
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Disable two-factor authentication?</DialogTitle>
-        </DialogHeader>
-        {error ? <FieldError>{error}</FieldError> : null}
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={pending}>
-              Cancel
+    <div className="flex min-h-36 items-center justify-center">
+      <Spinner />
+    </div>
+  )
+}
+
+function ReauthDialog({
+  action,
+  credential,
+  error,
+  form,
+  onCredentialSubmitAction,
+  onPendingProviderAction,
+  pending,
+  pendingProvider,
+  provider,
+  socialActions,
+}: {
+  action: ManageAction
+  credential: boolean
+  error: string | undefined
+  form: ReturnType<typeof useForm<z.infer<typeof reauthenticateSchema>>>
+  onCredentialSubmitAction: (values: z.infer<typeof reauthenticateSchema>) => Promise<void>
+  onPendingProviderAction: (provider: SocialProvider) => void
+  pending: boolean
+  pendingProvider: SocialProvider | undefined
+  provider: Provider
+  socialActions: Record<SocialProvider, (formData: FormData) => Promise<void>>
+}) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Confirm it&apos;s you</DialogTitle>
+        <DialogDescription>
+          For your security, confirm it&apos;s you before{" "}
+          {action === "enable" ? "enabling" : "disabling"} two-factor authentication.
+        </DialogDescription>
+      </DialogHeader>
+      {credential ? (
+        <form
+          className="flex flex-col gap-5"
+          onSubmit={form.handleSubmit((values) => void onCredentialSubmitAction(values))}
+          noValidate
+        >
+          <FieldGroup>
+            <Field data-invalid={!!form.formState.errors.password}>
+              <FieldLabel htmlFor="two-factor-reauth-password" required>
+                Current password
+              </FieldLabel>
+              <Input
+                id="two-factor-reauth-password"
+                type="password"
+                autoComplete="current-password"
+                aria-invalid={!!form.formState.errors.password}
+                disabled={pending}
+                {...form.register("password", {
+                  onChange: () => {
+                    if (form.formState.errors.password) {
+                      form.clearErrors("password")
+                    }
+                  },
+                })}
+              />
+              {form.formState.errors.password ? (
+                <FieldError errors={[form.formState.errors.password]} />
+              ) : null}
+            </Field>
+          </FieldGroup>
+          {error ? <FieldError>{error}</FieldError> : null}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={pending}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={pending}>
+              {pending ? <Spinner data-icon="inline-start" /> : null}
+              Continue
             </Button>
-          </DialogClose>
-          <Button
-            type="button"
-            variant="destructive"
+          </DialogFooter>
+        </form>
+      ) : provider === "github" || provider === "google" ? (
+        <>
+          {error ? <FieldError>{error}</FieldError> : null}
+          <SocialAuthButtons
+            actions={socialActions}
+            authPath="/signin"
             disabled={pending}
-            onClick={() => {
-              void disable()
-            }}
-          >
-            {pending ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <ShieldOff data-icon="inline-start" />
-            )}
-            Disable
+            errors={error ? { [provider]: error } : undefined}
+            hiddenFields={{ action }}
+            onPendingChangeAction={onPendingProviderAction}
+            pendingProvider={pendingProvider}
+            providers={[provider]}
+            returnTo={undefined}
+            submitLabel="Sign in"
+          />
+        </>
+      ) : null}
+    </>
+  )
+}
+
+function DisableDialog({
+  error,
+  onDisableAction,
+  pending,
+}: {
+  error: string | undefined
+  onDisableAction: () => Promise<void>
+  pending: boolean
+}) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Disable two-factor authentication?</DialogTitle>
+        <DialogDescription>
+          You&apos;ll stop being asked for authenticator codes on sign-in.
+        </DialogDescription>
+      </DialogHeader>
+      {error ? <FieldError>{error}</FieldError> : null}
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline" disabled={pending}>
+            Cancel
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogClose>
+        <Button
+          type="button"
+          variant="destructive"
+          disabled={pending}
+          onClick={() => {
+            void onDisableAction()
+          }}
+        >
+          {pending ? <Spinner data-icon="inline-start" /> : <ShieldOff data-icon="inline-start" />}
+          Disable
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
 
@@ -388,7 +636,7 @@ function BackupCodes({ codes }: { codes: string[] }) {
   )
 }
 
-async function downloadBackupCodes(codes: string[]) {
+async function downloadBackupCodes(codes: string[]): Promise<void> {
   if (codes.length === 0) {
     return
   }

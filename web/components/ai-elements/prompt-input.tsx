@@ -429,6 +429,7 @@ export const PromptInputTextarea = ({
   onInput,
   onKeyDown,
   className,
+  disabled,
   placeholder = "Start with an idea, task, or question...",
   ...props
 }: PromptInputTextareaProps) => {
@@ -436,6 +437,7 @@ export const PromptInputTextarea = ({
   const layout = useContext(PromptInputLayoutContext)
   const [isComposing, setIsComposing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const wasDisabledRef = useRef(Boolean(disabled))
 
   const focusTextarea = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -574,6 +576,22 @@ export const PromptInputTextarea = ({
     focusTextarea()
   }, [focusTextarea])
 
+  useEffect(() => {
+    if (disabled) {
+      wasDisabledRef.current = true
+      return
+    }
+
+    if (!wasDisabledRef.current) {
+      return
+    }
+
+    // Re-enable happens after the agent finishes streaming, so wait until the
+    // textarea is interactive again before restoring focus for the next turn.
+    wasDisabledRef.current = false
+    focusTextarea()
+  }, [disabled, focusTextarea])
+
   return (
     <InputGroupTextarea
       autoFocus
@@ -597,6 +615,7 @@ export const PromptInputTextarea = ({
       placeholder={placeholder}
       ref={setTextareaRef}
       rows={1}
+      disabled={disabled}
       {...props}
     />
   )

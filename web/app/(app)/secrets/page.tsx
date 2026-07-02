@@ -27,6 +27,8 @@ export default async function SecretsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  const params = await searchParams
+
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -42,17 +44,17 @@ export default async function SecretsPage({
           }
         >
           <NewSecretButtonShell
-            searchParams={searchParams}
+            searchParams={params}
             putSecretAction={putSecretFormAction}
             startOAuthAction={startOAuthSecretFormAction}
           />
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={searchParams} />
+        <Filters searchParams={params} />
       </Suspense>
       <Suspense fallback={<TableSkeleton />}>
-        <Secrets searchParams={searchParams} deleteSecretAction={deleteSecretFormAction} />
+        <Secrets searchParams={params} deleteSecretAction={deleteSecretFormAction} />
       </Suspense>
     </main>
   )
@@ -63,13 +65,14 @@ async function NewSecretButtonShell({
   putSecretAction,
   startOAuthAction,
 }: {
-  searchParams: Promise<SearchParams>
+  searchParams: SearchParams
   putSecretAction: typeof putSecretFormAction
   startOAuthAction: typeof startOAuthSecretFormAction
 }) {
   const agents = listAgentsCachedQuery()
-  const params = await searchParams
-  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
+  const agentName = Array.isArray(searchParams.agent_name)
+    ? searchParams.agent_name[0]
+    : searchParams.agent_name
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return (
@@ -92,10 +95,11 @@ async function NewSecretButtonShell({
   )
 }
 
-async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
+async function Filters({ searchParams }: { searchParams: SearchParams }) {
   const agents = listAgentsCachedQuery()
-  const params = await searchParams
-  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
+  const agentName = Array.isArray(searchParams.agent_name)
+    ? searchParams.agent_name[0]
+    : searchParams.agent_name
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return <FiltersSkeleton />
@@ -110,13 +114,16 @@ async function Secrets({
   searchParams,
   deleteSecretAction,
 }: {
-  searchParams: Promise<SearchParams>
+  searchParams: SearchParams
   deleteSecretAction: typeof deleteSecretFormAction
 }) {
   const agents = listAgentsCachedQuery()
-  const params = await searchParams
-  const agentName = Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name
-  const pageToken = Array.isArray(params.page_token) ? params.page_token[0] : params.page_token
+  const agentName = Array.isArray(searchParams.agent_name)
+    ? searchParams.agent_name[0]
+    : searchParams.agent_name
+  const pageToken = Array.isArray(searchParams.page_token)
+    ? searchParams.page_token[0]
+    : searchParams.page_token
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

@@ -30,8 +30,8 @@ export default async function ChatPage({
   params: Promise<ChatPageParams>
   searchParams: Promise<ChatPageSearchParams>
 }) {
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   const [routeParams, resolvedSearchParams, session] = await Promise.all([
     params,
     searchParams,

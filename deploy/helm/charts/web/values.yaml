@@ -35,6 +35,10 @@ env:
   internalGatewayBaseURL: ""
   # Audience for Better Auth JWTs consumed by the gateway.
   gatewayJWTAudience: agentz-gateway
+  # Enable Better Auth email/password sign-in and sign-up.
+  enableEmailPasswordAuth: false
+  # Optional comma-separated allowlist for email/password auth.
+  emailPasswordAuthAllowedUser: ""
   # Optional GitHub OAuth client ID.
   githubClientID: ""
   # Optional GitHub allow-list user ID.

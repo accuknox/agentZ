@@ -11,7 +11,7 @@ import { signInReturnTo } from "@/lib/sign-in-redirect"
 import { AuthSearchParams, socialProviders, type SocialProvider } from "../shared"
 
 export const metadata: Metadata = {
-  title: "Sign In | AccuKnox AgentZ",
+  title: "Sign In",
 }
 
 const providerActions = {
@@ -20,8 +20,6 @@ const providerActions = {
 } satisfies Record<SocialProvider, (formData: FormData) => Promise<never>>
 
 export default function SignInPage({ searchParams }: { searchParams: Promise<AuthSearchParams> }) {
-  const showPasswordAuth = getEnv().ENABLE_EMAIL_PASSWORD_AUTH
-
   return (
     <div className="flex min-h-svh w-full justify-center px-6 py-10 md:px-10 md:py-14">
       <div className="w-full max-w-xl">
@@ -30,8 +28,8 @@ export default function SignInPage({ searchParams }: { searchParams: Promise<Aut
             <SignInForm
               actions={providerActions}
               providers={[]}
-              showPasswordAuth={showPasswordAuth}
-              showSignUpLink={showPasswordAuth}
+              showPasswordAuth={false}
+              showSignUpLink={false}
             />
           }
         >
@@ -44,6 +42,7 @@ export default function SignInPage({ searchParams }: { searchParams: Promise<Aut
 
 async function SignInGate({ searchParams }: { searchParams: Promise<AuthSearchParams> }) {
   await connection()
+  const requestHeaders = await headers()
   const auth = getAuth()
   const params = await searchParams
   const error = Array.isArray(params.error) ? params.error[0] : params.error
@@ -52,7 +51,7 @@ async function SignInGate({ searchParams }: { searchParams: Promise<AuthSearchPa
     Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo
   )
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   })
 
   if (session) {

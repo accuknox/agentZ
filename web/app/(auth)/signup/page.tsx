@@ -11,7 +11,7 @@ import { signInReturnTo } from "@/lib/sign-in-redirect"
 import { AuthSearchParams, socialProviders, type SocialProvider } from "../shared"
 
 export const metadata: Metadata = {
-  title: "Sign Up | AccuKnox AgentZ",
+  title: "Sign Up",
 }
 
 const providerActions = {
@@ -20,10 +20,6 @@ const providerActions = {
 } satisfies Record<SocialProvider, (formData: FormData) => Promise<never>>
 
 export default function SignUpPage({ searchParams }: { searchParams: Promise<AuthSearchParams> }) {
-  if (!getEnv().ENABLE_EMAIL_PASSWORD_AUTH) {
-    redirect("/signin")
-  }
-
   return (
     <div className="flex min-h-svh w-full justify-center px-6 py-10 md:px-10 md:py-14">
       <div className="w-full max-w-xl">
@@ -37,6 +33,10 @@ export default function SignUpPage({ searchParams }: { searchParams: Promise<Aut
 
 async function SignUpGate({ searchParams }: { searchParams: Promise<AuthSearchParams> }) {
   await connection()
+  const requestHeaders = await headers()
+  if (!getEnv().ENABLE_EMAIL_PASSWORD_AUTH) {
+    redirect("/signin")
+  }
 
   const auth = getAuth()
   const params = await searchParams
@@ -46,7 +46,7 @@ async function SignUpGate({ searchParams }: { searchParams: Promise<AuthSearchPa
     Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo
   )
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   })
   if (session) {
     redirect(returnTo ?? "/")

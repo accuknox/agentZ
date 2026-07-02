@@ -16,7 +16,7 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - envs
+  - sandboxes
   verbs:
   - get
   - list
@@ -24,6 +24,6 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - envs/status
+  - sandboxes/status
   verbs:
   - get

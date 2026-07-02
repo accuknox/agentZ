@@ -15,8 +15,8 @@ type GatewayAuthState = GatewayAuthContext & {
 }
 
 async function resolveGatewayAuthState(): Promise<GatewayAuthState> {
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   const session = await auth.api.getSession({
     headers: requestHeaders,
   })
@@ -65,8 +65,8 @@ export async function currentGatewayAuthContext(): Promise<GatewayAuthContext> {
 }
 
 export async function currentGatewayAuthToken(): Promise<string> {
-  const auth = getAuth()
   const state = await resolveGatewayAuthState()
+  const auth = getAuth()
   const data = await auth.api.getToken({
     headers: state.requestHeaders,
   })

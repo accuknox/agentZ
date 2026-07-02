@@ -1,5 +1,5 @@
-{{- if and (not .Values.env.githubClientID) (not .Values.env.googleClientID) }}
-{{- fail "web requires at least one social provider client ID (githubClientID or googleClientID)" }}
+{{- if and (not .Values.env.githubClientID) (not .Values.env.googleClientID) (not .Values.env.enableEmailPasswordAuth) }}
+{{- fail "web requires at least one auth method (github, google, or email/password)" }}
 {{- end }}
 {{- if and .Values.env.githubClientID (not .Values.secrets.githubClientSecret) }}
 {{- fail "web.env.githubClientID requires web.secrets.githubClientSecret" }}
@@ -70,9 +70,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "web.fullname" . }}
                   key: MCP_OAUTH_COOKIE_SECRET
+            - name: ENABLE_EMAIL_PASSWORD_AUTH
+              value: {{ .Values.env.enableEmailPasswordAuth | quote }}
             {{- if .Values.env.internalGatewayBaseURL }}
             - name: INTERNAL_GATEWAY_BASE_URL
               value: {{ .Values.env.internalGatewayBaseURL | quote }}
+            {{- end }}
+            {{- if .Values.env.emailPasswordAuthAllowedUser }}
+            - name: EMAIL_PASSWORD_AUTH_ALLOWED_USER
+              value: {{ .Values.env.emailPasswordAuthAllowedUser | quote }}
             {{- end }}
             {{- if .Values.env.githubClientID }}
             - name: GITHUB_CLIENT_ID

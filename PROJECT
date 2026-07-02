@@ -30,7 +30,7 @@ resources:
   group: agentz
   kind: Sandbox
   path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
-  plural: envs
+  plural: sandboxes
   version: v1alpha1
   webhooks:
     defaulting: true

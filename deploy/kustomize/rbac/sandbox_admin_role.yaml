@@ -16,12 +16,12 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - envs
+  - sandboxes
   verbs:
   - '*'
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - envs/status
+  - sandboxes/status
   verbs:
   - get

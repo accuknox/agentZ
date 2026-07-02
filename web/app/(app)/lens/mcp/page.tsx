@@ -37,16 +37,16 @@ export default async function McpPage({
 }: {
   searchParams: Promise<McpSearchParams>
 }) {
-  const agents = listAgentsCachedQuery()
+  const params = await searchParams
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
-        <FiltersContent agents={agents} searchParams={searchParams} />
+        <FiltersContent searchParams={params} />
       </Suspense>
       <Suspense fallback={<GraphSkeleton />}>
-        <GraphContent agents={agents} searchParams={searchParams} />
+        <GraphContent searchParams={params} />
       </Suspense>
     </main>
   )
@@ -86,20 +86,16 @@ async function Filters({
   )
 }
 
-async function FiltersContent({
-  agents,
-  searchParams,
-}: {
-  agents: Promise<ListAgentActionResponse>
-  searchParams: Promise<McpSearchParams>
-}) {
-  const params = await searchParams
-  const from = Array.isArray(params.from) ? params.from[0] : params.from
-  const to = Array.isArray(params.to) ? params.to[0] : params.to
+async function FiltersContent({ searchParams }: { searchParams: McpSearchParams }) {
+  const agents = listAgentsCachedQuery()
+  const from = Array.isArray(searchParams.from) ? searchParams.from[0] : searchParams.from
+  const to = Array.isArray(searchParams.to) ? searchParams.to[0] : searchParams.to
   const range = mcpDateRange(from, to)
   const scope = getMcpScope({
     agents,
-    agentName: Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name,
+    agentName: Array.isArray(searchParams.agent_name)
+      ? searchParams.agent_name[0]
+      : searchParams.agent_name,
   })
 
   return <Filters scope={scope} from={range.from} to={range.to} />
@@ -150,20 +146,16 @@ async function Graph({
   )
 }
 
-async function GraphContent({
-  agents,
-  searchParams,
-}: {
-  agents: Promise<ListAgentActionResponse>
-  searchParams: Promise<McpSearchParams>
-}) {
-  const params = await searchParams
-  const from = Array.isArray(params.from) ? params.from[0] : params.from
-  const to = Array.isArray(params.to) ? params.to[0] : params.to
+async function GraphContent({ searchParams }: { searchParams: McpSearchParams }) {
+  const agents = listAgentsCachedQuery()
+  const from = Array.isArray(searchParams.from) ? searchParams.from[0] : searchParams.from
+  const to = Array.isArray(searchParams.to) ? searchParams.to[0] : searchParams.to
   const range = mcpDateRange(from, to)
   const scope = getMcpScope({
     agents,
-    agentName: Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name,
+    agentName: Array.isArray(searchParams.agent_name)
+      ? searchParams.agent_name[0]
+      : searchParams.agent_name,
   })
 
   return <Graph scope={scope} range={range} />

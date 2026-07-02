@@ -21,6 +21,8 @@ export default async function WorkflowsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  const params = await searchParams
+
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -29,24 +31,23 @@ export default async function WorkflowsPage({
         </div>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={searchParams} />
+        <Filters searchParams={params} />
       </Suspense>
       <Suspense fallback={<CanvasSkeleton />}>
-        <WorkflowContent searchParams={searchParams} />
+        <WorkflowContent searchParams={params} />
       </Suspense>
     </main>
   )
 }
 
-async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }) {
+async function Filters({ searchParams }: { searchParams: SearchParams }) {
   const agents = listAgentsCachedQuery()
-  const params = await searchParams
-  const selectedAgentName = Array.isArray(params.agent_name)
-    ? params.agent_name[0]
-    : params.agent_name
-  const selectedWorkflowName = Array.isArray(params.workflow_name)
-    ? params.workflow_name[0]
-    : params.workflow_name
+  const selectedAgentName = Array.isArray(searchParams.agent_name)
+    ? searchParams.agent_name[0]
+    : searchParams.agent_name
+  const selectedWorkflowName = Array.isArray(searchParams.workflow_name)
+    ? searchParams.workflow_name[0]
+    : searchParams.workflow_name
   const agentsResult = await agents
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
     return <FiltersSkeleton />
@@ -71,15 +72,14 @@ async function Filters({ searchParams }: { searchParams: Promise<SearchParams> }
   )
 }
 
-async function WorkflowContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+async function WorkflowContent({ searchParams }: { searchParams: SearchParams }) {
   const agents = listAgentsCachedQuery()
-  const params = await searchParams
-  const selectedAgentName = Array.isArray(params.agent_name)
-    ? params.agent_name[0]
-    : params.agent_name
-  const selectedWorkflowName = Array.isArray(params.workflow_name)
-    ? params.workflow_name[0]
-    : params.workflow_name
+  const selectedAgentName = Array.isArray(searchParams.agent_name)
+    ? searchParams.agent_name[0]
+    : searchParams.agent_name
+  const selectedWorkflowName = Array.isArray(searchParams.workflow_name)
+    ? searchParams.workflow_name[0]
+    : searchParams.workflow_name
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

@@ -29,20 +29,6 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-agentz-accuknox-com-v1alpha1-sandbox
-    failurePolicy: Fail
-    name: msandbox-v1alpha1.kb.io
-    rules:
-      - apiGroups: ["agentz.accuknox.com"]
-        apiVersions: ["v1alpha1"]
-        operations: ["CREATE", "UPDATE"]
-        resources: ["envs"]
-    sideEffects: None
-  - admissionReviewVersions: ["v1"]
-    clientConfig:
-      service:
-        name: {{ include "manager.fullname" . }}-webhook-service
-        namespace: {{ .Release.Namespace }}
         path: /mutate-agentz-accuknox-com-v1alpha1-mcpconnection
     failurePolicy: Fail
     name: mmcpconnection-v1alpha1.kb.io
@@ -57,14 +43,28 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-agentz-accuknox-com-v1alpha1-tenant
+        path: /mutate-agentz-accuknox-com-v1alpha1-sandbox
     failurePolicy: Fail
-    name: vtenant-v1alpha1.kb.io
+    name: msandbox-v1alpha1.kb.io
     rules:
       - apiGroups: ["agentz.accuknox.com"]
         apiVersions: ["v1alpha1"]
-        operations: ["CREATE", "UPDATE", "DELETE"]
-        resources: ["tenants"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["sandboxes"]
+    sideEffects: None
+  - admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "manager.fullname" . }}-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-agentz-accuknox-com-v1alpha1-secret
+    failurePolicy: Fail
+    name: msecret-v1alpha1.kb.io
+    rules:
+      - apiGroups: ["agentz.accuknox.com"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["secrets"]
     sideEffects: None
   - admissionReviewVersions: ["v1"]
     clientConfig:
@@ -125,20 +125,6 @@ webhooks:
       service:
         name: {{ include "manager.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-agentz-accuknox-com-v1alpha1-sandbox
-    failurePolicy: Fail
-    name: vsandbox-v1alpha1.kb.io
-    rules:
-      - apiGroups: ["agentz.accuknox.com"]
-        apiVersions: ["v1alpha1"]
-        operations: ["CREATE", "UPDATE", "DELETE"]
-        resources: ["envs"]
-    sideEffects: None
-  - admissionReviewVersions: ["v1"]
-    clientConfig:
-      service:
-        name: {{ include "manager.fullname" . }}-webhook-service
-        namespace: {{ .Release.Namespace }}
         path: /validate-agentz-accuknox-com-v1alpha1-mcpconnection
     failurePolicy: Fail
     name: vmcpconnection-v1alpha1.kb.io
@@ -147,6 +133,48 @@ webhooks:
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["mcpconnections"]
+    sideEffects: None
+  - admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "manager.fullname" . }}-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-agentz-accuknox-com-v1alpha1-sandbox
+    failurePolicy: Fail
+    name: vsandbox-v1alpha1.kb.io
+    rules:
+      - apiGroups: ["agentz.accuknox.com"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["sandboxes"]
+    sideEffects: None
+  - admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "manager.fullname" . }}-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-agentz-accuknox-com-v1alpha1-secret
+    failurePolicy: Fail
+    name: vsecret-v1alpha1.kb.io
+    rules:
+      - apiGroups: ["agentz.accuknox.com"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["secrets"]
+    sideEffects: None
+  - admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "manager.fullname" . }}-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-agentz-accuknox-com-v1alpha1-tenant
+    failurePolicy: Fail
+    name: vtenant-v1alpha1.kb.io
+    rules:
+      - apiGroups: ["agentz.accuknox.com"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["tenants"]
     sideEffects: None
   - admissionReviewVersions: ["v1"]
     clientConfig:

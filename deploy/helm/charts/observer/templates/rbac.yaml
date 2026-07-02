@@ -10,7 +10,7 @@ rules:
     resources: ["agents"]
     verbs: ["get"]
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["envs"]
+    resources: ["sandboxes"]
     verbs: ["get"]
   - apiGroups: [""]
     resources: ["services"]

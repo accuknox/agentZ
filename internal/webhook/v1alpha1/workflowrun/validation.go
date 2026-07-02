@@ -52,12 +52,7 @@ func (v *Validator) ValidateCreate(ctx context.Context, run *agentzv1alpha1.Work
 }
 
 // ValidateUpdate validates WorkflowRun updates.
-func (v *Validator) ValidateUpdate(ctx context.Context, oldRun, newRun *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
-	err := v.validateRun(ctx, newRun)
-	if err != nil {
-		return nil, err
-	}
-
+func (v *Validator) ValidateUpdate(_ context.Context, oldRun, newRun *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
 	if reflect.DeepEqual(oldRun.Spec, newRun.Spec) {
 		return nil, nil
 	}

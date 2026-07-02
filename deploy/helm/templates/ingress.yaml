@@ -32,6 +32,16 @@ spec:
                 name: {{ include "agentz.webFullname" $ }}
                 port:
                   number: {{ $.Values.web.service.port }}
+    - host: {{ .host }}
+      http:
+        paths:
+          - path: /api/account
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentz.webFullname" $ }}
+                port:
+                  number: {{ $.Values.web.service.port }}
           - path: /api/gateway
             pathType: Prefix
             backend:

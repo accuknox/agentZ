@@ -15,10 +15,6 @@ export type ChatMessagePart = FilePartInput | TextPartInput
 
 const blockedMimeTypes = new Set(["image/svg+xml"])
 
-function hasDataURLPrefix(value: string) {
-  return value.startsWith("data:") && value.includes(";base64,")
-}
-
 function inferDataURLSize(value: string) {
   const comma = value.indexOf(",")
   if (comma < 0) return 0
@@ -55,10 +51,10 @@ function validateChatAttachments(files: ChatAttachment[]) {
     if (!mime) {
       throw new Error("Attachment is missing a media type")
     }
-    if (!isSupportedChatAttachmentMime(mime)) {
+    if (blockedMimeTypes.has(mime) || (!mime.startsWith("image/") && mime !== "application/pdf")) {
       throw new Error(chatAttachmentErrorMessage("accept"))
     }
-    if (!hasDataURLPrefix(file.url)) {
+    if (!file.url.startsWith("data:") || !file.url.includes(";base64,")) {
       throw new Error("Attachment content is invalid")
     }
 
@@ -67,11 +63,6 @@ function validateChatAttachments(files: ChatAttachment[]) {
       throw new Error(chatAttachmentErrorMessage("max_file_size"))
     }
   }
-}
-
-function isSupportedChatAttachmentMime(mime: string) {
-  if (blockedMimeTypes.has(mime)) return false
-  return mime.startsWith("image/") || mime === "application/pdf"
 }
 
 export function messageHasRenderableContent(

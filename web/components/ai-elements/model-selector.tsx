@@ -10,15 +10,8 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/
 import { cn } from "@/lib/utils"
 import type { ComponentProps, ReactNode } from "react"
 
-export type ModelSelectorProps = ComponentProps<typeof Dialog>
-
-export const ModelSelector = (props: ModelSelectorProps) => <Dialog {...props} />
-
-export type ModelSelectorTriggerProps = ComponentProps<typeof DialogTrigger>
-
-export const ModelSelectorTrigger = (props: ModelSelectorTriggerProps) => (
-  <DialogTrigger {...props} />
-)
+export const ModelSelector = Dialog
+export const ModelSelectorTrigger = DialogTrigger
 
 export type ModelSelectorContentProps = ComponentProps<typeof DialogContent> & {
   title?: ReactNode
@@ -46,21 +39,10 @@ export const ModelSelectorInput = ({ className, ...props }: ModelSelectorInputPr
   <CommandInput className={cn("h-auto py-3.5", className)} {...props} />
 )
 
-export type ModelSelectorListProps = ComponentProps<typeof CommandList>
-
-export const ModelSelectorList = (props: ModelSelectorListProps) => <CommandList {...props} />
-
-export type ModelSelectorEmptyProps = ComponentProps<typeof CommandEmpty>
-
-export const ModelSelectorEmpty = (props: ModelSelectorEmptyProps) => <CommandEmpty {...props} />
-
-export type ModelSelectorGroupProps = ComponentProps<typeof CommandGroup>
-
-export const ModelSelectorGroup = (props: ModelSelectorGroupProps) => <CommandGroup {...props} />
-
-export type ModelSelectorItemProps = ComponentProps<typeof CommandItem>
-
-export const ModelSelectorItem = (props: ModelSelectorItemProps) => <CommandItem {...props} />
+export const ModelSelectorList = CommandList
+export const ModelSelectorEmpty = CommandEmpty
+export const ModelSelectorGroup = CommandGroup
+export const ModelSelectorItem = CommandItem
 
 export type ModelSelectorLogoProps = Omit<ComponentProps<"img">, "src" | "alt"> & {
   provider:
@@ -125,14 +107,14 @@ export type ModelSelectorLogoProps = Omit<ComponentProps<"img">, "src" | "alt"> 
 }
 
 export const ModelSelectorLogo = ({ provider, className, ...props }: ModelSelectorLogoProps) => (
-  // eslint-disable-next-line @next/next/no-img-element -- external SVG (12x12), Next.js Image provides no benefit
+  // eslint-disable-next-line @next/next/no-img-element -- external SVG (16x16), Next.js Image provides no benefit
   <img
     {...props}
     alt={`${provider} logo`}
-    className={cn("size-3 dark:invert", className)}
-    height={12}
+    className={cn("size-4 dark:invert", className)}
+    height={16}
     src={`https://models.dev/logos/${provider}.svg`}
-    width={12}
+    width={16}
   />
 )
 
@@ -141,7 +123,7 @@ export type ModelSelectorLogoGroupProps = ComponentProps<"div">
 export const ModelSelectorLogoGroup = ({ className, ...props }: ModelSelectorLogoGroupProps) => (
   <div
     className={cn(
-      "[&>img]:bg-background dark:[&>img]:bg-foreground flex shrink-0 items-center -space-x-1 [&>img]:rounded-full [&>img]:p-px [&>img]:ring-1",
+      "[&>img]:bg-background dark:[&>img]:bg-foreground flex shrink-0 items-center -space-x-1.5 [&>img]:size-4 [&>img]:rounded-full [&>img]:p-px [&>img]:ring-1",
       className
     )}
     {...props}

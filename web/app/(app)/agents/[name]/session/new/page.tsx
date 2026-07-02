@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
@@ -45,10 +46,16 @@ export default async function ChatPage({
     session?.user.name?.trim().split(/\s+/, 1)[0] ||
     session?.user.email.split("@")[0]?.trim() ||
     undefined
+  const greetingIndex = randomInt(10)
 
   return (
     <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
-      <ChatShell agentName={name} draftKey={draft} firstName={firstName} />
+      <ChatShell
+        agentName={name}
+        draftKey={draft}
+        firstName={firstName}
+        greetingIndex={greetingIndex}
+      />
     </main>
   )
 }

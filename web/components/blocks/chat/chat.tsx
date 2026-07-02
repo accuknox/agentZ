@@ -19,14 +19,12 @@ import {
   PromptInput,
   PromptInputBody,
   PromptInputButton,
-  PromptInputFooter,
-  PromptInputHeader,
   PromptInputSubmit,
   PromptInputTextarea,
-  PromptInputTools,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
 import { Button } from "@/components/ui/button"
+import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -64,7 +62,8 @@ import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
-import { CheckIcon, PaperclipIcon } from "lucide-react"
+import { BrainCircuitIcon, CheckIcon, ChevronDownIcon, PaperclipIcon } from "lucide-react"
+import { motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
@@ -95,6 +94,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger as ReasoningSelectTrigger,
   SelectValue,
@@ -104,10 +104,12 @@ import type { LanguageModelUsage } from "ai"
 type ChatProps = {
   agentName: string
   firstName?: string
+  greetingIndex?: number
   sessionId?: string
 }
 
 const DEFAULT_REASONING_LEVEL = "__default__"
+const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
 
 // RetryCountdown ticks every second while the SessionStatus.retry "next"
 // timestamp is in the future.
@@ -226,18 +228,23 @@ function PromptInputAttachmentsDisplay() {
   }
 
   return (
-    <Attachments variant="inline">
-      {attachments.files.map((attachment) => {
-        const handleRemove = () => attachments.remove(attachment.id)
+    <InputGroupAddon
+      align="block-start"
+      className="order-first flex-wrap gap-2 px-3 pt-1 pb-1 empty:hidden"
+    >
+      <Attachments variant="inline">
+        {attachments.files.map((attachment) => {
+          const handleRemove = () => attachments.remove(attachment.id)
 
-        return (
-          <Attachment data={attachment} key={attachment.id} onRemove={handleRemove}>
-            <AttachmentPreview />
-            <AttachmentRemove />
-          </Attachment>
-        )
-      })}
-    </Attachments>
+          return (
+            <Attachment data={attachment} key={attachment.id} onRemove={handleRemove}>
+              <AttachmentPreview />
+              <AttachmentRemove />
+            </Attachment>
+          )
+        })}
+      </Attachments>
+    </InputGroupAddon>
   )
 }
 
@@ -246,12 +253,13 @@ function PromptInputAttachmentButton({ disabled }: { disabled?: boolean }) {
 
   return (
     <PromptInputButton
-      aria-label="Add attachment"
+      aria-label="Attach files"
+      className="size-8"
       disabled={disabled}
       onClick={attachments.openFileDialog}
-      tooltip="Add attachment"
+      tooltip="Add photos & files"
     >
-      <PaperclipIcon className="size-4" />
+      <PaperclipIcon />
     </PromptInputButton>
   )
 }
@@ -291,7 +299,10 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
   return result
 }
 
-function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
+function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps) {
+  const [promotedSessionId, setPromotedSessionId] = useState<string>()
+  const activeSessionId = sessionId ?? promotedSessionId
+
   const {
     blocked,
     historyError,
@@ -310,7 +321,7 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, sessionId)
+  } = useOpencodeChat(agentName, activeSessionId)
   const directory = session?.directory
   const [model, setModel] = useState<string>("")
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
@@ -377,38 +388,40 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
   const models = useMemo(() => catalog?.models ?? [], [catalog?.models])
   const chefs = useMemo(() => catalog?.chefs ?? [], [catalog?.chefs])
   const sessionModel = session?.model
-  const selectedSessionModel = useMemo(() => {
-    if (!sessionModel) return undefined
-    return models.find((item) => {
-      return item.providerID === sessionModel.providerID && item.modelID === sessionModel.id
-    })
-  }, [models, sessionModel])
-  const selectedAgentModel = useMemo(() => {
-    const agentModel = catalog?.agent?.model
-    if (!agentModel) return undefined
-    return models.find((item) => {
-      return item.providerID === agentModel.providerID && item.modelID === agentModel.modelID
-    })
-  }, [catalog?.agent?.model, models])
-  const selectedConfigModel = useMemo(() => {
-    const configModel = catalog?.config.model
-    if (!configModel) return undefined
-    const [providerID, ...modelID] = configModel.split("/")
-    if (!providerID || modelID.length === 0) return undefined
-    return models.find((item) => {
-      return item.providerID === providerID && item.modelID === modelID.join("/")
-    })
-  }, [catalog?.config.model, models])
-  const selectedRecentModel = useMemo(() => {
+  const agentModel = catalog?.agent?.model
+  const selectedModel = (() => {
+    const explicitModel = model ? models.find((item) => item.id === model) : undefined
+    if (explicitModel) return explicitModel
+
+    if (sessionModel) {
+      const match = models.find((item) => {
+        return item.providerID === sessionModel.providerID && item.modelID === sessionModel.id
+      })
+      if (match) return match
+    }
+
+    if (agentModel) {
+      const match = models.find((item) => {
+        return item.providerID === agentModel.providerID && item.modelID === agentModel.modelID
+      })
+      if (match) return match
+    }
+
+    if (catalog?.config.model) {
+      const [providerID, ...modelID] = catalog.config.model.split("/")
+      const match = models.find((item) => {
+        return item.providerID === providerID && item.modelID === modelID.join("/")
+      })
+      if (match) return match
+    }
+
     for (const storedModel of recent) {
       const match = models.find((item) => {
         return item.providerID === storedModel.providerID && item.modelID === storedModel.modelID
       })
       if (match) return match
     }
-    return undefined
-  }, [models, recent])
-  const selectedProviderDefaultModel = useMemo(() => {
+
     const providerDefaults = catalog?.providerDefaults ?? {}
     for (const provider of Object.keys(providerDefaults)) {
       const modelID = providerDefaults[provider]
@@ -418,84 +431,53 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
       })
       if (match) return match
     }
-    return undefined
-  }, [catalog?.providerDefaults, models])
-  const fallbackModel = useMemo(() => {
-    return (
-      selectedSessionModel ??
-      selectedAgentModel ??
-      selectedConfigModel ??
-      selectedRecentModel ??
-      selectedProviderDefaultModel ??
-      models[0]
-    )
-  }, [
-    models,
-    selectedAgentModel,
-    selectedConfigModel,
-    selectedProviderDefaultModel,
-    selectedRecentModel,
-    selectedSessionModel,
-  ])
-  const selectedModel = useMemo(() => {
-    if (model) {
-      const explicitModel = models.find((item) => item.id === model)
-      if (explicitModel) return explicitModel
-    }
-    return fallbackModel
-  }, [fallbackModel, model, models])
-  const selectedModelID = selectedModel?.id ?? ""
-  const reasoningVariants = useMemo(() => selectedModel?.variants ?? [], [selectedModel?.variants])
-  const fallbackReasoningLevel = useMemo(() => {
-    if (!selectedModel || reasoningVariants.length === 0) return DEFAULT_REASONING_LEVEL
-    const variants = new Set(reasoningVariants)
-    const sameAsSessionModel =
-      selectedSessionModel?.providerID === selectedModel.providerID &&
-      selectedSessionModel.modelID === selectedModel.modelID
-    if (sameAsSessionModel && session?.model?.variant && variants.has(session.model.variant)) {
-      return session.model.variant
-    }
-    const sameAsAgentModel =
-      selectedAgentModel?.providerID === selectedModel.providerID &&
-      selectedAgentModel.modelID === selectedModel.modelID
-    if (sameAsAgentModel && catalog?.agent?.variant && variants.has(catalog.agent.variant)) {
-      return catalog.agent.variant
-    }
-    const storedVariant = getVariant({
-      modelID: selectedModel.modelID,
-      providerID: selectedModel.providerID,
-    })
-    if (storedVariant && variants.has(storedVariant)) {
-      return storedVariant
-    }
-    return DEFAULT_REASONING_LEVEL
-  }, [
-    catalog,
-    getVariant,
-    reasoningVariants,
-    selectedAgentModel,
-    selectedModel,
-    selectedSessionModel,
-    session,
-  ])
-  const selectedReasoningLevel = useMemo(() => {
-    if (reasoningVariants.length === 0) return DEFAULT_REASONING_LEVEL
-    if (reasoningLevel !== DEFAULT_REASONING_LEVEL && reasoningVariants.includes(reasoningLevel)) {
-      return reasoningLevel
-    }
-    return fallbackReasoningLevel
-  }, [fallbackReasoningLevel, reasoningLevel, reasoningVariants])
-  const selectedReasoningVariant = useMemo(() => {
-    return selectedReasoningLevel === DEFAULT_REASONING_LEVEL ? undefined : selectedReasoningLevel
-  }, [selectedReasoningLevel])
 
-  const contextUsage = useMemo(() => {
-    return getAssistantUsage(messages, models)
-  }, [messages, models])
+    return models[0]
+  })()
+  const selectedModelID = selectedModel?.id ?? ""
+  const reasoningVariants = selectedModel?.variants ?? []
+  let fallbackReasoningLevel = DEFAULT_REASONING_LEVEL
+  if (selectedModel && reasoningVariants.length > 0) {
+    const variants = new Set(reasoningVariants)
+    if (
+      sessionModel?.providerID === selectedModel.providerID &&
+      sessionModel.id === selectedModel.modelID &&
+      sessionModel.variant &&
+      variants.has(sessionModel.variant)
+    ) {
+      fallbackReasoningLevel = sessionModel.variant
+    } else if (
+      agentModel?.providerID === selectedModel.providerID &&
+      agentModel.modelID === selectedModel.modelID &&
+      catalog?.agent?.variant &&
+      variants.has(catalog.agent.variant)
+    ) {
+      fallbackReasoningLevel = catalog.agent.variant
+    } else {
+      const storedVariant = getVariant({
+        modelID: selectedModel.modelID,
+        providerID: selectedModel.providerID,
+      })
+      if (storedVariant && variants.has(storedVariant)) {
+        fallbackReasoningLevel = storedVariant
+      }
+    }
+  }
+  const selectedReasoningLevel =
+    reasoningVariants.length === 0
+      ? DEFAULT_REASONING_LEVEL
+      : reasoningLevel !== DEFAULT_REASONING_LEVEL && reasoningVariants.includes(reasoningLevel)
+        ? reasoningLevel
+        : fallbackReasoningLevel
+  const selectedReasoningVariant =
+    selectedReasoningLevel === DEFAULT_REASONING_LEVEL ? undefined : selectedReasoningLevel
+
+  const contextUsage = getAssistantUsage(messages, models)
   const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
     agentName,
-    sessionId,
-    isBusy || blocked
+    activeSessionId,
+    isBusy || blocked,
+    setPromotedSessionId
   )
 
   useEffect(() => {
@@ -578,7 +560,7 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
       await sendMessage({
         files: message.files,
         model: selectedModel,
-        sessionID: sessionId,
+        sessionID: activeSessionId,
         text: message.text,
         variant: selectedReasoningVariant,
       })
@@ -588,7 +570,7 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
         providerID: selectedModel.providerID,
       })
     },
-    [pushRecent, selectedModel, selectedReasoningVariant, sendMessage, sessionId]
+    [activeSessionId, pushRecent, selectedModel, selectedReasoningVariant, sendMessage]
   )
 
   const handleModelSelect = useCallback((modelId: string) => {
@@ -640,7 +622,8 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
     ]
   )
   const inputDisabled = blocked || isBusy
-  const showGreeting = !sessionId && !isPending && rows.length === 0
+  const showStarter = !activeSessionId && !isPending && rows.length === 0
+  const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -652,17 +635,20 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
           data-state="showing"
         />
       ) : null}
-      <Conversation>
+      <Conversation
+        className={cn(
+          "transition-opacity duration-200",
+          showStarter && "pointer-events-none opacity-0"
+        )}
+      >
         <ConversationContent className="w-full px-4">
-          {isPending ? (
+          {showHistorySkeleton ? (
             <div className="mx-auto flex w-full flex-col gap-3 lg:w-4/5">
               <Skeleton className="h-16 w-full rounded-md" />
               <Skeleton className="h-24 w-full rounded-md" />
               <Skeleton className="h-16 w-2/3 rounded-md" />
             </div>
-          ) : showGreeting ? (
-            <NewSessionGreeting firstName={firstName} />
-          ) : (
+          ) : !showStarter ? (
             <>
               <div className="mx-auto flex w-full flex-col gap-4 lg:w-4/5">
                 {rows.map((row) => (
@@ -700,12 +686,27 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
                 />
               ) : null}
             </>
-          )}
+          ) : null}
         </ConversationContent>
-        <ConversationScrollButton />
+        {!showStarter ? <ConversationScrollButton /> : null}
       </Conversation>
-      <div className="grid shrink-0 gap-4 pt-4">
-        <div className="mx-auto w-full px-4 pb-4 lg:w-4/5 lg:px-0">
+      <motion.div
+        className={cn(
+          "grid gap-4",
+          showStarter ? "absolute inset-x-0 top-1/2 -translate-y-1/2 px-4" : "shrink-0 pt-4"
+        )}
+        layout
+        transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div
+          className={cn(
+            "mx-auto flex w-full flex-col",
+            showStarter ? "max-w-3xl gap-8" : "gap-4 px-4 pb-4 lg:w-4/5 lg:px-0"
+          )}
+        >
+          {showStarter ? (
+            <NewSessionGreeting firstName={firstName} greetingIndex={greetingIndex} />
+          ) : null}
           <PromptInput
             accept={chatAttachmentConfig.accept}
             globalDrop
@@ -717,116 +718,145 @@ function ChatInner({ agentName, firstName, sessionId }: ChatProps) {
             }}
             onSubmit={handleSubmit}
           >
-            <PromptInputHeader>
-              <PromptInputAttachmentsDisplay />
-            </PromptInputHeader>
+            <PromptInputAttachmentsDisplay />
             <PromptInputBody>
-              <PromptInputTextarea disabled={inputDisabled} />
-            </PromptInputBody>
-            <PromptInputFooter>
-              <PromptInputTools>
+              <motion.div
+                className="col-start-1 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
+                layout="position"
+                transition={promptShiftTransition}
+              >
                 <PromptInputAttachmentButton disabled={inputDisabled} />
-                <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
-                  <ModelSelectorTrigger asChild>
-                    <PromptInputButton disabled={inputDisabled}>
-                      {selectedModel?.chefSlug ? (
-                        <ModelSelectorLogo provider={selectedModel.chefSlug} />
-                      ) : null}
-                      {selectedModel?.name ? (
-                        <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
-                      ) : (
-                        <ModelSelectorName>Model</ModelSelectorName>
-                      )}
-                    </PromptInputButton>
-                  </ModelSelectorTrigger>
-                  <ModelSelectorContent>
-                    <ModelSelectorInput placeholder="Search models..." />
-                    <ModelSelectorList>
-                      <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                      {chefs.map((chef) => (
-                        <ModelSelectorGroup heading={chef} key={chef}>
-                          {models
-                            .filter((item) => item.chef === chef)
-                            .map((item) => (
-                              <ModelSelectorItem
-                                key={item.id}
-                                onSelect={handleModelSelect}
-                                value={item.id}
-                              >
-                                <ModelSelectorLogo provider={item.chefSlug} />
-                                <ModelSelectorName>{item.name}</ModelSelectorName>
-                                <ModelSelectorLogoGroup>
-                                  <ModelSelectorLogo
-                                    key={item.providerID}
-                                    provider={item.providerID}
-                                  />
-                                </ModelSelectorLogoGroup>
-                                {selectedModelID === item.id ? (
-                                  <CheckIcon className="ml-auto size-4" />
-                                ) : (
-                                  <div className="ml-auto size-4" />
-                                )}
-                              </ModelSelectorItem>
-                            ))}
-                        </ModelSelectorGroup>
-                      ))}
-                    </ModelSelectorList>
-                  </ModelSelectorContent>
-                </ModelSelector>
-                {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
-                  <Context
-                    maxTokens={contextUsage.maxTokens}
-                    totalCostUSD={sessionCost}
-                    usage={contextUsage.usage}
-                    usedTokens={contextUsage.usedTokens}
-                  >
-                    <ContextTrigger className="gap-1 px-2" />
-                    <ContextContent>
-                      <ContextContentHeader />
-                      <ContextContentBody className="space-y-2">
-                        <ContextInputUsage />
-                        <ContextOutputUsage />
-                        <ContextReasoningUsage />
-                        <ContextCacheUsage />
-                      </ContextContentBody>
-                      <ContextContentFooter />
-                    </ContextContent>
-                  </Context>
-                ) : null}
-                {reasoningVariants.length > 0 ? (
-                  <Select
-                    disabled={inputDisabled}
-                    onValueChange={handleReasoningLevelChange}
-                    value={selectedReasoningLevel}
-                  >
-                    <ReasoningSelectTrigger
-                      aria-label="Reasoning level"
-                      className="h-8 min-w-16 gap-1 px-2"
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <SelectValue placeholder="Reasoning" />
-                    </ReasoningSelectTrigger>
-                    <SelectContent align="end" position="popper" side="top" sideOffset={8}>
-                      <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
-                      {reasoningVariants.map((variant) => (
-                        <SelectItem key={variant} value={variant}>
-                          {variant.length ? variant[0]?.toUpperCase() + variant.slice(1) : variant}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-              </PromptInputTools>
-              <PromptInputSubmit
-                disabled={blocked || (!isBusy && (!selectedModel || !canSubmit))}
-                onStop={isBusy ? () => void abortMessage(directory) : undefined}
-                status={isBusy ? "streaming" : sendState}
+              </motion.div>
+              <PromptInputTextarea
+                className="col-start-2 row-start-1 group-data-[multiline=true]/prompt-body:col-span-full group-data-[multiline=true]/prompt-body:col-start-1"
+                disabled={inputDisabled}
               />
-            </PromptInputFooter>
+              <div className="contents">
+                <motion.div
+                  className="col-start-3 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
+                  layout="position"
+                  transition={promptShiftTransition}
+                >
+                  <div className="flex min-w-0 items-center justify-end gap-1.5">
+                    <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
+                      <ModelSelectorTrigger asChild>
+                        <PromptInputButton
+                          className="h-8 max-w-[38vw] justify-start px-2 md:max-w-72"
+                          disabled={inputDisabled}
+                        >
+                          {selectedModel?.chefSlug ? (
+                            <ModelSelectorLogo provider={selectedModel.chefSlug} />
+                          ) : null}
+                          {selectedModel?.name ? (
+                            <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
+                          ) : (
+                            <ModelSelectorName>Model</ModelSelectorName>
+                          )}
+                          <ChevronDownIcon data-icon="inline-end" />
+                        </PromptInputButton>
+                      </ModelSelectorTrigger>
+                      <ModelSelectorContent>
+                        <ModelSelectorInput placeholder="Search models..." />
+                        <ModelSelectorList>
+                          <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                          {chefs.map((chef) => (
+                            <ModelSelectorGroup heading={chef} key={chef}>
+                              {models
+                                .filter((item) => item.chef === chef)
+                                .map((item) => (
+                                  <ModelSelectorItem
+                                    key={item.id}
+                                    onSelect={handleModelSelect}
+                                    value={item.id}
+                                  >
+                                    <ModelSelectorLogo provider={item.chefSlug} />
+                                    <ModelSelectorName>{item.name}</ModelSelectorName>
+                                    <ModelSelectorLogoGroup>
+                                      <ModelSelectorLogo
+                                        key={item.providerID}
+                                        provider={item.providerID}
+                                      />
+                                    </ModelSelectorLogoGroup>
+                                    {selectedModelID === item.id ? (
+                                      <CheckIcon className="ml-auto" />
+                                    ) : (
+                                      <div className="ml-auto size-4" />
+                                    )}
+                                  </ModelSelectorItem>
+                                ))}
+                            </ModelSelectorGroup>
+                          ))}
+                        </ModelSelectorList>
+                      </ModelSelectorContent>
+                    </ModelSelector>
+                    {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
+                      <Context
+                        maxTokens={contextUsage.maxTokens}
+                        totalCostUSD={sessionCost}
+                        usage={contextUsage.usage}
+                        usedTokens={contextUsage.usedTokens}
+                      >
+                        <ContextTrigger className="hover:bg-foreground/6 dark:hover:bg-foreground/10 aria-expanded:bg-foreground/8 dark:aria-expanded:bg-foreground/12 data-[state=open]:bg-foreground/8 dark:data-[state=open]:bg-foreground/12 gap-1 rounded-full px-2" />
+                        <ContextContent>
+                          <ContextContentHeader />
+                          <ContextContentBody className="flex flex-col gap-2">
+                            <ContextInputUsage />
+                            <ContextOutputUsage />
+                            <ContextReasoningUsage />
+                            <ContextCacheUsage />
+                          </ContextContentBody>
+                          <ContextContentFooter />
+                        </ContextContent>
+                      </Context>
+                    ) : null}
+                    {reasoningVariants.length > 0 ? (
+                      <Select
+                        disabled={inputDisabled}
+                        onValueChange={handleReasoningLevelChange}
+                        value={selectedReasoningLevel}
+                      >
+                        <ReasoningSelectTrigger
+                          aria-label="Reasoning level"
+                          className="data-[variant=ghost]:hover:bg-foreground/6 dark:data-[variant=ghost]:hover:bg-foreground/10 data-[variant=ghost]:aria-expanded:bg-foreground/8 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12 h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full"
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <BrainCircuitIcon className="text-muted-foreground size-4" />
+                          <SelectValue placeholder="Reasoning" />
+                        </ReasoningSelectTrigger>
+                        <SelectContent align="end" position="popper" side="top" sideOffset={8}>
+                          <SelectGroup>
+                            <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
+                            {reasoningVariants.map((variant) => (
+                              <SelectItem key={variant} value={variant}>
+                                {variant.length
+                                  ? variant[0]?.toUpperCase() + variant.slice(1)
+                                  : variant}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : null}
+                  </div>
+                </motion.div>
+                <motion.div
+                  className="col-start-4 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
+                  layout="position"
+                  transition={promptShiftTransition}
+                >
+                  <PromptInputSubmit
+                    className="size-9"
+                    disabled={blocked || (!isBusy && (!selectedModel || !canSubmit))}
+                    onStop={isBusy ? () => void abortMessage(directory) : undefined}
+                    status={isBusy ? "streaming" : sendState}
+                  />
+                </motion.div>
+              </div>
+            </PromptInputBody>
           </PromptInput>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }
@@ -988,8 +1018,8 @@ function TimelineRowView({
         <Accordion className="w-full" key={row.key} type="multiple">
           {visible.map((diff) => {
             const value = diff.file ?? diff.patch ?? ""
-            const normalized = value.replace(/\\/g, "/")
-            const slash = normalized.lastIndexOf("/")
+            const path = value.replace(/\\/g, "/")
+            const slash = path.lastIndexOf("/")
             const stat =
               diff.status === "added"
                 ? "Added"
@@ -1001,11 +1031,11 @@ function TimelineRowView({
                 <AccordionTrigger className="gap-3 py-1.5 hover:no-underline">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">
-                      {slash >= 0 ? normalized.slice(slash + 1) : normalized}
+                      {slash >= 0 ? path.slice(slash + 1) : path}
                     </div>
                     {value.includes("/") ? (
                       <div className="text-muted-foreground truncate text-xs">
-                        {slash > 0 ? normalized.slice(0, slash) : "/"}
+                        {slash > 0 ? path.slice(0, slash) : "/"}
                       </div>
                     ) : null}
                   </div>

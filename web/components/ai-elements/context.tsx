@@ -13,6 +13,17 @@ const ICON_RADIUS = 10
 const ICON_VIEWBOX = 24
 const ICON_CENTER = 12
 const ICON_STROKE_WIDTH = 2
+const percentFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+  style: "percent",
+})
+const compactFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+})
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  currency: "USD",
+  style: "currency",
+})
 
 interface ContextSchema {
   totalCostUSD?: number
@@ -93,11 +104,7 @@ export type ContextTriggerProps = ComponentProps<typeof Button>
 
 export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
   const { usedTokens, maxTokens } = useContextValue()
-  const usedPercent = usedTokens / maxTokens
-  const renderedPercent = new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1,
-    style: "percent",
-  }).format(usedPercent)
+  const renderedPercent = percentFormatter.format(usedTokens / maxTokens)
 
   return (
     <HoverCardTrigger asChild>
@@ -126,16 +133,9 @@ export const ContextContentHeader = ({
 }: ContextContentHeaderProps) => {
   const { usedTokens, maxTokens } = useContextValue()
   const usedPercent = usedTokens / maxTokens
-  const displayPct = new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1,
-    style: "percent",
-  }).format(usedPercent)
-  const used = new Intl.NumberFormat("en-US", {
-    notation: "compact",
-  }).format(usedTokens)
-  const total = new Intl.NumberFormat("en-US", {
-    notation: "compact",
-  }).format(maxTokens)
+  const displayPct = percentFormatter.format(usedPercent)
+  const used = compactFormatter.format(usedTokens)
+  const total = compactFormatter.format(maxTokens)
 
   return (
     <div className={cn("w-full space-y-2 p-3", className)} {...props}>
@@ -172,10 +172,7 @@ export const ContextContentFooter = ({
   ...props
 }: ContextContentFooterProps) => {
   const { totalCostUSD } = useContextValue()
-  const totalCost = new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    style: "currency",
-  }).format(totalCostUSD ?? 0)
+  const totalCost = currencyFormatter.format(totalCostUSD ?? 0)
 
   return (
     <div
@@ -196,13 +193,7 @@ export const ContextContentFooter = ({
 }
 
 const Tokens = ({ tokens }: { tokens?: number }) => (
-  <span>
-    {tokens === undefined
-      ? "—"
-      : new Intl.NumberFormat("en-US", {
-          notation: "compact",
-        }).format(tokens)}
-  </span>
+  <span>{tokens === undefined ? "—" : compactFormatter.format(tokens)}</span>
 )
 
 export type ContextInputUsageProps = ComponentProps<"div">

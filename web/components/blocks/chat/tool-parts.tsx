@@ -31,7 +31,7 @@ import {
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { BundledLanguage } from "shiki"
-import { useMemo, useState } from "react"
+import { useState } from "react"
 
 type ToolEntry =
   | { type: "tool"; key: string; part: ToolPart }
@@ -91,35 +91,31 @@ type Diagnostic = {
   severity?: number
 }
 
-function record(value: unknown): value is Record<string, unknown> {
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function stringValue(value: unknown) {
+function nonEmptyString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
-function numberValue(value: unknown) {
-  return typeof value === "number" ? value : undefined
+function baseName(path: string) {
+  const displayPath = path.replace(/\\/g, "/")
+  const index = displayPath.lastIndexOf("/")
+  return index >= 0 ? displayPath.slice(index + 1) : displayPath
 }
 
-function fileName(path: string) {
-  const normalized = path.replace(/\\/g, "/")
-  const index = normalized.lastIndexOf("/")
-  return index >= 0 ? normalized.slice(index + 1) : normalized
+function directoryPath(path: string) {
+  const displayPath = path.replace(/\\/g, "/")
+  const index = displayPath.lastIndexOf("/")
+  return index > 0 ? displayPath.slice(0, index) : "/"
 }
 
-function directoryName(path: string) {
-  const normalized = path.replace(/\\/g, "/")
-  const index = normalized.lastIndexOf("/")
-  return index > 0 ? normalized.slice(0, index) : "/"
-}
-
-function titleCase(value: string) {
+function capitalize(value: string) {
   return value[0] ? value[0].toUpperCase() + value.slice(1) : value
 }
 
-function truncate(value: string | undefined, max = 56) {
+function shortLabel(value: string | undefined, max = 56) {
   if (!value) return undefined
   if (value.length <= max) return value
   return `${value.slice(0, max - 1)}…`
@@ -180,10 +176,10 @@ function toolStateTone(status: ToolPart["state"]["status"]): ToolTone {
 
 function toolMetadata(part: ToolPart) {
   if (!("metadata" in part.state)) {
-    return undefined
+    return part.metadata
   }
 
-  return record(part.state.metadata) ? part.state.metadata : undefined
+  return part.state.metadata
 }
 
 function toneClass(tone: ToolTone) {
@@ -226,10 +222,10 @@ function toolFiles(value: unknown): ToolFile[] {
   if (!Array.isArray(value)) return []
 
   return value.flatMap((item) => {
-    if (!record(item)) return []
+    if (!isPlainRecord(item)) return []
 
-    const filePath = stringValue(item.filePath)
-    const relativePath = stringValue(item.relativePath) ?? filePath
+    const filePath = nonEmptyString(item.filePath)
+    const relativePath = nonEmptyString(item.relativePath) ?? filePath
     const type = item.type
 
     if (!filePath || !relativePath) return []
@@ -237,13 +233,13 @@ function toolFiles(value: unknown): ToolFile[] {
 
     return [
       {
-        additions: numberValue(item.additions) ?? 0,
-        after: stringValue(item.after),
-        before: stringValue(item.before),
-        deletions: numberValue(item.deletions) ?? 0,
+        additions: typeof item.additions === "number" ? item.additions : 0,
+        after: nonEmptyString(item.after),
+        before: nonEmptyString(item.before),
+        deletions: typeof item.deletions === "number" ? item.deletions : 0,
         filePath,
-        movePath: stringValue(item.movePath),
-        patch: stringValue(item.patch) ?? stringValue(item.diff),
+        movePath: nonEmptyString(item.movePath),
+        patch: nonEmptyString(item.patch) ?? nonEmptyString(item.diff),
         relativePath,
         type,
       },
@@ -252,17 +248,17 @@ function toolFiles(value: unknown): ToolFile[] {
 }
 
 function diagnosticsByPath(value: unknown, filePath: string | undefined) {
-  if (!filePath || !record(value)) return []
+  if (!filePath || !isPlainRecord(value)) return []
 
   const entries = value[filePath]
   if (!Array.isArray(entries)) return []
 
   return entries.filter((item): item is Diagnostic => {
     return (
-      record(item) &&
-      record(item.range) &&
-      record(item.range.start) &&
-      record(item.range.end) &&
+      isPlainRecord(item) &&
+      isPlainRecord(item.range) &&
+      isPlainRecord(item.range.start) &&
+      isPlainRecord(item.range.end) &&
       typeof item.message === "string" &&
       typeof item.range.start.line === "number" &&
       typeof item.range.start.character === "number" &&
@@ -273,7 +269,9 @@ function diagnosticsByPath(value: unknown, filePath: string | undefined) {
 }
 
 function isQuestionInfo(value: unknown): value is QuestionInfo {
-  return record(value) && typeof value.header === "string" && typeof value.question === "string"
+  return (
+    isPlainRecord(value) && typeof value.header === "string" && typeof value.question === "string"
+  )
 }
 
 function questionInfos(value: unknown) {
@@ -289,7 +287,9 @@ function questionAnswers(value: unknown) {
 }
 
 function isTodo(value: unknown): value is Todo {
-  return record(value) && typeof value.content === "string" && typeof value.status === "string"
+  return (
+    isPlainRecord(value) && typeof value.content === "string" && typeof value.status === "string"
+  )
 }
 
 function todos(value: unknown) {
@@ -297,7 +297,7 @@ function todos(value: unknown) {
 }
 
 function shellTranscript(part: ToolPart) {
-  const cmd = stringValue(part.state.input.command)
+  const cmd = nonEmptyString(part.state.input.command)
   const output =
     part.state.status === "completed"
       ? part.state.output
@@ -327,7 +327,7 @@ function toolTitle(tool: string, metadata?: Record<string, unknown>) {
     case "webfetch":
       return "Webfetch"
     case "websearch":
-      return webSearchProviderLabel(stringValue(metadata?.provider))
+      return webSearchProviderLabel(nonEmptyString(metadata?.provider))
     case "task":
       return "Task"
     case "bash":
@@ -356,7 +356,7 @@ function toolErrorSummary(part: ToolPart) {
   const [head] = tail.split(": ")
 
   if (!head || head === tail) return "Failed"
-  return titleCase(head.trim())
+  return capitalize(head.trim())
 }
 
 function toolErrorBody(part: ToolPart) {
@@ -374,7 +374,7 @@ function toolErrorBody(part: ToolPart) {
 function taskHref(agentName: string, path: string, part: ToolPart) {
   if (part.tool !== "task") return undefined
   const metadata = toolMetadata(part)
-  const sessionID = stringValue(metadata?.sessionId)
+  const sessionID = nonEmptyString(metadata?.sessionId)
 
   if (!sessionID) return undefined
 
@@ -543,12 +543,12 @@ function Diagnostics({ items }: { items: Diagnostic[] }) {
 function GenericTool({ part }: ToolProps) {
   const input = part.state.input
   const arg =
-    truncate(stringValue(input.name)) ??
-    truncate(stringValue(input.filePath) ? fileName(String(input.filePath)) : undefined) ??
-    truncate(stringValue(input.pattern)) ??
-    truncate(stringValue(input.query)) ??
-    truncate(stringValue(input.url)) ??
-    truncate(stringValue(input.path))
+    shortLabel(nonEmptyString(input.name)) ??
+    shortLabel(nonEmptyString(input.filePath) ? baseName(String(input.filePath)) : undefined) ??
+    shortLabel(nonEmptyString(input.pattern)) ??
+    shortLabel(nonEmptyString(input.query)) ??
+    shortLabel(nonEmptyString(input.url)) ??
+    shortLabel(nonEmptyString(input.path))
 
   const extraArgs = Object.entries(input)
     .filter(([key]) => !genericToolPrimaryKeys.has(key))
@@ -562,26 +562,26 @@ function GenericTool({ part }: ToolProps) {
 
   return (
     <ToolCard
-      arg={arg ?? truncate(extraArgs[0])}
+      arg={arg ?? shortLabel(extraArgs[0])}
       title={part.tool}
       tone={toolStateTone(part.state.status)}
     >
-      <ToolDescription>{stringValue(input.description)}</ToolDescription>
+      <ToolDescription>{nonEmptyString(input.description)}</ToolDescription>
     </ToolCard>
   )
 }
 
 function ReadTool({ part }: ToolProps) {
-  const offset = numberValue(part.state.input.offset)
-  const limit = numberValue(part.state.input.limit)
+  const offset = typeof part.state.input.offset === "number" ? part.state.input.offset : undefined
+  const limit = typeof part.state.input.limit === "number" ? part.state.input.limit : undefined
   const metadata = toolMetadata(part)
   const arg =
-    truncate(
-      stringValue(part.state.input.filePath)
-        ? fileName(String(part.state.input.filePath))
+    shortLabel(
+      nonEmptyString(part.state.input.filePath)
+        ? baseName(String(part.state.input.filePath))
         : undefined
     ) ??
-    truncate(
+    shortLabel(
       offset !== undefined || limit !== undefined
         ? [
             offset !== undefined ? `offset=${offset}` : undefined,
@@ -615,7 +615,7 @@ function MarkdownTool({
 
   return (
     <ToolCard
-      arg={truncate(arg)}
+      arg={shortLabel(arg)}
       hideDetails={!output}
       title={title}
       tone={toolStateTone(part.state.status)}
@@ -631,7 +631,7 @@ function MarkdownTool({
 }
 
 function WebfetchTool({ part }: ToolProps) {
-  const url = stringValue(part.state.input.url)
+  const url = nonEmptyString(part.state.input.url)
 
   return (
     <ToolCard
@@ -639,7 +639,7 @@ function WebfetchTool({ part }: ToolProps) {
       hideDetails
       href={url}
       pending={part.state.status === "pending" || part.state.status === "running"}
-      arg={truncate(url)}
+      arg={shortLabel(url)}
       title="Webfetch"
       tone={toolStateTone(part.state.status)}
     />
@@ -647,7 +647,7 @@ function WebfetchTool({ part }: ToolProps) {
 }
 
 function WebsearchTool({ part }: ToolProps) {
-  const query = stringValue(part.state.input.query)
+  const query = nonEmptyString(part.state.input.query)
   const metadata = toolMetadata(part)
   const output = part.state.status === "completed" ? part.state.output : undefined
   const links = urls(output)
@@ -655,7 +655,7 @@ function WebsearchTool({ part }: ToolProps) {
   return (
     <ToolCard
       hideDetails={links.length === 0}
-      arg={truncate(query)}
+      arg={shortLabel(query)}
       title={toolTitle(part.tool, metadata)}
       tone={toolStateTone(part.state.status)}
     >
@@ -679,17 +679,17 @@ function WebsearchTool({ part }: ToolProps) {
 function TaskTool({ agentName, part }: ToolProps) {
   const pathname = usePathname()
   const href = taskHref(agentName, pathname, part)
-  const type = stringValue(part.state.input.subagent_type)
-  const description = stringValue(part.state.input.description)
-  const sessionId = stringValue(toolMetadata(part)?.sessionId)
+  const type = nonEmptyString(part.state.input.subagent_type)
+  const description = nonEmptyString(part.state.input.description)
+  const sessionId = nonEmptyString(toolMetadata(part)?.sessionId)
 
   return (
     <ToolCard
       hideDetails={!description && !sessionId}
       href={href}
       pending={part.state.status === "pending" || part.state.status === "running"}
-      arg={truncate(type ? titleCase(type) : sessionId)}
-      title={type ? `${titleCase(type)} Agent` : "Agent"}
+      arg={shortLabel(type ? capitalize(type) : sessionId)}
+      title={type ? `${capitalize(type)} Agent` : "Agent"}
       tone={toolStateTone(part.state.status)}
     >
       <ToolDescription>{description ?? sessionId}</ToolDescription>
@@ -699,13 +699,13 @@ function TaskTool({ agentName, part }: ToolProps) {
 
 function BashTool({ part }: ToolProps) {
   const transcript = shellTranscript(part)
-  const description = stringValue(part.state.input.description)
+  const description = nonEmptyString(part.state.input.description)
 
   return (
     <ToolCard
       hideDetails={!transcript}
       pending={part.state.status === "pending" || part.state.status === "running"}
-      arg={truncate(stringValue(part.state.input.command))}
+      arg={shortLabel(nonEmptyString(part.state.input.command))}
       title="Shell"
       tone={toolStateTone(part.state.status)}
     >
@@ -721,16 +721,16 @@ function BashTool({ part }: ToolProps) {
 
 function EditTool({ part }: ToolProps) {
   const metadata = toolMetadata(part)
-  const inputPath = stringValue(part.state.input.filePath)
-  const body = stringValue(
-    metadata?.filediff && record(metadata.filediff) ? metadata.filediff.after : undefined
+  const inputPath = nonEmptyString(part.state.input.filePath)
+  const body = nonEmptyString(
+    metadata?.filediff && isPlainRecord(metadata.filediff) ? metadata.filediff.after : undefined
   )
   const diagnostics = diagnosticsByPath(metadata?.diagnostics, inputPath)
 
   return (
     <ToolCard
       hideDetails={!body && diagnostics.length === 0}
-      arg={truncate(inputPath ? fileName(inputPath) : undefined)}
+      arg={shortLabel(inputPath ? baseName(inputPath) : undefined)}
       title="Edit"
       tone={toolStateTone(part.state.status)}
     >
@@ -745,15 +745,15 @@ function EditTool({ part }: ToolProps) {
 }
 
 function WriteTool({ part }: ToolProps) {
-  const inputPath = stringValue(part.state.input.filePath)
-  const content = stringValue(part.state.input.content)
+  const inputPath = nonEmptyString(part.state.input.filePath)
+  const content = nonEmptyString(part.state.input.content)
   const metadata = toolMetadata(part)
   const diagnostics = diagnosticsByPath(metadata?.diagnostics, inputPath)
 
   return (
     <ToolCard
       hideDetails={!content && diagnostics.length === 0}
-      arg={truncate(inputPath ? fileName(inputPath) : undefined)}
+      arg={shortLabel(inputPath ? baseName(inputPath) : undefined)}
       title="Write"
       tone={toolStateTone(part.state.status)}
     >
@@ -782,10 +782,10 @@ function PatchFileCard({ file }: { file: ToolFile }) {
     <AccordionItem value={file.relativePath}>
       <AccordionTrigger className="gap-3 py-1.5 hover:no-underline">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{fileName(file.relativePath)}</div>
+          <div className="truncate text-sm font-medium">{baseName(file.relativePath)}</div>
           {file.relativePath.includes("/") ? (
             <div className="text-muted-foreground truncate text-xs">
-              {directoryName(file.relativePath)}
+              {directoryPath(file.relativePath)}
             </div>
           ) : null}
         </div>
@@ -813,7 +813,7 @@ function ApplyPatchTool({ part }: ToolProps) {
   return (
     <ToolCard
       hideDetails={files.length === 0}
-      arg={truncate(fileCount)}
+      arg={shortLabel(fileCount)}
       title="Patch"
       tone={toolStateTone(part.state.status)}
     >
@@ -838,7 +838,7 @@ function QuestionsTool({ part }: ToolProps) {
   return (
     <ToolCard
       hideDetails={answers.length === 0}
-      arg={truncate(questionCount)}
+      arg={shortLabel(questionCount)}
       title="Questions"
       tone={toolStateTone(part.state.status)}
     >
@@ -861,7 +861,7 @@ function SkillTool({ part }: ToolProps) {
     <ToolCard
       hideDetails
       pending={part.state.status === "pending" || part.state.status === "running"}
-      title={stringValue(part.state.input.name) ?? "Skill"}
+      title={nonEmptyString(part.state.input.name) ?? "Skill"}
       tone={toolStateTone(part.state.status)}
     />
   )
@@ -916,20 +916,30 @@ function ToolErrorCard({ part }: ToolProps) {
 
 function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
   const [open, setOpen] = useState(false)
-  const counts = useMemo(() => {
-    return {
-      list: parts.filter((part) => part.tool === "list").length,
-      read: parts.filter((part) => part.tool === "read").length,
-      search: parts.filter((part) => part.tool === "glob" || part.tool === "grep").length,
+  let list = 0
+  let read = 0
+  let search = 0
+  for (const part of parts) {
+    switch (part.tool) {
+      case "list":
+        list += 1
+        break
+      case "read":
+        read += 1
+        break
+      case "glob":
+      case "grep":
+        search += 1
+        break
     }
-  }, [parts])
+  }
   const pending = parts.some(
     (part) => part.state.status === "pending" || part.state.status === "running"
   )
   const summary = [
-    counts.read ? `${counts.read} read` : undefined,
-    counts.search ? `${counts.search} search` : undefined,
-    counts.list ? `${counts.list} list` : undefined,
+    read ? `${read} read` : undefined,
+    search ? `${search} search` : undefined,
+    list ? `${list} list` : undefined,
   ]
     .filter(Boolean)
     .join(", ")
@@ -964,15 +974,15 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
             const title = toolTitle(part.tool)
             const arg =
               part.tool === "read"
-                ? stringValue(part.state.input.filePath)
-                  ? fileName(String(part.state.input.filePath))
+                ? nonEmptyString(part.state.input.filePath)
+                  ? baseName(String(part.state.input.filePath))
                   : undefined
                 : part.tool === "list"
-                  ? directoryName(stringValue(part.state.input.path) ?? "/")
+                  ? directoryPath(nonEmptyString(part.state.input.path) ?? "/")
                   : part.tool === "glob"
-                    ? directoryName(stringValue(part.state.input.path) ?? "/")
+                    ? directoryPath(nonEmptyString(part.state.input.path) ?? "/")
                     : part.tool === "grep"
-                      ? directoryName(stringValue(part.state.input.path) ?? "/")
+                      ? directoryPath(nonEmptyString(part.state.input.path) ?? "/")
                       : undefined
 
             return (
@@ -990,7 +1000,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                     </div>
                     {arg ? (
                       <div className="text-muted-foreground truncate font-mono text-sm">
-                        {truncate(arg)}
+                        {shortLabel(arg)}
                       </div>
                     ) : null}
                   </div>
@@ -1019,7 +1029,7 @@ function ToolView({ agentName, part }: ToolProps) {
     case "list":
       return (
         <MarkdownTool
-          arg={directoryName(stringValue(part.state.input.path) ?? "/")}
+          arg={directoryPath(nonEmptyString(part.state.input.path) ?? "/")}
           part={part}
           title="List"
         />
@@ -1027,7 +1037,7 @@ function ToolView({ agentName, part }: ToolProps) {
     case "glob":
       return (
         <MarkdownTool
-          arg={stringValue(part.state.input.pattern) ?? stringValue(part.state.input.path)}
+          arg={nonEmptyString(part.state.input.pattern) ?? nonEmptyString(part.state.input.path)}
           part={part}
           title="Glob"
         />
@@ -1035,7 +1045,7 @@ function ToolView({ agentName, part }: ToolProps) {
     case "grep":
       return (
         <MarkdownTool
-          arg={stringValue(part.state.input.pattern) ?? stringValue(part.state.input.include)}
+          arg={nonEmptyString(part.state.input.pattern) ?? nonEmptyString(part.state.input.include)}
           part={part}
           title="Grep"
         />

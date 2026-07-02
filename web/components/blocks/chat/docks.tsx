@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import type { PermissionRequest, QuestionAnswer, QuestionRequest, Todo } from "@opencode-ai/sdk/v2"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 const CUSTOM_ANSWER_KEY = "__custom__"
 const QUESTION_CACHE_MAX = 8
@@ -136,21 +136,16 @@ export function QuestionDock({
   })
   const repliedRef = useRef(false)
 
-  // Question count can change between renders for the same request id only in
-  // pathological cases; the check keeps the cached answers shape consistent.
-  const questions = useMemo(() => request.questions, [request.questions])
+  const questions = request.questions
   const total = questions.length
   const tab = Math.min(entry.tab, total - 1)
   const question = questions[tab]
-  // Memoize the per-tab selection so the click handlers stay referentially
-  // stable; the `?? []` fallback otherwise creates a new array each render
-  // and busts the useCallback dependency check.
-  const selected = useMemo(() => entry.answers[tab] ?? [], [entry.answers, tab])
+  const selected = entry.answers[tab]
   const customEnabled = question
     ? (entry.customEnabled[tab] ?? false) && question.custom !== false
     : false
   const isLast = tab === total - 1
-  const answers = useMemo(() => buildAnswers(entry, request), [entry, request])
+  const answers = buildAnswers(entry, request)
   const currentAnswered = (answers[tab]?.length ?? 0) > 0 || (entry.customEnabled[tab] ?? false)
 
   const patch = useCallback(
@@ -181,9 +176,10 @@ export function QuestionDock({
   )
   const selectMulti = useCallback(
     (value: string) => {
-      const next = selected.includes(value)
-        ? selected.filter((item) => item !== value)
-        : [...selected, value]
+      const current = selected ?? []
+      const next = current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
       patchAt({
         answers: { [tab]: next },
         customEnabled: { [tab]: next.includes(CUSTOM_ANSWER_KEY) },
@@ -329,7 +325,7 @@ export function QuestionDock({
                     tabIndex={0}
                   >
                     <Checkbox
-                      checked={selected.includes(option.label)}
+                      checked={(selected ?? []).includes(option.label)}
                       disabled={pending}
                       onCheckedChange={() => selectMulti(option.label)}
                     />
@@ -347,13 +343,13 @@ export function QuestionDock({
                     tabIndex={0}
                   >
                     <Checkbox
-                      checked={selected.includes(CUSTOM_ANSWER_KEY)}
+                      checked={(selected ?? []).includes(CUSTOM_ANSWER_KEY)}
                       disabled={pending}
                       onCheckedChange={() => selectMulti(CUSTOM_ANSWER_KEY)}
                     />
                     <span className="text-foreground flex flex-1 flex-col gap-2 text-sm">
                       Type your own answer
-                      {selected.includes(CUSTOM_ANSWER_KEY) ? (
+                      {(selected ?? []).includes(CUSTOM_ANSWER_KEY) ? (
                         <AutoSizeTextarea
                           defaultValue={entry.custom[tab] ?? ""}
                           disabled={pending}
@@ -370,7 +366,7 @@ export function QuestionDock({
                 className="flex flex-col gap-3"
                 disabled={pending}
                 onValueChange={selectSingle}
-                value={selected[0] ?? ""}
+                value={selected?.[0] ?? ""}
               >
                 {question.options.map((option, index) => (
                   <label
@@ -396,7 +392,7 @@ export function QuestionDock({
                     <RadioGroupItem value={CUSTOM_ANSWER_KEY} />
                     <span className="text-foreground flex flex-1 flex-col gap-2 text-sm">
                       Type your own answer
-                      {selected[0] === CUSTOM_ANSWER_KEY ? (
+                      {selected?.[0] === CUSTOM_ANSWER_KEY ? (
                         <AutoSizeTextarea
                           defaultValue={entry.custom[tab] ?? ""}
                           disabled={pending}

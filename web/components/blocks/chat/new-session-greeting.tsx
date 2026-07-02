@@ -1,55 +1,44 @@
-"use client"
-
-import Image from "next/image"
-import { useEffect, useState } from "react"
-
 type NewSessionGreetingProps = {
   firstName?: string
+  greetingIndex?: number
 }
 
+const greetingTemplates = [
+  "Welcome back, {name}.",
+  "What can I help you with today, {name}?",
+  "Ready when you are, {name}.",
+  "Hi {name}, what are we working on?",
+  "Good to see you, {name}.",
+  "Let's get started, {name}.",
+  "What's on your mind, {name}?",
+  "{name}, how can I help?",
+  "Need a hand with something, {name}?",
+  "{name}, what would you like to explore today?",
+] as const
+
 /**
- * NewSessionGreeting gives a new conversation a branded focal point without
- * competing with the composer once the first turn begins.
+ * NewSessionGreeting keeps the new-chat state focused on the prompt instead of
+ * creating a separate empty-state card.
  */
-export function NewSessionGreeting({ firstName }: NewSessionGreetingProps) {
-  const name = firstName || "there"
-  const [visibleName, setVisibleName] = useState("")
+export function NewSessionGreeting({ firstName, greetingIndex = 0 }: NewSessionGreetingProps) {
+  if (!firstName) {
+    return (
+      <div className="pointer-events-none flex justify-center px-4 text-center">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+          How can I help?
+        </h1>
+      </div>
+    )
+  }
 
-  useEffect(() => {
-    let index = 0
-    const timer = window.setInterval(() => {
-      index += 1
-      setVisibleName(name.slice(0, index))
-
-      if (index >= name.length) {
-        window.clearInterval(timer)
-      }
-    }, 90)
-
-    return () => window.clearInterval(timer)
-  }, [name])
+  const index = greetingIndex % greetingTemplates.length
+  const greeting = greetingTemplates[index].replace("{name}", firstName)
 
   return (
-    <div className="pointer-events-none flex min-h-full items-center justify-center px-4 py-10">
-      <div className="flex max-w-xl flex-col items-center text-center">
-        <Image
-          alt=""
-          aria-hidden="true"
-          className="size-16"
-          height={64}
-          priority
-          src="/emblem.svg"
-          width={64}
-        />
-        <div className="mt-6 space-y-2">
-          <p className="text-muted-foreground text-base">
-            Hi, <span className="text-foreground">{visibleName}</span>
-          </p>
-          <h1 className="text-foreground text-3xl font-medium text-balance sm:text-4xl">
-            What can I help you with today?
-          </h1>
-        </div>
-      </div>
+    <div className="pointer-events-none flex justify-center px-4 text-center">
+      <h1 className="text-foreground text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+        {greeting}
+      </h1>
     </div>
   )
 }

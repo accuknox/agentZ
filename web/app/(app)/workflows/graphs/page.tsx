@@ -140,9 +140,13 @@ function FiltersSkeleton() {
 function CanvasSkeleton() {
   return (
     <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t">
-      <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
-      <div className="bg-card absolute top-4 left-4 z-10 w-sm max-w-sm rounded-md border p-1">
-        <div className="flex items-start gap-2 rounded-sm px-3 py-2">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--color-primary)_0%,transparent_32%)] opacity-10" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
+        <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />
+      </div>
+      <div className="bg-card/88 border-border/70 absolute top-4 left-4 z-10 w-sm max-w-sm rounded-lg border p-1 shadow-lg shadow-black/5 backdrop-blur-md">
+        <div className="flex items-start gap-2 rounded-md px-3 py-2.5">
           <Skeleton className="h-4 w-56 max-w-full" />
           <Skeleton className="mt-0.5 size-4 rounded-sm" />
         </div>
@@ -154,49 +158,36 @@ function CanvasSkeleton() {
       </div>
       <div className="absolute top-[53%] right-10 left-9 -translate-y-1/2">
         <div className="flex min-w-max items-center gap-12">
-          <WorkflowNodeSkeleton widthClassName="w-36" />
-          <WorkflowNodeSkeleton widthClassName="w-36" />
-          <WorkflowNodeSkeleton widthClassName="w-40" />
-          <WorkflowNodeSkeleton widthClassName="w-36" />
-          <WorkflowNodeSkeleton widthClassName="w-36" />
-          <WorkflowNodeSkeleton widthClassName="w-36" isLast />
+          <WorkflowNodeSkeleton />
+          <WorkflowNodeSkeleton />
+          <WorkflowNodeSkeleton />
+          <WorkflowNodeSkeleton />
+          <WorkflowNodeSkeleton />
+          <WorkflowNodeSkeleton isLast />
         </div>
       </div>
     </div>
   )
 }
 
-function WorkflowNodeSkeleton({
-  widthClassName,
-  isLast = false,
-}: {
-  widthClassName: string
-  isLast?: boolean
-}) {
+function WorkflowNodeSkeleton({ isLast = false }: { isLast?: boolean }) {
   return (
     <div className="relative shrink-0">
       {isLast ? null : (
         <div className="bg-sidebar-ring/45 absolute top-1/2 left-full ml-2.5 h-px w-9 -translate-y-1/2" />
       )}
-      <div className={`bg-card/95 rounded-sm border p-1.5 shadow-sm ${widthClassName}`}>
-        <div className="space-y-1.5">
-          <div className="space-y-1.5">
-            <Skeleton className="h-2 w-12" />
-            <Skeleton className="h-2 w-full" />
-            <Skeleton className="h-2 w-5/6" />
-            <Skeleton className="h-2 w-4/5" />
-          </div>
-          <div className="space-y-1.5 pt-1">
-            <Skeleton className="h-1.5 w-6" />
-            <Skeleton className="h-2 w-11/12" />
-          </div>
-          <div className="space-y-1.5 pt-1">
-            <Skeleton className="h-1.5 w-12" />
-            <Skeleton className="h-2 w-full" />
-          </div>
-          <div className="flex gap-1 pt-1">
-            <Skeleton className="h-3 w-7 rounded-full" />
-            <Skeleton className="h-3 w-6 rounded-full" />
+      <div className="bg-background/94 border-border/70 dark:bg-accent/82 w-[20rem] rounded-xl border p-4 shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)]">
+        <div className="flex items-center justify-between gap-5">
+          <Skeleton className="h-4 w-32" />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="size-4 rounded-sm" />
+              <Skeleton className="h-4 w-7" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="size-4 rounded-sm" />
+              <Skeleton className="h-4 w-7" />
+            </div>
           </div>
         </div>
       </div>

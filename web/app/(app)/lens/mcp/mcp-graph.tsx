@@ -278,8 +278,8 @@ function McpNodeCircle({ data }: FlowNodeProps<McpCanvasNode>) {
     )
   const tone =
     data.kind === "agent"
-      ? "border-primary/30 bg-background text-primary"
-      : "border-border bg-background text-foreground"
+      ? "border-primary/30 bg-background text-primary dark:bg-accent"
+      : "border-border bg-background text-foreground dark:bg-accent"
   const rootClassName =
     data.kind === "tool"
       ? "relative flex w-56 items-center justify-center"

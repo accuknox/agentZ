@@ -1,8 +1,9 @@
 "use client"
 
+import { useRouter } from "@bprogress/next/app"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { nanoid } from "nanoid"
-import { useCallback, useState } from "react"
+import { startTransition, useCallback, useState } from "react"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -40,6 +41,7 @@ export function useOpencodeSend(
   isBusy?: boolean,
   onSessionCreated?: (sessionID: string) => void
 ) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
   const activeSessionKey = sessionID ?? "new"
@@ -105,11 +107,12 @@ export function useOpencodeSend(
           )
           migrateChatOverlay(queryClient, agentName, "new", createResult.data.id)
           onSessionCreated?.(createResult.data.id)
-          window.history.replaceState(
-            null,
-            "",
-            `/agents/${encodeURIComponent(agentName)}/${encodeURIComponent(createResult.data.id)}`
-          )
+          const sessionPath =
+            `/agents/${encodeURIComponent(agentName)}/` +
+            `${encodeURIComponent(createResult.data.id)}`
+          startTransition(() => {
+            router.replace(sessionPath)
+          })
         }
 
         const promptResult = await client.session.promptAsync({

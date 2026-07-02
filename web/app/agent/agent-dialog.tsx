@@ -63,6 +63,7 @@ import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data
 import type { Sandbox } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type { ComponentType, SVGProps } from "react"
+import type * as z from "zod"
 
 type Mode = "create" | "update"
 
@@ -78,12 +79,12 @@ type AgentDialogProps = {
   trigger?: React.ReactNode
 }
 
-type AgentSimpleForm = {
-  name?: string
-  sandboxName: string
-  model?: string
-  smallModel?: string
-}
+const agentDialogFormSchema = createAgentSimpleFormSchema.extend({
+  model: updateAgentSimpleFormSchema.shape.model,
+  smallModel: updateAgentSimpleFormSchema.shape.smallModel,
+})
+
+type AgentFormValues = z.infer<typeof agentDialogFormSchema>
 
 function themedIcon(
   darkThemeIcon: ComponentType<SVGProps<SVGSVGElement>>,
@@ -260,16 +261,17 @@ export function AgentDialog({
       ? updateAgentFormAction.bind(null, agentName)
       : createAgentFormAction
   const [state, action, isPending] = useActionState(formAction, {})
-  const form = useForm<AgentSimpleForm>({
-    resolver: zodResolver(
-      mode === "update" ? updateAgentSimpleFormSchema : createAgentSimpleFormSchema
-    ),
-    defaultValues: {
-      name: agentName ?? "",
-      sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
-      model: undefined,
-      smallModel: undefined,
-    },
+  const defaultValues: AgentFormValues = {
+    name: agentName ?? "",
+    sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
+    model: undefined,
+    smallModel: undefined,
+  }
+  const form = useForm<AgentFormValues>({
+    resolver: zodResolver(agentDialogFormSchema),
+    mode: "onSubmit",
+    reValidateMode: "onBlur",
+    defaultValues,
   })
   const modelCatalog = useQuery(
     queryOptions({
@@ -356,18 +358,66 @@ export function AgentDialog({
     })
   }, [form, modelCatalog.data])
 
+  useEffect(() => {
+    if (!state.error?.errors) {
+      return
+    }
+
+    for (const error of state.error.errors) {
+      if (
+        error.field !== "name" &&
+        error.field !== "sandboxName" &&
+        error.field !== "model" &&
+        error.field !== "smallModel"
+      ) {
+        continue
+      }
+
+      form.setError(error.field, {
+        type: "server",
+        message: error.message,
+      })
+    }
+  }, [form, state.error])
+
   const submit = async (formData: FormData) => {
+    form.clearErrors()
+
     const valid = await form.trigger()
-    if (!valid) return
+    if (!valid) {
+      return
+    }
+
     startTransition(() => {
       action(formData)
     })
   }
 
   const onOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      form.reset(defaultValues)
+      form.clearErrors()
+    }
+
     setInternalOpen(nextOpen)
     onOpenChangeAction?.(nextOpen)
   }
+
+  const fieldErrorCount =
+    state.error?.errors?.filter((error) => {
+      return (
+        error.field === "name" ||
+        error.field === "sandboxName" ||
+        error.field === "model" ||
+        error.field === "smallModel"
+      )
+    }).length ?? 0
+  const generalErrorMessage =
+    state.error && fieldErrorCount !== (state.error.errors?.length ?? 0)
+      ? state.error.message
+      : !state.error?.errors?.length
+        ? state.error?.message
+        : undefined
 
   return (
     <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
@@ -561,18 +611,9 @@ export function AgentDialog({
             ) : null}
           </FieldGroup>
         </form>
-        {state.error ? (
+        {generalErrorMessage ? (
           <div role="alert" className="border-destructive/40 rounded border p-3 text-sm">
-            <p className="text-destructive font-medium">{state.error.message}</p>
-            {state.error.errors?.length ? (
-              <ul className="text-destructive mt-2 list-disc space-y-1 pl-5">
-                {state.error.errors.map((error) => (
-                  <li key={`${error.field}-${error.message}`}>
-                    {error.field}: {error.message}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+            <p className="text-destructive font-medium">{generalErrorMessage}</p>
           </div>
         ) : null}
         <DialogFooter>

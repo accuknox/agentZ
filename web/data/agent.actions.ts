@@ -1,5 +1,6 @@
 "use server"
 
+import * as z from "zod"
 import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
 import { createAgent, deleteAgent, updateAgent } from "@/lib/gateway/client"
@@ -17,16 +18,7 @@ export async function createAgentFormAction(
     sandboxName: formData.get("sandboxName"),
   })
   if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "Agent configuration is invalid",
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.map((part) => String(part)).join("."),
-          message: issue.message,
-        })),
-      },
-    }
+    return invalidAgentFormState(parsed.error)
   }
 
   const result = await createAgent({ body: parsed.data, client: getGatewayServerClient() })
@@ -43,22 +35,15 @@ export async function updateAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
+  const model = formData.get("model")
+  const smallModel = formData.get("smallModel")
   const parsed = updateAgentSimpleFormSchema.safeParse({
     sandboxName: formData.get("sandboxName"),
-    model: formData.get("model"),
-    smallModel: formData.get("smallModel"),
+    model: model === null ? undefined : model,
+    smallModel: smallModel === null ? undefined : smallModel,
   })
   if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "Agent configuration is invalid",
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.map((part) => String(part)).join("."),
-          message: issue.message,
-        })),
-      },
-    }
+    return invalidAgentFormState(parsed.error)
   }
 
   const opencode =
@@ -83,6 +68,28 @@ export async function updateAgentFormAction(
 
   updateTag(agentsTag)
   redirect("/")
+}
+
+function invalidAgentFormState(error: z.ZodError): CreateAgentFormState {
+  const { fieldErrors, formErrors } = error.flatten()
+  const errors = Object.entries(fieldErrors).flatMap(([field, messages]) => {
+    if (!Array.isArray(messages)) {
+      return []
+    }
+
+    return messages.map((message) => ({
+      field,
+      message,
+    }))
+  })
+
+  return {
+    error: {
+      code: "INVALID_FORM",
+      message: formErrors[0] ?? "Agent configuration is invalid",
+      errors: errors.length > 0 ? errors : undefined,
+    },
+  }
 }
 
 export async function deleteAgentFormAction(

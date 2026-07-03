@@ -259,10 +259,11 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 			inDegree[target]++
 		}
 		if _, sourceExists := nodeIndex[source]; sourceExists {
-			if _, targetExists := nodeIndex[target]; targetExists {
-				undirected[source] = append(undirected[source], target)
-				undirected[target] = append(undirected[target], source)
+			if _, targetExists := nodeIndex[target]; !targetExists {
+				continue
 			}
+			undirected[source] = append(undirected[source], target)
+			undirected[target] = append(undirected[target], source)
 		}
 	}
 

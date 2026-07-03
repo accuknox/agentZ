@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	jwtrequest "github.com/golang-jwt/jwt/v5/request"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -29,6 +30,7 @@ type tenantContextKey struct{}
 
 type requestAuth struct {
 	claims          *gatewayClaims
+	apiKeyID        string
 	tenantName      string
 	tenantNamespace string
 }
@@ -342,8 +344,11 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 
 func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-	if strings.HasPrefix(strings.ToLower(authHeader), "basic ") && strings.HasPrefix(r.URL.Path, opencodePrefix+"/") {
+	if strings.HasPrefix(strings.ToLower(authHeader), "basic ") {
 		return s.resolveOpenCodeAPIKeyAuth(r)
+	}
+	if _, ok := r.Context().Value(gatewayapi.GatewayAPIKeyScopes).([]string); ok {
+		return s.resolveWebhookAPIKeyAuth(r)
 	}
 
 	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
@@ -451,7 +456,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		return requestAuth{}, err
 	}
 
-	agentName, verb, ok := workflowAgentAccess(r.Method, r.URL.Path)
+	agentName, verb, ok := workflowAgentAccess(r)
 	if !ok {
 		return requestAuth{}, newAPIError(
 			http.StatusForbidden,
@@ -617,40 +622,66 @@ func serviceAccountUser(username string) (serviceAccountName, error) {
 	}, nil
 }
 
-//nolint:gocyclo
-func workflowAgentAccess(method, requestPath string) (string, string, bool) {
-	path, ok := strings.CutPrefix(requestPath, "/api/workflow/")
-	if !ok || path == "" {
-		return "", "", false
-	}
-
-	parts := strings.Split(path, "/")
-	agentName := strings.TrimSpace(parts[0])
+func workflowAgentAccess(r *http.Request) (string, string, bool) {
+	agentName := strings.TrimSpace(chi.URLParam(r, "agentName"))
 	if agentName == "" {
 		return "", "", false
 	}
 
-	switch {
-	case len(parts) == 1 && method == http.MethodGet:
+	switch chi.RouteContext(r.Context()).RoutePattern() {
+	case "/api/workflow/{agentName}":
+		return workflowAgentAccessRoot(agentName, r.Method)
+	case "/api/workflow/{agentName}/schedule":
+		if r.Method == http.MethodGet {
+			return agentName, "list-workflow-schedules", true
+		}
+	case "/api/workflow/{agentName}/{workflowName}":
+		if r.Method == http.MethodGet {
+			return agentName, "get-workflow", true
+		}
+	case "/api/workflow/{agentName}/{workflowName}/schedule":
+		return workflowAgentAccessSchedule(agentName, r.Method)
+	case "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}":
+		return workflowAgentAccessScheduleItem(agentName, r.Method)
+	case "/api/workflow/{agentName}/{workflowName}/run/{runName}/status":
+		if r.Method == http.MethodPatch {
+			return agentName, "set-workflowrun-status", true
+		}
+	}
+
+	return "", "", false
+}
+
+func workflowAgentAccessRoot(agentName string, method string) (string, string, bool) {
+	switch method {
+	case http.MethodGet:
 		return agentName, "list-workflows", true
-	case len(parts) == 1 && method == http.MethodPost:
+	case http.MethodPost:
 		return agentName, "create-workflow", true
-	case len(parts) == 1 && method == http.MethodDelete:
+	case http.MethodDelete:
 		return agentName, "delete-workflows", true
-	case len(parts) == 2 && parts[1] == "schedule" && method == http.MethodGet:
+	default:
+		return "", "", false
+	}
+}
+
+func workflowAgentAccessSchedule(agentName string, method string) (string, string, bool) {
+	switch method {
+	case http.MethodGet:
 		return agentName, "list-workflow-schedules", true
-	case len(parts) == 2 && method == http.MethodGet:
-		return agentName, "get-workflow", true
-	case len(parts) == 3 && parts[2] == "schedule" && method == http.MethodGet:
-		return agentName, "list-workflow-schedules", true
-	case len(parts) == 3 && parts[2] == "schedule" && method == http.MethodPost:
+	case http.MethodPost:
 		return agentName, "create-workflow-schedule", true
-	case len(parts) == 4 && parts[2] == "schedule" && method == http.MethodDelete:
+	default:
+		return "", "", false
+	}
+}
+
+func workflowAgentAccessScheduleItem(agentName string, method string) (string, string, bool) {
+	switch method {
+	case http.MethodDelete:
 		return agentName, "delete-workflow-schedule", true
-	case len(parts) == 4 && parts[2] == "schedule" && method == http.MethodPut:
+	case http.MethodPut:
 		return agentName, "update-workflow-schedule", true
-	case len(parts) == 5 && parts[2] == "run" && parts[4] == "status" && method == http.MethodPatch:
-		return agentName, "set-workflowrun-status", true
 	default:
 		return "", "", false
 	}
@@ -686,7 +717,7 @@ func tenantObject(ctx context.Context) (*agentzv1alpha1.Tenant, error) {
 }
 
 func tenantRoute(r *http.Request) bool {
-	return r.URL.Path == "/api/tenant"
+	return chi.RouteContext(r.Context()).RoutePattern() == "/api/tenant"
 }
 
 func tenantReady(tenant *agentzv1alpha1.Tenant) bool {
@@ -737,8 +768,7 @@ func tenantMatchesClaims(tenant *agentzv1alpha1.Tenant, claims *gatewayClaims) b
 	if tenant == nil || claims == nil {
 		return false
 	}
-	return tenant.Spec.OrganizationID == strings.TrimSpace(claims.TenantID) &&
-		tenant.Spec.UserID == strings.TrimSpace(claims.UserID)
+	return tenant.Spec.OrganizationID == strings.TrimSpace(claims.TenantID) && tenant.Spec.UserID == strings.TrimSpace(claims.UserID)
 }
 
 func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace string) (*agentzv1alpha1.Tenant, error) {

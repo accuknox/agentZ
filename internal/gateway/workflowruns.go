@@ -39,7 +39,7 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)
-	fields = append(fields, workflow.ValidateRunStatusRequest(runName, message)...)
+	fields = append(fields, workflow.ValidateRunStatusMessage(message)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -87,20 +87,180 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ListWorkflowRuns handles GET /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run.
-func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, params gatewayapi.ListWorkflowRunsParams) {
+// InvokeWorkflowWebhook handles POST /api/workflow/{agentName}/{workflowName}/webhook.
+func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.InvokeWorkflowWebhookParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 
-	agtName = strings.TrimSpace(agtName)
-	workflowName = strings.TrimSpace(workflowName)
-	schName := strings.TrimSpace(scheduleName)
+	var req gatewayapi.InvokeWorkflowWebhookJSONRequestBody
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
 
-	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
-	fields = append(fields, workflow.ValidateRunListStatus(params.Status)...)
+	auth, ok := requestAuthState(r.Context())
+	if !ok || strings.TrimSpace(auth.apiKeyID) == "" {
+		writeError(w, r, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing or invalid credentials",
+			errBadRequest,
+		))
+		return
+	}
+
+	agentName := strings.TrimSpace(agtName)
+	workflowName = strings.TrimSpace(workflowName)
+	fields := workflow.ValidateLookupRequest(agentName, workflowName)
+	if params.TimeoutSeconds < 1 || params.TimeoutSeconds > 604800 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "timeout_seconds",
+			Message: "must be between 1 and 604800",
+		})
+	}
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	rawInputs, err := json.Marshal(req)
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("marshal webhook inputs: %w", err))
+		return
+	}
+
+	fields, err = workflow.ValidateRunInputs(
+		r.Context(),
+		s.db,
+		ns,
+		agentName,
+		workflowName,
+		rawInputs,
+	)
+	if err != nil {
+		if errors.Is(err, workflow.ErrWorkflowNotFound) {
+			writeError(w, r, newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"workflow not found",
+				err,
+			))
+			return
+		}
+		writeInternalError(w, r, err)
+		return
+	}
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	resp, err := workflow.CreateWebhookRun(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agentName,
+		workflowName,
+		rawInputs,
+		params.TimeoutSeconds,
+		auth.apiKeyID,
+	)
+	if err != nil {
+		writeError(w, r, mapKubeHTTPError("invoke workflow webhook", err))
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, resp)
+}
+
+// ListWorkflowWebhookTriggers handles GET /api/workflow/{agentName}/webhook.
+func (s *Service) ListWorkflowWebhookTriggers(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.ListWorkflowWebhookTriggersParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	agentName := strings.TrimSpace(agtName)
+	fields := workflow.ValidateListRequest(agentName)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	limit := 50
+	if params.Limit != nil {
+		limit = int(*params.Limit)
+	}
+	if limit < 1 || limit > 200 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
+		return
+	}
+
+	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
+
+	items, nextOffset, err := workflow.ListWebhookTriggers(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agentName,
+		limit,
+		offset,
+	)
+	if err != nil {
+		writeError(w, r, mapKubeHTTPError("list workflow webhook triggers", err))
+		return
+	}
+
+	resp := gatewayapi.ListWorkflowWebhookTriggersResponse{
+		WebhookTriggers: items,
+	}
+	if nextOffset > 0 {
+		resp.NextPageToken = encodeOffsetToken(nextOffset)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ListWorkflowRuns handles GET /api/workflow/{agentName}/{workflowName}/run.
+func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.ListWorkflowRunsParams) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	agentName := strings.TrimSpace(agtName)
+	workflowName = strings.TrimSpace(workflowName)
+	fields := workflow.ValidateLookupRequest(agentName, workflowName)
+	fields = append(fields, workflow.ValidateRunListFilters(params)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -135,23 +295,13 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		r.Context(),
 		s.k8sClient,
 		ns,
-		agtName,
+		agentName,
 		workflowName,
-		schName,
-		params.Status,
+		params,
 		limit,
 		offset,
 	)
 	if err != nil {
-		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {
-			writeError(w, r, newAPIError(
-				http.StatusNotFound,
-				"not_found",
-				"workflow schedule not found",
-				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), schName),
-			))
-			return
-		}
 		writeError(w, r, mapKubeHTTPError("list workflow runs", err))
 		return
 	}
@@ -163,10 +313,10 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// WatchWorkflowRuns handles POST /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch.
+// WatchWorkflowRuns handles POST /api/workflow/{agentName}/{workflowName}/run/watch.
 //
 //nolint:gocyclo
-func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
+func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -174,16 +324,13 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	}
 
 	var req gatewayapi.WatchWorkflowRunsRequest
-	if r.Body != nil {
-		if !decodeJSONBody(w, r, &req, true) {
-			return
-		}
+	if r.Body != nil && !decodeJSONBody(w, r, &req, true) {
+		return
 	}
 
-	agtName = strings.TrimSpace(agtName)
+	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
-	schName := strings.TrimSpace(scheduleName)
-	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
+	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunWatchNames(req.RunNames)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -196,36 +343,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		return
 	}
 
-	_, _, err = workflow.ListRuns(
-		r.Context(),
-		s.k8sClient,
-		ns,
-		agtName,
-		workflowName,
-		schName,
-		nil,
-		1,
-		0,
-	)
-	if err != nil {
-		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {
-			writeError(w, r, newAPIError(
-				http.StatusNotFound,
-				"not_found",
-				"workflow schedule not found",
-				err,
-			))
-			return
-		}
-		writeError(w, r, mapKubeHTTPError("watch workflow runs", err))
-		return
-	}
-
 	runFilter := map[string]struct{}{}
 	if req.RunNames != nil {
 		for _, runName := range *req.RunNames {
-			name := strings.TrimSpace(runName)
-			runFilter[name] = struct{}{}
+			runFilter[strings.TrimSpace(runName)] = struct{}{}
 		}
 	}
 
@@ -250,6 +371,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		if len(items) == 0 {
 			return true
 		}
+
 		raw, err := json.Marshal(gatewayapi.WatchWorkflowRunsEvent{
 			WorkflowRuns: items,
 		})
@@ -273,40 +395,79 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	defer cancel()
 
 	writeChanges := func() bool {
-		items, _, err := workflow.ListRuns(
-			r.Context(),
-			s.k8sClient,
-			ns,
-			agtName,
-			workflowName,
-			schName,
-			nil,
-			200,
-			0,
-		)
-		if err != nil {
+		items := make([]gatewayapi.WorkflowRunSummary, 0, max(1, len(runFilter)))
+		if len(runFilter) == 0 {
+			listedItems, _, err := workflow.ListRuns(
+				r.Context(),
+				s.k8sClient,
+				ns,
+				agentName,
+				workflowName,
+				gatewayapi.ListWorkflowRunsParams{},
+				200,
+				0,
+			)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
 			}
-			recordRequestError(w, "internal_error", err)
-			return false
+			if err != nil {
+				recordRequestError(w, "internal_error", err)
+				return false
+			}
+			items = listedItems
+		}
+
+		for runName := range runFilter {
+			detail, err := workflow.GetRun(
+				r.Context(),
+				s.k8sClient,
+				ns,
+				agentName,
+				workflowName,
+				runName,
+			)
+			if apierrors.IsNotFound(err) || errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
+				continue
+			}
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return false
+			}
+			if err != nil {
+				recordRequestError(w, "internal_error", err)
+				return false
+			}
+
+			items = append(items, gatewayapi.WorkflowRunSummary{
+				Name:            detail.Name,
+				WorkflowName:    detail.WorkflowName,
+				TriggerType:     detail.TriggerType,
+				ScheduleName:    detail.ScheduleName,
+				Status:          detail.Status,
+				Reason:          detail.Reason,
+				CreatedAt:       detail.CreatedAt,
+				DurationSeconds: detail.DurationSeconds,
+			})
 		}
 
 		changed := make([]gatewayapi.WorkflowRunSummary, 0, len(items))
 		for _, item := range items {
-			if len(runFilter) > 0 {
-				if _, ok := runFilter[item.Name]; !ok {
-					continue
-				}
-			}
-			prevItem, ok := prev[item.Name]
-			durationEqual := prevItem.DurationSeconds == nil && item.DurationSeconds == nil
+			prevItem, found := prev[item.Name]
+			durationEqual := prevItem.DurationSeconds == nil &&
+				item.DurationSeconds == nil
 			if prevItem.DurationSeconds != nil && item.DurationSeconds != nil {
-				durationEqual = *prevItem.DurationSeconds == *item.DurationSeconds
+				durationEqual = *prevItem.DurationSeconds ==
+					*item.DurationSeconds
 			}
-			unchanged := ok &&
+			scheduleEqual := prevItem.ScheduleName == nil &&
+				item.ScheduleName == nil
+			if prevItem.ScheduleName != nil && item.ScheduleName != nil {
+				scheduleEqual = *prevItem.ScheduleName == *item.ScheduleName
+			}
+			unchanged := found &&
 				prevItem.Name == item.Name &&
 				prevItem.WorkflowName == item.WorkflowName &&
+				prevItem.TriggerType == item.TriggerType &&
+				scheduleEqual &&
 				prevItem.Status == item.Status &&
 				prevItem.Reason == item.Reason &&
 				durationEqual &&
@@ -314,9 +475,11 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 			if unchanged {
 				continue
 			}
+
 			prev[item.Name] = item
 			changed = append(changed, item)
 		}
+
 		return send("", changed)
 	}
 
@@ -338,10 +501,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				if evt.Run == nil || evt.Run.Namespace != ns {
 					continue
 				}
-				if evt.Run.Spec.AgentName != agtName {
+				if evt.Run.Spec.AgentName != agentName {
 					continue
 				}
-				if evt.Run.Spec.ScheduleRef == nil || evt.Run.Spec.ScheduleRef.Name != schName {
+				if evt.Run.Spec.WorkflowName != workflowName {
 					continue
 				}
 				if len(runFilter) > 0 {
@@ -350,9 +513,9 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 					}
 				}
 
-				item, ok := prev[evt.Run.Name]
+				item, found := prev[evt.Run.Name]
 				delete(prev, evt.Run.Name)
-				if ok && !send("DELETE", []gatewayapi.WorkflowRunSummary{item}) {
+				if found && !send("DELETE", []gatewayapi.WorkflowRunSummary{item}) {
 					return
 				}
 				continue
@@ -364,21 +527,20 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	}
 }
 
-// GetWorkflowRun handles GET /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}.
-func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
+// GetWorkflowRun handles GET /api/workflow/{agentName}/{workflowName}/run/{runName}.
+func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 
-	agtName = strings.TrimSpace(agtName)
+	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
-	schName := strings.TrimSpace(scheduleName)
-	trimmedRunName := strings.TrimSpace(runName)
+	runName = strings.TrimSpace(runName)
 
-	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
-	fields = append(fields, workflow.ValidateRunName(trimmedRunName)...)
+	fields := workflow.ValidateLookupRequest(agentName, workflowName)
+	fields = append(fields, workflow.ValidateRunName(runName)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -394,18 +556,20 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 		r.Context(),
 		s.k8sClient,
 		ns,
-		agtName,
+		agentName,
 		workflowName,
-		schName,
-		trimmedRunName,
+		runName,
 	)
 	if err != nil {
-		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {
+		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
 			writeError(w, r, newAPIError(
 				http.StatusNotFound,
 				"not_found",
 				"workflow run not found",
-				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowrun"), trimmedRunName),
+				apierrors.NewNotFound(
+					agentzv1alpha1.Resource("workflowrun"),
+					runName,
+				),
 			))
 			return
 		}
@@ -416,21 +580,20 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	writeJSON(w, http.StatusOK, detail)
 }
 
-// DeleteWorkflowRun handles DELETE /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}.
-func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName, runName gatewayapi.WorkflowRunName) {
+// DeleteWorkflowRun handles DELETE /api/workflow/{agentName}/{workflowName}/run/{runName}.
+func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 
-	agtName = strings.TrimSpace(agtName)
+	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
-	schName := strings.TrimSpace(scheduleName)
-	trimmedRunName := strings.TrimSpace(runName)
+	runName = strings.TrimSpace(runName)
 
-	fields := workflow.ValidateRunRoute(agtName, workflowName, schName)
-	fields = append(fields, workflow.ValidateRunName(trimmedRunName)...)
+	fields := workflow.ValidateLookupRequest(agentName, workflowName)
+	fields = append(fields, workflow.ValidateRunName(runName)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -446,20 +609,19 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		r.Context(),
 		s.k8sClient,
 		ns,
-		agtName,
+		agentName,
 		workflowName,
-		schName,
-		trimmedRunName,
+		runName,
 	)
 	if err != nil {
-		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {
+		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
 			writeError(w, r, newAPIError(
 				http.StatusNotFound,
 				"not_found",
 				"workflow run not found",
 				apierrors.NewNotFound(
 					agentzv1alpha1.Resource("workflowrun"),
-					trimmedRunName,
+					runName,
 				),
 			))
 			return

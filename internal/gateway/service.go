@@ -60,6 +60,7 @@ type Config struct {
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
+	gatewayapi.Unimplemented
 	ctx                context.Context
 	resolver           *resolver
 	queries            gatewaydb.Querier
@@ -257,13 +258,17 @@ func (s *Service) routes() http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-	r.Use(requireTenantRequest(s))
-	r.HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
-	r.HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
-	return gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
-		BaseRouter:       r,
+	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
+	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
+
+	apiRouter := chi.NewRouter()
+	gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
+		BaseRouter:       apiRouter,
 		ErrorHandlerFunc: s.handleRouteError,
+		Middlewares:      []gatewayapi.MiddlewareFunc{requireTenantRequest(s)},
 	})
+	r.Mount("/", apiRouter)
+	return r
 }
 
 func requestLog(next http.Handler) http.Handler {

@@ -61,6 +61,10 @@ const (
 	WorkflowRunReasonGatewayError = "GatewayError"
 )
 
+// WorkflowRunAnnotationWebhookAPIKeyID stores the Better Auth API key ID that
+// created one webhook-triggered run.
+const WorkflowRunAnnotationWebhookAPIKeyID = "agentz.accuknox.com/webhook-api-key-id"
+
 // WorkflowRunPhase identifies the lifecycle state of a WorkflowRun.
 type WorkflowRunPhase string
 

@@ -102,6 +102,43 @@ func (q *Queries) GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDel
 	return result.RowsAffected(), nil
 }
 
+const gatewayGetAPIKeyByHash = `-- name: GatewayGetAPIKeyByHash :one
+SELECT id, reference_id, name, permissions
+FROM apikeys
+WHERE key = $1
+  AND config_id = $2
+  AND enabled = true
+  AND (
+    expires_at IS NULL
+    OR expires_at > $3
+  )
+`
+
+type GatewayGetAPIKeyByHashParams struct {
+	Key      string             `json:"key"`
+	ConfigID string             `json:"config_id"`
+	NowAt    pgtype.Timestamptz `json:"now_at"`
+}
+
+type GatewayGetAPIKeyByHashRow struct {
+	ID          string      `json:"id"`
+	ReferenceID string      `json:"reference_id"`
+	Name        pgtype.Text `json:"name"`
+	Permissions pgtype.Text `json:"permissions"`
+}
+
+func (q *Queries) GatewayGetAPIKeyByHash(ctx context.Context, arg GatewayGetAPIKeyByHashParams) (GatewayGetAPIKeyByHashRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetAPIKeyByHash, arg.Key, arg.ConfigID, arg.NowAt)
+	var i GatewayGetAPIKeyByHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.ReferenceID,
+		&i.Name,
+		&i.Permissions,
+	)
+	return i, err
+}
+
 const gatewayGetAgent = `-- name: GatewayGetAgent :one
 SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
@@ -212,43 +249,6 @@ func (q *Queries) GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraph
 		return nil, err
 	}
 	return items, nil
-}
-
-const gatewayGetOpenCodeAPIKeyByHash = `-- name: GatewayGetOpenCodeAPIKeyByHash :one
-SELECT id, reference_id, name, permissions
-FROM apikeys
-WHERE key = $1
-  AND config_id = $2
-  AND enabled = true
-  AND (
-    expires_at IS NULL
-    OR expires_at > $3
-  )
-`
-
-type GatewayGetOpenCodeAPIKeyByHashParams struct {
-	Key      string             `json:"key"`
-	ConfigID string             `json:"config_id"`
-	NowAt    pgtype.Timestamptz `json:"now_at"`
-}
-
-type GatewayGetOpenCodeAPIKeyByHashRow struct {
-	ID          string      `json:"id"`
-	ReferenceID string      `json:"reference_id"`
-	Name        pgtype.Text `json:"name"`
-	Permissions pgtype.Text `json:"permissions"`
-}
-
-func (q *Queries) GatewayGetOpenCodeAPIKeyByHash(ctx context.Context, arg GatewayGetOpenCodeAPIKeyByHashParams) (GatewayGetOpenCodeAPIKeyByHashRow, error) {
-	row := q.db.QueryRow(ctx, gatewayGetOpenCodeAPIKeyByHash, arg.Key, arg.ConfigID, arg.NowAt)
-	var i GatewayGetOpenCodeAPIKeyByHashRow
-	err := row.Scan(
-		&i.ID,
-		&i.ReferenceID,
-		&i.Name,
-		&i.Permissions,
-	)
-	return i, err
 }
 
 const gatewayGetSpanDetail = `-- name: GatewayGetSpanDetail :one

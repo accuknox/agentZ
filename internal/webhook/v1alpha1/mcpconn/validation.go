@@ -353,14 +353,12 @@ func validateAuthLocation(location *agentzv1alpha1.MCPConnectionAuthLocation, pa
 				"field is required",
 			))
 		}
-		if headerName != "" {
-			if _, ok := reservedAuthHeaders[headerName]; ok && headerName != http.CanonicalHeaderKey("Authorization") {
-				fields = append(fields, field.Invalid(
-					path.Child("header").Child("name"),
-					location.Header.Name,
-					fmt.Sprintf("header %q is reserved", headerName),
-				))
-			}
+		if _, ok := reservedAuthHeaders[headerName]; headerName != "" && ok && headerName != http.CanonicalHeaderKey("Authorization") {
+			fields = append(fields, field.Invalid(
+				path.Child("header").Child("name"),
+				location.Header.Name,
+				fmt.Sprintf("header %q is reserved", headerName),
+			))
 		}
 	}
 	if location.QueryParameter != nil {

@@ -54,6 +54,7 @@ config:
   leaderElect: true
   metricsSecure: true
   enableHTTP2: false
+  workflowRunOrphanRetention: 168h
   controllerImage: controller:latest
   agentImage: ""
   agentInitImage: ""

@@ -347,7 +347,7 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
-	fields := workflow.ValidateRunRoute(agtName, workflowName, scheduleName)
+	fields := workflow.ValidateScheduleLookup(agtName, workflowName, scheduleName)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -359,7 +359,7 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		return
 	}
 
-	resp, err := workflow.CreateRun(
+	resp, err := workflow.CreateScheduledRun(
 		r.Context(),
 		s.k8sClient,
 		ns,
@@ -368,7 +368,7 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		scheduleName,
 	)
 	if err != nil {
-		if errors.Is(err, workflow.ErrWorkflowScheduleRefMismatch) {
+		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
 			writeError(w, r, newAPIError(
 				http.StatusNotFound,
 				"not_found",

@@ -82,7 +82,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if !agt.DeletionTimestamp.IsZero() {
 		if ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
-			if err := r.cleanupSinjector(ctx, agt); err != nil {
+			err := r.cleanupSinjector(ctx, agt)
+			if err != nil {
 				return ctrl.Result{}, fmt.Errorf("cleanup sinjector: %w", err)
 			}
 			patch := client.MergeFrom(agt.DeepCopy())

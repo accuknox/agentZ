@@ -16,7 +16,3 @@ export function agentWorkflowsTag(agentName: string) {
 export function workflowTag(agentName: string, workflowName: string) {
   return `${workflowsTag}:${agentName}:${workflowName}`
 }
-
-export function scheduleWorkflowRunsTag(agentName: string, scheduleName: string) {
-  return `${workflowRunsTag}:${agentName}:${scheduleName}`
-}

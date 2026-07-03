@@ -123,10 +123,10 @@ func (s *Service) readBearerRecord(ctx context.Context, ref agentzv1alpha1.MCPCo
 		ref.Path,
 		ref.Key,
 	)
+	if errors.Is(err, baoapi.ErrSecretNotFound) {
+		return record, fmt.Errorf("%v: %w", err, errCredentialPending)
+	}
 	if err != nil {
-		if errors.Is(err, baoapi.ErrSecretNotFound) {
-			return record, fmt.Errorf("%v: %w", err, errCredentialPending)
-		}
 		return record, fmt.Errorf("%v: %w", err, errCredentialUnavailable)
 	}
 	return record, nil

@@ -64,6 +64,7 @@ spec:
         - manager
         - --leader-elect
         - --health-probe-bind-address=:8081
+        - --workflowrun-orphan-retention=168h
         - --controller-image=controller:latest
         - --gateway-url=http://gateway.agentz-system.svc.cluster.local:8090
         - --manager-gateway-token-path=/var/run/secrets/agentz/gateway/token

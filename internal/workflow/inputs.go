@@ -354,9 +354,13 @@ func validateValue(schema *jsonschema.Schema, value any, fieldPrefix string) []I
 
 func joinField(fieldPrefix string, instanceLocation string) string {
 	var field strings.Builder
-	field.WriteString(fieldPrefix)
+	if fieldPrefix != "" {
+		field.WriteString(fieldPrefix)
+	}
 	for _, part := range jsonPointerParts(instanceLocation) {
-		field.WriteString(".")
+		if field.Len() > 0 {
+			field.WriteString(".")
+		}
 		field.WriteString(part)
 	}
 	return field.String()

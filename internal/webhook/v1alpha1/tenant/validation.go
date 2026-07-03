@@ -76,13 +76,11 @@ func validateTenant(oldObj, newObj *agentzv1alpha1.Tenant) error {
 		))
 	}
 
-	if oldObj != nil {
-		if oldObj.Spec.OrganizationID != newObj.Spec.OrganizationID {
-			issues = append(issues, field.Forbidden(specPath.Child("organizationID"), "is immutable"))
-		}
-		if oldObj.Spec.UserID != newObj.Spec.UserID {
-			issues = append(issues, field.Forbidden(specPath.Child("userID"), "is immutable"))
-		}
+	if oldObj != nil && oldObj.Spec.OrganizationID != newObj.Spec.OrganizationID {
+		issues = append(issues, field.Forbidden(specPath.Child("organizationID"), "is immutable"))
+	}
+	if oldObj != nil && oldObj.Spec.UserID != newObj.Spec.UserID {
+		issues = append(issues, field.Forbidden(specPath.Child("userID"), "is immutable"))
 	}
 
 	if len(issues) == 0 {

@@ -7,7 +7,6 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { dayjs } from "@/lib/dayjs"
 import type { DeleteAPIKeyFormState } from "@/data/types"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -35,17 +34,27 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import type { Auth } from "@/lib/auth"
+import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 
-type APIKeyRow = Awaited<ReturnType<Auth["api"]["listApiKeys"]>>["apiKeys"][number]
+type APIKeyRow = {
+  id: string
+  name?: string | null
+  configId: string
+  start?: string | null
+  prefix?: string | null
+  permissions?: Record<string, string[]> | null
+  expiresAt?: Date | string | null
+  createdAt: Date | string
+}
 
 const columnClassName: Record<string, string> = {
-  name: "w-40",
-  start: "w-32",
-  scope: "w-32",
-  expiresAt: "w-72",
-  createdAt: "w-72",
-  actions: "w-16",
+  name: "w-44",
+  type: "w-20",
+  start: "w-36",
+  scope: "min-w-56",
+  expiresAt: "w-28",
+  age: "w-28",
+  actions: "w-14",
 }
 
 export function APIKeysTable({
@@ -68,6 +77,11 @@ export function APIKeysTable({
         cell: ({ row }) => <span>{row.original.name || "-"}</span>,
       },
       {
+        id: "type",
+        header: "Type",
+        cell: ({ row }) => <span>{apiKeyTypeLabel(row.original.configId)}</span>,
+      },
+      {
         id: "start",
         header: "Key",
         cell: ({ row }) => <code>{row.original.start || row.original.prefix || "-"}...</code>,
@@ -75,7 +89,9 @@ export function APIKeysTable({
       {
         id: "scope",
         header: "Scope",
-        cell: ({ row }) => <APIKeyScope permissions={row.original.permissions} />,
+        cell: ({ row }) => (
+          <APIKeyScope configId={row.original.configId} permissions={row.original.permissions} />
+        ),
       },
       {
         id: "expiresAt",
@@ -83,14 +99,18 @@ export function APIKeysTable({
         cell: ({ row }) => <span>{formatDateTime(row.original.expiresAt)}</span>,
       },
       {
-        id: "createdAt",
-        header: "Created",
-        cell: ({ row }) => <span>{formatDateTime(row.original.createdAt)}</span>,
+        id: "age",
+        header: "Age",
+        cell: ({ row }) => <span>{formatAge(row.original.createdAt)}</span>,
       },
       {
         id: "actions",
         cell: ({ row }) => (
-          <DeleteAPIKeyButton deleteAPIKeyAction={deleteAPIKeyAction} keyID={row.original.id} />
+          <DeleteAPIKeyButton
+            configId={row.original.configId}
+            deleteAPIKeyAction={deleteAPIKeyAction}
+            keyID={row.original.id}
+          />
         ),
       },
     ],
@@ -150,7 +170,66 @@ export function APIKeysTable({
   )
 }
 
-function APIKeyScope({ permissions }: { permissions?: Record<string, string[]> | null }) {
+function APIKeyScope({
+  configId,
+  permissions,
+}: {
+  configId: string
+  permissions?: Record<string, string[]> | null
+}) {
+  if (configId === webhookAPIKeyConfigID) {
+    const webhook = permissions?.webhook ?? []
+    if (webhook.includes("all")) {
+      return <span>All workflows</span>
+    }
+
+    const workflowsByAgent = new Map<string, string[]>()
+    for (const scope of webhook) {
+      const [kind, agentName, workflowName, extra] = scope.split(":")
+      if (kind !== "workflow" || !agentName || !workflowName || extra) {
+        continue
+      }
+
+      const workflows = workflowsByAgent.get(agentName) ?? []
+      workflows.push(workflowName)
+      workflowsByAgent.set(agentName, workflows)
+    }
+
+    if (workflowsByAgent.size === 0) {
+      return <span>Invalid</span>
+    }
+
+    const grouped = [...workflowsByAgent.entries()]
+      .map(([agentName, workflowNames]) => ({
+        agentName,
+        workflowNames: workflowNames.toSorted(),
+      }))
+      .toSorted((left, right) => left.agentName.localeCompare(right.agentName))
+
+    const summary =
+      grouped.length <= 2
+        ? grouped
+            .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.length}`)
+            .join(", ")
+        : `${grouped[0].agentName}: ${grouped[0].workflowNames.length}, ${grouped[1].agentName}: ${grouped[1].workflowNames.length}, +${grouped.length - 2} agents`
+    const details = grouped
+      .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.join(", ")}`)
+      .join("\n")
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <code className="cursor-default">{summary}</code>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={6} className="whitespace-pre-line">
+            {details}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
   const opencode = permissions?.opencode ?? []
   if (opencode.includes("all")) {
     return <code>*</code>
@@ -167,7 +246,7 @@ function APIKeyScope({ permissions }: { permissions?: Record<string, string[]> |
     .toSorted()
 
   if (agentNames.length === 0) {
-    return <Badge variant="outline">Invalid</Badge>
+    return <span>Invalid</span>
   }
 
   const summary =
@@ -187,10 +266,22 @@ function APIKeyScope({ permissions }: { permissions?: Record<string, string[]> |
   )
 }
 
+function apiKeyTypeLabel(configId: string) {
+  if (configId === agentAPIKeyConfigID) {
+    return "Agent"
+  }
+  if (configId === webhookAPIKeyConfigID) {
+    return "Webhook"
+  }
+  return "Unknown"
+}
+
 function DeleteAPIKeyButton({
+  configId,
   deleteAPIKeyAction,
   keyID,
 }: {
+  configId: string
   deleteAPIKeyAction: (
     state: DeleteAPIKeyFormState,
     formData: FormData
@@ -257,6 +348,7 @@ function DeleteAPIKeyButton({
               </Button>
             </DialogClose>
             <form action={action}>
+              <input type="hidden" name="configId" value={configId} />
               <input type="hidden" name="keyID" value={keyID} />
               <Button type="submit" variant="destructive" disabled={pending}>
                 {pending ? <Spinner aria-hidden="true" /> : <Trash2 data-icon="inline-start" />}
@@ -281,4 +373,17 @@ function formatDateTime(value: Date | string | null | undefined) {
   }
 
   return `${date.format("MMM D, YYYY, h:mm A")} (${date.fromNow()})`
+}
+
+function formatAge(value: Date | string | null | undefined) {
+  if (!value) {
+    return "Unknown"
+  }
+
+  const date = dayjs(value)
+  if (!date.isValid()) {
+    return "Unknown"
+  }
+
+  return date.fromNow()
 }

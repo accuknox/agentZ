@@ -52,7 +52,7 @@ export type SandboxName = string
 export type McpConnectionName = string
 
 /**
- * Workflow name scoped to one agent.
+ * Workflow name scoped to an agent.
  */
 export type WorkflowName = string
 
@@ -104,6 +104,11 @@ export type ListWorkflowSchedulesResponse = {
 
 export type ListWorkflowRunsResponse = {
   workflow_runs: Array<WorkflowRunSummary>
+  next_page_token: string
+}
+
+export type ListWorkflowWebhookTriggersResponse = {
+  webhook_triggers: Array<WorkflowWebhookTrigger>
   next_page_token: string
 }
 
@@ -162,9 +167,26 @@ export type WorkflowSchedule = {
   created_at: string
 }
 
+/**
+ * Better Auth API key identifier.
+ */
+export type ApiKeyId = string
+
+/**
+ * Runtime workflow input values. The gateway validates this object against the saved workflow input schema before creating a WorkflowRun.
+ *
+ */
+export type WorkflowRunInputs = {
+  [key: string]: unknown
+}
+
+export type WorkflowRunTriggerType = "Schedule" | "Webhook"
+
 export type WorkflowRunSummary = {
   name: WorkflowRunName
   workflow_name: WorkflowName
+  trigger_type: WorkflowRunTriggerType
+  schedule_name?: WorkflowScheduleName
   status: WorkflowRunStatus
   reason: string
   created_at: string
@@ -175,6 +197,7 @@ export type WorkflowRunDetail = {
   name: WorkflowRunName
   agent_name: AgentName
   workflow_name: WorkflowName
+  trigger_type: WorkflowRunTriggerType
   schedule_name?: WorkflowScheduleName
   inputs: JsonValue
   timeout_seconds: number
@@ -186,6 +209,12 @@ export type WorkflowRunDetail = {
   started_at?: string
   completed_at?: string
   duration_seconds?: number
+}
+
+export type WorkflowWebhookTrigger = {
+  workflow_name: WorkflowName
+  api_key_id: ApiKeyId
+  last_triggered_at: string
 }
 
 export type CreateWorkflowScheduleRequest = {
@@ -561,7 +590,7 @@ export type SecretKey = string
 export type SecretValue = string
 
 /**
- * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly one subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly a subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
  *
  */
 export type SecretHost = string
@@ -1149,7 +1178,7 @@ export type ListTraceSessionsData = {
      */
     agentName: AgentName
     /**
-     * Session identifier scoped to one agent.
+     * Session identifier scoped to an agent.
      */
     sessionID: string
   }
@@ -1210,11 +1239,11 @@ export type ListSpansData = {
      */
     agentName: AgentName
     /**
-     * Session identifier scoped to one agent.
+     * Session identifier scoped to an agent.
      */
     sessionID: string
     /**
-     * Trace identifier scoped to one session.
+     * Trace identifier scoped to a session.
      */
     traceID: TraceId
   }
@@ -1266,15 +1295,15 @@ export type GetSpanDetailData = {
      */
     agentName: AgentName
     /**
-     * Session identifier scoped to one agent.
+     * Session identifier scoped to an agent.
      */
     sessionID: string
     /**
-     * Trace identifier scoped to one session.
+     * Trace identifier scoped to a session.
      */
     traceID: TraceId
     /**
-     * Span identifier scoped to one trace.
+     * Span identifier scoped to a trace.
      */
     spanID: SpanId
   }
@@ -1548,7 +1577,7 @@ export type GetMcpGraphError = GetMcpGraphErrors[keyof GetMcpGraphErrors]
 
 export type GetMcpGraphResponses = {
   /**
-   * Graph-ready MCP observability for one agent.
+   * Graph-ready MCP observability for an agent.
    */
   200: McpGraphResponse
 }
@@ -2125,7 +2154,7 @@ export type ListWorkflowSummariesError =
 
 export type ListWorkflowSummariesResponses = {
   /**
-   * Workflow summaries for one agent.
+   * Workflow summaries for an agent.
    */
   200: Array<WorkflowSummary>
 }
@@ -2185,7 +2214,7 @@ export type GetWorkflowData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
   }
@@ -2257,7 +2286,7 @@ export type ListAgentWorkflowSchedulesError =
 
 export type ListAgentWorkflowSchedulesResponses = {
   /**
-   * Paginated workflow schedules for one agent.
+   * Paginated workflow schedules for an agent.
    */
   200: ListWorkflowSchedulesResponse
 }
@@ -2273,7 +2302,7 @@ export type ListWorkflowSchedulesData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
   }
@@ -2306,7 +2335,7 @@ export type ListWorkflowSchedulesError =
 
 export type ListWorkflowSchedulesResponses = {
   /**
-   * Paginated workflow schedules for one workflow.
+   * Paginated workflow schedules for a workflow.
    */
   200: ListWorkflowSchedulesResponse
 }
@@ -2322,7 +2351,7 @@ export type CreateWorkflowScheduleData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
   }
@@ -2372,7 +2401,7 @@ export type DeleteWorkflowScheduleData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
     /**
@@ -2421,7 +2450,7 @@ export type UpdateWorkflowScheduleData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
     /**
@@ -2467,66 +2496,6 @@ export type UpdateWorkflowScheduleResponses = {
 export type UpdateWorkflowScheduleResponse =
   UpdateWorkflowScheduleResponses[keyof UpdateWorkflowScheduleResponses]
 
-export type ListWorkflowRunsData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    /**
-     * Workflow name scoped to one agent.
-     */
-    workflowName: WorkflowName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    scheduleName: WorkflowScheduleName
-  }
-  query?: {
-    /**
-     * Optional WorkflowRun phase filter.
-     */
-    status?: WorkflowRunStatus
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
-  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run"
-}
-
-export type ListWorkflowRunsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
-   *
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type ListWorkflowRunsError = ListWorkflowRunsErrors[keyof ListWorkflowRunsErrors]
-
-export type ListWorkflowRunsResponses = {
-  /**
-   * Paginated workflow runs for one workflow schedule.
-   */
-  200: ListWorkflowRunsResponse
-}
-
-export type ListWorkflowRunsResponse2 = ListWorkflowRunsResponses[keyof ListWorkflowRunsResponses]
-
 export type CreateWorkflowRunData = {
   body?: never
   path: {
@@ -2535,7 +2504,7 @@ export type CreateWorkflowRunData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
     /**
@@ -2579,6 +2548,180 @@ export type CreateWorkflowRunResponses = {
 
 export type CreateWorkflowRunResponse = CreateWorkflowRunResponses[keyof CreateWorkflowRunResponses]
 
+export type InvokeWorkflowWebhookData = {
+  body: WorkflowRunInputs
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to an agent.
+     */
+    workflowName: WorkflowName
+  }
+  query: {
+    /**
+     * Timeout for the created WorkflowRun.
+     */
+    timeout_seconds: number
+  }
+  url: "/api/workflow/{agentName}/{workflowName}/webhook"
+}
+
+export type InvokeWorkflowWebhookErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type InvokeWorkflowWebhookError =
+  InvokeWorkflowWebhookErrors[keyof InvokeWorkflowWebhookErrors]
+
+export type InvokeWorkflowWebhookResponses = {
+  /**
+   * Workflow run accepted.
+   */
+  202: WorkflowRunSummary
+}
+
+export type InvokeWorkflowWebhookResponse =
+  InvokeWorkflowWebhookResponses[keyof InvokeWorkflowWebhookResponses]
+
+export type ListWorkflowWebhookTriggersData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/workflow/{agentName}/webhook"
+}
+
+export type ListWorkflowWebhookTriggersErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkflowWebhookTriggersError =
+  ListWorkflowWebhookTriggersErrors[keyof ListWorkflowWebhookTriggersErrors]
+
+export type ListWorkflowWebhookTriggersResponses = {
+  /**
+   * Paginated webhook trigger rows for an agent.
+   */
+  200: ListWorkflowWebhookTriggersResponse
+}
+
+export type ListWorkflowWebhookTriggersResponse2 =
+  ListWorkflowWebhookTriggersResponses[keyof ListWorkflowWebhookTriggersResponses]
+
+export type ListWorkflowRunsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to an agent.
+     */
+    workflowName: WorkflowName
+  }
+  query?: {
+    /**
+     * Optional WorkflowRun phase filter.
+     */
+    status?: WorkflowRunStatus
+    /**
+     * Optional workflow trigger type filter.
+     */
+    trigger_type?: WorkflowRunTriggerType
+    /**
+     * Optional schedule filter. When set, trigger_type must be Schedule.
+     *
+     */
+    schedule_name?: WorkflowScheduleName
+    /**
+     * Optional webhook API key filter. When set, trigger_type must be Webhook.
+     *
+     */
+    webhook_api_key_id?: ApiKeyId
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/workflow/{agentName}/{workflowName}/run"
+}
+
+export type ListWorkflowRunsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkflowRunsError = ListWorkflowRunsErrors[keyof ListWorkflowRunsErrors]
+
+export type ListWorkflowRunsResponses = {
+  /**
+   * Paginated workflow runs for a workflow.
+   */
+  200: ListWorkflowRunsResponse
+}
+
+export type ListWorkflowRunsResponse2 = ListWorkflowRunsResponses[keyof ListWorkflowRunsResponses]
+
 export type WatchWorkflowRunsData = {
   body?: WatchWorkflowRunsRequest
   path: {
@@ -2587,16 +2730,12 @@ export type WatchWorkflowRunsData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    scheduleName: WorkflowScheduleName
   }
   query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch"
+  url: "/api/workflow/{agentName}/{workflowName}/run/watch"
 }
 
 export type WatchWorkflowRunsErrors = {
@@ -2634,20 +2773,16 @@ export type DeleteWorkflowRunData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    scheduleName: WorkflowScheduleName
     /**
      * WorkflowRun resource name.
      */
     runName: WorkflowRunName
   }
   query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}"
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}"
 }
 
 export type DeleteWorkflowRunErrors = {
@@ -2685,20 +2820,16 @@ export type GetWorkflowRunData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
-    /**
-     * WorkflowSchedule resource name.
-     */
-    scheduleName: WorkflowScheduleName
     /**
      * WorkflowRun resource name.
      */
     runName: WorkflowRunName
   }
   query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}"
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}"
 }
 
 export type GetWorkflowRunErrors = {
@@ -2736,7 +2867,7 @@ export type PatchWorkflowRunStatusData = {
      */
     agentName: AgentName
     /**
-     * Workflow name scoped to one agent.
+     * Workflow name scoped to an agent.
      */
     workflowName: WorkflowName
     /**

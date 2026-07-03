@@ -515,18 +515,16 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 			Field: "name", Message: "must be at most 32 characters",
 		})
 	}
-	if name != "" {
-		if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "name", Message: "must be a valid DNS label",
-			})
-		}
-		if name == agentzv1alpha1.AgentNameMCPConnection {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "name",
-				Message: "reserved agent name",
-			})
-		}
+	if errs := validation.IsDNS1123Label(name); name != "" && len(errs) > 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "name", Message: "must be a valid DNS label",
+		})
+	}
+	if name == agentzv1alpha1.AgentNameMCPConnection {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "name",
+			Message: "reserved agent name",
+		})
 	}
 
 	fields = append(fields, validateOpenCodeRequest(req.Opencode)...)
@@ -674,19 +672,17 @@ func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.F
 			Message: "must be in provider/model form",
 		})
 	}
-	if cfg.Instruction != nil {
-		if strings.TrimSpace(*cfg.Instruction) == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "opencode.instruction",
-				Message: "instruction must not be empty",
-			})
-		}
-		if len(*cfg.Instruction) > 4096 {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "opencode.instruction",
-				Message: "instruction must be at most 4096 characters",
-			})
-		}
+	if cfg.Instruction != nil && strings.TrimSpace(*cfg.Instruction) == "" {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "opencode.instruction",
+			Message: "instruction must not be empty",
+		})
+	}
+	if cfg.Instruction != nil && len(*cfg.Instruction) > 4096 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "opencode.instruction",
+			Message: "instruction must be at most 4096 characters",
+		})
 	}
 	if cfg.Providers == nil {
 		return fields

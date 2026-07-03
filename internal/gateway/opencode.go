@@ -2,27 +2,19 @@ package gateway
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"slices"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
-	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
-	openCodeAPIKeyConfigID      = "opencode"
 	opencodePrefix              = "/api/opencode"
 	opencodeProxyBodyLimitBytes = 16 * 1024 * 1024
 )
@@ -34,20 +26,24 @@ var opencodeProxyBodyLimitedMethods = map[string]struct{}{
 	http.MethodDelete: {},
 }
 
-var opencodeSessionDeleteSegments = pathSegments("/api/opencode/{agentName}/session/{sessionID}")
+const opencodeSessionDeletePath = "/api/opencode/{agentName}/session/{sessionID}"
+
+var opencodeRouteMatcher = newOpenCodeRouteMatcher()
 
 type opencodeRoute struct {
-	Method   string
-	Segments []string
+	Method string
+	Path   string
+}
+
+type opencodeRouteMatch struct {
+	Method string
+	Path   string
+	Params map[string]string
 }
 
 type opencodeSessionDeleteTarget struct {
 	agentName string
 	sessionID string
-}
-
-type openCodePermissions struct {
-	Opencode []string `json:"opencode"`
 }
 
 type sessionTraceStore interface {
@@ -142,7 +138,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			preq.SetXForwarded()
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 		},
-		ModifyResponse: s.openCodeModifyResponse(r.Context(), route, r.URL.Path, agentName),
+		ModifyResponse: s.openCodeModifyResponse(r.Context(), route, agentName),
 		FlushInterval:  -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
@@ -174,8 +170,8 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 // openCodeModifyResponse applies gateway-owned response cleanup and optional
 // observer trace deletion after successful upstream session deletion.
-func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRoute, path string, agentName string) func(*http.Response) error {
-	target, hasSessionDelete := matchOpencodeSessionDelete(route, path, agentName)
+func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRouteMatch, agentName string) func(*http.Response) error {
+	target, hasSessionDelete := matchOpencodeSessionDelete(route, agentName)
 	return func(resp *http.Response) error {
 		stripOpenCodeCORSHeaders(resp)
 
@@ -210,25 +206,24 @@ func stripOpenCodeCORSHeaders(resp *http.Response) {
 
 // matchOpencodeSessionDelete returns the observer cleanup target for the exact
 // OpenCode session delete route.
-func matchOpencodeSessionDelete(route *opencodeRoute, path string, agentName string) (opencodeSessionDeleteTarget, bool) {
+func matchOpencodeSessionDelete(route *opencodeRouteMatch, agentName string) (opencodeSessionDeleteTarget, bool) {
 	if route == nil {
 		return opencodeSessionDeleteTarget{}, false
 	}
 	if route.Method != http.MethodDelete {
 		return opencodeSessionDeleteTarget{}, false
 	}
-	if !slices.Equal(route.Segments, opencodeSessionDeleteSegments) {
+	if route.Path != opencodeSessionDeletePath {
 		return opencodeSessionDeleteTarget{}, false
 	}
-
-	segments := pathSegments(path)
-	if len(segments) != len(opencodeSessionDeleteSegments) {
+	sessionID := strings.TrimSpace(route.Params["sessionID"])
+	if sessionID == "" {
 		return opencodeSessionDeleteTarget{}, false
 	}
 
 	return opencodeSessionDeleteTarget{
 		agentName: agentName,
-		sessionID: segments[len(segments)-1],
+		sessionID: sessionID,
 	}, true
 }
 
@@ -251,22 +246,43 @@ func deleteSessionTraces(ctx context.Context, store sessionTraceStore, target op
 	return nil
 }
 
-func matchOpenCodeRoute(method, path string) (*opencodeRoute, bool) {
-	segments := pathSegments(path)
-	methodAllowed := false
+func newOpenCodeRouteMatcher() chi.Routes {
+	r := chi.NewRouter()
+	for _, route := range opencodeRoutes {
+		r.MethodFunc(route.Method, route.Path, func(http.ResponseWriter, *http.Request) {})
+	}
+	return r
+}
 
-	for i := range opencodeRoutes {
-		route := &opencodeRoutes[i]
-		if !segmentsMatch(route.Segments, segments) {
-			continue
-		}
-		if route.Method == method {
-			return route, false
-		}
-		methodAllowed = true
+func matchOpenCodeRoute(method string, path string) (*opencodeRouteMatch, bool) {
+	rctx := chi.NewRouteContext()
+	if opencodeRouteMatcher.Match(rctx, method, path) {
+		return &opencodeRouteMatch{
+			Method: method,
+			Path:   rctx.RoutePattern(),
+			Params: routeParams(rctx.URLParams),
+		}, false
 	}
 
-	return nil, methodAllowed
+	for _, route := range opencodeRoutes {
+		if route.Method == method {
+			continue
+		}
+		rctx = chi.NewRouteContext()
+		if opencodeRouteMatcher.Match(rctx, route.Method, path) {
+			return nil, true
+		}
+	}
+
+	return nil, false
+}
+
+func routeParams(params chi.RouteParams) map[string]string {
+	out := make(map[string]string, len(params.Keys))
+	for i, key := range params.Keys {
+		out[key] = params.Values[i]
+	}
+	return out
 }
 
 func openCodeTargetURL(target string) (*url.URL, error) {
@@ -309,158 +325,6 @@ func openCodeUpstreamPath(u *url.URL, agentName string) (string, string, error) 
 	}
 
 	return out, rawPath, nil
-}
-
-// resolveOpenCodeAPIKeyAuth validates a Basic auth password against Better
-// Auth API key rows and maps the owning organization to one tenant.
-func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error) {
-	username, password, ok := r.BasicAuth()
-	if !ok {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			errBadRequest,
-		)
-	}
-	if username != "opencode" || strings.TrimSpace(password) == "" {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			errBadRequest,
-		)
-	}
-
-	key, err := s.queries.GatewayGetOpenCodeAPIKeyByHash(
-		r.Context(),
-		gatewaydb.GatewayGetOpenCodeAPIKeyByHashParams{
-			Key:      hashAPIKey(password),
-			ConfigID: openCodeAPIKeyConfigID,
-			NowAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-		},
-	)
-	if err != nil {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			err,
-		)
-	}
-
-	var perms openCodePermissions
-	if !key.Permissions.Valid {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			errBadRequest,
-		)
-	}
-	if err := json.Unmarshal([]byte(key.Permissions.String), &perms); err != nil {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			err,
-		)
-	}
-
-	agentName := strings.TrimSpace(agentNameFromOpenCodePath(r.URL.Path))
-	if agentName == "" {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			errBadRequest,
-		)
-	}
-	if !allowOpenCodeAgent(perms.Opencode, agentName) {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			fmt.Errorf(
-				"api key %q is not authorized for agent %q",
-				key.ID,
-				agentName,
-			),
-		)
-	}
-
-	tenantName := agentzv1alpha1.TenantName(strings.TrimSpace(key.ReferenceID))
-	if tenantName == "" {
-		return requestAuth{}, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing or invalid credentials",
-			errBadRequest,
-		)
-	}
-
-	return requestAuth{tenantName: tenantName}, nil
-}
-
-func agentNameFromOpenCodePath(path string) string {
-	if !strings.HasPrefix(path, opencodePrefix+"/") {
-		return ""
-	}
-
-	rest := strings.TrimPrefix(path, opencodePrefix+"/")
-	segment, _, _ := strings.Cut(rest, "/")
-	return segment
-}
-
-func allowOpenCodeAgent(scopes []string, agentName string) bool {
-	if len(scopes) == 0 {
-		return false
-	}
-
-	allowed := "agent:" + agentName
-	for _, scope := range scopes {
-		switch scope {
-		case "all":
-			return true
-		case allowed:
-			return true
-		}
-	}
-
-	return false
-}
-
-func hashAPIKey(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
-}
-
-func pathSegments(path string) []string {
-	path = strings.Trim(path, "/")
-	if path == "" {
-		return nil
-	}
-	return strings.Split(path, "/")
-}
-
-func segmentsMatch(pattern, actual []string) bool {
-	if len(pattern) != len(actual) {
-		return false
-	}
-
-	for i := range pattern {
-		if isPathParam(pattern[i]) {
-			continue
-		}
-		if pattern[i] != actual[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func isPathParam(segment string) bool {
-	return strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}")
 }
 
 // opencodeProxyBodyLimitEnabled reports whether the request method should be

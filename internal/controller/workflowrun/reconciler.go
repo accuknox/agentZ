@@ -46,6 +46,9 @@ const (
 	// async prompt loop registers itself as busy. Give cold starts time to
 	// transition before treating an idle session as a failed run.
 	sessionStartupGrace = 30 * time.Second
+	// DefaultOrphanRetention retains terminal webhook-triggered runs for seven
+	// days before opportunistic pruning deletes them.
+	DefaultOrphanRetention = 7 * 24 * time.Hour
 )
 
 const workflowRunFinalizer = "agentz.accuknox.com/workflowrun-session"
@@ -65,11 +68,12 @@ type promptTemplateData struct {
 // Reconciler reconciles a WorkflowRun object.
 type Reconciler struct {
 	client.Client
-	GatewayClient *gatewayapi.ClientWithResponses
-	TokenPath     string
+	GatewayClient   *gatewayapi.ClientWithResponses
+	OrphanRetention time.Duration
+	TokenPath       string
 }
 
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns,verbs=get;list;watch;update;patch;delete
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns/finalizers,verbs=update
 
@@ -97,17 +101,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseUnknown {
-		if run.Status.CompletedAt != nil {
-			err = r.syncTerminalStatus(ctx, run)
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf(
-					"sync zero-value workflow run status: %w",
-					err,
-				)
-			}
-			return ctrl.Result{}, nil
+	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseUnknown && run.Status.CompletedAt != nil {
+		err = r.syncTerminalStatus(ctx, run)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf(
+				"sync zero-value workflow run status: %w",
+				err,
+			)
 		}
+		err = r.pruneOrphanRuns(ctx, run)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf(
+				"prune orphan workflow runs: %w",
+				err,
+			)
+		}
+		return ctrl.Result{}, nil
+	}
+	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseUnknown {
 		err = r.markPending(ctx, run)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("initialize workflow run status: %w", err)
@@ -119,6 +130,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		err = r.syncTerminalStatus(ctx, run)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("sync terminal workflow run status: %w", err)
+		}
+		err = r.pruneOrphanRuns(ctx, run)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("prune orphan workflow runs: %w", err)
 		}
 		return ctrl.Result{}, nil
 	}
@@ -155,6 +170,45 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func (r *Reconciler) pruneOrphanRuns(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
+	if r.OrphanRetention <= 0 || run.Spec.ScheduleRef != nil {
+		return nil
+	}
+
+	cutoff := time.Now().Add(-r.OrphanRetention)
+	runList := &agentzv1alpha1.WorkflowRunList{}
+	err := r.List(ctx, runList, client.InNamespace(run.Namespace))
+	if err != nil {
+		return fmt.Errorf("list workflow runs: %w", err)
+	}
+
+	for i := range runList.Items {
+		current := &runList.Items[i]
+		if current.Spec.AgentName != run.Spec.AgentName {
+			continue
+		}
+		if current.Spec.WorkflowName != run.Spec.WorkflowName {
+			continue
+		}
+		if current.Spec.ScheduleRef != nil {
+			continue
+		}
+		if !current.Status.Phase.Terminal() || current.Status.CompletedAt == nil {
+			continue
+		}
+		if !current.Status.CompletedAt.Time.Before(cutoff) {
+			continue
+		}
+
+		err = r.Delete(ctx, current)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete workflow run %q: %w", current.Name, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *Reconciler) addFinalizer(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current := &agentzv1alpha1.WorkflowRun{}
@@ -174,10 +228,10 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
 		return nil
 	}
+	if run.Status.SessionID != "" && r.GatewayClient == nil {
+		return fmt.Errorf("gateway client is not configured")
+	}
 	if run.Status.SessionID != "" {
-		if r.GatewayClient == nil {
-			return fmt.Errorf("gateway client is not configured")
-		}
 		resp, err := r.GatewayClient.SessionDeleteWithResponse(
 			ctx,
 			run.Spec.AgentName,
@@ -392,35 +446,33 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 }
 
 func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
-	if abort && run.Status.SessionID != "" {
-		if r.GatewayClient != nil {
-			resp, err := r.GatewayClient.SessionAbortWithResponse(
+	if abort && run.Status.SessionID != "" && r.GatewayClient != nil {
+		resp, err := r.GatewayClient.SessionAbortWithResponse(
+			ctx,
+			run.Spec.AgentName,
+			run.Status.SessionID,
+			nil,
+			gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		)
+		switch {
+		case err != nil:
+			slog.WarnContext(
 				ctx,
-				run.Spec.AgentName,
-				run.Status.SessionID,
-				nil,
-				gwreq.RequestEditor(r.TokenPath, run.Namespace),
+				"abort workflow session",
+				slog.String("agent", run.Spec.AgentName),
+				slog.String("namespace", run.Namespace),
+				slog.String("sessionID", run.Status.SessionID),
+				slog.Any("err", err),
 			)
-			switch {
-			case err != nil:
-				slog.WarnContext(
-					ctx,
-					"abort workflow session",
-					slog.String("agent", run.Spec.AgentName),
-					slog.String("namespace", run.Namespace),
-					slog.String("sessionID", run.Status.SessionID),
-					slog.Any("err", err),
-				)
-			case resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound:
-				slog.WarnContext(
-					ctx,
-					"abort workflow session returned unexpected status",
-					slog.String("agent", run.Spec.AgentName),
-					slog.String("namespace", run.Namespace),
-					slog.String("sessionID", run.Status.SessionID),
-					slog.Int("status", resp.StatusCode()),
-				)
-			}
+		case resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound:
+			slog.WarnContext(
+				ctx,
+				"abort workflow session returned unexpected status",
+				slog.String("agent", run.Spec.AgentName),
+				slog.String("namespace", run.Namespace),
+				slog.String("sessionID", run.Status.SessionID),
+				slog.Int("status", resp.StatusCode()),
+			)
 		}
 	}
 

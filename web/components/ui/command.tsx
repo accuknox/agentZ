@@ -19,7 +19,7 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "bg-popover text-popover-foreground flex size-full flex-col overflow-hidden rounded-xl! p-1",
+        "bg-popover text-popover-foreground flex min-h-0 w-full flex-col overflow-hidden rounded-xl! p-1",
         className
       )}
       {...props}
@@ -80,14 +80,24 @@ function CommandInput({
 }
 
 function CommandList({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.List>) {
+  const { onTouchMoveCapture, onWheelCapture, ...rest } = props
+
   return (
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "no-scrollbar max-h-72 scroll-py-1 overflow-x-hidden overflow-y-auto outline-none",
+        "no-scrollbar max-h-[min(18rem,calc(100vh-8rem))] min-h-0 flex-1 scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
         className
       )}
-      {...props}
+      onTouchMoveCapture={(event) => {
+        event.stopPropagation()
+        onTouchMoveCapture?.(event)
+      }}
+      onWheelCapture={(event) => {
+        event.stopPropagation()
+        onWheelCapture?.(event)
+      }}
+      {...rest}
     />
   )
 }

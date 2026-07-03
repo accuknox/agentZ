@@ -780,7 +780,7 @@ func isValidModelRef(v string) bool {
 	if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
 		return false
 	}
-	return !strings.Contains(model, "/")
+	return true
 }
 
 func statusFromView(view *agentStatusView) gatewayapi.AgentStatus {

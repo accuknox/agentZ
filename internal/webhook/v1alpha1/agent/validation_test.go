@@ -84,3 +84,24 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 		t.Fatalf("ValidateUpdate() error = %v", err)
 	}
 }
+
+func TestValidatorValidateUpdateAcceptsOpenRouterModelID(t *testing.T) {
+	t.Parallel()
+
+	validator := NewValidator()
+	oldAgt := &agentzv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
+		Spec: agentzv1alpha1.AgentSpec{
+			NixStoreSize: resource.MustParse("5Gi"),
+		},
+	}
+	newAgt := oldAgt.DeepCopy()
+	newAgt.Spec.SandboxRef = &corev1.LocalObjectReference{Name: "python"}
+	newAgt.Spec.Model = "openrouter/anthropic/claude-sonnet-4"
+	newAgt.Spec.SmallModel = "openrouter/openai/gpt-4.1-mini"
+
+	_, err := validator.ValidateUpdate(context.Background(), oldAgt, newAgt)
+	if err != nil {
+		t.Fatalf("ValidateUpdate() error = %v", err)
+	}
+}

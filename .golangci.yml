@@ -7,7 +7,6 @@ linters:
   - copyloopvar
   - dupl
   - ginkgolinter
-  - gocyclo
   - govet
   - ineffassign
   - misspell

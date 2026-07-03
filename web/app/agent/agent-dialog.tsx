@@ -364,16 +364,26 @@ export function AgentDialog({
     }
 
     for (const error of state.error.errors) {
-      if (
-        error.field !== "name" &&
-        error.field !== "sandboxName" &&
-        error.field !== "model" &&
-        error.field !== "smallModel"
-      ) {
+      let field: keyof AgentFormValues | undefined
+      switch (error.field) {
+        case "name":
+        case "sandboxName":
+        case "model":
+        case "smallModel":
+          field = error.field
+          break
+        case "opencode.model":
+          field = "model"
+          break
+        case "opencode.smallModel":
+          field = "smallModel"
+          break
+      }
+      if (!field) {
         continue
       }
 
-      form.setError(error.field, {
+      form.setError(field, {
         type: "server",
         message: error.message,
       })
@@ -409,7 +419,9 @@ export function AgentDialog({
         error.field === "name" ||
         error.field === "sandboxName" ||
         error.field === "model" ||
-        error.field === "smallModel"
+        error.field === "smallModel" ||
+        error.field === "opencode.model" ||
+        error.field === "opencode.smallModel"
       )
     }).length ?? 0
   const generalErrorMessage =

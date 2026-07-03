@@ -4,11 +4,11 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useProgress } from "@bprogress/next"
 import { Controller, useForm } from "react-hook-form"
-import { BotIcon, Workflow } from "lucide-react"
-import type { Agent, WorkflowSchedule } from "@/lib/gateway/client"
+import { BotIcon, CalendarSync, Webhook } from "lucide-react"
+import type { Agent } from "@/lib/gateway/client"
 import {
-  workflowRunFiltersFormSchema,
-  type WorkflowRunFiltersFormValues,
+  workflowTriggerFiltersFormSchema,
+  type WorkflowTriggerFiltersFormValues,
 } from "@/data/workflow.schema"
 import {
   Select,
@@ -19,28 +19,26 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-type RunsFiltersProps = {
+type TriggersFiltersProps = {
+  action: (formData: FormData) => void | Promise<void>
   agents: Agent[]
   selectedAgentName?: string
-  schedules: WorkflowSchedule[]
-  selectedScheduleName?: string
-  action: (formData: FormData) => void | Promise<void>
+  selectedType: WorkflowTriggerFiltersFormValues["type"]
 }
 
-export function RunsFilters({
+export function TriggersFilters({
+  action,
   agents,
   selectedAgentName,
-  schedules,
-  selectedScheduleName,
-  action,
-}: RunsFiltersProps) {
+  selectedType,
+}: TriggersFiltersProps) {
   const [pending, startTransition] = React.useTransition()
   const progress = useProgress()
-  const form = useForm<WorkflowRunFiltersFormValues>({
-    resolver: zodResolver(workflowRunFiltersFormSchema),
+  const form = useForm<WorkflowTriggerFiltersFormValues>({
+    resolver: zodResolver(workflowTriggerFiltersFormSchema),
     defaultValues: {
       agent_name: selectedAgentName ?? "",
-      schedule_name: selectedScheduleName ?? "",
+      type: selectedType,
     },
   })
 
@@ -53,12 +51,10 @@ export function RunsFilters({
     progress.stop()
   }, [pending, progress])
 
-  function submitSelection(values: WorkflowRunFiltersFormValues) {
+  function submitSelection(values: WorkflowTriggerFiltersFormValues) {
     const formData = new FormData()
     formData.set("agent_name", values.agent_name)
-    if (values.schedule_name) {
-      formData.set("schedule_name", values.schedule_name)
-    }
+    formData.set("type", values.type)
 
     startTransition(() => {
       void action(formData)
@@ -77,8 +73,8 @@ export function RunsFilters({
               onValueChange={(nextAgentName) => {
                 const nextValues = {
                   agent_name: nextAgentName,
-                  schedule_name: "",
-                } satisfies WorkflowRunFiltersFormValues
+                  type: form.getValues("type"),
+                } satisfies WorkflowTriggerFiltersFormValues
                 form.reset(nextValues)
                 submitSelection(nextValues)
               }}
@@ -101,35 +97,38 @@ export function RunsFilters({
           )}
         />
         <Controller
-          name="schedule_name"
+          name="type"
           control={form.control}
           render={({ field }) => (
             <Select
               value={field.value}
-              onValueChange={(nextScheduleName) => {
+              onValueChange={(nextType) => {
+                if (nextType !== "schedule" && nextType !== "webhook") {
+                  return
+                }
+
                 const nextValues = {
                   agent_name: form.getValues("agent_name"),
-                  schedule_name: nextScheduleName,
-                } satisfies WorkflowRunFiltersFormValues
-                form.setValue("schedule_name", nextScheduleName, {
-                  shouldDirty: false,
-                  shouldTouch: false,
-                })
+                  type: nextType,
+                } satisfies WorkflowTriggerFiltersFormValues
+                form.reset(nextValues)
                 submitSelection(nextValues)
               }}
-              disabled={schedules.length === 0 || pending}
+              disabled={pending}
             >
-              <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-72">
-                <SelectValue placeholder="Schedule" />
+              <SelectTrigger className="h-8 w-full min-w-40 rounded-md sm:w-44">
+                <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {schedules.map((schedule) => (
-                    <SelectItem key={schedule.name} value={schedule.name}>
-                      <Workflow className="inline-block" />
-                      {schedule.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="schedule">
+                    <CalendarSync className="inline-block" />
+                    Schedule
+                  </SelectItem>
+                  <SelectItem value="webhook">
+                    <Webhook className="inline-block" />
+                    Webhook
+                  </SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>

@@ -12,13 +12,12 @@ import { twoFactor } from "better-auth/plugins/two-factor"
 import { z } from "zod"
 import { authErrorMessages } from "@/app/(auth)/shared"
 import { getDB, schema } from "@/db"
+import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { getEnv } from "@/lib/env"
 import { getGithubUserInfo } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
 import { minPasswordLength } from "@/lib/password-policy"
 import { signInReturnTo } from "@/lib/sign-in-redirect"
-
-export const opencodeAPIKeyConfigID = "opencode"
 
 // Better Auth uses these internal cookie names for 2FA challenge state and
 // trusted-device bypass. The plugin does not export them publicly, so the
@@ -284,8 +283,25 @@ function buildAuth() {
       }),
       apiKey([
         {
-          configId: opencodeAPIKeyConfigID,
+          configId: agentAPIKeyConfigID,
           defaultPrefix: "opk_",
+          startingCharactersConfig: {
+            charactersLength: 10,
+            shouldStore: true,
+          },
+          keyExpiration: {
+            defaultExpiresIn: null,
+          },
+          rateLimit: {
+            enabled: false,
+          },
+          references: "organization",
+          requireName: true,
+        },
+        {
+          configId: webhookAPIKeyConfigID,
+          apiKeyHeaders: "x-api-key",
+          defaultPrefix: "whk_",
           startingCharactersConfig: {
             charactersLength: 10,
             shouldStore: true,

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
 import { createWorkflowRun, deleteWorkflowRun, type Error } from "@/lib/gateway/client"
-import { scheduleWorkflowRunsTag, workflowRunsTag } from "@/data/cache"
+import { workflowRunsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type DeleteWorkflowRunActionState = {
@@ -17,12 +17,11 @@ export type TriggerWorkflowRunActionState = {
 }
 
 /**
- * deleteWorkflowRunAction deletes one workflow run for the selected schedule.
+ * deleteWorkflowRunAction deletes one workflow run for one workflow.
  */
 export async function deleteWorkflowRunAction(
   agentName: string,
   workflowName: string,
-  scheduleName: string,
   _: DeleteWorkflowRunActionState,
   formData: FormData
 ): Promise<DeleteWorkflowRunActionState> {
@@ -42,7 +41,6 @@ export async function deleteWorkflowRunAction(
     path: {
       agentName,
       workflowName,
-      scheduleName,
       runName,
     },
   })
@@ -54,7 +52,6 @@ export async function deleteWorkflowRunAction(
   }
 
   updateTag(workflowRunsTag)
-  updateTag(scheduleWorkflowRunsTag(agentName, scheduleName))
 
   return {
     success: true,
@@ -63,7 +60,7 @@ export async function deleteWorkflowRunAction(
 }
 
 /**
- * triggerWorkflowRunAction triggers one immediate run for the selected schedule.
+ * triggerWorkflowRunAction triggers one immediate run for one workflow schedule.
  */
 export async function triggerWorkflowRunAction(
   agentName: string,
@@ -99,8 +96,7 @@ export async function triggerWorkflowRunAction(
   }
 
   updateTag(workflowRunsTag)
-  updateTag(scheduleWorkflowRunsTag(agentName, scheduleName))
   redirect(
-    `/workflows/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(scheduleName)}/runs`
+    `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(workflowName)}&schedule_name=${encodeURIComponent(scheduleName)}`
   )
 }

@@ -36,8 +36,8 @@ import {
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogClose,
@@ -114,7 +114,6 @@ const runStatusMeta = {
 export function RunsTable({
   agentName,
   workflowName,
-  scheduleName,
   workflowRuns,
   hasNextPage,
   nextPageToken,
@@ -122,14 +121,12 @@ export function RunsTable({
 }: {
   agentName: string
   workflowName: string
-  scheduleName: string
   workflowRuns: WorkflowRunSummary[]
   hasNextPage: boolean
   nextPageToken: string
   deleteWorkflowRunAction: (
     agentName: string,
     workflowName: string,
-    scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
   ) => Promise<DeleteWorkflowRunActionState>
@@ -144,7 +141,7 @@ export function RunsTable({
       queryFn: streamedQuery<
         WatchWorkflowRunsResponse,
         WorkflowRunSummary[],
-        readonly ["watchWorkflowRuns", string, string, string, string[]]
+        readonly ["watchWorkflowRuns", string, string, string[]]
       >({
         initialValue: workflowRuns,
         reducer: (rows, event) => {
@@ -170,7 +167,6 @@ export function RunsTable({
             path: {
               agentName,
               workflowName,
-              scheduleName,
             },
             signal,
           })
@@ -178,13 +174,7 @@ export function RunsTable({
           return result.stream
         },
       }),
-      queryKey: [
-        "watchWorkflowRuns",
-        agentName,
-        workflowName,
-        scheduleName,
-        workflowRuns.map((run) => run.name),
-      ],
+      queryKey: ["watchWorkflowRuns", agentName, workflowName, workflowRuns.map((run) => run.name)],
       refetchOnMount: "always",
       refetchOnReconnect: "always",
       refetchOnWindowFocus: false,
@@ -204,17 +194,8 @@ export function RunsTable({
         goPrevious,
         pageRowCount: rows.length,
         workflowName,
-        scheduleName,
       }),
-    [
-      agentName,
-      canGoPrevious,
-      deleteWorkflowRunAction,
-      goPrevious,
-      rows.length,
-      workflowName,
-      scheduleName,
-    ]
+    [agentName, canGoPrevious, deleteWorkflowRunAction, goPrevious, rows.length, workflowName]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -297,21 +278,18 @@ function createColumns({
   goPrevious,
   pageRowCount,
   workflowName,
-  scheduleName,
 }: {
   agentName: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
     workflowName: string,
-    scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
   ) => Promise<DeleteWorkflowRunActionState>
   goPrevious: () => void
   pageRowCount: number
   workflowName: string
-  scheduleName: string
 }): ColumnDef<WorkflowRunSummary>[] {
   return [
     {
@@ -377,10 +355,9 @@ function createColumns({
           canGoPrevious={canGoPrevious}
           deleteWorkflowRunAction={deleteWorkflowRunAction}
           goPrevious={goPrevious}
-          item={row.original}
           isOnlyRow={pageRowCount === 1}
+          item={row.original}
           workflowName={workflowName}
-          scheduleName={scheduleName}
         />
       ),
     },
@@ -417,14 +394,12 @@ function RunActions({
   isOnlyRow,
   item,
   workflowName,
-  scheduleName,
 }: {
   agentName: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
     workflowName: string,
-    scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
   ) => Promise<DeleteWorkflowRunActionState>
@@ -432,21 +407,19 @@ function RunActions({
   isOnlyRow: boolean
   item: WorkflowRunSummary
   workflowName: string
-  scheduleName: string
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
   const detailQuery = useQuery(
     queryOptions({
       enabled: menuOpen,
-      queryKey: ["workflowRun", agentName, workflowName, scheduleName, item.name] as const,
+      queryKey: ["workflowRun", agentName, workflowName, item.name] as const,
       queryFn: async (): Promise<WorkflowRunDetail> => {
         const result = await getWorkflowRun({
           baseUrl: await getGatewayBaseURL(),
           path: {
             agentName,
             workflowName,
-            scheduleName,
             runName: item.name,
           },
         })
@@ -494,9 +467,8 @@ function RunActions({
         isOnlyRow={isOnlyRow}
         item={item}
         open={deleteOpen}
-        workflowName={workflowName}
-        scheduleName={scheduleName}
         setOpen={setDeleteOpen}
+        workflowName={workflowName}
       />
     </>
   )
@@ -550,16 +522,14 @@ function DeleteRunDialog({
   isOnlyRow,
   item,
   open,
-  workflowName,
-  scheduleName,
   setOpen,
+  workflowName,
 }: {
   agentName: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
     workflowName: string,
-    scheduleName: string,
     state: DeleteWorkflowRunActionState,
     formData: FormData
   ) => Promise<DeleteWorkflowRunActionState>
@@ -567,13 +537,12 @@ function DeleteRunDialog({
   isOnlyRow: boolean
   item: WorkflowRunSummary
   open: boolean
-  workflowName: string
-  scheduleName: string
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  workflowName: string
 }) {
   const router = useRouter()
   const [state, formAction, pending] = React.useActionState(
-    deleteWorkflowRunAction.bind(null, agentName, workflowName, scheduleName),
+    deleteWorkflowRunAction.bind(null, agentName, workflowName),
     {
       success: false,
       error: undefined,

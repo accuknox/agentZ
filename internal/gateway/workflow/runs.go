@@ -31,10 +31,11 @@ const (
 )
 
 var (
-	ErrWorkflowRunTerminal         = errors.New("workflow run already has a terminal status")
-	ErrWorkflowScheduleRefMismatch = errors.New("workflow run or schedule does not match route scope")
+	ErrWorkflowRunTerminal      = errors.New("workflow run already has a terminal status")
+	ErrWorkflowRunScopeMismatch = errors.New("workflow run does not match route scope")
 )
 
+// RunPhaseConflictError reports one invalid terminal phase transition.
 type RunPhaseConflictError struct {
 	Current agentzv1alpha1.WorkflowRunPhase
 	Target  agentzv1alpha1.WorkflowRunPhase
@@ -48,31 +49,19 @@ func (e *RunPhaseConflictError) Error() string {
 	)
 }
 
-func ValidateRunStatusRequest(name string, message string) []gatewayapi.FieldError {
-	fields := make([]gatewayapi.FieldError, 0, 2)
-	if errs := validation.IsDNS1123Subdomain(strings.TrimSpace(name)); len(errs) > 0 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "name",
-			Message: "must be a valid DNS subdomain",
-		})
+// ValidateRunStatusMessage validates one terminal status message.
+func ValidateRunStatusMessage(message string) []gatewayapi.FieldError {
+	if len(message) <= 4096 {
+		return nil
 	}
-	if len(message) > 4096 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "message",
-			Message: "must be 4096 characters or fewer",
-		})
-	}
-	return fields
+
+	return []gatewayapi.FieldError{{
+		Field:   "message",
+		Message: "must be 4096 characters or fewer",
+	}}
 }
 
-func ValidateRunRoute(agtName string, wfName string, schName string) []gatewayapi.FieldError {
-	fields := make([]gatewayapi.FieldError, 0, 3)
-	fields = append(fields, validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))...)
-	fields = append(fields, validateScheduleDNSLabel("workflowName", strings.TrimSpace(wfName))...)
-	fields = append(fields, validateScheduleDNSLabel("scheduleName", strings.TrimSpace(schName))...)
-	return fields
-}
-
+// ValidateRunName validates one workflow run resource name.
 func ValidateRunName(name string) []gatewayapi.FieldError {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -90,6 +79,7 @@ func ValidateRunName(name string) []gatewayapi.FieldError {
 	return nil
 }
 
+// ValidateRunListStatus validates one workflow run phase filter.
 func ValidateRunListStatus(status *gatewayapi.WorkflowRunStatus) []gatewayapi.FieldError {
 	if status == nil {
 		return nil
@@ -110,6 +100,63 @@ func ValidateRunListStatus(status *gatewayapi.WorkflowRunStatus) []gatewayapi.Fi
 	}
 }
 
+// ValidateRunListFilters validates workflow run trigger filters.
+func ValidateRunListFilters(params gatewayapi.ListWorkflowRunsParams) []gatewayapi.FieldError {
+	fields := ValidateRunListStatus(params.Status)
+
+	if params.TriggerType != nil {
+		switch *params.TriggerType {
+		case gatewayapi.Schedule, gatewayapi.Webhook:
+		default:
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "trigger_type",
+				Message: "must be a valid workflow run trigger type",
+			})
+		}
+	}
+
+	if params.ScheduleName != nil {
+		name := strings.TrimSpace(*params.ScheduleName)
+		if name == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "schedule_name",
+				Message: "required",
+			})
+		}
+		if errs := validation.IsDNS1123Subdomain(name); name != "" && len(errs) > 0 {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "schedule_name",
+				Message: "must be a valid DNS subdomain",
+			})
+		}
+		if params.TriggerType == nil || *params.TriggerType != gatewayapi.Schedule {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "schedule_name",
+				Message: "requires trigger_type=Schedule",
+			})
+		}
+	}
+
+	if params.WebhookApiKeyId != nil {
+		keyID := strings.TrimSpace(*params.WebhookApiKeyId)
+		if keyID == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "webhook_api_key_id",
+				Message: "required",
+			})
+		}
+		if params.TriggerType == nil || *params.TriggerType != gatewayapi.Webhook {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "webhook_api_key_id",
+				Message: "requires trigger_type=Webhook",
+			})
+		}
+	}
+
+	return fields
+}
+
+// ValidateRunWatchNames validates run names used by one watch request.
 func ValidateRunWatchNames(runNames *[]gatewayapi.WorkflowRunName) []gatewayapi.FieldError {
 	if runNames == nil {
 		return nil
@@ -127,6 +174,7 @@ func ValidateRunWatchNames(runNames *[]gatewayapi.WorkflowRunName) []gatewayapi.
 	return fields
 }
 
+// PatchRunStatus updates one running workflow run with a terminal phase.
 func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, req gatewayapi.PatchWorkflowRunStatusRequest, msg string) error {
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	phase := agentzv1alpha1.WorkflowRunPhase(req.Phase)
@@ -138,17 +186,18 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			return err
 		}
 		if current.Spec.AgentName != strings.TrimSpace(agtName) {
-			return ErrWorkflowScheduleRefMismatch
+			return ErrWorkflowRunScopeMismatch
 		}
 		if current.Spec.WorkflowName != strings.TrimSpace(wfName) {
-			return ErrWorkflowScheduleRefMismatch
+			return ErrWorkflowRunScopeMismatch
 		}
 
+		if current.Status.Phase.Terminal() && current.Status.Phase == phase &&
+			current.Status.Message == msg {
+			resultErr = nil
+			return nil
+		}
 		if current.Status.Phase.Terminal() {
-			if current.Status.Phase == phase && current.Status.Message == msg {
-				resultErr = nil
-				return nil
-			}
 			resultErr = ErrWorkflowRunTerminal
 			return nil
 		}
@@ -179,8 +228,14 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	return resultErr
 }
 
-func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (gatewayapi.WorkflowRunSummary, error) {
+// CreateScheduledRun creates one run from one workflow schedule.
+func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (gatewayapi.WorkflowRunSummary, error) {
 	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
+	if err != nil {
+		return gatewayapi.WorkflowRunSummary{}, err
+	}
+
+	name, err := workflowRunName(schedule.Name)
 	if err != nil {
 		return gatewayapi.WorkflowRunSummary{}, err
 	}
@@ -191,7 +246,7 @@ func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 			Kind:       "WorkflowRun",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      schedule.Name + "-" + workflowRunSuffix(),
+			Name:      name,
 			Namespace: ns,
 			Labels: map[string]string{
 				"agentz.accuknox.com/workflow-schedule": schedule.Name,
@@ -213,38 +268,157 @@ func CreateRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 			},
 		},
 	}
-	if err := k8sClient.Create(ctx, run); err != nil {
-		return gatewayapi.WorkflowRunSummary{}, err
-	}
-	if err := k8sClient.Get(ctx, ctrlclient.ObjectKeyFromObject(run), run); err != nil {
-		return gatewayapi.WorkflowRunSummary{}, err
-	}
-	return runSummaryFromCRD(run), nil
+
+	return createRun(ctx, k8sClient, run)
 }
 
-func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, status *gatewayapi.WorkflowRunStatus, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
-	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
-	if err != nil {
-		return nil, 0, err
+// CreateWebhookRun creates one direct workflow run from a webhook request.
+func CreateWebhookRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, inputs []byte, timeoutSeconds int32, apiKeyID string) (gatewayapi.WorkflowRunSummary, error) {
+	agent := &agentzv1alpha1.Agent{}
+	agentKey := ctrlclient.ObjectKey{Name: agtName, Namespace: ns}
+	if err := k8sClient.Get(ctx, agentKey, agent); err != nil {
+		return gatewayapi.WorkflowRunSummary{}, fmt.Errorf(
+			"get agent %q: %w",
+			agtName,
+			err,
+		)
 	}
 
+	name, err := workflowRunName(wfName)
+	if err != nil {
+		return gatewayapi.WorkflowRunSummary{}, err
+	}
+
+	run := &agentzv1alpha1.WorkflowRun{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "WorkflowRun",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Annotations: map[string]string{
+				agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID: apiKeyID,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(
+					agent,
+					agentzv1alpha1.SchemeGroupVersion.WithKind("Agent"),
+				),
+			},
+		},
+		Spec: agentzv1alpha1.WorkflowRunSpec{
+			AgentName:      agtName,
+			WorkflowName:   wfName,
+			Inputs:         apiextensionsv1.JSON{Raw: inputs},
+			TimeoutSeconds: timeoutSeconds,
+		},
+	}
+
+	return createRun(ctx, k8sClient, run)
+}
+
+// ListWebhookTriggers lists distinct webhook trigger rows for one agent.
+func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, limit int, offset int) ([]gatewayapi.WorkflowWebhookTrigger, int, error) {
 	list := &agentzv1alpha1.WorkflowRunList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
 	}
 
+	itemsByKey := make(map[string]gatewayapi.WorkflowWebhookTrigger, len(list.Items))
+	for i := range list.Items {
+		run := &list.Items[i]
+		if run.Spec.AgentName != agtName {
+			continue
+		}
+		if run.Spec.ScheduleRef != nil {
+			continue
+		}
+
+		apiKeyID := workflowRunWebhookAPIKeyID(run)
+		if apiKeyID == "" {
+			continue
+		}
+
+		item := gatewayapi.WorkflowWebhookTrigger{
+			ApiKeyId:        apiKeyID,
+			LastTriggeredAt: run.CreationTimestamp.Time,
+			WorkflowName:    run.Spec.WorkflowName,
+		}
+		key := item.WorkflowName + "\x00" + item.ApiKeyId
+		current, ok := itemsByKey[key]
+		if ok && !item.LastTriggeredAt.After(current.LastTriggeredAt) {
+			continue
+		}
+		itemsByKey[key] = item
+	}
+
+	items := make([]gatewayapi.WorkflowWebhookTrigger, 0, len(itemsByKey))
+	for _, item := range itemsByKey {
+		items = append(items, item)
+	}
+
+	slices.SortFunc(items, func(a, b gatewayapi.WorkflowWebhookTrigger) int {
+		if cmp := b.LastTriggeredAt.Compare(a.LastTriggeredAt); cmp != 0 {
+			return cmp
+		}
+		if cmp := strings.Compare(a.WorkflowName, b.WorkflowName); cmp != 0 {
+			return cmp
+		}
+		return strings.Compare(a.ApiKeyId, b.ApiKeyId)
+	})
+
+	start := min(offset, len(items))
+	end := min(start+limit, len(items))
+	nextOffset := 0
+	if end < len(items) {
+		nextOffset = end
+	}
+	return items[start:end], nextOffset, nil
+}
+
+// ListRuns lists workflow runs for one workflow.
+func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
+	list := &agentzv1alpha1.WorkflowRunList{}
+	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
+		return nil, 0, err
+	}
+
+	var scheduleName string
+	if params.ScheduleName != nil {
+		scheduleName = strings.TrimSpace(*params.ScheduleName)
+	}
+
+	var webhookAPIKeyID string
+	if params.WebhookApiKeyId != nil {
+		webhookAPIKeyID = strings.TrimSpace(*params.WebhookApiKeyId)
+	}
+
 	items := make([]gatewayapi.WorkflowRunSummary, 0, len(list.Items))
 	for i := range list.Items {
 		run := &list.Items[i]
-		if run.Spec.AgentName != schedule.Spec.AgentName {
+		if run.Spec.AgentName != agtName {
 			continue
 		}
-		if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != schedule.Name {
+		if run.Spec.WorkflowName != wfName {
 			continue
 		}
-		if status != nil && string(*status) != string(run.Status.Phase) {
+		if params.Status != nil && string(*params.Status) != string(run.Status.Phase) {
 			continue
 		}
+		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Schedule && run.Spec.ScheduleRef == nil {
+			continue
+		}
+		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Webhook && run.Spec.ScheduleRef != nil {
+			continue
+		}
+		if scheduleName != "" && (run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != scheduleName) {
+			continue
+		}
+		if webhookAPIKeyID != "" && workflowRunWebhookAPIKeyID(run) != webhookAPIKeyID {
+			continue
+		}
+
 		items = append(items, runSummaryFromCRD(run))
 	}
 
@@ -267,42 +441,34 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 	return items[start:end], nextOffset, nil
 }
 
-func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, runName string) (gatewayapi.WorkflowRunDetail, error) {
-	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
-	if err != nil {
-		return gatewayapi.WorkflowRunDetail{}, err
-	}
-
+// GetRun returns one workflow run detail.
+func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string) (gatewayapi.WorkflowRunDetail, error) {
 	run := &agentzv1alpha1.WorkflowRun{}
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	if err := k8sClient.Get(ctx, key, run); err != nil {
 		return gatewayapi.WorkflowRunDetail{}, err
 	}
-	if run.Spec.AgentName != schedule.Spec.AgentName {
-		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowScheduleRefMismatch
+	if run.Spec.AgentName != strings.TrimSpace(agtName) {
+		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowRunScopeMismatch
 	}
-	if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != schedule.Name {
-		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowScheduleRefMismatch
+	if run.Spec.WorkflowName != strings.TrimSpace(wfName) {
+		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowRunScopeMismatch
 	}
 	return runDetailFromCRD(run), nil
 }
 
-func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, runName string) error {
-	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
-	if err != nil {
-		return err
-	}
-
+// DeleteRun deletes one workflow run.
+func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string) error {
 	run := &agentzv1alpha1.WorkflowRun{}
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	if err := k8sClient.Get(ctx, key, run); err != nil {
 		return err
 	}
-	if run.Spec.AgentName != schedule.Spec.AgentName {
-		return ErrWorkflowScheduleRefMismatch
+	if run.Spec.AgentName != strings.TrimSpace(agtName) {
+		return ErrWorkflowRunScopeMismatch
 	}
-	if run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != schedule.Name {
-		return ErrWorkflowScheduleRefMismatch
+	if run.Spec.WorkflowName != strings.TrimSpace(wfName) {
+		return ErrWorkflowRunScopeMismatch
 	}
 
 	if err := k8sClient.Delete(ctx, run); err != nil && !apierrors.IsNotFound(err) {
@@ -330,13 +496,27 @@ func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 	}
 }
 
+func createRun(ctx context.Context, k8sClient ctrlclient.Client, run *agentzv1alpha1.WorkflowRun) (gatewayapi.WorkflowRunSummary, error) {
+	if err := k8sClient.Create(ctx, run); err != nil {
+		return gatewayapi.WorkflowRunSummary{}, err
+	}
+	if err := k8sClient.Get(ctx, ctrlclient.ObjectKeyFromObject(run), run); err != nil {
+		return gatewayapi.WorkflowRunSummary{}, err
+	}
+	return runSummaryFromCRD(run), nil
+}
+
 func runSummaryFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunSummary {
 	summary := gatewayapi.WorkflowRunSummary{
 		Name:         run.Name,
 		WorkflowName: run.Spec.WorkflowName,
+		TriggerType:  workflowRunTriggerType(run),
 		Status:       workflowRunStatus(run.Status.Phase),
 		Reason:       workflowRunReason(run),
 		CreatedAt:    run.CreationTimestamp.Time,
+	}
+	if run.Spec.ScheduleRef != nil {
+		summary.ScheduleName = &run.Spec.ScheduleRef.Name
 	}
 	if run.Status.StartedAt != nil && run.Status.CompletedAt != nil {
 		durationSeconds := int64(math.Ceil(run.Status.CompletedAt.Time.Sub(run.Status.StartedAt.Time).Seconds()))
@@ -357,6 +537,7 @@ func runDetailFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDet
 		Name:           run.Name,
 		AgentName:      run.Spec.AgentName,
 		WorkflowName:   run.Spec.WorkflowName,
+		TriggerType:    workflowRunTriggerType(run),
 		Inputs:         inputs,
 		TimeoutSeconds: run.Spec.TimeoutSeconds,
 		Status:         workflowRunStatus(run.Status.Phase),
@@ -431,6 +612,20 @@ func workflowRunReason(run *agentzv1alpha1.WorkflowRun) string {
 	return agentzv1alpha1.WorkflowRunReasonPending
 }
 
+func workflowRunTriggerType(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunTriggerType {
+	if run != nil && run.Spec.ScheduleRef != nil {
+		return gatewayapi.Schedule
+	}
+	return gatewayapi.Webhook
+}
+
+func workflowRunWebhookAPIKeyID(run *agentzv1alpha1.WorkflowRun) string {
+	if run == nil || len(run.Annotations) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(run.Annotations[agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID])
+}
+
 func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (*agentzv1alpha1.WorkflowSchedule, error) {
 	schedule := &agentzv1alpha1.WorkflowSchedule{}
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(schName)}
@@ -438,15 +633,23 @@ func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, ag
 		return nil, err
 	}
 	if schedule.Spec.AgentName != strings.TrimSpace(agtName) {
-		return nil, ErrWorkflowScheduleRefMismatch
+		return nil, ErrWorkflowRunScopeMismatch
 	}
 	if schedule.Spec.WorkflowName != strings.TrimSpace(wfName) {
-		return nil, ErrWorkflowScheduleRefMismatch
+		return nil, ErrWorkflowRunScopeMismatch
 	}
 	return schedule, nil
 }
 
-func workflowRunSuffix() string {
+func workflowRunName(prefix string) (string, error) {
+	suffix, err := workflowRunSuffix()
+	if err != nil {
+		return "", err
+	}
+	return prefix + "-" + suffix, nil
+}
+
+func workflowRunSuffix() (string, error) {
 	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 	buf := make([]byte, workflowRunNameSuffixLen)
@@ -454,9 +657,9 @@ func workflowRunSuffix() string {
 	for i := range buf {
 		n, err := rand.Int(rand.Reader, max)
 		if err != nil {
-			panic(err)
+			return "", fmt.Errorf("generate workflow run suffix: %w", err)
 		}
 		buf[i] = alphabet[n.Int64()]
 	}
-	return string(buf)
+	return string(buf), nil
 }

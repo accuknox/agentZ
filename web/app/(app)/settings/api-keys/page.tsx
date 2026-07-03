@@ -4,8 +4,9 @@ import { headers } from "next/headers"
 import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { createAPIKeyFormAction, deleteAPIKeyFormAction } from "@/data/api-key.actions"
+import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
 import { Button } from "@/components/ui/button"
-import { getAuth, opencodeAPIKeyConfigID } from "@/lib/auth"
+import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { CreateAPIKeyButton } from "./dialog"
 import { APIKeysTable } from "./table"
@@ -38,8 +39,22 @@ async function CreateAPIKeyAction() {
     return null
   }
 
+  const workflowsByAgent = await Promise.all(
+    listedAgents.agents.map(async (agent) => {
+      const workflowsResult = await listWorkflowSummariesCachedQuery(agent.name)
+      return {
+        agentName: agent.name,
+        workflows: workflowsResult.error ? [] : workflowsResult.summaries,
+      }
+    })
+  )
+
   return (
-    <CreateAPIKeyButton agents={listedAgents.agents} createAPIKeyAction={createAPIKeyFormAction} />
+    <CreateAPIKeyButton
+      agents={listedAgents.agents}
+      workflowsByAgent={workflowsByAgent}
+      createAPIKeyAction={createAPIKeyFormAction}
+    />
   )
 }
 
@@ -51,7 +66,6 @@ async function APIKeys() {
   const listedKeys = await auth.api.listApiKeys({
     headers: requestHeaders,
     query: {
-      configId: opencodeAPIKeyConfigID,
       organizationId: authContext.organizationId,
       sortBy: "createdAt",
       sortDirection: "desc",

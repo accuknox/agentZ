@@ -25,6 +25,10 @@ tags:
   description: Workflow definition management APIs.
 - name: workflow-schedules
   description: Workflow schedule management APIs.
+- name: workflow-runs
+  description: Workflow run browsing and status APIs.
+- name: workflow-webhooks
+  description: Workflow webhook invocation and trigger listing APIs.
 
 paths:
   /api/tenant:
@@ -196,7 +200,7 @@ paths:
       - name: sessionID
         in: path
         required: true
-        description: Session identifier scoped to one agent.
+        description: Session identifier scoped to an agent.
         schema:
           type: string
           minLength: 1
@@ -228,14 +232,14 @@ paths:
       - name: sessionID
         in: path
         required: true
-        description: Session identifier scoped to one agent.
+        description: Session identifier scoped to an agent.
         schema:
           type: string
           minLength: 1
       - name: traceID
         in: path
         required: true
-        description: Trace identifier scoped to one session.
+        description: Trace identifier scoped to a session.
         schema:
           $ref: '#/components/schemas/TraceID'
       - $ref: '#/components/parameters/LimitQuery'
@@ -264,20 +268,20 @@ paths:
       - name: sessionID
         in: path
         required: true
-        description: Session identifier scoped to one agent.
+        description: Session identifier scoped to an agent.
         schema:
           type: string
           minLength: 1
       - name: traceID
         in: path
         required: true
-        description: Trace identifier scoped to one session.
+        description: Trace identifier scoped to a session.
         schema:
           $ref: '#/components/schemas/TraceID'
       - name: spanID
         in: path
         required: true
-        description: Span identifier scoped to one trace.
+        description: Span identifier scoped to a trace.
         schema:
           $ref: '#/components/schemas/SpanID'
       responses:
@@ -378,7 +382,7 @@ paths:
   /api/lens/{agentName}/mcp/graph:
     get:
       operationId: getMCPGraph
-      summary: Get MCP observability graph data for one agent and date range.
+      summary: Get MCP observability graph data for an agent given a date range.
       tags: [lens]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -386,7 +390,7 @@ paths:
       - $ref: '#/components/parameters/ToDateQuery'
       responses:
         '200':
-          description: Graph-ready MCP observability for one agent.
+          description: Graph-ready MCP observability for an agent.
           content:
             application/json:
               schema:
@@ -425,9 +429,9 @@ paths:
           $ref: '#/components/responses/InternalError'
     post:
       operationId: putSecret
-      summary: Create one secret for an agent.
+      summary: Create a secret for an agent.
       description: >
-        Creates one static or OAuth-backed secret for the agent. Secret values
+        Creates a static or OAuth-backed secret for the agent. Secret values
         are stored only in OpenBao. OAuth secrets keep refresh lifecycle state
         in the Secret CRD status.
       tags: [secrets]
@@ -456,7 +460,7 @@ paths:
   /api/secret/{agentName}/watch:
     post:
       operationId: watchSecrets
-      summary: Watch secret status changes for one agent.
+      summary: Watch secret status changes for an agent.
       description: >
         Returns an SSE stream. Each event data payload is a JSON object matching
         WatchSecretsEvent. If keys is omitted or empty, all known secrets for
@@ -728,7 +732,7 @@ paths:
       - $ref: '#/components/parameters/AgentNamePath'
       responses:
         '200':
-          description: Workflow summaries for one agent.
+          description: Workflow summaries for an agent.
           content:
             application/json:
               schema:
@@ -774,7 +778,7 @@ paths:
       operationId: deleteWorkflows
       summary: Delete workflow definitions.
       description: >
-        Deletes multiple persisted workflow DAGs for one agent in a single
+        Deletes multiple persisted workflow DAGs for an agent in a single
         request. Deletion is strict: if any requested workflow name does not
         exist, the request fails and no workflows are deleted.
       tags: [workflows]
@@ -810,7 +814,7 @@ paths:
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
       responses:
@@ -830,9 +834,9 @@ paths:
   /api/workflow/{agentName}/schedule:
     get:
       operationId: listAgentWorkflowSchedules
-      summary: List workflow schedules for one agent.
+      summary: List workflow schedules for an agent.
       description: >
-        Lists paginated workflow schedules for one agent across all workflows.
+        Lists paginated workflow schedules for an agent across all workflows.
       tags: [workflow-schedules]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -840,7 +844,7 @@ paths:
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
-          description: Paginated workflow schedules for one agent.
+          description: Paginated workflow schedules for an agent.
           content:
             application/json:
               schema:
@@ -855,21 +859,21 @@ paths:
       operationId: listWorkflowSchedules
       summary: List workflow schedules.
       description: >
-        Lists paginated workflow schedules for one workflow definition.
+        Lists paginated workflow schedules for a workflow definition.
       tags: [workflow-schedules]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
-          description: Paginated workflow schedules for one workflow.
+          description: Paginated workflow schedules for a workflow.
           content:
             application/json:
               schema:
@@ -882,7 +886,7 @@ paths:
       operationId: createWorkflowSchedule
       summary: Create a workflow schedule.
       description: >
-        Creates a WorkflowSchedule resource for one agent workflow pair. The
+        Creates a WorkflowSchedule resource for an agent-workflow pair. The
         gateway forwards schedule validation to the existing Kubernetes webhook.
       tags: [workflow-schedules]
       parameters:
@@ -890,7 +894,7 @@ paths:
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
       requestBody:
@@ -920,14 +924,14 @@ paths:
       operationId: updateWorkflowSchedule
       summary: Update a workflow schedule.
       description: >
-        Replaces all mutable workflow schedule fields for one existing schedule.
+        Replaces all mutable workflow schedule fields for an existing schedule.
       tags: [workflow-schedules]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
       - name: scheduleName
@@ -961,7 +965,7 @@ paths:
       operationId: deleteWorkflowSchedule
       summary: Delete a workflow schedule.
       description: >
-        Deletes one workflow schedule addressed by agent, workflow, and
+        Deletes a workflow schedule addressed by agent, workflow, and
         schedule name.
       tags: [workflow-schedules]
       parameters:
@@ -969,7 +973,7 @@ paths:
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
       - name: scheduleName
@@ -989,53 +993,11 @@ paths:
           $ref: '#/components/responses/InternalError'
 
   /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run:
-    get:
-      operationId: listWorkflowRuns
-      summary: List workflow runs for a workflow schedule.
-      description: >
-        Lists paginated workflow runs created from the addressed
-        WorkflowSchedule.
-      tags: [workflow-schedules]
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - name: workflowName
-        in: path
-        required: true
-        description: Workflow name scoped to one agent.
-        schema:
-          $ref: '#/components/schemas/WorkflowName'
-      - name: scheduleName
-        in: path
-        required: true
-        description: WorkflowSchedule resource name.
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      - name: status
-        in: query
-        required: false
-        description: Optional WorkflowRun phase filter.
-        schema:
-          $ref: '#/components/schemas/WorkflowRunStatus'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        '200':
-          description: Paginated workflow runs for one workflow schedule.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListWorkflowRunsResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
     post:
       operationId: createWorkflowRun
-      summary: Trigger one workflow run from a workflow schedule.
+      summary: Trigger a workflow run from a workflow schedule.
       description: >
-        Creates one WorkflowRun from the addressed WorkflowSchedule without
+        Creates a WorkflowRun from the addressed WorkflowSchedule without
         overriding any schedule-derived execution fields.
       tags: [workflow-schedules]
       parameters:
@@ -1043,7 +1005,7 @@ paths:
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
       - name: scheduleName
@@ -1068,29 +1030,159 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch:
+  /api/workflow/{agentName}/{workflowName}/webhook:
     post:
-      operationId: watchWorkflowRuns
-      summary: Watch workflow runs for a workflow schedule.
+      operationId: invokeWorkflowWebhook
+      summary: Trigger a workflow run through a webhook API key.
       description: >
-        Returns an SSE stream. Each event data payload is a JSON object matching
-        WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for
-        the addressed WorkflowSchedule are watched.
-      tags: [workflow-schedules]
+        Validates the request body against the saved workflow input schema, then
+        creates a direct WorkflowRun for the addressed tenant, agent, and
+        workflow. Authentication uses the X-API-Key header.
+      security:
+      - GatewayAPIKey: []
+      tags: [workflow-webhooks]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
-      - name: scheduleName
+      - name: timeout_seconds
+        in: query
+        required: true
+        description: Timeout for the created WorkflowRun.
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 604800
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowRunInputs'
+      responses:
+        '202':
+          description: Workflow run accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workflow/{agentName}/webhook:
+    get:
+      operationId: listWorkflowWebhookTriggers
+      summary: List webhook trigger rows for an agent.
+      description: >
+        Lists the distinct API key and workflow pairs that have produced at
+        least a webhook-triggered WorkflowRun for the addressed agent.
+      tags: [workflow-webhooks]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated webhook trigger rows for an agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowWebhookTriggersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workflow/{agentName}/{workflowName}/run:
+    get:
+      operationId: listWorkflowRuns
+      summary: List workflow runs for a workflow.
+      description: >
+        Lists paginated WorkflowRuns for an agent-workflow pair. Optional
+        trigger filters narrow the results to schedule-triggered or
+        webhook-triggered runs.
+      tags: [workflow-runs]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: workflowName
         in: path
         required: true
-        description: WorkflowSchedule resource name.
+        description: Workflow name scoped to an agent.
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - name: status
+        in: query
+        required: false
+        description: Optional WorkflowRun phase filter.
+        schema:
+          $ref: '#/components/schemas/WorkflowRunStatus'
+      - name: trigger_type
+        in: query
+        required: false
+        description: Optional workflow trigger type filter.
+        schema:
+          $ref: '#/components/schemas/WorkflowRunTriggerType'
+      - name: schedule_name
+        in: query
+        required: false
+        description: >
+          Optional schedule filter. When set, trigger_type must be Schedule.
         schema:
           $ref: '#/components/schemas/WorkflowScheduleName'
+      - name: webhook_api_key_id
+        in: query
+        required: false
+        description: >
+          Optional webhook API key filter. When set, trigger_type must be
+          Webhook.
+        schema:
+          $ref: '#/components/schemas/APIKeyID'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated workflow runs for a workflow.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowRunsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workflow/{agentName}/{workflowName}/run/watch:
+    post:
+      operationId: watchWorkflowRuns
+      summary: Watch workflow runs for a workflow.
+      description: >
+        Returns an SSE stream. Each event data payload is a JSON object matching
+        WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for
+        the addressed workflow are watched.
+      tags: [workflow-runs]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: workflowName
+        in: path
+        required: true
+        description: Workflow name scoped to an agent.
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
       requestBody:
         required: false
         content:
@@ -1111,28 +1203,22 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}:
+  /api/workflow/{agentName}/{workflowName}/run/{runName}:
     get:
       operationId: getWorkflowRun
-      summary: Get one workflow run.
+      summary: Get a workflow run.
       description: >
-        Returns all public details for one WorkflowRun created from the
-        addressed WorkflowSchedule.
-      tags: [workflow-schedules]
+        Returns all public details for a WorkflowRun owned by the addressed
+        agent-workflow pair.
+      tags: [workflow-runs]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
-      - name: scheduleName
-        in: path
-        required: true
-        description: WorkflowSchedule resource name.
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
       - name: runName
         in: path
         required: true
@@ -1154,25 +1240,19 @@ paths:
           $ref: '#/components/responses/InternalError'
     delete:
       operationId: deleteWorkflowRun
-      summary: Delete one workflow run.
+      summary: Delete a workflow run.
       description: >
-        Deletes one WorkflowRun created from the addressed WorkflowSchedule and
+        Deletes a WorkflowRun owned by the addressed agent-workflow pair and
         waits until controller-driven cleanup completes.
-      tags: [workflow-schedules]
+      tags: [workflow-runs]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
-      - name: scheduleName
-        in: path
-        required: true
-        description: WorkflowSchedule resource name.
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
       - name: runName
         in: path
         required: true
@@ -1197,13 +1277,13 @@ paths:
         Marks a running WorkflowRun as succeeded or failed. The gateway owns
         request validation and state-transition checks, then patches the
         WorkflowRun status in the configured namespace.
-      tags: [workflows]
+      tags: [workflow-runs]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       - name: workflowName
         in: path
         required: true
-        description: Workflow name scoped to one agent.
+        description: Workflow name scoped to an agent.
         schema:
           $ref: '#/components/schemas/WorkflowName'
       - name: runName
@@ -1236,6 +1316,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    GatewayAPIKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
   parameters:
     AgentNameQuery:
       name: agent_name
@@ -1405,6 +1489,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Request authentication failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     NotFound:
       description: >
         Requested resource was not found. For tenant-gated APIs this can also
@@ -1517,7 +1607,7 @@ components:
       minLength: 1
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-      description: Workflow name scoped to one agent.
+      description: Workflow name scoped to an agent.
 
     WorkflowScheduleName:
       type: string
@@ -1631,6 +1721,18 @@ components:
         next_page_token:
           type: string
       required: [workflow_runs, next_page_token]
+
+    ListWorkflowWebhookTriggersResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        webhook_triggers:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowWebhookTrigger'
+        next_page_token:
+          type: string
+      required: [webhook_triggers, next_page_token]
 
     Agent:
       type: object
@@ -1803,6 +1905,24 @@ components:
       - failed_runs_history_limit
       - created_at
 
+    APIKeyID:
+      type: string
+      minLength: 1
+      description: Better Auth API key identifier.
+
+    WorkflowRunInputs:
+      type: object
+      additionalProperties: true
+      description: >
+        Runtime workflow input values. The gateway validates this object against
+        the saved workflow input schema before creating a WorkflowRun.
+
+    WorkflowRunTriggerType:
+      type: string
+      enum:
+      - Schedule
+      - Webhook
+
     WorkflowRunSummary:
       type: object
       additionalProperties: false
@@ -1811,6 +1931,10 @@ components:
           $ref: '#/components/schemas/WorkflowRunName'
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
+        trigger_type:
+          $ref: '#/components/schemas/WorkflowRunTriggerType'
+        schedule_name:
+          $ref: '#/components/schemas/WorkflowScheduleName'
         status:
           $ref: '#/components/schemas/WorkflowRunStatus'
         reason:
@@ -1825,6 +1949,7 @@ components:
       required:
       - name
       - workflow_name
+      - trigger_type
       - status
       - reason
       - created_at
@@ -1839,6 +1964,8 @@ components:
           $ref: '#/components/schemas/AgentName'
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
+        trigger_type:
+          $ref: '#/components/schemas/WorkflowRunTriggerType'
         schedule_name:
           $ref: '#/components/schemas/WorkflowScheduleName'
         inputs:
@@ -1873,12 +2000,29 @@ components:
       - name
       - agent_name
       - workflow_name
+      - trigger_type
       - inputs
       - timeout_seconds
       - status
       - reason
       - message
       - created_at
+
+    WorkflowWebhookTrigger:
+      type: object
+      additionalProperties: false
+      properties:
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+        api_key_id:
+          $ref: '#/components/schemas/APIKeyID'
+        last_triggered_at:
+          type: string
+          format: date-time
+      required:
+      - workflow_name
+      - api_key_id
+      - last_triggered_at
 
     CreateWorkflowScheduleRequest:
       type: object
@@ -2954,7 +3098,7 @@ components:
       description: >
         Allowed request host. Use an exact hostname, wildcard hostname with a
         leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR
-        range. "*." matches exactly one subdomain label, while "**." matches
+        range. "*." matches exactly a subdomain label, while "**." matches
         any subdomain depth. Wildcards do not match the apex domain.
 
     SecretType:

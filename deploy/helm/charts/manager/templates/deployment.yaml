@@ -45,6 +45,7 @@ spec:
             - --health-probe-bind-address={{ .Values.config.healthProbeBindAddress }}
             - --metrics-secure={{ .Values.config.metricsSecure }}
             - --enable-http2={{ .Values.config.enableHTTP2 }}
+            - --workflowrun-orphan-retention={{ .Values.config.workflowRunOrphanRetention }}
             - --controller-image={{ .Values.config.controllerImage }}
             - --gateway-url={{ .Values.config.gatewayURL }}
             - --openbao-addr={{ .Values.config.openBaoAddr }}

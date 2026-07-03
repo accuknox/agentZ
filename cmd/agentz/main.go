@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	// import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -105,6 +106,7 @@ var (
 	tenantSinjectorClusterIssuerName                 string
 	watchNamespace                                   string
 	enableWebhooks                                   bool
+	workflowRunOrphanRetention                       time.Duration
 )
 
 type silentExitCoder interface {
@@ -249,6 +251,12 @@ var managerCmd = &cli.Command{
 			Name:        "enable-http2",
 			Value:       false,
 			Destination: &enableHTTP2,
+		},
+		&cli.DurationFlag{
+			Name:        "workflowrun-orphan-retention",
+			Usage:       "Age limit for orphan terminal WorkflowRuns; 0 disables pruning",
+			Value:       workflowruncontroller.DefaultOrphanRetention,
+			Destination: &workflowRunOrphanRetention,
 		},
 		&cli.StringFlag{
 			Name:        "controller-image",
@@ -791,9 +799,10 @@ var managerCmd = &cli.Command{
 		}
 
 		workflowRunReconciler := &workflowruncontroller.Reconciler{
-			Client:        mgr.GetClient(),
-			GatewayClient: gwClient,
-			TokenPath:     managerGatewayTokenPath,
+			Client:          mgr.GetClient(),
+			GatewayClient:   gwClient,
+			OrphanRetention: workflowRunOrphanRetention,
+			TokenPath:       managerGatewayTokenPath,
 		}
 		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "WorkflowRun")

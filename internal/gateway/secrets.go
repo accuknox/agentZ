@@ -299,10 +299,8 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 	}
 
 	var req gatewayapi.WatchSecretsRequest
-	if r.Body != nil {
-		if !decodeJSONBody(w, r, &req, true) {
-			return
-		}
+	if r.Body != nil && !decodeJSONBody(w, r, &req, true) {
+		return
 	}
 
 	keyFilter := map[string]struct{}{}

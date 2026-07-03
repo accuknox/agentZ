@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache"
 import { listWorkflowRuns } from "@/lib/gateway/client"
 import type { Error, ListWorkflowRunsData, WorkflowRunSummary } from "@/lib/gateway/client"
-import { scheduleWorkflowRunsTag, workflowRunsTag } from "@/data/cache"
+import { workflowRunsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type ListWorkflowRunsQueryResult =
@@ -21,20 +21,18 @@ export type ListWorkflowRunsQueryResult =
 export async function listWorkflowRunsCachedQuery(
   agentName: ListWorkflowRunsData["path"]["agentName"],
   workflowName: ListWorkflowRunsData["path"]["workflowName"],
-  scheduleName: ListWorkflowRunsData["path"]["scheduleName"],
   query?: ListWorkflowRunsData["query"]
 ): Promise<ListWorkflowRunsQueryResult> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(workflowRunsTag, scheduleWorkflowRunsTag(agentName, scheduleName))
+  cacheTag(workflowRunsTag)
 
   const { data, error } = await listWorkflowRuns({
     client: getGatewayServerClient(),
     path: {
       agentName,
       workflowName,
-      scheduleName,
     },
     query,
   })

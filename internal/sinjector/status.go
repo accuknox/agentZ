@@ -124,10 +124,10 @@ func (r *resolver) probeSecret(ctx context.Context, secret *agentzv1alpha1.Secre
 func (r *resolver) secretRuntimeStatus(ctx context.Context, secret *agentzv1alpha1.Secret) secretRuntimeStatus {
 	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
 	rawSecret, err := r.kv.Get(ctx, path)
+	if errors.Is(err, baoapi.ErrSecretNotFound) {
+		return acceptedSecretStatus()
+	}
 	if err != nil {
-		if errors.Is(err, baoapi.ErrSecretNotFound) {
-			return acceptedSecretStatus()
-		}
 		return degradedSecretStatus(
 			agentzv1alpha1.SecretReasonReconcileFailed,
 			fmt.Sprintf("read openbao runtime: %v", err),

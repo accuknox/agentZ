@@ -71,7 +71,7 @@ export const zMcpConnectionName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
- * Workflow name scoped to one agent.
+ * Workflow name scoped to an agent.
  */
 export const zWorkflowName = z
   .string()
@@ -136,9 +136,24 @@ export const zListAgentsResponse = z.object({
   next_page_token: z.string(),
 })
 
+/**
+ * Better Auth API key identifier.
+ */
+export const zApiKeyId = z.string().min(1)
+
+/**
+ * Runtime workflow input values. The gateway validates this object against the saved workflow input schema before creating a WorkflowRun.
+ *
+ */
+export const zWorkflowRunInputs = z.record(z.string(), z.unknown())
+
+export const zWorkflowRunTriggerType = z.enum(["Schedule", "Webhook"])
+
 export const zWorkflowRunSummary = z.object({
   name: zWorkflowRunName,
   workflow_name: zWorkflowName,
+  trigger_type: zWorkflowRunTriggerType,
+  schedule_name: zWorkflowScheduleName.optional(),
   status: zWorkflowRunStatus,
   reason: z.string(),
   created_at: z.iso.datetime(),
@@ -153,6 +168,17 @@ export const zWorkflowRunSummary = z.object({
 
 export const zListWorkflowRunsResponse = z.object({
   workflow_runs: z.array(zWorkflowRunSummary),
+  next_page_token: z.string(),
+})
+
+export const zWorkflowWebhookTrigger = z.object({
+  workflow_name: zWorkflowName,
+  api_key_id: zApiKeyId,
+  last_triggered_at: z.iso.datetime(),
+})
+
+export const zListWorkflowWebhookTriggersResponse = z.object({
+  webhook_triggers: z.array(zWorkflowWebhookTrigger),
   next_page_token: z.string(),
 })
 
@@ -614,6 +640,7 @@ export const zWorkflowRunDetail = z.object({
   name: zWorkflowRunName,
   agent_name: zAgentName,
   workflow_name: zWorkflowName,
+  trigger_type: zWorkflowRunTriggerType,
   schedule_name: zWorkflowScheduleName.optional(),
   inputs: zJsonValue,
   timeout_seconds: z.int().gte(1).lte(604800),
@@ -690,7 +717,7 @@ export const zSecretKey = z
 export const zSecretValue = z.string().max(49152)
 
 /**
- * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly one subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
+ * Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly a subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
  *
  */
 export const zSecretHost = z.string().min(1).max(253)
@@ -1197,7 +1224,7 @@ export const zGetMcpGraphQuery = z.object({
 })
 
 /**
- * Graph-ready MCP observability for one agent.
+ * Graph-ready MCP observability for an agent.
  */
 export const zGetMcpGraphResponse = zMcpGraphResponse
 
@@ -1343,7 +1370,7 @@ export const zListWorkflowSummariesPath = z.object({
 })
 
 /**
- * Workflow summaries for one agent.
+ * Workflow summaries for an agent.
  */
 export const zListWorkflowSummariesResponse = z.array(zWorkflowSummary)
 
@@ -1378,7 +1405,7 @@ export const zListAgentWorkflowSchedulesQuery = z.object({
 })
 
 /**
- * Paginated workflow schedules for one agent.
+ * Paginated workflow schedules for an agent.
  */
 export const zListAgentWorkflowSchedulesResponse = zListWorkflowSchedulesResponse
 
@@ -1393,7 +1420,7 @@ export const zListWorkflowSchedulesQuery = z.object({
 })
 
 /**
- * Paginated workflow schedules for one workflow.
+ * Paginated workflow schedules for a workflow.
  */
 export const zListWorkflowSchedulesResponse2 = zListWorkflowSchedulesResponse
 
@@ -1433,23 +1460,6 @@ export const zUpdateWorkflowSchedulePath = z.object({
  */
 export const zUpdateWorkflowScheduleResponse = zWorkflowSchedule
 
-export const zListWorkflowRunsPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  scheduleName: zWorkflowScheduleName,
-})
-
-export const zListWorkflowRunsQuery = z.object({
-  status: zWorkflowRunStatus.optional(),
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
-/**
- * Paginated workflow runs for one workflow schedule.
- */
-export const zListWorkflowRunsResponse2 = zListWorkflowRunsResponse
-
 export const zCreateWorkflowRunPath = z.object({
   agentName: zAgentName,
   workflowName: zWorkflowName,
@@ -1461,12 +1471,60 @@ export const zCreateWorkflowRunPath = z.object({
  */
 export const zCreateWorkflowRunResponse = zWorkflowRunSummary
 
+export const zInvokeWorkflowWebhookBody = zWorkflowRunInputs
+
+export const zInvokeWorkflowWebhookPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+})
+
+export const zInvokeWorkflowWebhookQuery = z.object({
+  timeout_seconds: z.int().gte(1).lte(604800),
+})
+
+/**
+ * Workflow run accepted.
+ */
+export const zInvokeWorkflowWebhookResponse = zWorkflowRunSummary
+
+export const zListWorkflowWebhookTriggersPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListWorkflowWebhookTriggersQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated webhook trigger rows for an agent.
+ */
+export const zListWorkflowWebhookTriggersResponse2 = zListWorkflowWebhookTriggersResponse
+
+export const zListWorkflowRunsPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+})
+
+export const zListWorkflowRunsQuery = z.object({
+  status: zWorkflowRunStatus.optional(),
+  trigger_type: zWorkflowRunTriggerType.optional(),
+  schedule_name: zWorkflowScheduleName.optional(),
+  webhook_api_key_id: zApiKeyId.optional(),
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated workflow runs for a workflow.
+ */
+export const zListWorkflowRunsResponse2 = zListWorkflowRunsResponse
+
 export const zWatchWorkflowRunsBody = zWatchWorkflowRunsRequest
 
 export const zWatchWorkflowRunsPath = z.object({
   agentName: zAgentName,
   workflowName: zWorkflowName,
-  scheduleName: zWorkflowScheduleName,
 })
 
 /**
@@ -1477,7 +1535,6 @@ export const zWatchWorkflowRunsResponse = zWatchWorkflowRunsEvent
 export const zDeleteWorkflowRunPath = z.object({
   agentName: zAgentName,
   workflowName: zWorkflowName,
-  scheduleName: zWorkflowScheduleName,
   runName: zWorkflowRunName,
 })
 
@@ -1489,7 +1546,6 @@ export const zDeleteWorkflowRunResponse = z.void()
 export const zGetWorkflowRunPath = z.object({
   agentName: zAgentName,
   workflowName: zWorkflowName,
-  scheduleName: zWorkflowScheduleName,
   runName: zWorkflowRunName,
 })
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarSync, Frame, Workflow, ChevronRightIcon } from "lucide-react"
+import { ChevronRightIcon, Frame, Workflow, Zap } from "lucide-react"
 import Link from "next/link"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -20,9 +20,9 @@ export function NavWorkflows() {
       icon: Frame,
     },
     {
-      title: "Schedule",
-      url: "/workflows/schedules",
-      icon: CalendarSync,
+      title: "Triggers",
+      url: "/workflows/triggers",
+      icon: Zap,
     },
   ]
   return (
@@ -41,10 +41,10 @@ export function NavWorkflows() {
               {items.map((item) => (
                 <SidebarMenuSubItem key={item.title}>
                   <SidebarMenuSubButton asChild>
-                    <span>
+                    <Link href={item.url}>
                       <item.icon />
-                      <Link href={item.url}> {item.title}</Link>
-                    </span>
+                      <span>{item.title}</span>
+                    </Link>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>
               ))}

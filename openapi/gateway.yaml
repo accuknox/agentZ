@@ -175,7 +175,17 @@ components:
             $ref: '#/components/schemas/Error'
       description: |
         Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+    Unauthorized:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: Request authentication failed.
   schemas:
+    APIKeyID:
+      description: Better Auth API key identifier.
+      minLength: 1
+      type: string
     Agent:
       additionalProperties: false
       properties:
@@ -694,6 +704,19 @@ components:
           type: array
       required:
       - workflow_schedules
+      - next_page_token
+      type: object
+    ListWorkflowWebhookTriggersResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        webhook_triggers:
+          items:
+            $ref: '#/components/schemas/WorkflowWebhookTrigger'
+          type: array
+      required:
+      - webhook_triggers
       - next_page_token
       type: object
     MCPConnectionAuth:
@@ -1229,19 +1252,8 @@ components:
       additionalProperties: {}
       properties:
         color:
-          anyOf:
-          - pattern: ^#[0-9a-fA-F]{6}$
-            type: string
-          - enum:
-            - primary
-            - secondary
-            - accent
-            - success
-            - warning
-            - error
-            - info
-            type: string
           description: 'Hex color code (e.g., #FF5733) or theme color (e.g., primary)'
+          type: string
         description:
           type: string
         disable:
@@ -1937,26 +1949,7 @@ components:
           additionalProperties: false
           properties:
             command:
-              anyOf:
-              - enum:
-                - session.list
-                - session.new
-                - session.share
-                - session.interrupt
-                - session.compact
-                - session.page.up
-                - session.page.down
-                - session.line.up
-                - session.line.down
-                - session.half.page.up
-                - session.half.page.down
-                - session.first
-                - session.last
-                - prompt.clear
-                - prompt.submit
-                - agent.cycle
-                type: string
-              - type: string
+              type: string
           required:
           - command
           type: object
@@ -3778,26 +3771,7 @@ components:
           additionalProperties: false
           properties:
             command:
-              anyOf:
-              - enum:
-                - session.list
-                - session.new
-                - session.share
-                - session.interrupt
-                - session.compact
-                - session.page.up
-                - session.page.down
-                - session.line.up
-                - session.line.down
-                - session.half.page.up
-                - session.half.page.down
-                - session.first
-                - session.last
-                - prompt.clear
-                - prompt.submit
-                - agent.cycle
-                type: string
-              - type: string
+              type: string
           required:
           - command
           type: object
@@ -3809,6 +3783,7 @@ components:
       - type
       - properties
       type: object
+      x-go-name: OpencodeTUICommandExecuteEvent
     OpencodeEventTuiPromptAppend:
       additionalProperties: false
       properties:
@@ -3828,6 +3803,7 @@ components:
       - type
       - properties
       type: object
+      x-go-name: OpencodeTUIPromptAppendEvent
     OpencodeEventTuiSessionSelect:
       additionalProperties: false
       properties:
@@ -3848,6 +3824,7 @@ components:
       - type
       - properties
       type: object
+      x-go-name: OpencodeTUISessionSelectEvent
     OpencodeEventTuiToastShow:
       additionalProperties: false
       properties:
@@ -3881,6 +3858,7 @@ components:
       - type
       - properties
       type: object
+      x-go-name: OpencodeTUIToastShowEvent
     OpencodeEventTuiToastShow1:
       additionalProperties: false
       properties:
@@ -3917,6 +3895,7 @@ components:
       - type
       - properties
       type: object
+      x-go-name: OpencodeTUIToastShowAltEvent
     OpencodeEventVcsBranchUpdated:
       additionalProperties: false
       properties:
@@ -4423,9 +4402,8 @@ components:
         permission:
           $ref: '#/components/schemas/OpencodePermissionRuleset'
         project:
-          anyOf:
-          - $ref: '#/components/schemas/OpencodeProjectSummary'
-          - type: "null"
+          $ref: '#/components/schemas/OpencodeProjectSummary'
+          nullable: true
         projectID:
           type: string
         revert:
@@ -8425,131 +8403,112 @@ components:
               additionalProperties: false
               properties:
                 agent:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 directory:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 id:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 model:
-                  anyOf:
-                  - additionalProperties: false
-                    properties:
-                      id:
-                        type: string
-                      providerID:
-                        type: string
-                      variant:
-                        type: string
-                    required:
-                    - id
-                    - providerID
-                    type: object
-                  - type: "null"
+                  additionalProperties: false
+                  nullable: true
+                  properties:
+                    id:
+                      type: string
+                    providerID:
+                      type: string
+                    variant:
+                      type: string
+                  required:
+                  - id
+                  - providerID
+                  type: object
                 parentID:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 path:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 permission:
-                  anyOf:
-                  - $ref: '#/components/schemas/OpencodePermissionRuleset'
-                  - type: "null"
+                  $ref: '#/components/schemas/OpencodePermissionRuleset'
+                  nullable: true
                 projectID:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 revert:
-                  anyOf:
-                  - additionalProperties: false
-                    properties:
-                      diff:
-                        type: string
-                      messageID:
-                        type: string
-                      partID:
-                        type: string
-                      snapshot:
-                        type: string
-                    required:
-                    - messageID
-                    type: object
-                  - type: "null"
+                  additionalProperties: false
+                  nullable: true
+                  properties:
+                    diff:
+                      type: string
+                    messageID:
+                      type: string
+                    partID:
+                      type: string
+                    snapshot:
+                      type: string
+                  required:
+                  - messageID
+                  type: object
                 share:
                   additionalProperties: false
                   properties:
                     url:
-                      anyOf:
-                      - type: string
-                      - type: "null"
+                      nullable: true
+                      type: string
                   type: object
                 slug:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 summary:
-                  anyOf:
-                  - additionalProperties: false
-                    properties:
-                      additions:
-                        type: number
-                      deletions:
-                        type: number
-                      diffs:
-                        items:
-                          $ref: '#/components/schemas/OpencodeSnapshotFileDiff'
-                        type: array
-                      files:
-                        type: number
-                    required:
-                    - additions
-                    - deletions
-                    - files
-                    type: object
-                  - type: "null"
+                  additionalProperties: false
+                  nullable: true
+                  properties:
+                    additions:
+                      type: number
+                    deletions:
+                      type: number
+                    diffs:
+                      items:
+                        $ref: '#/components/schemas/OpencodeSnapshotFileDiff'
+                      type: array
+                    files:
+                      type: number
+                  required:
+                  - additions
+                  - deletions
+                  - files
+                  type: object
                 time:
                   additionalProperties: false
                   properties:
                     archived:
-                      anyOf:
-                      - type: number
-                      - type: "null"
+                      nullable: true
+                      type: number
                     compacting:
-                      anyOf:
-                      - minimum: 0
-                        type: integer
-                      - type: "null"
+                      minimum: 0
+                      nullable: true
+                      type: integer
                     created:
-                      anyOf:
-                      - minimum: 0
-                        type: integer
-                      - type: "null"
+                      minimum: 0
+                      nullable: true
+                      type: integer
                     updated:
-                      anyOf:
-                      - minimum: 0
-                        type: integer
-                      - type: "null"
+                      minimum: 0
+                      nullable: true
+                      type: integer
                   type: object
                 title:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 version:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 workspaceID:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
               type: object
             sessionID:
               type: string
@@ -9091,17 +9050,13 @@ components:
       additionalProperties: false
       properties:
         branch:
-          anyOf:
-          - type: string
-          - type: "null"
+          nullable: true
+          type: string
         directory:
-          anyOf:
-          - type: string
-          - type: "null"
+          nullable: true
+          type: string
         extra:
-          anyOf:
-          - {}
-          - type: "null"
+          nullable: true
         id:
           type: string
         name:
@@ -9369,7 +9324,7 @@ components:
       type: string
     SecretHost:
       description: |
-        Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly one subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
+        Allowed request host. Use an exact hostname, wildcard hostname with a leading "*." or "**.", exact IPv4/IPv6 address, or IPv4/IPv6 CIDR range. "*." matches exactly a subdomain label, while "**." matches any subdomain depth. Wildcards do not match the apex domain.
       maxLength: 253
       minLength: 1
       type: string
@@ -10141,7 +10096,7 @@ components:
         $ref: '#/components/schemas/WorkflowInputSchema'
       type: object
     WorkflowName:
-      description: Workflow name scoped to one agent.
+      description: Workflow name scoped to an agent.
       maxLength: 32
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -10225,18 +10180,26 @@ components:
           maximum: 604800
           minimum: 1
           type: integer
+        trigger_type:
+          $ref: '#/components/schemas/WorkflowRunTriggerType'
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
       required:
       - name
       - agent_name
       - workflow_name
+      - trigger_type
       - inputs
       - timeout_seconds
       - status
       - reason
       - message
       - created_at
+      type: object
+    WorkflowRunInputs:
+      additionalProperties: true
+      description: |
+        Runtime workflow input values. The gateway validates this object against the saved workflow input schema before creating a WorkflowRun.
       type: object
     WorkflowRunName:
       description: WorkflowRun resource name.
@@ -10266,13 +10229,18 @@ components:
           $ref: '#/components/schemas/WorkflowRunName'
         reason:
           type: string
+        schedule_name:
+          $ref: '#/components/schemas/WorkflowScheduleName'
         status:
           $ref: '#/components/schemas/WorkflowRunStatus'
+        trigger_type:
+          $ref: '#/components/schemas/WorkflowRunTriggerType'
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
       required:
       - name
       - workflow_name
+      - trigger_type
       - status
       - reason
       - created_at
@@ -10281,6 +10249,11 @@ components:
       enum:
       - Succeeded
       - Failed
+      type: string
+    WorkflowRunTriggerType:
+      enum:
+      - Schedule
+      - Webhook
       type: string
     WorkflowSchedule:
       additionalProperties: false
@@ -10354,7 +10327,26 @@ components:
       - summary
       - updated_at
       type: object
+    WorkflowWebhookTrigger:
+      additionalProperties: false
+      properties:
+        api_key_id:
+          $ref: '#/components/schemas/APIKeyID'
+        last_triggered_at:
+          format: date-time
+          type: string
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - workflow_name
+      - api_key_id
+      - last_triggered_at
+      type: object
   securitySchemes:
+    GatewayAPIKey:
+      in: header
+      name: X-API-Key
+      type: apiKey
     GatewayBearer:
       bearerFormat: JWT
       scheme: bearer
@@ -10489,7 +10481,7 @@ paths:
       operationId: listTraceSessions
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Session identifier scoped to one agent.
+      - description: Session identifier scoped to an agent.
         in: path
         name: sessionID
         required: true
@@ -10521,14 +10513,14 @@ paths:
       operationId: listSpans
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Session identifier scoped to one agent.
+      - description: Session identifier scoped to an agent.
         in: path
         name: sessionID
         required: true
         schema:
           minLength: 1
           type: string
-      - description: Trace identifier scoped to one session.
+      - description: Trace identifier scoped to a session.
         in: path
         name: traceID
         required: true
@@ -10557,20 +10549,20 @@ paths:
       operationId: getSpanDetail
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Session identifier scoped to one agent.
+      - description: Session identifier scoped to an agent.
         in: path
         name: sessionID
         required: true
         schema:
           minLength: 1
           type: string
-      - description: Trace identifier scoped to one session.
+      - description: Trace identifier scoped to a session.
         in: path
         name: traceID
         required: true
         schema:
           $ref: '#/components/schemas/TraceID'
-      - description: Span identifier scoped to one trace.
+      - description: Span identifier scoped to a trace.
         in: path
         name: spanID
         required: true
@@ -10605,14 +10597,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MCPGraphResponse'
-          description: Graph-ready MCP observability for one agent.
+          description: Graph-ready MCP observability for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: Get MCP observability graph data for one agent and date range.
+      summary: Get MCP observability graph data for an agent given a date range.
       tags:
       - lens
   /api/lens/{agentName}/observability/file:
@@ -12031,13 +12023,10 @@ paths:
               additionalProperties: false
               properties:
                 branch:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 extra:
-                  anyOf:
-                  - {}
-                  - type: "null"
+                  nullable: true
                 id:
                   type: string
                 type:
@@ -12316,9 +12305,8 @@ paths:
                 copyChanges:
                   type: boolean
                 id:
-                  anyOf:
-                  - type: string
-                  - type: "null"
+                  nullable: true
+                  type: string
                 sessionID:
                   type: string
               required:
@@ -18495,7 +18483,7 @@ paths:
       - secrets
     post:
       description: |
-        Creates one static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
+        Creates a static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
       operationId: putSecret
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -18518,7 +18506,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: Create one secret for an agent.
+      summary: Create a secret for an agent.
       tags:
       - secrets
   /api/secret/{agentName}/delete:
@@ -18572,7 +18560,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: Watch secret status changes for one agent.
+      summary: Watch secret status changes for an agent.
       tags:
       - secrets
   /api/tenant:
@@ -18613,7 +18601,7 @@ paths:
   /api/workflow/{agentName}:
     delete:
       description: |
-        Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+        Deletes multiple persisted workflow DAGs for an agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
       operationId: deleteWorkflows
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -18649,7 +18637,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/WorkflowSummary'
                 type: array
-          description: Workflow summaries for one agent.
+          description: Workflow summaries for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
         "500":
@@ -18694,7 +18682,7 @@ paths:
       operationId: getWorkflow
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
@@ -18716,6 +18704,128 @@ paths:
       summary: Get a workflow definition.
       tags:
       - workflows
+  /api/workflow/{agentName}/{workflowName}/run:
+    get:
+      description: |
+        Lists paginated WorkflowRuns for an agent-workflow pair. Optional trigger filters narrow the results to schedule-triggered or webhook-triggered runs.
+      operationId: listWorkflowRuns
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to an agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: Optional WorkflowRun phase filter.
+        in: query
+        name: status
+        required: false
+        schema:
+          $ref: '#/components/schemas/WorkflowRunStatus'
+      - description: Optional workflow trigger type filter.
+        in: query
+        name: trigger_type
+        required: false
+        schema:
+          $ref: '#/components/schemas/WorkflowRunTriggerType'
+      - description: |
+          Optional schedule filter. When set, trigger_type must be Schedule.
+        in: query
+        name: schedule_name
+        required: false
+        schema:
+          $ref: '#/components/schemas/WorkflowScheduleName'
+      - description: |
+          Optional webhook API key filter. When set, trigger_type must be Webhook.
+        in: query
+        name: webhook_api_key_id
+        required: false
+        schema:
+          $ref: '#/components/schemas/APIKeyID'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowRunsResponse'
+          description: Paginated workflow runs for a workflow.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List workflow runs for a workflow.
+      tags:
+      - workflow-runs
+  /api/workflow/{agentName}/{workflowName}/run/{runName}:
+    delete:
+      description: |
+        Deletes a WorkflowRun owned by the addressed agent-workflow pair and waits until controller-driven cleanup completes.
+      operationId: deleteWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to an agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      responses:
+        "204":
+          description: Workflow run deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete a workflow run.
+      tags:
+      - workflow-runs
+    get:
+      description: |
+        Returns all public details for a WorkflowRun owned by the addressed agent-workflow pair.
+      operationId: getWorkflowRun
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to an agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunDetail'
+          description: Workflow run details.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get a workflow run.
+      tags:
+      - workflow-runs
   /api/workflow/{agentName}/{workflowName}/run/{runName}/status:
     patch:
       description: |
@@ -18723,7 +18833,7 @@ paths:
       operationId: patchWorkflowRunStatus
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
@@ -18754,15 +18864,50 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Set a WorkflowRun terminal status.
       tags:
-      - workflows
+      - workflow-runs
+  /api/workflow/{agentName}/{workflowName}/run/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed workflow are watched.
+      operationId: watchWorkflowRuns
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to an agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchWorkflowRunsRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchWorkflowRunsEvent'
+          description: Stream of workflow run updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch workflow runs for a workflow.
+      tags:
+      - workflow-runs
   /api/workflow/{agentName}/{workflowName}/schedule:
     get:
       description: |
-        Lists paginated workflow schedules for one workflow definition.
+        Lists paginated workflow schedules for a workflow definition.
       operationId: listWorkflowSchedules
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
@@ -18776,7 +18921,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListWorkflowSchedulesResponse'
-          description: Paginated workflow schedules for one workflow.
+          description: Paginated workflow schedules for a workflow.
         "400":
           $ref: '#/components/responses/BadRequest'
         "500":
@@ -18786,11 +18931,11 @@ paths:
       - workflow-schedules
     post:
       description: |
-        Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+        Creates a WorkflowSchedule resource for an agent-workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
       operationId: createWorkflowSchedule
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
@@ -18823,11 +18968,11 @@ paths:
   /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}:
     delete:
       description: |
-        Deletes one workflow schedule addressed by agent, workflow, and schedule name.
+        Deletes a workflow schedule addressed by agent, workflow, and schedule name.
       operationId: deleteWorkflowSchedule
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
@@ -18853,11 +18998,11 @@ paths:
       - workflow-schedules
     put:
       description: |
-        Replaces all mutable workflow schedule fields for one existing schedule.
+        Replaces all mutable workflow schedule fields for an existing schedule.
       operationId: updateWorkflowSchedule
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
@@ -18894,55 +19039,13 @@ paths:
       tags:
       - workflow-schedules
   /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run:
-    get:
-      description: |
-        Lists paginated workflow runs created from the addressed WorkflowSchedule.
-      operationId: listWorkflowRuns
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
-        in: path
-        name: workflowName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowName'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: scheduleName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      - description: Optional WorkflowRun phase filter.
-        in: query
-        name: status
-        required: false
-        schema:
-          $ref: '#/components/schemas/WorkflowRunStatus'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListWorkflowRunsResponse'
-          description: Paginated workflow runs for one workflow schedule.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: List workflow runs for a workflow schedule.
-      tags:
-      - workflow-schedules
     post:
       description: |
-        Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+        Creates a WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
       operationId: createWorkflowRun
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
@@ -18969,131 +19072,63 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: Trigger one workflow run from a workflow schedule.
+      summary: Trigger a workflow run from a workflow schedule.
       tags:
       - workflow-schedules
-  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}:
-    delete:
-      description: |
-        Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
-      operationId: deleteWorkflowRun
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
-        in: path
-        name: workflowName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowName'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: scheduleName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      - description: WorkflowRun resource name.
-        in: path
-        name: runName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowRunName'
-      responses:
-        "204":
-          description: Workflow run deleted.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Delete one workflow run.
-      tags:
-      - workflow-schedules
-    get:
-      description: |
-        Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
-      operationId: getWorkflowRun
-      parameters:
-      - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
-        in: path
-        name: workflowName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowName'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: scheduleName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
-      - description: WorkflowRun resource name.
-        in: path
-        name: runName
-        required: true
-        schema:
-          $ref: '#/components/schemas/WorkflowRunName'
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowRunDetail'
-          description: Workflow run details.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      summary: Get one workflow run.
-      tags:
-      - workflow-schedules
-  /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch:
+  /api/workflow/{agentName}/{workflowName}/webhook:
     post:
       description: |
-        Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed WorkflowSchedule are watched.
-      operationId: watchWorkflowRuns
+        Validates the request body against the saved workflow input schema, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
+      operationId: invokeWorkflowWebhook
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
-      - description: Workflow name scoped to one agent.
+      - description: Workflow name scoped to an agent.
         in: path
         name: workflowName
         required: true
         schema:
           $ref: '#/components/schemas/WorkflowName'
-      - description: WorkflowSchedule resource name.
-        in: path
-        name: scheduleName
+      - description: Timeout for the created WorkflowRun.
+        in: query
+        name: timeout_seconds
         required: true
         schema:
-          $ref: '#/components/schemas/WorkflowScheduleName'
+          format: int32
+          maximum: 604800
+          minimum: 1
+          type: integer
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WatchWorkflowRunsRequest'
-        required: false
+              $ref: '#/components/schemas/WorkflowRunInputs'
+        required: true
       responses:
-        "200":
+        "202":
           content:
-            text/event-stream:
+            application/json:
               schema:
-                $ref: '#/components/schemas/WatchWorkflowRunsEvent'
-          description: Stream of workflow run updates.
+                $ref: '#/components/schemas/WorkflowRunSummary'
+          description: Workflow run accepted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: Watch workflow runs for a workflow schedule.
+      security:
+      - GatewayAPIKey: []
+      summary: Trigger a workflow run through a webhook API key.
       tags:
-      - workflow-schedules
+      - workflow-webhooks
   /api/workflow/{agentName}/schedule:
     get:
       description: |
-        Lists paginated workflow schedules for one agent across all workflows.
+        Lists paginated workflow schedules for an agent across all workflows.
       operationId: listAgentWorkflowSchedules
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -19105,14 +19140,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListWorkflowSchedulesResponse'
-          description: Paginated workflow schedules for one agent.
+          description: Paginated workflow schedules for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: List workflow schedules for one agent.
+      summary: List workflow schedules for an agent.
       tags:
       - workflow-schedules
+  /api/workflow/{agentName}/webhook:
+    get:
+      description: |
+        Lists the distinct API key and workflow pairs that have produced at least a webhook-triggered WorkflowRun for the addressed agent.
+      operationId: listWorkflowWebhookTriggers
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkflowWebhookTriggersResponse'
+          description: Paginated webhook trigger rows for an agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List webhook trigger rows for an agent.
+      tags:
+      - workflow-webhooks
 security:
 - GatewayBearer: []
 servers:
@@ -19135,6 +19193,10 @@ tags:
   name: workflows
 - description: Workflow schedule management APIs.
   name: workflow-schedules
+- description: Workflow run browsing and status APIs.
+  name: workflow-runs
+- description: Workflow webhook invocation and trigger listing APIs.
+  name: workflow-webhooks
 - description: Control plane routes.
   name: control
 - description: Global server routes.

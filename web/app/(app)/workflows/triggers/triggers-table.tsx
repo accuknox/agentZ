@@ -63,7 +63,7 @@ const columnClassName: Record<string, string> = {
   actions: "w-14",
 }
 
-export function SchedulesTable({
+export function ScheduleTriggersTable({
   agentName,
   workflows,
   workflowSchedules,
@@ -169,7 +169,7 @@ export function SchedulesTable({
                   tabIndex={0}
                   onClick={() => {
                     router.push(
-                      `/workflows/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(row.original.name)}/runs`
+                      `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
                     )
                   }}
                   onKeyDown={(event) => {
@@ -179,7 +179,7 @@ export function SchedulesTable({
 
                     event.preventDefault()
                     router.push(
-                      `/workflows/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(row.original.name)}/runs`
+                      `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
                     )
                   }}
                 >

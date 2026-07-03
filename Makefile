@@ -23,7 +23,7 @@ generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
 	oapi-codegen \
-		--include-tags agents,tenants,lens,secrets,sandboxes,mcp-connections,workflows,workflow-schedules,session \
+		--include-tags agents,tenants,lens,secrets,sandboxes,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
@@ -83,6 +83,7 @@ run-manager:
 	go run ./cmd/agentz manager \
 		--health-probe-bind-address=:8888 \
 		--enable-webhooks=false \
+		--workflowrun-orphan-retention=168h \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \

@@ -237,7 +237,7 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
 function finishWorkflowScheduleMutation(agentName: string): never {
   updateTag(workflowsTag)
   updateTag(agentWorkflowsTag(agentName))
-  redirect(`/workflows/schedules?agent_name=${encodeURIComponent(agentName)}`)
+  redirect(`/workflows/triggers?agent_name=${encodeURIComponent(agentName)}&type=schedule`)
 }
 
 function invalidFormState(message: string, issues: z.ZodIssue[], field?: string) {

@@ -65,6 +65,9 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunErrors,
   GetWorkflowRunResponses,
+  InvokeWorkflowWebhookData,
+  InvokeWorkflowWebhookErrors,
+  InvokeWorkflowWebhookResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
@@ -104,6 +107,9 @@ import type {
   ListWorkflowSummariesData,
   ListWorkflowSummariesErrors,
   ListWorkflowSummariesResponses,
+  ListWorkflowWebhookTriggersData,
+  ListWorkflowWebhookTriggersErrors,
+  ListWorkflowWebhookTriggersResponses,
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
@@ -160,6 +166,9 @@ import {
   zGetSpanDetailPath,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
+  zInvokeWorkflowWebhookBody,
+  zInvokeWorkflowWebhookPath,
+  zInvokeWorkflowWebhookQuery,
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
@@ -182,6 +191,8 @@ import {
   zListWorkflowSchedulesPath,
   zListWorkflowSchedulesQuery,
   zListWorkflowSummariesPath,
+  zListWorkflowWebhookTriggersPath,
+  zListWorkflowWebhookTriggersQuery,
   zPatchWorkflowRunStatusBody,
   zPatchWorkflowRunStatusPath,
   zPutSecretBody,
@@ -517,7 +528,7 @@ export const listNetworkObservability = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Get MCP observability graph data for one agent and date range.
+ * Get MCP observability graph data for an agent given a date range.
  */
 export const getMcpGraph = <ThrowOnError extends boolean = false>(
   options: Options<GetMcpGraphData, ThrowOnError>
@@ -560,9 +571,9 @@ export const listSecrets = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Create one secret for an agent.
+ * Create a secret for an agent.
  *
- * Creates one static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
+ * Creates a static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
  *
  */
 export const putSecret = <ThrowOnError extends boolean = false>(
@@ -587,7 +598,7 @@ export const putSecret = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Watch secret status changes for one agent.
+ * Watch secret status changes for an agent.
  *
  * Returns an SSE stream. Each event data payload is a JSON object matching WatchSecretsEvent. If keys is omitted or empty, all known secrets for the addressed agent are watched.
  *
@@ -861,7 +872,7 @@ export const watchMcpConnections = <ThrowOnError extends boolean = false>(
 /**
  * Delete workflow definitions.
  *
- * Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+ * Deletes multiple persisted workflow DAGs for an agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
  *
  */
 export const deleteWorkflows = <ThrowOnError extends boolean = false>(
@@ -963,9 +974,9 @@ export const getWorkflow = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List workflow schedules for one agent.
+ * List workflow schedules for an agent.
  *
- * Lists paginated workflow schedules for one agent across all workflows.
+ * Lists paginated workflow schedules for an agent across all workflows.
  *
  */
 export const listAgentWorkflowSchedules = <ThrowOnError extends boolean = false>(
@@ -992,7 +1003,7 @@ export const listAgentWorkflowSchedules = <ThrowOnError extends boolean = false>
 /**
  * List workflow schedules.
  *
- * Lists paginated workflow schedules for one workflow definition.
+ * Lists paginated workflow schedules for a workflow definition.
  *
  */
 export const listWorkflowSchedules = <ThrowOnError extends boolean = false>(
@@ -1019,7 +1030,7 @@ export const listWorkflowSchedules = <ThrowOnError extends boolean = false>(
 /**
  * Create a workflow schedule.
  *
- * Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+ * Creates a WorkflowSchedule resource for an agent-workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
  *
  */
 export const createWorkflowSchedule = <ThrowOnError extends boolean = false>(
@@ -1050,7 +1061,7 @@ export const createWorkflowSchedule = <ThrowOnError extends boolean = false>(
 /**
  * Delete a workflow schedule.
  *
- * Deletes one workflow schedule addressed by agent, workflow, and schedule name.
+ * Deletes a workflow schedule addressed by agent, workflow, and schedule name.
  *
  */
 export const deleteWorkflowSchedule = <ThrowOnError extends boolean = false>(
@@ -1077,7 +1088,7 @@ export const deleteWorkflowSchedule = <ThrowOnError extends boolean = false>(
 /**
  * Update a workflow schedule.
  *
- * Replaces all mutable workflow schedule fields for one existing schedule.
+ * Replaces all mutable workflow schedule fields for an existing schedule.
  *
  */
 export const updateWorkflowSchedule = <ThrowOnError extends boolean = false>(
@@ -1106,32 +1117,9 @@ export const updateWorkflowSchedule = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List workflow runs for a workflow schedule.
+ * Trigger a workflow run from a workflow schedule.
  *
- * Lists paginated workflow runs created from the addressed WorkflowSchedule.
- *
- */
-export const listWorkflowRuns = <ThrowOnError extends boolean = false>(
-  options: Options<ListWorkflowRunsData, ThrowOnError>
-) =>
-  (options.client ?? client).get<ListWorkflowRunsResponses, ListWorkflowRunsErrors, ThrowOnError>({
-    requestValidator: async (data) =>
-      await z
-        .object({
-          body: z.never().optional(),
-          path: zListWorkflowRunsPath,
-          query: zListWorkflowRunsQuery.optional(),
-        })
-        .parseAsync(data),
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run",
-    ...options,
-  })
-
-/**
- * Trigger one workflow run from a workflow schedule.
- *
- * Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+ * Creates a WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
  *
  */
 export const createWorkflowRun = <ThrowOnError extends boolean = false>(
@@ -1156,9 +1144,90 @@ export const createWorkflowRun = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Watch workflow runs for a workflow schedule.
+ * Trigger a workflow run through a webhook API key.
  *
- * Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed WorkflowSchedule are watched.
+ * Validates the request body against the saved workflow input schema, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
+ *
+ */
+export const invokeWorkflowWebhook = <ThrowOnError extends boolean = false>(
+  options: Options<InvokeWorkflowWebhookData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    InvokeWorkflowWebhookResponses,
+    InvokeWorkflowWebhookErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zInvokeWorkflowWebhookBody,
+          path: zInvokeWorkflowWebhookPath,
+          query: zInvokeWorkflowWebhookQuery,
+        })
+        .parseAsync(data),
+    security: [{ name: "X-API-Key", type: "apiKey" }],
+    url: "/api/workflow/{agentName}/{workflowName}/webhook",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List webhook trigger rows for an agent.
+ *
+ * Lists the distinct API key and workflow pairs that have produced at least a webhook-triggered WorkflowRun for the addressed agent.
+ *
+ */
+export const listWorkflowWebhookTriggers = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowWebhookTriggersData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkflowWebhookTriggersResponses,
+    ListWorkflowWebhookTriggersErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkflowWebhookTriggersPath,
+          query: zListWorkflowWebhookTriggersQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/webhook",
+    ...options,
+  })
+
+/**
+ * List workflow runs for a workflow.
+ *
+ * Lists paginated WorkflowRuns for an agent-workflow pair. Optional trigger filters narrow the results to schedule-triggered or webhook-triggered runs.
+ *
+ */
+export const listWorkflowRuns = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowRunsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListWorkflowRunsResponses, ListWorkflowRunsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkflowRunsPath,
+          query: zListWorkflowRunsQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/run",
+    ...options,
+  })
+
+/**
+ * Watch workflow runs for a workflow.
+ *
+ * Returns an SSE stream. Each event data payload is a JSON object matching WatchWorkflowRunsEvent. If run_names is omitted or empty, all runs for the addressed workflow are watched.
  *
  */
 export const watchWorkflowRuns = <ThrowOnError extends boolean = false>(
@@ -1178,7 +1247,7 @@ export const watchWorkflowRuns = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/watch",
+    url: "/api/workflow/{agentName}/{workflowName}/run/watch",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -1187,9 +1256,9 @@ export const watchWorkflowRuns = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Delete one workflow run.
+ * Delete a workflow run.
  *
- * Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+ * Deletes a WorkflowRun owned by the addressed agent-workflow pair and waits until controller-driven cleanup completes.
  *
  */
 export const deleteWorkflowRun = <ThrowOnError extends boolean = false>(
@@ -1209,14 +1278,14 @@ export const deleteWorkflowRun = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}",
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}",
     ...options,
   })
 
 /**
- * Get one workflow run.
+ * Get a workflow run.
  *
- * Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+ * Returns all public details for a WorkflowRun owned by the addressed agent-workflow pair.
  *
  */
 export const getWorkflowRun = <ThrowOnError extends boolean = false>(
@@ -1232,7 +1301,7 @@ export const getWorkflowRun = <ThrowOnError extends boolean = false>(
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run/{runName}",
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}",
     ...options,
   })
 

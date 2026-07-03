@@ -6,7 +6,7 @@ SELECT EXISTS(
     AND agent_name = $2
 );
 
--- name: GatewayGetOpenCodeAPIKeyByHash :one
+-- name: GatewayGetAPIKeyByHash :one
 SELECT id, reference_id, name, permissions
 FROM apikeys
 WHERE key = sqlc.arg(key)

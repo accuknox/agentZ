@@ -5,12 +5,13 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import type { CreateAPIKeyFormState, DeleteAPIKeyFormState } from "@/data/types"
-import { listAgents } from "@/lib/gateway/client"
+import type { Agent } from "@/lib/gateway/client"
+import { listAgents, listWorkflowSummaries } from "@/lib/gateway/client"
 import { createAPIKeyFormSchema } from "@/data/api-key.schema"
+import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
-import { opencodeAPIKeyConfigID } from "@/lib/auth"
 import { signInURL } from "@/lib/sign-in-redirect"
 
 export async function createAPIKeyFormAction(
@@ -20,9 +21,11 @@ export async function createAPIKeyFormAction(
   const auth = getAuth()
   const requestHeaders = await headers()
   const parsed = createAPIKeyFormSchema.safeParse({
+    type: formData.get("type"),
     name: formData.get("name"),
     scopeMode: formData.get("scopeMode"),
     agentNames: formData.getAll("agentNames"),
+    workflowScopes: formData.getAll("workflowScopes"),
     expiresInDays: formData.get("expiresInDays"),
   })
   if (!parsed.success) {
@@ -43,6 +46,8 @@ export async function createAPIKeyFormAction(
 
   const authContext = await currentGatewayAuthContext()
   const selectedAgentNames = [...new Set(parsed.data.agentNames)].toSorted()
+  const selectedWorkflowScopes = [...new Set(parsed.data.workflowScopes)].toSorted()
+  let agents: Agent[] = []
   if (parsed.data.scopeMode === "selected") {
     const { data, error } = await listAgents({ client: getGatewayServerClient() })
     if (error) {
@@ -54,9 +59,11 @@ export async function createAPIKeyFormAction(
       }
     }
 
-    const allowedAgentNames = new Set(
-      data.agents.filter((agent) => agent.status !== "DELETED").map((agent) => agent.name)
-    )
+    agents = data.agents.filter((agent) => agent.status !== "DELETED")
+  }
+
+  if (parsed.data.type === "agent" && parsed.data.scopeMode === "selected") {
+    const allowedAgentNames = new Set(agents.map((agent) => agent.name))
     for (const agentName of selectedAgentNames) {
       if (allowedAgentNames.has(agentName)) {
         continue
@@ -70,18 +77,94 @@ export async function createAPIKeyFormAction(
       }
     }
   }
+  if (parsed.data.type === "webhook" && parsed.data.scopeMode === "selected") {
+    const workflowNamesByAgent = new Map<string, Set<string>>()
+    for (const scope of selectedWorkflowScopes) {
+      const [kind, agentName, workflowName, extra] = scope.split(":")
+      if (kind !== "workflow" || !agentName || !workflowName || extra) {
+        return {
+          error: {
+            code: "INVALID_FORM",
+            message: "Invalid workflow selection.",
+          },
+        }
+      }
 
-  const permissions = {
-    opencode:
-      parsed.data.scopeMode === "all"
-        ? ["all"]
-        : selectedAgentNames.map((agentName) => `agent:${agentName}`),
-  } satisfies Record<string, string[]>
+      const workflowNames = workflowNamesByAgent.get(agentName) ?? new Set<string>()
+      workflowNames.add(workflowName)
+      workflowNamesByAgent.set(agentName, workflowNames)
+    }
+
+    const allowedAgentNames = new Set(agents.map((agent) => agent.name))
+    for (const agentName of workflowNamesByAgent.keys()) {
+      if (allowedAgentNames.has(agentName)) {
+        continue
+      }
+
+      return {
+        error: {
+          code: "INVALID_FORM",
+          message: `Agent ${agentName} does not exist.`,
+        },
+      }
+    }
+
+    const workflowResults = await Promise.all(
+      [...workflowNamesByAgent.keys()].map(async (agentName) => {
+        const { data, error } = await listWorkflowSummaries({
+          client: getGatewayServerClient(),
+          path: { agentName },
+        })
+        return { agentName, data, error }
+      })
+    )
+    for (const result of workflowResults) {
+      if (result.error) {
+        return {
+          error: {
+            code: "API_KEY_CREATE_FAILED",
+            message: "Failed to validate API key scope",
+          },
+        }
+      }
+
+      const allowedWorkflowNames = new Set(
+        (result.data ?? []).map((workflow) => workflow.workflow_name)
+      )
+      for (const workflowName of workflowNamesByAgent.get(result.agentName) ?? []) {
+        if (allowedWorkflowNames.has(workflowName)) {
+          continue
+        }
+
+        return {
+          error: {
+            code: "INVALID_FORM",
+            message: `Workflow ${result.agentName}/${workflowName} does not exist.`,
+          },
+        }
+      }
+    }
+  }
+
+  const configId = parsed.data.type === "agent" ? agentAPIKeyConfigID : webhookAPIKeyConfigID
+  let permissions: Record<string, string[]>
+  if (parsed.data.type === "agent") {
+    permissions = {
+      opencode:
+        parsed.data.scopeMode === "all"
+          ? ["all"]
+          : selectedAgentNames.map((agentName) => `agent:${agentName}`),
+    }
+  } else {
+    permissions = {
+      webhook: parsed.data.scopeMode === "all" ? ["all"] : selectedWorkflowScopes,
+    }
+  }
 
   try {
     const key = await auth.api.createApiKey({
       body: {
-        configId: opencodeAPIKeyConfigID,
+        configId,
         expiresIn:
           parsed.data.expiresInDays === "none"
             ? null
@@ -120,8 +203,13 @@ export async function deleteAPIKeyFormAction(
   formData: FormData
 ): Promise<DeleteAPIKeyFormState> {
   const auth = getAuth()
+  const configId = formData.get("configId")
   const keyID = formData.get("keyID")
-  if (typeof keyID !== "string" || keyID.length === 0) {
+  if (
+    (configId !== agentAPIKeyConfigID && configId !== webhookAPIKeyConfigID) ||
+    typeof keyID !== "string" ||
+    keyID.length === 0
+  ) {
     return {
       error: {
         code: "INVALID_FORM",
@@ -141,7 +229,7 @@ export async function deleteAPIKeyFormAction(
   try {
     await auth.api.deleteApiKey({
       body: {
-        configId: opencodeAPIKeyConfigID,
+        configId,
         keyId: keyID,
       },
       headers: requestHeaders,

@@ -108,23 +108,29 @@ func ValidateAgentScheduleList(agtName string) []gatewayapi.FieldError {
 }
 
 func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace string, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
+	raw, err := marshalInputsJSON(inputs)
+	if err != nil {
+		return nil, err
+	}
+
+	fields, err := ValidateRunInputs(ctx, db, tenantNamespace, agtName, wfName, raw)
+	if errors.Is(err, ErrWorkflowNotFound) {
+		return []gatewayapi.FieldError{{
+			Field:   "workflowName",
+			Message: "referenced workflow was not found",
+		}}, nil
+	}
+	return fields, err
+}
+
+// ValidateRunInputs validates runtime input values for one workflow.
+func ValidateRunInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace string, agtName string, wfName string, raw []byte) ([]gatewayapi.FieldError, error) {
 	def, err := Get(ctx, db, tenantNamespace, agtName, wfName)
 	if err != nil {
-		if errors.Is(err, ErrWorkflowNotFound) {
-			return []gatewayapi.FieldError{{
-				Field:   "workflowName",
-				Message: "referenced workflow was not found",
-			}}, nil
-		}
 		return nil, err
 	}
 
-	rawInputs, err := marshalScheduleInputs(inputs)
-	if err != nil {
-		return nil, err
-	}
-
-	issues, err := inputworkflow.ValidateValues(rawInputs, def.Inputs, "inputs")
+	issues, err := inputworkflow.ValidateValues(raw, def.Inputs, "")
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +159,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		failedRunsHistoryLimit:     req.FailedRunsHistoryLimit,
 	}
 
-	inputsJSON, err := marshalScheduleInputs(specInput.inputs)
+	inputsJSON, err := marshalInputsJSON(specInput.inputs)
 	if err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
 	}
@@ -277,7 +283,7 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		failedRunsHistoryLimit:     req.FailedRunsHistoryLimit,
 	}
 
-	inputsJSON, err := marshalScheduleInputs(specInput.inputs)
+	inputsJSON, err := marshalInputsJSON(specInput.inputs)
 	if err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
 	}
@@ -338,14 +344,14 @@ func scheduleViewFromCRD(schedule *agentzv1alpha1.WorkflowSchedule) (gatewayapi.
 	return view, nil
 }
 
-func marshalScheduleInputs(value *gatewayapi.JSONValue) ([]byte, error) {
+func marshalInputsJSON(value *gatewayapi.JSONValue) ([]byte, error) {
 	if value == nil {
 		return []byte("null"), nil
 	}
 
 	raw, err := json.Marshal(value)
 	if err != nil {
-		return nil, fmt.Errorf("marshal schedule inputs: %w", err)
+		return nil, fmt.Errorf("marshal inputs: %w", err)
 	}
 	return raw, nil
 }

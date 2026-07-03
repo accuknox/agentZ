@@ -432,12 +432,10 @@ func validateSandboxName(name string) []gatewayapi.FieldError {
 			Field: "name", Message: "must be at most 32 characters",
 		})
 	}
-	if name != "" {
-		if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "name", Message: "must be a valid DNS label",
-			})
-		}
+	if errs := validation.IsDNS1123Label(name); name != "" && len(errs) > 0 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "name", Message: "must be a valid DNS label",
+		})
 	}
 	return fields
 }

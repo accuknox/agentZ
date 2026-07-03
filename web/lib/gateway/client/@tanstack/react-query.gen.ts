@@ -24,6 +24,7 @@ import {
   getTenant,
   getWorkflow,
   getWorkflowRun,
+  invokeWorkflowWebhook,
   listAgents,
   listAgentWorkflowSchedules,
   listFileObservability,
@@ -37,6 +38,7 @@ import {
   listWorkflowRuns,
   listWorkflowSchedules,
   listWorkflowSummaries,
+  listWorkflowWebhookTriggers,
   type Options,
   patchWorkflowRunStatus,
   putSecret,
@@ -105,6 +107,9 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunError,
   GetWorkflowRunResponse,
+  InvokeWorkflowWebhookData,
+  InvokeWorkflowWebhookError,
+  InvokeWorkflowWebhookResponse,
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
@@ -144,6 +149,9 @@ import type {
   ListWorkflowSummariesData,
   ListWorkflowSummariesError,
   ListWorkflowSummariesResponse,
+  ListWorkflowWebhookTriggersData,
+  ListWorkflowWebhookTriggersError,
+  ListWorkflowWebhookTriggersResponse2,
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusError,
   PatchWorkflowRunStatusResponse,
@@ -505,7 +513,7 @@ export const getMcpGraphQueryKey = (options: Options<GetMcpGraphData>) =>
   createQueryKey("getMcpGraph", options)
 
 /**
- * Get MCP observability graph data for one agent and date range.
+ * Get MCP observability graph data for an agent given a date range.
  */
 export const getMcpGraphOptions = (options: Options<GetMcpGraphData>) =>
   queryOptions<
@@ -555,9 +563,9 @@ export const listSecretsOptions = (options: Options<ListSecretsData>) =>
   })
 
 /**
- * Create one secret for an agent.
+ * Create a secret for an agent.
  *
- * Creates one static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
+ * Creates a static or OAuth-backed secret for the agent. Secret values are stored only in OpenBao. OAuth secrets keep refresh lifecycle state in the Secret CRD status.
  *
  */
 export const putSecretMutation = (
@@ -810,7 +818,7 @@ export const getMcpConnectionOptions = (options: Options<GetMcpConnectionData>) 
 /**
  * Delete workflow definitions.
  *
- * Deletes multiple persisted workflow DAGs for one agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
+ * Deletes multiple persisted workflow DAGs for an agent in a single request. Deletion is strict: if any requested workflow name does not exist, the request fails and no workflows are deleted.
  *
  */
 export const deleteWorkflowsMutation = (
@@ -924,9 +932,9 @@ export const listAgentWorkflowSchedulesQueryKey = (
 ) => createQueryKey("listAgentWorkflowSchedules", options)
 
 /**
- * List workflow schedules for one agent.
+ * List workflow schedules for an agent.
  *
- * Lists paginated workflow schedules for one agent across all workflows.
+ * Lists paginated workflow schedules for an agent across all workflows.
  *
  */
 export const listAgentWorkflowSchedulesOptions = (
@@ -956,7 +964,7 @@ export const listWorkflowSchedulesQueryKey = (options: Options<ListWorkflowSched
 /**
  * List workflow schedules.
  *
- * Lists paginated workflow schedules for one workflow definition.
+ * Lists paginated workflow schedules for a workflow definition.
  *
  */
 export const listWorkflowSchedulesOptions = (options: Options<ListWorkflowSchedulesData>) =>
@@ -981,7 +989,7 @@ export const listWorkflowSchedulesOptions = (options: Options<ListWorkflowSchedu
 /**
  * Create a workflow schedule.
  *
- * Creates a WorkflowSchedule resource for one agent workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
+ * Creates a WorkflowSchedule resource for an agent-workflow pair. The gateway forwards schedule validation to the existing Kubernetes webhook.
  *
  */
 export const createWorkflowScheduleMutation = (
@@ -1011,7 +1019,7 @@ export const createWorkflowScheduleMutation = (
 /**
  * Delete a workflow schedule.
  *
- * Deletes one workflow schedule addressed by agent, workflow, and schedule name.
+ * Deletes a workflow schedule addressed by agent, workflow, and schedule name.
  *
  */
 export const deleteWorkflowScheduleMutation = (
@@ -1041,7 +1049,7 @@ export const deleteWorkflowScheduleMutation = (
 /**
  * Update a workflow schedule.
  *
- * Replaces all mutable workflow schedule fields for one existing schedule.
+ * Replaces all mutable workflow schedule fields for an existing schedule.
  *
  */
 export const updateWorkflowScheduleMutation = (
@@ -1068,38 +1076,10 @@ export const updateWorkflowScheduleMutation = (
   return mutationOptions
 }
 
-export const listWorkflowRunsQueryKey = (options: Options<ListWorkflowRunsData>) =>
-  createQueryKey("listWorkflowRuns", options)
-
 /**
- * List workflow runs for a workflow schedule.
+ * Trigger a workflow run from a workflow schedule.
  *
- * Lists paginated workflow runs created from the addressed WorkflowSchedule.
- *
- */
-export const listWorkflowRunsOptions = (options: Options<ListWorkflowRunsData>) =>
-  queryOptions<
-    ListWorkflowRunsResponse2,
-    ListWorkflowRunsError,
-    ListWorkflowRunsResponse2,
-    ReturnType<typeof listWorkflowRunsQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listWorkflowRuns({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: listWorkflowRunsQueryKey(options),
-  })
-
-/**
- * Trigger one workflow run from a workflow schedule.
- *
- * Creates one WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
+ * Creates a WorkflowRun from the addressed WorkflowSchedule without overriding any schedule-derived execution fields.
  *
  */
 export const createWorkflowRunMutation = (
@@ -1127,9 +1107,98 @@ export const createWorkflowRunMutation = (
 }
 
 /**
- * Delete one workflow run.
+ * Trigger a workflow run through a webhook API key.
  *
- * Deletes one WorkflowRun created from the addressed WorkflowSchedule and waits until controller-driven cleanup completes.
+ * Validates the request body against the saved workflow input schema, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
+ *
+ */
+export const invokeWorkflowWebhookMutation = (
+  options?: Partial<Options<InvokeWorkflowWebhookData>>
+): UseMutationOptions<
+  InvokeWorkflowWebhookResponse,
+  InvokeWorkflowWebhookError,
+  Options<InvokeWorkflowWebhookData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    InvokeWorkflowWebhookResponse,
+    InvokeWorkflowWebhookError,
+    Options<InvokeWorkflowWebhookData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await invokeWorkflowWebhook({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkflowWebhookTriggersQueryKey = (
+  options: Options<ListWorkflowWebhookTriggersData>
+) => createQueryKey("listWorkflowWebhookTriggers", options)
+
+/**
+ * List webhook trigger rows for an agent.
+ *
+ * Lists the distinct API key and workflow pairs that have produced at least a webhook-triggered WorkflowRun for the addressed agent.
+ *
+ */
+export const listWorkflowWebhookTriggersOptions = (
+  options: Options<ListWorkflowWebhookTriggersData>
+) =>
+  queryOptions<
+    ListWorkflowWebhookTriggersResponse2,
+    ListWorkflowWebhookTriggersError,
+    ListWorkflowWebhookTriggersResponse2,
+    ReturnType<typeof listWorkflowWebhookTriggersQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowWebhookTriggers({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowWebhookTriggersQueryKey(options),
+  })
+
+export const listWorkflowRunsQueryKey = (options: Options<ListWorkflowRunsData>) =>
+  createQueryKey("listWorkflowRuns", options)
+
+/**
+ * List workflow runs for a workflow.
+ *
+ * Lists paginated WorkflowRuns for an agent-workflow pair. Optional trigger filters narrow the results to schedule-triggered or webhook-triggered runs.
+ *
+ */
+export const listWorkflowRunsOptions = (options: Options<ListWorkflowRunsData>) =>
+  queryOptions<
+    ListWorkflowRunsResponse2,
+    ListWorkflowRunsError,
+    ListWorkflowRunsResponse2,
+    ReturnType<typeof listWorkflowRunsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowRuns({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowRunsQueryKey(options),
+  })
+
+/**
+ * Delete a workflow run.
+ *
+ * Deletes a WorkflowRun owned by the addressed agent-workflow pair and waits until controller-driven cleanup completes.
  *
  */
 export const deleteWorkflowRunMutation = (
@@ -1160,9 +1229,9 @@ export const getWorkflowRunQueryKey = (options: Options<GetWorkflowRunData>) =>
   createQueryKey("getWorkflowRun", options)
 
 /**
- * Get one workflow run.
+ * Get a workflow run.
  *
- * Returns all public details for one WorkflowRun created from the addressed WorkflowSchedule.
+ * Returns all public details for a WorkflowRun owned by the addressed agent-workflow pair.
  *
  */
 export const getWorkflowRunOptions = (options: Options<GetWorkflowRunData>) =>

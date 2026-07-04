@@ -46,7 +46,7 @@ export default async function WorkflowRunsPage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
+      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-normal">Workflow Runs</h1>
         </div>
@@ -271,12 +271,12 @@ function RunsTableSkeleton() {
 
 function FiltersSkeleton() {
   return (
-    <div className="bg-background border-b px-6 py-2">
+    <div className="bg-background border-b px-4 py-2 sm:px-6">
       <div className="flex min-h-14 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-64" />
-          <Skeleton className="h-8 w-full min-w-40 rounded-md sm:w-44" />
-          <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-72" />
+          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52" />
+          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-44 sm:min-w-40" />
+          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52" />
         </div>
       </div>
     </div>

@@ -424,8 +424,8 @@ function ToolCard({
 
 function ToolDetailText({ children }: { children: React.ReactNode }) {
   return (
-    <div className="max-h-96 overflow-auto text-sm leading-5">
-      <div className="min-w-0">{children}</div>
+    <div className="max-h-96 max-w-full overflow-auto text-sm leading-5">
+      <div className="max-w-full min-w-0 wrap-break-word">{children}</div>
     </div>
   )
 }
@@ -433,12 +433,16 @@ function ToolDetailText({ children }: { children: React.ReactNode }) {
 function ToolDescription({ children }: { children: React.ReactNode }) {
   if (!children) return null
 
-  return <div className="text-muted-foreground text-sm whitespace-pre-wrap">{children}</div>
+  return (
+    <div className="text-muted-foreground text-sm wrap-break-word whitespace-pre-wrap">
+      {children}
+    </div>
+  )
 }
 
 function ToolCode({ code, language = "markdown" }: { code: string; language?: BundledLanguage }) {
   return (
-    <div className="[&_pre]:p-0 [&_pre]:text-xs" data-language={language}>
+    <div className="max-w-full min-w-0 [&_pre]:p-0 [&_pre]:text-xs" data-language={language}>
       <CodeBlockContent code={code} language={language} showLineNumbers={code.includes("\n")} />
     </div>
   )
@@ -450,9 +454,9 @@ function LoadedFiles({ files }: { files: string[] }) {
   return (
     <div className="text-muted-foreground space-y-1 text-sm">
       {files.map((path) => (
-        <div className="flex items-center gap-1.5" key={path}>
+        <div className="flex min-w-0 items-center gap-1.5" key={path}>
           <ChevronRightIcon className="size-3 shrink-0" />
-          <span className="truncate">{path}</span>
+          <span className="min-w-0 truncate">{path}</span>
         </div>
       ))}
     </div>
@@ -728,7 +732,7 @@ function PatchFileCard({ file }: { file: ToolFile }) {
       <AccordionContent>
         {body ? (
           <ToolDetailText>
-            <pre className="overflow-auto font-mono text-xs wrap-break-word whitespace-pre-wrap">
+            <pre className="max-w-full overflow-auto font-mono text-xs wrap-break-word whitespace-pre-wrap">
               {body}
             </pre>
           </ToolDetailText>
@@ -779,8 +783,8 @@ function QuestionsTool({ part }: ToolProps) {
       <div className="space-y-1">
         {inputQuestions.map((question, index) => (
           <div className="space-y-0.5" key={`${question.header}-${index}`}>
-            <div className="text-sm font-medium">{question.question}</div>
-            <div className="text-muted-foreground text-sm">
+            <div className="text-sm font-medium wrap-break-word">{question.question}</div>
+            <div className="text-muted-foreground text-sm wrap-break-word">
               {(answers[index] ?? []).join(", ") || "No answer"}
             </div>
           </div>
@@ -921,7 +925,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                       : undefined
 
             return (
-              <div className="flex items-center gap-2 text-sm" key={part.id}>
+              <div className="flex min-w-0 items-center gap-2 text-sm" key={part.id}>
                 <Icon className="text-muted-foreground size-3 shrink-0" />
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-baseline gap-2">
@@ -934,7 +938,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                       {title}
                     </div>
                     {arg ? (
-                      <div className="text-muted-foreground truncate font-mono text-sm">
+                      <div className="text-muted-foreground min-w-0 truncate font-mono text-sm">
                         {shortLabel(arg)}
                       </div>
                     ) : null}

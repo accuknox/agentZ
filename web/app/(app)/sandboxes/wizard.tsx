@@ -217,7 +217,7 @@ function IdentityForm({
     <form
       id="sandbox-form-identity"
       onSubmit={form.handleSubmit(onNext)}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <FieldGroup>
         <Controller
@@ -237,6 +237,7 @@ function IdentityForm({
                 onChange={field.onChange}
                 disabled={lockName}
                 readOnly={lockName}
+                autoFocus
                 autoComplete="off"
                 placeholder="my-sandbox"
                 aria-invalid={fieldState.invalid}
@@ -284,7 +285,7 @@ function PackageStep({
     <form
       id={formIdByStep.packages}
       onSubmit={form.handleSubmit((data) => onNext(data.packages))}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <PackageSearch
         installed={installedPackages}
@@ -305,18 +306,6 @@ function PackageStep({
         </Button>
       </StepActions>
     </form>
-  )
-}
-
-function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      {renderMcpServerIcon(connection.endpoint_url, {
-        "aria-hidden": "true",
-        className: "size-4 shrink-0",
-      })}
-      <span className="min-w-0 truncate font-medium">{connection.name}</span>
-    </div>
   )
 }
 
@@ -357,7 +346,13 @@ function createMcpSelectionColumns({
             <ChevronDown
               className={`size-4 shrink-0 transition-transform ${expandedNames.has(connection.name) ? "rotate-180" : ""}`}
             />
-            <McpNameCell connection={connection} />
+            <div className="flex min-w-0 items-center gap-2">
+              {renderMcpServerIcon(connection.endpoint_url, {
+                "aria-hidden": "true",
+                className: "size-4 shrink-0",
+              })}
+              <span className="min-w-0 truncate font-medium">{connection.name}</span>
+            </div>
           </button>
         )
       },
@@ -428,7 +423,7 @@ function createMcpSelectionColumns({
   ]
 }
 
-function McpToolsRow({
+function McpToolsPanel({
   connection,
   selectedRef,
   onToolsChange,
@@ -487,7 +482,7 @@ function McpToolsRow({
         Enable the tools this sandbox may expose from <em>{connection.name}</em>.
       </p>
 
-      <div className="mx-3 grid grid-cols-[repeat(auto-fit,minmax(20rem,1fr))] overflow-hidden rounded border">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] overflow-hidden rounded border sm:mx-3">
         {detail.tools.map((tool) => {
           const selectedTool = toolsByName.get(tool.name)
           const selected = Boolean(selectedTool)
@@ -594,12 +589,11 @@ function McpStep({
       mcpConnectionRefs: initialMcpConnectionRefs,
     },
   })
-  const watchedSelected = useWatch({
+  const selected = useWatch({
     control: form.control,
     name: "mcpConnectionRefs",
     defaultValue: initialMcpConnectionRefs,
   })
-  const selected = React.useMemo(() => watchedSelected ?? [], [watchedSelected])
   const selectedByName = React.useMemo(
     () => new Map(selected.map((ref) => [ref.name, ref])),
     [selected]
@@ -613,6 +607,11 @@ function McpStep({
   const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
   const [expandedNames, setExpandedNames] = React.useState<string[]>([])
   const expandedNameSet = React.useMemo(() => new Set(expandedNames), [expandedNames])
+  const toggleExpandedName = React.useCallback((name: string) => {
+    setExpandedNames((current) =>
+      current.includes(name) ? current.filter((value) => value !== name) : [...current, name]
+    )
+  }, [])
 
   const setSelected = React.useCallback(
     async (connection: McpConnectionSummary, checked: boolean) => {
@@ -649,21 +648,6 @@ function McpStep({
       }
 
       const nextRefs = [...next.values()].toSorted((a, b) => a.name.localeCompare(b.name))
-      if (
-        current.length === nextRefs.length &&
-        current.every(
-          (value, index) =>
-            value.name === nextRefs[index]?.name &&
-            value.tools.length === nextRefs[index]?.tools.length &&
-            value.tools.every(
-              (tool, toolIndex) =>
-                tool.name === nextRefs[index]?.tools[toolIndex]?.name &&
-                tool.requireConsent === nextRefs[index]?.tools[toolIndex]?.requireConsent
-            )
-        )
-      ) {
-        return
-      }
 
       form.setValue("mcpConnectionRefs", nextRefs, {
         shouldDirty: true,
@@ -700,15 +684,12 @@ function McpStep({
       createMcpSelectionColumns({
         expandedNames: expandedNameSet,
         selectedNames,
-        onExpandedChange: (name) =>
-          setExpandedNames((current) =>
-            current.includes(name) ? current.filter((value) => value !== name) : [...current, name]
-          ),
+        onExpandedChange: toggleExpandedName,
         onSelectedChange: (connection, checked) => {
           void setSelected(connection, checked)
         },
       }),
-    [expandedNameSet, selectedNames, setSelected]
+    [expandedNameSet, selectedNames, setSelected, toggleExpandedName]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -732,11 +713,11 @@ function McpStep({
       onSubmit={form.handleSubmit((data) =>
         onNext(data.mcpConnectionRefs.toSorted((a, b) => a.name.localeCompare(b.name)))
       )}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
-      <div className="-mx-4 min-w-0 space-y-4 sm:-mx-6">
-        <div className="w-full min-w-0 overflow-hidden border-b">
-          <Table className="table-auto">
+      <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
+        <div className="w-full min-w-0 border-b">
+          <Table className="w-[max(100%,44rem)] table-auto">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -773,7 +754,7 @@ function McpStep({
                           colSpan={columns.length}
                           className="bg-muted/20 px-4 py-4 whitespace-normal"
                         >
-                          <McpToolsRow
+                          <McpToolsPanel
                             connection={row.original}
                             selectedRef={selectedByName.get(row.original.name)}
                             onToolsChange={setEnabledTools}
@@ -927,7 +908,7 @@ function AllowedHostsStep({
     <form
       id={formIdByStep.allowedHosts}
       action={submitAction}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (
@@ -980,6 +961,7 @@ function AllowedHostsStep({
                   event.preventDefault()
                   addHost()
                 }}
+                autoFocus
                 placeholder="api.github.com"
                 autoComplete="off"
                 aria-invalid={hostFieldInvalid}
@@ -1000,6 +982,7 @@ function AllowedHostsStep({
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="max-w-full"
                   onClick={() =>
                     setAllowedHostsState(
                       hosts.filter((item) => item !== host),
@@ -1007,7 +990,7 @@ function AllowedHostsStep({
                     )
                   }
                 >
-                  {host}
+                  <span className="min-w-0 truncate">{host}</span>
                   <X data-icon="inline-end" />
                 </Button>
               ))}

@@ -135,7 +135,7 @@ export function McpTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 overflow-hidden border-b">
+      <div className="w-full min-w-0 border-b">
         <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

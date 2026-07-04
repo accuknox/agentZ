@@ -119,7 +119,7 @@ export function SecretTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 overflow-hidden border-b">
+      <div className="w-full min-w-0 border-b">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

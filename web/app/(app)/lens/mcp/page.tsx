@@ -48,7 +48,7 @@ export default async function McpPage({
   const params = resolveMcpSearchParams(searchParams)
 
   return (
-    <main className="flex flex-1 flex-col gap-0 p-0">
+    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
         <Filters searchParams={params} />
@@ -62,7 +62,7 @@ export default async function McpPage({
 
 function PageHeader() {
   return (
-    <div className="flex items-center justify-between px-6">
+    <div className="flex min-w-0 items-center justify-between px-4 sm:px-6">
       <div className="min-w-0">
         <h1 className="text-base font-medium tracking-normal">MCP Observability</h1>
       </div>
@@ -120,7 +120,7 @@ async function Graph({ searchParams }: { searchParams: Promise<ResolvedMcpSearch
   }
 
   return (
-    <section className="flex min-h-0 flex-1">
+    <section className="flex min-h-0 min-w-0 flex-1">
       <McpGraph
         key={[
           result.data.agent.name,

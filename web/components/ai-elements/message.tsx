@@ -404,7 +404,7 @@ const MarkdownParagraph: FC<ComponentProps<"p"> & ExtraProps> = ({
   className,
   ...props
 }) => (
-  <p className={cn("leading-relaxed whitespace-pre-line", className)} {...props}>
+  <p className={cn("leading-relaxed wrap-break-word whitespace-pre-line", className)} {...props}>
     {children}
   </p>
 )
@@ -412,7 +412,10 @@ const MarkdownParagraph: FC<ComponentProps<"p"> & ExtraProps> = ({
 export const MessageResponse = memo(
   ({ className, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
     <Streamdown
-      className={cn("w-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+      className={cn(
+        "w-full min-w-0 wrap-break-word [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        className
+      )}
       components={{
         code: (codeProps) => <MarkdownCode {...codeProps} plainCodeBlocks={plainCodeBlocks} />,
         li: MarkdownLi,

@@ -80,7 +80,7 @@ export default async function TracesPage({
   const params = resolveTracesSearchParams(searchParams)
 
   return (
-    <main className="flex flex-1 flex-col gap-0 p-0">
+    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<TracesFiltersSkeleton />}>
         <Filters searchParams={params} />
@@ -97,7 +97,7 @@ export default async function TracesPage({
 
 function PageHeader() {
   return (
-    <div className="flex items-center justify-between px-6">
+    <div className="flex min-w-0 items-center justify-between px-4 sm:px-6">
       <div className="min-w-0">
         <h1 className="text-base font-medium tracking-normal">Traces</h1>
       </div>

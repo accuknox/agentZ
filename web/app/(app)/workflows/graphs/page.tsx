@@ -34,7 +34,7 @@ export default async function WorkflowsPage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
+      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-normal">Workflows</h1>
         </div>
@@ -139,11 +139,11 @@ async function WorkflowContent({ searchParams }: { searchParams: ResolvedSearchP
 
 function FiltersSkeleton() {
   return (
-    <div className="bg-background border-b px-6 py-2">
+    <div className="bg-background border-b px-4 py-2 sm:px-6">
       <div className="flex min-h-14 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-64" />
-          <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-72" />
+          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52" />
+          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52" />
         </div>
       </div>
     </div>
@@ -158,7 +158,7 @@ function CanvasSkeleton() {
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
         <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />
       </div>
-      <div className="bg-card/88 border-border/70 absolute top-4 left-4 z-10 w-sm max-w-sm rounded-lg border p-1 shadow-lg shadow-black/5 backdrop-blur-md">
+      <div className="bg-card/88 border-border/70 absolute top-4 left-4 z-10 w-[calc(100vw-2rem)] max-w-sm rounded-lg border p-1 shadow-lg shadow-black/5 backdrop-blur-md sm:w-sm">
         <div className="flex items-start gap-2 rounded-md px-3 py-2.5">
           <Skeleton className="h-4 w-56 max-w-full" />
           <Skeleton className="mt-0.5 size-4 rounded-sm" />

@@ -23,7 +23,7 @@ export function TelemetryChart({ data }: TelemetryChartProps) {
   }))
 
   return (
-    <section className="flex flex-col gap-2 px-6 py-3">
+    <section className="flex min-w-0 flex-col gap-2 px-4 py-3 sm:px-6">
       <div className="flex items-center justify-end">
         <span className="text-muted-foreground text-xs">{data.total} events</span>
       </div>

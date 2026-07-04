@@ -8,12 +8,12 @@ export function NavSandboxes() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <Link href="/sandboxes">
-          <SidebarMenuButton tooltip="Sandboxes">
+        <SidebarMenuButton asChild tooltip="Sandboxes">
+          <Link href="/sandboxes">
             <Container />
             <span>Sandboxes</span>
-          </SidebarMenuButton>
-        </Link>
+          </Link>
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   )

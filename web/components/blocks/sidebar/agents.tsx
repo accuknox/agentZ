@@ -201,7 +201,7 @@ function AgentSessionsItem({
               <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
             </SidebarMenuButton>
           </CollapsibleTrigger>
-          <SidebarMenuAction>
+          <SidebarMenuAction asChild>
             <Link
               href={newSessionPath}
               onClick={(event) => {

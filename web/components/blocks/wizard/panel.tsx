@@ -28,8 +28,8 @@ export function WizardPanel({
   stepKey: string | number
 }) {
   return (
-    <div className="bg-card relative min-h-0 w-full flex-1 overflow-hidden">
-      <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+    <div className="bg-card relative min-h-0 w-full min-w-0 flex-1 overflow-hidden">
+      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
         <AnimatePresence custom={direction} mode="wait" initial={false}>
           <motion.div
             key={stepKey}
@@ -39,7 +39,7 @@ export function WizardPanel({
             animate="center"
             exit="exit"
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="flex min-h-full flex-col"
+            className="flex min-h-full w-full min-w-0 flex-col"
           >
             {children}
           </motion.div>

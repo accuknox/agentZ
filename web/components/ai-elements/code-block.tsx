@@ -413,7 +413,7 @@ export const CodeBlockContent = ({
       : syncTokens
 
   return (
-    <div className="relative overflow-auto">
+    <div className="relative max-w-full overflow-auto">
       <CodeBlockBody showLineNumbers={showLineNumbers} tokenized={tokenized} />
     </div>
   )

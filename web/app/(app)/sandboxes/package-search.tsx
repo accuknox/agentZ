@@ -170,7 +170,7 @@ function PackageResult({
         isSelected && "bg-muted/30"
       )}
     >
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 py-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="flex min-w-0 flex-col gap-1.5 text-left">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
             <AccordionTrigger className="w-fit max-w-full flex-none justify-start rounded-none p-0 hover:no-underline **:data-[slot=accordion-trigger-icon]:hidden">
@@ -209,13 +209,15 @@ function PackageResult({
             ) : null}
           </div>
         </div>
-        <PackageAction
-          attrName={attrName}
-          isSelected={isSelected}
-          isRequired={isRequired}
-          label={label}
-          onToggle={onToggle}
-        />
+        <div className="flex justify-start sm:justify-end">
+          <PackageAction
+            attrName={attrName}
+            isSelected={isSelected}
+            isRequired={isRequired}
+            label={label}
+            onToggle={onToggle}
+          />
+        </div>
       </div>
       <AccordionContent className="pt-4 pb-4">
         {!pkg ? (
@@ -272,7 +274,6 @@ export function PackageSearch({
   const [query, setQuery] = React.useState("")
   const [filter, setFilter] = React.useState<PackageFilter>("all")
   const [page, setPage] = React.useState(0)
-  const searchRef = React.useRef<HTMLInputElement>(null)
   const debounced = useDebounce(query.trim(), searchDelayMs)
   const installedSet = React.useMemo(() => new Set(installed), [installed])
   const selectedSet = React.useMemo(() => new Set(selected), [selected])
@@ -318,10 +319,6 @@ export function PackageSearch({
   const pageEnd = Math.min(rows.length, (currentPage + 1) * pageSize)
   const hasError = data?.error != null
 
-  React.useEffect(() => {
-    searchRef.current?.focus()
-  }, [])
-
   const togglePackage = (attrName: string) => {
     if (defaultSandboxPackageSet.has(attrName)) {
       return
@@ -340,6 +337,7 @@ export function PackageSearch({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="text-muted-foreground text-sm">{selected.length} selected</div>
         <Tabs
+          className="w-full lg:w-auto"
           value={filter}
           onValueChange={(value) => {
             if (
@@ -353,17 +351,20 @@ export function PackageSearch({
             }
           }}
         >
-          <TabsList className="h-9 w-full lg:w-auto">
-            <TabsTrigger value="all" className="px-4">
+          <TabsList className="grid h-9 w-full grid-cols-4 lg:w-[31rem]">
+            <TabsTrigger value="all" className="min-w-0 px-1.5 text-xs sm:px-4 sm:text-sm">
               All
             </TabsTrigger>
-            <TabsTrigger value="installed" className="px-4">
+            <TabsTrigger value="installed" className="min-w-0 px-1.5 text-xs sm:px-4 sm:text-sm">
               Installed
             </TabsTrigger>
-            <TabsTrigger value="not-installed" className="px-4">
+            <TabsTrigger
+              value="not-installed"
+              className="min-w-0 px-1.5 text-xs sm:px-4 sm:text-sm"
+            >
               Not Installed
             </TabsTrigger>
-            <TabsTrigger value="selected" className="px-4">
+            <TabsTrigger value="selected" className="min-w-0 px-1.5 text-xs sm:px-4 sm:text-sm">
               Selected
             </TabsTrigger>
           </TabsList>
@@ -375,7 +376,6 @@ export function PackageSearch({
           <Search />
         </InputGroupAddon>
         <InputGroupInput
-          ref={searchRef}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value)
@@ -386,7 +386,8 @@ export function PackageSearch({
               event.preventDefault()
             }
           }}
-          placeholder="Search packages..."
+          autoFocus
+          placeholder="Search packages…"
           autoComplete="off"
         />
         {query ? (

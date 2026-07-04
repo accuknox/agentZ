@@ -17,9 +17,8 @@ export function WizardStepNav<TStep extends WizardStep>({
 }) {
   return (
     <ol
-      className="flex w-auto max-w-full list-none flex-row items-center justify-center gap-3"
+      className="flex w-full max-w-xs list-none flex-col items-stretch gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:flex-nowrap sm:items-center sm:justify-center sm:gap-3"
       role="tablist"
-      aria-orientation="horizontal"
     >
       {steps.map((step, index) => {
         const disabled = !canVisitStepAction(step, index)
@@ -30,9 +29,13 @@ export function WizardStepNav<TStep extends WizardStep>({
         const Icon = step.icon
 
         return (
-          <li key={step.id} className="group flex min-h-0 items-center gap-2" data-status={status}>
+          <li
+            key={step.id}
+            className="group flex min-h-0 w-full max-w-full shrink-0 items-center gap-2 sm:w-auto"
+            data-status={status}
+          >
             <Button
-              className="grid min-h-0 min-w-0 grid-cols-[auto_1fr] items-center gap-2 rounded-md p-1 text-left"
+              className="grid min-h-0 w-full min-w-0 grid-cols-[auto_1fr] items-center justify-start gap-2 rounded-md p-1 text-left sm:w-auto"
               variant="plain"
               type="button"
               role="tab"
@@ -55,16 +58,14 @@ export function WizardStepNav<TStep extends WizardStep>({
               >
                 <Icon />
               </span>
-              <span className="truncate text-sm font-medium group-focus-within:underline group-hover:underline">
-                {step.title}
-              </span>
+              <span className="truncate text-sm font-medium">{step.title}</span>
             </Button>
-            <div className="flex w-32 justify-center">
+            <div className="hidden w-16 justify-center sm:flex lg:w-32">
               {!isLast && (
                 <div
                   aria-hidden="true"
                   data-status={status}
-                  className="bg-muted data-[status=success]:bg-primary h-0.5 w-full transition-all duration-300 ease-in-out"
+                  className="bg-muted data-[status=success]:bg-primary h-0.5 w-full transition-colors duration-300 ease-in-out"
                 />
               )}
             </div>

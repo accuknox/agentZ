@@ -107,7 +107,7 @@ export default function Workflow({ workflow }: WorkflowProps) {
         <Controls position="bottom-left" showInteractive={false} />
         <Panel
           position="top-left"
-          className="bg-card/88 supports-[backdrop-filter]:bg-card/72 border-border/70 w-sm max-w-sm overflow-hidden border p-0 shadow-lg shadow-black/5 backdrop-blur-md"
+          className="bg-card/88 supports-[backdrop-filter]:bg-card/72 border-border/70 w-[calc(100vw-2rem)] max-w-sm overflow-hidden border p-0 shadow-lg shadow-black/5 backdrop-blur-md sm:w-sm"
         >
           <Collapsible defaultOpen={false} className="group/workflow-summary">
             <CollapsibleTrigger asChild>
@@ -233,8 +233,8 @@ function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvas
       handles={data.handles}
       className={
         selected
-          ? "bg-background/96 border-primary/65 shadow-primary/15 dark:bg-accent/90 w-[19rem] rounded-xl border-2 shadow-[0_18px_48px_-28px_var(--color-primary)] transition-all duration-200 ease-out"
-          : "bg-background/94 hover:border-primary/35 border-border/80 dark:bg-accent/82 w-[19rem] rounded-xl shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-28px_var(--color-primary)]"
+          ? "bg-background/96 border-primary/65 shadow-primary/15 dark:bg-accent/90 w-[19rem] rounded-xl border-2 shadow-[0_18px_48px_-28px_var(--color-primary)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out"
+          : "bg-background/94 hover:border-primary/35 border-border/80 dark:bg-accent/82 w-[19rem] rounded-xl shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-28px_var(--color-primary)]"
       }
     >
       <NodeContent className="flex items-center justify-between gap-5 px-4 py-3.5">

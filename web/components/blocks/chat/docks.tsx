@@ -278,7 +278,9 @@ export function QuestionDock({
         <div className="flex flex-col gap-4 px-4 py-3" onKeyDown={handleKeyDown}>
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3">
-              <div className="text-foreground text-sm font-medium">{question.header}</div>
+              <div className="text-foreground min-w-0 text-sm font-medium wrap-break-word">
+                {question.header}
+              </div>
               <div className="text-muted-foreground font-mono text-[11px]">
                 {tab + 1}/{total}
               </div>
@@ -304,7 +306,7 @@ export function QuestionDock({
             </div>
           </div>
 
-          <div className="text-foreground text-sm">
+          <div className="text-foreground text-sm wrap-break-word">
             {question.question}
             {question.multiple === true ? " Select all that apply." : ""}
           </div>
@@ -324,9 +326,13 @@ export function QuestionDock({
                       disabled={pending}
                       onCheckedChange={() => selectMulti(option.label)}
                     />
-                    <span className="flex flex-col gap-0.5">
-                      <span className="text-foreground text-sm">{option.label}</span>
-                      <span className="text-muted-foreground text-sm">{option.description}</span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-foreground text-sm wrap-break-word">
+                        {option.label}
+                      </span>
+                      <span className="text-muted-foreground text-sm wrap-break-word">
+                        {option.description}
+                      </span>
                     </span>
                   </label>
                 ))}
@@ -371,9 +377,13 @@ export function QuestionDock({
                     tabIndex={0}
                   >
                     <RadioGroupItem value={option.label} />
-                    <span className="flex flex-col gap-0.5">
-                      <span className="text-foreground text-sm">{option.label}</span>
-                      <span className="text-muted-foreground text-sm">{option.description}</span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-foreground text-sm wrap-break-word">
+                        {option.label}
+                      </span>
+                      <span className="text-muted-foreground text-sm wrap-break-word">
+                        {option.description}
+                      </span>
                     </span>
                   </label>
                 ))}
@@ -520,7 +530,7 @@ export function PermissionDock({
               <div className="flex flex-col gap-1">
                 {request.patterns.map((pattern) => (
                   <code
-                    className="border-border bg-muted/40 w-fit rounded px-1.5 py-0.5 font-mono text-xs"
+                    className="border-border bg-muted/40 w-fit max-w-full rounded px-1.5 py-0.5 font-mono text-xs wrap-break-word"
                     key={pattern}
                   >
                     {pattern}
@@ -581,11 +591,11 @@ export function TodoDock({ todos }: { todos: Todo[] }) {
         ) : (
           <ChevronRightIcon className="text-muted-foreground size-3.5 shrink-0" />
         )}
-        <span className="text-foreground text-sm font-medium">
+        <span className="text-foreground shrink-0 text-sm font-medium">
           {done}/{todos.length}
         </span>
         {preview && !open ? (
-          <span className="text-muted-foreground ml-1 truncate text-sm">{preview}</span>
+          <span className="text-muted-foreground ml-1 min-w-0 truncate text-sm">{preview}</span>
         ) : null}
       </button>
       {open ? (
@@ -606,7 +616,7 @@ export function TodoDock({ todos }: { todos: Todo[] }) {
                 />
                 <span
                   className={cn(
-                    "text-foreground",
+                    "text-foreground min-w-0 wrap-break-word",
                     terminal ? "text-muted-foreground line-through" : undefined
                   )}
                 >

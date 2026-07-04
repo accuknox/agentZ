@@ -59,8 +59,8 @@ async function AppGate({ children }: { children: React.ReactNode }) {
         />
       </Suspense>
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
+        <header className="flex h-16 min-w-0 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          <div className="flex min-w-0 items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator
               orientation="vertical"
@@ -69,7 +69,7 @@ async function AppGate({ children }: { children: React.ReactNode }) {
             <PageBreadcrumb />
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
           {children}
         </div>
       </SidebarInset>
@@ -80,8 +80,8 @@ async function AppGate({ children }: { children: React.ReactNode }) {
 function AppLayoutFallback() {
   return (
     <SidebarInset>
-      <header className="flex h-16 shrink-0 items-center gap-2">
-        <div className="flex items-center gap-2 px-4">
+      <header className="flex h-16 min-w-0 shrink-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator
             orientation="vertical"
@@ -96,7 +96,7 @@ function AppLayoutFallback() {
           </Breadcrumb>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" />
     </SidebarInset>
   )
 }

@@ -67,13 +67,13 @@ export function RuntimeTelemetryPage<TData extends TelemetryPageData>({
   const params = resolveTelemetrySearchParams(searchParams)
 
   return (
-    <main className="flex flex-1 flex-col gap-0 p-0">
+    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
         <Filters searchParams={params} />
       </Suspense>
       <Tabs value={config.value} className="flex flex-1 flex-col">
-        <div className="border-b px-6">
+        <div className="border-b px-4 sm:px-6">
           <TelemetryTabs />
         </div>
         <div className="flex flex-1 flex-col">
@@ -90,7 +90,7 @@ export function RuntimeTelemetryPage<TData extends TelemetryPageData>({
 
 function PageHeader() {
   return (
-    <div className="flex items-center justify-between px-6">
+    <div className="flex min-w-0 items-center justify-between px-4 sm:px-6">
       <div className="min-w-0">
         <h1 className="text-base font-medium tracking-normal">Runtime Telemetry</h1>
       </div>

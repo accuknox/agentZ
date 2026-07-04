@@ -52,15 +52,15 @@ export function TelemetryFilters({ agents, selectedAgentName, from, to }: Teleme
   return (
     <div
       data-pending={pending}
-      className="bg-background flex min-h-14 flex-col gap-3 border-b px-6 py-2 data-[pending=true]:opacity-70 sm:flex-row sm:items-center sm:justify-between"
+      className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 data-[pending=true]:opacity-70 sm:flex-row sm:items-center sm:justify-between sm:px-6"
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <Select
           value={selectedAgentName}
           onValueChange={(agentName) => update({ agent_name: agentName })}
           disabled={agents.length === 0}
         >
-          <SelectTrigger className="h-8 w-full min-w-52 rounded-md sm:w-64">
+          <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52">
             <SelectValue placeholder="Agent" />
           </SelectTrigger>
           <SelectContent>
@@ -103,12 +103,15 @@ function DateRangeControl({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="h-8 justify-start rounded-md font-normal">
+        <Button
+          variant="outline"
+          className="h-8 w-full max-w-full justify-start rounded-md font-normal sm:w-auto"
+        >
           <CalendarIcon data-icon="inline-start" />
           <span className="truncate">{rangeLabel(from, to)}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-0">
+      <PopoverContent align="start" className="max-w-[calc(100vw-2rem)] overflow-auto p-0">
         <Calendar
           mode="range"
           numberOfMonths={2}

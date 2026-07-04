@@ -131,6 +131,7 @@ function AgentActions({
       <AgentDialog
         mode="update"
         agentName={agent.name}
+        initialAgentStatus={agent.status}
         initialSandboxName={agent.sandboxName}
         sandboxes={sandboxes}
         initialHasNextSandboxPage={initialHasNextSandboxPage}

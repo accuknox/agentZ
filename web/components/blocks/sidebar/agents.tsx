@@ -30,20 +30,14 @@ import {
 import { BotIcon, ChevronRightIcon, Plus, Trash2 } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { dayjs } from "@/lib/dayjs"
-import {
-  watchAgents,
-  type Agent,
-  type Error as GatewayError,
-  type AgentStatus,
-  type WatchAgentsResponse,
-} from "@/lib/gateway/client"
-import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import type { Agent, AgentStatus } from "@/lib/gateway/client"
 import {
   experimental_streamedQuery as streamedQuery,
   queryOptions,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
+import { agentIsGettingReady, watchAgentsQueryOptions } from "@/components/agent-readiness"
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type {
   AgentSessionListItem,
@@ -96,56 +90,18 @@ export function NavAgents({
   const [manualOpenAgentName, setManualOpenAgentName] = useState<string | null>(null)
   const openAgentName = currentAgentName ?? manualOpenAgentName
 
-  const query = useQuery(
-    queryOptions({
-      enabled: Boolean(agents.agents),
-      placeholderData: initialAgents,
-      queryFn: streamedQuery<WatchAgentsResponse, Agent[], ["watchAgents"]>({
-        initialValue: initialAgents,
-        refetchMode: "reset",
-        reducer: (agents, event) => {
-          const byName = new Map(agents.map((agent) => [agent.name, agent]))
+  const query = useQuery({
+    ...watchAgentsQueryOptions(initialAgents),
+    enabled: agents.agents !== undefined,
+  })
 
-          for (const agent of event.agents) {
-            if (agent.status === "DELETED") {
-              byName.delete(agent.name)
-              continue
-            }
-
-            byName.set(agent.name, agent)
-          }
-
-          return Array.from(byName.values()).sort((x, y) => {
-            return (
-              Date.parse(y.modified_at) - Date.parse(x.modified_at) || x.name.localeCompare(y.name)
-            )
-          })
-        },
-        streamFn: async ({ signal }) => {
-          const result = await watchAgents({
-            baseUrl: await getGatewayBaseURL(),
-            signal,
-          })
-          return result.stream
-        },
-      }),
-      queryKey: ["watchAgents"],
-      refetchOnMount: "always",
-      refetchOnReconnect: "always",
-      refetchOnWindowFocus: false,
-      retry: true,
-      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
-      staleTime: Infinity,
-    })
-  )
-
-  const error = agents.error ?? toGatewayError(query.error)
+  const errorMessage = agents.error?.message ?? query.error?.message
   const queryAgents = query.data ?? initialAgents
 
-  if (error) {
+  if (errorMessage) {
     return (
       <SidebarMenuSubItem key="error">
-        <p className="text-destructive text-sm">{error.message}</p>
+        <p className="text-destructive text-sm">{errorMessage}</p>
       </SidebarMenuSubItem>
     )
   }
@@ -420,16 +376,6 @@ function SessionItem({
   )
 }
 
-function toGatewayError(err: Error | null): GatewayError | undefined {
-  if (!err) {
-    return undefined
-  }
-  return {
-    code: "SSE_ERROR",
-    message: err.message,
-  }
-}
-
 function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
   return queryOptions({
     enabled,
@@ -588,24 +534,19 @@ function sessionIDFromPath(path: string, agentName: string) {
 }
 
 function AgentBadge({ status }: { status: AgentStatus }) {
-  switch (status) {
-    case "PROGRESSING":
-      return (
-        <span className="text-sidebar-accent-foreground shrink-0">
-          <Spinner aria-label="Provisioning" className="size-3" />
-        </span>
-      )
-    case "DEGRADED":
-      return (
-        <span className="text-destructive shrink-0">
-          <Spinner aria-label="Degraded" className="size-3" />
-        </span>
-      )
-    case "IDLE":
-      return <BotIcon aria-label="Idle" role="status" className="text-primary" />
-    default:
-      return <BotIcon aria-label="Unknown" role="status" className="text-destructive" />
+  if (agentIsGettingReady(status)) {
+    return (
+      <span className={status === "DEGRADED" ? "text-destructive shrink-0" : "shrink-0"}>
+        <Spinner aria-label="Getting ready" className="size-3" />
+      </span>
+    )
   }
+
+  if (status === "IDLE") {
+    return <BotIcon aria-label="Idle" role="status" className="text-primary" />
+  }
+
+  return <BotIcon aria-label="Unknown" role="status" className="text-destructive" />
 }
 
 function formatSessionLastActivity(updatedAt: number) {

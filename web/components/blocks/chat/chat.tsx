@@ -12,6 +12,7 @@ import {
   Attachments,
 } from "@/components/ai-elements/attachments"
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
+import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
 import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
@@ -285,6 +286,7 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
 function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps) {
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
+  const agentReadiness = useAgentReadiness(agentName)
 
   const {
     blocked,
@@ -459,7 +461,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
   const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
     agentName,
     activeSessionId,
-    isBusy || blocked,
+    isBusy || blocked || agentReadiness.isGettingReady,
     setPromotedSessionId
   )
 
@@ -536,6 +538,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
+      if (agentReadiness.isGettingReady) return
       if (!messageHasRenderableContent(message.text, message.files)) {
         toast.error("Message cannot be empty")
         return
@@ -553,7 +556,14 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
         providerID: selectedModel.providerID,
       })
     },
-    [activeSessionId, pushRecent, selectedModel, selectedReasoningVariant, sendMessage]
+    [
+      activeSessionId,
+      agentReadiness.isGettingReady,
+      pushRecent,
+      selectedModel,
+      selectedReasoningVariant,
+      sendMessage,
+    ]
   )
 
   const handleModelSelect = useCallback((modelId: string) => {
@@ -604,7 +614,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
       textByPart,
     ]
   )
-  const inputDisabled = blocked || isBusy
+  const inputDisabled = blocked || isBusy || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
 
@@ -721,21 +731,28 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                   transition={promptShiftTransition}
                 >
                   <div className="flex min-w-0 items-center justify-end gap-1.5">
-                    <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
+                    <ModelSelector
+                      onOpenChange={setModelSelectorOpen}
+                      open={agentReadiness.isGettingReady ? false : modelSelectorOpen}
+                    >
                       <ModelSelectorTrigger asChild>
                         <PromptInputButton
                           className="h-8 max-w-[38vw] justify-start px-2 md:max-w-72"
                           disabled={inputDisabled}
                         >
-                          {selectedModel?.chefSlug ? (
+                          {agentReadiness.isGettingReady ? (
+                            <AgentGettingReady />
+                          ) : selectedModel?.chefSlug ? (
                             <ModelSelectorLogo provider={selectedModel.chefSlug} />
                           ) : null}
-                          {selectedModel?.name ? (
+                          {agentReadiness.isGettingReady ? null : selectedModel?.name ? (
                             <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
                           ) : (
                             <ModelSelectorName>Model</ModelSelectorName>
                           )}
-                          <ChevronDownIcon data-icon="inline-end" />
+                          {agentReadiness.isGettingReady ? null : (
+                            <ChevronDownIcon data-icon="inline-end" />
+                          )}
                         </PromptInputButton>
                       </ModelSelectorTrigger>
                       <ModelSelectorContent>
@@ -772,7 +789,9 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                         </ModelSelectorList>
                       </ModelSelectorContent>
                     </ModelSelector>
-                    {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
+                    {!agentReadiness.isGettingReady &&
+                    contextUsage?.maxTokens &&
+                    contextUsage.maxTokens > 0 ? (
                       <Context
                         maxTokens={contextUsage.maxTokens}
                         totalCostUSD={sessionCost}
@@ -792,7 +811,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                         </ContextContent>
                       </Context>
                     ) : null}
-                    {reasoningVariants.length > 0 ? (
+                    {!agentReadiness.isGettingReady && reasoningVariants.length > 0 ? (
                       <Select
                         disabled={inputDisabled}
                         onValueChange={handleReasoningLevelChange}
@@ -830,7 +849,11 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                 >
                   <PromptInputSubmit
                     className="size-9"
-                    disabled={blocked || (!isBusy && (!selectedModel || !canSubmit))}
+                    disabled={
+                      blocked ||
+                      agentReadiness.isGettingReady ||
+                      (!isBusy && (!selectedModel || !canSubmit))
+                    }
                     onStop={isBusy ? () => void abortMessage(directory) : undefined}
                     status={isBusy ? "streaming" : sendState}
                   />

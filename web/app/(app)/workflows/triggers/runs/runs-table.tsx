@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import {
@@ -25,7 +26,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge, formatDurationSeconds } from "@/lib/format"
 import {
   getWorkflowRun,
   watchWorkflowRuns,
@@ -212,7 +213,7 @@ export function RunsTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 overflow-hidden border-b">
+      <div className="w-full min-w-0 border-b">
         <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -321,17 +322,7 @@ function createColumns({
           return <span className="text-muted-foreground">-</span>
         }
 
-        const hours = Math.floor(durationSeconds / 3600)
-        const minutes = Math.floor((durationSeconds % 3600) / 60)
-        const seconds = durationSeconds % 60
-
-        if (hours > 0) {
-          return `${hours}h ${minutes}m`
-        }
-        if (minutes > 0) {
-          return `${minutes}m ${seconds}s`
-        }
-        return `${seconds}s`
+        return formatDurationSeconds(durationSeconds)
       },
     },
     {
@@ -339,12 +330,7 @@ function createColumns({
       header: "Age",
       sortingFn: "datetime",
       cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return "Unknown"
-        }
-
-        return createdAt.fromNow()
+        return formatAge(row.original.created_at)
       },
     },
     {
@@ -500,13 +486,12 @@ function OpenSessionMenuItem({
     )
   }
 
+  const sessionHref =
+    `/agents/${encodeURIComponent(agentName)}/${encodeURIComponent(detail.session_id)}` as Route
+
   return (
     <DropdownMenuItem asChild>
-      <Link
-        href={`/agents/${encodeURIComponent(agentName)}/${encodeURIComponent(detail.session_id)}`}
-        target="_blank"
-        rel="noreferrer"
-      >
+      <Link href={sessionHref} target="_blank" rel="noreferrer">
         <ExternalLink />
         Open session
       </Link>

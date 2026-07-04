@@ -27,6 +27,19 @@ const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
+type SidebarWrapperStyle = React.CSSProperties & {
+  "--sidebar-width": string
+  "--sidebar-width-icon": string
+}
+
+type SidebarWidthStyle = React.CSSProperties & {
+  "--sidebar-width": string
+}
+
+type SidebarSkeletonStyle = React.CSSProperties & {
+  "--skeleton-width": string
+}
+
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
   open: boolean
@@ -123,18 +136,17 @@ function SidebarProvider({
     }),
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
   )
+  const sidebarStyle: SidebarWrapperStyle = {
+    "--sidebar-width": SIDEBAR_WIDTH,
+    "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+    ...style,
+  }
 
   return (
     <SidebarContext.Provider value={contextValue}>
       <div
         data-slot="sidebar-wrapper"
-        style={
-          {
-            "--sidebar-width": SIDEBAR_WIDTH,
-            "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-            ...style,
-          } as React.CSSProperties
-        }
+        style={sidebarStyle}
         className={cn(
           "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
           className
@@ -178,6 +190,10 @@ function Sidebar({
   }
 
   if (isMobile) {
+    const mobileStyle: SidebarWidthStyle = {
+      "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+    }
+
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
@@ -185,19 +201,27 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
+          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0"
+          style={mobileStyle}
           side={side}
+          showCloseButton={false}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <Button
+            aria-label="Close Sidebar"
+            className="absolute top-3 right-3 z-10 md:hidden"
+            onClick={() => setOpenMobile(false)}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <PanelLeftIcon />
+          </Button>
+          <div className="flex h-full w-full flex-col [&_[data-sidebar=header]]:pr-12">
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     )
@@ -283,7 +307,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:inset-s-1/2 after:w-0.5 sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
+        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 transition-[background-color,width] ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:inset-s-1/2 after:w-0.5 sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
@@ -480,6 +504,7 @@ function SidebarMenuButton({
   size = "default",
   tooltip,
   className,
+  onClick,
   ...props
 }: React.ComponentProps<"button"> & {
   asChild?: boolean
@@ -487,7 +512,7 @@ function SidebarMenuButton({
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
-  const { isMobile, state } = useSidebar()
+  const { isMobile, setOpenMobile, state } = useSidebar()
 
   const button = (
     <Comp
@@ -496,6 +521,12 @@ function SidebarMenuButton({
       data-size={size}
       data-active={isActive}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      onClick={(event) => {
+        onClick?.(event)
+        if (asChild && isMobile) {
+          setOpenMobile(false)
+        }
+      }}
       {...props}
     />
   )
@@ -527,12 +558,14 @@ function SidebarMenuAction({
   className,
   asChild = false,
   showOnHover = false,
+  onClick,
   ...props
 }: React.ComponentProps<"button"> & {
   asChild?: boolean
   showOnHover?: boolean
 }) {
   const Comp = asChild ? Slot.Root : "button"
+  const { isMobile, setOpenMobile } = useSidebar()
 
   return (
     <Comp
@@ -544,6 +577,12 @@ function SidebarMenuAction({
           "peer-data-active/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 aria-expanded:opacity-100 md:opacity-0",
         className
       )}
+      onClick={(event) => {
+        onClick?.(event)
+        if (asChild && isMobile) {
+          setOpenMobile(false)
+        }
+      }}
       {...props}
     />
   )
@@ -570,6 +609,10 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
 }) {
+  const skeletonStyle: SidebarSkeletonStyle = {
+    "--skeleton-width": "72%",
+  }
+
   return (
     <div
       data-slot="sidebar-menu-skeleton"
@@ -581,11 +624,7 @@ function SidebarMenuSkeleton({
       <Skeleton
         className="h-4 max-w-(--skeleton-width) flex-1"
         data-sidebar="menu-skeleton-text"
-        style={
-          {
-            "--skeleton-width": "72%",
-          } as React.CSSProperties
-        }
+        style={skeletonStyle}
       />
     </div>
   )
@@ -625,6 +664,7 @@ function SidebarMenuSubButton({
   size = "md",
   isActive = false,
   className,
+  onClick,
   ...props
 }: React.ComponentProps<"a"> & {
   asChild?: boolean
@@ -632,6 +672,7 @@ function SidebarMenuSubButton({
   isActive?: boolean
 }) {
   const Comp = asChild ? Slot.Root : "a"
+  const { isMobile, setOpenMobile } = useSidebar()
 
   return (
     <Comp
@@ -643,6 +684,12 @@ function SidebarMenuSubButton({
         "group/menu-sub-button text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground [&>svg]:text-sidebar-accent-foreground flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 outline-hidden transition-[padding] group-has-data-[sidebar=menu-action]/menu-sub-item:pr-8 group-data-[collapsible=icon]:hidden focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[size=md]:text-sm data-[size=sm]:text-xs [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
         className
       )}
+      onClick={(event) => {
+        onClick?.(event)
+        if (asChild && isMobile) {
+          setOpenMobile(false)
+        }
+      }}
       {...props}
     />
   )

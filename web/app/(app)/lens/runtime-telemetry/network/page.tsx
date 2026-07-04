@@ -5,6 +5,7 @@ import { NetworkTelemetryTable } from "@/app/(app)/lens/runtime-telemetry/networ
 import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
+  type TelemetrySearchParams,
 } from "@/app/(app)/lens/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
@@ -14,12 +15,7 @@ export const metadata: Metadata = {
 export default function NetworkPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    agent_name?: string | string[]
-    from?: string | string[]
-    to?: string | string[]
-    telemetry_page_token?: string | string[]
-  }>
+  searchParams: Promise<TelemetrySearchParams>
 }) {
   const config: TelemetryPageConfig<NetworkTelemetryActionData> = {
     value: "network",

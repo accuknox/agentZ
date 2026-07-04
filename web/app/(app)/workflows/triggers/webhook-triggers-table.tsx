@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import {
   Table,
   TableBody,
@@ -46,7 +46,7 @@ export function WebhookTriggersTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 overflow-hidden border-b">
+      <div className="w-full min-w-0 border-b">
         <Table className="table-auto">
           <TableHeader>
             <TableRow>
@@ -96,7 +96,7 @@ export function WebhookTriggersTable({
                     <span className="font-mono text-sm">{row.workflowName}</span>
                   </TableCell>
                   <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.last_triggered}`}>
-                    <span>{dayjs(row.lastTriggeredAt).fromNow()}</span>
+                    <span>{formatAge(row.lastTriggeredAt)}</span>
                   </TableCell>
                 </TableRow>
               ))

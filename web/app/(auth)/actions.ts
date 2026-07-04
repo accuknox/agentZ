@@ -1,15 +1,24 @@
 "use server"
 
+import type { Route } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import * as z from "zod"
 import type { SocialProvider } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
 import { signInReturnTo, signInURL } from "@/lib/sign-in-redirect"
 
+const providerSignInFormSchema = z.object({
+  returnTo: z.string().optional().catch(undefined),
+  authPath: z.enum(["/signin", "/signup"]).catch("/signin"),
+})
+
 async function signInWithProvider(provider: SocialProvider, formData: FormData): Promise<never> {
+  const requestHeaders = await headers()
   const auth = getAuth()
-  const returnTo = signInReturnTo(formData.get("returnTo")?.toString())
-  const authPath = formData.get("authPath") === "/signup" ? "/signup" : "/signin"
+  const parsed = providerSignInFormSchema.parse(Object.fromEntries(formData))
+  const returnTo = signInReturnTo(parsed.returnTo)
+  const authPath = parsed.authPath
   const errorParams = new URLSearchParams()
   errorParams.set("provider", provider)
   if (returnTo) {
@@ -23,7 +32,7 @@ async function signInWithProvider(provider: SocialProvider, formData: FormData):
       errorCallbackURL,
       provider,
     },
-    headers: await headers(),
+    headers: requestHeaders,
   })
 
   if (!result.url) {
@@ -35,7 +44,7 @@ async function signInWithProvider(provider: SocialProvider, formData: FormData):
     redirect(signInURL({ error: "no_callback_url", provider, returnTo }))
   }
 
-  redirect(result.url)
+  redirect(result.url as Route)
 }
 
 export async function signInWithGithub(formData: FormData): Promise<never> {

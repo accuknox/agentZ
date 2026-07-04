@@ -27,7 +27,7 @@ import {
 import * as React from "react"
 import { startTransition, useActionState, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import { WizardShell } from "@/components/blocks/wizard/shell"
 import { Button } from "@/components/ui/button"
 import {
@@ -62,14 +62,46 @@ import * as z from "zod"
 import { sandboxAllowedHostSchema, sandboxNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { getMcpConnection, type McpConnectionSummary } from "@/lib/gateway/client"
+import { zMcpConnectionName } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { PackageSearch } from "./package-search"
 
 type SandboxWizardMode = "create" | "update"
 
-type SandboxIdentity = {
-  name: string
-}
+const identitySchema = z.object({
+  name: sandboxNameSchema,
+})
+
+const selectedMcpToolSchema = z.object({
+  name: z.string().min(1),
+  requireConsent: z.boolean(),
+})
+
+const selectedMcpConnectionRefSchema = z.object({
+  name: zMcpConnectionName,
+  tools: z.array(selectedMcpToolSchema),
+})
+
+const allowedHostsStepSchema = z.object({
+  allowedHosts: z
+    .array(sandboxAllowedHostSchema)
+    .transform((hosts) => Array.from(new Set(hosts)).sort()),
+})
+
+const packageStepSchema = z.object({
+  packages: z.array(z.string().min(1)),
+})
+
+const mcpStepSchema = z.object({
+  mcpConnectionRefs: z.array(selectedMcpConnectionRefSchema),
+})
+
+type SandboxIdentity = z.infer<typeof identitySchema>
+type SelectedMcpTool = z.infer<typeof selectedMcpToolSchema>
+type SelectedMcpConnectionRef = z.infer<typeof selectedMcpConnectionRefSchema>
+type PackageStepValues = z.infer<typeof packageStepSchema>
+type McpStepValues = z.infer<typeof mcpStepSchema>
+type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
 
 type SandboxWizardData = {
   identity?: SandboxIdentity
@@ -91,19 +123,10 @@ type SandboxWizardProps = {
   mode: SandboxWizardMode
 }
 
-type SelectedMcpConnectionRef = {
-  name: string
-  tools: SelectedMcpTool[]
-}
-
-type SelectedMcpTool = {
-  name: string
-  requireConsent: boolean
-}
-
 type PackageStepProps = {
   installedPackages: string[]
   selectedPackages: string[]
+  onAdvanceAction: () => void
   onPrev: () => void
   onNext: (packages: string[]) => void
 }
@@ -122,29 +145,10 @@ type AllowedHostsStepProps = {
 type McpStepProps = {
   initialMcpConnectionRefs: SelectedMcpConnectionRef[]
   mcpConnections: McpConnectionSummary[]
+  onAdvanceAction: () => void
   onNext: (mcpConnectionRefs: SelectedMcpConnectionRef[]) => void
   onPrev: () => void
 }
-
-type McpStepValues = {
-  mcpConnectionRefs: SelectedMcpConnectionRef[]
-}
-
-const identitySchema = z.object({
-  name: sandboxNameSchema,
-})
-
-const allowedHostsStepSchema = z.object({
-  allowedHosts: z
-    .array(sandboxAllowedHostSchema)
-    .transform((hosts) => Array.from(new Set(hosts)).sort()),
-})
-
-type PackageStepValues = {
-  packages: string[]
-}
-
-type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
 
 const formIdByStep = {
   identity: "sandbox-form-identity",
@@ -213,7 +217,7 @@ function IdentityForm({
     <form
       id="sandbox-form-identity"
       onSubmit={form.handleSubmit(onNext)}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <FieldGroup>
         <Controller
@@ -233,6 +237,7 @@ function IdentityForm({
                 onChange={field.onChange}
                 disabled={lockName}
                 readOnly={lockName}
+                autoFocus
                 autoComplete="off"
                 placeholder="my-sandbox"
                 aria-invalid={fieldState.invalid}
@@ -263,8 +268,9 @@ function PackageStep({
   onAdvanceAction,
   onNext,
   onPrev,
-}: PackageStepProps & { onAdvanceAction: () => void }) {
+}: PackageStepProps) {
   const form = useForm<PackageStepValues>({
+    resolver: zodResolver(packageStepSchema),
     defaultValues: {
       packages: selectedPackages,
     },
@@ -279,7 +285,7 @@ function PackageStep({
     <form
       id={formIdByStep.packages}
       onSubmit={form.handleSubmit((data) => onNext(data.packages))}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <PackageSearch
         installed={installedPackages}
@@ -303,18 +309,6 @@ function PackageStep({
   )
 }
 
-function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      {renderMcpServerIcon(connection.endpoint_url, {
-        "aria-hidden": "true",
-        className: "size-4 shrink-0",
-      })}
-      <span className="min-w-0 truncate font-medium">{connection.name}</span>
-    </div>
-  )
-}
-
 function createMcpSelectionColumns({
   expandedNames,
   selectedNames,
@@ -331,8 +325,9 @@ function createMcpSelectionColumns({
       accessorKey: "name",
       header: ({ column }) => (
         <Button
-          className="-ml-2"
-          variant="ghost"
+          className="text-foreground -ml-2"
+          variant="plain"
+          size="sm"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Name
@@ -351,20 +346,26 @@ function createMcpSelectionColumns({
             <ChevronDown
               className={`size-4 shrink-0 transition-transform ${expandedNames.has(connection.name) ? "rotate-180" : ""}`}
             />
-            <McpNameCell connection={connection} />
+            <div className="flex min-w-0 items-center gap-2">
+              {renderMcpServerIcon(connection.endpoint_url, {
+                "aria-hidden": "true",
+                className: "size-4 shrink-0",
+              })}
+              <span className="min-w-0 truncate font-medium">{connection.name}</span>
+            </div>
           </button>
         )
       },
     },
     {
       id: "auth_mode",
-      header: "Auth type",
+      header: () => <span className="text-foreground">Auth type</span>,
       accessorFn: (row) => row.auth_mode.toLowerCase(),
       cell: ({ row }) => <span className="capitalize">{row.original.auth_mode.toLowerCase()}</span>,
     },
     {
       id: "endpoint",
-      header: "Endpoint",
+      header: () => <span className="text-foreground">Endpoint</span>,
       accessorFn: (row) => row.endpoint_url,
       cell: ({ row }) => (
         <span
@@ -380,22 +381,16 @@ function createMcpSelectionColumns({
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button
-          className="-ml-2"
-          variant="ghost"
+          className="text-foreground -ml-2"
+          variant="plain"
+          size="sm"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Age
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return "Unknown"
-        }
-
-        return createdAt.fromNow()
-      },
+      cell: ({ row }) => formatAge(row.original.created_at),
     },
     {
       id: "attach",
@@ -421,7 +416,7 @@ function createMcpSelectionColumns({
   ]
 }
 
-function McpToolsRow({
+function McpToolsPanel({
   connection,
   selectedRef,
   onToolsChange,
@@ -480,7 +475,7 @@ function McpToolsRow({
         Enable the tools this sandbox may expose from <em>{connection.name}</em>.
       </p>
 
-      <div className="mx-3 grid grid-cols-[repeat(auto-fit,minmax(20rem,1fr))] overflow-hidden rounded border">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] overflow-hidden rounded border sm:mx-3">
         {detail.tools.map((tool) => {
           const selectedTool = toolsByName.get(tool.name)
           const selected = Boolean(selectedTool)
@@ -580,18 +575,18 @@ function McpStep({
   onAdvanceAction,
   onNext,
   onPrev,
-}: McpStepProps & { onAdvanceAction: () => void }) {
+}: McpStepProps) {
   const form = useForm<McpStepValues>({
+    resolver: zodResolver(mcpStepSchema),
     defaultValues: {
       mcpConnectionRefs: initialMcpConnectionRefs,
     },
   })
-  const watchedSelected = useWatch({
+  const selected = useWatch({
     control: form.control,
     name: "mcpConnectionRefs",
     defaultValue: initialMcpConnectionRefs,
   })
-  const selected = React.useMemo(() => watchedSelected ?? [], [watchedSelected])
   const selectedByName = React.useMemo(
     () => new Map(selected.map((ref) => [ref.name, ref])),
     [selected]
@@ -605,6 +600,11 @@ function McpStep({
   const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
   const [expandedNames, setExpandedNames] = React.useState<string[]>([])
   const expandedNameSet = React.useMemo(() => new Set(expandedNames), [expandedNames])
+  const toggleExpandedName = React.useCallback((name: string) => {
+    setExpandedNames((current) =>
+      current.includes(name) ? current.filter((value) => value !== name) : [...current, name]
+    )
+  }, [])
 
   const setSelected = React.useCallback(
     async (connection: McpConnectionSummary, checked: boolean) => {
@@ -641,21 +641,6 @@ function McpStep({
       }
 
       const nextRefs = [...next.values()].toSorted((a, b) => a.name.localeCompare(b.name))
-      if (
-        current.length === nextRefs.length &&
-        current.every(
-          (value, index) =>
-            value.name === nextRefs[index]?.name &&
-            value.tools.length === nextRefs[index]?.tools.length &&
-            value.tools.every(
-              (tool, toolIndex) =>
-                tool.name === nextRefs[index]?.tools[toolIndex]?.name &&
-                tool.requireConsent === nextRefs[index]?.tools[toolIndex]?.requireConsent
-            )
-        )
-      ) {
-        return
-      }
 
       form.setValue("mcpConnectionRefs", nextRefs, {
         shouldDirty: true,
@@ -692,15 +677,12 @@ function McpStep({
       createMcpSelectionColumns({
         expandedNames: expandedNameSet,
         selectedNames,
-        onExpandedChange: (name) =>
-          setExpandedNames((current) =>
-            current.includes(name) ? current.filter((value) => value !== name) : [...current, name]
-          ),
+        onExpandedChange: toggleExpandedName,
         onSelectedChange: (connection, checked) => {
           void setSelected(connection, checked)
         },
       }),
-    [expandedNameSet, selectedNames, setSelected]
+    [expandedNameSet, selectedNames, setSelected, toggleExpandedName]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -724,18 +706,18 @@ function McpStep({
       onSubmit={form.handleSubmit((data) =>
         onNext(data.mcpConnectionRefs.toSorted((a, b) => a.name.localeCompare(b.name)))
       )}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
-      <div className="-mx-4 -mt-4 min-w-0 space-y-4 sm:-mx-6 sm:-mt-6">
-        <div className="w-full min-w-0 overflow-hidden border-b">
-          <Table className="table-auto">
+      <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
+        <div className="w-full min-w-0 border-b">
+          <Table className="w-[max(100%,44rem)] table-auto">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className={`h-8 ${mcpColumnClassName[header.column.id] ?? "px-4"}`}
+                      className={`h-9 ${mcpColumnClassName[header.column.id] ?? "px-4"}`}
                     >
                       {header.isPlaceholder
                         ? null
@@ -765,7 +747,7 @@ function McpStep({
                           colSpan={columns.length}
                           className="bg-muted/20 px-4 py-4 whitespace-normal"
                         >
-                          <McpToolsRow
+                          <McpToolsPanel
                             connection={row.original}
                             selectedRef={selectedByName.get(row.original.name)}
                             onToolsChange={setEnabledTools}
@@ -919,7 +901,7 @@ function AllowedHostsStep({
     <form
       id={formIdByStep.allowedHosts}
       action={submitAction}
-      className="flex min-h-full flex-col gap-5"
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (
@@ -972,6 +954,7 @@ function AllowedHostsStep({
                   event.preventDefault()
                   addHost()
                 }}
+                autoFocus
                 placeholder="api.github.com"
                 autoComplete="off"
                 aria-invalid={hostFieldInvalid}
@@ -992,6 +975,7 @@ function AllowedHostsStep({
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="max-w-full"
                   onClick={() =>
                     setAllowedHostsState(
                       hosts.filter((item) => item !== host),
@@ -999,7 +983,7 @@ function AllowedHostsStep({
                     )
                   }
                 >
-                  {host}
+                  <span className="min-w-0 truncate">{host}</span>
                   <X data-icon="inline-end" />
                 </Button>
               ))}
@@ -1122,7 +1106,6 @@ export function SandboxWizard({
             currentIndex={currentIndex}
             currentStepId={currentStepId}
             direction={direction}
-            layout="horizontal"
             canVisitStepAction={(_, index) => index <= currentIndex || Boolean(data.identity)}
             onStepSelectAction={(step, index) => {
               requestNavigation({ kind: "step", step: step.id, index })

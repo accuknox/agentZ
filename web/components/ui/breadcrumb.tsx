@@ -2,7 +2,7 @@ import * as React from "react"
 import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
-import { MoreHorizontalIcon } from "lucide-react"
+import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
   return <nav aria-label="breadcrumb" data-slot="breadcrumb" className={cn(className)} {...props} />
@@ -68,10 +68,10 @@ function BreadcrumbSeparator({ children, className, ...props }: React.ComponentP
       data-slot="breadcrumb-separator"
       role="presentation"
       aria-hidden="true"
-      className={cn("px-1 text-xl [&>svg]:size-3.5", className)}
+      className={cn("text-muted-foreground/70 px-1 [&>svg]:size-3.5", className)}
       {...props}
     >
-      {children ?? "/"}
+      {children ?? <ChevronRightIcon />}
     </li>
   )
 }

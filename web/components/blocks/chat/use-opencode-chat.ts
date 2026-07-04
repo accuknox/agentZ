@@ -405,7 +405,7 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
       }
 
       const part = parts[index]
-      if (part.type !== "text" && part.type !== "reasoning") {
+      if (!part || (part.type !== "text" && part.type !== "reasoning")) {
         return store
       }
 

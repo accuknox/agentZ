@@ -2,31 +2,23 @@
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { WizardLayout, WizardStep } from "./types"
+import type { WizardStep } from "./types"
 
 export function WizardStepNav<TStep extends WizardStep>({
   canVisitStepAction,
   currentIndex,
-  layout = "vertical",
   onStepSelectAction,
   steps,
 }: {
   canVisitStepAction: (step: TStep, index: number) => boolean
   currentIndex: number
-  layout?: WizardLayout
   onStepSelectAction: (step: TStep, index: number) => void
   steps: readonly TStep[]
 }) {
   return (
     <ol
-      className={cn(
-        "flex w-full list-none gap-3",
-        layout === "vertical"
-          ? "flex-col md:h-full md:w-32 md:shrink-0 md:gap-0 lg:w-45"
-          : "w-auto max-w-full flex-row items-center justify-center"
-      )}
+      className="flex w-full max-w-xs list-none flex-col items-stretch gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:flex-nowrap sm:items-center sm:justify-center sm:gap-3"
       role="tablist"
-      aria-orientation={layout}
     >
       {steps.map((step, index) => {
         const disabled = !canVisitStepAction(step, index)
@@ -39,19 +31,11 @@ export function WizardStepNav<TStep extends WizardStep>({
         return (
           <li
             key={step.id}
-            className={cn(
-              "group peer min-h-0",
-              layout === "vertical"
-                ? "grid grid-cols-[auto_1fr] grid-rows-[2rem_1fr] gap-x-2 md:flex-1 md:last:flex-none lg:grid-rows-[2.25rem_1fr]"
-                : "flex items-center gap-2"
-            )}
+            className="group flex min-h-0 w-full max-w-full shrink-0 items-center gap-2 sm:w-auto"
             data-status={status}
           >
             <Button
-              className={cn(
-                "grid min-h-0 min-w-0 items-center gap-2 rounded-md p-1 text-left",
-                layout === "vertical" ? "col-span-2 grid-cols-[auto_1fr]" : "grid-cols-[auto_1fr]"
-              )}
+              className="grid min-h-0 w-full min-w-0 grid-cols-[auto_1fr] items-center justify-start gap-2 rounded-md p-1 text-left sm:w-auto"
               variant="plain"
               type="button"
               role="tab"
@@ -74,19 +58,14 @@ export function WizardStepNav<TStep extends WizardStep>({
               >
                 <Icon />
               </span>
-              <span className="truncate text-sm font-medium group-focus-within:underline group-hover:underline">
-                {step.title}
-              </span>
+              <span className="truncate text-sm font-medium">{step.title}</span>
             </Button>
-            <div className={cn("flex justify-center", layout === "horizontal" && "w-32")}>
+            <div className="hidden w-16 justify-center sm:flex lg:w-32">
               {!isLast && (
                 <div
                   aria-hidden="true"
                   data-status={status}
-                  className={cn(
-                    "bg-muted data-[status=success]:bg-primary transition-all duration-300 ease-in-out data-disabled:opacity-50",
-                    layout === "vertical" ? "hidden h-full w-0.5 md:block" : "h-0.5 w-full"
-                  )}
+                  className="bg-muted data-[status=success]:bg-primary h-0.5 w-full transition-colors duration-300 ease-in-out"
                 />
               )}
             </div>

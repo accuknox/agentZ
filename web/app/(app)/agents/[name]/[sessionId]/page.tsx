@@ -2,16 +2,9 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 
-type ChatPageParams = {
-  name: string
-  sessionId: string
-}
-
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<ChatPageParams>
-}): Promise<Metadata> {
+}: PageProps<"/agents/[name]/[sessionId]">): Promise<Metadata> {
   const { name, sessionId } = await params
 
   return {
@@ -19,7 +12,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function ChatPage({ params }: { params: Promise<ChatPageParams> }) {
+export default async function ChatPage({ params }: PageProps<"/agents/[name]/[sessionId]">) {
   return (
     <Suspense fallback={null}>
       <ChatPageContent params={params} />
@@ -27,7 +20,9 @@ export default async function ChatPage({ params }: { params: Promise<ChatPagePar
   )
 }
 
-async function ChatPageContent({ params }: { params: Promise<ChatPageParams> }) {
+async function ChatPageContent({
+  params,
+}: Pick<PageProps<"/agents/[name]/[sessionId]">, "params">) {
   const { name, sessionId } = await params
 
   return (

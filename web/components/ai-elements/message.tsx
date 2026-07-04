@@ -289,14 +289,15 @@ export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
 
 const streamdownPlugins = { cjk, code, math, mermaid }
 const codeLanguagePattern = /language-([^\s]+)/
-const supportedLanguages = new Set<BundledLanguage>(
-  Object.keys(bundledLanguages) as BundledLanguage[]
-)
+
+function isBundledLanguage(language: string): language is BundledLanguage {
+  return language in bundledLanguages
+}
 
 function codeBlockLanguage(language: string): BundledLanguage {
-  const normalized = language.toLowerCase()
-  if (supportedLanguages.has(normalized as BundledLanguage)) {
-    return normalized as BundledLanguage
+  const codeLanguage = language.toLowerCase()
+  if (isBundledLanguage(codeLanguage)) {
+    return codeLanguage
   }
 
   return "markdown"
@@ -356,7 +357,7 @@ const MarkdownPre: FC<ComponentProps<"pre"> & ExtraProps & { plainCodeBlocks?: b
   plainCodeBlocks = false,
   ...props
 }) => {
-  if (!isValidElement(children)) {
+  if (!isValidElement<MarkdownCodeElementProps>(children)) {
     return <>{children}</>
   }
 
@@ -366,7 +367,7 @@ const MarkdownPre: FC<ComponentProps<"pre"> & ExtraProps & { plainCodeBlocks?: b
         className={cn("my-2 overflow-auto wrap-break-word whitespace-pre-wrap", className)}
         {...props}
       >
-        {cloneElement(children as ReactElement<MarkdownCodeElementProps>, {
+        {cloneElement(children, {
           plainCodeBlocks,
           "data-block": "true",
         })}
@@ -374,7 +375,7 @@ const MarkdownPre: FC<ComponentProps<"pre"> & ExtraProps & { plainCodeBlocks?: b
     )
   }
 
-  return cloneElement(children as ReactElement<MarkdownCodeElementProps>, {
+  return cloneElement(children, {
     plainCodeBlocks,
     "data-block": "true",
   })
@@ -403,7 +404,7 @@ const MarkdownParagraph: FC<ComponentProps<"p"> & ExtraProps> = ({
   className,
   ...props
 }) => (
-  <p className={cn("leading-relaxed whitespace-pre-line", className)} {...props}>
+  <p className={cn("leading-relaxed wrap-break-word whitespace-pre-line", className)} {...props}>
     {children}
   </p>
 )
@@ -411,7 +412,10 @@ const MarkdownParagraph: FC<ComponentProps<"p"> & ExtraProps> = ({
 export const MessageResponse = memo(
   ({ className, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
     <Streamdown
-      className={cn("w-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+      className={cn(
+        "w-full min-w-0 wrap-break-word [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        className
+      )}
       components={{
         code: (codeProps) => <MarkdownCode {...codeProps} plainCodeBlocks={plainCodeBlocks} />,
         li: MarkdownLi,

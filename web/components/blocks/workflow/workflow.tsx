@@ -46,7 +46,7 @@ type WorkflowCanvasEdge = FlowEdge<
   "animated" | "temporary"
 >
 
-type DagrePositionedNode = DagreNodeLabel & Required<Pick<DagreNodeLabel, "x" | "y">>
+type DagrePositionedNode = DagreNodeLabel & { x: number; y: number }
 
 const fallbackNodeWidth = 304
 const fallbackNodeHeight = 92
@@ -107,7 +107,7 @@ export default function Workflow({ workflow }: WorkflowProps) {
         <Controls position="bottom-left" showInteractive={false} />
         <Panel
           position="top-left"
-          className="bg-card/88 supports-[backdrop-filter]:bg-card/72 border-border/70 w-sm max-w-sm overflow-hidden border p-0 shadow-lg shadow-black/5 backdrop-blur-md"
+          className="bg-card/88 supports-[backdrop-filter]:bg-card/72 border-border/70 w-[calc(100vw-2rem)] max-w-sm overflow-hidden border p-0 shadow-lg shadow-black/5 backdrop-blur-md sm:w-sm"
         >
           <Collapsible defaultOpen={false} className="group/workflow-summary">
             <CollapsibleTrigger asChild>
@@ -233,8 +233,8 @@ function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvas
       handles={data.handles}
       className={
         selected
-          ? "bg-background/96 border-primary/65 shadow-primary/15 dark:bg-accent/90 w-[19rem] rounded-xl border-2 shadow-[0_18px_48px_-28px_var(--color-primary)] transition-all duration-200 ease-out"
-          : "bg-background/94 hover:border-primary/35 border-border/80 dark:bg-accent/82 w-[19rem] rounded-xl shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-28px_var(--color-primary)]"
+          ? "bg-background/96 border-primary/65 shadow-primary/15 dark:bg-accent/90 w-[19rem] rounded-xl border-2 shadow-[0_18px_48px_-28px_var(--color-primary)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out"
+          : "bg-background/94 hover:border-primary/35 border-border/80 dark:bg-accent/82 w-[19rem] rounded-xl shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-28px_var(--color-primary)]"
       }
     >
       <NodeContent className="flex items-center justify-between gap-5 px-4 py-3.5">
@@ -355,7 +355,7 @@ function applyWorkflowLayout(
   workflow: WorkflowDefinition,
   nodes: WorkflowCanvasNode[]
 ): WorkflowCanvasNode[] {
-  const graph = new dagre.graphlib.Graph<DagreGraphLabel, DagreNodeLabel>()
+  const graph = new dagre.graphlib.Graph<DagreGraphLabel, DagrePositionedNode>()
   const outgoingCounts = new Map<string, number>()
   const incomingTargets = new Set<string>()
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
@@ -375,6 +375,8 @@ function applyWorkflowLayout(
     graph.setNode(node.name, {
       width: dimensions.width + nodeMarginX,
       height: dimensions.height + nodeMarginY,
+      x: 0,
+      y: 0,
     })
   }
 
@@ -388,10 +390,6 @@ function applyWorkflowLayout(
 
   return workflow.nodes.map((node) => {
     const layout = graph.node(node.name)
-    if (!hasPosition(layout)) {
-      throw new Error(`workflow node ${node.name} is missing dagre coordinates`)
-    }
-
     const existingNode = nodeById.get(node.name)
     const { height, width } = getNodeDimensions(existingNode)
 
@@ -441,19 +439,4 @@ function getNodeDimensions(node: WorkflowCanvasNode | undefined): {
     height: node?.measured?.height ?? fallbackNodeHeight,
     width: node?.measured?.width ?? fallbackNodeWidth,
   }
-}
-
-function hasPosition(node: unknown): node is DagrePositionedNode {
-  return (
-    typeof node === "object" &&
-    node !== null &&
-    "x" in node &&
-    "y" in node &&
-    "width" in node &&
-    "height" in node &&
-    typeof node.x === "number" &&
-    typeof node.y === "number" &&
-    typeof node.width === "number" &&
-    typeof node.height === "number"
-  )
 }

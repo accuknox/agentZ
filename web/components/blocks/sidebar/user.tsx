@@ -33,7 +33,7 @@ export function NavUser({
   }
 }) {
   const router = useRouter()
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const [isPending, setIsPending] = useState(false)
   const initials = user.name
     .split(/\s+/)
@@ -97,7 +97,13 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
+            <DropdownMenuGroup
+              onClick={() => {
+                if (isMobile) {
+                  setOpenMobile(false)
+                }
+              }}
+            >
               <DropdownMenuItem asChild>
                 <Link href="/settings/account">
                   <User2 />

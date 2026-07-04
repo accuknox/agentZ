@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -7,19 +8,24 @@ import { deleteMcpFormAction, submitMcpFormAction } from "@/data/mcp.actions"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { McpTable } from "./mcp-table"
 import { NewMcpButton } from "./new-mcp-button"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "MCP Connections",
 }
 
+const mcpConnectionsSearchParamsSchema = z.object({
+  page_token: searchParamStringSchema,
+})
+
 type SearchParams = {
-  page_token?: string | string[]
+  page_token?: SearchParamStringInput
 }
 
 export default async function MCPsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
+      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-normal">MCP</h1>
         </div>
@@ -42,11 +48,10 @@ export default async function MCPsPage({ searchParams }: { searchParams: Promise
 }
 
 async function McpConnections({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams
-  const pageToken = Array.isArray(params.page_token) ? params.page_token[0] : params.page_token
+  const params = mcpConnectionsSearchParamsSchema.parse(await searchParams)
   const result = await listMcpConnectionsCachedQuery({
     limit: 50,
-    page_token: pageToken,
+    page_token: params.page_token,
   })
 
   if (result.error) {

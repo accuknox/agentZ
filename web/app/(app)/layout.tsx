@@ -1,7 +1,6 @@
 import { Suspense } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { connection } from "next/server"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { PageBreadcrumb } from "@/components/blocks/breadcrumbs/page-breadcrumb"
 import {
@@ -12,7 +11,6 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getAuth } from "@/lib/auth"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -26,9 +24,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 async function AppGate({ children }: { children: React.ReactNode }) {
-  await connection()
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   const session = await auth.api.getSession({
     headers: requestHeaders,
   })
@@ -62,29 +59,17 @@ async function AppGate({ children }: { children: React.ReactNode }) {
         />
       </Suspense>
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
+        <header className="flex h-16 min-w-0 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          <div className="flex min-w-0 items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator
               orientation="vertical"
               className="mr-2 data-vertical:h-4 data-vertical:self-auto"
             />
-            <Suspense
-              fallback={
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>Home</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-              }
-            >
-              <PageBreadcrumb agents={listAgentsCachedQuery()} />
-            </Suspense>
+            <PageBreadcrumb />
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
           {children}
         </div>
       </SidebarInset>
@@ -95,8 +80,8 @@ async function AppGate({ children }: { children: React.ReactNode }) {
 function AppLayoutFallback() {
   return (
     <SidebarInset>
-      <header className="flex h-16 shrink-0 items-center gap-2">
-        <div className="flex items-center gap-2 px-4">
+      <header className="flex h-16 min-w-0 shrink-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator
             orientation="vertical"
@@ -111,7 +96,7 @@ function AppLayoutFallback() {
           </Breadcrumb>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" />
     </SidebarInset>
   )
 }

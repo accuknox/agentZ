@@ -23,6 +23,11 @@ export type ChartConfig = Record<
   )
 >
 
+type ChartIndicatorStyle = React.CSSProperties & {
+  "--color-bg": string
+  "--color-border": string
+}
+
 type ChartContextProps = {
   config: ChartConfig
 }
@@ -93,7 +98,8 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
-    const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ?? itemConfig.color
+    const themeKey = theme === "dark" ? "dark" : "light"
+    const color = itemConfig.theme?.[themeKey] ?? itemConfig.color
     return color ? `  --color-${key}: ${color};` : null
   })
   .join("\n")}
@@ -180,6 +186,10 @@ function ChartTooltipContent({
             const key = `${nameKey ?? item.name ?? item.dataKey ?? "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
             const indicatorColor = color ?? item.payload?.fill ?? item.color
+            const indicatorStyle: ChartIndicatorStyle = {
+              "--color-bg": indicatorColor,
+              "--color-border": indicatorColor,
+            }
 
             return (
               <div
@@ -208,12 +218,7 @@ function ChartTooltipContent({
                               "my-0.5": nestLabel && indicator === "dashed",
                             }
                           )}
-                          style={
-                            {
-                              "--color-bg": indicatorColor,
-                              "--color-border": indicatorColor,
-                            } as React.CSSProperties
-                          }
+                          style={indicatorStyle}
                         />
                       )
                     )}
@@ -316,14 +321,12 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
 
   let configLabelKey: string = key
 
-  if (key in payload && typeof payload[key as keyof typeof payload] === "string") {
-    configLabelKey = payload[key as keyof typeof payload] as string
-  } else if (
-    payloadPayload &&
-    key in payloadPayload &&
-    typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
-  ) {
-    configLabelKey = payloadPayload[key as keyof typeof payloadPayload] as string
+  const payloadValue = Reflect.get(payload, key)
+  const nestedPayloadValue = payloadPayload ? Reflect.get(payloadPayload, key) : undefined
+  if (typeof payloadValue === "string") {
+    configLabelKey = payloadValue
+  } else if (typeof nestedPayloadValue === "string") {
+    configLabelKey = nestedPayloadValue
   }
 
   return configLabelKey in config ? config[configLabelKey] : config[key]

@@ -27,12 +27,12 @@ import { createSecretColumns } from "./secret-columns"
 import type { DeleteSecretFormAction } from "@/data/types"
 
 const columnClassName: Record<string, string> = {
-  key: "w-[29%]",
-  type: "w-[8%]",
-  status: "w-[10%]",
-  hosts: "w-[26%]",
-  age: "w-[24%]",
-  actions: "w-[3%]",
+  key: "w-56",
+  type: "w-24",
+  status: "w-28",
+  hosts: "min-w-0 w-0",
+  age: "w-36",
+  actions: "w-14",
 }
 
 const watchSecretsQueryOptions = (agentName: string, secrets: SecretListItem[]) =>
@@ -119,8 +119,8 @@ export function SecretTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 overflow-hidden border-b">
-        <Table className="w-full table-fixed">
+      <div className="w-full min-w-0 border-b">
+        <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

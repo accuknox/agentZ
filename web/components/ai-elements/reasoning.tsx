@@ -110,6 +110,8 @@ export const Reasoning = memo(
 
         return () => clearTimeout(timer)
       }
+
+      return undefined
     }, [isStreaming, isOpen, setIsOpen, hasAutoClosed])
 
     const handleOpenChange = useCallback(

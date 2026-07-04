@@ -85,11 +85,9 @@ function AutoSizeTextarea({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Escape") {
       event.preventDefault()
-      ;(
-        event.currentTarget.parentElement?.querySelector(
-          "button[data-question-dismiss]"
-        ) as HTMLElement | null
-      )?.focus()
+      event.currentTarget.parentElement
+        ?.querySelector<HTMLElement>("button[data-question-dismiss]")
+        ?.focus()
       return
     }
     if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === "Enter") {
@@ -141,9 +139,6 @@ export function QuestionDock({
   const tab = Math.min(entry.tab, total - 1)
   const question = questions[tab]
   const selected = entry.answers[tab]
-  const customEnabled = question
-    ? (entry.customEnabled[tab] ?? false) && question.custom !== false
-    : false
   const isLast = tab === total - 1
   const answers = buildAnswers(entry, request)
   const currentAnswered = (answers[tab]?.length ?? 0) > 0 || (entry.customEnabled[tab] ?? false)
@@ -243,7 +238,7 @@ export function QuestionDock({
       next()
       return
     }
-    const target = event.target as HTMLElement | null
+    const target = event.target instanceof HTMLElement ? event.target : null
     const onOption = target?.closest("[data-question-option]") != null
     if (!onOption) return
     if (event.altKey || event.ctrlKey || event.metaKey) return
@@ -283,7 +278,9 @@ export function QuestionDock({
         <div className="flex flex-col gap-4 px-4 py-3" onKeyDown={handleKeyDown}>
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3">
-              <div className="text-foreground text-sm font-medium">{question.header}</div>
+              <div className="text-foreground min-w-0 text-sm font-medium wrap-break-word">
+                {question.header}
+              </div>
               <div className="text-muted-foreground font-mono text-[11px]">
                 {tab + 1}/{total}
               </div>
@@ -309,7 +306,7 @@ export function QuestionDock({
             </div>
           </div>
 
-          <div className="text-foreground text-sm">
+          <div className="text-foreground text-sm wrap-break-word">
             {question.question}
             {question.multiple === true ? " Select all that apply." : ""}
           </div>
@@ -329,9 +326,13 @@ export function QuestionDock({
                       disabled={pending}
                       onCheckedChange={() => selectMulti(option.label)}
                     />
-                    <span className="flex flex-col gap-0.5">
-                      <span className="text-foreground text-sm">{option.label}</span>
-                      <span className="text-muted-foreground text-sm">{option.description}</span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-foreground text-sm wrap-break-word">
+                        {option.label}
+                      </span>
+                      <span className="text-muted-foreground text-sm wrap-break-word">
+                        {option.description}
+                      </span>
                     </span>
                   </label>
                 ))}
@@ -376,9 +377,13 @@ export function QuestionDock({
                     tabIndex={0}
                   >
                     <RadioGroupItem value={option.label} />
-                    <span className="flex flex-col gap-0.5">
-                      <span className="text-foreground text-sm">{option.label}</span>
-                      <span className="text-muted-foreground text-sm">{option.description}</span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-foreground text-sm wrap-break-word">
+                        {option.label}
+                      </span>
+                      <span className="text-muted-foreground text-sm wrap-break-word">
+                        {option.description}
+                      </span>
                     </span>
                   </label>
                 ))}
@@ -525,7 +530,7 @@ export function PermissionDock({
               <div className="flex flex-col gap-1">
                 {request.patterns.map((pattern) => (
                   <code
-                    className="border-border bg-muted/40 w-fit rounded px-1.5 py-0.5 font-mono text-xs"
+                    className="border-border bg-muted/40 w-fit max-w-full rounded px-1.5 py-0.5 font-mono text-xs wrap-break-word"
                     key={pattern}
                   >
                     {pattern}
@@ -586,11 +591,11 @@ export function TodoDock({ todos }: { todos: Todo[] }) {
         ) : (
           <ChevronRightIcon className="text-muted-foreground size-3.5 shrink-0" />
         )}
-        <span className="text-foreground text-sm font-medium">
+        <span className="text-foreground shrink-0 text-sm font-medium">
           {done}/{todos.length}
         </span>
         {preview && !open ? (
-          <span className="text-muted-foreground ml-1 truncate text-sm">{preview}</span>
+          <span className="text-muted-foreground ml-1 min-w-0 truncate text-sm">{preview}</span>
         ) : null}
       </button>
       {open ? (
@@ -611,7 +616,7 @@ export function TodoDock({ todos }: { todos: Todo[] }) {
                 />
                 <span
                   className={cn(
-                    "text-foreground",
+                    "text-foreground min-w-0 wrap-break-word",
                     terminal ? "text-muted-foreground line-through" : undefined
                   )}
                 >

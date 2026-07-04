@@ -20,7 +20,7 @@ import {
   Trash2,
 } from "lucide-react"
 import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -140,7 +140,7 @@ export function ScheduleTriggersTable({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 overflow-hidden border-b">
+      <div className="w-full min-w-0 border-b">
         <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -303,14 +303,7 @@ function createColumns(
         </Button>
       ),
       sortingFn: "datetime",
-      cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return "Unknown"
-        }
-
-        return createdAt.fromNow()
-      },
+      cell: ({ row }) => formatAge(row.original.created_at),
     },
     {
       id: "actions",

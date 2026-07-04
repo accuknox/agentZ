@@ -6,12 +6,12 @@ import { TelemetryTableSkeleton } from "@/app/(app)/lens/runtime-telemetry/telem
 export default function Loading() {
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
-      <div className="flex items-center justify-between px-6">
+      <div className="flex items-center justify-between px-4 sm:px-6">
         <Skeleton className="h-6 w-36" />
       </div>
       <div className="bg-muted/20 h-15 border-b" />
       <Tabs value="process" className="flex flex-1 flex-col">
-        <div className="border-b px-6">
+        <div className="border-b px-4 sm:px-6">
           <TabsList variant="line" className="h-10 gap-4">
             <div className="flex h-6 items-center gap-4">
               <Skeleton className="h-6 w-20" />

@@ -11,8 +11,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Spinner } from "@/components/ui/spinner"
+import type { ToolEntry } from "@/components/blocks/chat/timeline"
 import { cn } from "@/lib/utils"
-import type { QuestionAnswer, QuestionInfo, ToolPart, Todo } from "@opencode-ai/sdk/v2"
+import type { ToolPart } from "@opencode-ai/sdk/v2"
 import {
   BrainIcon,
   ChevronDownIcon,
@@ -28,21 +29,16 @@ import {
   TerminalSquareIcon,
   WrenchIcon,
 } from "lucide-react"
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { BundledLanguage } from "shiki"
 import { useState } from "react"
-
-type ToolEntry =
-  | { type: "tool"; key: string; part: ToolPart }
-  | { type: "context"; key: string; parts: ToolPart[] }
+import * as z from "zod"
 
 type ToolProps = {
   agentName: string
   part: ToolPart
 }
 
-const contextTools = new Set(["read", "glob", "grep", "list"])
 const genericToolPrimaryKeys = new Set([
   "description",
   "query",
@@ -91,12 +87,73 @@ type Diagnostic = {
   severity?: number
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
+const nonEmptyStringSchema = z.string().min(1)
+const optionalNonEmptyStringSchema = nonEmptyStringSchema.optional().catch(undefined)
+const numberSchema = z.number()
+const displayPrimitiveSchema = z.union([z.string(), z.number(), z.boolean()])
+const loadedFilesSchema = z.array(z.string()).catch([])
+const toolFileSchema = z
+  .object({
+    additions: z.number().catch(0),
+    after: optionalNonEmptyStringSchema,
+    before: optionalNonEmptyStringSchema,
+    deletions: z.number().catch(0),
+    diff: optionalNonEmptyStringSchema,
+    filePath: nonEmptyStringSchema,
+    movePath: optionalNonEmptyStringSchema,
+    patch: optionalNonEmptyStringSchema,
+    relativePath: optionalNonEmptyStringSchema,
+    type: z.enum(["add", "delete", "move", "update"]),
+  })
+  .transform(({ diff, filePath, patch, relativePath, ...file }) => ({
+    ...file,
+    filePath,
+    patch: patch ?? diff,
+    relativePath: relativePath ?? filePath,
+  }))
+const toolFilesSchema = z.array(toolFileSchema).catch([])
+const diagnosticSchema = z.object({
+  message: z.string(),
+  range: z.object({
+    end: z.object({ character: z.number(), line: z.number() }),
+    start: z.object({ character: z.number(), line: z.number() }),
+  }),
+  severity: z.number().optional(),
+})
+const fileDiffSchema = z.object({ after: optionalNonEmptyStringSchema }).catch({
+  after: undefined,
+})
+const diagnosticsByFileSchema = z.record(z.string(), z.array(diagnosticSchema)).catch({})
+const questionOptionSchema = z.object({
+  description: z.string(),
+  label: z.string(),
+})
+const questionInfoSchema = z.object({
+  header: z.string(),
+  multiple: z.boolean().optional(),
+  options: z.array(questionOptionSchema),
+  question: z.string(),
+})
+const questionInfosSchema = z.array(questionInfoSchema).catch([])
+const questionAnswersSchema = z.array(z.array(z.string())).catch([])
+const todosSchema = z
+  .array(
+    z.object({
+      content: z.string(),
+      priority: z.string(),
+      status: z.string(),
+    })
+  )
+  .catch([])
 
 function nonEmptyString(value: unknown) {
-  return typeof value === "string" && value.length > 0 ? value : undefined
+  const parsed = nonEmptyStringSchema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
+
+function numberValue(value: unknown) {
+  const parsed = numberSchema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
 }
 
 function baseName(path: string) {
@@ -119,47 +176,6 @@ function shortLabel(value: string | undefined, max = 56) {
   if (!value) return undefined
   if (value.length <= max) return value
   return `${value.slice(0, max - 1)}…`
-}
-
-function isToolVisible(part: ToolPart) {
-  if (part.tool === "todowrite") return false
-  if (part.tool === "question") {
-    return part.state.status !== "pending" && part.state.status !== "running"
-  }
-  return true
-}
-
-function groupTools(parts: ToolPart[]) {
-  const result: ToolEntry[] = []
-  let group: ToolPart[] = []
-
-  const flush = () => {
-    if (group.length === 0) return
-    if (group.length === 1) {
-      const [part] = group
-      if (part) result.push({ type: "tool", key: part.id, part })
-    } else {
-      result.push({
-        type: "context",
-        key: group.map((part) => part.id).join(":"),
-        parts: group,
-      })
-    }
-    group = []
-  }
-
-  for (const part of parts.filter(isToolVisible)) {
-    if (contextTools.has(part.tool)) {
-      group.push(part)
-      continue
-    }
-
-    flush()
-    result.push({ type: "tool", key: part.id, part })
-  }
-
-  flush()
-  return result
 }
 
 function toolStateTone(status: ToolPart["state"]["status"]): ToolTone {
@@ -213,87 +229,9 @@ function urls(text: string | undefined) {
     })
 }
 
-function loadedFiles(value: unknown) {
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is string => typeof item === "string")
-}
-
-function toolFiles(value: unknown): ToolFile[] {
-  if (!Array.isArray(value)) return []
-
-  return value.flatMap((item) => {
-    if (!isPlainRecord(item)) return []
-
-    const filePath = nonEmptyString(item.filePath)
-    const relativePath = nonEmptyString(item.relativePath) ?? filePath
-    const type = item.type
-
-    if (!filePath || !relativePath) return []
-    if (type !== "add" && type !== "delete" && type !== "move" && type !== "update") return []
-
-    return [
-      {
-        additions: typeof item.additions === "number" ? item.additions : 0,
-        after: nonEmptyString(item.after),
-        before: nonEmptyString(item.before),
-        deletions: typeof item.deletions === "number" ? item.deletions : 0,
-        filePath,
-        movePath: nonEmptyString(item.movePath),
-        patch: nonEmptyString(item.patch) ?? nonEmptyString(item.diff),
-        relativePath,
-        type,
-      },
-    ]
-  })
-}
-
 function diagnosticsByPath(value: unknown, filePath: string | undefined) {
-  if (!filePath || !isPlainRecord(value)) return []
-
-  const entries = value[filePath]
-  if (!Array.isArray(entries)) return []
-
-  return entries.filter((item): item is Diagnostic => {
-    return (
-      isPlainRecord(item) &&
-      isPlainRecord(item.range) &&
-      isPlainRecord(item.range.start) &&
-      isPlainRecord(item.range.end) &&
-      typeof item.message === "string" &&
-      typeof item.range.start.line === "number" &&
-      typeof item.range.start.character === "number" &&
-      typeof item.range.end.line === "number" &&
-      typeof item.range.end.character === "number"
-    )
-  })
-}
-
-function isQuestionInfo(value: unknown): value is QuestionInfo {
-  return (
-    isPlainRecord(value) && typeof value.header === "string" && typeof value.question === "string"
-  )
-}
-
-function questionInfos(value: unknown) {
-  return Array.isArray(value) ? value.filter(isQuestionInfo) : []
-}
-
-function isQuestionAnswer(value: unknown): value is QuestionAnswer {
-  return Array.isArray(value) && value.every((item) => typeof item === "string")
-}
-
-function questionAnswers(value: unknown) {
-  return Array.isArray(value) ? value.filter(isQuestionAnswer) : []
-}
-
-function isTodo(value: unknown): value is Todo {
-  return (
-    isPlainRecord(value) && typeof value.content === "string" && typeof value.status === "string"
-  )
-}
-
-function todos(value: unknown) {
-  return Array.isArray(value) ? value.filter(isTodo) : []
+  if (!filePath) return []
+  return diagnosticsByFileSchema.parse(value)[filePath] ?? []
 }
 
 function shellTranscript(part: ToolPart) {
@@ -422,14 +360,15 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
           <div className={cn("shrink-0 text-sm font-medium", toneClass(tone))}>{title}</div>
           {arg ? (
             href ? (
-              <Link
+              <a
                 className="text-muted-foreground truncate font-mono text-sm underline-offset-2 hover:underline"
                 href={href}
                 onClick={(event) => event.stopPropagation()}
+                rel="noreferrer"
                 target="_blank"
               >
                 {arg}
-              </Link>
+              </a>
             ) : (
               <div className="text-muted-foreground truncate font-mono text-sm">{arg}</div>
             )
@@ -485,8 +424,8 @@ function ToolCard({
 
 function ToolDetailText({ children }: { children: React.ReactNode }) {
   return (
-    <div className="max-h-96 overflow-auto text-sm leading-5">
-      <div className="min-w-0">{children}</div>
+    <div className="max-h-96 max-w-full overflow-auto text-sm leading-5">
+      <div className="max-w-full min-w-0 wrap-break-word">{children}</div>
     </div>
   )
 }
@@ -494,12 +433,16 @@ function ToolDetailText({ children }: { children: React.ReactNode }) {
 function ToolDescription({ children }: { children: React.ReactNode }) {
   if (!children) return null
 
-  return <div className="text-muted-foreground text-sm whitespace-pre-wrap">{children}</div>
+  return (
+    <div className="text-muted-foreground text-sm wrap-break-word whitespace-pre-wrap">
+      {children}
+    </div>
+  )
 }
 
 function ToolCode({ code, language = "markdown" }: { code: string; language?: BundledLanguage }) {
   return (
-    <div className="[&_pre]:p-0 [&_pre]:text-xs" data-language={language}>
+    <div className="max-w-full min-w-0 [&_pre]:p-0 [&_pre]:text-xs" data-language={language}>
       <CodeBlockContent code={code} language={language} showLineNumbers={code.includes("\n")} />
     </div>
   )
@@ -511,9 +454,9 @@ function LoadedFiles({ files }: { files: string[] }) {
   return (
     <div className="text-muted-foreground space-y-1 text-sm">
       {files.map((path) => (
-        <div className="flex items-center gap-1.5" key={path}>
+        <div className="flex min-w-0 items-center gap-1.5" key={path}>
           <ChevronRightIcon className="size-3 shrink-0" />
-          <span className="truncate">{path}</span>
+          <span className="min-w-0 truncate">{path}</span>
         </div>
       ))}
     </div>
@@ -542,9 +485,10 @@ function Diagnostics({ items }: { items: Diagnostic[] }) {
 
 function GenericTool({ part }: ToolProps) {
   const input = part.state.input
+  const inputFilePath = nonEmptyString(input.filePath)
   const arg =
     shortLabel(nonEmptyString(input.name)) ??
-    shortLabel(nonEmptyString(input.filePath) ? baseName(String(input.filePath)) : undefined) ??
+    shortLabel(inputFilePath ? baseName(inputFilePath) : undefined) ??
     shortLabel(nonEmptyString(input.pattern)) ??
     shortLabel(nonEmptyString(input.query)) ??
     shortLabel(nonEmptyString(input.url)) ??
@@ -553,10 +497,8 @@ function GenericTool({ part }: ToolProps) {
   const extraArgs = Object.entries(input)
     .filter(([key]) => !genericToolPrimaryKeys.has(key))
     .flatMap(([key, value]) => {
-      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-        return [`${key}=${value}`]
-      }
-      return []
+      const parsed = displayPrimitiveSchema.safeParse(value)
+      return parsed.success ? [`${key}=${parsed.data}`] : []
     })
     .slice(0, 3)
 
@@ -572,15 +514,12 @@ function GenericTool({ part }: ToolProps) {
 }
 
 function ReadTool({ part }: ToolProps) {
-  const offset = typeof part.state.input.offset === "number" ? part.state.input.offset : undefined
-  const limit = typeof part.state.input.limit === "number" ? part.state.input.limit : undefined
+  const offset = numberValue(part.state.input.offset)
+  const limit = numberValue(part.state.input.limit)
   const metadata = toolMetadata(part)
+  const inputFilePath = nonEmptyString(part.state.input.filePath)
   const arg =
-    shortLabel(
-      nonEmptyString(part.state.input.filePath)
-        ? baseName(String(part.state.input.filePath))
-        : undefined
-    ) ??
+    shortLabel(inputFilePath ? baseName(inputFilePath) : undefined) ??
     shortLabel(
       offset !== undefined || limit !== undefined
         ? [
@@ -595,7 +534,7 @@ function ReadTool({ part }: ToolProps) {
   return (
     <div className="space-y-1">
       <ToolCard arg={arg} title="Read" tone={toolStateTone(part.state.status)} />
-      <LoadedFiles files={loadedFiles(metadata?.loaded)} />
+      <LoadedFiles files={loadedFilesSchema.parse(metadata?.loaded)} />
     </div>
   )
 }
@@ -662,14 +601,15 @@ function WebsearchTool({ part }: ToolProps) {
       <ToolDescription>{query}</ToolDescription>
       <div className="space-y-1">
         {links.map((url) => (
-          <Link
+          <a
             className="text-primary block truncate text-sm underline-offset-2 hover:underline"
             href={url}
             key={url}
+            rel="noreferrer"
             target="_blank"
           >
             {url}
-          </Link>
+          </a>
         ))}
       </div>
     </ToolCard>
@@ -722,9 +662,7 @@ function BashTool({ part }: ToolProps) {
 function EditTool({ part }: ToolProps) {
   const metadata = toolMetadata(part)
   const inputPath = nonEmptyString(part.state.input.filePath)
-  const body = nonEmptyString(
-    metadata?.filediff && isPlainRecord(metadata.filediff) ? metadata.filediff.after : undefined
-  )
+  const body = fileDiffSchema.parse(metadata?.filediff).after
   const diagnostics = diagnosticsByPath(metadata?.diagnostics, inputPath)
 
   return (
@@ -794,7 +732,7 @@ function PatchFileCard({ file }: { file: ToolFile }) {
       <AccordionContent>
         {body ? (
           <ToolDetailText>
-            <pre className="overflow-auto font-mono text-xs wrap-break-word whitespace-pre-wrap">
+            <pre className="max-w-full overflow-auto font-mono text-xs wrap-break-word whitespace-pre-wrap">
               {body}
             </pre>
           </ToolDetailText>
@@ -806,7 +744,7 @@ function PatchFileCard({ file }: { file: ToolFile }) {
 
 function ApplyPatchTool({ part }: ToolProps) {
   const metadata = toolMetadata(part)
-  const files = toolFiles(metadata?.files)
+  const files = toolFilesSchema.parse(metadata?.files)
   const fileCount =
     files.length > 0 ? `${files.length} ${files.length === 1 ? "file" : "files"}` : undefined
 
@@ -827,9 +765,9 @@ function ApplyPatchTool({ part }: ToolProps) {
 }
 
 function QuestionsTool({ part }: ToolProps) {
-  const inputQuestions = questionInfos(part.state.input.questions)
+  const inputQuestions = questionInfosSchema.parse(part.state.input.questions)
   const metadata = toolMetadata(part)
-  const answers = questionAnswers(metadata?.answers)
+  const answers = questionAnswersSchema.parse(metadata?.answers)
   const questionCount =
     answers.length > 0
       ? `${inputQuestions.length} answered`
@@ -845,8 +783,8 @@ function QuestionsTool({ part }: ToolProps) {
       <div className="space-y-1">
         {inputQuestions.map((question, index) => (
           <div className="space-y-0.5" key={`${question.header}-${index}`}>
-            <div className="text-sm font-medium">{question.question}</div>
-            <div className="text-muted-foreground text-sm">
+            <div className="text-sm font-medium wrap-break-word">{question.question}</div>
+            <div className="text-muted-foreground text-sm wrap-break-word">
               {(answers[index] ?? []).join(", ") || "No answer"}
             </div>
           </div>
@@ -869,7 +807,7 @@ function SkillTool({ part }: ToolProps) {
 
 function TodoTool({ part }: ToolProps) {
   const metadata = toolMetadata(part)
-  const items = todos(metadata?.todos ?? part.state.input.todos)
+  const items = todosSchema.parse(metadata?.todos ?? part.state.input.todos)
   const completed = items.filter((item) => item.status === "completed").length
 
   return (
@@ -972,10 +910,11 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
           {parts.map((part) => {
             const Icon = toolIcon(part.tool)
             const title = toolTitle(part.tool)
+            const inputFilePath = nonEmptyString(part.state.input.filePath)
             const arg =
               part.tool === "read"
-                ? nonEmptyString(part.state.input.filePath)
-                  ? baseName(String(part.state.input.filePath))
+                ? inputFilePath
+                  ? baseName(inputFilePath)
                   : undefined
                 : part.tool === "list"
                   ? directoryPath(nonEmptyString(part.state.input.path) ?? "/")
@@ -986,7 +925,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                       : undefined
 
             return (
-              <div className="flex items-center gap-2 text-sm" key={part.id}>
+              <div className="flex min-w-0 items-center gap-2 text-sm" key={part.id}>
                 <Icon className="text-muted-foreground size-3 shrink-0" />
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-baseline gap-2">
@@ -999,7 +938,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                       {title}
                     </div>
                     {arg ? (
-                      <div className="text-muted-foreground truncate font-mono text-sm">
+                      <div className="text-muted-foreground min-w-0 truncate font-mono text-sm">
                         {shortLabel(arg)}
                       </div>
                     ) : null}

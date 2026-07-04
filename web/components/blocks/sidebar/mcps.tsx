@@ -8,12 +8,12 @@ export function NavMCPs() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <Link href="/mcps">
-          <SidebarMenuButton tooltip="MCP">
+        <SidebarMenuButton asChild tooltip="MCP">
+          <Link href="/mcps">
             <PlugZap />
             <span>MCP</span>
-          </SidebarMenuButton>
-        </Link>
+          </Link>
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   )

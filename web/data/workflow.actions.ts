@@ -1,5 +1,6 @@
 "use server"
 
+import type { Route } from "next"
 import { redirect } from "next/navigation"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
@@ -17,11 +18,7 @@ export async function selectWorkflowFiltersAction(formData: FormData) {
     redirect("/workflows/graphs")
   }
 
-  const parsed = workflowFiltersFormSchema.safeParse({
-    agent_name: typeof formData.get("agent_name") === "string" ? formData.get("agent_name") : "",
-    workflow_name:
-      typeof formData.get("workflow_name") === "string" ? formData.get("workflow_name") : "",
-  })
+  const parsed = workflowFiltersFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
     redirect("/workflows/graphs")
   }
@@ -60,10 +57,7 @@ export async function selectWorkflowTriggerFiltersAction(formData: FormData) {
     redirect("/workflows/triggers")
   }
 
-  const parsed = workflowTriggerFiltersFormSchema.safeParse({
-    agent_name: typeof formData.get("agent_name") === "string" ? formData.get("agent_name") : "",
-    type: typeof formData.get("type") === "string" ? formData.get("type") : "",
-  })
+  const parsed = workflowTriggerFiltersFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
     redirect("/workflows/triggers")
   }
@@ -89,18 +83,7 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
     redirect("/workflows/triggers/runs")
   }
 
-  const parsed = workflowRunFiltersFormSchema.safeParse({
-    agent_name: typeof formData.get("agent_name") === "string" ? formData.get("agent_name") : "",
-    type: typeof formData.get("type") === "string" ? formData.get("type") : "",
-    workflow_name:
-      typeof formData.get("workflow_name") === "string" ? formData.get("workflow_name") : "",
-    schedule_name:
-      typeof formData.get("schedule_name") === "string" ? formData.get("schedule_name") : "",
-    webhook_api_key_id:
-      typeof formData.get("webhook_api_key_id") === "string"
-        ? formData.get("webhook_api_key_id")
-        : "",
-  })
+  const parsed = workflowRunFiltersFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
     redirect("/workflows/triggers/runs")
   }
@@ -165,7 +148,13 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
   )
 }
 
-function workflowsPath({ agentName, workflowName }: { agentName?: string; workflowName?: string }) {
+function workflowsPath({
+  agentName,
+  workflowName,
+}: {
+  agentName?: string
+  workflowName?: string
+}): Route {
   const params = new URLSearchParams()
   if (agentName) {
     params.set("agent_name", agentName)
@@ -175,7 +164,7 @@ function workflowsPath({ agentName, workflowName }: { agentName?: string; workfl
   }
 
   const query = params.toString()
-  return query === "" ? "/workflows/graphs" : `/workflows/graphs?${query}`
+  return query === "" ? "/workflows/graphs" : (`/workflows/graphs?${query}` as Route)
 }
 
 function workflowTriggersPath({
@@ -184,7 +173,7 @@ function workflowTriggersPath({
 }: {
   agentName?: string
   type?: "schedule" | "webhook"
-}) {
+}): Route {
   const params = new URLSearchParams()
   if (agentName) {
     params.set("agent_name", agentName)
@@ -194,7 +183,7 @@ function workflowTriggersPath({
   }
 
   const query = params.toString()
-  return query === "" ? "/workflows/triggers" : `/workflows/triggers?${query}`
+  return query === "" ? "/workflows/triggers" : (`/workflows/triggers?${query}` as Route)
 }
 
 function workflowRunsPath({
@@ -209,7 +198,7 @@ function workflowRunsPath({
   workflowName: string
   scheduleName?: string
   webhookApiKeyId?: string
-}) {
+}): Route {
   const params = new URLSearchParams()
   params.set("agent_name", agentName)
   params.set("type", type)
@@ -221,5 +210,5 @@ function workflowRunsPath({
     params.set("webhook_api_key_id", webhookApiKeyId)
   }
 
-  return `/workflows/triggers/runs?${params.toString()}`
+  return `/workflows/triggers/runs?${params.toString()}` as Route
 }

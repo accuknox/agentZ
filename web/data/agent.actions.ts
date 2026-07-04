@@ -13,10 +13,7 @@ export async function createAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = createAgentSimpleFormSchema.safeParse({
-    name: formData.get("name"),
-    sandboxName: formData.get("sandboxName"),
-  })
+  const parsed = createAgentSimpleFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
   }
@@ -35,13 +32,7 @@ export async function updateAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const model = formData.get("model")
-  const smallModel = formData.get("smallModel")
-  const parsed = updateAgentSimpleFormSchema.safeParse({
-    sandboxName: formData.get("sandboxName"),
-    model: model === null ? undefined : model,
-    smallModel: smallModel === null ? undefined : smallModel,
-  })
+  const parsed = updateAgentSimpleFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
   }
@@ -71,17 +62,11 @@ export async function updateAgentFormAction(
 }
 
 function invalidAgentFormState(error: z.ZodError): CreateAgentFormState {
-  const { fieldErrors, formErrors } = error.flatten()
-  const errors = Object.entries(fieldErrors).flatMap(([field, messages]) => {
-    if (!Array.isArray(messages)) {
-      return []
-    }
-
-    return messages.map((message) => ({
-      field,
-      message,
-    }))
-  })
+  const { formErrors } = error.flatten()
+  const errors = error.issues.map((issue) => ({
+    field: issue.path.join("."),
+    message: issue.message,
+  }))
 
   return {
     error: {

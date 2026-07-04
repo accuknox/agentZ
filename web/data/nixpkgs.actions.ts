@@ -1,5 +1,6 @@
 "use server"
 
+import * as z from "zod"
 import type { Error as GatewayError } from "@/lib/gateway/client"
 
 type SearchConfig = {
@@ -17,35 +18,64 @@ const searchConfigEnvKeys = [
   "NIXOS_SEARCH_ES_BRANCH",
 ] as const
 
-type NixPackageLicense = {
-  fullName: string | null
-  url: string | null
-}
+const nixPackageLicenseSchema = z
+  .object({
+    fullName: z.string().nullable().catch(null),
+    url: z.string().nullable().catch(null),
+  })
+  .catch({
+    fullName: null,
+    url: null,
+  })
 
-type NixPackageMaintainer = {
-  name: string | null
-  email: string | null
-  github: string | null
-}
+const nixPackageMaintainerSchema = z
+  .object({
+    name: z.string().nullable().catch(null),
+    email: z.string().nullable().catch(null),
+    github: z.string().nullable().catch(null),
+  })
+  .catch({
+    name: null,
+    email: null,
+    github: null,
+  })
 
-export type NixPackage = {
-  package_attr_name: string
-  package_pname: string
-  package_pversion: string
-  package_description: string | null
-  package_programs: string[]
-  package_license: NixPackageLicense[]
-  package_homepage: string[]
-  package_maintainers: NixPackageMaintainer[]
-}
+const nixPackageHomepageSchema = z
+  .union([
+    z.string().transform((value) => [value]),
+    z.array(z.string()),
+    z.null().transform(() => []),
+  ])
+  .catch([])
+
+const nixPackageSchema = z.object({
+  package_attr_name: z.string().catch(""),
+  package_pname: z.string().catch(""),
+  package_pversion: z.string().catch(""),
+  package_description: z.string().nullable().catch(null),
+  package_programs: z.array(z.string()).catch([]),
+  package_license: z.array(nixPackageLicenseSchema).catch([]),
+  package_homepage: nixPackageHomepageSchema,
+  package_maintainers: z.array(nixPackageMaintainerSchema).catch([]),
+})
+
+const elasticsearchIndexNotFoundSchema = z.object({
+  error: z.object({
+    root_cause: z.array(z.object({ type: z.literal("index_not_found_exception") })).min(1),
+  }),
+})
+
+const elasticsearchSearchResponseSchema = z.object({
+  hits: z.object({
+    hits: z.array(z.object({ _source: nixPackageSchema })),
+  }),
+})
+
+export type NixPackage = z.infer<typeof nixPackageSchema>
 
 export type SearchNixPackagesResponse =
   | { packages: NixPackage[]; error: undefined }
   | { packages: undefined; error: GatewayError }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 
 function dashUnderscoreVariants(word: string): string[] {
   return [word.replace(/_/g, "-"), word.replace(/-/g, "_"), word]
@@ -88,31 +118,11 @@ function getSearchConfig(): SearchConfig {
 }
 
 function isElasticsearchIndexNotFound(text: string): boolean {
-  let payload: unknown
-
   try {
-    payload = JSON.parse(text)
+    return elasticsearchIndexNotFoundSchema.safeParse(JSON.parse(text)).success
   } catch {
     return false
   }
-
-  if (!isRecord(payload) || !isRecord(payload.error)) {
-    return false
-  }
-
-  const rootCause = payload.error.root_cause
-
-  if (!Array.isArray(rootCause) || rootCause.length === 0) {
-    return false
-  }
-
-  const firstCause = rootCause[0]
-
-  if (!isRecord(firstCause) || typeof firstCause.type !== "string") {
-    return false
-  }
-
-  return firstCause.type === "index_not_found_exception"
 }
 
 function buildSearchBody(query: string, from = 0, size = 20): Record<string, unknown> {
@@ -192,81 +202,7 @@ function buildSearchBody(query: string, from = 0, size = 20): Record<string, unk
             : undefined,
       },
     },
-    sort: [
-      { _score: "desc" as const },
-      { package_attr_name: "asc" as const },
-      { package_pversion: "asc" as const },
-    ],
-  }
-}
-
-function parseMaintainer(raw: unknown): NixPackageMaintainer {
-  if (!isRecord(raw)) {
-    return {
-      name: null,
-      email: null,
-      github: null,
-    }
-  }
-
-  return {
-    name: typeof raw.name === "string" ? raw.name : null,
-    email: typeof raw.email === "string" ? raw.email : null,
-    github: typeof raw.github === "string" ? raw.github : null,
-  }
-}
-
-function parseLicense(raw: unknown): NixPackageLicense {
-  if (!isRecord(raw)) {
-    return {
-      fullName: null,
-      url: null,
-    }
-  }
-
-  return {
-    fullName: typeof raw.fullName === "string" ? raw.fullName : null,
-    url: typeof raw.url === "string" ? raw.url : null,
-  }
-}
-
-function parseHomepage(raw: unknown): string[] {
-  if (raw === null) return []
-  if (typeof raw === "string") return [raw]
-  if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === "string")
-  return []
-}
-
-function parsePackage(source: unknown): NixPackage {
-  if (!isRecord(source)) {
-    return {
-      package_attr_name: "",
-      package_pname: "",
-      package_pversion: "",
-      package_description: null,
-      package_programs: [],
-      package_license: [],
-      package_homepage: [],
-      package_maintainers: [],
-    }
-  }
-
-  return {
-    package_attr_name: String(source.package_attr_name ?? ""),
-    package_pname: String(source.package_pname ?? ""),
-    package_pversion: String(source.package_pversion ?? ""),
-    package_description:
-      source.package_description != null ? String(source.package_description) : null,
-    package_programs: Array.isArray(source.package_programs)
-      ? source.package_programs.filter((p): p is string => typeof p === "string")
-      : [],
-    package_license: Array.isArray(source.package_license)
-      ? source.package_license.map(parseLicense)
-      : [],
-    package_homepage: parseHomepage(source.package_homepage),
-    package_maintainers: Array.isArray(source.package_maintainers)
-      ? source.package_maintainers.map(parseMaintainer)
-      : [],
+    sort: [{ _score: "desc" }, { package_attr_name: "asc" }, { package_pversion: "asc" }],
   }
 }
 
@@ -305,13 +241,8 @@ export async function searchNixPackagesAction(
       }
     }
 
-    const json = await res.json()
-    const hits =
-      isRecord(json) && isRecord(json.hits) && Array.isArray(json.hits.hits) ? json.hits.hits : []
-    const packages = hits.flatMap((hit) => {
-      if (!isRecord(hit)) return []
-      return [parsePackage(hit._source)]
-    })
+    const parsed = elasticsearchSearchResponseSchema.safeParse(await res.json())
+    const packages = parsed.success ? parsed.data.hits.hits.map((hit) => hit._source) : []
 
     return { packages, error: undefined }
   } catch (err) {

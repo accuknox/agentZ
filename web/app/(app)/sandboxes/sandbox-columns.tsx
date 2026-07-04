@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import type { DeleteSandboxFormState } from "@/data/types"
+import { formatTimestamp } from "@/lib/format"
 
 type DeleteSandboxAction = (
   name: string,
@@ -91,7 +92,7 @@ export function createSandboxColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatDate(row.getValue("created_at")),
+      cell: ({ row }) => formatTimestamp(row.getValue("created_at")),
     },
     {
       id: "actions",
@@ -207,20 +208,4 @@ function DeleteSandboxDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function formatDate(value?: string) {
-  if (!value) {
-    return "Unknown"
-  }
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown"
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date)
 }

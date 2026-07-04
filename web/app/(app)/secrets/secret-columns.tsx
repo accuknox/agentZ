@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react"
 import type { SecretListItem, SecretState } from "@/lib/gateway/client"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -96,16 +96,18 @@ export function createSecretColumns(
     {
       accessorKey: "hosts",
       header: "Hosts",
-      cell: ({ row }) => (
-        <div className="flex min-w-0 flex-nowrap overflow-hidden text-xs">
-          {row.original.hosts.map((host, index) => (
-            <span key={host} className="text-muted-foreground min-w-0 shrink font-mono">
-              {index > 0 ? <span className="text-border mr-2">/</span> : null}
-              {host}
-            </span>
-          ))}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const hosts = row.original.hosts.join(" / ")
+
+        return (
+          <span
+            className="text-muted-foreground block min-w-0 truncate font-mono text-xs"
+            title={hosts}
+          >
+            {hosts}
+          </span>
+        )
+      },
     },
     {
       id: "age",
@@ -120,13 +122,9 @@ export function createSecretColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return <span className="whitespace-nowrap">Unknown</span>
-        }
-        return <span className="whitespace-nowrap">{createdAt.fromNow()}</span>
-      },
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap">{formatAge(row.original.created_at)}</span>
+      ),
     },
     {
       id: "actions",

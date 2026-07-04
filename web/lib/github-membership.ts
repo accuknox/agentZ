@@ -1,28 +1,34 @@
 import type { OAuth2Tokens } from "@better-auth/core/oauth2"
 import { Octokit } from "@octokit/rest"
+import * as z from "zod"
 import { getEnv } from "@/lib/env"
 
 type GithubProfile = Awaited<ReturnType<Octokit["rest"]["users"]["getAuthenticated"]>>["data"]
 type GithubEmail = Awaited<
   ReturnType<Octokit["rest"]["users"]["listEmailsForAuthenticatedUser"]>
 >["data"][number]
-type GithubMembershipError = {
-  name?: string
-  message?: string
-  status?: number
-  request?: {
-    method?: string
-    url?: string
-  }
-  response?: {
-    url?: string
-    headers?: Record<string, string>
-    data?: unknown
-  }
-}
+
+const githubMembershipErrorSchema = z
+  .object({
+    name: z.string().optional(),
+    message: z.string().optional(),
+    status: z.number().optional(),
+    request: z
+      .object({
+        method: z.string().optional(),
+        url: z.string().optional(),
+      })
+      .optional(),
+    response: z
+      .object({
+        url: z.string().optional(),
+      })
+      .optional(),
+  })
+  .catch({})
 
 function githubErrorDetails(err: unknown) {
-  const e = err as GithubMembershipError
+  const e = githubMembershipErrorSchema.parse(err)
   return {
     error:
       err instanceof Error
@@ -41,11 +47,15 @@ function githubErrorDetails(err: unknown) {
   }
 }
 
+function githubErrorStatus(err: unknown) {
+  return githubMembershipErrorSchema.parse(err).status
+}
+
 async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
   const env = getEnv()
 
   if (env.GITHUB_ALLOWED_USER_ID) {
-    return String(profile.id) === env.GITHUB_ALLOWED_USER_ID
+    return profile.id.toString() === env.GITHUB_ALLOWED_USER_ID
   }
 
   if (!env.GITHUB_ORG) {
@@ -56,8 +66,8 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
     .getMembershipForAuthenticatedUser({
       org: env.GITHUB_ORG,
     })
-    .catch((err: GithubMembershipError) => {
-      if (err.status === 404) {
+    .catch((err: unknown) => {
+      if (githubErrorStatus(err) === 404) {
         return null
       }
       throw err
@@ -82,8 +92,8 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
       team_slug: env.GITHUB_TEAM_SLUG,
       username: profile.login,
     })
-    .catch((err: GithubMembershipError) => {
-      if (err.status === 404) {
+    .catch((err: unknown) => {
+      if (githubErrorStatus(err) === 404) {
         return null
       }
       throw err
@@ -138,7 +148,7 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
 
     return {
       user: {
-        id: String(profile.id),
+        id: profile.id.toString(),
         name: profile.name || profile.login,
         email,
         emailVerified,

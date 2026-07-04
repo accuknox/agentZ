@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
+import * as z from "zod"
 import { createWorkflowRun, deleteWorkflowRun, type Error } from "@/lib/gateway/client"
 import { workflowRunsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -16,6 +17,14 @@ export type TriggerWorkflowRunActionState = {
   error?: Error
 }
 
+const deleteWorkflowRunFormSchema = z.object({
+  run_name: z.string().min(1),
+})
+
+const triggerWorkflowRunFormSchema = z.object({
+  schedule_name: z.string().min(1),
+})
+
 /**
  * deleteWorkflowRunAction deletes one workflow run for one workflow.
  */
@@ -25,8 +34,8 @@ export async function deleteWorkflowRunAction(
   _: DeleteWorkflowRunActionState,
   formData: FormData
 ): Promise<DeleteWorkflowRunActionState> {
-  const runName = formData.get("run_name")
-  if (typeof runName !== "string" || runName.length === 0) {
+  const parsed = deleteWorkflowRunFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
     return {
       success: false,
       error: {
@@ -41,7 +50,7 @@ export async function deleteWorkflowRunAction(
     path: {
       agentName,
       workflowName,
-      runName,
+      runName: parsed.data.run_name,
     },
   })
   if (result.error) {
@@ -69,8 +78,8 @@ export async function triggerWorkflowRunAction(
   _: TriggerWorkflowRunActionState,
   formData: FormData
 ): Promise<TriggerWorkflowRunActionState> {
-  const submittedScheduleName = formData.get("schedule_name")
-  if (submittedScheduleName !== scheduleName) {
+  const parsed = triggerWorkflowRunFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success || parsed.data.schedule_name !== scheduleName) {
     return {
       success: false,
       error: {

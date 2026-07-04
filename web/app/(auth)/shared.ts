@@ -1,4 +1,23 @@
+import * as z from "zod"
 import { getEnv } from "@/lib/env"
+import { searchParamStringSchema } from "@/lib/search-params"
+
+export const authErrorSchema = z.enum([
+  "email_password_auth_not_allowed",
+  "invalid_code",
+  "invalid_email_or_password",
+  "no_callback_url",
+  "session_expired",
+  "state_mismatch",
+  "unable_to_get_user_info",
+  "user_exists",
+])
+
+export type AuthError = z.infer<typeof authErrorSchema>
+
+export const socialProviderSchema = z.enum(["github", "google"])
+
+export type SocialProvider = z.infer<typeof socialProviderSchema>
 
 export const authErrorMessages = {
   email_password_auth_not_allowed: "Email/password sign-up is not allowed for this email address.",
@@ -9,17 +28,16 @@ export const authErrorMessages = {
   state_mismatch: "The sign-in session expired or was opened in another tab. Try again.",
   unable_to_get_user_info: "Sign-in failed or this account is not authorized for this application.",
   user_exists: "Email is already in use.",
-} as const satisfies Record<string, string>
-
-export type AuthError = keyof typeof authErrorMessages
+} as const satisfies Record<AuthError, string>
 export type AuthPath = "/signin" | "/signup"
-export type SocialProvider = "github" | "google"
 
-export type AuthSearchParams = {
-  error?: AuthError | AuthError[]
-  provider?: SocialProvider | SocialProvider[]
-  returnTo?: string | string[]
-}
+export const authSearchParamsSchema = z.object({
+  error: searchParamStringSchema.pipe(authErrorSchema.optional()).catch(undefined),
+  provider: searchParamStringSchema.pipe(socialProviderSchema.optional()).catch(undefined),
+  returnTo: searchParamStringSchema,
+})
+
+export type AuthSearchParams = z.input<typeof authSearchParamsSchema>
 
 export function socialProviders(): SocialProvider[] {
   const env = getEnv()

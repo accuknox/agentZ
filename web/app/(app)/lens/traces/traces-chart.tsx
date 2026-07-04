@@ -1,7 +1,7 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, type TooltipContentProps } from "recharts"
-import type { TraceChartActionData } from "@/data/types"
+import type { TraceChartActionData, TraceChartPoint } from "@/data/types"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
 
 const chartConfig = {
@@ -19,7 +19,7 @@ export function TracesChart({ data }: { data: TraceChartActionData }) {
   }))
 
   return (
-    <section className="flex flex-col gap-2 px-6 py-3">
+    <section className="flex min-w-0 flex-col gap-2 px-4 py-3 sm:px-6">
       <div className="flex items-center justify-end">
         <span className="text-muted-foreground text-xs">{data.total} traces</span>
       </div>
@@ -43,7 +43,7 @@ export function TracesChart({ data }: { data: TraceChartActionData }) {
             tickFormatter={(value) => points[Number(value)]?.label ?? ""}
           />
           <YAxis allowDecimals={false} hide />
-          <ChartTooltip content={(props) => <TraceChartTooltip {...props} />} />
+          <ChartTooltip content={(props) => <TraceChartTooltip {...props} points={points} />} />
           <Bar dataKey="traces" fill="var(--color-traces)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ChartContainer>
@@ -51,12 +51,24 @@ export function TracesChart({ data }: { data: TraceChartActionData }) {
   )
 }
 
-function TraceChartTooltip({ active, payload }: TooltipContentProps) {
+type TraceChartTooltipPoint = TraceChartPoint & {
+  bucket: string
+  traces: number
+}
+
+function TraceChartTooltip({
+  active,
+  label,
+  payload,
+  points,
+}: TooltipContentProps & {
+  points: TraceChartTooltipPoint[]
+}) {
   if (!active || !payload?.length) {
     return null
   }
 
-  const point = tracePoint(payload[0]?.payload)
+  const point = points[Number(label)]
   if (!point) {
     return null
   }
@@ -71,26 +83,5 @@ function TraceChartTooltip({ active, payload }: TooltipContentProps) {
         </span>
       </div>
     </div>
-  )
-}
-
-function tracePoint(payload: unknown): { count: number; label: string } | undefined {
-  if (!isTracePoint(payload)) {
-    return undefined
-  }
-
-  return payload
-}
-
-function isTracePoint(payload: unknown): payload is { count: number; label: string } {
-  if (!payload || typeof payload !== "object") {
-    return false
-  }
-
-  return (
-    "count" in payload &&
-    typeof payload.count === "number" &&
-    "label" in payload &&
-    typeof payload.label === "string"
   )
 }

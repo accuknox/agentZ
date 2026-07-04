@@ -35,6 +35,7 @@ import { queryOptions, useQuery } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -60,7 +61,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
-import type { Sandbox } from "@/lib/gateway/client"
+import type { AgentStatus, Sandbox } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type { ComponentType, SVGProps } from "react"
 import type * as z from "zod"
@@ -73,6 +74,7 @@ type AgentDialogProps = {
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
   agentName?: string
+  initialAgentStatus?: AgentStatus
   initialSandboxName?: string
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
@@ -118,6 +120,25 @@ const providerLogos: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   perplexity: PerplexityAI,
   togetherai: themedIcon(TogetherAIDark, TogetherAILight),
   vercel: themedIcon(VercelDark, VercelLight),
+}
+
+function ProviderModelLabel({
+  model,
+}: {
+  model: { modelName: string; providerID: string; providerName: string }
+}) {
+  const Logo = providerLogos[model.providerID]
+
+  return (
+    <span className="flex items-center gap-2">
+      {Logo ? (
+        <Logo className="size-4 shrink-0" />
+      ) : (
+        <span className="text-muted-foreground shrink-0">{model.providerName} /</span>
+      )}
+      <span>{model.modelName}</span>
+    </span>
+  )
 }
 
 function SandboxSelect({
@@ -247,6 +268,7 @@ export function AgentDialog({
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
   agentName,
+  initialAgentStatus,
   initialSandboxName,
   open,
   onOpenChangeAction,
@@ -255,6 +277,7 @@ export function AgentDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const router = useRouter()
   const dialogOpen = open ?? internalOpen
+  const agentReadiness = useAgentReadiness(agentName, initialAgentStatus)
   const hasSandboxes = sandboxes.length > 0
   const formAction =
     mode === "update" && agentName
@@ -340,7 +363,7 @@ export function AgentDialog({
           smallModel: configResult.data.small_model,
         }
       },
-      enabled: mode === "update" && dialogOpen && !!agentName,
+      enabled: mode === "update" && dialogOpen && !!agentName && !agentReadiness.isGettingReady,
       staleTime: 60_000,
     })
   )
@@ -525,7 +548,28 @@ export function AgentDialog({
                 </Field>
               )}
             />
-            {showModelFields ? (
+            {showModelFields && agentReadiness.isGettingReady ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="agent-form-model">Default model</FieldLabel>
+                  <div
+                    id="agent-form-model"
+                    className="border-input bg-muted/30 flex h-9 w-full items-center rounded-md border px-3"
+                  >
+                    <AgentGettingReady />
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="agent-form-small-model">Small model</FieldLabel>
+                  <div
+                    id="agent-form-small-model"
+                    className="border-input bg-muted/30 flex h-9 w-full items-center rounded-md border px-3"
+                  >
+                    <AgentGettingReady />
+                  </div>
+                </Field>
+              </>
+            ) : showModelFields ? (
               <>
                 <Controller
                   name="model"
@@ -551,19 +595,7 @@ export function AgentDialog({
                           <SelectGroup>
                             {modelCatalog.data?.models.map((model) => (
                               <SelectItem key={model.value} value={model.value}>
-                                <span className="flex items-center gap-2">
-                                  {providerLogos[model.providerID] ? (
-                                    (() => {
-                                      const Logo = providerLogos[model.providerID]
-                                      return <Logo className="size-4 shrink-0" />
-                                    })()
-                                  ) : (
-                                    <span className="text-muted-foreground shrink-0">
-                                      {model.providerName} /
-                                    </span>
-                                  )}
-                                  <span>{model.modelName}</span>
-                                </span>
+                                <ProviderModelLabel model={model} />
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -597,19 +629,7 @@ export function AgentDialog({
                           <SelectGroup>
                             {modelCatalog.data?.models.map((model) => (
                               <SelectItem key={model.value} value={model.value}>
-                                <span className="flex items-center gap-2">
-                                  {providerLogos[model.providerID] ? (
-                                    (() => {
-                                      const Logo = providerLogos[model.providerID]
-                                      return <Logo className="size-4 shrink-0" />
-                                    })()
-                                  ) : (
-                                    <span className="text-muted-foreground shrink-0">
-                                      {model.providerName} /
-                                    </span>
-                                  )}
-                                  <span>{model.modelName}</span>
-                                </span>
+                                <ProviderModelLabel model={model} />
                               </SelectItem>
                             ))}
                           </SelectGroup>

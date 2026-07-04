@@ -3,6 +3,7 @@ import { and, eq, like } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { generateRandomString, symmetricEncrypt } from "better-auth/crypto"
+import * as z from "zod"
 import { getDB, schema } from "@/db"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
@@ -28,6 +29,10 @@ type SetupResponse = {
 type DisableResponse = {
   status: "ok"
 }
+
+const manageBodySchema = z.object({
+  action: z.enum(["enable", "disable"]),
+})
 
 /**
  * POST manages account-level two-factor enrollment and removal behind an
@@ -78,15 +83,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
-  let body: { action?: ManageAction }
+  let body: z.infer<typeof manageBodySchema>
   try {
-    body = (await request.json()) as { action?: ManageAction }
+    const parsed = manageBodySchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ message: "Invalid action" }, { status: 400 })
+    }
+    body = parsed.data
   } catch {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 })
-  }
-
-  if (body.action !== "enable" && body.action !== "disable") {
-    return NextResponse.json({ message: "Invalid action" }, { status: 400 })
   }
 
   const accounts = await auth.api.listUserAccounts({

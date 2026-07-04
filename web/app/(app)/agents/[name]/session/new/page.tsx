@@ -4,19 +4,9 @@ import { headers } from "next/headers"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { getAuth } from "@/lib/auth"
 
-type ChatPageParams = {
-  name: string
-}
-
-type ChatPageSearchParams = {
-  draft?: string
-}
-
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<ChatPageParams>
-}): Promise<Metadata> {
+}: PageProps<"/agents/[name]/session/new">): Promise<Metadata> {
   const { name } = await params
 
   return {
@@ -27,10 +17,7 @@ export async function generateMetadata({
 export default async function ChatPage({
   params,
   searchParams,
-}: {
-  params: Promise<ChatPageParams>
-  searchParams: Promise<ChatPageSearchParams>
-}) {
+}: PageProps<"/agents/[name]/session/new">) {
   const requestHeaders = await headers()
   const auth = getAuth()
   const [routeParams, resolvedSearchParams, session] = await Promise.all([
@@ -41,7 +28,8 @@ export default async function ChatPage({
     }),
   ])
   const { name } = routeParams
-  const { draft } = resolvedSearchParams
+  const draft =
+    typeof resolvedSearchParams.draft === "string" ? resolvedSearchParams.draft : undefined
   const firstName =
     session?.user.name?.trim().split(/\s+/, 1)[0] ||
     session?.user.email.split("@")[0]?.trim() ||

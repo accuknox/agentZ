@@ -47,7 +47,7 @@ import type {
   TraceSessionFilterActionResponse,
   TraceSessionFilterItem,
 } from "@/data/types"
-import { dayjs } from "@/lib/dayjs"
+import { dayjs, formatDurationMs, formatRecentTimestamp } from "@/lib/format"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
 
@@ -394,7 +394,7 @@ function rowTelemetryEvent(event: ProcessObservabilityEventAggregated): ProcessT
     command: event.command_invocation || event.parent_process,
     action: event.action,
     occurrences: event.occurrences,
-    lastSeen: formatEventTime(event.last_seen),
+    lastSeen: formatRecentTimestamp(event.last_seen),
   }
 }
 
@@ -404,7 +404,7 @@ function fileTelemetryEvent(event: FileObservabilityEventAggregated): FileTeleme
     process: event.command_invocation || event.process,
     action: event.action,
     occurrences: event.occurrences,
-    lastSeen: formatEventTime(event.last_seen),
+    lastSeen: formatRecentTimestamp(event.last_seen),
   }
 }
 
@@ -416,7 +416,7 @@ function networkTelemetryEvent(event: NetworkObservabilityEventAggregated): Netw
     protocol: event.protocol,
     action: event.action,
     occurrences: event.occurrences,
-    lastSeen: formatEventTime(event.last_seen),
+    lastSeen: formatRecentTimestamp(event.last_seen),
   }
 }
 
@@ -427,9 +427,22 @@ function computeTelemetryChartFromAggregated(
     return { points: [], total: 0, granularity: "no data" }
   }
 
-  const eventTimes = events.map((e) => dayjs(e.last_seen))
-  const minTime = eventTimes.reduce((min, t) => (t.isBefore(min) ? t : min), eventTimes[0])
-  const maxTime = eventTimes.reduce((max, t) => (t.isAfter(max) ? t : max), eventTimes[0])
+  const [firstEvent, ...restEvents] = events
+  if (!firstEvent) {
+    return { points: [], total: 0, granularity: "no data" }
+  }
+
+  let minTime = dayjs(firstEvent.last_seen)
+  let maxTime = minTime
+  for (const event of restEvents) {
+    const seenAt = dayjs(event.last_seen)
+    if (seenAt.isBefore(minTime)) {
+      minTime = seenAt
+    }
+    if (seenAt.isAfter(maxTime)) {
+      maxTime = seenAt
+    }
+  }
 
   const from = minTime
   const to = maxTime
@@ -615,19 +628,6 @@ export async function getNetworkTelemetryAction({
   }
 }
 
-function formatEventTime(eventTime: string): string {
-  const parsed = dayjs(eventTime)
-  if (!parsed.isValid()) {
-    return eventTime
-  }
-
-  if (dayjs().diff(parsed, "hour", true) < 48) {
-    return parsed.fromNow()
-  }
-
-  return parsed.format("MMM D, YYYY, h:mm A")
-}
-
 function traceChartPoints(traces: readonly TraceSummary[]): TraceChartPoint[] {
   if (traces.length === 0) {
     return []
@@ -696,11 +696,9 @@ function traceListItem({
   const endedAt = dayjs(trace.ended_at)
   const totalTokens = trace.input_tokens + trace.output_tokens
   const durationMs = trace.duration_ns / 1_000_000
-  const startedDate = !startedAt.isValid()
-    ? trace.started_at
-    : dayjs().diff(startedAt, "hour", true) < 48
-      ? startedAt.fromNow()
-      : startedAt.format("MMM D, YYYY")
+  const startedDate = startedAt.isValid()
+    ? formatRecentTimestamp(trace.started_at, "MMM D, YYYY")
+    : trace.started_at
   const startedTime = startedAt.isValid() ? startedAt.format("h:mm A") : trace.started_at
   const endedTime = endedAt.isValid() ? endedAt.format("h:mm A") : trace.ended_at
 
@@ -713,7 +711,7 @@ function traceListItem({
     startedDate,
     startedTime,
     endedTime,
-    duration: formatDuration(durationMs),
+    duration: formatDurationMs(durationMs),
     durationMs,
     cumulativeDurationMs,
     cumulativeDurationPercent,
@@ -772,21 +770,11 @@ function spanListItem({
   durationPercent: number
   depth: number
 }): SpanListItem {
-  const startTime = dayjs(span.start_time)
-  const endTime = dayjs(span.end_time)
   const totalTokens = span.input_tokens + span.output_tokens
   const hasError =
     span.status_code === "ERROR" || span.error_type.length > 0 || span.error_message.length > 0
-  const startLabel = !startTime.isValid()
-    ? span.start_time
-    : dayjs().diff(startTime, "hour", true) < 48
-      ? startTime.fromNow()
-      : startTime.format("MMM D, YYYY, h:mm A")
-  const endLabel = !endTime.isValid()
-    ? span.end_time
-    : dayjs().diff(endTime, "hour", true) < 48
-      ? endTime.fromNow()
-      : endTime.format("MMM D, YYYY, h:mm A")
+  const startLabel = formatRecentTimestamp(span.start_time)
+  const endLabel = formatRecentTimestamp(span.end_time)
 
   return {
     id: span.id,
@@ -797,7 +785,7 @@ function spanListItem({
     parentSpanId: span.parent_span_id,
     startLabel,
     endLabel,
-    duration: formatDuration(durationMs),
+    duration: formatDurationMs(durationMs),
     durationMs,
     displayName: displayName(span),
     operationLabel: operationLabel(span),
@@ -860,7 +848,7 @@ function jsonPreview(value: JsonValue) {
     return keys.slice(0, 4).join(", ") || "Object"
   }
 
-  return String(value)
+  return value.toString()
 }
 
 function isEmptyJSON(value: JsonValue) {
@@ -887,11 +875,7 @@ function processTelemetryEventItem(
   }
 
   const eventTime = dayjs(event.event_time)
-  const time = !eventTime.isValid()
-    ? event.event_time
-    : dayjs().diff(eventTime, "hour", true) < 48
-      ? eventTime.fromNow()
-      : eventTime.format("MMM D, YYYY, h:mm A")
+  const time = eventTime.isValid() ? formatRecentTimestamp(event.event_time) : event.event_time
 
   return {
     id: event.id,
@@ -915,11 +899,7 @@ function fileTelemetryEventItem(
   }
 
   const eventTime = dayjs(event.event_time)
-  const time = !eventTime.isValid()
-    ? event.event_time
-    : dayjs().diff(eventTime, "hour", true) < 48
-      ? eventTime.fromNow()
-      : eventTime.format("MMM D, YYYY, h:mm A")
+  const time = eventTime.isValid() ? formatRecentTimestamp(event.event_time) : event.event_time
 
   return {
     id: event.id,
@@ -943,11 +923,7 @@ function networkTelemetryEventItem(
   }
 
   const eventTime = dayjs(event.event_time)
-  const time = !eventTime.isValid()
-    ? event.event_time
-    : dayjs().diff(eventTime, "hour", true) < 48
-      ? eventTime.fromNow()
-      : eventTime.format("MMM D, YYYY, h:mm A")
+  const time = eventTime.isValid() ? formatRecentTimestamp(event.event_time) : event.event_time
 
   return {
     id: event.id,
@@ -1046,12 +1022,4 @@ function percent(value: number, total: number) {
 function isoDateTimeParam(value: string) {
   const date = dayjs(value)
   return date.isValid() ? date.toISOString() : value
-}
-
-function formatDuration(durationMs: number) {
-  if (durationMs < 1000) {
-    return `${Math.round(durationMs)} ms`
-  }
-
-  return `${dayjs.duration(durationMs).asSeconds().toFixed(2)} s`
 }

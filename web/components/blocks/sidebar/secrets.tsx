@@ -8,12 +8,12 @@ export function NavSecrets() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <Link href="/secrets">
-          <SidebarMenuButton tooltip="Secrets">
+        <SidebarMenuButton asChild tooltip="Secrets">
+          <Link href="/secrets">
             <Lock />
             <span>Secrets</span>
-          </SidebarMenuButton>
-        </Link>
+          </Link>
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   )

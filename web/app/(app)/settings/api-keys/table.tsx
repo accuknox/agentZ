@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { MoreHorizontal, Trash2 } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge, formatTimestampWithAge } from "@/lib/format"
 import type { DeleteAPIKeyFormState } from "@/data/types"
 import { Button } from "@/components/ui/button"
 import {
@@ -96,7 +96,7 @@ export function APIKeysTable({
       {
         id: "expiresAt",
         header: "Expires",
-        cell: ({ row }) => <span>{formatDateTime(row.original.expiresAt)}</span>,
+        cell: ({ row }) => <span>{formatTimestampWithAge(row.original.expiresAt)}</span>,
       },
       {
         id: "age",
@@ -125,7 +125,7 @@ export function APIKeysTable({
   })
 
   return (
-    <div className="w-full min-w-0 overflow-hidden border-b">
+    <div className="w-full min-w-0 border-b">
       <Table className="table-auto">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -180,7 +180,7 @@ function APIKeyScope({
   if (configId === webhookAPIKeyConfigID) {
     const webhook = permissions?.webhook ?? []
     if (webhook.includes("all")) {
-      return <span>All workflows</span>
+      return <code>*</code>
     }
 
     const workflowsByAgent = new Map<string, string[]>()
@@ -211,7 +211,10 @@ function APIKeyScope({
         ? grouped
             .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.length}`)
             .join(", ")
-        : `${grouped[0].agentName}: ${grouped[0].workflowNames.length}, ${grouped[1].agentName}: ${grouped[1].workflowNames.length}, +${grouped.length - 2} agents`
+        : `${grouped
+            .slice(0, 2)
+            .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.length}`)
+            .join(", ")}, +${grouped.length - 2} agents`
     const details = grouped
       .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.join(", ")}`)
       .join("\n")
@@ -252,7 +255,7 @@ function APIKeyScope({
   const summary =
     agentNames.length <= 2
       ? agentNames.join(", ")
-      : `${agentNames[0]}, ${agentNames[1]}, +${agentNames.length - 2}`
+      : `${agentNames.slice(0, 2).join(", ")}, +${agentNames.length - 2}`
 
   return (
     <TooltipProvider>
@@ -360,30 +363,4 @@ function DeleteAPIKeyButton({
       </Dialog>
     </>
   )
-}
-
-function formatDateTime(value: Date | string | null | undefined) {
-  if (!value) {
-    return "Never"
-  }
-
-  const date = dayjs(value)
-  if (!date.isValid()) {
-    return "-"
-  }
-
-  return `${date.format("MMM D, YYYY, h:mm A")} (${date.fromNow()})`
-}
-
-function formatAge(value: Date | string | null | undefined) {
-  if (!value) {
-    return "Unknown"
-  }
-
-  const date = dayjs(value)
-  if (!date.isValid()) {
-    return "Unknown"
-  }
-
-  return date.fromNow()
 }

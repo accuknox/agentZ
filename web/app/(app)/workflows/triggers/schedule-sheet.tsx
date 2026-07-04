@@ -2,13 +2,15 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller, useForm, type Control, type Resolver } from "react-hook-form"
+import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
+import * as z from "zod"
 import type {
   WorkflowInputSchema,
   WorkflowInputs,
   WorkflowSchedule,
   WorkflowSummary,
 } from "@/lib/gateway/client"
+import { zWorkflowInputScalarValue } from "@/lib/gateway/client/zod.gen"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import {
@@ -51,6 +53,18 @@ import {
 
 const historyLimitDefault = 3
 const timeoutSecondsDefault = 3600
+const workflowInputValuesSchema = z.record(z.string(), zWorkflowInputScalarValue).catch({})
+const scheduleServerFieldSchema = z.enum([
+  "name",
+  "workflow_name",
+  "schedule",
+  "time_zone",
+  "timeout_seconds",
+  "successful_runs_history_limit",
+  "failed_runs_history_limit",
+])
+const scheduleInputServerFieldSchema = z.templateLiteral(["inputs.", z.string().min(1)])
+
 type ScheduleFormValues = {
   name: string
   workflow_name: string
@@ -126,10 +140,27 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     () => (values, context, options) => zodResolver(formSchema)(values, context, options),
     [formSchema]
   )
+  const initialValues = React.useMemo<ScheduleFormValues>(() => {
+    if (mode === "create") {
+      const firstWorkflowName = workflows[0]?.workflow_name ?? ""
+      return {
+        ...createDefaults,
+        workflow_name: firstWorkflowName,
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      }
+    }
+
+    if (scheduleItem) {
+      return scheduleValuesFromItem(scheduleItem)
+    }
+
+    return createDefaults
+  }, [mode, scheduleItem, workflows])
   const form = useForm<ScheduleFormValues>({
     resolver,
     mode: "onBlur",
     defaultValues: createDefaults,
+    values: initialValues,
   })
   const formAction =
     mode === "create"
@@ -188,44 +219,14 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
   )
 
   React.useEffect(() => {
-    if (isPending || state.error) {
-      return
-    }
-
-    setSchemaError(undefined)
-    setWorkflowInputs({})
-    onOpenChangeAction(false)
-  }, [form, isPending, onOpenChangeAction, state.error])
-
-  React.useEffect(() => {
     if (!open) {
       return
     }
 
-    let nextValues: ScheduleFormValues
-    if (mode === "create") {
-      const firstWorkflowName = workflows[0]?.workflow_name ?? ""
-      nextValues = {
-        ...createDefaults,
-        workflow_name: firstWorkflowName,
-        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-      }
-    } else {
-      if (!scheduleItem) {
-        return
-      }
-
-      nextValues = scheduleValuesFromItem(scheduleItem)
-    }
-
-    form.reset(nextValues)
-    setWorkflowInputs({})
-    setSchemaError(undefined)
-
     startSchemaTransition(() => {
-      void loadWorkflowInputs(nextValues.workflow_name, nextValues)
+      void loadWorkflowInputs(initialValues.workflow_name, initialValues)
     })
-  }, [form, loadWorkflowInputs, mode, open, scheduleItem, workflows])
+  }, [initialValues, loadWorkflowInputs, open])
 
   React.useEffect(() => {
     if (!state.error?.errors) {
@@ -237,16 +238,18 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
         continue
       }
 
-      if (err.field.startsWith("inputs.")) {
-        form.setError(err.field as `inputs.${string}`, {
+      const inputField = scheduleInputServerFieldSchema.safeParse(err.field)
+      if (inputField.success) {
+        form.setError(inputField.data, {
           type: "server",
           message: err.message,
         })
         continue
       }
 
-      if (err.field in createDefaults) {
-        form.setError(err.field as keyof ScheduleFormValues, {
+      const scheduleField = scheduleServerFieldSchema.safeParse(err.field)
+      if (scheduleField.success) {
+        form.setError(scheduleField.data, {
           type: "server",
           message: err.message,
         })
@@ -254,8 +257,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     }
   }, [form, state.error])
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- React Hook Form watch is required for dynamic workflow input rendering.
-  const workflowName = form.watch("workflow_name")
+  const workflowName = useWatch({ control: form.control, name: "workflow_name" })
   const generalErrorMessage = React.useMemo(() => {
     if (schemaError) {
       return schemaError
@@ -294,14 +296,11 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
     const values = form.getValues()
     for (const [name, value] of Object.entries(values.inputs)) {
-      if (
-        value === undefined ||
-        value === "" ||
-        (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean")
-      ) {
+      const parsed = zWorkflowInputScalarValue.safeParse(value)
+      if (!parsed.success || parsed.data === "") {
         continue
       }
-      formData.set(`input:${name}`, JSON.stringify(value))
+      formData.set(`input:${name}`, JSON.stringify(parsed.data))
     }
 
     React.startTransition(() => {
@@ -484,7 +483,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                   <input
                     type="hidden"
                     name={field.name}
-                    value={String(field.value)}
+                    value={field.value.toString()}
                     ref={field.ref}
                   />
                   <div className="flex flex-col gap-3">
@@ -517,7 +516,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                   <input
                     type="hidden"
                     name={field.name}
-                    value={String(field.value)}
+                    value={field.value.toString()}
                     ref={field.ref}
                   />
                   <div className="flex flex-col gap-3">
@@ -660,7 +659,7 @@ function WorkflowInputField({
                       const serialized = JSON.stringify(value)
                       return (
                         <SelectItem key={serialized} value={serialized}>
-                          {String(value)}
+                          {value.toString()}
                         </SelectItem>
                       )
                     })}
@@ -748,7 +747,7 @@ function WorkflowInputField({
                 step={inputType === "number" ? step : undefined}
                 min={input.minimum ?? input.exclusiveMinimum}
                 max={input.maximum ?? input.exclusiveMaximum}
-                value={field.value === undefined ? "" : String(field.value)}
+                value={workflowInputFormValue(field.value)}
                 onBlur={field.onBlur}
                 onChange={(event) => {
                   if (input.type === "integer" || input.type === "number") {
@@ -773,15 +772,7 @@ function WorkflowInputField({
 }
 
 function scheduleValuesFromItem(item: WorkflowSchedule): ScheduleFormValues {
-  const inputs: Record<string, unknown> = {}
-
-  if (item.inputs && typeof item.inputs === "object" && !Array.isArray(item.inputs)) {
-    for (const [name, value] of Object.entries(item.inputs)) {
-      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-        inputs[name] = value
-      }
-    }
-  }
+  const inputs = workflowInputValuesSchema.parse(item.inputs)
 
   return {
     name: item.name,
@@ -793,6 +784,11 @@ function scheduleValuesFromItem(item: WorkflowSchedule): ScheduleFormValues {
     failed_runs_history_limit: item.failed_runs_history_limit,
     inputs,
   }
+}
+
+function workflowInputFormValue(value: unknown) {
+  const parsed = zWorkflowInputScalarValue.safeParse(value)
+  return parsed.success ? parsed.data.toString() : ""
 }
 
 function mergeWorkflowInputValues(

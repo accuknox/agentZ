@@ -1,17 +1,23 @@
 "use server"
 
+import type { Route } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import * as z from "zod"
 import type { SocialProvider } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
+
+const reauthenticationFormSchema = z.object({
+  action: z.enum(["enable", "disable"]).catch("enable"),
+})
 
 async function reauthenticateWithProvider(
   provider: SocialProvider,
   formData: FormData
 ): Promise<never> {
+  const requestHeaders = await headers()
   const auth = getAuth()
-  const action = formData.get("action")
-  const manageAction = action === "disable" ? "disable" : "enable"
+  const { action: manageAction } = reauthenticationFormSchema.parse(Object.fromEntries(formData))
   const callbackURL = `/settings/account?manage2fa=${manageAction}`
   const errorParams = new URLSearchParams()
   errorParams.set("error", "no_callback_url")
@@ -25,14 +31,14 @@ async function reauthenticateWithProvider(
       errorCallbackURL: `/settings/account?manage2fa=${manageAction}&provider=${provider}`,
       provider,
     },
-    headers: await headers(),
+    headers: requestHeaders,
   })
 
   if (!result.url) {
     redirect(`/settings/account?${errorParams.toString()}`)
   }
 
-  redirect(result.url)
+  redirect(result.url as Route)
 }
 
 export async function reauthenticateWithGithub(formData: FormData): Promise<never> {

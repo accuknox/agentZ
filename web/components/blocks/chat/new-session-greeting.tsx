@@ -31,8 +31,13 @@ export function NewSessionGreeting({ firstName, greetingIndex = 0 }: NewSessionG
     )
   }
 
-  const index = greetingIndex % greetingTemplates.length
-  const greeting = greetingTemplates[index].replace("{name}", firstName)
+  const index =
+    ((greetingIndex % greetingTemplates.length) + greetingTemplates.length) %
+    greetingTemplates.length
+  const greeting = (greetingTemplates.at(index) ?? "Welcome back, {name}.").replace(
+    "{name}",
+    firstName
+  )
 
   return (
     <div className="pointer-events-none flex justify-center px-4 text-center">

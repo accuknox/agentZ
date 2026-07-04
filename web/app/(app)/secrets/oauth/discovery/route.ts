@@ -38,9 +38,10 @@ const discoveryRequestSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const requestHeaders = await headers()
   const auth = getAuth()
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   })
   if (!session) {
     return Response.json(

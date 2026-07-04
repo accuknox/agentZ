@@ -206,7 +206,6 @@ type OAuthDiscoveryPayload = z.infer<typeof oauthDiscoveryResponseSchema>
 type OAuthDiscoveryResponse = OAuthDiscoveryPayload & {
   endpointURL: string
 }
-type ExtraHeaderFieldKey = "key" | "value"
 type AccordionAction =
   | {
       type: "set"

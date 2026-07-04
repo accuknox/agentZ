@@ -10,12 +10,7 @@ import {
 } from "@/lib/gateway/client"
 import type { McpConnectionAuth } from "@/lib/gateway/client"
 import { zMcpConnectionName } from "@/lib/gateway/client/zod.gen"
-import {
-  defaultMcpAuthLocation,
-  mcpFormSchema,
-  parseMcpForm,
-  type McpFormInput,
-} from "@/data/mcp.schema"
+import { defaultMcpAuthLocation, mcpFormSchema, parseMcpForm } from "@/data/mcp.schema"
 import {
   beginOAuthFlow,
   mcpOAuthCookieName,
@@ -148,36 +143,12 @@ export async function submitMcpFormAction(
   const headerKeys = formData.getAll("extra_header_key")
   const headerValues = formData.getAll("extra_header_value")
   const parsed = mcpFormSchema.safeParse({
-    name: String(formData.get("name") ?? ""),
-    endpoint_url: String(formData.get("endpoint_url") ?? ""),
-    endpoint_timeout: String(formData.get("endpoint_timeout") ?? ""),
+    ...Object.fromEntries(formData),
     extra_headers: headerKeys.map((key, index) => ({
-      key: String(key ?? ""),
-      value: String(headerValues[index] ?? ""),
+      key,
+      value: headerValues[index],
     })),
-    auth_mode: formData.get("auth_mode") === "bearer" ? "bearer" : "oauth",
-    oauth_discovery_state:
-      formData.get("oauth_discovery_state") === "discovering"
-        ? "discovering"
-        : formData.get("oauth_discovery_state") === "success"
-          ? "success"
-          : formData.get("oauth_discovery_state") === "manual"
-            ? "manual"
-            : "idle",
-    bearer_token: String(formData.get("bearer_token") ?? ""),
-    oauth_scopes: String(formData.get("oauth_scopes") ?? ""),
-    oauth_client_id: String(formData.get("oauth_client_id") ?? ""),
-    oauth_client_secret: String(formData.get("oauth_client_secret") ?? ""),
-    oauth_issuer: String(formData.get("oauth_issuer") ?? ""),
-    oauth_authorization_endpoint: String(formData.get("oauth_authorization_endpoint") ?? ""),
-    oauth_token_endpoint: String(formData.get("oauth_token_endpoint") ?? ""),
-    oauth_registration_endpoint: String(formData.get("oauth_registration_endpoint") ?? ""),
-    oauth_resource: String(formData.get("oauth_resource") ?? ""),
-    oauth_location_header_name: String(formData.get("oauth_location_header_name") ?? ""),
-    oauth_location_header_prefix: String(formData.get("oauth_location_header_prefix") ?? ""),
-    bearer_location_header_name: String(formData.get("bearer_location_header_name") ?? ""),
-    bearer_location_header_prefix: String(formData.get("bearer_location_header_prefix") ?? ""),
-  } satisfies McpFormInput)
+  })
   if (!parsed.success) {
     return invalidMcpFormState(parsed.error)
   }

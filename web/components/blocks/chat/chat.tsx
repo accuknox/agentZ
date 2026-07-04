@@ -12,6 +12,7 @@ import {
   Attachments,
 } from "@/components/ai-elements/attachments"
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
+import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
 import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
@@ -24,6 +25,17 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
@@ -62,7 +74,14 @@ import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
-import { BrainCircuitIcon, CheckIcon, ChevronDownIcon, PaperclipIcon } from "lucide-react"
+import {
+  BotIcon,
+  BrainCircuitIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  PaperclipIcon,
+  Settings2Icon,
+} from "lucide-react"
 import { motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -153,30 +172,13 @@ type AssistantUsage = {
   maxTokens?: number
 }
 
-type AgentSelectionConfig = {
-  model?: {
-    modelID: string
-    providerID: string
-  }
-  variant?: string
-}
-
-type ModelCatalog = {
-  agent?: AgentSelectionConfig
-  chefs: string[]
-  config: {
-    model?: string
-  }
-  models: ProviderModelItem[]
-  providerDefaults: Record<string, string>
-}
-
 function getAssistantUsage(
   messages: OpencodeMessage[],
   models: ProviderModelItem[]
 ): AssistantUsage | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
+    if (!message) continue
     if (message.role !== "assistant") continue
 
     const total =
@@ -302,6 +304,7 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
 function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps) {
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
+  const agentReadiness = useAgentReadiness(agentName)
 
   const {
     blocked,
@@ -476,7 +479,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
   const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
     agentName,
     activeSessionId,
-    isBusy || blocked,
+    isBusy || blocked || agentReadiness.isGettingReady,
     setPromotedSessionId
   )
 
@@ -553,6 +556,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
+      if (agentReadiness.isGettingReady) return
       if (!messageHasRenderableContent(message.text, message.files)) {
         toast.error("Message cannot be empty")
         return
@@ -570,7 +574,14 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
         providerID: selectedModel.providerID,
       })
     },
-    [activeSessionId, pushRecent, selectedModel, selectedReasoningVariant, sendMessage]
+    [
+      activeSessionId,
+      agentReadiness.isGettingReady,
+      pushRecent,
+      selectedModel,
+      selectedReasoningVariant,
+      sendMessage,
+    ]
   )
 
   const handleModelSelect = useCallback((modelId: string) => {
@@ -621,7 +632,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
       textByPart,
     ]
   )
-  const inputDisabled = blocked || isBusy
+  const inputDisabled = blocked || isBusy || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
 
@@ -701,7 +712,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
         <div
           className={cn(
             "mx-auto flex w-full flex-col",
-            showStarter ? "max-w-3xl gap-8" : "gap-4 px-4 pb-4 lg:w-4/5 lg:px-0"
+            showStarter ? "max-w-3xl gap-8" : "min-w-0 gap-4 px-4 pb-4 lg:w-4/5 lg:px-0"
           )}
         >
           {showStarter ? (
@@ -737,108 +748,206 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                   layout="position"
                   transition={promptShiftTransition}
                 >
-                  <div className="flex min-w-0 items-center justify-end gap-1.5">
-                    <ModelSelector onOpenChange={setModelSelectorOpen} open={modelSelectorOpen}>
+                  <ModelSelector
+                    onOpenChange={setModelSelectorOpen}
+                    open={agentReadiness.isGettingReady ? false : modelSelectorOpen}
+                  >
+                    <div className="hidden min-w-0 items-center justify-end gap-1.5 md:flex">
                       <ModelSelectorTrigger asChild>
                         <PromptInputButton
-                          className="h-8 max-w-[38vw] justify-start px-2 md:max-w-72"
+                          className="h-8 max-w-[48vw] justify-start px-2 sm:max-w-72"
                           disabled={inputDisabled}
                         >
-                          {selectedModel?.chefSlug ? (
+                          {agentReadiness.isGettingReady ? (
+                            <AgentGettingReady />
+                          ) : selectedModel?.chefSlug ? (
                             <ModelSelectorLogo provider={selectedModel.chefSlug} />
                           ) : null}
-                          {selectedModel?.name ? (
+                          {agentReadiness.isGettingReady ? null : selectedModel?.name ? (
                             <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
                           ) : (
                             <ModelSelectorName>Model</ModelSelectorName>
                           )}
-                          <ChevronDownIcon data-icon="inline-end" />
+                          {agentReadiness.isGettingReady ? null : (
+                            <ChevronDownIcon data-icon="inline-end" />
+                          )}
                         </PromptInputButton>
                       </ModelSelectorTrigger>
-                      <ModelSelectorContent>
-                        <ModelSelectorInput placeholder="Search models..." />
-                        <ModelSelectorList>
-                          <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                          {chefs.map((chef) => (
-                            <ModelSelectorGroup heading={chef} key={chef}>
-                              {models
-                                .filter((item) => item.chef === chef)
-                                .map((item) => (
-                                  <ModelSelectorItem
-                                    key={item.id}
-                                    onSelect={handleModelSelect}
-                                    value={item.id}
-                                  >
-                                    <ModelSelectorLogo provider={item.chefSlug} />
-                                    <ModelSelectorName>{item.name}</ModelSelectorName>
-                                    <ModelSelectorLogoGroup>
-                                      <ModelSelectorLogo
-                                        key={item.providerID}
-                                        provider={item.providerID}
-                                      />
-                                    </ModelSelectorLogoGroup>
-                                    {selectedModelID === item.id ? (
-                                      <CheckIcon className="ml-auto" />
-                                    ) : (
-                                      <div className="ml-auto size-4" />
-                                    )}
-                                  </ModelSelectorItem>
-                                ))}
-                            </ModelSelectorGroup>
-                          ))}
-                        </ModelSelectorList>
-                      </ModelSelectorContent>
-                    </ModelSelector>
-                    {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
-                      <Context
-                        maxTokens={contextUsage.maxTokens}
-                        totalCostUSD={sessionCost}
-                        usage={contextUsage.usage}
-                        usedTokens={contextUsage.usedTokens}
-                      >
-                        <ContextTrigger className="hover:bg-foreground/6 dark:hover:bg-foreground/10 aria-expanded:bg-foreground/8 dark:aria-expanded:bg-foreground/12 data-[state=open]:bg-foreground/8 dark:data-[state=open]:bg-foreground/12 gap-1 rounded-full px-2" />
-                        <ContextContent>
-                          <ContextContentHeader />
-                          <ContextContentBody className="flex flex-col gap-2">
-                            <ContextInputUsage />
-                            <ContextOutputUsage />
-                            <ContextReasoningUsage />
-                            <ContextCacheUsage />
-                          </ContextContentBody>
-                          <ContextContentFooter />
-                        </ContextContent>
-                      </Context>
-                    ) : null}
-                    {reasoningVariants.length > 0 ? (
-                      <Select
-                        disabled={inputDisabled}
-                        onValueChange={handleReasoningLevelChange}
-                        value={selectedReasoningLevel}
-                      >
-                        <ReasoningSelectTrigger
-                          aria-label="Reasoning level"
-                          className="data-[variant=ghost]:hover:bg-foreground/6 dark:data-[variant=ghost]:hover:bg-foreground/10 data-[variant=ghost]:aria-expanded:bg-foreground/8 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12 h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full"
-                          size="sm"
-                          variant="ghost"
+                      {!agentReadiness.isGettingReady &&
+                      contextUsage?.maxTokens &&
+                      contextUsage.maxTokens > 0 ? (
+                        <Context
+                          maxTokens={contextUsage.maxTokens}
+                          totalCostUSD={sessionCost}
+                          usage={contextUsage.usage}
+                          usedTokens={contextUsage.usedTokens}
                         >
-                          <BrainCircuitIcon className="text-muted-foreground size-4" />
-                          <SelectValue placeholder="Reasoning" />
-                        </ReasoningSelectTrigger>
-                        <SelectContent align="end" position="popper" side="top" sideOffset={8}>
-                          <SelectGroup>
-                            <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
-                            {reasoningVariants.map((variant) => (
-                              <SelectItem key={variant} value={variant}>
-                                {variant.length
-                                  ? variant[0]?.toUpperCase() + variant.slice(1)
-                                  : variant}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    ) : null}
-                  </div>
+                          <ContextTrigger className="hover:bg-foreground/6 dark:hover:bg-foreground/10 aria-expanded:bg-foreground/8 dark:aria-expanded:bg-foreground/12 data-[state=open]:bg-foreground/8 dark:data-[state=open]:bg-foreground/12 gap-1 rounded-full px-2" />
+                          <ContextContent>
+                            <ContextContentHeader />
+                            <ContextContentBody className="flex flex-col gap-2">
+                              <ContextInputUsage />
+                              <ContextOutputUsage />
+                              <ContextReasoningUsage />
+                              <ContextCacheUsage />
+                            </ContextContentBody>
+                            <ContextContentFooter />
+                          </ContextContent>
+                        </Context>
+                      ) : null}
+                      {!agentReadiness.isGettingReady && reasoningVariants.length > 0 ? (
+                        <Select
+                          disabled={inputDisabled}
+                          onValueChange={handleReasoningLevelChange}
+                          value={selectedReasoningLevel}
+                        >
+                          <ReasoningSelectTrigger
+                            aria-label="Reasoning level"
+                            className="data-[variant=ghost]:hover:bg-foreground/6 dark:data-[variant=ghost]:hover:bg-foreground/10 data-[variant=ghost]:aria-expanded:bg-foreground/8 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12 h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full"
+                            size="sm"
+                            variant="ghost"
+                          >
+                            <BrainCircuitIcon className="text-muted-foreground size-4" />
+                            <SelectValue placeholder="Reasoning" />
+                          </ReasoningSelectTrigger>
+                          <SelectContent align="end" position="popper" side="top" sideOffset={8}>
+                            <SelectGroup>
+                              <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
+                              {reasoningVariants.map((variant) => (
+                                <SelectItem key={variant} value={variant}>
+                                  {variant.length
+                                    ? variant[0]?.toUpperCase() + variant.slice(1)
+                                    : variant}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+                    </div>
+                    <div className="flex justify-end md:hidden">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <PromptInputButton
+                            aria-label="Chat options"
+                            className="size-8"
+                            disabled={agentReadiness.isGettingReady}
+                          >
+                            <Settings2Icon />
+                          </PromptInputButton>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-72 max-w-[calc(100vw-2rem)]"
+                          side="top"
+                          sideOffset={8}
+                        >
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem
+                              disabled={inputDisabled}
+                              onSelect={() => setModelSelectorOpen(true)}
+                            >
+                              {selectedModel?.chefSlug ? (
+                                <ModelSelectorLogo provider={selectedModel.chefSlug} />
+                              ) : (
+                                <BotIcon />
+                              )}
+                              <span className="min-w-0 flex-1 truncate">
+                                {selectedModel?.name ?? "Model"}
+                              </span>
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                          {reasoningVariants.length > 0 ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuGroup>
+                                <DropdownMenuLabel>Reasoning</DropdownMenuLabel>
+                                <DropdownMenuRadioGroup
+                                  onValueChange={handleReasoningLevelChange}
+                                  value={selectedReasoningLevel}
+                                >
+                                  <DropdownMenuRadioItem
+                                    disabled={inputDisabled}
+                                    value={DEFAULT_REASONING_LEVEL}
+                                  >
+                                    Default
+                                  </DropdownMenuRadioItem>
+                                  {reasoningVariants.map((variant) => (
+                                    <DropdownMenuRadioItem
+                                      className="capitalize"
+                                      disabled={inputDisabled}
+                                      key={variant}
+                                      value={variant}
+                                    >
+                                      {variant}
+                                    </DropdownMenuRadioItem>
+                                  ))}
+                                </DropdownMenuRadioGroup>
+                              </DropdownMenuGroup>
+                            </>
+                          ) : null}
+                          {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuGroup>
+                                <DropdownMenuLabel>Context</DropdownMenuLabel>
+                                <div className="px-1.5 py-1.5">
+                                  <Context
+                                    maxTokens={contextUsage.maxTokens}
+                                    totalCostUSD={sessionCost}
+                                    usage={contextUsage.usage}
+                                    usedTokens={contextUsage.usedTokens}
+                                  >
+                                    <ContextContentHeader className="p-0" />
+                                    <ContextContentBody className="flex flex-col gap-2 px-0 pt-2 pb-0">
+                                      <ContextInputUsage />
+                                      <ContextOutputUsage />
+                                      <ContextReasoningUsage />
+                                      <ContextCacheUsage />
+                                    </ContextContentBody>
+                                    <ContextContentFooter className="mt-2 rounded-md px-2 py-1.5" />
+                                  </Context>
+                                </div>
+                              </DropdownMenuGroup>
+                            </>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <ModelSelectorContent>
+                      <ModelSelectorInput placeholder="Search models..." />
+                      <ModelSelectorList>
+                        <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                        {chefs.map((chef) => (
+                          <ModelSelectorGroup heading={chef} key={chef}>
+                            {models
+                              .filter((item) => item.chef === chef)
+                              .map((item) => (
+                                <ModelSelectorItem
+                                  key={item.id}
+                                  onSelect={handleModelSelect}
+                                  value={item.id}
+                                >
+                                  <ModelSelectorLogo provider={item.chefSlug} />
+                                  <ModelSelectorName>{item.name}</ModelSelectorName>
+                                  <ModelSelectorLogoGroup>
+                                    <ModelSelectorLogo
+                                      key={item.providerID}
+                                      provider={item.providerID}
+                                    />
+                                  </ModelSelectorLogoGroup>
+                                  {selectedModelID === item.id ? (
+                                    <CheckIcon className="ml-auto" />
+                                  ) : (
+                                    <div className="ml-auto size-4" />
+                                  )}
+                                </ModelSelectorItem>
+                              ))}
+                          </ModelSelectorGroup>
+                        ))}
+                      </ModelSelectorList>
+                    </ModelSelectorContent>
+                  </ModelSelector>
                 </motion.div>
                 <motion.div
                   className="col-start-4 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
@@ -847,7 +956,11 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                 >
                   <PromptInputSubmit
                     className="size-9"
-                    disabled={blocked || (!isBusy && (!selectedModel || !canSubmit))}
+                    disabled={
+                      blocked ||
+                      agentReadiness.isGettingReady ||
+                      (!isBusy && (!selectedModel || !canSubmit))
+                    }
                     onStop={isBusy ? () => void abortMessage(directory) : undefined}
                     status={isBusy ? "streaming" : sendState}
                   />
@@ -963,26 +1076,16 @@ function TimelineRowView({
                 }
                 case "tool-group":
                   return (
-                    <div className="bg-muted dark:bg-card rounded-md p-2" key={group.key}>
+                    <div
+                      className="bg-muted dark:bg-card max-w-full min-w-0 overflow-hidden rounded-md p-2"
+                      key={group.key}
+                    >
                       {group.entries.map((entry) => {
                         const toolEntry = entry.toolEntries[0]
                         if (!toolEntry) return null
-                        // tool-parts.tsx consumes our ToolEntry shape directly;
-                        // each group entry holds exactly one ToolEntry (either
-                        // a single tool or a context-tool cluster).
-                        const bridged =
-                          toolEntry.type === "tool"
-                            ? {
-                                key: toolEntry.part.id,
-                                part: toolEntry.part,
-                                type: "tool" as const,
-                              }
-                            : {
-                                key: toolEntry.parts.map((part) => part.id).join(":"),
-                                parts: toolEntry.parts,
-                                type: "context" as const,
-                              }
-                        return <ToolEntries agentName={agentName} entry={bridged} key={entry.key} />
+                        return (
+                          <ToolEntries agentName={agentName} entry={toolEntry} key={entry.key} />
+                        )
                       })}
                     </div>
                   )
@@ -1043,7 +1146,7 @@ function TimelineRowView({
                 </AccordionTrigger>
                 <AccordionContent>
                   {diff.patch ? (
-                    <pre className="overflow-auto font-mono text-xs whitespace-pre-wrap">
+                    <pre className="max-w-full overflow-auto font-mono text-xs wrap-break-word whitespace-pre-wrap">
                       {diff.patch}
                     </pre>
                   ) : (

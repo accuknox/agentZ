@@ -1,11 +1,12 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { Mail } from "lucide-react"
 import { headers } from "next/headers"
-import { connection } from "next/server"
-import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
+import { authErrorSchema, socialProviderSchema, type AuthError } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { PasswordSettings } from "./password-settings"
 import { TwoFactorSettings } from "./two-factor-settings"
 
@@ -13,10 +14,18 @@ export const metadata: Metadata = {
   title: "Account",
 }
 
+const accountManage2FASchema = z.enum(["disable", "enable"])
+
+const accountSearchParamsSchema = z.object({
+  error: searchParamStringSchema.pipe(authErrorSchema.optional()).catch(undefined),
+  manage2fa: searchParamStringSchema.pipe(accountManage2FASchema.optional()).catch(undefined),
+  provider: searchParamStringSchema.pipe(socialProviderSchema.optional()).catch(undefined),
+})
+
 type AccountSearchParams = {
-  error?: AuthError | AuthError[]
-  manage2fa?: "disable" | "enable" | Array<"disable" | "enable">
-  provider?: SocialProvider | SocialProvider[]
+  error?: SearchParamStringInput
+  manage2fa?: SearchParamStringInput
+  provider?: SearchParamStringInput
 }
 
 export default function AccountPage({
@@ -26,7 +35,7 @@ export default function AccountPage({
 }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
+      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-normal">Account</h1>
         </div>
@@ -45,14 +54,14 @@ export default function AccountPage({
 }
 
 async function IdentityProviders() {
-  await connection()
+  const requestHeaders = await headers()
   const auth = getAuth()
   let providers: string[] | undefined
   let errorMessage: string | undefined
 
   try {
     const accounts = await auth.api.listUserAccounts({
-      headers: await headers(),
+      headers: requestHeaders,
     })
     providers = [...new Set(accounts.map((account) => account.providerId))]
   } catch (error) {
@@ -99,14 +108,14 @@ async function IdentityProviders() {
 }
 
 async function PasswordGate() {
-  await connection()
+  const requestHeaders = await headers()
   const auth = getAuth()
   let accounts: Awaited<ReturnType<typeof auth.api.listUserAccounts>> | undefined
   let errorMessage: string | undefined
 
   try {
     accounts = await auth.api.listUserAccounts({
-      headers: await headers(),
+      headers: requestHeaders,
     })
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Failed to load password settings"
@@ -124,19 +133,15 @@ async function PasswordGate() {
 }
 
 async function AccountSecurity({ searchParams }: { searchParams: Promise<AccountSearchParams> }) {
-  await connection()
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   let enabled = false
   let email = ""
   let errorMessage: string | undefined
-  let intent: "disable" | "enable" | undefined
+  let intent: z.infer<typeof accountManage2FASchema> | undefined
   let provider: "credential" | "github" | "google" = "credential"
   let routeError: AuthError | undefined
-  const params = await searchParams
-  const error = Array.isArray(params.error) ? params.error[0] : params.error
-  const manage2FA = Array.isArray(params.manage2fa) ? params.manage2fa[0] : params.manage2fa
-  const routeProvider = Array.isArray(params.provider) ? params.provider[0] : params.provider
+  const params = accountSearchParamsSchema.parse(await searchParams)
 
   try {
     const session = await auth.api.getSession({
@@ -169,13 +174,13 @@ async function AccountSecurity({ searchParams }: { searchParams: Promise<Account
     return <ErrorPanel message={errorMessage} />
   }
 
-  if (manage2FA === "enable" || manage2FA === "disable") {
-    intent = manage2FA
+  if (params.manage2fa) {
+    intent = params.manage2fa
   }
-  if (routeProvider === "github" || routeProvider === "google") {
-    provider = routeProvider
+  if (params.provider) {
+    provider = params.provider
   }
-  routeError = error
+  routeError = params.error
 
   return (
     <TwoFactorSettings

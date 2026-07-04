@@ -1,5 +1,6 @@
 "use client"
 
+import type { Route } from "next"
 import { ChevronRightIcon, Frame, Workflow, Zap } from "lucide-react"
 import Link from "next/link"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -24,7 +25,7 @@ export function NavWorkflows() {
       url: "/workflows/triggers",
       icon: Zap,
     },
-  ]
+  ] satisfies { title: string; url: Route; icon: typeof Frame }[]
   return (
     <SidebarMenu>
       <Collapsible key="Workflows" asChild className="group/collapsible">

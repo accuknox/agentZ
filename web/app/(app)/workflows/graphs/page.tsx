@@ -1,31 +1,40 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
 import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
 import { WorkflowsFilters } from "./workflows-filters"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Workflow Graphs",
 }
 
+const workflowsSearchParamsSchema = z.object({
+  agent_name: searchParamStringSchema,
+  workflow_name: searchParamStringSchema,
+})
+
 type SearchParams = {
-  agent_name?: string | string[]
-  workflow_name?: string | string[]
+  agent_name?: SearchParamStringInput
+  workflow_name?: SearchParamStringInput
 }
+
+type ResolvedSearchParams = z.output<typeof workflowsSearchParamsSchema>
 
 export default async function WorkflowsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
+  const params = workflowsSearchParamsSchema.parse(await searchParams)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
+      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-normal">Workflows</h1>
         </div>
@@ -40,21 +49,29 @@ export default async function WorkflowsPage({
   )
 }
 
-async function Filters({ searchParams }: { searchParams: SearchParams }) {
+async function Filters({ searchParams }: { searchParams: ResolvedSearchParams }) {
   const agents = listAgentsCachedQuery()
-  const selectedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const selectedWorkflowName = Array.isArray(searchParams.workflow_name)
-    ? searchParams.workflow_name[0]
-    : searchParams.workflow_name
+  const selectedAgentName = searchParams.agent_name
+  const selectedWorkflowName = searchParams.workflow_name
   const agentsResult = await agents
-  if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    return <FiltersSkeleton />
+  if (agentsResult.error) {
+    return <ErrorPanel message={agentsResult.error.message} />
   }
 
   const selectedAgent =
     agentsResult.agents.find((agent) => agent.name === selectedAgentName) ?? agentsResult.agents[0]
+  if (!selectedAgent) {
+    return (
+      <WorkflowsFilters
+        action={selectWorkflowFiltersAction}
+        agents={agentsResult.agents}
+        selectedAgentName={undefined}
+        workflows={[]}
+        selectedWorkflowName={undefined}
+      />
+    )
+  }
+
   const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name)
   const workflows = workflowsResult.summaries ?? []
   const selectedWorkflow =
@@ -72,14 +89,10 @@ async function Filters({ searchParams }: { searchParams: SearchParams }) {
   )
 }
 
-async function WorkflowContent({ searchParams }: { searchParams: SearchParams }) {
+async function WorkflowContent({ searchParams }: { searchParams: ResolvedSearchParams }) {
   const agents = listAgentsCachedQuery()
-  const selectedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const selectedWorkflowName = Array.isArray(searchParams.workflow_name)
-    ? searchParams.workflow_name[0]
-    : searchParams.workflow_name
+  const selectedAgentName = searchParams.agent_name
+  const selectedWorkflowName = searchParams.workflow_name
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />
@@ -126,11 +139,11 @@ async function WorkflowContent({ searchParams }: { searchParams: SearchParams })
 
 function FiltersSkeleton() {
   return (
-    <div className="bg-background border-b px-6 py-2">
+    <div className="bg-background border-b px-4 py-2 sm:px-6">
       <div className="flex min-h-14 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-64" />
-          <Skeleton className="h-8 w-full min-w-52 rounded-md sm:w-72" />
+          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52" />
+          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52" />
         </div>
       </div>
     </div>
@@ -145,7 +158,7 @@ function CanvasSkeleton() {
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
         <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />
       </div>
-      <div className="bg-card/88 border-border/70 absolute top-4 left-4 z-10 w-sm max-w-sm rounded-lg border p-1 shadow-lg shadow-black/5 backdrop-blur-md">
+      <div className="bg-card/88 border-border/70 absolute top-4 left-4 z-10 w-[calc(100vw-2rem)] max-w-sm rounded-lg border p-1 shadow-lg shadow-black/5 backdrop-blur-md sm:w-sm">
         <div className="flex items-start gap-2 rounded-md px-3 py-2.5">
           <Skeleton className="h-4 w-56 max-w-full" />
           <Skeleton className="mt-0.5 size-4 rounded-sm" />

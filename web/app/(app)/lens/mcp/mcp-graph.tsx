@@ -21,7 +21,7 @@ import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { mcpConnectionFallbackIcon, renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import type { McpGraphEdge, McpGraphResponse } from "@/lib/gateway/client"
 
 type McpGraphProps = {
@@ -54,7 +54,7 @@ type McpNodeData =
 
 type McpCanvasNode = FlowNode<McpNodeData, "mcp">
 type McpCanvasEdge = FlowEdge<Record<string, never>, "animated">
-type DagrePositionedNode = DagreNodeLabel & Required<Pick<DagreNodeLabel, "x" | "y">>
+type DagrePositionedNode = DagreNodeLabel & { x: number; y: number }
 
 const fallbackNodeWidth = 184
 const fallbackNodeHeight = 128
@@ -98,7 +98,7 @@ export function McpGraph({ graph }: McpGraphProps) {
       }
 
       metrics.set(toolID(edge.target), {
-        lastCall: edge.last_called_at ? dayjs(edge.last_called_at).fromNow() : undefined,
+        lastCall: edge.last_called_at ? formatAge(edge.last_called_at) : undefined,
         latencyMs: edge.avg_latency_ms,
       })
       return metrics
@@ -343,8 +343,7 @@ function ToolMetricsView({ metrics }: { metrics: ToolMetrics }) {
 }
 
 function applyLayout(graph: McpGraphResponse, nodes: McpCanvasNode[]): McpCanvasNode[] {
-  const dagreGraph = new dagre.graphlib.Graph<DagreGraphLabel, DagreNodeLabel>()
-  const nodeByID = new Map(nodes.map((node) => [node.id, node]))
+  const dagreGraph = new dagre.graphlib.Graph<DagreGraphLabel, DagrePositionedNode>()
 
   dagreGraph.setDefaultEdgeLabel(() => ({}))
   dagreGraph.setGraph({
@@ -359,6 +358,8 @@ function applyLayout(graph: McpGraphResponse, nodes: McpCanvasNode[]): McpCanvas
     dagreGraph.setNode(node.id, {
       height: height + nodeMarginY,
       width: width + nodeMarginX,
+      x: 0,
+      y: 0,
     })
   }
 
@@ -370,10 +371,6 @@ function applyLayout(graph: McpGraphResponse, nodes: McpCanvasNode[]): McpCanvas
 
   return nodes.map((node) => {
     const layout = dagreGraph.node(node.id)
-    if (!hasPosition(layout)) {
-      throw new Error(`mcp graph node ${node.id} is missing dagre coordinates`)
-    }
-
     const { height, width } = nodeSize(node)
 
     return {
@@ -423,19 +420,4 @@ function toolID(id: string): string {
 
 function hasToolMetrics(metrics: ToolMetrics): boolean {
   return metrics.latencyMs !== undefined || metrics.lastCall !== undefined
-}
-
-function hasPosition(node: unknown): node is DagrePositionedNode {
-  return (
-    typeof node === "object" &&
-    node !== null &&
-    "x" in node &&
-    "y" in node &&
-    "width" in node &&
-    "height" in node &&
-    typeof node.x === "number" &&
-    typeof node.y === "number" &&
-    typeof node.width === "number" &&
-    typeof node.height === "number"
-  )
 }

@@ -59,13 +59,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import {
-  formatCompactNumber,
-  percentOf,
-  shortLensID,
-  useTokenPagination,
-} from "@/app/(app)/lens/traces/client-utils"
+import { percentOf, shortLensID, useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 
 const columnClassName: Record<string, string> = {
   trace: "min-w-40 w-[20%]",
@@ -1382,16 +1378,19 @@ function MetricBadge({
 }
 
 function WaterfallProgress({ trace }: { trace: TraceListItem }) {
+  const style: React.CSSProperties & {
+    "--waterfall-delay": string
+    "--waterfall-transform": string
+  } = {
+    "--waterfall-delay": `${trace.waterfallDelayMs}ms`,
+    "--waterfall-transform": `translateX(-${100 - trace.cumulativeDurationPercent}%)`,
+  }
+
   return (
     <Progress
       value={trace.cumulativeDurationPercent}
       className="trace-waterfall-progress **:data-[slot=progress-indicator]:bg-foreground h-1.5"
-      style={
-        {
-          "--waterfall-delay": `${trace.waterfallDelayMs}ms`,
-          "--waterfall-transform": `translateX(-${100 - trace.cumulativeDurationPercent}%)`,
-        } as React.CSSProperties
-      }
+      style={style}
     />
   )
 }

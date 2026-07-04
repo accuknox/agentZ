@@ -368,7 +368,7 @@ export function parseMcpForm(values: McpFormValues): ParsedMcpForm {
   const headers = Object.fromEntries(
     values.extra_headers
       .filter((header) => header.key && header.value)
-      .map((header) => [header.key, header.value] as const)
+      .map<[string, string]>((header) => [header.key, header.value])
   )
 
   return {

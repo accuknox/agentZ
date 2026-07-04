@@ -31,6 +31,18 @@ type ParsedScheduleForm = {
 
 type WorkflowScheduleInputsJSON = Record<string, string | number | boolean>
 
+const scheduleFormDataSchema = z.object({
+  name: workflowScheduleNameSchema,
+  workflow_name: z.string().min(1, "Workflow is required"),
+  schedule: z.string(),
+  time_zone: z.string(),
+  timeout_seconds: z.coerce.number(),
+  successful_runs_history_limit: z.coerce.number(),
+  failed_runs_history_limit: z.coerce.number(),
+})
+
+const workflowScheduleInputJSONSchema = z.union([z.string(), z.number(), z.boolean()])
+
 export async function createWorkflowScheduleFormAction(
   agentName: string,
   _: CreateWorkflowScheduleFormState,
@@ -93,9 +105,11 @@ export async function updateWorkflowScheduleFormAction(
   _: UpdateWorkflowScheduleFormState,
   formData: FormData
 ): Promise<UpdateWorkflowScheduleFormState> {
-  const nameResult = workflowScheduleNameSchema.safeParse(formData.get("name"))
+  const nameResult = scheduleFormDataSchema
+    .pick({ name: true })
+    .safeParse(Object.fromEntries(formData))
   if (!nameResult.success) {
-    return invalidFormState("Schedule configuration is invalid", nameResult.error.issues, "name")
+    return invalidFormState("Schedule configuration is invalid", nameResult.error.issues)
   }
 
   const parsed = await parseScheduleForm(agentName, formData)
@@ -108,7 +122,7 @@ export async function updateWorkflowScheduleFormAction(
     path: {
       agentName,
       workflowName: parsed.data.workflow_name,
-      scheduleName: nameResult.data,
+      scheduleName: nameResult.data.name,
     },
     body: {
       schedule: parsed.data.schedule,
@@ -131,18 +145,19 @@ export async function deleteWorkflowScheduleFormAction(
   _: DeleteWorkflowScheduleFormState,
   formData: FormData
 ): Promise<DeleteWorkflowScheduleFormState> {
-  const nameResult = workflowScheduleNameSchema.safeParse(formData.get("name"))
-  const workflowName = formData.get("workflow_name")
-  if (!nameResult.success) {
-    return invalidFormState("Invalid schedule name", nameResult.error.issues, "name")
+  const parsed = scheduleFormDataSchema
+    .pick({ name: true, workflow_name: true })
+    .safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
+    return invalidFormState("Invalid schedule", parsed.error.issues)
   }
 
   const result = await deleteWorkflowSchedule({
     client: getGatewayServerClient(),
     path: {
       agentName,
-      workflowName: typeof workflowName === "string" ? workflowName : "",
-      scheduleName: nameResult.data,
+      workflowName: parsed.data.workflow_name,
+      scheduleName: parsed.data.name,
     },
   })
   if (result.error) {
@@ -153,25 +168,13 @@ export async function deleteWorkflowScheduleFormAction(
 }
 
 async function parseScheduleForm(agentName: string, formData: FormData) {
-  const name = formData.get("name")
-  const workflowName = formData.get("workflow_name")
-  const schedule = formData.get("schedule")
-  const timeZone = formData.get("time_zone")
-  const timeoutSeconds = formData.get("timeout_seconds")
-  const successfulRunsHistoryLimit = formData.get("successful_runs_history_limit")
-  const failedRunsHistoryLimit = formData.get("failed_runs_history_limit")
+  const scalarValues = scheduleFormDataSchema.safeParse(Object.fromEntries(formData))
+  if (!scalarValues.success) {
+    return invalidFormState("Schedule configuration is invalid", scalarValues.error.issues)
+  }
+
   const values: CreateWorkflowScheduleFormValues = {
-    name: typeof name === "string" ? name : "",
-    workflow_name: typeof workflowName === "string" ? workflowName : "",
-    schedule: typeof schedule === "string" ? schedule : "",
-    time_zone: typeof timeZone === "string" ? timeZone : "",
-    timeout_seconds: typeof timeoutSeconds === "string" ? Number(timeoutSeconds) : Number.NaN,
-    successful_runs_history_limit:
-      typeof successfulRunsHistoryLimit === "string"
-        ? Number(successfulRunsHistoryLimit)
-        : Number.NaN,
-    failed_runs_history_limit:
-      typeof failedRunsHistoryLimit === "string" ? Number(failedRunsHistoryLimit) : Number.NaN,
+    ...scalarValues.data,
     inputs: {},
   }
 
@@ -181,19 +184,23 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
     }
 
     const name = key.slice("input:".length)
-    if (typeof value !== "string") {
-      continue
+    const inputValue = z.string().safeParse(value)
+    if (!inputValue.success) {
+      return invalidFormState("Schedule configuration is invalid", inputValue.error.issues)
     }
 
-    if (value.length === 0) {
+    if (inputValue.data.length === 0) {
       values.inputs[name] = undefined
       continue
     }
 
-    let parsedInput: unknown
-
     try {
-      parsedInput = JSON.parse(value)
+      const parsedInput = workflowScheduleInputJSONSchema.safeParse(JSON.parse(inputValue.data))
+      if (!parsedInput.success) {
+        return invalidFormState("Schedule configuration is invalid", parsedInput.error.issues)
+      }
+
+      values.inputs[name] = parsedInput.data
     } catch {
       return invalidFormState("Schedule configuration is invalid", [
         {
@@ -203,13 +210,6 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
         },
       ])
     }
-
-    const parsed = z.union([z.string(), z.number(), z.boolean()]).safeParse(parsedInput)
-    if (!parsed.success) {
-      return invalidFormState("Schedule configuration is invalid", parsed.error.issues)
-    }
-
-    values.inputs[name] = parsed.data
   }
 
   const workflowResult = await getWorkflow({

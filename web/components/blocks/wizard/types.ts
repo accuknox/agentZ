@@ -3,8 +3,6 @@
 import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
-export type WizardLayout = "vertical" | "horizontal"
-
 export type WizardStep = {
   id: string
   title: string
@@ -17,8 +15,6 @@ export type WizardShellProps<TStep extends WizardStep> = {
   currentStepId: TStep["id"]
   direction: number
   children: ReactNode
-  layout?: WizardLayout
-  panelAdornment?: ReactNode
   canVisitStepAction: (step: TStep, index: number) => boolean
   onStepSelectAction: (step: TStep, index: number) => void
 }

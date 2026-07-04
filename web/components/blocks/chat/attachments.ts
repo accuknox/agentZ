@@ -3,6 +3,7 @@
 import type { AttachmentData } from "@/components/ai-elements/attachments"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { FilePartInput, Part, TextPartInput } from "@opencode-ai/sdk/v2"
+import { formatByteSize } from "@/lib/format"
 
 export const chatAttachmentConfig = {
   accept: "image/*,application/pdf",
@@ -29,16 +30,10 @@ export function chatAttachmentErrorMessage(code: "accept" | "max_file_size" | "m
     case "accept":
       return "Only images and PDFs are supported. SVG files are blocked."
     case "max_file_size":
-      return `Each attachment must be ${formatBytes(chatAttachmentConfig.maxFileSizeBytes)} or smaller.`
+      return `Each attachment must be ${formatByteSize(chatAttachmentConfig.maxFileSizeBytes)} or smaller.`
     case "max_files":
       return `You can attach up to ${chatAttachmentConfig.maxFileCount} files per message.`
   }
-}
-
-function formatBytes(size: number) {
-  if (size < 1024) return `${size} B`
-  if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function validateChatAttachments(files: ChatAttachment[]) {

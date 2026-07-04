@@ -1,7 +1,9 @@
+import type { Route } from "next"
+
 /**
  * signInReturnTo keeps post-auth redirects on internal app paths only.
  */
-export function signInReturnTo(value?: string): string | undefined {
+export function signInReturnTo(value?: string): Route | undefined {
   if (!value) {
     return
   }
@@ -10,7 +12,7 @@ export function signInReturnTo(value?: string): string | undefined {
     return
   }
 
-  return value
+  return value as Route
 }
 
 /**
@@ -24,7 +26,7 @@ export function signInURL({
   error?: string
   provider?: string
   returnTo?: string
-} = {}): string {
+} = {}): Route {
   const params = new URLSearchParams()
   if (error) {
     params.set("error", error)
@@ -43,7 +45,7 @@ export function signInURL({
     return "/signin"
   }
 
-  return `/signin?${search}`
+  return `/signin?${search}` as Route
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { deleteAgentFormAction } from "@/data/agent.actions"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
@@ -7,12 +8,17 @@ import { AgentTable } from "@/app/agent-table"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { BotIcon } from "@/components/bot-icon"
 import type { DeleteAgentFormState } from "@/data/types"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ page_token?: string | string[] }>
-}) {
+const homeSearchParamsSchema = z.object({
+  page_token: searchParamStringSchema,
+})
+
+type HomeSearchParams = {
+  page_token?: SearchParamStringInput
+}
+
+export default async function Home({ searchParams }: { searchParams: Promise<HomeSearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex items-start justify-between gap-4 px-4 pt-4 md:px-6 md:pt-6">
@@ -67,17 +73,16 @@ async function Agents({
   searchParams,
   deleteAgentAction,
 }: {
-  searchParams?: Promise<{ page_token?: string | string[] }>
+  searchParams?: Promise<HomeSearchParams>
   deleteAgentAction: (
     agentName: string,
     state: DeleteAgentFormState,
     formData: FormData
   ) => Promise<DeleteAgentFormState>
 }) {
-  const params = searchParams ? await searchParams : undefined
-  const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
+  const params = searchParams ? homeSearchParamsSchema.parse(await searchParams) : undefined
   const [result, sandboxes] = await Promise.all([
-    listAgentsCachedQuery({ limit: 50, page_token: pageToken }),
+    listAgentsCachedQuery({ limit: 50, page_token: params?.page_token }),
     listSandboxesCachedQuery({ limit: 50 }),
   ])
 

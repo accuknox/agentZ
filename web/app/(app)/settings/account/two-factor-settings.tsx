@@ -35,15 +35,24 @@ type TwoFactorSetup = {
   totpURI: string
 }
 
-type ManageResponse =
-  | {
-      action: ManageAction
-      provider: Provider
-      status: "reauth_required"
-    }
-  | ({
-      status: "ok"
-    } & Partial<TwoFactorSetup>)
+const manageResponseSchema = z.discriminatedUnion("status", [
+  z.object({
+    action: z.enum(["disable", "enable"]),
+    provider: z.enum(["credential", "github", "google"]),
+    status: z.literal("reauth_required"),
+  }),
+  z.object({
+    backupCodes: z.array(z.string()).optional(),
+    status: z.literal("ok"),
+    totpURI: z.string().optional(),
+  }),
+])
+
+const manageErrorResponseSchema = z.object({
+  message: z.string().optional(),
+})
+
+type ManageResponse = z.infer<typeof manageResponseSchema>
 
 type TwoFactorSettingsProps = {
   email: string
@@ -55,6 +64,10 @@ type TwoFactorSettingsProps = {
 
 const reauthenticateSchema = z.object({
   password: z.string().min(1, "Enter your current password."),
+})
+
+const twoFactorRedirectResponseSchema = z.object({
+  twoFactorRedirect: z.literal(true),
 })
 
 /**
@@ -133,14 +146,16 @@ export function TwoFactorSettings({
       },
       method: "POST",
     })
-    const data = (await response.json()) as ManageResponse | { message?: string }
-    if (!response.ok && "status" in data && data.status === "reauth_required") {
-      return data
+    const payload = await response.json()
+    const parsed = manageResponseSchema.safeParse(payload)
+    if (!response.ok && parsed.success && parsed.data.status === "reauth_required") {
+      return parsed.data
     }
-    if (!response.ok || !("status" in data) || data.status !== "ok") {
-      throw new Error("message" in data ? data.message || "Request failed" : "Request failed")
+    if (!response.ok || !parsed.success || parsed.data.status !== "ok") {
+      const error = manageErrorResponseSchema.safeParse(payload)
+      throw new Error(error.success ? (error.data.message ?? "Request failed") : "Request failed")
     }
-    return data
+    return parsed.data
   }
 
   const startEnable = React.useEffectEvent(async (): Promise<void> => {
@@ -197,12 +212,7 @@ export function TwoFactorSettings({
       }
 
       const data = result.data
-      if (
-        data &&
-        typeof data === "object" &&
-        "twoFactorRedirect" in data &&
-        data.twoFactorRedirect === true
-      ) {
+      if (twoFactorRedirectResponseSchema.safeParse(data).success) {
         window.location.replace(`/signin/two-factor?returnTo=${encodeURIComponent(returnTo)}`)
         return
       }

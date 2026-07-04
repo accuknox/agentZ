@@ -104,6 +104,7 @@ type SelectedMcpTool = {
 type PackageStepProps = {
   installedPackages: string[]
   selectedPackages: string[]
+  onAdvanceAction: () => void
   onPrev: () => void
   onNext: (packages: string[]) => void
 }
@@ -122,6 +123,7 @@ type AllowedHostsStepProps = {
 type McpStepProps = {
   initialMcpConnectionRefs: SelectedMcpConnectionRef[]
   mcpConnections: McpConnectionSummary[]
+  onAdvanceAction: () => void
   onNext: (mcpConnectionRefs: SelectedMcpConnectionRef[]) => void
   onPrev: () => void
 }
@@ -263,7 +265,7 @@ function PackageStep({
   onAdvanceAction,
   onNext,
   onPrev,
-}: PackageStepProps & { onAdvanceAction: () => void }) {
+}: PackageStepProps) {
   const form = useForm<PackageStepValues>({
     defaultValues: {
       packages: selectedPackages,
@@ -331,8 +333,9 @@ function createMcpSelectionColumns({
       accessorKey: "name",
       header: ({ column }) => (
         <Button
-          className="-ml-2"
-          variant="ghost"
+          className="text-foreground -ml-2"
+          variant="plain"
+          size="sm"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Name
@@ -358,13 +361,13 @@ function createMcpSelectionColumns({
     },
     {
       id: "auth_mode",
-      header: "Auth type",
+      header: () => <span className="text-foreground">Auth type</span>,
       accessorFn: (row) => row.auth_mode.toLowerCase(),
       cell: ({ row }) => <span className="capitalize">{row.original.auth_mode.toLowerCase()}</span>,
     },
     {
       id: "endpoint",
-      header: "Endpoint",
+      header: () => <span className="text-foreground">Endpoint</span>,
       accessorFn: (row) => row.endpoint_url,
       cell: ({ row }) => (
         <span
@@ -380,8 +383,9 @@ function createMcpSelectionColumns({
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button
-          className="-ml-2"
-          variant="ghost"
+          className="text-foreground -ml-2"
+          variant="plain"
+          size="sm"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Age
@@ -580,7 +584,7 @@ function McpStep({
   onAdvanceAction,
   onNext,
   onPrev,
-}: McpStepProps & { onAdvanceAction: () => void }) {
+}: McpStepProps) {
   const form = useForm<McpStepValues>({
     defaultValues: {
       mcpConnectionRefs: initialMcpConnectionRefs,
@@ -726,7 +730,7 @@ function McpStep({
       )}
       className="flex min-h-full flex-col gap-5"
     >
-      <div className="-mx-4 -mt-4 min-w-0 space-y-4 sm:-mx-6 sm:-mt-6">
+      <div className="-mx-4 min-w-0 space-y-4 sm:-mx-6">
         <div className="w-full min-w-0 overflow-hidden border-b">
           <Table className="table-auto">
             <TableHeader>
@@ -735,7 +739,7 @@ function McpStep({
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className={`h-8 ${mcpColumnClassName[header.column.id] ?? "px-4"}`}
+                      className={`h-9 ${mcpColumnClassName[header.column.id] ?? "px-4"}`}
                     >
                       {header.isPlaceholder
                         ? null
@@ -1122,7 +1126,6 @@ export function SandboxWizard({
             currentIndex={currentIndex}
             currentStepId={currentStepId}
             direction={direction}
-            layout="horizontal"
             canVisitStepAction={(_, index) => index <= currentIndex || Boolean(data.identity)}
             onStepSelectAction={(step, index) => {
               requestNavigation({ kind: "step", step: step.id, index })

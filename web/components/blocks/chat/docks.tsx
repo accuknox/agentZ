@@ -85,11 +85,9 @@ function AutoSizeTextarea({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Escape") {
       event.preventDefault()
-      ;(
-        event.currentTarget.parentElement?.querySelector(
-          "button[data-question-dismiss]"
-        ) as HTMLElement | null
-      )?.focus()
+      event.currentTarget.parentElement
+        ?.querySelector<HTMLElement>("button[data-question-dismiss]")
+        ?.focus()
       return
     }
     if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === "Enter") {
@@ -243,7 +241,7 @@ export function QuestionDock({
       next()
       return
     }
-    const target = event.target as HTMLElement | null
+    const target = event.target instanceof HTMLElement ? event.target : null
     const onOption = target?.closest("[data-question-option]") != null
     if (!onOption) return
     if (event.altKey || event.ctrlKey || event.metaKey) return

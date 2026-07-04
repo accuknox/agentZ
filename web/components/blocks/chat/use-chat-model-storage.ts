@@ -1,11 +1,19 @@
 "use client"
 
 import { useCallback, useSyncExternalStore } from "react"
+import * as z from "zod"
 
-type StoredModelRef = {
-  modelID: string
-  providerID: string
-}
+const storedModelRefSchema = z.object({
+  modelID: z.string().min(1),
+  providerID: z.string().min(1),
+})
+
+const chatModelStoragePayloadSchema = z.object({
+  recent: z.array(storedModelRefSchema).catch([]),
+  variant: z.record(z.string(), z.string()).catch({}),
+})
+
+type StoredModelRef = z.infer<typeof storedModelRefSchema>
 
 type ChatModelStoragePayload = {
   recent: StoredModelRef[]
@@ -40,17 +48,6 @@ const emptyStorageSnapshot = {
   variant: {},
 } satisfies ChatModelStorageSnapshot
 
-function isStoredModelRef(value: unknown): value is StoredModelRef {
-  if (typeof value !== "object" || value === null) return false
-
-  return (
-    "providerID" in value &&
-    typeof value.providerID === "string" &&
-    "modelID" in value &&
-    typeof value.modelID === "string"
-  )
-}
-
 function parseStoragePayload(value: string | null): ChatModelStoragePayload {
   if (!value) {
     return {
@@ -60,33 +57,7 @@ function parseStoragePayload(value: string | null): ChatModelStoragePayload {
   }
 
   try {
-    const parsed: unknown = JSON.parse(value)
-    if (typeof parsed !== "object" || parsed === null) {
-      return {
-        recent: [],
-        variant: {},
-      }
-    }
-
-    const recent =
-      "recent" in parsed && Array.isArray(parsed.recent)
-        ? parsed.recent.filter(isStoredModelRef)
-        : []
-    const variant =
-      "variant" in parsed && typeof parsed.variant === "object" && parsed.variant !== null
-        ? Object.fromEntries(
-            Object.entries(parsed.variant).filter(
-              (entry): entry is [string, string | undefined] => {
-                return typeof entry[0] === "string" && typeof entry[1] === "string"
-              }
-            )
-          )
-        : {}
-
-    return {
-      recent,
-      variant,
-    }
+    return chatModelStoragePayloadSchema.parse(JSON.parse(value))
   } catch {
     return {
       recent: [],

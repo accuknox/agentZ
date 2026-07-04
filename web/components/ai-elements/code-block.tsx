@@ -53,23 +53,22 @@ const addKeysToTokens = (lines: ThemedToken[][]): KeyedLine[] =>
   }))
 
 // Token rendering component
-const TokenSpan = ({ token }: { token: ThemedToken }) => (
-  <span
-    className="dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)!"
-    style={
-      {
-        backgroundColor: token.bgColor,
-        color: token.color,
-        fontStyle: isItalic(token.fontStyle) ? "italic" : undefined,
-        fontWeight: isBold(token.fontStyle) ? "bold" : undefined,
-        textDecoration: isUnderline(token.fontStyle) ? "underline" : undefined,
-        ...token.htmlStyle,
-      } as CSSProperties
-    }
-  >
-    {token.content}
-  </span>
-)
+const TokenSpan = ({ token }: { token: ThemedToken }) => {
+  const style: CSSProperties = {
+    backgroundColor: token.bgColor,
+    color: token.color,
+    fontStyle: isItalic(token.fontStyle) ? "italic" : undefined,
+    fontWeight: isBold(token.fontStyle) ? "bold" : undefined,
+    textDecoration: isUnderline(token.fontStyle) ? "underline" : undefined,
+    ...token.htmlStyle,
+  }
+
+  return (
+    <span className="dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)!" style={style}>
+      {token.content}
+    </span>
+  )
+}
 
 // Line number styles using CSS counters
 const LINE_NUMBER_CLASSES = cn(
@@ -158,20 +157,28 @@ const getHighlighter = (
 }
 
 // Create raw tokens for immediate display while highlighting loads
-const createRawTokens = (code: string): TokenizedCode => ({
-  bg: "transparent",
-  fg: "inherit",
-  tokens: code.split("\n").map((line) =>
-    line === ""
+const createRawTokens = (code: string): TokenizedCode => {
+  let offset = 0
+  const tokens = code.split("\n").map((line) => {
+    const lineOffset = offset
+    offset += line.length + 1
+    return line === ""
       ? []
       : [
           {
             color: "inherit",
             content: line,
-          } as ThemedToken,
+            offset: lineOffset,
+          },
         ]
-  ),
-})
+  })
+
+  return {
+    bg: "transparent",
+    fg: "inherit",
+    tokens,
+  }
+}
 
 // Synchronous highlight with callback for async results
 const highlightCode = (
@@ -464,7 +471,7 @@ export const CodeBlockCopyButton = ({
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout)
       }
     } catch (error) {
-      onError?.(error as Error)
+      onError?.(error instanceof Error ? error : new Error("Failed to copy code"))
     }
   }, [code, onCopy, onError, timeout, isCopied])
 

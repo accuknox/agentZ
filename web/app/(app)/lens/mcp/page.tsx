@@ -1,20 +1,28 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getMcpGraphAction } from "@/data/lens.actions"
 import type { ListAgentActionResponse } from "@/data/types"
 import { McpEmptyState, McpGraph } from "@/app/(app)/lens/mcp/mcp-graph"
 import { McpFilters } from "@/app/(app)/lens/mcp/mcp-filters"
 import { mcpDateRange } from "@/app/(app)/lens/mcp/search-params"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "MCP Observability",
 }
 
+const mcpSearchParamsSchema = z.object({
+  agent_name: searchParamStringSchema,
+  from: searchParamStringSchema,
+  to: searchParamStringSchema,
+})
+
 type McpSearchParams = {
-  agent_name?: string | string[]
-  from?: string | string[]
-  to?: string | string[]
+  agent_name?: SearchParamStringInput
+  from?: SearchParamStringInput
+  to?: SearchParamStringInput
 }
 
 type McpScope =
@@ -37,16 +45,16 @@ export default async function McpPage({
 }: {
   searchParams: Promise<McpSearchParams>
 }) {
-  const params = await searchParams
+  const params = resolveMcpSearchParams(searchParams)
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<FiltersSkeleton />}>
-        <FiltersContent searchParams={params} />
+        <Filters searchParams={params} />
       </Suspense>
       <Suspense fallback={<GraphSkeleton />}>
-        <GraphContent searchParams={params} />
+        <Graph searchParams={params} />
       </Suspense>
     </main>
   )
@@ -62,63 +70,45 @@ function PageHeader() {
   )
 }
 
-async function Filters({
-  scope,
-  from,
-  to,
-}: {
-  scope: Promise<McpScope>
-  from: string
-  to: string
-}) {
-  const resolvedScope = await scope
-  if (resolvedScope.error) {
-    return <ErrorPanel message={resolvedScope.error.message} />
+async function Filters({ searchParams }: { searchParams: Promise<ResolvedMcpSearchParams> }) {
+  const params = await searchParams
+  const range = params.range
+  const scope = await getMcpScope({
+    agents: listAgentsCachedQuery(),
+    agentName: params.agentName,
+  })
+  if (scope.error) {
+    return <ErrorPanel message={scope.error.message} />
   }
 
   return (
     <McpFilters
-      agents={resolvedScope.agents}
-      selectedAgentName={resolvedScope.selectedAgentName}
-      from={from}
-      to={to}
+      agents={scope.agents}
+      selectedAgentName={scope.selectedAgentName}
+      from={range.from}
+      to={range.to}
     />
   )
 }
 
-async function FiltersContent({ searchParams }: { searchParams: McpSearchParams }) {
-  const agents = listAgentsCachedQuery()
-  const from = Array.isArray(searchParams.from) ? searchParams.from[0] : searchParams.from
-  const to = Array.isArray(searchParams.to) ? searchParams.to[0] : searchParams.to
-  const range = mcpDateRange(from, to)
-  const scope = getMcpScope({
-    agents,
-    agentName: Array.isArray(searchParams.agent_name)
-      ? searchParams.agent_name[0]
-      : searchParams.agent_name,
+async function Graph({ searchParams }: { searchParams: Promise<ResolvedMcpSearchParams> }) {
+  const params = await searchParams
+  const range = params.range
+  const scope = await getMcpScope({
+    agents: listAgentsCachedQuery(),
+    agentName: params.agentName,
   })
 
-  return <Filters scope={scope} from={range.from} to={range.to} />
-}
-
-async function Graph({
-  scope,
-  range,
-}: {
-  scope: Promise<McpScope>
-  range: ReturnType<typeof mcpDateRange>
-}) {
-  const resolvedScope = await scope
-  if (resolvedScope.error) {
-    return <ErrorPanel message={resolvedScope.error.message} />
+  if (scope.error) {
+    return <ErrorPanel message={scope.error.message} />
   }
 
-  if (!resolvedScope.selectedAgentName) {
+  if (!scope.selectedAgentName) {
     return <EmptyState message="No agents available" />
   }
 
   const result = await getMcpGraphAction(
-    { agentName: resolvedScope.selectedAgentName },
+    { agentName: scope.selectedAgentName },
     { from: range.from, to: range.to }
   )
   if (result.error) {
@@ -146,19 +136,20 @@ async function Graph({
   )
 }
 
-async function GraphContent({ searchParams }: { searchParams: McpSearchParams }) {
-  const agents = listAgentsCachedQuery()
-  const from = Array.isArray(searchParams.from) ? searchParams.from[0] : searchParams.from
-  const to = Array.isArray(searchParams.to) ? searchParams.to[0] : searchParams.to
-  const range = mcpDateRange(from, to)
-  const scope = getMcpScope({
-    agents,
-    agentName: Array.isArray(searchParams.agent_name)
-      ? searchParams.agent_name[0]
-      : searchParams.agent_name,
-  })
+type ResolvedMcpSearchParams = {
+  agentName?: string
+  range: ReturnType<typeof mcpDateRange>
+}
 
-  return <Graph scope={scope} range={range} />
+async function resolveMcpSearchParams(
+  searchParams: Promise<McpSearchParams>
+): Promise<ResolvedMcpSearchParams> {
+  const params = mcpSearchParamsSchema.parse(await searchParams)
+
+  return {
+    agentName: params.agent_name,
+    range: mcpDateRange(params.from, params.to),
+  }
 }
 
 function FiltersSkeleton() {

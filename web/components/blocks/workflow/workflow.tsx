@@ -46,7 +46,7 @@ type WorkflowCanvasEdge = FlowEdge<
   "animated" | "temporary"
 >
 
-type DagrePositionedNode = DagreNodeLabel & Required<Pick<DagreNodeLabel, "x" | "y">>
+type DagrePositionedNode = DagreNodeLabel & { x: number; y: number }
 
 const fallbackNodeWidth = 304
 const fallbackNodeHeight = 92
@@ -355,7 +355,7 @@ function applyWorkflowLayout(
   workflow: WorkflowDefinition,
   nodes: WorkflowCanvasNode[]
 ): WorkflowCanvasNode[] {
-  const graph = new dagre.graphlib.Graph<DagreGraphLabel, DagreNodeLabel>()
+  const graph = new dagre.graphlib.Graph<DagreGraphLabel, DagrePositionedNode>()
   const outgoingCounts = new Map<string, number>()
   const incomingTargets = new Set<string>()
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
@@ -375,6 +375,8 @@ function applyWorkflowLayout(
     graph.setNode(node.name, {
       width: dimensions.width + nodeMarginX,
       height: dimensions.height + nodeMarginY,
+      x: 0,
+      y: 0,
     })
   }
 
@@ -388,10 +390,6 @@ function applyWorkflowLayout(
 
   return workflow.nodes.map((node) => {
     const layout = graph.node(node.name)
-    if (!hasPosition(layout)) {
-      throw new Error(`workflow node ${node.name} is missing dagre coordinates`)
-    }
-
     const existingNode = nodeById.get(node.name)
     const { height, width } = getNodeDimensions(existingNode)
 
@@ -441,19 +439,4 @@ function getNodeDimensions(node: WorkflowCanvasNode | undefined): {
     height: node?.measured?.height ?? fallbackNodeHeight,
     width: node?.measured?.width ?? fallbackNodeWidth,
   }
-}
-
-function hasPosition(node: unknown): node is DagrePositionedNode {
-  return (
-    typeof node === "object" &&
-    node !== null &&
-    "x" in node &&
-    "y" in node &&
-    "width" in node &&
-    "height" in node &&
-    typeof node.x === "number" &&
-    typeof node.y === "number" &&
-    typeof node.width === "number" &&
-    typeof node.height === "number"
-  )
 }

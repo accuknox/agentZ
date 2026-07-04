@@ -1,13 +1,10 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { headers } from "next/headers"
-import { connection } from "next/server"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { createAPIKeyFormAction, deleteAPIKeyFormAction } from "@/data/api-key.actions"
+import { listAPIKeysCachedQuery } from "@/data/api-key.queries"
 import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
 import { Button } from "@/components/ui/button"
-import { getAuth } from "@/lib/auth"
-import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { CreateAPIKeyButton } from "./dialog"
 import { APIKeysTable } from "./table"
 
@@ -59,18 +56,7 @@ async function CreateAPIKeyAction() {
 }
 
 async function APIKeys() {
-  await connection()
-  const auth = getAuth()
-  const authContext = await currentGatewayAuthContext()
-  const requestHeaders = await headers()
-  const listedKeys = await auth.api.listApiKeys({
-    headers: requestHeaders,
-    query: {
-      organizationId: authContext.organizationId,
-      sortBy: "createdAt",
-      sortDirection: "desc",
-    },
-  })
+  const listedKeys = await listAPIKeysCachedQuery()
 
   return <APIKeysTable deleteAPIKeyAction={deleteAPIKeyFormAction} keys={listedKeys.apiKeys} />
 }

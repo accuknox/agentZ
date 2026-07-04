@@ -17,9 +17,29 @@ import type {
   DeleteSandboxFormState,
   ListSandboxActionResponse,
 } from "@/data/types"
-import type * as z from "zod"
+import * as z from "zod"
 import { sandboxesTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+
+const sandboxFormDataListsSchema = z.object({
+  packages: z.array(z.string()),
+  allowedHosts: z.array(z.string()),
+  mcpConnectionRefs: z.array(z.string()),
+  mcpRequireConsentTool: z.array(z.string()),
+  mcpTool: z.array(z.string()),
+})
+
+type SandboxFormValues = Omit<z.input<typeof createSandboxFormSchema>, "name">
+
+type SandboxFormValuesResult =
+  | {
+      data: SandboxFormValues
+      error: undefined
+    }
+  | {
+      data: undefined
+      error: z.ZodError
+    }
 
 export async function listSandboxesAction(
   query?: ListSandboxesData["query"]
@@ -49,7 +69,18 @@ export async function listSandboxesAction(
   }
 }
 
-function sandboxFormValues(formData: FormData) {
+function sandboxFormValues(formData: FormData): SandboxFormValuesResult {
+  const parsed = sandboxFormDataListsSchema.safeParse({
+    packages: formData.getAll("packages"),
+    allowedHosts: formData.getAll("allowedHosts"),
+    mcpConnectionRefs: formData.getAll("mcpConnectionRefs"),
+    mcpRequireConsentTool: formData.getAll("mcpRequireConsentTool"),
+    mcpTool: formData.getAll("mcpTool"),
+  })
+  if (!parsed.success) {
+    return { data: undefined, error: parsed.error }
+  }
+
   const refsByName = new Map<
     string,
     {
@@ -57,18 +88,15 @@ function sandboxFormValues(formData: FormData) {
       tools: Array<{ name: string; requireConsent: boolean }>
     }
   >()
-  for (const value of formData.getAll("mcpConnectionRefs")) {
-    const name = String(value)
+  for (const name of parsed.data.mcpConnectionRefs) {
     refsByName.set(name, {
       name,
       tools: [],
     })
   }
-  const consentByTool = new Set(
-    formData.getAll("mcpRequireConsentTool").map((value) => String(value))
-  )
-  for (const value of formData.getAll("mcpTool")) {
-    const [name, toolName] = String(value).split("\u0000")
+  const consentByTool = new Set(parsed.data.mcpRequireConsentTool)
+  for (const value of parsed.data.mcpTool) {
+    const [name, toolName] = value.split("\u0000")
     if (!name || !toolName) {
       continue
     }
@@ -83,12 +111,15 @@ function sandboxFormValues(formData: FormData) {
   }
 
   return {
-    packages: formData.getAll("packages").map((p) => String(p)),
-    allowedHosts: formData.getAll("allowedHosts").map((h) => String(h)),
-    mcpConnectionRefs: [...refsByName.values()].map((ref) => ({
-      name: ref.name,
-      tools: ref.tools,
-    })),
+    error: undefined,
+    data: {
+      packages: parsed.data.packages,
+      allowedHosts: parsed.data.allowedHosts,
+      mcpConnectionRefs: [...refsByName.values()].map((ref) => ({
+        name: ref.name,
+        tools: ref.tools,
+      })),
+    },
   }
 }
 
@@ -142,22 +173,18 @@ export async function createSandboxFormAction(
   _: CreateSandboxFormState,
   formData: FormData
 ): Promise<CreateSandboxFormState> {
+  const values = sandboxFormValues(formData)
+  if (values.error) {
+    return invalidSandboxFormState(values.error)
+  }
+
   const parsed = createSandboxFormSchema.safeParse({
-    name: formData.get("name"),
-    ...sandboxFormValues(formData),
+    ...Object.fromEntries(formData),
+    ...values.data,
   })
 
   if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "Sandbox configuration is invalid",
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.join("."),
-          message: issue.message,
-        })),
-      },
-    }
+    return invalidSandboxFormState(parsed.error)
   }
 
   const result = await createSandbox({
@@ -191,19 +218,15 @@ export async function updateSandboxFormAction(
   _: CreateSandboxFormState,
   formData: FormData
 ): Promise<CreateSandboxFormState> {
-  const parsed = createSandboxFormSchema.omit({ name: true }).safeParse(sandboxFormValues(formData))
+  const values = sandboxFormValues(formData)
+  if (values.error) {
+    return invalidSandboxFormState(values.error)
+  }
+
+  const parsed = createSandboxFormSchema.omit({ name: true }).safeParse(values.data)
 
   if (!parsed.success) {
-    return {
-      error: {
-        code: "INVALID_FORM",
-        message: "Sandbox configuration is invalid",
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.join("."),
-          message: issue.message,
-        })),
-      },
-    }
+    return invalidSandboxFormState(parsed.error)
   }
 
   const result = await updateSandbox({
@@ -230,4 +253,17 @@ export async function updateSandboxFormAction(
 
   updateTag(sandboxesTag)
   redirect("/sandboxes")
+}
+
+function invalidSandboxFormState(error: z.ZodError): CreateSandboxFormState {
+  return {
+    error: {
+      code: "INVALID_FORM",
+      message: "Sandbox configuration is invalid",
+      errors: error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    },
+  }
 }

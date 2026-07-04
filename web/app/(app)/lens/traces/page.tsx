@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import {
   getTraceChartAction,
@@ -17,18 +18,28 @@ import {
 } from "@/app/(app)/lens/traces/search-params"
 import { TracesSkeleton } from "@/app/(app)/lens/traces/traces-skeleton"
 import { TracesTable } from "@/app/(app)/lens/traces/traces-table"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Traces",
 }
 
+const tracesSearchParamsSchema = z.object({
+  agent_name: searchParamStringSchema,
+  session_id: searchParamStringSchema,
+  from: searchParamStringSchema,
+  to: searchParamStringSchema,
+  page_token: searchParamStringSchema,
+  limit: searchParamStringSchema,
+})
+
 type TracesSearchParams = {
-  agent_name?: string | string[]
-  session_id?: string | string[]
-  from?: string | string[]
-  to?: string | string[]
-  page_token?: string | string[]
-  limit?: string | string[]
+  agent_name?: SearchParamStringInput
+  session_id?: SearchParamStringInput
+  from?: SearchParamStringInput
+  to?: SearchParamStringInput
+  page_token?: SearchParamStringInput
+  limit?: SearchParamStringInput
 }
 
 type TraceScopeSuccess = {
@@ -66,21 +77,19 @@ export default async function TracesPage({
 }: {
   searchParams: Promise<TracesSearchParams>
 }) {
-  const agents = listAgentsCachedQuery()
   const params = resolveTracesSearchParams(searchParams)
-  const traceScope = getTraceScopeFromSearchParams(agents, params)
 
   return (
     <main className="flex flex-1 flex-col gap-0 p-0">
       <PageHeader />
       <Suspense fallback={<TracesFiltersSkeleton />}>
-        <Filters searchParams={params} traceScope={traceScope} />
+        <Filters searchParams={params} />
       </Suspense>
       <Suspense fallback={<TracesChartSkeleton />}>
-        <Chart searchParams={params} traceScope={traceScope} />
+        <Chart searchParams={params} />
       </Suspense>
       <Suspense fallback={<TracesSkeleton />}>
-        <Traces searchParams={params} traceScope={traceScope} />
+        <Traces searchParams={params} />
       </Suspense>
     </main>
   )
@@ -96,14 +105,9 @@ function PageHeader() {
   )
 }
 
-async function Filters({
-  searchParams,
-  traceScope,
-}: {
-  searchParams: Promise<ResolvedTracesSearchParams>
-  traceScope: Promise<TraceScope>
-}) {
-  const [scope, params] = await Promise.all([traceScope, searchParams])
+async function Filters({ searchParams }: { searchParams: Promise<ResolvedTracesSearchParams> }) {
+  const params = await searchParams
+  const scope = await getTraceScopeForParams(params)
   if (scope.error) {
     return <ErrorPanel message={scope.error.message} />
   }
@@ -120,14 +124,9 @@ async function Filters({
   )
 }
 
-async function Chart({
-  searchParams,
-  traceScope,
-}: {
-  searchParams: Promise<ResolvedTracesSearchParams>
-  traceScope: Promise<TraceScope>
-}) {
-  const [scope, params] = await Promise.all([traceScope, searchParams])
+async function Chart({ searchParams }: { searchParams: Promise<ResolvedTracesSearchParams> }) {
+  const params = await searchParams
+  const scope = await getTraceScopeForParams(params)
   if (scope.error) {
     return null
   }
@@ -157,14 +156,9 @@ async function Chart({
   return <TracesChart data={result.data} />
 }
 
-async function Traces({
-  searchParams,
-  traceScope,
-}: {
-  searchParams: Promise<ResolvedTracesSearchParams>
-  traceScope: Promise<TraceScope>
-}) {
-  const [scope, params] = await Promise.all([traceScope, searchParams])
+async function Traces({ searchParams }: { searchParams: Promise<ResolvedTracesSearchParams> }) {
+  const params = await searchParams
+  const scope = await getTraceScopeForParams(params)
   if (scope.error) {
     return <ErrorPanel message={scope.error.message} />
   }
@@ -201,30 +195,23 @@ type ResolvedTracesSearchParams = {
   sessionID?: string
 }
 
-async function getTraceScopeFromSearchParams(
-  agents: Promise<ListAgentActionResponse>,
-  searchParams: Promise<ResolvedTracesSearchParams>
-) {
-  const params = await searchParams
-
+async function getTraceScopeForParams(params: ResolvedTracesSearchParams) {
   return getTraceScope({
-    agents,
+    agents: listAgentsCachedQuery(),
     agentName: params.agentName,
     sessionID: params.sessionID,
   })
 }
 
 async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParams>) {
-  const params = await searchParams
-  const from = Array.isArray(params.from) ? params.from[0] : params.from
-  const to = Array.isArray(params.to) ? params.to[0] : params.to
+  const params = tracesSearchParamsSchema.parse(await searchParams)
 
   return {
-    agentName: Array.isArray(params.agent_name) ? params.agent_name[0] : params.agent_name,
-    limit: parseLimitParam(Array.isArray(params.limit) ? params.limit[0] : params.limit),
-    pageToken: Array.isArray(params.page_token) ? params.page_token[0] : params.page_token,
-    range: traceDateRange(from, to),
-    sessionID: Array.isArray(params.session_id) ? params.session_id[0] : params.session_id,
+    agentName: params.agent_name,
+    limit: parseLimitParam(params.limit),
+    pageToken: params.page_token,
+    range: traceDateRange(params.from, params.to),
+    sessionID: params.session_id,
   } satisfies ResolvedTracesSearchParams
 }
 

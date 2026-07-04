@@ -1,7 +1,7 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, type TooltipContentProps } from "recharts"
-import type { TraceChartActionData } from "@/data/types"
+import type { TraceChartActionData, TraceChartPoint } from "@/data/types"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
 
 const chartConfig = {
@@ -47,7 +47,7 @@ export function TelemetryChart({ data }: TelemetryChartProps) {
             tickFormatter={(value) => points[Number(value)]?.label ?? ""}
           />
           <YAxis allowDecimals={false} hide />
-          <ChartTooltip content={(props) => <TelemetryChartTooltip {...props} />} />
+          <ChartTooltip content={(props) => <TelemetryChartTooltip {...props} points={points} />} />
           <Bar dataKey="telemetry" fill="var(--color-telemetry)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ChartContainer>
@@ -55,12 +55,24 @@ export function TelemetryChart({ data }: TelemetryChartProps) {
   )
 }
 
-function TelemetryChartTooltip({ active, payload }: TooltipContentProps) {
+type TelemetryChartTooltipPoint = TraceChartPoint & {
+  bucket: string
+  telemetry: number
+}
+
+function TelemetryChartTooltip({
+  active,
+  label,
+  payload,
+  points,
+}: TooltipContentProps & {
+  points: TelemetryChartTooltipPoint[]
+}) {
   if (!active || !payload?.length) {
     return null
   }
 
-  const point = telemetryPoint(payload[0]?.payload)
+  const point = points[Number(label)]
   if (!point) {
     return null
   }
@@ -75,26 +87,5 @@ function TelemetryChartTooltip({ active, payload }: TooltipContentProps) {
         </span>
       </div>
     </div>
-  )
-}
-
-function telemetryPoint(payload: unknown): { count: number; label: string } | undefined {
-  if (!isTelemetryPoint(payload)) {
-    return undefined
-  }
-
-  return payload
-}
-
-function isTelemetryPoint(payload: unknown): payload is { count: number; label: string } {
-  if (!payload || typeof payload !== "object") {
-    return false
-  }
-
-  return (
-    "count" in payload &&
-    typeof payload.count === "number" &&
-    "label" in payload &&
-    typeof payload.label === "string"
   )
 }

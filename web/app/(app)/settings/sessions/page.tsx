@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { headers } from "next/headers"
-import { connection } from "next/server"
 import { getAuth, type Auth } from "@/lib/auth"
 import { deleteSessionFormAction } from "@/data/session.actions"
 import { SessionsTable } from "./sessions-table"
@@ -26,9 +25,8 @@ export default function SessionsPage() {
 }
 
 async function Sessions() {
-  await connection()
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   let currentToken: string | undefined
   let sessions: Awaited<ReturnType<Auth["api"]["listSessions"]>> | undefined
   let errorMessage: string | undefined

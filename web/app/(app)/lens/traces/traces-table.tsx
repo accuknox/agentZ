@@ -1382,16 +1382,19 @@ function MetricBadge({
 }
 
 function WaterfallProgress({ trace }: { trace: TraceListItem }) {
+  const style: React.CSSProperties & {
+    "--waterfall-delay": string
+    "--waterfall-transform": string
+  } = {
+    "--waterfall-delay": `${trace.waterfallDelayMs}ms`,
+    "--waterfall-transform": `translateX(-${100 - trace.cumulativeDurationPercent}%)`,
+  }
+
   return (
     <Progress
       value={trace.cumulativeDurationPercent}
       className="trace-waterfall-progress **:data-[slot=progress-indicator]:bg-foreground h-1.5"
-      style={
-        {
-          "--waterfall-delay": `${trace.waterfallDelayMs}ms`,
-          "--waterfall-transform": `translateX(-${100 - trace.cumulativeDurationPercent}%)`,
-        } as React.CSSProperties
-      }
+      style={style}
     />
   )
 }

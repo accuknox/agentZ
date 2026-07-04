@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { connection } from "next/server"
+import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listWebhookAPIKeyDisplaysCachedQuery } from "@/data/api-key.queries"
@@ -11,26 +11,38 @@ import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queri
 import { listWorkflowWebhookTriggersCachedQuery } from "@/data/workflow-trigger.queries"
 import { RunsFilters } from "./runs-filters"
 import { RunsTable } from "./runs-table"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Workflow Runs",
 }
 
+const workflowRunsSearchParamsSchema = z.object({
+  agent_name: searchParamStringSchema,
+  type: searchParamStringSchema,
+  workflow_name: searchParamStringSchema,
+  schedule_name: searchParamStringSchema,
+  webhook_api_key_id: searchParamStringSchema,
+  page_token: searchParamStringSchema,
+})
+
 type SearchParams = {
-  agent_name?: string | string[]
-  type?: string | string[]
-  workflow_name?: string | string[]
-  schedule_name?: string | string[]
-  webhook_api_key_id?: string | string[]
-  page_token?: string | string[]
+  agent_name?: SearchParamStringInput
+  type?: SearchParamStringInput
+  workflow_name?: SearchParamStringInput
+  schedule_name?: SearchParamStringInput
+  webhook_api_key_id?: SearchParamStringInput
+  page_token?: SearchParamStringInput
 }
+
+type ResolvedSearchParams = z.output<typeof workflowRunsSearchParamsSchema>
 
 export default async function WorkflowRunsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
+  const params = workflowRunsSearchParamsSchema.parse(await searchParams)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -49,38 +61,41 @@ export default async function WorkflowRunsPage({
   )
 }
 
-async function Filters({ searchParams }: { searchParams: SearchParams }) {
-  const requestedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const requestedType = Array.isArray(searchParams.type) ? searchParams.type[0] : searchParams.type
+async function Filters({ searchParams }: { searchParams: ResolvedSearchParams }) {
+  const requestedAgentName = searchParams.agent_name
+  const requestedType = searchParams.type
   const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  const requestedWorkflowName = Array.isArray(searchParams.workflow_name)
-    ? searchParams.workflow_name[0]
-    : searchParams.workflow_name
-  const requestedScheduleName = Array.isArray(searchParams.schedule_name)
-    ? searchParams.schedule_name[0]
-    : searchParams.schedule_name
-  const requestedWebhookAPIKeyID = Array.isArray(searchParams.webhook_api_key_id)
-    ? searchParams.webhook_api_key_id[0]
-    : searchParams.webhook_api_key_id
+  const requestedWorkflowName = searchParams.workflow_name
+  const requestedScheduleName = searchParams.schedule_name
+  const requestedWebhookAPIKeyID = searchParams.webhook_api_key_id
   const agentsResult = await listAgentsCachedQuery()
-  if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    return <FiltersSkeleton />
+  if (agentsResult.error) {
+    return <ErrorPanel message={agentsResult.error.message} />
   }
 
   const selectedAgent =
     agentsResult.agents.find((agent) => agent.name === requestedAgentName) ?? agentsResult.agents[0]
+  if (!selectedAgent) {
+    return (
+      <RunsFilters
+        action={selectWorkflowRunsFiltersAction}
+        agents={agentsResult.agents}
+        schedules={[]}
+        selectedAgentName={undefined}
+        selectedType={selectedType}
+        webhookTriggers={[]}
+      />
+    )
+  }
 
   if (selectedType === "webhook") {
     const triggersResult = await listWorkflowWebhookTriggersCachedQuery(selectedAgent.name, {
       limit: 200,
     })
-    if (triggersResult.error || !triggersResult.webhookTriggers) {
-      return <FiltersSkeleton />
+    if (triggersResult.error) {
+      return <ErrorPanel message={triggersResult.error.message} />
     }
 
-    await connection()
     const webhookKeyDisplaysByID = await listWebhookAPIKeyDisplaysCachedQuery()
 
     const selectedTrigger =
@@ -115,8 +130,8 @@ async function Filters({ searchParams }: { searchParams: SearchParams }) {
   const schedulesResult = await listWorkflowSchedulesCachedQuery(selectedAgent.name, {
     limit: 200,
   })
-  if (schedulesResult.error || !schedulesResult.workflowSchedules) {
-    return <FiltersSkeleton />
+  if (schedulesResult.error) {
+    return <ErrorPanel message={schedulesResult.error.message} />
   }
 
   const selectedSchedule =
@@ -138,24 +153,14 @@ async function Filters({ searchParams }: { searchParams: SearchParams }) {
   )
 }
 
-async function Runs({ searchParams }: { searchParams: SearchParams }) {
-  const requestedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const requestedType = Array.isArray(searchParams.type) ? searchParams.type[0] : searchParams.type
+async function Runs({ searchParams }: { searchParams: ResolvedSearchParams }) {
+  const requestedAgentName = searchParams.agent_name
+  const requestedType = searchParams.type
   const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  const requestedWorkflowName = Array.isArray(searchParams.workflow_name)
-    ? searchParams.workflow_name[0]
-    : searchParams.workflow_name
-  const requestedScheduleName = Array.isArray(searchParams.schedule_name)
-    ? searchParams.schedule_name[0]
-    : searchParams.schedule_name
-  const requestedWebhookAPIKeyID = Array.isArray(searchParams.webhook_api_key_id)
-    ? searchParams.webhook_api_key_id[0]
-    : searchParams.webhook_api_key_id
-  const pageToken = Array.isArray(searchParams.page_token)
-    ? searchParams.page_token[0]
-    : searchParams.page_token
+  const requestedWorkflowName = searchParams.workflow_name
+  const requestedScheduleName = searchParams.schedule_name
+  const requestedWebhookAPIKeyID = searchParams.webhook_api_key_id
+  const pageToken = searchParams.page_token
   const agentsResult = await listAgentsCachedQuery()
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

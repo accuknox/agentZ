@@ -1,7 +1,8 @@
-import { cacheLife } from "next/cache"
+import { cacheLife, cacheTag } from "next/cache"
 import { headers } from "next/headers"
 import { webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { getAuth } from "@/lib/auth"
+import { apiKeysTag } from "@/data/cache"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 
 type APIKeySummaryByID = Record<
@@ -12,23 +13,38 @@ type APIKeySummaryByID = Record<
   }
 >
 
-export async function listWebhookAPIKeyDisplaysCachedQuery(): Promise<APIKeySummaryByID> {
-  "use cache: private"
-
-  cacheLife("minutes")
-
+async function listAPIKeys(configId?: string) {
+  const requestHeaders = await headers()
   const auth = getAuth()
   const authContext = await currentGatewayAuthContext()
-  const requestHeaders = await headers()
-  const listedKeys = await auth.api.listApiKeys({
+
+  return auth.api.listApiKeys({
     headers: requestHeaders,
     query: {
-      configId: webhookAPIKeyConfigID,
+      configId,
       organizationId: authContext.organizationId,
       sortBy: "createdAt",
       sortDirection: "desc",
     },
   })
+}
+
+export async function listAPIKeysCachedQuery() {
+  "use cache: private"
+
+  cacheLife("minutes")
+  cacheTag(apiKeysTag)
+
+  return listAPIKeys()
+}
+
+export async function listWebhookAPIKeyDisplaysCachedQuery(): Promise<APIKeySummaryByID> {
+  "use cache: private"
+
+  cacheLife("minutes")
+  cacheTag(apiKeysTag)
+
+  const listedKeys = await listAPIKeys(webhookAPIKeyConfigID)
 
   const displaysByID: APIKeySummaryByID = {}
   for (const key of listedKeys.apiKeys) {

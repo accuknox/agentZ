@@ -1,7 +1,6 @@
 import { Suspense } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { connection } from "next/server"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { PageBreadcrumb } from "@/components/blocks/breadcrumbs/page-breadcrumb"
 import {
@@ -26,9 +25,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 async function AppGate({ children }: { children: React.ReactNode }) {
-  await connection()
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   const session = await auth.api.getSession({
     headers: requestHeaders,
   })

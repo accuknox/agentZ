@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -12,22 +13,30 @@ import { listSecretsCachedQuery } from "@/data/secret.queries"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
 import { SecretTable } from "./secret-table"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Secrets",
 }
 
+const secretsSearchParamsSchema = z.object({
+  page_token: searchParamStringSchema,
+  agent_name: searchParamStringSchema,
+})
+
 type SearchParams = {
-  page_token?: string | string[]
-  agent_name?: string | string[]
+  page_token?: SearchParamStringInput
+  agent_name?: SearchParamStringInput
 }
+
+type ResolvedSearchParams = z.output<typeof secretsSearchParamsSchema>
 
 export default async function SecretsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
+  const params = secretsSearchParamsSchema.parse(await searchParams)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -65,14 +74,12 @@ async function NewSecretButtonShell({
   putSecretAction,
   startOAuthAction,
 }: {
-  searchParams: SearchParams
+  searchParams: ResolvedSearchParams
   putSecretAction: typeof putSecretFormAction
   startOAuthAction: typeof startOAuthSecretFormAction
 }) {
   const agents = listAgentsCachedQuery()
-  const agentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
+  const agentName = searchParams.agent_name
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
     return (
@@ -95,35 +102,29 @@ async function NewSecretButtonShell({
   )
 }
 
-async function Filters({ searchParams }: { searchParams: SearchParams }) {
+async function Filters({ searchParams }: { searchParams: ResolvedSearchParams }) {
   const agents = listAgentsCachedQuery()
-  const agentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
+  const agentName = searchParams.agent_name
   const result = await agents
-  if (result.error || !result.agents || result.agents.length === 0) {
-    return <FiltersSkeleton />
+  if (result.error) {
+    return <ErrorPanel message={result.error.message} />
   }
 
   const selectedAgent = result.agents.find((agent) => agent.name === agentName) ?? result.agents[0]
 
-  return <SecretsFilters agents={result.agents} selectedAgentName={selectedAgent.name} />
+  return <SecretsFilters agents={result.agents} selectedAgentName={selectedAgent?.name} />
 }
 
 async function Secrets({
   searchParams,
   deleteSecretAction,
 }: {
-  searchParams: SearchParams
+  searchParams: ResolvedSearchParams
   deleteSecretAction: typeof deleteSecretFormAction
 }) {
   const agents = listAgentsCachedQuery()
-  const agentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const pageToken = Array.isArray(searchParams.page_token)
-    ? searchParams.page_token[0]
-    : searchParams.page_token
+  const agentName = searchParams.agent_name
+  const pageToken = searchParams.page_token
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

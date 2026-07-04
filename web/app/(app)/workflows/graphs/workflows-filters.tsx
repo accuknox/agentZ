@@ -6,7 +6,11 @@ import { useProgress } from "@bprogress/next"
 import { Controller, useForm } from "react-hook-form"
 import { BotIcon, Workflow } from "lucide-react"
 import type { Agent, WorkflowSummary } from "@/lib/gateway/client"
-import { workflowFiltersFormSchema, type WorkflowFiltersFormValues } from "@/data/workflow.schema"
+import {
+  workflowFiltersFormSchema,
+  type WorkflowFiltersFormInput,
+  type WorkflowFiltersFormValues,
+} from "@/data/workflow.schema"
 import {
   Select,
   SelectContent,
@@ -33,7 +37,7 @@ export function WorkflowsFilters({
 }: WorkflowsFiltersProps) {
   const [pending, startTransition] = React.useTransition()
   const progress = useProgress()
-  const form = useForm<WorkflowFiltersFormValues>({
+  const form = useForm<WorkflowFiltersFormInput, unknown, WorkflowFiltersFormValues>({
     resolver: zodResolver(workflowFiltersFormSchema),
     defaultValues: {
       agent_name: selectedAgentName ?? "",

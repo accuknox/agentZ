@@ -1,32 +1,36 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { updateTag } from "next/cache"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
+import * as z from "zod"
 import type { CreateAPIKeyFormState, DeleteAPIKeyFormState } from "@/data/types"
 import type { Agent } from "@/lib/gateway/client"
 import { listAgents, listWorkflowSummaries } from "@/lib/gateway/client"
 import { createAPIKeyFormSchema } from "@/data/api-key.schema"
+import { apiKeysTag } from "@/data/cache"
 import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
 
+const deleteAPIKeyFormSchema = z.object({
+  configId: z.union([z.literal(agentAPIKeyConfigID), z.literal(webhookAPIKeyConfigID)]),
+  keyID: z.string().min(1),
+})
+
 export async function createAPIKeyFormAction(
   _: CreateAPIKeyFormState,
   formData: FormData
 ): Promise<CreateAPIKeyFormState> {
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   const parsed = createAPIKeyFormSchema.safeParse({
-    type: formData.get("type"),
-    name: formData.get("name"),
-    scopeMode: formData.get("scopeMode"),
+    ...Object.fromEntries(formData),
     agentNames: formData.getAll("agentNames"),
     workflowScopes: formData.getAll("workflowScopes"),
-    expiresInDays: formData.get("expiresInDays"),
   })
   if (!parsed.success) {
     return {
@@ -176,7 +180,7 @@ export async function createAPIKeyFormAction(
       },
     })
 
-    revalidatePath("/settings/api-keys")
+    updateTag(apiKeysTag)
     return {
       key: {
         id: key.id,
@@ -202,14 +206,8 @@ export async function deleteAPIKeyFormAction(
   _: DeleteAPIKeyFormState,
   formData: FormData
 ): Promise<DeleteAPIKeyFormState> {
-  const auth = getAuth()
-  const configId = formData.get("configId")
-  const keyID = formData.get("keyID")
-  if (
-    (configId !== agentAPIKeyConfigID && configId !== webhookAPIKeyConfigID) ||
-    typeof keyID !== "string" ||
-    keyID.length === 0
-  ) {
+  const parsed = deleteAPIKeyFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
     return {
       error: {
         code: "INVALID_FORM",
@@ -219,6 +217,7 @@ export async function deleteAPIKeyFormAction(
   }
 
   const requestHeaders = await headers()
+  const auth = getAuth()
   const session = await auth.api.getSession({
     headers: requestHeaders,
   })
@@ -229,8 +228,8 @@ export async function deleteAPIKeyFormAction(
   try {
     await auth.api.deleteApiKey({
       body: {
-        configId,
-        keyId: keyID,
+        configId: parsed.data.configId,
+        keyId: parsed.data.keyID,
       },
       headers: requestHeaders,
     })
@@ -247,6 +246,6 @@ export async function deleteAPIKeyFormAction(
     }
   }
 
-  revalidatePath("/settings/api-keys")
+  updateTag(apiKeysTag)
   return { success: true }
 }

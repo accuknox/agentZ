@@ -3,17 +3,21 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
+import * as z from "zod"
 import type { DeleteSessionFormState } from "@/data/types"
 import { getAuth } from "@/lib/auth"
 import { signInURL } from "@/lib/sign-in-redirect"
+
+const deleteSessionFormSchema = z.object({
+  token: z.string().min(1),
+})
 
 export async function deleteSessionFormAction(
   _: DeleteSessionFormState,
   formData: FormData
 ): Promise<DeleteSessionFormState> {
-  const auth = getAuth()
-  const token = formData.get("token")
-  if (typeof token !== "string" || token.length === 0) {
+  const parsed = deleteSessionFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
     return {
       error: {
         code: "INVALID_FORM",
@@ -23,6 +27,7 @@ export async function deleteSessionFormAction(
   }
 
   const requestHeaders = await headers()
+  const auth = getAuth()
   const currentSession = await auth.api.getSession({
     headers: requestHeaders,
   })
@@ -30,7 +35,7 @@ export async function deleteSessionFormAction(
     redirect(signInURL({ error: "session_expired" }))
   }
 
-  if (currentSession.session.token === token) {
+  if (currentSession.session.token === parsed.data.token) {
     return {
       error: {
         code: "CURRENT_SESSION",
@@ -42,7 +47,7 @@ export async function deleteSessionFormAction(
   try {
     await auth.api.revokeSession({
       headers: requestHeaders,
-      body: { token },
+      body: { token: parsed.data.token },
     })
   } catch (error) {
     if (isRedirectError(error)) {

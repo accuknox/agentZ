@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
-import { connection } from "next/server"
+import * as z from "zod"
 import { Webhook } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -22,23 +22,32 @@ import { NewScheduleButton } from "./new-schedule-button"
 import { TriggersFilters } from "./triggers-filters"
 import { ScheduleTriggersTable } from "./triggers-table"
 import { WebhookTriggersTable, type WebhookTriggerRow } from "./webhook-triggers-table"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Workflow Triggers",
 }
 
+const workflowTriggersSearchParamsSchema = z.object({
+  agent_name: searchParamStringSchema,
+  type: searchParamStringSchema,
+  page_token: searchParamStringSchema,
+})
+
 type SearchParams = {
-  agent_name?: string | string[]
-  type?: string | string[]
-  page_token?: string | string[]
+  agent_name?: SearchParamStringInput
+  type?: SearchParamStringInput
+  page_token?: SearchParamStringInput
 }
+
+type ResolvedSearchParams = z.output<typeof workflowTriggersSearchParamsSchema>
 
 export default async function TriggersPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
+  const params = workflowTriggersSearchParamsSchema.parse(await searchParams)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -60,19 +69,27 @@ export default async function TriggersPage({
   )
 }
 
-async function Filters({ searchParams }: { searchParams: SearchParams }) {
-  const requestedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const requestedType = Array.isArray(searchParams.type) ? searchParams.type[0] : searchParams.type
+async function Filters({ searchParams }: { searchParams: ResolvedSearchParams }) {
+  const requestedAgentName = searchParams.agent_name
+  const requestedType = searchParams.type
   const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
   const agentsResult = await listAgentsCachedQuery()
-  if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    return <FiltersSkeleton />
+  if (agentsResult.error) {
+    return <ErrorPanel message={agentsResult.error.message} />
   }
 
   const selectedAgent =
     agentsResult.agents.find((agent) => agent.name === requestedAgentName) ?? agentsResult.agents[0]
+  if (!selectedAgent) {
+    return (
+      <TriggersFilters
+        action={selectWorkflowTriggerFiltersAction}
+        agents={agentsResult.agents}
+        selectedAgentName={undefined}
+        selectedType={selectedType}
+      />
+    )
+  }
 
   return (
     <TriggersFilters
@@ -85,15 +102,11 @@ async function Filters({ searchParams }: { searchParams: SearchParams }) {
   )
 }
 
-async function Triggers({ searchParams }: { searchParams: SearchParams }) {
-  const requestedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const requestedType = Array.isArray(searchParams.type) ? searchParams.type[0] : searchParams.type
+async function Triggers({ searchParams }: { searchParams: ResolvedSearchParams }) {
+  const requestedAgentName = searchParams.agent_name
+  const requestedType = searchParams.type
   const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  const pageToken = Array.isArray(searchParams.page_token)
-    ? searchParams.page_token[0]
-    : searchParams.page_token
+  const pageToken = searchParams.page_token
   const agentsResult = await listAgentsCachedQuery()
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />
@@ -115,7 +128,6 @@ async function Triggers({ searchParams }: { searchParams: SearchParams }) {
       return <ErrorPanel message={triggersResult.error.message} />
     }
 
-    await connection()
     const webhookKeyDisplaysByID = await listWebhookAPIKeyDisplaysCachedQuery()
 
     const rows: WebhookTriggerRow[] = triggersResult.webhookTriggers.map((trigger) => {
@@ -167,11 +179,9 @@ async function Triggers({ searchParams }: { searchParams: SearchParams }) {
   )
 }
 
-async function HeaderAction({ searchParams }: { searchParams: SearchParams }) {
-  const requestedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const requestedType = Array.isArray(searchParams.type) ? searchParams.type[0] : searchParams.type
+async function HeaderAction({ searchParams }: { searchParams: ResolvedSearchParams }) {
+  const requestedAgentName = searchParams.agent_name
+  const requestedType = searchParams.type
   const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
   if (selectedType === "webhook") {
     return (

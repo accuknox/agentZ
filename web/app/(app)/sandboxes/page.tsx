@@ -1,21 +1,31 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import Link from "next/link"
+import * as z from "zod"
 import { Plus } from "lucide-react"
 import { deleteSandboxFormAction } from "@/data/sandbox.actions"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { Button } from "@/components/ui/button"
 import { SandboxTable } from "./sandbox-table"
 import type { DeleteSandboxFormState } from "@/data/types"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Sandboxes",
 }
 
+const sandboxesSearchParamsSchema = z.object({
+  page_token: searchParamStringSchema,
+})
+
+type SandboxesSearchParams = {
+  page_token?: SearchParamStringInput
+}
+
 export default async function SandboxesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page_token?: string | string[] }>
+  searchParams: Promise<SandboxesSearchParams>
 }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
@@ -41,16 +51,15 @@ async function Sandboxes({
   searchParams,
   deleteSandboxAction,
 }: {
-  searchParams?: Promise<{ page_token?: string | string[] }>
+  searchParams?: Promise<SandboxesSearchParams>
   deleteSandboxAction: (
     name: string,
     state: DeleteSandboxFormState,
     formData: FormData
   ) => Promise<DeleteSandboxFormState>
 }) {
-  const params = searchParams ? await searchParams : undefined
-  const pageToken = Array.isArray(params?.page_token) ? params?.page_token[0] : params?.page_token
-  const result = await listSandboxesCachedQuery({ limit: 50, page_token: pageToken })
+  const params = searchParams ? sandboxesSearchParamsSchema.parse(await searchParams) : undefined
+  const result = await listSandboxesCachedQuery({ limit: 50, page_token: params?.page_token })
 
   if (result.error) {
     return (

@@ -1,27 +1,36 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
 import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
 import { WorkflowsFilters } from "./workflows-filters"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Workflow Graphs",
 }
 
+const workflowsSearchParamsSchema = z.object({
+  agent_name: searchParamStringSchema,
+  workflow_name: searchParamStringSchema,
+})
+
 type SearchParams = {
-  agent_name?: string | string[]
-  workflow_name?: string | string[]
+  agent_name?: SearchParamStringInput
+  workflow_name?: SearchParamStringInput
 }
+
+type ResolvedSearchParams = z.output<typeof workflowsSearchParamsSchema>
 
 export default async function WorkflowsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
+  const params = workflowsSearchParamsSchema.parse(await searchParams)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -40,21 +49,29 @@ export default async function WorkflowsPage({
   )
 }
 
-async function Filters({ searchParams }: { searchParams: SearchParams }) {
+async function Filters({ searchParams }: { searchParams: ResolvedSearchParams }) {
   const agents = listAgentsCachedQuery()
-  const selectedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const selectedWorkflowName = Array.isArray(searchParams.workflow_name)
-    ? searchParams.workflow_name[0]
-    : searchParams.workflow_name
+  const selectedAgentName = searchParams.agent_name
+  const selectedWorkflowName = searchParams.workflow_name
   const agentsResult = await agents
-  if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    return <FiltersSkeleton />
+  if (agentsResult.error) {
+    return <ErrorPanel message={agentsResult.error.message} />
   }
 
   const selectedAgent =
     agentsResult.agents.find((agent) => agent.name === selectedAgentName) ?? agentsResult.agents[0]
+  if (!selectedAgent) {
+    return (
+      <WorkflowsFilters
+        action={selectWorkflowFiltersAction}
+        agents={agentsResult.agents}
+        selectedAgentName={undefined}
+        workflows={[]}
+        selectedWorkflowName={undefined}
+      />
+    )
+  }
+
   const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name)
   const workflows = workflowsResult.summaries ?? []
   const selectedWorkflow =
@@ -72,14 +89,10 @@ async function Filters({ searchParams }: { searchParams: SearchParams }) {
   )
 }
 
-async function WorkflowContent({ searchParams }: { searchParams: SearchParams }) {
+async function WorkflowContent({ searchParams }: { searchParams: ResolvedSearchParams }) {
   const agents = listAgentsCachedQuery()
-  const selectedAgentName = Array.isArray(searchParams.agent_name)
-    ? searchParams.agent_name[0]
-    : searchParams.agent_name
-  const selectedWorkflowName = Array.isArray(searchParams.workflow_name)
-    ? searchParams.workflow_name[0]
-    : searchParams.workflow_name
+  const selectedAgentName = searchParams.agent_name
+  const selectedWorkflowName = searchParams.workflow_name
   const agentsResult = await agents
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />

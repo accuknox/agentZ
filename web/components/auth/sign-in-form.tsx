@@ -20,6 +20,10 @@ const signInSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 })
 
+const twoFactorRedirectResponseSchema = z.object({
+  twoFactorRedirect: z.literal(true),
+})
+
 type SignInValues = z.infer<typeof signInSchema>
 
 type SignInFormProps = {
@@ -153,12 +157,7 @@ export function SignInForm({
       }
 
       const data = result.data
-      if (
-        data &&
-        typeof data === "object" &&
-        "twoFactorRedirect" in data &&
-        data.twoFactorRedirect === true
-      ) {
+      if (twoFactorRedirectResponseSchema.safeParse(data).success) {
         const search = new URLSearchParams()
         if (returnTo) {
           search.set("returnTo", returnTo)

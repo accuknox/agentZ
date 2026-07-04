@@ -14,8 +14,17 @@ export interface TextShimmerProps {
   spread?: number
 }
 
+type ShimmerStyle = CSSProperties & {
+  "--spread": string
+}
+
 const ShimmerComponent = ({ children, className, duration = 2, spread = 2 }: TextShimmerProps) => {
   const dynamicSpread = useMemo(() => (children?.length ?? 0) * spread, [children, spread])
+  const style: ShimmerStyle = {
+    "--spread": `${dynamicSpread}px`,
+    backgroundImage:
+      "linear-gradient(90deg,transparent calc(50% - var(--spread)),var(--color-background),transparent calc(50% + var(--spread))), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
+  }
 
   return (
     <MotionP
@@ -26,13 +35,7 @@ const ShimmerComponent = ({ children, className, duration = 2, spread = 2 }: Tex
         className
       )}
       initial={{ backgroundPosition: "100% center" }}
-      style={
-        {
-          "--spread": `${dynamicSpread}px`,
-          backgroundImage:
-            "linear-gradient(90deg,transparent calc(50% - var(--spread)),var(--color-background),transparent calc(50% + var(--spread))), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
-        } as CSSProperties
-      }
+      style={style}
       transition={{
         duration,
         ease: "linear",

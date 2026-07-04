@@ -2,9 +2,10 @@ import { z } from "zod"
 
 export const workflowFiltersFormSchema = z.object({
   agent_name: z.string().min(1),
-  workflow_name: z.string(),
+  workflow_name: z.string().default(""),
 })
 
+export type WorkflowFiltersFormInput = z.input<typeof workflowFiltersFormSchema>
 export type WorkflowFiltersFormValues = z.infer<typeof workflowFiltersFormSchema>
 
 export const workflowTriggerTypeSchema = z.enum(["schedule", "webhook"])
@@ -19,9 +20,10 @@ export type WorkflowTriggerFiltersFormValues = z.infer<typeof workflowTriggerFil
 export const workflowRunFiltersFormSchema = z.object({
   agent_name: z.string().min(1),
   type: workflowTriggerTypeSchema,
-  workflow_name: z.string(),
-  schedule_name: z.string(),
-  webhook_api_key_id: z.string(),
+  workflow_name: z.string().default(""),
+  schedule_name: z.string().default(""),
+  webhook_api_key_id: z.string().default(""),
 })
 
+export type WorkflowRunFiltersFormInput = z.input<typeof workflowRunFiltersFormSchema>
 export type WorkflowRunFiltersFormValues = z.infer<typeof workflowRunFiltersFormSchema>

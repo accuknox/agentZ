@@ -62,8 +62,8 @@ async function UpdateSandboxContent({ name }: { name: string }) {
   })
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-6 p-4 sm:px-6 sm:pb-6">
-      <div className="min-w-0">
+    <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
+      <div className="min-w-0 px-4 pt-4 sm:px-6">
         <h1 className="text-2xl font-semibold tracking-normal">Update sandbox</h1>
       </div>
       <SandboxWizard
@@ -81,11 +81,11 @@ async function UpdateSandboxContent({ name }: { name: string }) {
 
 function UpdateSandboxSkeleton() {
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-6 p-4 sm:px-6 sm:pb-6">
-      <div className="min-w-0">
+    <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
+      <div className="min-w-0 px-4 pt-4 sm:px-6">
         <div className="bg-muted/20 h-8 w-56 rounded-md" />
       </div>
-      <div className="bg-muted/20 h-96 rounded-md" />
+      <div className="bg-muted/20 h-96" />
     </main>
   )
 }

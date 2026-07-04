@@ -41,7 +41,7 @@ const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
     return new Promise((resolve) => {
       const reader = new FileReader()
       // oxlint-disable-next-line eslint-plugin-unicorn(prefer-add-event-listener)
-      reader.onloadend = () => resolve(reader.result as string)
+      reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : null)
       // oxlint-disable-next-line eslint-plugin-unicorn(prefer-add-event-listener)
       reader.onerror = () => resolve(null)
       reader.readAsDataURL(blob)
@@ -336,11 +336,10 @@ export const PromptInput = ({
       event.preventDefault()
 
       const form = event.currentTarget
-      const formData = new FormData(form)
-      const text = (formData.get("message") as string) || ""
+      const textarea = form.elements.namedItem("message")
+      const text = textarea instanceof HTMLTextAreaElement ? textarea.value : ""
 
       form.reset()
-      const textarea = form.elements.namedItem("message")
       if (textarea instanceof HTMLTextAreaElement) {
         textarea.style.removeProperty("height")
       }
@@ -512,9 +511,7 @@ export const PromptInputTextarea = ({
         e.preventDefault()
 
         const { form } = e.currentTarget
-        const submitButton = form?.querySelector(
-          'button[type="submit"]'
-        ) as HTMLButtonElement | null
+        const submitButton = form?.querySelector<HTMLButtonElement>('button[type="submit"]')
         if (submitButton?.disabled) {
           return
         }

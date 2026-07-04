@@ -3,7 +3,7 @@
 import { WizardPanel } from "./panel"
 import { WizardStepNav } from "./step-nav"
 import type { WizardShellProps, WizardStep } from "./types"
-import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
 
 export function WizardShell<TStep extends WizardStep>({
   canVisitStepAction,
@@ -11,34 +11,21 @@ export function WizardShell<TStep extends WizardStep>({
   currentIndex,
   currentStepId,
   direction,
-  layout = "vertical",
   onStepSelectAction,
-  panelAdornment,
   steps,
 }: WizardShellProps<TStep>) {
   return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-1 flex-col gap-4",
-        layout === "vertical" && "md:flex-row md:gap-5",
-        layout === "horizontal" && "items-center"
-      )}
-    >
-      <div className={cn(layout === "horizontal" && "flex w-full justify-center")}>
+    <div className="flex min-h-0 flex-1 flex-col items-center">
+      <div className="flex w-full justify-center">
         <WizardStepNav
           canVisitStepAction={canVisitStepAction}
           currentIndex={currentIndex}
-          layout={layout}
           onStepSelectAction={onStepSelectAction}
           steps={steps}
         />
       </div>
-      <WizardPanel
-        direction={direction}
-        layout={layout}
-        panelAdornment={panelAdornment}
-        stepKey={currentStepId}
-      >
+      <Separator className="my-6" />
+      <WizardPanel direction={direction} stepKey={currentStepId}>
         <div
           id={`wizard-panel-${currentStepId}`}
           role="tabpanel"

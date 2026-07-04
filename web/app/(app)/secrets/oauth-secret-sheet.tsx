@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import type * as z from "zod"
+import * as z from "zod"
 import { Check, ChevronDown, CircleAlert, RefreshCw, Search, Settings2, X } from "lucide-react"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -53,16 +53,26 @@ import { SecretHostsField } from "./secret-hosts-field"
 
 type OAuthSecretFormInput = z.input<typeof oauthSecretFormInputSchema>
 type OAuthSecretFormValues = z.output<typeof oauthSecretFormInputSchema>
-type OAuthDiscoveryPayload = {
-  oauth?: {
-    issuer?: string
-    authorization_endpoint?: string
-    token_endpoint?: string
-    registration_endpoint?: string
-    resource?: string
-  }
-  default_scopes?: string[]
-  supported_scopes?: string[]
+
+const oauthDiscoveryResponseSchema = z.object({
+  oauth: z
+    .object({
+      issuer: z.string().optional(),
+      authorization_endpoint: z.string().optional(),
+      token_endpoint: z.string().optional(),
+      registration_endpoint: z.string().optional(),
+      resource: z.string().optional(),
+    })
+    .optional(),
+  default_scopes: z.array(z.string()).optional(),
+  supported_scopes: z.array(z.string()).optional(),
+})
+
+const oauthDiscoveryErrorSchema = z.object({
+  message: z.string().optional(),
+})
+
+type OAuthDiscoveryPayload = z.infer<typeof oauthDiscoveryResponseSchema> & {
   endpointURL: string
 }
 
@@ -105,20 +115,22 @@ const oauthDiscoveryQueryOptions = (endpointURL: string) =>
         }),
         signal,
       })
-      const payload = (await response.json()) as {
-        message?: string
-        oauth?: OAuthDiscoveryPayload["oauth"]
-        default_scopes?: string[]
-        supported_scopes?: string[]
-      }
+      const payload = await response.json()
       if (!response.ok) {
-        throw new Error(payload.message ?? "OAuth discovery failed.")
+        const error = oauthDiscoveryErrorSchema.safeParse(payload)
+        throw new Error(
+          error.success
+            ? (error.data.message ?? "OAuth discovery failed.")
+            : "OAuth discovery failed."
+        )
       }
+
+      const parsed = oauthDiscoveryResponseSchema.parse(payload)
       return {
         endpointURL,
-        oauth: payload.oauth,
-        default_scopes: payload.default_scopes,
-        supported_scopes: payload.supported_scopes,
+        oauth: parsed.oauth,
+        default_scopes: parsed.default_scopes,
+        supported_scopes: parsed.supported_scopes,
       } satisfies OAuthDiscoveryPayload
     },
   })

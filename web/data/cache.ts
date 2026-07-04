@@ -1,4 +1,5 @@
 export const agentsTag = "agents"
+export const apiKeysTag = "api-keys"
 export const sandboxesTag = "sandboxes"
 export const mcpsTag = "mcps"
 export const secretsTag = "secrets"

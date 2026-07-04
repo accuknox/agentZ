@@ -8,6 +8,7 @@ import { BotIcon, Webhook, Workflow } from "lucide-react"
 import type { Agent, WorkflowSchedule } from "@/lib/gateway/client"
 import {
   workflowRunFiltersFormSchema,
+  type WorkflowRunFiltersFormInput,
   type WorkflowRunFiltersFormValues,
 } from "@/data/workflow.schema"
 import {
@@ -50,7 +51,7 @@ export function RunsFilters({
 }: RunsFiltersProps) {
   const [pending, startTransition] = React.useTransition()
   const progress = useProgress()
-  const form = useForm<WorkflowRunFiltersFormValues>({
+  const form = useForm<WorkflowRunFiltersFormInput, unknown, WorkflowRunFiltersFormValues>({
     resolver: zodResolver(workflowRunFiltersFormSchema),
     defaultValues: {
       agent_name: selectedAgentName ?? "",

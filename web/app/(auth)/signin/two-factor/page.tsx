@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { headers } from "next/headers"
-import { connection } from "next/server"
 import { redirect } from "next/navigation"
 import { getAuth } from "@/lib/auth"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { signInReturnTo } from "@/lib/sign-in-redirect"
 import { TwoFactorChallenge } from "./two-factor-challenge"
 
@@ -11,8 +12,12 @@ export const metadata: Metadata = {
   title: "Verify Sign In",
 }
 
+const twoFactorSearchParamsSchema = z.object({
+  returnTo: searchParamStringSchema,
+})
+
 type TwoFactorPageSearchParams = {
-  returnTo?: string | string[]
+  returnTo?: SearchParamStringInput
 }
 
 export default async function TwoFactorPage({
@@ -32,13 +37,12 @@ async function TwoFactorGate({
 }: {
   searchParams: Promise<TwoFactorPageSearchParams>
 }) {
-  await connection()
+  const requestHeaders = await headers()
   const auth = getAuth()
-  const params = await searchParams
-  const returnTo =
-    signInReturnTo(Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo) ?? "/"
+  const params = twoFactorSearchParamsSchema.parse(await searchParams)
+  const returnTo = signInReturnTo(params.returnTo) ?? "/"
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   })
 
   if (session) {

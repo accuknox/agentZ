@@ -860,7 +860,7 @@ function jsonPreview(value: JsonValue) {
     return keys.slice(0, 4).join(", ") || "Object"
   }
 
-  return String(value)
+  return value.toString()
 }
 
 function isEmptyJSON(value: JsonValue) {

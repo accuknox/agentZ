@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import * as z from "zod"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -7,13 +8,18 @@ import { deleteMcpFormAction, submitMcpFormAction } from "@/data/mcp.actions"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { McpTable } from "./mcp-table"
 import { NewMcpButton } from "./new-mcp-button"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "MCP Connections",
 }
 
+const mcpConnectionsSearchParamsSchema = z.object({
+  page_token: searchParamStringSchema,
+})
+
 type SearchParams = {
-  page_token?: string | string[]
+  page_token?: SearchParamStringInput
 }
 
 export default async function MCPsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -42,11 +48,10 @@ export default async function MCPsPage({ searchParams }: { searchParams: Promise
 }
 
 async function McpConnections({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams
-  const pageToken = Array.isArray(params.page_token) ? params.page_token[0] : params.page_token
+  const params = mcpConnectionsSearchParamsSchema.parse(await searchParams)
   const result = await listMcpConnectionsCachedQuery({
     limit: 50,
-    page_token: pageToken,
+    page_token: params.page_token,
   })
 
   if (result.error) {

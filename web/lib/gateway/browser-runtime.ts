@@ -13,7 +13,7 @@ const gatewayBaseURLSchema = z
       throw new Error("Gateway base URL must use http or https")
     }
 
-    return url.origin as ClientOptions["baseUrl"]
+    return url.origin
   })
 
 const gatewayBaseURLResponseSchema = z.object({

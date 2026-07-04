@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { headers } from "next/headers"
-import { connection } from "next/server"
 import { redirect } from "next/navigation"
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { getAuth } from "@/lib/auth"
@@ -30,9 +29,8 @@ function BootstrappingPlaceholder() {
 }
 
 async function BootstrappingGate() {
-  await connection()
-  const auth = getAuth()
   const requestHeaders = await headers()
+  const auth = getAuth()
   const session = await auth.api.getSession({
     headers: requestHeaders,
   })

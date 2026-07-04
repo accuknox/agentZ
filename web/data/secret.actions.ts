@@ -157,12 +157,11 @@ export async function deleteSecretFormAction(
   _: DeleteSecretFormState,
   formData: FormData
 ): Promise<DeleteSecretFormState> {
-  const key = formData.get("key")
-  const parsedKey = zSecretKey.safeParse(key)
-  if (!parsedKey.success) {
+  const parsed = z.object({ key: zSecretKey }).safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
     return invalidFieldState(
       "key",
-      parsedKey.error.issues.map((issue) => issue.message)
+      parsed.error.issues.map((issue) => issue.message)
     )
   }
 
@@ -170,7 +169,7 @@ export async function deleteSecretFormAction(
     client: getGatewayServerClient(),
     path: { agentName },
     body: {
-      keys: [parsedKey.data],
+      keys: [parsed.data.key],
     },
   })
   if (result.error) {
@@ -183,17 +182,11 @@ export async function deleteSecretFormAction(
 }
 
 function invalidSchemaState(message: string, error: z.ZodError): PutSecretFormState {
-  const { fieldErrors, formErrors } = error.flatten()
-  const errors = Object.entries(fieldErrors).flatMap(([field, messages]) => {
-    if (!Array.isArray(messages)) {
-      return []
-    }
-
-    return messages.map((entry) => ({
-      field,
-      message: entry,
-    }))
-  })
+  const { formErrors } = error.flatten()
+  const errors = error.issues.map((issue) => ({
+    field: issue.path.join("."),
+    message: issue.message,
+  }))
 
   return {
     error: {

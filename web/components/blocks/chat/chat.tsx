@@ -153,30 +153,13 @@ type AssistantUsage = {
   maxTokens?: number
 }
 
-type AgentSelectionConfig = {
-  model?: {
-    modelID: string
-    providerID: string
-  }
-  variant?: string
-}
-
-type ModelCatalog = {
-  agent?: AgentSelectionConfig
-  chefs: string[]
-  config: {
-    model?: string
-  }
-  models: ProviderModelItem[]
-  providerDefaults: Record<string, string>
-}
-
 function getAssistantUsage(
   messages: OpencodeMessage[],
   models: ProviderModelItem[]
 ): AssistantUsage | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
+    if (!message) continue
     if (message.role !== "assistant") continue
 
     const total =
@@ -967,22 +950,9 @@ function TimelineRowView({
                       {group.entries.map((entry) => {
                         const toolEntry = entry.toolEntries[0]
                         if (!toolEntry) return null
-                        // tool-parts.tsx consumes our ToolEntry shape directly;
-                        // each group entry holds exactly one ToolEntry (either
-                        // a single tool or a context-tool cluster).
-                        const bridged =
-                          toolEntry.type === "tool"
-                            ? {
-                                key: toolEntry.part.id,
-                                part: toolEntry.part,
-                                type: "tool" as const,
-                              }
-                            : {
-                                key: toolEntry.parts.map((part) => part.id).join(":"),
-                                parts: toolEntry.parts,
-                                type: "context" as const,
-                              }
-                        return <ToolEntries agentName={agentName} entry={bridged} key={entry.key} />
+                        return (
+                          <ToolEntries agentName={agentName} entry={toolEntry} key={entry.key} />
+                        )
                       })}
                     </div>
                   )

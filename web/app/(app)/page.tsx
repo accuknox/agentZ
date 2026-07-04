@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import { Suspense } from "react"
 import * as z from "zod"
 import { deleteAgentFormAction } from "@/data/agent.actions"

@@ -73,7 +73,7 @@ export type TimelineRow =
 const MAX_RENDER_BLOCKS = 25
 const contextToolNames = new Set(["read", "list", "glob", "grep"])
 
-type ToolEntry = { part: ToolPart; type: "tool" } | { parts: ToolPart[]; type: "context" }
+export type ToolEntry = { part: ToolPart; type: "tool" } | { parts: ToolPart[]; type: "context" }
 
 function isVisibleTool(part: ToolPart): boolean {
   if (part.tool === "todowrite") return false

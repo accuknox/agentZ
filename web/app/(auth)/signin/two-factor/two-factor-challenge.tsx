@@ -2,8 +2,10 @@
 
 import Image from "next/image"
 import * as React from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { TWO_FACTOR_ERROR_CODES } from "better-auth/plugins/two-factor"
 import { Controller, useForm } from "react-hook-form"
+import * as z from "zod"
 import { authClient } from "@/lib/auth-client"
 import { signInURL } from "@/lib/sign-in-redirect"
 import { Button } from "@/components/ui/button"
@@ -18,10 +20,6 @@ type TwoFactorChallengeProps = {
 }
 
 type ChallengeMode = "totp" | "backup"
-type TwoFactorChallengeValues = {
-  code: string
-  trustDevice: boolean
-}
 
 const invalidChallengeMessages = new Set([
   TWO_FACTOR_ERROR_CODES.INVALID_TWO_FACTOR_COOKIE.message,
@@ -30,12 +28,29 @@ const invalidChallengeMessages = new Set([
   TWO_FACTOR_ERROR_CODES.BACKUP_CODES_NOT_ENABLED.message,
 ])
 
+const challengeSchemas = {
+  totp: z.object({
+    code: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "Enter a valid 6-digit code"),
+    trustDevice: z.boolean(),
+  }),
+  backup: z.object({
+    code: z.string().trim().min(1, "Enter a backup code"),
+    trustDevice: z.boolean(),
+  }),
+}
+
+type TwoFactorChallengeValues = z.infer<(typeof challengeSchemas)["totp"]>
+
 export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
   const [mode, setMode] = React.useState<ChallengeMode>("totp")
   const [pending, setPending] = React.useState(false)
   const [redirecting, setRedirecting] = React.useState(false)
   const locked = pending || redirecting
   const form = useForm<TwoFactorChallengeValues>({
+    resolver: zodResolver(challengeSchemas[mode]),
     defaultValues: {
       code: "",
       trustDevice: false,
@@ -43,22 +58,6 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
   })
 
   async function submit(values: TwoFactorChallengeValues) {
-    const value = values.code.trim()
-    if (mode === "totp" && !/^\d{6}$/.test(value)) {
-      form.setError("code", {
-        type: "validate",
-        message: "Enter a valid 6-digit code",
-      })
-      return
-    }
-    if (mode === "backup" && value.length === 0) {
-      form.setError("code", {
-        type: "validate",
-        message: "Enter a backup code",
-      })
-      return
-    }
-
     setPending(true)
     form.clearErrors("code")
     let redirected = false
@@ -67,11 +66,11 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
       const result =
         mode === "totp"
           ? await authClient.twoFactor.verifyTotp({
-              code: value,
+              code: values.code,
               trustDevice: values.trustDevice,
             })
           : await authClient.twoFactor.verifyBackupCode({
-              code: value,
+              code: values.code,
               trustDevice: values.trustDevice,
             })
 

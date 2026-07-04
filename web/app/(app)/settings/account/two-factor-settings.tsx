@@ -238,6 +238,7 @@ export function TwoFactorSettings({
       startTransition(() => {
         router.refresh()
       })
+      return
     } catch {
       return "Invalid code"
     } finally {

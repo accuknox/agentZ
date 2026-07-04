@@ -37,6 +37,8 @@ export function AgentWorkingIndicator({
         }
       }
     }
+
+    return undefined
   }, [isWorking])
 
   if (!visible) return <></>

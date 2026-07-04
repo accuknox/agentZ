@@ -1,5 +1,6 @@
 "use server"
 
+import type { Route } from "next"
 import { redirect } from "next/navigation"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
@@ -147,7 +148,13 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
   )
 }
 
-function workflowsPath({ agentName, workflowName }: { agentName?: string; workflowName?: string }) {
+function workflowsPath({
+  agentName,
+  workflowName,
+}: {
+  agentName?: string
+  workflowName?: string
+}): Route {
   const params = new URLSearchParams()
   if (agentName) {
     params.set("agent_name", agentName)
@@ -157,7 +164,7 @@ function workflowsPath({ agentName, workflowName }: { agentName?: string; workfl
   }
 
   const query = params.toString()
-  return query === "" ? "/workflows/graphs" : `/workflows/graphs?${query}`
+  return query === "" ? "/workflows/graphs" : (`/workflows/graphs?${query}` as Route)
 }
 
 function workflowTriggersPath({
@@ -166,7 +173,7 @@ function workflowTriggersPath({
 }: {
   agentName?: string
   type?: "schedule" | "webhook"
-}) {
+}): Route {
   const params = new URLSearchParams()
   if (agentName) {
     params.set("agent_name", agentName)
@@ -176,7 +183,7 @@ function workflowTriggersPath({
   }
 
   const query = params.toString()
-  return query === "" ? "/workflows/triggers" : `/workflows/triggers?${query}`
+  return query === "" ? "/workflows/triggers" : (`/workflows/triggers?${query}` as Route)
 }
 
 function workflowRunsPath({
@@ -191,7 +198,7 @@ function workflowRunsPath({
   workflowName: string
   scheduleName?: string
   webhookApiKeyId?: string
-}) {
+}): Route {
   const params = new URLSearchParams()
   params.set("agent_name", agentName)
   params.set("type", type)
@@ -203,5 +210,5 @@ function workflowRunsPath({
     params.set("webhook_api_key_id", webhookApiKeyId)
   }
 
-  return `/workflows/triggers/runs?${params.toString()}`
+  return `/workflows/triggers/runs?${params.toString()}` as Route
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import {
@@ -500,13 +501,12 @@ function OpenSessionMenuItem({
     )
   }
 
+  const sessionHref =
+    `/agents/${encodeURIComponent(agentName)}/${encodeURIComponent(detail.session_id)}` as Route
+
   return (
     <DropdownMenuItem asChild>
-      <Link
-        href={`/agents/${encodeURIComponent(agentName)}/${encodeURIComponent(detail.session_id)}`}
-        target="_blank"
-        rel="noreferrer"
-      >
+      <Link href={sessionHref} target="_blank" rel="noreferrer">
         <ExternalLink />
         Open session
       </Link>

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller, useForm, type Control, type Resolver } from "react-hook-form"
+import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
 import * as z from "zod"
 import type {
   WorkflowInputSchema,
@@ -140,10 +140,27 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     () => (values, context, options) => zodResolver(formSchema)(values, context, options),
     [formSchema]
   )
+  const initialValues = React.useMemo<ScheduleFormValues>(() => {
+    if (mode === "create") {
+      const firstWorkflowName = workflows[0]?.workflow_name ?? ""
+      return {
+        ...createDefaults,
+        workflow_name: firstWorkflowName,
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      }
+    }
+
+    if (scheduleItem) {
+      return scheduleValuesFromItem(scheduleItem)
+    }
+
+    return createDefaults
+  }, [mode, scheduleItem, workflows])
   const form = useForm<ScheduleFormValues>({
     resolver,
     mode: "onBlur",
     defaultValues: createDefaults,
+    values: initialValues,
   })
   const formAction =
     mode === "create"
@@ -202,44 +219,14 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
   )
 
   React.useEffect(() => {
-    if (isPending || state.error) {
-      return
-    }
-
-    setSchemaError(undefined)
-    setWorkflowInputs({})
-    onOpenChangeAction(false)
-  }, [form, isPending, onOpenChangeAction, state.error])
-
-  React.useEffect(() => {
     if (!open) {
       return
     }
 
-    let nextValues: ScheduleFormValues
-    if (mode === "create") {
-      const firstWorkflowName = workflows[0]?.workflow_name ?? ""
-      nextValues = {
-        ...createDefaults,
-        workflow_name: firstWorkflowName,
-        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-      }
-    } else {
-      if (!scheduleItem) {
-        return
-      }
-
-      nextValues = scheduleValuesFromItem(scheduleItem)
-    }
-
-    form.reset(nextValues)
-    setWorkflowInputs({})
-    setSchemaError(undefined)
-
     startSchemaTransition(() => {
-      void loadWorkflowInputs(nextValues.workflow_name, nextValues)
+      void loadWorkflowInputs(initialValues.workflow_name, initialValues)
     })
-  }, [form, loadWorkflowInputs, mode, open, scheduleItem, workflows])
+  }, [initialValues, loadWorkflowInputs, open])
 
   React.useEffect(() => {
     if (!state.error?.errors) {
@@ -270,8 +257,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     }
   }, [form, state.error])
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- React Hook Form watch is required for dynamic workflow input rendering.
-  const workflowName = form.watch("workflow_name")
+  const workflowName = useWatch({ control: form.control, name: "workflow_name" })
   const generalErrorMessage = React.useMemo(() => {
     if (schemaError) {
       return schemaError

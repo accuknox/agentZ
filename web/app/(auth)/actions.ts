@@ -1,5 +1,6 @@
 "use server"
 
+import type { Route } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import * as z from "zod"
@@ -43,7 +44,7 @@ async function signInWithProvider(provider: SocialProvider, formData: FormData):
     redirect(signInURL({ error: "no_callback_url", provider, returnTo }))
   }
 
-  redirect(result.url)
+  redirect(result.url as Route)
 }
 
 export async function signInWithGithub(formData: FormData): Promise<never> {

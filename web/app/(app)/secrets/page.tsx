@@ -90,7 +90,17 @@ async function NewSecretButtonShell({
     )
   }
 
-  const selectedAgent = result.agents.find((agent) => agent.name === agentName) ?? result.agents[0]
+  const firstAgent = result.agents[0]
+  if (!firstAgent) {
+    return (
+      <Button disabled>
+        <Plus />
+        Create
+      </Button>
+    )
+  }
+
+  const selectedAgent = result.agents.find((agent) => agent.name === agentName) ?? firstAgent
 
   return (
     <NewSecretButton

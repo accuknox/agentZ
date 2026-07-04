@@ -1,15 +1,23 @@
 import cron from "cron-validate"
 import * as z from "zod"
-import type {
-  WorkflowInputScalarValue,
-  WorkflowInputSchema,
-  WorkflowInputs,
-} from "@/lib/gateway/client"
-import { agentNameSchema } from "@/data/schema"
+import type { WorkflowInputSchema, WorkflowInputs } from "@/lib/gateway/client"
+import { zWorkflowName, zWorkflowScheduleName } from "@/lib/gateway/client/zod.gen"
 
-const workflowNameSchema = agentNameSchema.describe("Workflow name")
+const workflowNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Workflow name is required")
+  .max(32, "Workflow name must be at most 32 characters")
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+  .pipe(zWorkflowName)
 
-export const workflowScheduleNameSchema = agentNameSchema.describe("Schedule name")
+export const workflowScheduleNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Schedule name is required")
+  .max(32, "Schedule name must be at most 32 characters")
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+  .pipe(zWorkflowScheduleName)
 
 const workflowScheduleFieldSchema = z.union([z.string(), z.number(), z.boolean(), z.undefined()])
 

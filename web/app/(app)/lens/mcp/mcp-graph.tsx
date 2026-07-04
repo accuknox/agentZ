@@ -344,7 +344,6 @@ function ToolMetricsView({ metrics }: { metrics: ToolMetrics }) {
 
 function applyLayout(graph: McpGraphResponse, nodes: McpCanvasNode[]): McpCanvasNode[] {
   const dagreGraph = new dagre.graphlib.Graph<DagreGraphLabel, DagrePositionedNode>()
-  const nodeByID = new Map(nodes.map((node) => [node.id, node]))
 
   dagreGraph.setDefaultEdgeLabel(() => ({}))
   dagreGraph.setGraph({

@@ -7,9 +7,7 @@ import { SandboxWizard } from "../../wizard"
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ name: string }>
-}): Promise<Metadata> {
+}: PageProps<"/sandboxes/update/[name]">): Promise<Metadata> {
   const { name } = await params
 
   return {
@@ -17,7 +15,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function UpdateSandboxPage({ params }: { params: Promise<{ name: string }> }) {
+export default async function UpdateSandboxPage({ params }: PageProps<"/sandboxes/update/[name]">) {
   return (
     <Suspense fallback={<UpdateSandboxSkeleton />}>
       {params.then(({ name }) => (

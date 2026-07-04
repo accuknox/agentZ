@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, use } from "react"
+import type { Route } from "next"
 import Link from "next/link"
 import { useSelectedLayoutSegments } from "next/navigation"
 import {
@@ -14,11 +15,11 @@ import {
 import type { ListAgentActionResponse } from "@/data/types"
 
 type Crumb = {
-  href?: string
+  href?: Route
   label: string
 }
 
-const genericBreadcrumbHrefs = new Set([
+const genericBreadcrumbHrefs = new Set<Route>([
   "/",
   "/sandboxes",
   "/sandboxes/new",
@@ -121,9 +122,8 @@ function crumbsForSegments(
 function genericCrumbs(segments: string[]): Crumb[] {
   const crumbs: Crumb[] = [{ href: "/", label: "Home" }]
 
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i]
-    const href = `/${segments.slice(0, i + 1).join("/")}`
+  for (const [index, segment] of segments.entries()) {
+    const href = `/${segments.slice(0, index + 1).join("/")}` as Route
 
     crumbs.push({
       href: genericBreadcrumbHrefs.has(href) ? href : undefined,

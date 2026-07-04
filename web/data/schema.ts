@@ -1,6 +1,11 @@
 import * as z from "zod"
 import ipaddr from "ipaddr.js"
-import { zSecretKey } from "@/lib/gateway/client/zod.gen"
+import {
+  zAgentName,
+  zMcpConnectionName,
+  zSandboxName,
+  zSecretKey,
+} from "@/lib/gateway/client/zod.gen"
 
 const secretKeySchema = zSecretKey
 
@@ -302,6 +307,7 @@ export const agentNameSchema = z
   .min(1, "Agent name is required")
   .max(32, "Agent name must be at most 32 characters")
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+  .pipe(zAgentName)
   .refine((name) => name !== "mcp-connection", "Agent name is reserved")
 
 export const sandboxNameSchema = z
@@ -310,6 +316,7 @@ export const sandboxNameSchema = z
   .min(1, "Sandbox name is required")
   .max(32, "Sandbox name must be at most 32 characters")
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
+  .pipe(zSandboxName)
 
 export const sandboxAllowedHostSchema = z
   .string()
@@ -335,7 +342,7 @@ export const createSandboxFormSchema = z.object({
   mcpConnectionRefs: z
     .array(
       z.object({
-        name: z.string().trim().min(1, "MCP connection name is required"),
+        name: z.string().trim().min(1, "MCP connection name is required").pipe(zMcpConnectionName),
         tools: z
           .array(
             z.object({

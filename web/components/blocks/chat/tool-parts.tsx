@@ -11,8 +11,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Spinner } from "@/components/ui/spinner"
+import type { ToolEntry } from "@/components/blocks/chat/timeline"
 import { cn } from "@/lib/utils"
-import type { QuestionAnswer, QuestionInfo, ToolPart, Todo } from "@opencode-ai/sdk/v2"
+import type { ToolPart } from "@opencode-ai/sdk/v2"
 import {
   BrainIcon,
   ChevronDownIcon,
@@ -28,22 +29,16 @@ import {
   TerminalSquareIcon,
   WrenchIcon,
 } from "lucide-react"
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { BundledLanguage } from "shiki"
 import { useState } from "react"
 import * as z from "zod"
-
-type ToolEntry =
-  | { type: "tool"; key: string; part: ToolPart }
-  | { type: "context"; key: string; parts: ToolPart[] }
 
 type ToolProps = {
   agentName: string
   part: ToolPart
 }
 
-const contextTools = new Set(["read", "glob", "grep", "list"])
 const genericToolPrimaryKeys = new Set([
   "description",
   "query",
@@ -183,47 +178,6 @@ function shortLabel(value: string | undefined, max = 56) {
   return `${value.slice(0, max - 1)}…`
 }
 
-function isToolVisible(part: ToolPart) {
-  if (part.tool === "todowrite") return false
-  if (part.tool === "question") {
-    return part.state.status !== "pending" && part.state.status !== "running"
-  }
-  return true
-}
-
-function groupTools(parts: ToolPart[]) {
-  const result: ToolEntry[] = []
-  let group: ToolPart[] = []
-
-  const flush = () => {
-    if (group.length === 0) return
-    if (group.length === 1) {
-      const [part] = group
-      if (part) result.push({ type: "tool", key: part.id, part })
-    } else {
-      result.push({
-        type: "context",
-        key: group.map((part) => part.id).join(":"),
-        parts: group,
-      })
-    }
-    group = []
-  }
-
-  for (const part of parts.filter(isToolVisible)) {
-    if (contextTools.has(part.tool)) {
-      group.push(part)
-      continue
-    }
-
-    flush()
-    result.push({ type: "tool", key: part.id, part })
-  }
-
-  flush()
-  return result
-}
-
 function toolStateTone(status: ToolPart["state"]["status"]): ToolTone {
   switch (status) {
     case "pending":
@@ -275,29 +229,9 @@ function urls(text: string | undefined) {
     })
 }
 
-function loadedFiles(value: unknown) {
-  return loadedFilesSchema.parse(value)
-}
-
-function toolFiles(value: unknown): ToolFile[] {
-  return toolFilesSchema.parse(value)
-}
-
 function diagnosticsByPath(value: unknown, filePath: string | undefined) {
   if (!filePath) return []
   return diagnosticsByFileSchema.parse(value)[filePath] ?? []
-}
-
-function questionInfos(value: unknown) {
-  return questionInfosSchema.parse(value)
-}
-
-function questionAnswers(value: unknown) {
-  return questionAnswersSchema.parse(value)
-}
-
-function todos(value: unknown) {
-  return todosSchema.parse(value)
 }
 
 function shellTranscript(part: ToolPart) {
@@ -426,14 +360,15 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
           <div className={cn("shrink-0 text-sm font-medium", toneClass(tone))}>{title}</div>
           {arg ? (
             href ? (
-              <Link
+              <a
                 className="text-muted-foreground truncate font-mono text-sm underline-offset-2 hover:underline"
                 href={href}
                 onClick={(event) => event.stopPropagation()}
+                rel="noreferrer"
                 target="_blank"
               >
                 {arg}
-              </Link>
+              </a>
             ) : (
               <div className="text-muted-foreground truncate font-mono text-sm">{arg}</div>
             )
@@ -595,7 +530,7 @@ function ReadTool({ part }: ToolProps) {
   return (
     <div className="space-y-1">
       <ToolCard arg={arg} title="Read" tone={toolStateTone(part.state.status)} />
-      <LoadedFiles files={loadedFiles(metadata?.loaded)} />
+      <LoadedFiles files={loadedFilesSchema.parse(metadata?.loaded)} />
     </div>
   )
 }
@@ -662,14 +597,15 @@ function WebsearchTool({ part }: ToolProps) {
       <ToolDescription>{query}</ToolDescription>
       <div className="space-y-1">
         {links.map((url) => (
-          <Link
+          <a
             className="text-primary block truncate text-sm underline-offset-2 hover:underline"
             href={url}
             key={url}
+            rel="noreferrer"
             target="_blank"
           >
             {url}
-          </Link>
+          </a>
         ))}
       </div>
     </ToolCard>
@@ -804,7 +740,7 @@ function PatchFileCard({ file }: { file: ToolFile }) {
 
 function ApplyPatchTool({ part }: ToolProps) {
   const metadata = toolMetadata(part)
-  const files = toolFiles(metadata?.files)
+  const files = toolFilesSchema.parse(metadata?.files)
   const fileCount =
     files.length > 0 ? `${files.length} ${files.length === 1 ? "file" : "files"}` : undefined
 
@@ -825,9 +761,9 @@ function ApplyPatchTool({ part }: ToolProps) {
 }
 
 function QuestionsTool({ part }: ToolProps) {
-  const inputQuestions = questionInfos(part.state.input.questions)
+  const inputQuestions = questionInfosSchema.parse(part.state.input.questions)
   const metadata = toolMetadata(part)
-  const answers = questionAnswers(metadata?.answers)
+  const answers = questionAnswersSchema.parse(metadata?.answers)
   const questionCount =
     answers.length > 0
       ? `${inputQuestions.length} answered`
@@ -867,7 +803,7 @@ function SkillTool({ part }: ToolProps) {
 
 function TodoTool({ part }: ToolProps) {
   const metadata = toolMetadata(part)
-  const items = todos(metadata?.todos ?? part.state.input.todos)
+  const items = todosSchema.parse(metadata?.todos ?? part.state.input.todos)
   const completed = items.filter((item) => item.status === "completed").length
 
   return (

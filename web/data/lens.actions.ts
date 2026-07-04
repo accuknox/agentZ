@@ -427,9 +427,22 @@ function computeTelemetryChartFromAggregated(
     return { points: [], total: 0, granularity: "no data" }
   }
 
-  const eventTimes = events.map((e) => dayjs(e.last_seen))
-  const minTime = eventTimes.reduce((min, t) => (t.isBefore(min) ? t : min), eventTimes[0])
-  const maxTime = eventTimes.reduce((max, t) => (t.isAfter(max) ? t : max), eventTimes[0])
+  const [firstEvent, ...restEvents] = events
+  if (!firstEvent) {
+    return { points: [], total: 0, granularity: "no data" }
+  }
+
+  let minTime = dayjs(firstEvent.last_seen)
+  let maxTime = minTime
+  for (const event of restEvents) {
+    const seenAt = dayjs(event.last_seen)
+    if (seenAt.isBefore(minTime)) {
+      minTime = seenAt
+    }
+    if (seenAt.isAfter(maxTime)) {
+      maxTime = seenAt
+    }
+  }
 
   const from = minTime
   const to = maxTime

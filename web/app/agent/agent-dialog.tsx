@@ -120,6 +120,25 @@ const providerLogos: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   vercel: themedIcon(VercelDark, VercelLight),
 }
 
+function ProviderModelLabel({
+  model,
+}: {
+  model: { modelName: string; providerID: string; providerName: string }
+}) {
+  const Logo = providerLogos[model.providerID]
+
+  return (
+    <span className="flex items-center gap-2">
+      {Logo ? (
+        <Logo className="size-4 shrink-0" />
+      ) : (
+        <span className="text-muted-foreground shrink-0">{model.providerName} /</span>
+      )}
+      <span>{model.modelName}</span>
+    </span>
+  )
+}
+
 function SandboxSelect({
   "aria-invalid": ariaInvalid,
   disabled,
@@ -551,19 +570,7 @@ export function AgentDialog({
                           <SelectGroup>
                             {modelCatalog.data?.models.map((model) => (
                               <SelectItem key={model.value} value={model.value}>
-                                <span className="flex items-center gap-2">
-                                  {providerLogos[model.providerID] ? (
-                                    (() => {
-                                      const Logo = providerLogos[model.providerID]
-                                      return <Logo className="size-4 shrink-0" />
-                                    })()
-                                  ) : (
-                                    <span className="text-muted-foreground shrink-0">
-                                      {model.providerName} /
-                                    </span>
-                                  )}
-                                  <span>{model.modelName}</span>
-                                </span>
+                                <ProviderModelLabel model={model} />
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -597,19 +604,7 @@ export function AgentDialog({
                           <SelectGroup>
                             {modelCatalog.data?.models.map((model) => (
                               <SelectItem key={model.value} value={model.value}>
-                                <span className="flex items-center gap-2">
-                                  {providerLogos[model.providerID] ? (
-                                    (() => {
-                                      const Logo = providerLogos[model.providerID]
-                                      return <Logo className="size-4 shrink-0" />
-                                    })()
-                                  ) : (
-                                    <span className="text-muted-foreground shrink-0">
-                                      {model.providerName} /
-                                    </span>
-                                  )}
-                                  <span>{model.modelName}</span>
-                                </span>
+                                <ProviderModelLabel model={model} />
                               </SelectItem>
                             ))}
                           </SelectGroup>

@@ -206,12 +206,7 @@ function APIKeyScope({
       }))
       .toSorted((left, right) => left.agentName.localeCompare(right.agentName))
 
-    const summary =
-      grouped.length <= 2
-        ? grouped
-            .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.length}`)
-            .join(", ")
-        : `${grouped[0].agentName}: ${grouped[0].workflowNames.length}, ${grouped[1].agentName}: ${grouped[1].workflowNames.length}, +${grouped.length - 2} agents`
+    const summary = apiKeyWorkflowScopeSummary(grouped)
     const details = grouped
       .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.join(", ")}`)
       .join("\n")
@@ -250,9 +245,7 @@ function APIKeyScope({
   }
 
   const summary =
-    agentNames.length <= 2
-      ? agentNames.join(", ")
-      : `${agentNames[0]}, ${agentNames[1]}, +${agentNames.length - 2}`
+    agentNames.length <= 2 ? agentNames.join(", ") : apiKeyAgentScopeSummary(agentNames)
 
   return (
     <TooltipProvider>
@@ -264,6 +257,30 @@ function APIKeyScope({
       </Tooltip>
     </TooltipProvider>
   )
+}
+
+function apiKeyWorkflowScopeSummary(grouped: { agentName: string; workflowNames: string[] }[]) {
+  if (grouped.length <= 2) {
+    return grouped
+      .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.length}`)
+      .join(", ")
+  }
+
+  const [first, second] = grouped
+  if (!first || !second) {
+    return ""
+  }
+
+  return `${first.agentName}: ${first.workflowNames.length}, ${second.agentName}: ${second.workflowNames.length}, +${grouped.length - 2} agents`
+}
+
+function apiKeyAgentScopeSummary(agentNames: string[]) {
+  const [first, second] = agentNames
+  if (!first || !second) {
+    return agentNames.join(", ")
+  }
+
+  return `${first}, ${second}, +${agentNames.length - 2}`
 }
 
 function apiKeyTypeLabel(configId: string) {

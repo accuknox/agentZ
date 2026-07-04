@@ -79,7 +79,7 @@ export function SignUpForm({
 
     return { [routeProvider]: authErrorMessages[routeError] }
   })
-  const { clearErrors, control, formState, handleSubmit, setError } = useForm<SignUpValues>({
+  const { clearErrors, control, handleSubmit, setError } = useForm<SignUpValues>({
     criteriaMode: "all",
     resolver: zodResolver(signUpSchema),
     defaultValues: {

@@ -139,9 +139,6 @@ export function QuestionDock({
   const tab = Math.min(entry.tab, total - 1)
   const question = questions[tab]
   const selected = entry.answers[tab]
-  const customEnabled = question
-    ? (entry.customEnabled[tab] ?? false) && question.custom !== false
-    : false
   const isLast = tab === total - 1
   const answers = buildAnswers(entry, request)
   const currentAnswered = (answers[tab]?.length ?? 0) > 0 || (entry.customEnabled[tab] ?? false)

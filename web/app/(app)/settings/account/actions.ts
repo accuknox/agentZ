@@ -1,5 +1,6 @@
 "use server"
 
+import type { Route } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import * as z from "zod"
@@ -37,7 +38,7 @@ async function reauthenticateWithProvider(
     redirect(`/settings/account?${errorParams.toString()}`)
   }
 
-  redirect(result.url)
+  redirect(result.url as Route)
 }
 
 export async function reauthenticateWithGithub(formData: FormData): Promise<never> {

@@ -7,7 +7,6 @@ import {
   deleteSandbox,
   listSandboxes,
   updateSandbox,
-  type Error,
   type ListSandboxesData,
   type McpConnectionRef,
 } from "@/lib/gateway/client"

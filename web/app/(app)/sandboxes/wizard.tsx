@@ -62,14 +62,46 @@ import * as z from "zod"
 import { sandboxAllowedHostSchema, sandboxNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { getMcpConnection, type McpConnectionSummary } from "@/lib/gateway/client"
+import { zMcpConnectionName } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { PackageSearch } from "./package-search"
 
 type SandboxWizardMode = "create" | "update"
 
-type SandboxIdentity = {
-  name: string
-}
+const identitySchema = z.object({
+  name: sandboxNameSchema,
+})
+
+const selectedMcpToolSchema = z.object({
+  name: z.string().min(1),
+  requireConsent: z.boolean(),
+})
+
+const selectedMcpConnectionRefSchema = z.object({
+  name: zMcpConnectionName,
+  tools: z.array(selectedMcpToolSchema),
+})
+
+const allowedHostsStepSchema = z.object({
+  allowedHosts: z
+    .array(sandboxAllowedHostSchema)
+    .transform((hosts) => Array.from(new Set(hosts)).sort()),
+})
+
+const packageStepSchema = z.object({
+  packages: z.array(z.string().min(1)),
+})
+
+const mcpStepSchema = z.object({
+  mcpConnectionRefs: z.array(selectedMcpConnectionRefSchema),
+})
+
+type SandboxIdentity = z.infer<typeof identitySchema>
+type SelectedMcpTool = z.infer<typeof selectedMcpToolSchema>
+type SelectedMcpConnectionRef = z.infer<typeof selectedMcpConnectionRefSchema>
+type PackageStepValues = z.infer<typeof packageStepSchema>
+type McpStepValues = z.infer<typeof mcpStepSchema>
+type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
 
 type SandboxWizardData = {
   identity?: SandboxIdentity
@@ -89,16 +121,6 @@ type SandboxWizardProps = {
   initialPackages?: string[]
   mcpConnections: McpConnectionSummary[]
   mode: SandboxWizardMode
-}
-
-type SelectedMcpConnectionRef = {
-  name: string
-  tools: SelectedMcpTool[]
-}
-
-type SelectedMcpTool = {
-  name: string
-  requireConsent: boolean
 }
 
 type PackageStepProps = {
@@ -127,26 +149,6 @@ type McpStepProps = {
   onNext: (mcpConnectionRefs: SelectedMcpConnectionRef[]) => void
   onPrev: () => void
 }
-
-type McpStepValues = {
-  mcpConnectionRefs: SelectedMcpConnectionRef[]
-}
-
-const identitySchema = z.object({
-  name: sandboxNameSchema,
-})
-
-const allowedHostsStepSchema = z.object({
-  allowedHosts: z
-    .array(sandboxAllowedHostSchema)
-    .transform((hosts) => Array.from(new Set(hosts)).sort()),
-})
-
-type PackageStepValues = {
-  packages: string[]
-}
-
-type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
 
 const formIdByStep = {
   identity: "sandbox-form-identity",
@@ -267,6 +269,7 @@ function PackageStep({
   onPrev,
 }: PackageStepProps) {
   const form = useForm<PackageStepValues>({
+    resolver: zodResolver(packageStepSchema),
     defaultValues: {
       packages: selectedPackages,
     },
@@ -586,6 +589,7 @@ function McpStep({
   onPrev,
 }: McpStepProps) {
   const form = useForm<McpStepValues>({
+    resolver: zodResolver(mcpStepSchema),
     defaultValues: {
       mcpConnectionRefs: initialMcpConnectionRefs,
     },

@@ -1,5 +1,6 @@
 "use client"
 
+import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { motion } from "motion/react"
@@ -208,7 +209,7 @@ function AgentSessionsItem({
     return sessions.filter((session) => !session.parentID)
   }, [sessions])
   const router = useRouter()
-  const newSessionPath = `/agents/${agent.name}/session/new`
+  const newSessionPath = `/agents/${agent.name}/session/new` as Route
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setOpenAgentName(open ? agent.name : null)
@@ -225,7 +226,7 @@ function AgentSessionsItem({
     if (query.isError) return
     if (sessions.some((session) => session.id === sessionID)) return
 
-    void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}`)
+    void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
   }, [agent.name, isOpen, newSessionPath, path, query.isError, query.isPending, router, sessions])
 
   return (
@@ -249,7 +250,7 @@ function AgentSessionsItem({
               href={newSessionPath}
               onClick={(event) => {
                 event.preventDefault()
-                void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}`)
+                void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
               }}
               prefetch={false}
             >
@@ -324,13 +325,13 @@ function SessionItem({
   session: AgentSessionListItem
   status?: SessionStatus
 }) {
-  const href = `/agents/${agentName}/${session.id}`
+  const href = `/agents/${agentName}/${session.id}` as Route
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [isPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
   const router = useRouter()
-  const newSessionPath = `/agents/${agentName}/session/new`
+  const newSessionPath = `/agents/${agentName}/session/new` as Route
 
   const handleDelete = useCallback(
     async (formData: FormData) => {
@@ -350,7 +351,7 @@ function SessionItem({
         })
 
         if (path === href) {
-          router.push(`${newSessionPath}?draft=${crypto.randomUUID()}`)
+          router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
           router.refresh()
         }
       })
@@ -567,15 +568,23 @@ function SidebarSessionSpinner() {
 function agentNameFromPath(path: string) {
   const match = path.match(/^\/agents\/([^/]+)(?:\/.*)?$/)
   if (!match) return null
-  return decodeURIComponent(match[1])
+
+  const [, encodedAgentName] = match
+  if (!encodedAgentName) return null
+
+  return decodeURIComponent(encodedAgentName)
 }
 
 function sessionIDFromPath(path: string, agentName: string) {
   const match = path.match(/^\/agents\/([^/]+)\/([^/]+)$/)
   if (!match) return
-  if (decodeURIComponent(match[1]) !== agentName) return
-  if (match[2] === "session") return
-  return decodeURIComponent(match[2])
+
+  const [, encodedAgentName, encodedSessionID] = match
+  if (!encodedAgentName || !encodedSessionID) return
+  if (decodeURIComponent(encodedAgentName) !== agentName) return
+  if (encodedSessionID === "session") return
+
+  return decodeURIComponent(encodedSessionID)
 }
 
 function AgentBadge({ status }: { status: AgentStatus }) {

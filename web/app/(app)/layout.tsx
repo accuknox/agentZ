@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getAuth } from "@/lib/auth"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -67,19 +66,7 @@ async function AppGate({ children }: { children: React.ReactNode }) {
               orientation="vertical"
               className="mr-2 data-vertical:h-4 data-vertical:self-auto"
             />
-            <Suspense
-              fallback={
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>Home</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-              }
-            >
-              <PageBreadcrumb agents={listAgentsCachedQuery()} />
-            </Suspense>
+            <PageBreadcrumb />
           </div>
         </header>
         <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">

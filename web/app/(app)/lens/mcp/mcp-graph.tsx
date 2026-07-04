@@ -21,7 +21,7 @@ import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { mcpConnectionFallbackIcon, renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import type { McpGraphEdge, McpGraphResponse } from "@/lib/gateway/client"
 
 type McpGraphProps = {
@@ -98,7 +98,7 @@ export function McpGraph({ graph }: McpGraphProps) {
       }
 
       metrics.set(toolID(edge.target), {
-        lastCall: edge.last_called_at ? dayjs(edge.last_called_at).fromNow() : undefined,
+        lastCall: edge.last_called_at ? formatAge(edge.last_called_at) : undefined,
         latencyMs: edge.avg_latency_ms,
       })
       return metrics

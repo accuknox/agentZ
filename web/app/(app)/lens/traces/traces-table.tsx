@@ -59,13 +59,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import {
-  formatCompactNumber,
-  percentOf,
-  shortLensID,
-  useTokenPagination,
-} from "@/app/(app)/lens/traces/client-utils"
+import { percentOf, shortLensID, useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 
 const columnClassName: Record<string, string> = {
   trace: "min-w-40 w-[20%]",

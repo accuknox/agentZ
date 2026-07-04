@@ -2,15 +2,6 @@
 
 import { useTokenPagination as useSharedTokenPagination } from "@/lib/use-token-pagination"
 
-const numberFormatter = new Intl.NumberFormat("en", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-})
-
-export function formatCompactNumber(value: number) {
-  return numberFormatter.format(value)
-}
-
 export function shortLensID(value: string) {
   return value.slice(0, 8)
 }

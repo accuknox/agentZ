@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
   ArrowUpDown,
@@ -122,7 +122,7 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <FormatAge value={row.original.created_at} />,
+      cell: ({ row }) => <span>{formatAge(row.original.created_at)}</span>,
     },
     {
       id: "actions",
@@ -287,16 +287,4 @@ function DeleteMcpDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function FormatAge({ value }: { value: string }) {
-  return <>{formatAge(value)}</>
-}
-
-function formatAge(value: string) {
-  const d = dayjs(value)
-  if (!d.isValid()) {
-    return "Unknown"
-  }
-  return d.fromNow()
 }

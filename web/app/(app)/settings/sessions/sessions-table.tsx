@@ -27,7 +27,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ArrowUpDown, Globe, LogOut, Monitor, MoreHorizontal } from "lucide-react"
-import { dayjs } from "@/lib/dayjs"
+import { formatTimestampWithAge } from "@/lib/format"
 import type { DeleteSessionFormState } from "@/data/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -137,7 +137,7 @@ export function SessionsTable({
             <ArrowUpDown />
           </Button>
         ),
-        cell: ({ row }) => <span>{formatDateTime(row.original.createdAt)}</span>,
+        cell: ({ row }) => <span>{formatTimestampWithAge(row.original.createdAt)}</span>,
       },
       {
         id: "updatedAt",
@@ -152,7 +152,7 @@ export function SessionsTable({
             <ArrowUpDown />
           </Button>
         ),
-        cell: ({ row }) => <span>{formatDateTime(row.original.updatedAt)}</span>,
+        cell: ({ row }) => <span>{formatTimestampWithAge(row.original.updatedAt)}</span>,
       },
       {
         id: "os",
@@ -341,13 +341,4 @@ function DeleteSessionButton({
       </Dialog>
     </>
   )
-}
-
-function formatDateTime(value: Date | string) {
-  const date = dayjs(value)
-  if (!date.isValid()) {
-    return "-"
-  }
-
-  return `${date.format("MMM D, YYYY, h:mm A")} (${date.fromNow()})`
 }

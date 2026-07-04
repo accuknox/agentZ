@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { MoreHorizontal, Trash2 } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge, formatTimestampWithAge } from "@/lib/format"
 import type { DeleteAPIKeyFormState } from "@/data/types"
 import { Button } from "@/components/ui/button"
 import {
@@ -96,7 +96,7 @@ export function APIKeysTable({
       {
         id: "expiresAt",
         header: "Expires",
-        cell: ({ row }) => <span>{formatDateTime(row.original.expiresAt)}</span>,
+        cell: ({ row }) => <span>{formatTimestampWithAge(row.original.expiresAt)}</span>,
       },
       {
         id: "age",
@@ -363,30 +363,4 @@ function DeleteAPIKeyButton({
       </Dialog>
     </>
   )
-}
-
-function formatDateTime(value: Date | string | null | undefined) {
-  if (!value) {
-    return "Never"
-  }
-
-  const date = dayjs(value)
-  if (!date.isValid()) {
-    return "-"
-  }
-
-  return `${date.format("MMM D, YYYY, h:mm A")} (${date.fromNow()})`
-}
-
-function formatAge(value: Date | string | null | undefined) {
-  if (!value) {
-    return "Unknown"
-  }
-
-  const date = dayjs(value)
-  if (!date.isValid()) {
-    return "Unknown"
-  }
-
-  return date.fromNow()
 }

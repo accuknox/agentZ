@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { dayjs } from "@/lib/dayjs"
+import { dayjs, formatDateParam } from "@/lib/format"
 
 export function TracesFilters({
   agents,
@@ -152,8 +152,8 @@ function DateRangeControl({
             }
 
             update({
-              from: formatParamDate(range.from),
-              to: formatParamDate(range.to),
+              from: formatDateParam(range.from),
+              to: formatDateParam(range.to),
               session_id: undefined,
             })
           }}
@@ -184,8 +184,4 @@ function paramDate(value?: string) {
 
 function parseParamDate(value?: string) {
   return paramDate(value)?.toDate()
-}
-
-function formatParamDate(date?: Date) {
-  return date ? dayjs(date).format("YYYY-MM-DD") : undefined
 }

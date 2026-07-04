@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/sidebar"
 import { BotIcon, ChevronRightIcon, Plus, Trash2 } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
-import { dayjs } from "@/lib/dayjs"
+import { formatShortAge } from "@/lib/format"
 import type { Agent, AgentStatus } from "@/lib/gateway/client"
 import {
   experimental_streamedQuery as streamedQuery,
@@ -332,7 +332,7 @@ function SessionItem({
         {status && status.type !== "idle" ? (
           <SidebarSessionSpinner />
         ) : (
-          formatSessionLastActivity(session.updatedAt)
+          formatShortAge(session.updatedAt)
         )}
       </span>
       <button
@@ -547,26 +547,4 @@ function AgentBadge({ status }: { status: AgentStatus }) {
   }
 
   return <BotIcon aria-label="Unknown" role="status" className="text-destructive" />
-}
-
-function formatSessionLastActivity(updatedAt: number) {
-  const t = dayjs(updatedAt)
-  const now = dayjs()
-  const minute = now.diff(t, "minute")
-  if (minute < 1) return "now"
-  if (minute < 60) return `${minute}m`
-
-  const hour = now.diff(t, "hour")
-  if (hour < 24) return `${hour}h`
-
-  const day = now.diff(t, "day")
-  if (day < 7) return `${day}d`
-
-  const week = now.diff(t, "week")
-  if (week < 5) return `${week}w`
-
-  const month = now.diff(t, "month")
-  if (month < 12) return `${month}mo`
-
-  return `${now.diff(t, "year")}y`
 }

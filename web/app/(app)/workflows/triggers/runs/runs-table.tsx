@@ -26,7 +26,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge, formatDurationSeconds } from "@/lib/format"
 import {
   getWorkflowRun,
   watchWorkflowRuns,
@@ -322,17 +322,7 @@ function createColumns({
           return <span className="text-muted-foreground">-</span>
         }
 
-        const hours = Math.floor(durationSeconds / 3600)
-        const minutes = Math.floor((durationSeconds % 3600) / 60)
-        const seconds = durationSeconds % 60
-
-        if (hours > 0) {
-          return `${hours}h ${minutes}m`
-        }
-        if (minutes > 0) {
-          return `${minutes}m ${seconds}s`
-        }
-        return `${seconds}s`
+        return formatDurationSeconds(durationSeconds)
       },
     },
     {
@@ -340,12 +330,7 @@ function createColumns({
       header: "Age",
       sortingFn: "datetime",
       cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return "Unknown"
-        }
-
-        return createdAt.fromNow()
+        return formatAge(row.original.created_at)
       },
     },
     {

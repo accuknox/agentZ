@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { dayjs } from "@/lib/dayjs"
+import { dayjs, formatDateParam } from "@/lib/format"
 
 interface TelemetryFiltersProps {
   agents: Agent[]
@@ -123,7 +123,7 @@ function DateRangeControl({
               return
             }
 
-            update({ from: formatParamDate(range.from), to: formatParamDate(range.to) })
+            update({ from: formatDateParam(range.from), to: formatDateParam(range.to) })
           }}
         />
       </PopoverContent>
@@ -152,8 +152,4 @@ function paramDate(value?: string) {
 
 function parseParamDate(value?: string) {
   return paramDate(value)?.toDate()
-}
-
-function formatParamDate(date?: Date) {
-  return date ? dayjs(date).format("YYYY-MM-DD") : undefined
 }

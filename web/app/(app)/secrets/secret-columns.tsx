@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react"
 import type { SecretListItem, SecretState } from "@/lib/gateway/client"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -122,13 +122,9 @@ export function createSecretColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return <span className="whitespace-nowrap">Unknown</span>
-        }
-        return <span className="whitespace-nowrap">{createdAt.fromNow()}</span>
-      },
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap">{formatAge(row.original.created_at)}</span>
+      ),
     },
     {
       id: "actions",

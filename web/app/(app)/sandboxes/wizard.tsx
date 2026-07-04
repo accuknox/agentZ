@@ -27,7 +27,7 @@ import {
 import * as React from "react"
 import { startTransition, useActionState, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import { WizardShell } from "@/components/blocks/wizard/shell"
 import { Button } from "@/components/ui/button"
 import {
@@ -390,14 +390,7 @@ function createMcpSelectionColumns({
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return "Unknown"
-        }
-
-        return createdAt.fromNow()
-      },
+      cell: ({ row }) => formatAge(row.original.created_at),
     },
     {
       id: "attach",

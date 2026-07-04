@@ -20,7 +20,7 @@ import {
   Trash2,
 } from "lucide-react"
 import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
-import { dayjs } from "@/lib/dayjs"
+import { formatAge } from "@/lib/format"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -303,14 +303,7 @@ function createColumns(
         </Button>
       ),
       sortingFn: "datetime",
-      cell: ({ row }) => {
-        const createdAt = dayjs(row.original.created_at)
-        if (!createdAt.isValid()) {
-          return "Unknown"
-        }
-
-        return createdAt.fromNow()
-      },
+      cell: ({ row }) => formatAge(row.original.created_at),
     },
     {
       id: "actions",

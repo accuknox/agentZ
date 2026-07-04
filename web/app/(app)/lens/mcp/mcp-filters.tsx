@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { dayjs } from "@/lib/dayjs"
+import { dayjs } from "@/lib/format"
 
 type McpFiltersProps = {
   agents: Agent[]

@@ -96,16 +96,18 @@ export function createSecretColumns(
     {
       accessorKey: "hosts",
       header: "Hosts",
-      cell: ({ row }) => (
-        <div className="flex min-w-0 flex-nowrap overflow-hidden text-xs">
-          {row.original.hosts.map((host, index) => (
-            <span key={host} className="text-muted-foreground min-w-0 shrink font-mono">
-              {index > 0 ? <span className="text-border mr-2">/</span> : null}
-              {host}
-            </span>
-          ))}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const hosts = row.original.hosts.join(" / ")
+
+        return (
+          <span
+            className="text-muted-foreground block min-w-0 truncate font-mono text-xs"
+            title={hosts}
+          >
+            {hosts}
+          </span>
+        )
+      },
     },
     {
       id: "age",

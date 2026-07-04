@@ -1051,11 +1051,12 @@ paths:
           $ref: '#/components/schemas/WorkflowName'
       - name: timeout_seconds
         in: query
-        required: true
+        required: false
         description: Timeout for the created WorkflowRun.
         schema:
           type: integer
           format: int32
+          default: 3600
           minimum: 1
           maximum: 604800
       requestBody:

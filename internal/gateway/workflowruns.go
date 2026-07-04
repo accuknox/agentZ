@@ -15,6 +15,8 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+const defaultWebhookTimeoutSeconds int32 = 3600
+
 // PatchWorkflowRunStatus handles PATCH /api/workflow/{agentName}/{workflowName}/run/{runName}/status.
 func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
 	ns, err := tenantNamespace(r.Context())
@@ -114,7 +116,11 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
-	if params.TimeoutSeconds < 1 || params.TimeoutSeconds > 604800 {
+	timeoutSeconds := defaultWebhookTimeoutSeconds
+	if params.TimeoutSeconds != nil {
+		timeoutSeconds = *params.TimeoutSeconds
+	}
+	if timeoutSeconds < 1 || timeoutSeconds > 604800 {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "timeout_seconds",
 			Message: "must be between 1 and 604800",
@@ -176,7 +182,7 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 		agentName,
 		workflowName,
 		rawInputs,
-		params.TimeoutSeconds,
+		timeoutSeconds,
 		auth.apiKeyID,
 	)
 	if err != nil {

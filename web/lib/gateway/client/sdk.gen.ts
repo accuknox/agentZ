@@ -1162,7 +1162,7 @@ export const invokeWorkflowWebhook = <ThrowOnError extends boolean = false>(
         .object({
           body: zInvokeWorkflowWebhookBody,
           path: zInvokeWorkflowWebhookPath,
-          query: zInvokeWorkflowWebhookQuery,
+          query: zInvokeWorkflowWebhookQuery.optional(),
         })
         .parseAsync(data),
     security: [{ name: "X-API-Key", type: "apiKey" }],

@@ -19091,8 +19091,9 @@ paths:
       - description: Timeout for the created WorkflowRun.
         in: query
         name: timeout_seconds
-        required: true
+        required: false
         schema:
+          default: 3600
           format: int32
           maximum: 604800
           minimum: 1

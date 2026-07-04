@@ -2560,11 +2560,11 @@ export type InvokeWorkflowWebhookData = {
      */
     workflowName: WorkflowName
   }
-  query: {
+  query?: {
     /**
      * Timeout for the created WorkflowRun.
      */
-    timeout_seconds: number
+    timeout_seconds?: number
   }
   url: "/api/workflow/{agentName}/{workflowName}/webhook"
 }

@@ -2629,7 +2629,7 @@ type ListWorkflowSchedulesParams struct {
 // InvokeWorkflowWebhookParams defines parameters for InvokeWorkflowWebhook.
 type InvokeWorkflowWebhookParams struct {
 	// TimeoutSeconds Timeout for the created WorkflowRun.
-	TimeoutSeconds int32 `form:"timeout_seconds" json:"timeout_seconds"`
+	TimeoutSeconds *int32 `form:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
 }
 
 // CreateAgentJSONRequestBody defines body for CreateAgent for application/json ContentType.
@@ -10703,16 +10703,20 @@ func NewInvokeWorkflowWebhookRequestWithBody(server string, agentName AgentNameP
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "timeout_seconds", runtime.ParamLocationQuery, params.TimeoutSeconds); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
+		if params.TimeoutSeconds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "timeout_seconds", runtime.ParamLocationQuery, *params.TimeoutSeconds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -20919,16 +20923,9 @@ func (siw *ServerInterfaceWrapper) InvokeWorkflowWebhook(w http.ResponseWriter, 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params InvokeWorkflowWebhookParams
 
-	// ------------- Required query parameter "timeout_seconds" -------------
+	// ------------- Optional query parameter "timeout_seconds" -------------
 
-	if paramValue := r.URL.Query().Get("timeout_seconds"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "timeout_seconds"})
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "timeout_seconds", r.URL.Query(), &params.TimeoutSeconds)
+	err = runtime.BindQueryParameter("form", true, false, "timeout_seconds", r.URL.Query(), &params.TimeoutSeconds)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "timeout_seconds", Err: err})
 		return
@@ -21537,16 +21534,16 @@ var swaggerSpec = []string{
 	"lr2udHXlefmpXZMod4uHXQLnRF/kwXSVly6ZOsBi9Z9RZd0G/FMNoT/gQ/3lbUTUs6tQHSF1HASQbLeK",
 	"sJValUC8kcPb1huFAnu/jvi78c9tgNxF2M9ZqAx5TKgwl7UrNwAJTVKJzLbbOHuQKRvzJFZHdb25ZDt1",
 	"3kKxmn9XX8EGKi0TolRY8P5z5+D4aOcXWKEl4BC86bojeskuoFKI/qRUzhmJQSlvR3TrNRc3pLEo0Qyd",
-	"CQgYDUUriOYN4snrCaHyh5eT6STG1yRO48nrH/df/WV/fzqJCTV/eJHdhyRUwgL4LVbS5EgeKSYV/Qyl",
-	"R64DX3QP+ZXiVC6Zfqv3YStOCFJO5EqL6QcTWDSFl5PX//im+KZTtcolZ+limV/6cUWknVc0GtZ/oxtG",
-	"ZOsDv/S3fDy0rQYYJwuidFPKo8nryZ4Oc9uFvb2VCx3GXEozFQpqHdctdlcWHm1U6++h5uCAQ0JB1KZx",
-	"/Q0883AcwBSJBFOjkr+cInau0MXnJCJyVZ0qAuqbx74m6LqqxJjiBcQKzcp410jFM0W1eWbLJFlXxPo0",
-	"nw6PDxmlYN7/zSbTvSs46L6fOGqZOw6SnSCbQLSdBIX7ys3z5RcXWmbK3KfueQqGQcuESibOObsSxpBv",
-	"4q9yIq5lPidVhF6yIE/Eu+r3yMYxmqbPBK6+xKGpXENJhCkgzlIJxSlsYZtn4IeIneMIGdGsD1zonz3j",
-	"jqiQmAZgC25N/aQZXxgOpiqyNvrddQKcqA3CEfpZyuQgIbaWwAv8nCz6zqLEd0f3KKxNBIXv+043J5GH",
-	"nuqvfWcgjlIKsvpU7ue+0306PK5PEgdJ3/EJZ7oIujaH/aHvPMdn/+WZQ6484/+mDlytR6rf/8v+0ht4",
-	"4LrxjG+u/LcBpLgkoY/t3S99Z3JvSNcmyh9/7TfPigaeSVY06Jrh8mV93OXLHqPse6u+0flbrD3BP/v1",
-	"qD6PTEnf8dm7vvVZ8id/b77d/L8AAAD//0A6Rs4UbgIA",
+	"CQgYDcvlkiHMcRrJyesfftzfn07ME8ST1xNC5Q8vJ9NJjK9JnMaT1z/uv/qL+iIm1PzhRXYdklAJC+C3",
+	"WEiT43ikeFT0s5MeuQp80T3kV4pTuWT6qd6HrTchSDmRKy2lH0xc0dRdTl7/45vim07NKpecpYtlfufH",
+	"1ZB23tBoWP+N7heRrQ/80t/x8dB2GmCcLIhSTSmPJq8nezrKbRf2tlYuNBhzGc1UKKh1WLfYXFl4lFGt",
+	"vYeagwMOCQVRm8a1N/DMw3EAUyQSTI1G/nKK2LlCF5+TiMhVdaoIqG8e+5iga6oSY4oXECs0K+NdHxXP",
+	"FNXemS2TZE0R69N8Ojw+ZJSCef43m0y3ruCg237iqGXuOEh2gmwC0XYQFK4rN8+X31tomSnznrrnKdgF",
+	"LRMqmTjn7EoYO76Jv8p5uJb5nFQResmCPA/vit8jG8Zomj4TuPoSh6ZwDSURpoA4SyUUp7B1bZ6BHyJ2",
+	"jiNkRLM+cKF/9ow7okJiGoCttzXlk2Z8YTiYosja6HfXCXCiNghH6Gcpk4OE2FICL/Bzsug7ixLfHd2i",
+	"sDYRFL7vO92cRB56qr/2nYE4SinI6lO5n/tO9+nwuD5JHCR9xyec6Rro2hz2h77zHJ/9l2cOufKM/5s6",
+	"cLUeqX7/L/tLb+CB674zvrny3waQ4pKEPrZ3v/SdyT0hXZsof/u13zwrGngmWdGga4bLl/Vxly97jLLP",
+	"rfpG50+x9gT/7Nej+jwyJX3HZ8/61mfJX/y9+Xbz/wIAAP//r0D8yxNuAgA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

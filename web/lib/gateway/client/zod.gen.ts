@@ -1479,7 +1479,7 @@ export const zInvokeWorkflowWebhookPath = z.object({
 })
 
 export const zInvokeWorkflowWebhookQuery = z.object({
-  timeout_seconds: z.int().gte(1).lte(604800),
+  timeout_seconds: z.int().gte(1).lte(604800).optional().default(3600),
 })
 
 /**

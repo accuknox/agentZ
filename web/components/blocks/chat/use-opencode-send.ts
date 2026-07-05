@@ -18,7 +18,6 @@ import {
   markOptimisticUserMessageFailed,
   migrateChatOverlay,
   sessionInfoQueryKey,
-  sessionMessagesBaseQueryKey,
   upsertOptimisticUserMessage,
 } from "@/components/blocks/chat/use-opencode-chat"
 
@@ -48,11 +47,7 @@ export function useOpencodeSend(
   const sendMutation = useMutation<SendMessageResult, Error, SendMessageInput>({
     mutationFn: async (input) => {
       const text = input.text.trim()
-      const message = {
-        files: input.files,
-        text,
-      } satisfies PromptInputMessage
-      const parts = opencodePartsFromMessage(message)
+      const parts = opencodePartsFromMessage({ files: input.files, text })
       const optimisticAttachments = parts
         .filter(
           (part): part is Extract<(typeof parts)[number], { type: "file" }> => part.type === "file"
@@ -147,14 +142,10 @@ export function useOpencodeSend(
         throw error instanceof Error ? error : new Error("Failed to send message")
       }
     },
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({
-        queryKey: sessionMessagesBaseQueryKey(agentName, result.sessionID),
-      })
-      void queryClient.invalidateQueries({
-        queryKey: sessionInfoQueryKey(agentName, result.sessionID),
-      })
-    },
+    // No refetch here: promptAsync resolves at turn start, so a GET now can
+    // resolve after the terminal events and clobber the live store with a
+    // pre-completion snapshot, hanging at "Working". The stream is the source
+    // of truth after load.
   })
   const { isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
   const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({

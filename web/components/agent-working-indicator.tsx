@@ -1,7 +1,24 @@
 "use client"
 
 import { Shimmer } from "@/components/ai-elements/shimmer"
-import { useEffect, useRef, useState, type ReactElement } from "react"
+import { cn } from "@/lib/utils"
+import { motion } from "motion/react"
+import Image from "next/image"
+import { useEffect, useState, type ReactElement } from "react"
+
+/** The emblem spinning steadily clockwise - a sleek "agent thinking" tell. */
+function WorkingEmblem(): ReactElement {
+  return (
+    <motion.span
+      className="inline-flex size-[30px]"
+      initial={{ rotate: 0 }}
+      animate={{ rotate: 360 }}
+      transition={{ duration: 2.5, ease: "linear", repeat: Number.POSITIVE_INFINITY }}
+    >
+      <Image alt="" aria-hidden="true" height={30} priority src="/emblem.svg" width={30} />
+    </motion.span>
+  )
+}
 
 export type AgentWorkingIndicatorProps = {
   isWorking: boolean
@@ -19,38 +36,28 @@ export function AgentWorkingIndicator({
   className,
 }: AgentWorkingIndicatorProps): ReactElement {
   const [visible, setVisible] = useState(isWorking)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   if (isWorking && !visible) {
     setVisible(true)
   }
 
   useEffect(() => {
-    if (!isWorking) {
-      timeoutRef.current = setTimeout(() => {
-        setVisible(false)
-      }, 260)
-      return () => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current)
-          timeoutRef.current = null
-        }
-      }
-    }
-
-    return undefined
+    if (isWorking) return
+    const timer = setTimeout(() => setVisible(false), 260)
+    return () => clearTimeout(timer)
   }, [isWorking])
 
   if (!visible) return <></>
 
   return (
     <div
-      className={className}
+      className={cn("inline-flex items-center gap-2", className)}
       style={{
         opacity: isWorking ? 1 : 0,
         transition: "opacity 220ms ease-out",
       }}
     >
+      <WorkingEmblem />
       <Shimmer>Working...</Shimmer>
     </div>
   )

@@ -12,63 +12,29 @@ import { attachmentDataFromPart } from "@/components/blocks/chat/attachments"
 import { type LocalChatMessage } from "@/components/blocks/chat/use-opencode-chat"
 import { unwrapMessageError } from "@/components/blocks/chat/errors"
 
-// A render entry is one piece of assistant content within an assistant row.
-// Tools that are "context" reads (read/list/glob/grep) collapse into a single
-// tool-group entry so the timeline stays compact, mirroring opencode's
-// ContextToolGroup. Checkpoint/compaction parts are NOT included here — they
-// surface as standalone divider rows (see TimelineRow).
 export type RenderEntry =
   | { content: string; key: string; type: "text" }
   | { content: string; key: string; type: "reasoning" }
   | { key: string; toolEntries: ToolEntry[]; type: "tool" }
 
 export type TimelineRow =
-  // Local optimistic/system message that hasn't been replaced by the server yet.
   | { key: string; message: LocalChatMessage; type: "local" }
-  | { attachments: AttachmentData[]; key: string; text: string; type: "user" }
-  // One or more consecutive assistant messages merged into a single block.
-  // `messageIDs` preserves the source order so stable keys survive streaming.
   | {
-      entries: RenderEntry[]
+      attachments: AttachmentData[]
+      createdAt: number
       key: string
-      type: "assistant"
+      messageID: string
+      text: string
+      type: "user"
     }
+  | { createdAt: number; entries: RenderEntry[]; key: string; type: "assistant" }
   // "Thinking..." placeholder rendered while the active turn has no content yet.
   | { key: string; type: "thinking" }
-  // Provider-side retry with a countdown — from SessionStatus.type === "retry".
-  | {
-      attempt: number
-      key: string
-      message: string
-      next: number
-      type: "retry"
-    }
-  // Collapsible diff summary emitted after a completed user turn that edited files.
-  | {
-      body?: string
-      diffs: SnapshotFileDiff[]
-      key: string
-      title?: string
-      type: "diff-summary"
-    }
-  // Visual seam: "Context compacted" (auto/manual) or "Interrupted" (aborted).
+  | { attempt: number; key: string; message: string; next: number; type: "retry" }
+  | { body?: string; diffs: SnapshotFileDiff[]; key: string; title?: string; type: "diff-summary" }
   | { key: string; type: "divider"; variant: "compaction" | "interrupted" }
-  // Surface-level error row (stream reconnect failure or history load failure).
-  // `kind` lets the renderer wire up the right retry affordance.
-  | {
-      body: string
-      key: string
-      kind: "history" | "stream"
-      label: string
-      type: "error"
-    }
-  // Assistant-message-level error (after an aborted/failed turn).
-  | {
-      body: string
-      key: string
-      label: string
-      type: "assistant-error"
-    }
+  | { body: string; key: string; kind: "history" | "stream"; label: string; type: "error" }
+  | { body: string; key: string; label: string; type: "assistant-error" }
 
 const MAX_RENDER_BLOCKS = 25
 const contextToolNames = new Set(["read", "list", "glob", "grep"])
@@ -111,9 +77,6 @@ function groupTools(parts: ToolPart[]): ToolEntry[] {
   return result
 }
 
-// Orders and groups the parts of ONE assistant message into render entries.
-// Text deltas accumulate into a single text entry; consecutive tools merge into
-// tool groups; reasoning is emitted inline so it interleaves with messages.
 function renderParts(parts: Part[], textByPart: Record<string, string>): RenderEntry[] {
   const entries: RenderEntry[] = []
   let textBuffer: string[] = []
@@ -147,9 +110,9 @@ function renderParts(parts: Part[], textByPart: Record<string, string>): RenderE
 
   for (const part of parts) {
     if (part.type === "text") {
-      if ("synthetic" in part && part.synthetic === true) continue
+      if (part.synthetic) continue
       const content = textByPart[part.id] ?? part.text
-      if (content.length === 0) continue
+      if (content.trim().length === 0) continue
       flushTools()
       textBuffer.push(content)
       textKeys.push(part.id)
@@ -171,9 +134,8 @@ function renderParts(parts: Part[], textByPart: Record<string, string>): RenderE
       continue
     }
 
-    // snapshot/patch/subtask/stepStart/stepFinish/agent/retry are not surfaced
-    // as inline entries; their effects land through other rows (divider,
-    // retry, diff-summary) or are noise the timeline intentionally omits.
+    // Snapshot, patch, step markers, agent and retry parts surface through
+    // other rows or are intentionally omitted.
     flushText()
     flushTools()
   }
@@ -188,17 +150,19 @@ type ProjectInput = {
   isBusy: boolean
   localMessages: LocalChatMessage[]
   messages: Message[]
-  // Map<messageID, Part[]>
   partsByMessage: Record<string, Part[]>
+  // User turns at or after this id are rolled back: hidden from the transcript
+  // and shown in the revert dock instead.
+  revertMessageID?: string
   sessionStatus?: SessionStatus
   streamError?: string
   textByPart: Record<string, string>
 }
 
-// Walk one user message + the consecutive assistant messages that reply to it
-// and append timeline rows. The assistant messages are merged into a single
-// `assistant` row so streaming deltas stay co-located; compaction parts and
-// message-level errors emit their own rows immediately after.
+export type RevertedMessage = { id: string; text: string }
+
+// Assistant messages replying to one user turn merge into a single row so
+// streaming deltas stay co-located; compaction and errors emit their own rows.
 function projectTurn(input: {
   assistants: AssistantMessage[]
   out: TimelineRow[]
@@ -241,6 +205,7 @@ function projectTurn(input: {
 
   if (hasContent) {
     out.push({
+      createdAt: assistants[0]?.time.created ?? 0,
       entries: mergedEntries,
       key: `assistant:${messageIDs.join(":")}`,
       type: "assistant",
@@ -267,14 +232,23 @@ function projectTurn(input: {
   }
 }
 
-export function projectTimeline(input: ProjectInput): TimelineRow[] {
+export function projectTimeline(input: ProjectInput): {
+  reverted: RevertedMessage[]
+  rows: TimelineRow[]
+} {
   const out: TimelineRow[] = []
 
-  // localMessages always render first in chronological order — optimistic
-  // user messages connect the prompt submit to the eventual server ack.
+  // Optimistic local messages render first, bridging submit to server ack.
   for (const message of input.localMessages) {
     out.push({ key: message.id, message, type: "local" })
   }
+
+  const userText = (messageID: string) =>
+    (input.partsByMessage[messageID] ?? [])
+      .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
+      .filter((part) => part.synthetic !== true)
+      .map((part) => input.textByPart[part.id] ?? part.text)
+      .join("")
 
   // Group the server messages into turns by parentID so rendering does not
   // depend on assistants staying adjacent to their user prompt.
@@ -293,18 +267,31 @@ export function projectTimeline(input: ProjectInput): TimelineRow[] {
     }
   }
 
-  const lastIndex = turns.length - 1
-  turns.forEach((turn, index) => {
+  // Message ids are monotonic, so a revert point cleaves the transcript: every
+  // turn at or after it is rolled back and belongs to the dock, not the rows.
+  const reverted: RevertedMessage[] = []
+  const visible = turns.filter((turn) => {
+    if (input.revertMessageID && turn.user.id >= input.revertMessageID) {
+      reverted.push({ id: turn.user.id, text: userText(turn.user.id) })
+      return false
+    }
+    return true
+  })
+
+  const lastIndex = visible.length - 1
+  visible.forEach((turn, index) => {
     const attachments = (input.partsByMessage[turn.user.id] ?? [])
       .filter((part): part is Extract<Part, { type: "file" }> => part.type === "file")
       .map(attachmentDataFromPart)
-    const text = (input.partsByMessage[turn.user.id] ?? [])
-      .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
-      .filter((part) => part.synthetic !== true)
-      .map((part) => input.textByPart[part.id] ?? part.text)
-      .join("")
 
-    out.push({ attachments, key: `user:${turn.user.id}`, text, type: "user" })
+    out.push({
+      attachments,
+      createdAt: turn.user.time.created,
+      key: `user:${turn.user.id}`,
+      messageID: turn.user.id,
+      text: userText(turn.user.id),
+      type: "user",
+    })
 
     projectTurn({
       assistants: turn.assistants,
@@ -315,8 +302,8 @@ export function projectTimeline(input: ProjectInput): TimelineRow[] {
       userIsLast: index === lastIndex,
     })
 
-    // Diff summary only matters for completed turns — wiring it on the active
-    // turn would flicker as the snapshot lands mid-stream.
+    // Only completed turns: on the active turn the snapshot lands mid-stream
+    // and would flicker.
     const diffs = turn.user.summary?.diffs ?? []
     if (diffs.length > 0 && index !== lastIndex) {
       out.push({
@@ -341,9 +328,8 @@ export function projectTimeline(input: ProjectInput): TimelineRow[] {
     })
   }
 
-  // History-load failures are sticky at the top — so the user sees them even
-  // on otherwise-empty timelines. Stream failures ride at the bottom because
-  // they invalidate the latest assistant turn in flight.
+  // History failures sit at the top so they show on empty timelines; stream
+  // failures sit at the bottom, next to the in-flight turn they invalidate.
   if (input.historyError) {
     out.unshift({
       body: input.historyError,
@@ -363,11 +349,7 @@ export function projectTimeline(input: ProjectInput): TimelineRow[] {
     })
   }
 
-  // Cap to the most recent blocks so a 1000-message session never renders
-  // the entire transcript (matches the existing UX). Slice on the merged
-  // rows so we don't drop a trailing thinking/retry/error row solo.
-  if (out.length > MAX_RENDER_BLOCKS) {
-    return out.slice(out.length - MAX_RENDER_BLOCKS)
-  }
-  return out
+  // Cap to recent blocks so huge sessions don't render the whole transcript.
+  const rows = out.length > MAX_RENDER_BLOCKS ? out.slice(out.length - MAX_RENDER_BLOCKS) : out
+  return { reverted, rows }
 }

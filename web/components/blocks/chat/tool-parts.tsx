@@ -51,8 +51,6 @@ const genericToolPrimaryKeys = new Set([
 
 type ToolFile = {
   additions: number
-  after?: string
-  before?: string
   deletions: number
   filePath: string
   movePath?: string
@@ -95,20 +93,16 @@ const loadedFilesSchema = z.array(z.string()).catch([])
 const toolFileSchema = z
   .object({
     additions: z.number().catch(0),
-    after: optionalNonEmptyStringSchema,
-    before: optionalNonEmptyStringSchema,
     deletions: z.number().catch(0),
-    diff: optionalNonEmptyStringSchema,
     filePath: nonEmptyStringSchema,
     movePath: optionalNonEmptyStringSchema,
     patch: optionalNonEmptyStringSchema,
     relativePath: optionalNonEmptyStringSchema,
     type: z.enum(["add", "delete", "move", "update"]),
   })
-  .transform(({ diff, filePath, patch, relativePath, ...file }) => ({
+  .transform(({ filePath, relativePath, ...file }) => ({
     ...file,
     filePath,
-    patch: patch ?? diff,
     relativePath: relativePath ?? filePath,
   }))
 const toolFilesSchema = z.array(toolFileSchema).catch([])
@@ -119,9 +113,6 @@ const diagnosticSchema = z.object({
     start: z.object({ character: z.number(), line: z.number() }),
   }),
   severity: z.number().optional(),
-})
-const fileDiffSchema = z.object({ after: optionalNonEmptyStringSchema }).catch({
-  after: undefined,
 })
 const diagnosticsByFileSchema = z.record(z.string(), z.array(diagnosticSchema)).catch({})
 const questionOptionSchema = z.object({
@@ -231,7 +222,8 @@ function urls(text: string | undefined) {
 
 function diagnosticsByPath(value: unknown, filePath: string | undefined) {
   if (!filePath) return []
-  return diagnosticsByFileSchema.parse(value)[filePath] ?? []
+  // Only errors (severity 1) surface, matching opencode's parseDiagnostics.
+  return (diagnosticsByFileSchema.parse(value)[filePath] ?? []).filter((d) => d.severity === 1)
 }
 
 function shellTranscript(part: ToolPart) {
@@ -531,10 +523,16 @@ function ReadTool({ part }: ToolProps) {
         : undefined
     )
 
+  // opencode hides the loaded-files list once the turn is compacted.
+  const loaded =
+    part.state.status === "completed" && !part.state.time.compacted
+      ? loadedFilesSchema.parse(metadata?.loaded)
+      : []
+
   return (
     <div className="space-y-1">
       <ToolCard arg={arg} title="Read" tone={toolStateTone(part.state.status)} />
-      <LoadedFiles files={loadedFilesSchema.parse(metadata?.loaded)} />
+      <LoadedFiles files={loaded} />
     </div>
   )
 }
@@ -662,7 +660,7 @@ function BashTool({ part }: ToolProps) {
 function EditTool({ part }: ToolProps) {
   const metadata = toolMetadata(part)
   const inputPath = nonEmptyString(part.state.input.filePath)
-  const body = fileDiffSchema.parse(metadata?.filediff).after
+  const body = nonEmptyString(metadata?.diff)
   const diagnostics = diagnosticsByPath(metadata?.diagnostics, inputPath)
 
   return (
@@ -674,7 +672,7 @@ function EditTool({ part }: ToolProps) {
     >
       {body ? (
         <ToolDetailText>
-          <ToolCode code={body} />
+          <ToolCode code={body} language="diff" />
         </ToolDetailText>
       ) : null}
       <Diagnostics items={diagnostics} />
@@ -714,7 +712,7 @@ function PatchFileCard({ file }: { file: ToolFile }) {
         : file.type === "move"
           ? "Moved"
           : `+${file.additions} -${file.deletions}`
-  const body = file.patch ?? file.after ?? file.before ?? ""
+  const body = file.patch ?? ""
 
   return (
     <AccordionItem value={file.relativePath}>

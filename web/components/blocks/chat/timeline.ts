@@ -19,8 +19,15 @@ export type RenderEntry =
 
 export type TimelineRow =
   | { key: string; message: LocalChatMessage; type: "local" }
-  | { attachments: AttachmentData[]; key: string; messageID: string; text: string; type: "user" }
-  | { entries: RenderEntry[]; key: string; type: "assistant" }
+  | {
+      attachments: AttachmentData[]
+      createdAt: number
+      key: string
+      messageID: string
+      text: string
+      type: "user"
+    }
+  | { createdAt: number; entries: RenderEntry[]; key: string; type: "assistant" }
   | { key: string; type: "thinking" }
   | { attempt: number; key: string; message: string; next: number; type: "retry" }
   | { body?: string; diffs: SnapshotFileDiff[]; key: string; title?: string; type: "diff-summary" }
@@ -197,6 +204,7 @@ function projectTurn(input: {
 
   if (hasContent) {
     out.push({
+      createdAt: assistants[0]?.time.created ?? 0,
       entries: mergedEntries,
       key: `assistant:${messageIDs.join(":")}`,
       type: "assistant",
@@ -277,6 +285,7 @@ export function projectTimeline(input: ProjectInput): {
 
     out.push({
       attachments,
+      createdAt: turn.user.time.created,
       key: `user:${turn.user.id}`,
       messageID: turn.user.id,
       text: userText(turn.user.id),

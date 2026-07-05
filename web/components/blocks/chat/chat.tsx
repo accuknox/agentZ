@@ -76,6 +76,7 @@ import {
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { formatMessageTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
@@ -1166,19 +1167,24 @@ function TimelineRowView({
             {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
           </MessageContent>
           {isEmpty ? null : (
-            <MessageActionBar className="ml-auto">
-              <CopyButton content={row.text} />
-              <Button
-                aria-label="Revert to here"
-                className="h-6 w-6"
-                disabled={revertDisabled}
-                onClick={() => onRevert(row.messageID)}
-                size="icon"
-                variant="ghost"
-              >
-                <Undo2Icon className="h-4 w-4" />
-              </Button>
-            </MessageActionBar>
+            <div className="ml-auto flex items-center gap-1">
+              <MessageActionBar>
+                <CopyButton content={row.text} />
+                <Button
+                  aria-label="Revert to here"
+                  className="h-6 w-6"
+                  disabled={revertDisabled}
+                  onClick={() => onRevert(row.messageID)}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <Undo2Icon className="h-4 w-4" />
+                </Button>
+              </MessageActionBar>
+              <span className="text-muted-foreground text-xs">
+                {formatMessageTime(row.createdAt)}
+              </span>
+            </div>
           )}
         </Message>
       )
@@ -1227,11 +1233,16 @@ function TimelineRowView({
               }
             })}
           </MessageContent>
-          {copyText.length > 0 && !(isBusy && isLastBlock) ? (
-            <MessageActionBar>
-              <CopyButton content={copyText} />
-            </MessageActionBar>
-          ) : null}
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground text-xs">
+              {formatMessageTime(row.createdAt)}
+            </span>
+            {copyText.length > 0 && !(isBusy && isLastBlock) ? (
+              <MessageActionBar>
+                <CopyButton content={copyText} />
+              </MessageActionBar>
+            ) : null}
+          </div>
         </Message>
       )
     }

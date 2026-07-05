@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronRightIcon, Redo2Icon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -222,8 +222,8 @@ export function QuestionDock({
     }
   }, [entry, request.id])
 
-  // Keyboard navigation at the row level — Escape rejects, Cmd/Ctrl+Enter
-  // advances, Arrows/Home/End jump between options when focus is on a list row.
+  // Row-level keys: Escape rejects, Cmd/Ctrl+Enter advances, Arrows/Home/End
+  // move between options when focus is on a list row.
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.defaultPrevented) return
     if (event.key === "Escape") {
@@ -565,6 +565,87 @@ export function PermissionDock({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+export function RevertDock({
+  items,
+  onRestore,
+  pending,
+  restoringId,
+  summary,
+}: {
+  items: { id: string; text: string }[]
+  onRestore: (id: string) => void
+  pending: boolean
+  restoringId?: string
+  summary?: { additions: number; deletions: number; files: number }
+}) {
+  const [open, setOpen] = useState(false)
+  if (items.length === 0) return null
+
+  const preview = items[0]?.text
+  const hasDiff = summary !== undefined && summary.files > 0
+
+  return (
+    <div className="mx-auto w-full px-4 pb-1 lg:w-4/5 lg:px-0">
+      <button
+        className="border-destructive/30 bg-destructive/5 hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors"
+        onClick={() => setOpen((value) => !value)}
+        type="button"
+      >
+        {open ? (
+          <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" />
+        ) : (
+          <ChevronRightIcon className="text-muted-foreground size-3.5 shrink-0" />
+        )}
+        <span className="text-foreground shrink-0 text-sm font-medium">
+          {items.length} reverted
+        </span>
+        {preview && !open ? (
+          <span className="text-muted-foreground ml-1 min-w-0 truncate text-sm">
+            {preview || "[attachment]"}
+          </span>
+        ) : null}
+        {hasDiff ? (
+          <span className="text-muted-foreground ml-auto shrink-0 font-mono text-xs">
+            {summary.files} {summary.files === 1 ? "file" : "files"}
+            {summary.additions > 0 ? (
+              <span className="text-emerald-600 dark:text-emerald-400"> +{summary.additions}</span>
+            ) : null}
+            {summary.deletions > 0 ? (
+              <span className="text-destructive"> −{summary.deletions}</span>
+            ) : null}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <div className="border-muted-foreground/15 mt-1 flex flex-col gap-1.5 border-l pl-3">
+          {items.map((item) => (
+            <div className="flex items-center gap-2" key={item.id}>
+              <span className="text-foreground min-w-0 flex-1 truncate text-sm">
+                {item.text || "[attachment]"}
+              </span>
+              <Button
+                aria-label="Restore message"
+                className="h-6 w-6 shrink-0"
+                disabled={pending}
+                onClick={() => onRestore(item.id)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                {restoringId === item.id ? (
+                  <Spinner className="size-4" />
+                ) : (
+                  <Redo2Icon className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

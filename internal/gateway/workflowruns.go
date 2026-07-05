@@ -41,6 +41,7 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)
+	fields = append(fields, workflow.ValidateRunTerminalPhase(req.Phase)...)
 	fields = append(fields, workflow.ValidateRunStatusMessage(message)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
@@ -82,6 +83,105 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 			))
 		default:
 			writeError(w, r, mapKubeHTTPError("patch workflow run status", err))
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PatchWorkflowRunNodeStatus handles PATCH /api/workflow/{agentName}/{workflowName}/run/{runName}/nodes/{nodeName}/status.
+func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName, nodeName gatewayapi.WorkflowNodeName) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	var req gatewayapi.PatchWorkflowRunNodeStatusRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+
+	agentName := strings.TrimSpace(agtName)
+	workflowName = strings.TrimSpace(workflowName)
+	runName = strings.TrimSpace(runName)
+	nodeName = strings.TrimSpace(nodeName)
+
+	var message string
+	if req.Message != nil {
+		message = strings.TrimSpace(*req.Message)
+	}
+
+	fields := workflow.ValidateLookupRequest(agentName, workflowName)
+	fields = append(fields, workflow.ValidateRunName(runName)...)
+	fields = append(fields, workflow.ValidateNodeName(nodeName)...)
+	fields = append(fields, workflow.ValidateRunNodePatchPhase(req.Phase)...)
+	fields = append(fields, workflow.ValidateRunStatusMessage(message)...)
+	if len(fields) > 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
+
+	err = workflow.PatchRunNodeStatus(
+		r.Context(),
+		s.db,
+		s.k8sClient,
+		ns,
+		agentName,
+		workflowName,
+		runName,
+		nodeName,
+		req,
+		message,
+	)
+	if err != nil {
+		var phaseErr *workflow.RunPhaseConflictError
+		var nodePhaseErr *workflow.NodePhaseConflictError
+		switch {
+		case errors.Is(err, workflow.ErrWorkflowNotFound):
+			writeError(w, r, newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"workflow not found",
+				err,
+			))
+		case errors.Is(err, workflow.ErrWorkflowRunNodeNotFound):
+			writeError(w, r, newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"workflow run node not found",
+				err,
+			))
+		case errors.Is(err, workflow.ErrWorkflowRunTerminal):
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"workflow run already has a terminal status",
+				err,
+			))
+		case errors.As(err, &phaseErr):
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				err.Error(),
+				err,
+			))
+		case errors.As(err, &nodePhaseErr):
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				err.Error(),
+				err,
+			))
+		default:
+			writeError(w, r, mapKubeHTTPError("patch workflow run node status", err))
 		}
 		return
 	}
@@ -372,8 +472,9 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	prev := make(map[string]gatewayapi.WorkflowRunSummary)
-	send := func(event string, items []gatewayapi.WorkflowRunSummary) bool {
+	prev := make(map[string]gatewayapi.WorkflowRunDetail)
+	prevRaw := make(map[string]string)
+	send := func(event string, items []gatewayapi.WorkflowRunDetail) bool {
 		if len(items) == 0 {
 			return true
 		}
@@ -401,7 +502,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	defer cancel()
 
 	writeChanges := func() bool {
-		items := make([]gatewayapi.WorkflowRunSummary, 0, max(1, len(runFilter)))
+		items := make([]gatewayapi.WorkflowRunDetail, 0, max(1, len(runFilter)))
 		if len(runFilter) == 0 {
 			listedItems, _, err := workflow.ListRuns(
 				r.Context(),
@@ -420,7 +521,27 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				recordRequestError(w, "internal_error", err)
 				return false
 			}
-			items = listedItems
+			for _, item := range listedItems {
+				detail, err := workflow.GetRun(
+					r.Context(),
+					s.k8sClient,
+					ns,
+					agentName,
+					workflowName,
+					item.Name,
+				)
+				if apierrors.IsNotFound(err) || errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
+					continue
+				}
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return false
+				}
+				if err != nil {
+					recordRequestError(w, "internal_error", err)
+					return false
+				}
+				items = append(items, detail)
+			}
 		}
 
 		for runName := range runFilter {
@@ -443,46 +564,22 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return false
 			}
 
-			items = append(items, gatewayapi.WorkflowRunSummary{
-				Name:            detail.Name,
-				WorkflowName:    detail.WorkflowName,
-				TriggerType:     detail.TriggerType,
-				ScheduleName:    detail.ScheduleName,
-				Status:          detail.Status,
-				Reason:          detail.Reason,
-				CreatedAt:       detail.CreatedAt,
-				DurationSeconds: detail.DurationSeconds,
-			})
+			items = append(items, detail)
 		}
 
-		changed := make([]gatewayapi.WorkflowRunSummary, 0, len(items))
+		changed := make([]gatewayapi.WorkflowRunDetail, 0, len(items))
 		for _, item := range items {
-			prevItem, found := prev[item.Name]
-			durationEqual := prevItem.DurationSeconds == nil &&
-				item.DurationSeconds == nil
-			if prevItem.DurationSeconds != nil && item.DurationSeconds != nil {
-				durationEqual = *prevItem.DurationSeconds ==
-					*item.DurationSeconds
+			raw, err := json.Marshal(item)
+			if err != nil {
+				recordRequestError(w, "internal_error", err)
+				return false
 			}
-			scheduleEqual := prevItem.ScheduleName == nil &&
-				item.ScheduleName == nil
-			if prevItem.ScheduleName != nil && item.ScheduleName != nil {
-				scheduleEqual = *prevItem.ScheduleName == *item.ScheduleName
-			}
-			unchanged := found &&
-				prevItem.Name == item.Name &&
-				prevItem.WorkflowName == item.WorkflowName &&
-				prevItem.TriggerType == item.TriggerType &&
-				scheduleEqual &&
-				prevItem.Status == item.Status &&
-				prevItem.Reason == item.Reason &&
-				durationEqual &&
-				prevItem.CreatedAt.Equal(item.CreatedAt)
-			if unchanged {
+			if prevRaw[item.Name] == string(raw) {
 				continue
 			}
 
 			prev[item.Name] = item
+			prevRaw[item.Name] = string(raw)
 			changed = append(changed, item)
 		}
 
@@ -521,7 +618,8 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 
 				item, found := prev[evt.Run.Name]
 				delete(prev, evt.Run.Name)
-				if found && !send("DELETE", []gatewayapi.WorkflowRunSummary{item}) {
+				delete(prevRaw, evt.Run.Name)
+				if found && !send("DELETE", []gatewayapi.WorkflowRunDetail{item}) {
 					return
 				}
 				continue

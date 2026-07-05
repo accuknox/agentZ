@@ -3,7 +3,16 @@
 import * as React from "react"
 import dagre from "@dagrejs/dagre"
 import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
-import { CornerDownLeftIcon, HammerIcon, SparklesIcon, XIcon } from "lucide-react"
+import {
+  CheckCircle2Icon,
+  CircleAlertIcon,
+  CircleDashedIcon,
+  CornerDownLeftIcon,
+  HammerIcon,
+  SparklesIcon,
+  XCircleIcon,
+  XIcon,
+} from "lucide-react"
 import {
   type EdgeTypes,
   type NodeTypes,
@@ -22,9 +31,18 @@ import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
 import { Node, NodeContent } from "@/components/ai-elements/node"
 import { Panel } from "@/components/ai-elements/panel"
-import type { Workflow as WorkflowDefinition, WorkflowNode } from "@/lib/gateway/client"
+import { Spinner } from "@/components/ui/spinner"
+import type {
+  Workflow as WorkflowDefinition,
+  WorkflowNode,
+  WorkflowRunDetail,
+  WorkflowRunNodePhase,
+  WorkflowRunNodeStatus,
+  WorkflowRunStatus,
+} from "@/lib/gateway/client"
 
 type WorkflowProps = {
+  run?: WorkflowRunDetail
   workflow: WorkflowDefinition
 }
 
@@ -34,6 +52,7 @@ type WorkflowNodeData = {
     target: boolean
   }
   node: WorkflowNode
+  status?: WorkflowRunNodeStatus
 }
 
 type WorkflowCanvasNode = FlowNode<WorkflowNodeData, "workflow">
@@ -43,13 +62,13 @@ type WorkflowCanvasEdge = FlowEdge<
     branchLabel: string
     conditionSummary: string
   },
-  "animated" | "temporary"
+  "animated" | "static" | "temporary"
 >
 
 type DagrePositionedNode = DagreNodeLabel & { x: number; y: number }
 
 const fallbackNodeWidth = 304
-const fallbackNodeHeight = 92
+const fallbackNodeHeight = 112
 const nodeMarginX = 28
 const nodeMarginY = 28
 const rankSep = 136
@@ -58,6 +77,7 @@ const fitViewPadding = 0.05
 
 const workflowEdgeTypes = {
   animated: Edge.Animated,
+  static: Edge.Static,
   temporary: Edge.Temporary,
 } satisfies EdgeTypes
 
@@ -65,21 +85,39 @@ const workflowNodeTypes = {
   workflow: WorkflowCanvasNodeCard,
 } satisfies NodeTypes
 
-export default function Workflow({ workflow }: WorkflowProps) {
-  const edges = React.useMemo(() => toCanvasEdges(workflow), [workflow])
-  const initialNodes = React.useMemo(() => toCanvasNodes(workflow), [workflow])
+export default function Workflow({ run, workflow }: WorkflowProps) {
+  const nodeStatuses = React.useMemo(() => {
+    return new Map(run?.node_statuses.map((status) => [status.name, status]) ?? [])
+  }, [run?.node_statuses])
+  const edges = React.useMemo(() => toCanvasEdges(workflow, nodeStatuses), [nodeStatuses, workflow])
+  const initialNodes = React.useMemo(
+    () => toCanvasNodes(workflow, nodeStatuses),
+    [nodeStatuses, workflow]
+  )
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          status: nodeStatuses.get(node.id),
+        },
+      }))
+    )
+  }, [nodeStatuses, setNodes])
 
   const selectedNode = React.useMemo(() => {
     return nodes.find((node) => node.id === selectedNodeId) ?? null
   }, [nodes, selectedNodeId])
   const selectedWorkflowNode = selectedNode?.data.node ?? null
+  const selectedStatus = selectedNode?.data.status
 
   return (
     <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--color-primary)_0%,transparent_32%)] opacity-10" />
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
         <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />
       </div>
@@ -113,13 +151,14 @@ export default function Workflow({ workflow }: WorkflowProps) {
             <CollapsibleTrigger asChild>
               <button
                 type="button"
-                className="hover:bg-muted/35 focus-visible:ring-ring/60 flex w-full items-start gap-2 px-3 py-2.5 text-left outline-hidden transition-colors focus-visible:ring-2"
+                className="hover:bg-muted/35 focus-visible:ring-ring/60 flex w-full items-center gap-2 px-3 py-2.5 text-left outline-hidden transition-colors focus-visible:ring-2"
                 aria-label="Toggle workflow summary"
               >
+                {run ? <WorkflowRunStatusIcon status={run.status} /> : null}
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-sm font-medium">{workflow.title}</h2>
                 </div>
-                <CornerDownLeftIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                <CornerDownLeftIcon className="text-muted-foreground size-4 shrink-0" />
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="border-t px-3 py-2">
@@ -155,6 +194,7 @@ export default function Workflow({ workflow }: WorkflowProps) {
                   <XIcon />
                 </Button>
               </div>
+              <NodeExecutionSummary status={selectedStatus} />
               <Section title="Instructions" value={selectedWorkflowNode.instructions} />
               <Section title="Done criteria" value={selectedWorkflowNode.done_criteria} />
               <PreferenceList
@@ -227,19 +267,18 @@ function WorkflowAutoLayout({
 function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvasNode>) {
   const skillCount = data.node.preferred_skills?.length ?? 0
   const toolCount = data.node.preferred_tools?.length ?? 0
+  const phase = data.status?.phase
+  const phaseClassName = phase ? nodePhaseClassNames[phase] : nodeBaseClassName
+  const selectedClassName = `${phaseClassName} border-primary/65 border-2 shadow-none`
 
   return (
-    <Node
-      handles={data.handles}
-      className={
-        selected
-          ? "bg-background/96 border-primary/65 shadow-primary/15 dark:bg-accent/90 w-[19rem] rounded-xl border-2 shadow-[0_18px_48px_-28px_var(--color-primary)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out"
-          : "bg-background/94 hover:border-primary/35 border-border/80 dark:bg-accent/82 w-[19rem] rounded-xl shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-28px_var(--color-primary)]"
-      }
-    >
-      <NodeContent className="flex items-center justify-between gap-5 px-4 py-3.5">
-        <p className="truncate text-sm font-semibold tracking-[0.01em]">{data.node.name}</p>
-        <div className="text-muted-foreground flex shrink-0 items-center gap-4 text-sm font-medium">
+    <Node handles={data.handles} className={selected ? selectedClassName : phaseClassName}>
+      <NodeContent className="flex flex-col gap-2.5 px-4 py-3.5">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <p className="truncate text-sm font-semibold tracking-normal">{data.node.name}</p>
+          {data.status ? <NodeStatusBadge status={data.status} /> : null}
+        </div>
+        <div className="text-muted-foreground flex items-center gap-4 text-sm font-medium">
           <span
             className="inline-flex items-center gap-1.5"
             aria-label={`Preferred skills: ${skillCount}`}
@@ -257,6 +296,139 @@ function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvas
         </div>
       </NodeContent>
     </Node>
+  )
+}
+
+const nodeBaseClassName =
+  "bg-secondary hover:border-primary/35 border-border/80 w-[19rem] rounded-xl shadow-none transition-[background-color,border-color,box-shadow,transform,opacity] duration-200 ease-out hover:-translate-y-0.5"
+
+const nodePhaseClassNames = {
+  Disabled:
+    "bg-secondary/45 border-border/55 text-muted-foreground w-[19rem] rounded-xl opacity-90 shadow-none transition-[background-color,border-color,box-shadow,transform,opacity] duration-200 ease-out",
+  Running: nodeBaseClassName,
+  Succeeded: nodeBaseClassName,
+  Failed: nodeBaseClassName,
+} satisfies Record<WorkflowRunNodePhase, string>
+
+const nodeStatusMeta = {
+  Disabled: {
+    icon: CircleDashedIcon,
+    label: "Unused",
+    variant: "pending",
+  },
+  Running: {
+    icon: Spinner,
+    label: "Running",
+    variant: "running",
+  },
+  Succeeded: {
+    icon: CheckCircle2Icon,
+    label: "Succeeded",
+    variant: "success",
+  },
+  Failed: {
+    icon: XCircleIcon,
+    label: "Failed",
+    variant: "destructive",
+  },
+} satisfies Record<
+  WorkflowRunNodePhase,
+  {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
+    label: string
+    variant: React.ComponentProps<typeof Badge>["variant"]
+  }
+>
+
+const runStatusMeta = {
+  Pending: {
+    className: "text-muted-foreground",
+    icon: CircleDashedIcon,
+    label: "Pending",
+    variant: "pending",
+  },
+  Running: {
+    className: "text-primary",
+    icon: Spinner,
+    label: "Running",
+    variant: "running",
+  },
+  Succeeded: {
+    className: "text-primary",
+    icon: CheckCircle2Icon,
+    label: "Succeeded",
+    variant: "success",
+  },
+  Failed: {
+    className: "text-destructive",
+    icon: XCircleIcon,
+    label: "Failed",
+    variant: "destructive",
+  },
+  Unacked: {
+    className: "text-amber-500",
+    icon: CircleAlertIcon,
+    label: "Unacked",
+    variant: "warning",
+  },
+} satisfies Record<
+  WorkflowRunStatus,
+  {
+    className: string
+    icon: React.ComponentType<React.ComponentProps<"svg">>
+    label: string
+    variant: React.ComponentProps<typeof Badge>["variant"]
+  }
+>
+
+function WorkflowRunStatusIcon({ status }: { status: WorkflowRunStatus }) {
+  const meta = runStatusMeta[status]
+  const Icon = meta.icon
+
+  return (
+    <span
+      aria-label={`Workflow status: ${meta.label}`}
+      className="inline-flex size-4 shrink-0 items-center justify-center"
+      role="img"
+      title={`Workflow status: ${meta.label}`}
+    >
+      <Icon className={meta.className} />
+    </span>
+  )
+}
+
+function NodeStatusBadge({ status }: { status: WorkflowRunNodeStatus }) {
+  const meta = nodeStatusMeta[status.phase]
+  const icon = <meta.icon data-icon="inline-start" />
+
+  return (
+    <Badge variant={meta.variant} className="h-7 gap-1.5 px-3 text-sm [&>svg]:size-4!">
+      {icon}
+      {meta.label}
+    </Badge>
+  )
+}
+
+function NodeExecutionSummary({ status }: { status?: WorkflowRunNodeStatus }) {
+  if (!status) {
+    return null
+  }
+
+  return (
+    <div className="border-border/70 flex flex-col gap-2 border-b pb-4">
+      <div className="mb-2 flex items-center justify-end">
+        <NodeStatusBadge status={status} />
+      </div>
+      {status.message ? <p className="text-sm">{status.message}</p> : null}
+      <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {status.started_at ? (
+          <span>Started {new Date(status.started_at).toLocaleString()}</span>
+        ) : null}
+        {status.completed_at ? (
+          <span>Completed {new Date(status.completed_at).toLocaleString()}</span>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -313,7 +485,10 @@ function PreferenceList({
   )
 }
 
-function toCanvasNodes(workflow: WorkflowDefinition): WorkflowCanvasNode[] {
+function toCanvasNodes(
+  workflow: WorkflowDefinition,
+  nodeStatuses: Map<string, WorkflowRunNodeStatus>
+): WorkflowCanvasNode[] {
   return applyWorkflowLayout(
     workflow,
     workflow.nodes.map((node) => ({
@@ -323,6 +498,7 @@ function toCanvasNodes(workflow: WorkflowDefinition): WorkflowCanvasNode[] {
           target: false,
         },
         node,
+        status: nodeStatuses.get(node.name),
       },
       id: node.name,
       position: {
@@ -334,21 +510,27 @@ function toCanvasNodes(workflow: WorkflowDefinition): WorkflowCanvasNode[] {
   )
 }
 
-function toCanvasEdges(workflow: WorkflowDefinition): WorkflowCanvasEdge[] {
-  return workflow.edges.map(
-    (edge, index) =>
-      ({
-        data: {
-          branchLabel: edge.branch_label,
-          conditionSummary: edge.condition_summary,
-        },
-        id: `${edge.source}->${edge.target}:${index}`,
-        label: edge.branch_label,
-        source: edge.source,
-        target: edge.target,
-        type: "animated",
-      }) satisfies WorkflowCanvasEdge
-  )
+function toCanvasEdges(
+  workflow: WorkflowDefinition,
+  nodeStatuses: Map<string, WorkflowRunNodeStatus>
+): WorkflowCanvasEdge[] {
+  return workflow.edges.map((edge, index) => {
+    const sourcePhase = nodeStatuses.get(edge.source)?.phase
+    const targetPhase = nodeStatuses.get(edge.target)?.phase
+    const type = sourcePhase === "Disabled" || targetPhase === "Disabled" ? "static" : "animated"
+
+    return {
+      data: {
+        branchLabel: edge.branch_label,
+        conditionSummary: edge.condition_summary,
+      },
+      id: `${edge.source}->${edge.target}:${index}`,
+      label: edge.branch_label,
+      source: edge.source,
+      target: edge.target,
+      type,
+    } satisfies WorkflowCanvasEdge
+  })
 }
 
 function applyWorkflowLayout(
@@ -401,6 +583,7 @@ function applyWorkflowLayout(
           target: incomingTargets.has(node.name),
         },
         node,
+        status: existingNode?.data.status,
       },
       id: node.name,
       position: {

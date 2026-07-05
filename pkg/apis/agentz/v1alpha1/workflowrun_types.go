@@ -38,6 +38,17 @@ const (
 )
 
 const (
+	// WorkflowRunNodePhaseDisabled means the node has not started execution.
+	WorkflowRunNodePhaseDisabled WorkflowRunNodePhase = "Disabled"
+	// WorkflowRunNodePhaseRunning means the agent is executing the node.
+	WorkflowRunNodePhaseRunning WorkflowRunNodePhase = "Running"
+	// WorkflowRunNodePhaseSucceeded means the node completed successfully.
+	WorkflowRunNodePhaseSucceeded WorkflowRunNodePhase = "Succeeded"
+	// WorkflowRunNodePhaseFailed means the node completed unsuccessfully.
+	WorkflowRunNodePhaseFailed WorkflowRunNodePhase = "Failed"
+)
+
+const (
 	// WorkflowRunConditionReady reflects whether the run reached a terminal state.
 	WorkflowRunConditionReady = "Ready"
 	// WorkflowRunConditionProgressing reflects whether the run is active.
@@ -68,11 +79,17 @@ const WorkflowRunAnnotationWebhookAPIKeyID = "agentz.accuknox.com/webhook-api-ke
 // WorkflowRunPhase identifies the lifecycle state of a WorkflowRun.
 type WorkflowRunPhase string
 
+// WorkflowRunNodePhase identifies the lifecycle state of one workflow node.
+type WorkflowRunNodePhase string
+
 // Terminal returns true when the phase is terminal.
 func (p WorkflowRunPhase) Terminal() bool {
-	return p == WorkflowRunPhaseSucceeded ||
-		p == WorkflowRunPhaseFailed ||
-		p == WorkflowRunPhaseUnacked
+	return p == WorkflowRunPhaseSucceeded || p == WorkflowRunPhaseFailed || p == WorkflowRunPhaseUnacked
+}
+
+// Terminal returns true when the node phase is terminal.
+func (p WorkflowRunNodePhase) Terminal() bool {
+	return p == WorkflowRunNodePhaseSucceeded || p == WorkflowRunNodePhaseFailed
 }
 
 // WorkflowRunSpec defines the desired state of WorkflowRun.
@@ -136,6 +153,37 @@ type WorkflowRunStatus struct {
 	// Message contains the current error or completion summary.
 	// +optional
 	Message string `json:"message,omitempty"`
+
+	// Nodes tracks execution status for each node in the workflow graph.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	Nodes []WorkflowRunNodeStatus `json:"nodes,omitempty"`
+}
+
+// WorkflowRunNodeStatus defines the observed state of one WorkflowRun node.
+type WorkflowRunNodeStatus struct {
+	// Name identifies the workflow node.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Name string `json:"name"`
+
+	// Phase is the lifecycle state tracked by the executing agent.
+	// +kubebuilder:validation:Enum=Disabled;Running;Succeeded;Failed
+	Phase WorkflowRunNodePhase `json:"phase"`
+
+	// Message contains current node context or failure details.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// StartedAt is when the agent started executing the node.
+	// +optional
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+
+	// CompletedAt is when the node reached a terminal state.
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
 }
 
 // SetCondition adds or updates a WorkflowRun condition.

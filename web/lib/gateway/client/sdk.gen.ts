@@ -110,6 +110,9 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersErrors,
   ListWorkflowWebhookTriggersResponses,
+  PatchWorkflowRunNodeStatusData,
+  PatchWorkflowRunNodeStatusErrors,
+  PatchWorkflowRunNodeStatusResponses,
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
@@ -193,6 +196,8 @@ import {
   zListWorkflowSummariesPath,
   zListWorkflowWebhookTriggersPath,
   zListWorkflowWebhookTriggersQuery,
+  zPatchWorkflowRunNodeStatusBody,
+  zPatchWorkflowRunNodeStatusPath,
   zPatchWorkflowRunStatusBody,
   zPatchWorkflowRunStatusPath,
   zPutSecretBody,
@@ -1329,6 +1334,37 @@ export const patchWorkflowRunStatus = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/status",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Set a WorkflowRun node status.
+ *
+ * Records execution progress for one WorkflowRun node. The gateway validates node membership and basic state transitions before patching the WorkflowRun status in the configured namespace.
+ *
+ */
+export const patchWorkflowRunNodeStatus = <ThrowOnError extends boolean = false>(
+  options: Options<PatchWorkflowRunNodeStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    PatchWorkflowRunNodeStatusResponses,
+    PatchWorkflowRunNodeStatusErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPatchWorkflowRunNodeStatusBody,
+          path: zPatchWorkflowRunNodeStatusPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/nodes/{nodeName}/status",
     ...options,
     headers: {
       "Content-Type": "application/json",

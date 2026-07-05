@@ -647,6 +647,10 @@ func workflowAgentAccess(r *http.Request) (string, string, bool) {
 		if r.Method == http.MethodPatch {
 			return agentName, "set-workflowrun-status", true
 		}
+	case "/api/workflow/{agentName}/{workflowName}/run/{runName}/nodes/{nodeName}/status":
+		if r.Method == http.MethodPatch {
+			return agentName, "set-workflowrun-status", true
+		}
 	}
 
 	return "", "", false

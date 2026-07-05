@@ -27,3 +27,12 @@ export const workflowRunFiltersFormSchema = z.object({
 
 export type WorkflowRunFiltersFormInput = z.input<typeof workflowRunFiltersFormSchema>
 export type WorkflowRunFiltersFormValues = z.infer<typeof workflowRunFiltersFormSchema>
+
+export const workflowRunGraphFiltersFormSchema = z.object({
+  agent_name: z.string().min(1),
+  workflow_name: z.string().default(""),
+  run_name: z.string().default(""),
+})
+
+export type WorkflowRunGraphFiltersFormInput = z.input<typeof workflowRunGraphFiltersFormSchema>
+export type WorkflowRunGraphFiltersFormValues = z.infer<typeof workflowRunGraphFiltersFormSchema>

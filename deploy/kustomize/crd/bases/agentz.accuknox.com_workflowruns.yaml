@@ -165,6 +165,44 @@ spec:
               message:
                 description: Message contains the current error or completion summary.
                 type: string
+              nodes:
+                description: Nodes tracks execution status for each node in the workflow graph.
+                items:
+                  description: WorkflowRunNodeStatus defines the observed state of one WorkflowRun node.
+                  properties:
+                    completedAt:
+                      description: CompletedAt is when the node reached a terminal state.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Message contains current node context or failure details.
+                      type: string
+                    name:
+                      description: Name identifies the workflow node.
+                      maxLength: 64
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    phase:
+                      description: Phase is the lifecycle state tracked by the executing agent.
+                      enum:
+                      - Disabled
+                      - Running
+                      - Succeeded
+                      - Failed
+                      type: string
+                    startedAt:
+                      description: StartedAt is when the agent started executing the node.
+                      format: date-time
+                      type: string
+                  required:
+                  - name
+                  - phase
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.
                 format: int64

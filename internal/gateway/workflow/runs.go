@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +33,7 @@ const (
 
 var (
 	ErrWorkflowRunTerminal      = errors.New("workflow run already has a terminal status")
+	ErrWorkflowRunNodeNotFound  = errors.New("workflow run node not found")
 	ErrWorkflowRunScopeMismatch = errors.New("workflow run does not match route scope")
 )
 
@@ -49,6 +51,22 @@ func (e *RunPhaseConflictError) Error() string {
 	)
 }
 
+// NodePhaseConflictError reports one invalid node phase transition.
+type NodePhaseConflictError struct {
+	Node    string
+	Current agentzv1alpha1.WorkflowRunNodePhase
+	Target  agentzv1alpha1.WorkflowRunNodePhase
+}
+
+func (e *NodePhaseConflictError) Error() string {
+	return fmt.Sprintf(
+		"workflow run node %q phase %q cannot transition to %q",
+		e.Node,
+		e.Current,
+		e.Target,
+	)
+}
+
 // ValidateRunStatusMessage validates one terminal status message.
 func ValidateRunStatusMessage(message string) []gatewayapi.FieldError {
 	if len(message) <= 4096 {
@@ -59,6 +77,35 @@ func ValidateRunStatusMessage(message string) []gatewayapi.FieldError {
 		Field:   "message",
 		Message: "must be 4096 characters or fewer",
 	}}
+}
+
+// ValidateRunTerminalPhase validates a terminal WorkflowRun patch phase.
+func ValidateRunTerminalPhase(phase gatewayapi.WorkflowRunTerminalPhase) []gatewayapi.FieldError {
+	switch phase {
+	case gatewayapi.WorkflowRunTerminalPhaseSucceeded,
+		gatewayapi.WorkflowRunTerminalPhaseFailed:
+		return nil
+	default:
+		return []gatewayapi.FieldError{{
+			Field:   "phase",
+			Message: "must be Succeeded or Failed",
+		}}
+	}
+}
+
+// ValidateRunNodePatchPhase validates one node status patch phase.
+func ValidateRunNodePatchPhase(phase gatewayapi.WorkflowRunNodePatchPhase) []gatewayapi.FieldError {
+	switch phase {
+	case gatewayapi.WorkflowRunNodePatchPhaseRunning,
+		gatewayapi.WorkflowRunNodePatchPhaseSucceeded,
+		gatewayapi.WorkflowRunNodePatchPhaseFailed:
+		return nil
+	default:
+		return []gatewayapi.FieldError{{
+			Field:   "phase",
+			Message: "must be Running, Succeeded, or Failed",
+		}}
+	}
 }
 
 // ValidateRunName validates one workflow run resource name.
@@ -214,6 +261,137 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		current.Status.Phase = phase
 		current.Status.Message = msg
 		current.Status.CompletedAt = &now
+
+		if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
+			return err
+		}
+
+		resultErr = nil
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return resultErr
+}
+
+// PatchRunNodeStatus updates one workflow run node phase.
+func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, nodeName string, req gatewayapi.PatchWorkflowRunNodeStatusRequest, msg string) error {
+	workflow, err := Get(ctx, pool, ns, agtName, wfName)
+	if err != nil {
+		return err
+	}
+
+	nodeNames := make(map[string]struct{}, len(workflow.Nodes))
+	for _, node := range workflow.Nodes {
+		nodeNames[node.Name] = struct{}{}
+	}
+	if _, ok := nodeNames[nodeName]; !ok {
+		return ErrWorkflowRunNodeNotFound
+	}
+
+	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
+	phase := agentzv1alpha1.WorkflowRunNodePhase(req.Phase)
+	var resultErr error
+
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &agentzv1alpha1.WorkflowRun{}
+		if err := k8sClient.Get(ctx, key, current); err != nil {
+			return err
+		}
+		if current.Spec.AgentName != strings.TrimSpace(agtName) {
+			return ErrWorkflowRunScopeMismatch
+		}
+		if current.Spec.WorkflowName != strings.TrimSpace(wfName) {
+			return ErrWorkflowRunScopeMismatch
+		}
+		if current.Status.Phase.Terminal() {
+			resultErr = ErrWorkflowRunTerminal
+			return nil
+		}
+		if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
+			resultErr = &RunPhaseConflictError{
+				Current: current.Status.Phase,
+				Target:  agentzv1alpha1.WorkflowRunPhaseRunning,
+			}
+			return nil
+		}
+
+		nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(workflow.Nodes))
+		existing := make(map[string]agentzv1alpha1.WorkflowRunNodeStatus, len(current.Status.Nodes))
+		for _, node := range current.Status.Nodes {
+			existing[node.Name] = node
+		}
+
+		var nodeStatus agentzv1alpha1.WorkflowRunNodeStatus
+		for _, node := range workflow.Nodes {
+			next := existing[node.Name]
+			if next.Name == "" {
+				next.Name = node.Name
+				next.Phase = agentzv1alpha1.WorkflowRunNodePhaseDisabled
+			}
+			if node.Name == nodeName {
+				nodeStatus = next
+			}
+			nodes = append(nodes, next)
+		}
+
+		switch phase {
+		case agentzv1alpha1.WorkflowRunNodePhaseRunning:
+		case agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
+			agentzv1alpha1.WorkflowRunNodePhaseFailed:
+		default:
+			resultErr = &NodePhaseConflictError{
+				Node:    nodeName,
+				Current: nodeStatus.Phase,
+				Target:  phase,
+			}
+			return nil
+		}
+		if nodeStatus.Phase == phase && nodeStatus.Message == msg {
+			resultErr = nil
+			return nil
+		}
+
+		switch phase {
+		case agentzv1alpha1.WorkflowRunNodePhaseRunning:
+			if nodeStatus.Phase != agentzv1alpha1.WorkflowRunNodePhaseDisabled {
+				resultErr = &NodePhaseConflictError{
+					Node:    nodeName,
+					Current: nodeStatus.Phase,
+					Target:  phase,
+				}
+				return nil
+			}
+		case agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
+			agentzv1alpha1.WorkflowRunNodePhaseFailed:
+			if nodeStatus.Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
+				resultErr = &NodePhaseConflictError{
+					Node:    nodeName,
+					Current: nodeStatus.Phase,
+					Target:  phase,
+				}
+				return nil
+			}
+		}
+
+		patch := ctrlclient.MergeFrom(current.DeepCopy())
+		now := metav1.Now()
+		for i := range nodes {
+			if nodes[i].Name != nodeName {
+				continue
+			}
+			nodes[i].Phase = phase
+			nodes[i].Message = msg
+			if phase == agentzv1alpha1.WorkflowRunNodePhaseRunning {
+				nodes[i].StartedAt = &now
+				nodes[i].CompletedAt = nil
+			} else {
+				nodes[i].CompletedAt = &now
+			}
+			break
+		}
+		current.Status.Nodes = nodes
 
 		if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
 			return err
@@ -563,6 +741,23 @@ func runDetailFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDet
 		durationSeconds := int64(math.Ceil(run.Status.CompletedAt.Time.Sub(run.Status.StartedAt.Time).Seconds()))
 		detail.DurationSeconds = &durationSeconds
 	}
+	detail.NodeStatuses = make([]gatewayapi.WorkflowRunNodeStatus, 0, len(run.Status.Nodes))
+	for _, node := range run.Status.Nodes {
+		item := gatewayapi.WorkflowRunNodeStatus{
+			Name:    node.Name,
+			Phase:   gatewayapi.WorkflowRunNodePhase(node.Phase),
+			Message: node.Message,
+		}
+		if node.StartedAt != nil {
+			startedAt := node.StartedAt.Time
+			item.StartedAt = &startedAt
+		}
+		if node.CompletedAt != nil {
+			completedAt := node.CompletedAt.Time
+			item.CompletedAt = &completedAt
+		}
+		detail.NodeStatuses = append(detail.NodeStatuses, item)
+	}
 	return detail
 }
 
@@ -586,6 +781,21 @@ func workflowRunStatus(phase agentzv1alpha1.WorkflowRunPhase) gatewayapi.Workflo
 func workflowRunReason(run *agentzv1alpha1.WorkflowRun) string {
 	if run == nil {
 		return ""
+	}
+
+	for _, node := range run.Status.Nodes {
+		switch node.Phase {
+		case agentzv1alpha1.WorkflowRunNodePhaseFailed:
+			if node.Message != "" {
+				return fmt.Sprintf("node %s failed: %s", node.Name, node.Message)
+			}
+			return fmt.Sprintf("node %s failed", node.Name)
+		case agentzv1alpha1.WorkflowRunNodePhaseRunning:
+			if node.Message != "" {
+				return fmt.Sprintf("node %s running: %s", node.Name, node.Message)
+			}
+			return fmt.Sprintf("node %s running", node.Name)
+		}
 	}
 
 	if run.Status.Phase.Terminal() {

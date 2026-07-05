@@ -154,7 +154,6 @@ function CanvasSkeleton() {
   return (
     <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--color-primary)_0%,transparent_32%)] opacity-10" />
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
         <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />
       </div>

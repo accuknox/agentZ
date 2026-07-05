@@ -9175,6 +9175,17 @@ components:
       maxLength: 16
       pattern: ^([0-9a-f]{16})?$
       type: string
+    PatchWorkflowRunNodeStatusRequest:
+      additionalProperties: false
+      properties:
+        message:
+          maxLength: 4096
+          type: string
+        phase:
+          $ref: '#/components/schemas/WorkflowRunNodePatchPhase'
+      required:
+      - phase
+      type: object
     PatchWorkflowRunStatusRequest:
       additionalProperties: false
       properties:
@@ -9945,7 +9956,7 @@ components:
       properties:
         workflow_runs:
           items:
-            $ref: '#/components/schemas/WorkflowRunSummary'
+            $ref: '#/components/schemas/WorkflowRunDetail'
           type: array
       required:
       - workflow_runs
@@ -10164,6 +10175,10 @@ components:
           type: string
         name:
           $ref: '#/components/schemas/WorkflowRunName'
+        node_statuses:
+          items:
+            $ref: '#/components/schemas/WorkflowRunNodeStatus'
+          type: array
         reason:
           type: string
         schedule_name:
@@ -10195,6 +10210,7 @@ components:
       - reason
       - message
       - created_at
+      - node_statuses
       type: object
     WorkflowRunInputs:
       additionalProperties: true
@@ -10207,6 +10223,39 @@ components:
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
       type: string
+    WorkflowRunNodePatchPhase:
+      enum:
+      - Running
+      - Succeeded
+      - Failed
+      type: string
+    WorkflowRunNodePhase:
+      enum:
+      - Disabled
+      - Running
+      - Succeeded
+      - Failed
+      type: string
+    WorkflowRunNodeStatus:
+      additionalProperties: false
+      properties:
+        completed_at:
+          format: date-time
+          type: string
+        message:
+          type: string
+        name:
+          $ref: '#/components/schemas/WorkflowNodeName'
+        phase:
+          $ref: '#/components/schemas/WorkflowRunNodePhase'
+        started_at:
+          format: date-time
+          type: string
+      required:
+      - name
+      - phase
+      - message
+      type: object
     WorkflowRunStatus:
       enum:
       - Pending
@@ -18824,6 +18873,51 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Get a workflow run.
+      tags:
+      - workflow-runs
+  /api/workflow/{agentName}/{workflowName}/run/{runName}/nodes/{nodeName}/status:
+    patch:
+      description: |
+        Records execution progress for one WorkflowRun node. The gateway validates node membership and basic state transitions before patching the WorkflowRun status in the configured namespace.
+      operationId: patchWorkflowRunNodeStatus
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - description: Workflow name scoped to an agent.
+        in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - description: WorkflowRun resource name.
+        in: path
+        name: runName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      - description: Workflow node name.
+        in: path
+        name: nodeName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowNodeName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchWorkflowRunNodeStatusRequest'
+        required: true
+      responses:
+        "204":
+          description: WorkflowRun node status updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Set a WorkflowRun node status.
       tags:
       - workflow-runs
   /api/workflow/{agentName}/{workflowName}/run/{runName}/status:

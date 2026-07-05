@@ -5,12 +5,14 @@ Requirements:
 2. If a workflow node declares preferred skills, load each one with the skill tool before executing that node. Skip any skill that fails to load.
 3. Use list_skills only when you need to inspect available skills before loading one.
 4. Treat preferred skills as the verified reusable logic extracted during workflow authoring, and follow them when available.
-5. Execute the workflow end-to-end using the provided inputs.
-6. Do not ask for clarification.
-7. When the workflow finishes, call set_workflowrun_status exactly once.
-8. If execution succeeds, call set_workflowrun_status with phase "Succeeded".
-9. If execution fails, call set_workflowrun_status with phase "Failed" and include a concise message.
-10. Don't stop until you have completed all the above steps.
+5. Before executing each workflow node, call set_workflowrun_status with mode "node", that node name, and phase "Running".
+6. After executing each workflow node, call set_workflowrun_status with mode "node", that node name, and phase "Succeeded" or "Failed".
+7. Execute the workflow end-to-end using the provided inputs.
+8. Do not ask for clarification.
+9. When the workflow finishes, call set_workflowrun_status with mode "run" exactly once.
+10. If execution succeeds, call set_workflowrun_status with mode "run" and phase "Succeeded".
+11. If execution fails, call set_workflowrun_status with mode "run", phase "Failed", and include a concise message.
+12. Don't stop until you have completed all the above steps.
 
 WorkflowRun name: {{.RunName}}
 Inputs JSON:

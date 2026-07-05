@@ -1311,6 +1311,53 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/workflow/{agentName}/{workflowName}/run/{runName}/nodes/{nodeName}/status:
+    patch:
+      operationId: patchWorkflowRunNodeStatus
+      summary: Set a WorkflowRun node status.
+      description: >
+        Records execution progress for one WorkflowRun node. The gateway
+        validates node membership and basic state transitions before patching
+        the WorkflowRun status in the configured namespace.
+      tags: [workflow-runs]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: workflowName
+        in: path
+        required: true
+        description: Workflow name scoped to an agent.
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      - name: runName
+        in: path
+        required: true
+        description: WorkflowRun resource name.
+        schema:
+          $ref: '#/components/schemas/WorkflowRunName'
+      - name: nodeName
+        in: path
+        required: true
+        description: Workflow node name.
+        schema:
+          $ref: '#/components/schemas/WorkflowNodeName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchWorkflowRunNodeStatusRequest'
+      responses:
+        '204':
+          description: WorkflowRun node status updated.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     GatewayBearer:
@@ -1667,6 +1714,21 @@ components:
       - Succeeded
       - Failed
 
+    WorkflowRunNodePhase:
+      type: string
+      enum:
+      - Disabled
+      - Running
+      - Succeeded
+      - Failed
+
+    WorkflowRunNodePatchPhase:
+      type: string
+      enum:
+      - Running
+      - Succeeded
+      - Failed
+
     WorkflowRunStatus:
       type: string
       enum:
@@ -1682,6 +1744,17 @@ components:
       properties:
         phase:
           $ref: '#/components/schemas/WorkflowRunTerminalPhase'
+        message:
+          type: string
+          maxLength: 4096
+      required: [phase]
+
+    PatchWorkflowRunNodeStatusRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        phase:
+          $ref: '#/components/schemas/WorkflowRunNodePatchPhase'
         message:
           type: string
           maxLength: 4096
@@ -1997,6 +2070,10 @@ components:
           type: integer
           format: int64
           minimum: 0
+        node_statuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowRunNodeStatus'
       required:
       - name
       - agent_name
@@ -2008,6 +2085,28 @@ components:
       - reason
       - message
       - created_at
+      - node_statuses
+
+    WorkflowRunNodeStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/WorkflowNodeName'
+        phase:
+          $ref: '#/components/schemas/WorkflowRunNodePhase'
+        message:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+      required:
+      - name
+      - phase
+      - message
 
     WorkflowWebhookTrigger:
       type: object
@@ -3060,7 +3159,7 @@ components:
         workflow_runs:
           type: array
           items:
-            $ref: '#/components/schemas/WorkflowRunSummary'
+            $ref: '#/components/schemas/WorkflowRunDetail'
       required: [workflow_runs]
 
     JSONValue:

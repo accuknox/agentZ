@@ -36,6 +36,18 @@ func ValidateLookupRequest(agtName string, wfName string) []gatewayapi.FieldErro
 	return fields
 }
 
+// ValidateNodeName validates one workflow graph node name.
+func ValidateNodeName(name string) []gatewayapi.FieldError {
+	if isDNSLabel(name, 64) {
+		return nil
+	}
+
+	return []gatewayapi.FieldError{{
+		Field:   "nodeName",
+		Message: "must be a valid DNS label",
+	}}
+}
+
 func ValidateListRequest(agtName string) []gatewayapi.FieldError {
 	if isDNSLabel(agtName, 32) {
 		return nil

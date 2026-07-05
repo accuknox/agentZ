@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"regexp"
 	"slices"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/oauth"
+	"github.com/accuknox/agentz/internal/sandboxutil"
 	secretstore "github.com/accuknox/agentz/internal/secret"
 	"github.com/accuknox/agentz/internal/sinjector"
 	secretwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/secret"
@@ -32,7 +34,7 @@ import (
 var secretKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // PutSecret handles POST /api/secret/{agentName}.
-func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.PutSecretParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -44,7 +46,7 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 		return
 	}
 
-	name, ok := validAgentName(w, r, agentName, "agentName")
+	name, ok := validAgentName(w, r, agtName, "agentName")
 	if !ok {
 		return
 	}
@@ -78,6 +80,14 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 		return
 	}
 
+	if params.UpdateSandbox != nil && *params.UpdateSandbox {
+		apiErr = s.updateSecretSandboxHosts(r.Context(), ns, name, secret.Spec.Hosts)
+		if apiErr != nil {
+			writeError(w, r, apiErr)
+			return
+		}
+	}
+
 	if err := s.putAgentSecretRuntime(r.Context(), ns, name, secret.Spec.Key, record); err != nil {
 		writeError(w, r, mapOpenBaoError(err))
 		return
@@ -99,6 +109,106 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agentName ga
 	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
 		Secret: s.secretListItem(*secret),
 	})
+}
+
+func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns string, agtName string, secretHosts []string) *apiError {
+	agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(
+		ctx,
+		agtName,
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		return mapKubeHTTPError("get agent", err)
+	}
+	if agt.Spec.SandboxRef == nil {
+		return nil
+	}
+
+	sandboxName := strings.TrimSpace(agt.Spec.SandboxRef.Name)
+	if sandboxName == "" {
+		return nil
+	}
+
+	addHosts := make([]string, 0, len(secretHosts))
+	for _, host := range secretHosts {
+		if _, err := netip.ParseAddr(host); err == nil {
+			return newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "hosts",
+					Message: fmt.Sprintf("host %q cannot be added to sandbox allowed hosts", host),
+				},
+			)
+		}
+
+		parsed, err := sandboxutil.ParseHost(host)
+		if err != nil {
+			return newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "hosts",
+					Message: fmt.Sprintf("host %q cannot be added to sandbox: %v", host, err),
+				},
+			)
+		}
+		addHosts = append(addHosts, parsed.Value)
+	}
+	if len(addHosts) == 0 {
+		return nil
+	}
+
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		sandbox, err := s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Get(
+			ctx,
+			sandboxName,
+			metav1.GetOptions{},
+		)
+		if err != nil {
+			return err
+		}
+
+		seen := make(map[string]struct{}, len(sandbox.Spec.AllowedHosts)+len(addHosts))
+		merged := make([]string, 0, len(sandbox.Spec.AllowedHosts)+len(addHosts))
+		for _, host := range sandbox.Spec.AllowedHosts {
+			if _, ok := seen[host]; ok {
+				continue
+			}
+			seen[host] = struct{}{}
+			merged = append(merged, host)
+		}
+
+		changed := false
+		for _, host := range addHosts {
+			if _, ok := seen[host]; ok {
+				continue
+			}
+			seen[host] = struct{}{}
+			merged = append(merged, host)
+			changed = true
+		}
+		if !changed {
+			return nil
+		}
+
+		sandbox.Spec.AllowedHosts = merged
+		_, err = s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Update(
+			ctx,
+			sandbox,
+			metav1.UpdateOptions{},
+		)
+		return err
+	})
+	if err != nil {
+		return mapKubeHTTPError("update sandbox", err)
+	}
+
+	return nil
 }
 
 // DeleteSecret handles POST /api/secret/{agentName}/delete.

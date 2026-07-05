@@ -30,7 +30,6 @@ const defaultTrustDeviceMaxAge = 30 * 24 * 60 * 60
 const credentialEmailSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
 })
-let auth: Auth | undefined
 
 const disabledAuthPaths = [
   // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
@@ -359,12 +358,11 @@ function buildAuth() {
 }
 
 export type Auth = ReturnType<typeof buildAuth>
+export const auth = buildAuth()
 
 /**
- * getAuth creates the Better Auth singleton lazily so the build does not need
- * runtime-only secrets.
+ * getAuth returns the shared Better Auth instance.
  */
 export function getAuth(): Auth {
-  auth ??= buildAuth()
   return auth
 }

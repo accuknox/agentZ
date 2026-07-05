@@ -16,6 +16,7 @@ import {
   sealPendingOAuthState,
 } from "@/lib/mcp-oauth"
 import { agentSecretsTag, secretsTag } from "@/data/cache"
+import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { defaultMcpAuthLocation, type ParsedMcpForm } from "@/data/mcp.schema"
 import { oauthSecretFormInputSchema, secretFormInputSchema } from "./schema"
 import type { DeleteSecretFormState, PutSecretFormState } from "./types"
@@ -30,9 +31,13 @@ export async function putSecretFormAction(
     return invalidSchemaState("Secret configuration is invalid", parsed.error)
   }
 
+  const preferences = await getCurrentUserPreferences()
   const result = await putSecret({
     client: getGatewayServerClient(),
     path: { agentName },
+    query: {
+      update_sandbox: preferences.updateSandbox,
+    },
     body: {
       type: "static",
       key: parsed.data.key,

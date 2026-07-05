@@ -147,6 +147,15 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/TraceID'
+    UpdateSandboxQuery:
+      description: |
+        When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+      in: query
+      name: update_sandbox
+      required: false
+      schema:
+        default: false
+        type: boolean
   requestBodies: {}
   responses:
     BadRequest:
@@ -18487,6 +18496,7 @@ paths:
       operationId: putSecret
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/UpdateSandboxQuery'
       requestBody:
         content:
           application/json:

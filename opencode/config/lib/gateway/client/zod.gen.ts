@@ -1006,6 +1006,12 @@ export const zLimitQuery = z.int().gte(1).lte(200).default(50)
 export const zPageTokenQuery = z.string().min(1)
 
 /**
+ * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+ *
+ */
+export const zUpdateSandboxQuery = z.boolean().default(false)
+
+/**
  * Lowercase hexadecimal OTLP trace ID.
  */
 export const zTraceIdQuery = zTraceId
@@ -1246,6 +1252,10 @@ export const zPutSecretBody = zCreateSecretRequest
 
 export const zPutSecretPath = z.object({
   agentName: zAgentName,
+})
+
+export const zPutSecretQuery = z.object({
+  update_sandbox: z.boolean().optional().default(false),
 })
 
 /**

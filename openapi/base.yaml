@@ -437,6 +437,7 @@ paths:
       tags: [secrets]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/UpdateSandboxQuery'
       requestBody:
         required: true
         content:
@@ -1386,6 +1387,17 @@ components:
       schema:
         type: string
         minLength: 1
+
+    UpdateSandboxQuery:
+      name: update_sandbox
+      in: query
+      required: false
+      description: >
+        When true, append compatible secret hosts that are missing from the
+        agent sandbox allowed host list before creating the secret.
+      schema:
+        type: boolean
+        default: false
 
     TraceIDQuery:
       name: trace_id

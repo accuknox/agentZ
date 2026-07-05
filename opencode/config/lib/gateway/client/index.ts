@@ -354,6 +354,7 @@ export type {
   UpdateSandboxData,
   UpdateSandboxError,
   UpdateSandboxErrors,
+  UpdateSandboxQuery,
   UpdateSandboxRequest,
   UpdateSandboxResponse,
   UpdateSandboxResponses,

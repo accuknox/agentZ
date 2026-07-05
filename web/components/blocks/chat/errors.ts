@@ -11,6 +11,8 @@ import type {
   SessionListError,
   SessionMessagesError,
   SessionPromptAsyncError,
+  SessionRevertError,
+  SessionUnrevertError,
 } from "@opencode-ai/sdk/v2"
 
 type OpenCodeClientError =
@@ -25,6 +27,8 @@ type OpenCodeClientError =
   | SessionListError
   | SessionMessagesError
   | SessionPromptAsyncError
+  | SessionRevertError
+  | SessionUnrevertError
 
 export function opencodeErrorMessage(
   error: OpenCodeClientError | undefined,

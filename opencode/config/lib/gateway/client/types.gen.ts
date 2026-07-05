@@ -886,6 +886,12 @@ export type LimitQuery = number
 export type PageTokenQuery = string
 
 /**
+ * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+ *
+ */
+export type UpdateSandboxQuery = boolean
+
+/**
  * Lowercase hexadecimal OTLP trace ID.
  */
 export type TraceIdQuery = TraceId
@@ -1658,7 +1664,13 @@ export type PutSecretData = {
      */
     agentName: AgentName
   }
-  query?: never
+  query?: {
+    /**
+     * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+     *
+     */
+    update_sandbox?: boolean
+  }
   url: "/api/secret/{agentName}"
 }
 

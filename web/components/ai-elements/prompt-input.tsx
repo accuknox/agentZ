@@ -16,6 +16,7 @@ import type {
   HTMLAttributes,
   KeyboardEventHandler,
   ReactNode,
+  RefObject,
 } from "react"
 import {
   Children,
@@ -116,12 +117,19 @@ export interface PromptInputMessage {
   files: PromptInputFile[]
 }
 
+// Imperative handle for seeding the uncontrolled composer from outside, e.g.
+// refilling a reverted turn's text and attachments to edit and resend.
+export type PromptInputController = {
+  setMessage: (message: PromptInputMessage) => void
+}
+
 type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
   accept?: string
   multiple?: boolean
   globalDrop?: boolean
   maxFiles?: number
   maxFileSize?: number
+  controllerRef?: RefObject<PromptInputController | null>
   onError?: (err: { code: "max_files" | "max_file_size" | "accept"; message: string }) => void
   onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void | Promise<void>
 }
@@ -133,6 +141,7 @@ export const PromptInput = ({
   globalDrop,
   maxFiles,
   maxFileSize,
+  controllerRef,
   onError,
   onSubmit,
   children,
@@ -239,6 +248,37 @@ export const PromptInput = ({
       }),
     []
   )
+
+  const setMessage = useCallback((message: PromptInputMessage) => {
+    setItems((prev) => {
+      for (const file of prev) {
+        if (file.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(file.url)
+        }
+      }
+      return message.files.map((file) => ({ ...file, id: nanoid() }))
+    })
+
+    const textarea = formRef.current?.elements.namedItem("message")
+    if (textarea instanceof HTMLTextAreaElement) {
+      textarea.value = message.text
+      // Fire a native input event so PromptInputTextarea re-runs its autosize +
+      // multiline detection; the textarea is uncontrolled so this is the only
+      // way to notify it of the programmatic value change.
+      textarea.dispatchEvent(new Event("input", { bubbles: true }))
+      textarea.focus()
+      const end = message.text.length
+      textarea.setSelectionRange(end, end)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!controllerRef) return
+    controllerRef.current = { setMessage }
+    return () => {
+      controllerRef.current = null
+    }
+  }, [controllerRef, setMessage])
 
   useEffect(() => {
     const onDragOver = (e: DragEvent) => {
@@ -429,7 +469,7 @@ export const PromptInputTextarea = ({
   onKeyDown,
   className,
   disabled,
-  placeholder = "Start with an idea, task, or question…",
+  placeholder = "Start with an idea, task, or question...",
   ...props
 }: PromptInputTextareaProps) => {
   const attachments = usePromptInputAttachments()

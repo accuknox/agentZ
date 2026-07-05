@@ -1,8 +1,10 @@
 import dayjs from "dayjs"
+import advancedFormat from "dayjs/plugin/advancedFormat"
 import customParseFormat from "dayjs/plugin/customParseFormat"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 
+dayjs.extend(advancedFormat)
 dayjs.extend(customParseFormat)
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
@@ -111,6 +113,23 @@ export function formatShortAge(value: number) {
   if (month < 12) return `${month}mo`
 
   return `${now.diff(time, "year")}y`
+}
+
+/**
+ * formatMessageTime renders chat message times: clock time only for today,
+ * otherwise a full "Monday, 5th July 14:30" style label.
+ */
+export function formatMessageTime(value: number) {
+  const date = dayjs(value)
+  if (!date.isValid()) {
+    return ""
+  }
+
+  if (date.isSame(dayjs(), "day")) {
+    return date.format("HH:mm")
+  }
+
+  return date.format("dddd, Do MMMM HH:mm")
 }
 
 /** formatDurationMs renders telemetry durations in milliseconds or seconds. */

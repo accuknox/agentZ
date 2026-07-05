@@ -15,7 +15,10 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
 import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
-import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
+import type {
+  PromptInputController,
+  PromptInputMessage,
+} from "@/components/ai-elements/prompt-input"
 import {
   PromptInput,
   PromptInputBody,
@@ -55,8 +58,10 @@ import {
   type PermissionDecision,
   PermissionDock,
   QuestionDock,
+  RevertDock,
   TodoDock,
 } from "@/components/blocks/chat/docks"
+import { CopyButton } from "@/components/ui/copy-button"
 import {
   type RenderEntry,
   projectTimeline,
@@ -71,8 +76,9 @@ import {
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { formatMessageTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import type { Message as OpencodeMessage, QuestionAnswer } from "@opencode-ai/sdk/v2"
+import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import {
   BotIcon,
@@ -81,9 +87,10 @@ import {
   ChevronDownIcon,
   PaperclipIcon,
   Settings2Icon,
+  Undo2Icon,
 } from "lucide-react"
 import { motion } from "motion/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   ModelSelector,
@@ -130,8 +137,6 @@ type ChatProps = {
 const DEFAULT_REASONING_LEVEL = "__default__"
 const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
 
-// RetryCountdown ticks every second while the SessionStatus.retry "next"
-// timestamp is in the future.
 function RetryCountdown({
   attempt,
   message,
@@ -266,10 +271,8 @@ function PromptInputAttachmentButton({ disabled }: { disabled?: boolean }) {
   )
 }
 
-// Groups consecutive tool entries so they share one indentation block in the
-// timeline; text and reasoning entries stay standalone. Mirrors opencode's
-// part-grouping but omits the sticky-accordion offset that the desktop timeline
-// uses — the web chat has no parallel side rail to keep anchored.
+// Consecutive tool entries share one indentation block; text and reasoning
+// entries stay standalone.
 type EntryGroup =
   | RenderEntry
   | { entries: Extract<RenderEntry, { type: "tool" }>[]; key: string; type: "tool-group" }
@@ -305,8 +308,10 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
   const agentReadiness = useAgentReadiness(agentName)
+  const composerRef = useRef<PromptInputController | null>(null)
 
   const {
+    applyOptimisticSession,
     blocked,
     historyError,
     isBusy,
@@ -475,7 +480,13 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
   const selectedReasoningVariant =
     selectedReasoningLevel === DEFAULT_REASONING_LEVEL ? undefined : selectedReasoningLevel
 
-  const contextUsage = getAssistantUsage(messages, models)
+  // Reverted turns are dropped on the next prompt, so exclude them from the
+  // context/cost indicator.
+  const revertMessageID = session?.revert?.messageID
+  const contextMessages = revertMessageID
+    ? messages.filter((message) => message.id < revertMessageID)
+    : messages
+  const contextUsage = getAssistantUsage(contextMessages, models)
   const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
     agentName,
     activeSessionId,
@@ -554,6 +565,84 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
     },
   })
 
+  // Fold the echoed session into the live store for an instant update; the
+  // matching session.updated stream event reconciles it (see applyOptimisticSession).
+  const applyRevert = useCallback(
+    async (messageID?: string) => {
+      if (!activeSessionId) return
+      const client = await createAgentOpencodeClient(agentName)
+      const result = messageID
+        ? await client.session.revert({ directory, messageID, sessionID: activeSessionId })
+        : await client.session.unrevert({ directory, sessionID: activeSessionId })
+      if (result.error || !result.data) {
+        throw new Error(opencodeErrorMessage(result.error, "Failed to update session"))
+      }
+      applyOptimisticSession(result.data)
+    },
+    [activeSessionId, agentName, applyOptimisticSession, directory]
+  )
+
+  // A resendable composer draft (non-synthetic text + file attachments) for a
+  // stored user turn.
+  const composerMessageFor = useCallback(
+    (messageID: string): PromptInputMessage => {
+      const parts = partsByMessage[messageID] ?? []
+      const text = parts
+        .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
+        .filter((part) => part.synthetic !== true)
+        .map((part) => textByPart[part.id] ?? part.text)
+        .join("")
+      const files = parts
+        .filter((part): part is Extract<Part, { type: "file" }> => part.type === "file")
+        .map((part) => ({
+          filename: part.filename,
+          mediaType: part.mime,
+          type: "file" as const,
+          url: part.url,
+        }))
+      return { files, text }
+    },
+    [partsByMessage, textByPart]
+  )
+
+  const { isPending: isReverting, mutate: revertMessage } = useMutation({
+    mutationFn: applyRevert,
+    onError: (error) => {
+      toast.error("Couldn't revert message", {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    },
+  })
+
+  // Reverting stages the rolled-back turn's prompt in the composer to edit/resend.
+  const handleRevert = useCallback(
+    (messageID: string) => {
+      composerRef.current?.setMessage(composerMessageFor(messageID))
+      revertMessage(messageID)
+    },
+    [composerMessageFor, revertMessage]
+  )
+
+  // Restoring advances the revert boundary one user turn (or clears it on the
+  // newest), keeping the composer staged to the oldest still-reverted turn.
+  const restoreMutation = useMutation({
+    mutationFn: (messageID: string) => {
+      const next = messages.find((message) => message.role === "user" && message.id > messageID)
+      composerRef.current?.setMessage(next ? composerMessageFor(next.id) : { files: [], text: "" })
+      return applyRevert(next?.id)
+    },
+    onError: (error) => {
+      toast.error("Couldn't restore message", {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    },
+  })
+  const restoringId = restoreMutation.isPending ? restoreMutation.variables : undefined
+  // Sending must wait for a revert/restore to apply, else the prompt can race
+  // ahead and run against the not-yet-reverted session, appending in place of
+  // replacing the selected turn.
+  const revertPending = isReverting || restoreMutation.isPending
+
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
       if (agentReadiness.isGettingReady) return
@@ -609,7 +698,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
     [replyPermission]
   )
 
-  const rows = useMemo(
+  const { reverted, rows } = useMemo(
     () =>
       projectTimeline({
         historyError,
@@ -617,6 +706,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
         localMessages,
         messages,
         partsByMessage,
+        revertMessageID: session?.revert?.messageID,
         sessionStatus,
         streamError,
         textByPart,
@@ -627,6 +717,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
       localMessages,
       messages,
       partsByMessage,
+      session?.revert?.messageID,
       sessionStatus,
       streamError,
       textByPart,
@@ -670,11 +761,20 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                     key={row.key}
                     onRetryHistory={reloadHistory}
                     onRetryStream={reconnectStream}
+                    onRevert={handleRevert}
+                    revertDisabled={isBusy || revertPending}
                     row={row}
                   />
                 ))}
                 <AgentWorkingIndicator isWorking={isBusy} />
               </div>
+              <RevertDock
+                items={reverted}
+                onRestore={restoreMutation.mutate}
+                pending={revertPending}
+                restoringId={restoringId}
+                summary={session?.summary}
+              />
               {todos.length > 0 ? <TodoDock todos={todos} /> : null}
               {permissionRequest ? (
                 <PermissionDock
@@ -720,6 +820,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
           ) : null}
           <PromptInput
             accept={chatAttachmentConfig.accept}
+            controllerRef={composerRef}
             globalDrop
             maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
             maxFiles={chatAttachmentConfig.maxFileCount}
@@ -959,6 +1060,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                     disabled={
                       blocked ||
                       agentReadiness.isGettingReady ||
+                      revertPending ||
                       (!isBusy && (!selectedModel || !canSubmit))
                     }
                     onStop={isBusy ? () => void abortMessage(directory) : undefined}
@@ -974,12 +1076,27 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
   )
 }
 
+function MessageActionBar({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 function TimelineRowView({
   agentName,
   isBusy,
   isLastBlock,
   onRetryHistory,
   onRetryStream,
+  onRevert,
+  revertDisabled,
   row,
 }: {
   agentName: string
@@ -987,6 +1104,8 @@ function TimelineRowView({
   isLastBlock: boolean
   onRetryHistory: () => void
   onRetryStream: () => void
+  onRevert: (messageID: string) => void
+  revertDisabled: boolean
   row: TimelineRow
 }) {
   switch (row.type) {
@@ -1032,12 +1151,13 @@ function TimelineRowView({
     }
 
     case "user": {
+      const isEmpty = row.text.length === 0 && row.attachments.length === 0
       return (
         <Message from="user" key={row.key}>
           <MessageContent
             className={cn(
               row.attachments.length > 0 ? "space-y-3" : undefined,
-              row.text.length === 0 && row.attachments.length === 0 ? "hidden" : undefined
+              isEmpty ? "hidden" : undefined
             )}
           >
             {row.attachments.length > 0 ? (
@@ -1051,6 +1171,26 @@ function TimelineRowView({
             ) : null}
             {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
           </MessageContent>
+          {isEmpty ? null : (
+            <div className="ml-auto flex items-center gap-1">
+              <MessageActionBar>
+                <CopyButton content={row.text} />
+                <Button
+                  aria-label="Revert to here"
+                  className="h-6 w-6"
+                  disabled={revertDisabled}
+                  onClick={() => onRevert(row.messageID)}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <Undo2Icon className="h-4 w-4" />
+                </Button>
+              </MessageActionBar>
+              <span className="text-muted-foreground text-xs">
+                {formatMessageTime(row.createdAt)}
+              </span>
+            </div>
+          )}
         </Message>
       )
     }
@@ -1058,6 +1198,10 @@ function TimelineRowView({
     case "assistant": {
       const groups = groupEntries(row.entries)
       const lastGroupIndex = groups.length - 1
+      const copyText = row.entries
+        .filter((entry) => entry.type === "text")
+        .map((entry) => entry.content)
+        .join("\n\n")
       return (
         <Message from="assistant" key={row.key}>
           <MessageContent>
@@ -1094,6 +1238,16 @@ function TimelineRowView({
               }
             })}
           </MessageContent>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground text-xs">
+              {formatMessageTime(row.createdAt)}
+            </span>
+            {copyText.length > 0 && !(isBusy && isLastBlock) ? (
+              <MessageActionBar>
+                <CopyButton content={copyText} />
+              </MessageActionBar>
+            ) : null}
+          </div>
         </Message>
       )
     }
@@ -1103,7 +1257,7 @@ function TimelineRowView({
         <div className="text-muted-foreground text-sm" key={row.key}>
           <span className="inline-flex items-center gap-2">
             <Spinner className="size-3.5" />
-            <span className="animate-pulse">Thinking…</span>
+            <span className="animate-pulse">Thinking...</span>
           </span>
         </div>
       )

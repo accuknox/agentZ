@@ -202,6 +202,7 @@ import {
   zPatchWorkflowRunStatusPath,
   zPutSecretBody,
   zPutSecretPath,
+  zPutSecretQuery,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateSandboxBody,
@@ -590,7 +591,7 @@ export const putSecret = <ThrowOnError extends boolean = false>(
         .object({
           body: zPutSecretBody,
           path: zPutSecretPath,
-          query: z.never().optional(),
+          query: zPutSecretQuery.optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],

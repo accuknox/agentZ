@@ -27,7 +27,6 @@ type OpencodeChatStore = {
   partTextAccumDelta: Record<string, string>
   message: Record<string, Message[]>
   session?: SessionV2
-  sessionCost: number
   sessionStatus: Record<string, SessionStatus>
   // Todos are keyed by sessionID and cleared whenever the turn that produced
   // them completes. Empty arrays collapse to "no todos" so the dock hides.
@@ -39,6 +38,8 @@ type HitlStore = {
   questions: Record<string, QuestionRequest[]>
   sessions: SessionV2[]
 }
+
+const emptyHitlStore: HitlStore = { permissions: {}, questions: {}, sessions: [] }
 
 type StreamEvent = OpencodeEventV2
 
@@ -61,6 +62,7 @@ export type OptimisticUserMessage = {
 export type LocalChatMessage = ChatSystemPrompt | OptimisticUserMessage
 
 type UseOpencodeChatResult = {
+  applyOptimisticSession: (info: SessionV2) => void
   blocked: boolean
   historyError?: string
   isBusy: boolean
@@ -85,8 +87,8 @@ type UseOpencodeChatResult = {
 const idleSessionStatus: SessionStatus = { type: "idle" }
 const MAX_CHAT_TURNS = 25
 
-// visibleMessageIDsForRecentTurns keeps the newest bounded user turns intact so
-// assistant follow-ups never outlive the user prompt they belong to.
+// Keep only the newest MAX_CHAT_TURNS user turns and their replies, so a reply
+// never outlives the user turn it belongs to.
 function visibleMessageIDsForRecentTurns(messages: Message[]): Set<string> {
   const ordered = [...messages].sort((x, y) => x.time.created - y.time.created)
   const userIDs = ordered
@@ -139,41 +141,38 @@ function pruneStore(store: OpencodeChatStore): OpencodeChatStore {
   }
 }
 
-function sessionCostFromMessages(messages: Message[]) {
-  return messages.reduce((total, message) => {
-    if (message.role !== "assistant") return total
-    return total + message.cost
-  }, 0)
-}
-
 function deriveSessionIsBusy(
   messages: Message[],
   localMessages: LocalChatMessage[],
   sessionStatus: SessionStatus | undefined,
   session: SessionV2 | undefined
 ): boolean {
-  // Pending optimistic user message not yet acknowledged by the server.
   if (localMessages.some((m) => m.kind === "optimistic-user" && m.status === "pending")) {
     return true
   }
 
-  // Session status reported by the server. Catches "busy" during active
-  // processing and "retry" during transient error backoff (SessionStatus
-  // is a three-variant union: idle | busy | retry).
-  if (sessionStatus && sessionStatus.type !== "idle") {
-    return true
-  }
-
-  // Compaction rewrites the message store — metadata is in flux so the
-  // heuristic below would be unreliable. Mirrors the TUI's early return
-  // in sync.tsx.
+  // Compaction rewrites the store, so the message heuristics below are unreliable.
   if (session?.time.compacting) {
     return true
   }
 
-  // Derive from messages: either waiting for a response (last from user)
-  // or the assistant response hasn't finished streaming yet.
   const last = messages.at(-1)
+
+  // The server sets time.completed in a finalizer on every turn exit (success,
+  // error, abort), so trust it over a possibly-stale "busy" status to avoid
+  // hanging at "Working". A "retry" status still means the turn will re-run.
+  if (
+    last?.role === "assistant" &&
+    last.time.completed !== undefined &&
+    sessionStatus?.type !== "retry"
+  ) {
+    return false
+  }
+
+  if (sessionStatus && sessionStatus.type !== "idle") {
+    return true
+  }
+
   if (!last) return false
   if (last.role === "user") return true
   if (last.role === "assistant" && last.time.completed === undefined) return true
@@ -212,15 +211,13 @@ function upsertMessage(messages: Message[], next: Message) {
 }
 
 function upsertPart(parts: Part[], next: Part) {
-  const index = parts.findIndex((part) => part.id === next.id)
-  if (index < 0) {
-    return [...parts, next]
+  if (parts.some((part) => part.id === next.id)) {
+    return parts.map((part) => (part.id === next.id ? next : part))
   }
-
-  return parts.map((part) => {
-    if (part.id === next.id) return next
-    return part
-  })
+  // Part ids are monotonic ascending, so insert at the sorted position to keep
+  // chronological order even if a late update arrives out of sequence.
+  const at = parts.findIndex((part) => part.id > next.id)
+  return at < 0 ? [...parts, next] : [...parts.slice(0, at), next, ...parts.slice(at)]
 }
 
 function buildStore(
@@ -233,7 +230,6 @@ function buildStore(
     partTextAccumDelta: {},
     message: {},
     session,
-    sessionCost: 0,
     sessionStatus: {},
     todos: {},
   }
@@ -242,7 +238,6 @@ function buildStore(
   store.message[sessionID] = visibleRecords
     .map((record) => record.info)
     .sort((x, y) => x.time.created - y.time.created)
-  store.sessionCost = sessionCostFromMessages(store.message[sessionID] ?? [])
 
   for (const record of visibleRecords) {
     store.part[record.info.id] = record.parts
@@ -254,31 +249,6 @@ function buildStore(
   }
 
   return pruneStore(store)
-}
-
-function messageSessionID(event: StreamEvent) {
-  switch (event.type) {
-    case "message.updated":
-      return event.properties.sessionID
-    case "message.removed":
-      return event.properties.sessionID
-    case "message.part.delta":
-      return event.properties.sessionID
-    case "message.part.updated":
-      return event.properties.part.sessionID
-    case "message.part.removed":
-    case "session.status":
-    case "session.idle":
-    case "session.error":
-      return event.properties.sessionID
-    case "session.deleted":
-      return event.properties.info.id
-    case "session.created":
-    case "session.updated":
-      return event.properties.info.id
-    default:
-      return undefined
-  }
 }
 
 function upsertRequest<T extends { id: string }>(items: T[], next: T) {
@@ -378,77 +348,51 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
     case "message.part.updated": {
       const part = event.properties.part
       const parts = store.part[part.messageID] ?? []
-      const nextParts = upsertPart(parts, part)
-      const nextText = part.type === "text" || part.type === "reasoning" ? part.text : undefined
-
-      return pruneStore({
+      if (part.type !== "text" && part.type !== "reasoning") {
+        return { ...store, part: { ...store.part, [part.messageID]: upsertPart(parts, part) } }
+      }
+      // Keep already-accumulated deltas when the snapshot lags behind them, so
+      // streamed text never flickers backward mid-turn.
+      const accumulated = store.partTextAccumDelta[part.id]
+      const text = accumulated?.startsWith(part.text) ? accumulated : part.text
+      return {
         ...store,
-        part: {
-          ...store.part,
-          [part.messageID]: nextParts,
-        },
-        partTextAccumDelta:
-          nextText === undefined
-            ? store.partTextAccumDelta
-            : {
-                ...store.partTextAccumDelta,
-                [part.id]: nextText,
-              },
-      })
+        part: { ...store.part, [part.messageID]: upsertPart(parts, { ...part, text }) },
+        partTextAccumDelta: { ...store.partTextAccumDelta, [part.id]: text },
+      }
     }
 
     case "message.part.delta": {
-      const parts = store.part[event.properties.messageID] ?? []
-      const index = parts.findIndex((part) => part.id === event.properties.partID)
-      if (index < 0) {
+      const { delta, field, messageID, partID } = event.properties
+      const parts = store.part[messageID] ?? []
+      const part = parts.find((item) => item.id === partID)
+      // Only text/reasoning parts stream, and only via their `text` field.
+      if (field !== "text" || (part?.type !== "text" && part?.type !== "reasoning")) {
         return store
       }
-
-      const part = parts[index]
-      if (!part || (part.type !== "text" && part.type !== "reasoning")) {
-        return store
-      }
-
-      if (event.properties.field !== "text") {
-        return store
-      }
-
-      const nextText =
-        (store.partTextAccumDelta[event.properties.partID] ?? "") + event.properties.delta
-      const nextParts = parts.map((item, itemIndex) => {
-        if (itemIndex !== index) return item
-        return {
-          ...part,
-          text: part.text + event.properties.delta,
-        }
-      })
-
-      return pruneStore({
+      const text = (store.partTextAccumDelta[partID] ?? "") + delta
+      return {
         ...store,
         part: {
           ...store.part,
-          [event.properties.messageID]: nextParts,
+          [messageID]: parts.map((item) => (item.id === partID ? { ...part, text } : item)),
         },
-        partTextAccumDelta: {
-          ...store.partTextAccumDelta,
-          [event.properties.partID]: nextText,
-        },
-      })
+        partTextAccumDelta: { ...store.partTextAccumDelta, [partID]: text },
+      }
     }
 
     case "message.part.removed": {
-      const parts = store.part[event.properties.messageID] ?? []
+      const { messageID, partID } = event.properties
       const nextText = { ...store.partTextAccumDelta }
-      delete nextText[event.properties.partID]
-
-      return pruneStore({
+      delete nextText[partID]
+      return {
         ...store,
         part: {
           ...store.part,
-          [event.properties.messageID]: parts.filter((part) => part.id !== event.properties.partID),
+          [messageID]: (store.part[messageID] ?? []).filter((part) => part.id !== partID),
         },
         partTextAccumDelta: nextText,
-      })
+      }
     }
 
     case "session.status":
@@ -460,9 +404,16 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
         },
       }
 
+    // Redundant with session.status(idle), but a cheap backstop against the UI
+    // hanging at "Working"/"Retry" if that status event is ever missed.
+    case "session.idle":
+      return {
+        ...store,
+        sessionStatus: { ...store.sessionStatus, [event.properties.sessionID]: idleSessionStatus },
+      }
+
     case "todo.updated": {
-      // Empty todos array means agent finished its work — delete the key so the
-      // dock unmounts cleanly rather than rendering an empty header.
+      // Empty todos means the agent finished; drop the key so the dock unmounts.
       const sessionID = event.properties.sessionID
       const nextTodos = { ...store.todos }
       if (event.properties.todos.length === 0) {
@@ -473,43 +424,16 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
       return { ...store, todos: nextTodos }
     }
 
-    case "session.idle":
-      return {
-        ...store,
-        sessionStatus: {
-          ...store.sessionStatus,
-          [event.properties.sessionID]: idleSessionStatus,
-        },
-      }
-
-    default:
-      return store
-  }
-}
-
-function applySessionEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatStore {
-  switch (event.type) {
     case "session.created":
     case "session.updated":
-      return {
-        ...store,
-        session:
-          store.session?.id === event.properties.info.id ? event.properties.info : store.session,
-      }
+      return store.session?.id === event.properties.info.id
+        ? { ...store, session: event.properties.info }
+        : store
 
     case "session.deleted":
-      return {
-        ...store,
-        session: store.session?.id === event.properties.info.id ? undefined : store.session,
-      }
-
-    case "session.next.step.ended":
-      if (store.session?.id !== event.properties.sessionID) return store
-
-      return {
-        ...store,
-        sessionCost: store.sessionCost + event.properties.cost,
-      }
+      return store.session?.id === event.properties.info.id
+        ? { ...store, session: undefined }
+        : store
 
     default:
       return store
@@ -811,7 +735,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     key: string
     store: OpencodeChatStore
   }>()
-  const [hitlEvents, setHitlEvents] = useState<StreamEvent[]>([])
+  const [hitlLive, setHitlLive] = useState<{ key: number; store: HitlStore }>()
   const [streamError, setStreamError] = useState<string>()
   const [streamEpoch, setStreamEpoch] = useState(0)
   const session = useQuery({
@@ -844,7 +768,6 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         partTextAccumDelta: {},
         message: {},
         session: undefined,
-        sessionCost: 0,
         sessionStatus: {},
         todos: {},
       }
@@ -862,24 +785,12 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   }, [history.data, session.data?.time.updated, sessionID])
   const store = liveStore?.key === baseStoreKey ? liveStore.store : baseStore
 
-  const hitlStore = useMemo(() => {
-    const base = hitl.data ?? { permissions: {}, questions: {}, sessions: [] }
-    return hitlEvents.reduce((current, event) => applyHitlEvent(current, event), base)
-  }, [hitl.data, hitlEvents])
-
-  const handleEvent = useEffectEvent((event: StreamEvent) => {
-    if (!sessionID) return
-    if (messageSessionID(event) !== sessionID) return
-
-    if (event.type === "session.error") {
-      appendSystemPrompt(
-        queryClient,
-        agentName,
-        sessionID,
-        sessionErrorMessage(event.properties.error)
-      )
-    }
-  })
+  // HITL state reconciles like the chat store: live events fold onto the
+  // refetched base, keyed to the fetch so a refetch drops stale events and the
+  // server's pending set stays authoritative.
+  const hitlBase = hitl.data ?? emptyHitlStore
+  const hitlKey = hitl.dataUpdatedAt
+  const hitlStore = hitlLive?.key === hitlKey ? hitlLive.store : hitlBase
 
   const flushEvents = useEffectEvent((events: StreamEvent[]) => {
     if (!sessionID) return
@@ -888,7 +799,18 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     const nextHitlEvents: StreamEvent[] = []
 
     for (const event of events) {
-      handleEvent(event)
+      // A provider-global error has no sessionID; still surface it here.
+      if (event.type === "session.error") {
+        const errorSessionID = event.properties.sessionID
+        if (!errorSessionID || errorSessionID === sessionID) {
+          appendSystemPrompt(
+            queryClient,
+            agentName,
+            sessionID,
+            sessionErrorMessage(event.properties.error)
+          )
+        }
+      }
 
       switch (event.type) {
         case "message.updated":
@@ -898,7 +820,9 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         case "message.part.removed":
         case "session.status":
         case "session.idle":
-        case "session.next.step.ended":
+        case "session.created":
+        case "session.updated":
+        case "session.deleted":
         case "todo.updated":
           hasStoreUpdate = true
           break
@@ -915,7 +839,6 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         case "session.created":
         case "session.updated":
         case "session.deleted":
-        case "session.next.step.ended":
           nextHitlEvents.push(event)
           break
         default:
@@ -924,22 +847,20 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     }
 
     if (hasStoreUpdate) {
-      setLiveStore((current) => {
-        const nextKey = baseStoreKey
-        const currentStore = current?.key === nextKey ? current.store : baseStore
-
-        return {
-          key: nextKey,
-          store: events.reduce((draft, event) => {
-            const withChat = applyEvent(draft, event)
-            return applySessionEvent(withChat, event)
-          }, currentStore),
-        }
-      })
+      setLiveStore((current) => ({
+        key: baseStoreKey,
+        store: events.reduce(applyEvent, current?.key === baseStoreKey ? current.store : baseStore),
+      }))
     }
 
     if (nextHitlEvents.length > 0) {
-      setHitlEvents((current) => [...current, ...nextHitlEvents])
+      setHitlLive((current) => ({
+        key: hitlKey,
+        store: nextHitlEvents.reduce(
+          applyHitlEvent,
+          current?.key === hitlKey ? current.store : hitlBase
+        ),
+      }))
     }
 
     if (events.length > 0) {
@@ -1065,11 +986,17 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
           .join("")
           .trim()
           .replaceAll(/\s+/g, " ")
+        const fileCount = parts.filter((part) => part.type === "file").length
         const optimisticText = localMessage.text.trim().replaceAll(/\s+/g, " ")
 
+        // Match on any renderable part: attachment-only prompts have empty text,
+        // so a text-only match would never clear them and would hang at "Working".
+        const hasArrived = messageText.length > 0 || fileCount > 0
+
         return (
-          messageText.length > 0 &&
+          hasArrived &&
           messageText === optimisticText &&
+          fileCount === localMessage.attachments.length &&
           Math.abs(message.time.created - localMessage.createdAt) < 60_000
         )
       })
@@ -1092,12 +1019,33 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     }
   }, [refetchHistory, refetchSession, sessionID])
 
+  // Fold an authoritative Session (e.g. a revert response) into the live store
+  // instead of the query cache; seeding the cache flips back to baseStore, which
+  // rebuilds messages from stale history.data and drops streamed turns.
+  const applyOptimisticSession = useCallback(
+    (info: SessionV2) => {
+      setLiveStore((current) => {
+        const currentStore = current?.key === baseStoreKey ? current.store : baseStore
+        if (currentStore.session?.id !== info.id) return current
+        return { key: baseStoreKey, store: { ...currentStore, session: info } }
+      })
+    },
+    [baseStore, baseStoreKey]
+  )
+
   const reconnectStream = useCallback(() => {
     setStreamError(undefined)
     setStreamEpoch((current) => current + 1)
-  }, [])
+    // Recover events missed during the disconnect so a turn that finished
+    // mid-gap doesn't leave the UI stuck at "Working".
+    void refetchHistory()
+    if (sessionID) {
+      void refetchSession()
+    }
+  }, [refetchHistory, refetchSession, sessionID])
 
   return {
+    applyOptimisticSession,
     blocked: permissionRequest !== undefined || questionRequest !== undefined,
     historyError: history.error instanceof Error ? history.error.message : undefined,
     isBusy: deriveSessionIsBusy(messages, localMessages.data, sessionStatus, store.session),
@@ -1112,7 +1060,10 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     reconnectStream,
     reloadHistory,
     session: store.session,
-    sessionCost: store.sessionCost,
+    sessionCost: messages.reduce(
+      (total, m) => (m.role === "assistant" ? total + m.cost : total),
+      0
+    ),
     sessionStatus,
     streamError,
     textByPart,

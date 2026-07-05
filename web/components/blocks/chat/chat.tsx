@@ -1252,7 +1252,7 @@ function TimelineRowView({
         <div className="text-muted-foreground text-sm" key={row.key}>
           <span className="inline-flex items-center gap-2">
             <Spinner className="size-3.5" />
-            <span className="animate-pulse">Thinking…</span>
+            <span className="animate-pulse">Thinking...</span>
           </span>
         </div>
       )

@@ -119,7 +119,7 @@ function trimDescription(summary: string) {
     return summary
   }
 
-  return summary.slice(0, descriptionLimit - 1).trimEnd() + "…"
+  return summary.slice(0, descriptionLimit - 1).trimEnd() + "..."
 }
 
 function escapeXML(value: string) {

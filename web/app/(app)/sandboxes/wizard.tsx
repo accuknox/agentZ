@@ -61,7 +61,7 @@ import { createSandboxFormAction, updateSandboxFormAction } from "@/data/sandbox
 import * as z from "zod"
 import { sandboxAllowedHostSchema, sandboxNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { getMcpConnection, type McpConnectionSummary } from "@/lib/gateway/client"
+import { getMcpConnection, type McpConnectionSummary, type SecretHost } from "@/lib/gateway/client"
 import { zMcpConnectionName } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { PackageSearch } from "./package-search"
@@ -121,6 +121,7 @@ type SandboxWizardProps = {
   initialPackages?: string[]
   mcpConnections: McpConnectionSummary[]
   mode: SandboxWizardMode
+  secretHostSuggestions?: Promise<SecretHost[]>
 }
 
 type PackageStepProps = {
@@ -138,6 +139,7 @@ type AllowedHostsStepProps = {
   mcpConnectionRefs: SelectedMcpConnectionRef[]
   packages: string[]
   mode: SandboxWizardMode
+  secretHostSuggestions?: Promise<SecretHost[]>
   onAllowedHostsChangeAction: (data: AllowedHostsDraft) => void
   onPrev: () => void
 }
@@ -813,6 +815,7 @@ function AllowedHostsStep({
   mcpConnectionRefs,
   packages,
   mode,
+  secretHostSuggestions,
   onAllowedHostsChangeAction,
   onPrev,
 }: AllowedHostsStepProps) {
@@ -877,6 +880,13 @@ function AllowedHostsStep({
     const nextHosts = Array.from(new Set([...hosts, parsed.data])).sort()
     setAllowedHostsState(nextHosts, "")
     setDraft("")
+    setDraftError(undefined)
+    form.clearErrors("allowedHosts")
+  }
+
+  function addSuggestedHost(host: SecretHost) {
+    const nextHosts = Array.from(new Set([...hosts, host])).sort()
+    setAllowedHostsState(nextHosts, draft)
     setDraftError(undefined)
     form.clearErrors("allowedHosts")
   }
@@ -966,6 +976,15 @@ function AllowedHostsStep({
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
+            {secretHostSuggestions ? (
+              <React.Suspense fallback={<AllowedHostSuggestionsLoading />}>
+                <AllowedHostSuggestions
+                  hosts={hosts}
+                  secretHostSuggestions={secretHostSuggestions}
+                  onSuggestionAction={addSuggestedHost}
+                />
+              </React.Suspense>
+            ) : null}
           </Field>
           {hosts.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -1023,6 +1042,50 @@ function AllowedHostsStep({
   )
 }
 
+function AllowedHostSuggestionsLoading() {
+  return (
+    <div className="text-muted-foreground flex items-center gap-2 pt-1 text-sm" aria-live="polite">
+      <Spinner />
+      <span>Loading host suggestions...</span>
+    </div>
+  )
+}
+
+function AllowedHostSuggestions({
+  hosts,
+  secretHostSuggestions,
+  onSuggestionAction,
+}: {
+  hosts: string[]
+  secretHostSuggestions: Promise<SecretHost[]>
+  onSuggestionAction: (host: SecretHost) => void
+}) {
+  const allowed = new Set(hosts)
+  const suggestions = React.use(secretHostSuggestions).filter((host) => !allowed.has(host))
+
+  if (suggestions.length === 0) {
+    return null
+  }
+
+  return (
+    <div
+      className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 pt-1"
+      aria-label="Secret host suggestions"
+    >
+      {suggestions.map((host) => (
+        <button
+          key={host}
+          type="button"
+          className="text-muted-foreground hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 max-w-full rounded-sm text-left text-sm underline underline-offset-4 transition-[color,box-shadow] outline-none focus-visible:ring-3"
+          onClick={() => onSuggestionAction(host)}
+        >
+          <span className="block truncate">{host}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function StepActions({ children }: { children: React.ReactNode }) {
   return <div className="mt-auto flex flex-wrap justify-end gap-3 pt-4 pb-2">{children}</div>
 }
@@ -1034,6 +1097,7 @@ export function SandboxWizard({
   initialPackages = [],
   mcpConnections,
   mode,
+  secretHostSuggestions,
 }: SandboxWizardProps) {
   const [direction, setDirection] = useState(1)
   const pendingNavigationRef = useRef<NavigationRequest | undefined>(undefined)
@@ -1164,6 +1228,7 @@ export function SandboxWizard({
                   mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
                   packages={data.packages ?? initialPackages}
                   mode={mode}
+                  secretHostSuggestions={secretHostSuggestions}
                   onAllowedHostsChangeAction={(nextData) => {
                     stepper.metadata.set("allowedHosts", nextData)
                   }}

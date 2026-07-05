@@ -26,7 +26,7 @@ export type AgentWorkingIndicatorProps = {
 }
 
 /**
- * Shows a shimmer "Working…" text while the agent is busy.
+ * Shows a shimmer "Working..." text while the agent is busy.
  *
  * Render-time setState avoids cascading renders from useEffect.
  * The 260ms hide delay prevents flicker when the agent finishes.
@@ -58,7 +58,7 @@ export function AgentWorkingIndicator({
       }}
     >
       <WorkingEmblem />
-      <Shimmer>Working…</Shimmer>
+      <Shimmer>Working...</Shimmer>
     </div>
   )
 }

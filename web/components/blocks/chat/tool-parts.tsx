@@ -166,7 +166,7 @@ function capitalize(value: string) {
 function shortLabel(value: string | undefined, max = 56) {
   if (!value) return undefined
   if (value.length <= max) return value
-  return `${value.slice(0, max - 1)}…`
+  return `${value.slice(0, max - 1)}...`
 }
 
 function toolStateTone(status: ToolPart["state"]["status"]): ToolTone {

@@ -1,8 +1,9 @@
 "use client"
 
+import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronsUpDown, LogOut, Monitor, KeyRound, User2 } from "lucide-react"
+import { ChevronsUpDown, LogOut, Monitor, KeyRound, SlidersHorizontal, User2 } from "lucide-react"
 import { useState } from "react"
 import { authClient } from "@/lib/auth-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -120,6 +121,12 @@ export function NavUser({
                 <Link href="/settings/api-keys">
                   <KeyRound />
                   API Keys
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={"/settings/preferences" as Route}>
+                  <SlidersHorizontal />
+                  Preferences
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>

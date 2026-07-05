@@ -358,11 +358,18 @@ function buildAuth() {
 }
 
 export type Auth = ReturnType<typeof buildAuth>
-export const auth = buildAuth()
+let authInstance: Auth | undefined
+
+export const auth: Auth = new Proxy({} as Auth, {
+  get(_, prop) {
+    return Reflect.get(getAuth(), prop)
+  },
+})
 
 /**
  * getAuth returns the shared Better Auth instance.
  */
 export function getAuth(): Auth {
-  return auth
+  authInstance ??= buildAuth()
+  return authInstance
 }

@@ -131,17 +131,9 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns string, agtNa
 
 	addHosts := make([]string, 0, len(secretHosts))
 	for _, host := range secretHosts {
-		if _, err := netip.ParseAddr(host); err == nil {
-			return newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "hosts",
-					Message: fmt.Sprintf("host %q cannot be added to sandbox allowed hosts", host),
-				},
-			)
+		if addr, err := netip.ParseAddr(host); err == nil {
+			addHosts = append(addHosts, netip.PrefixFrom(addr, addr.BitLen()).String())
+			continue
 		}
 
 		parsed, err := sandboxutil.ParseHost(host)

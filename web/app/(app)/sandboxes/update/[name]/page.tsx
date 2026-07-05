@@ -5,9 +5,13 @@ import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { SandboxWizard } from "../../wizard"
 
-export async function generateMetadata({
-  params,
-}: PageProps<"/sandboxes/update/[name]">): Promise<Metadata> {
+type UpdateSandboxPageProps = {
+  params: Promise<{
+    name: string
+  }>
+}
+
+export async function generateMetadata({ params }: UpdateSandboxPageProps): Promise<Metadata> {
   const { name } = await params
 
   return {
@@ -15,7 +19,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function UpdateSandboxPage({ params }: PageProps<"/sandboxes/update/[name]">) {
+export default async function UpdateSandboxPage({ params }: UpdateSandboxPageProps) {
   return (
     <Suspense fallback={<UpdateSandboxSkeleton />}>
       {params.then(({ name }) => (

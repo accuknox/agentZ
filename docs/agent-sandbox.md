@@ -30,6 +30,7 @@ graph TB
             DNS[kube-dns<br/>Port 53]
             AH[Allowed Hosts]
             TE[Telemetry Endpoint]
+            GW[MCP Gateway]
             PKG[Package Downloads]
         end
     end
@@ -39,6 +40,7 @@ graph TB
     CNP --> DNS
     CNP --> AH
     CNP --> TE
+    CNP --> GW
     CNP --> PKG
 
     CNP -.->|Denies| Blocked
@@ -59,7 +61,9 @@ policy that controls all outbound traffic. The policy permits:
    - CIDR ranges (e.g., `10.0.0.0/24`, `2001:db8::/32`)
 3. **Telemetry Endpoint** - If observability is enabled, the agent can reach
    the configured OTLP trace endpoint.
-4. **Secret Injection Proxy** - If secret injection is enabled, the agent can
+4. **MCP Gateway** - If the Sandbox enables MCP connections, the agent can
+   reach the namespace-local MCP Gateway.
+5. **Secret Injection Proxy** - If secret injection is enabled, the agent can
    communicate with the sidecar proxy on port 4096.
 
 All other egress traffic is denied by the Cilium enforcement layer.

@@ -80,6 +80,7 @@ var (
 	agentImage                                       string
 	controllerImage                                  string
 	gatewayURL                                       string
+	agentgatewayTraceEndpoint                        string
 	nixStorePVC                                      string
 	agentInitImage                                   string
 	openBaoAddr                                      string
@@ -279,6 +280,14 @@ var managerCmd = &cli.Command{
 			Usage:       "Gateway base URL exposed to Agent workflow tools",
 			Value:       "http://localhost:8090",
 			Destination: &gatewayURL,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "agentgateway-trace-endpoint",
+			Usage:       "OTLP/gRPC endpoint used by agentgateway for MCP traces",
+			Destination: &agentgatewayTraceEndpoint,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -685,6 +694,9 @@ var managerCmd = &cli.Command{
 		if tenantSinjectorClusterIssuerName == "" {
 			return fmt.Errorf("tenant sinjector clusterissuer name is required")
 		}
+		if agentgatewayTraceEndpoint == "" {
+			return fmt.Errorf("agentgateway trace endpoint is required")
+		}
 
 		tenantPVCSize, err := resource.ParseQuantity(tenantNixStoreSize)
 		if err != nil {
@@ -745,9 +757,10 @@ var managerCmd = &cli.Command{
 		}
 
 		sandboxReconciler := &sandboxcontroller.Reconciler{
-			Client:       mgr.GetClient(),
-			Scheme:       mgr.GetScheme(),
-			AgentGateway: agClient,
+			Client:                    mgr.GetClient(),
+			Scheme:                    mgr.GetScheme(),
+			AgentGateway:              agClient,
+			AgentgatewayTraceEndpoint: agentgatewayTraceEndpoint,
 		}
 		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Sandbox")

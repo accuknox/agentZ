@@ -453,7 +453,11 @@ function RunActions({
 
   return (
     <>
-      <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="flex justify-end"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8">

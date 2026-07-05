@@ -783,6 +783,20 @@ func workflowRunReason(run *agentzv1alpha1.WorkflowRun) string {
 		return ""
 	}
 
+	if run.Status.Phase.Terminal() {
+		cond := apimeta.FindStatusCondition(
+			run.Status.Conditions,
+			agentzv1alpha1.WorkflowRunConditionReady,
+		)
+		if cond != nil && cond.Message != "" {
+			return cond.Message
+		}
+		if run.Status.Message != "" {
+			return run.Status.Message
+		}
+		return string(run.Status.Phase)
+	}
+
 	for _, node := range run.Status.Nodes {
 		switch node.Phase {
 		case agentzv1alpha1.WorkflowRunNodePhaseFailed:
@@ -796,17 +810,6 @@ func workflowRunReason(run *agentzv1alpha1.WorkflowRun) string {
 			}
 			return fmt.Sprintf("node %s running", node.Name)
 		}
-	}
-
-	if run.Status.Phase.Terminal() {
-		cond := apimeta.FindStatusCondition(
-			run.Status.Conditions,
-			agentzv1alpha1.WorkflowRunConditionReady,
-		)
-		if cond != nil && cond.Message != "" {
-			return cond.Message
-		}
-		return string(run.Status.Phase)
 	}
 
 	cond := apimeta.FindStatusCondition(

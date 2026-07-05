@@ -128,7 +128,7 @@ manager:
     gatewayURL: http://gateway:8090
 
     # OTLP/gRPC endpoint used by agentgateway for MCP traces.
-    agentgatewayTraceEndpoint: observer:4317
+    agentgatewayTraceEndpoint: observer.agentz-system.svc.cluster.local:4317
 
     # Name of the tenant-shared PVC used by agent package jobs.
     nixStorePVC: ""
@@ -378,7 +378,7 @@ observer:
   nameOverride: ""
 
   # Override the full generated resource name.
-  fullnameOverride: ""
+  fullnameOverride: observer
 
   # Number of observer replicas.
   replicaCount: 1

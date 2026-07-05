@@ -48,6 +48,7 @@ spec:
             - --workflowrun-orphan-retention={{ .Values.config.workflowRunOrphanRetention }}
             - --controller-image={{ .Values.config.controllerImage }}
             - --gateway-url={{ .Values.config.gatewayURL }}
+            - --agentgateway-trace-endpoint={{ required "manager.config.agentgatewayTraceEndpoint is required" .Values.config.agentgatewayTraceEndpoint }}
             - --openbao-addr={{ .Values.config.openBaoAddr }}
             - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}
             - --openbao-k8s-auth-mount-path={{ .Values.config.openBaoK8sAuthMountPath }}

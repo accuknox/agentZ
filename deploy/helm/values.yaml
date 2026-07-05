@@ -127,6 +127,9 @@ manager:
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: http://gateway:8090
 
+    # OTLP/gRPC endpoint used by agentgateway for MCP traces.
+    agentgatewayTraceEndpoint: observer.agentz-system.svc.cluster.local:4317
+
     # Name of the tenant-shared PVC used by agent package jobs.
     nixStorePVC: ""
 
@@ -326,7 +329,7 @@ gateway:
     # Default agent image used by the gateway when creating Agent resources.
     agentImage: ""
 
-    # Required OTLP/gRPC endpoint exposed to agents for trace export.
+    # Required OTLP/gRPC endpoint exposed to agents for opencode trace export.
     # Example: `observer:4317`
     agentTraceEndpoint: ""
 
@@ -375,7 +378,7 @@ observer:
   nameOverride: ""
 
   # Override the full generated resource name.
-  fullnameOverride: ""
+  fullnameOverride: observer
 
   # Number of observer replicas.
   replicaCount: 1

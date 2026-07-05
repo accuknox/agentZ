@@ -1,6 +1,7 @@
 package observer
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/accuknox/agentz/internal/mcp"
 	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -31,6 +31,12 @@ const (
 	attrSessionID             = "session.id"
 	attrServiceNamespace      = "service.namespace"
 	attrSpanKind              = "openinference.span.kind"
+	attrMCPMethodName         = "mcp.method.name"
+	attrMCPSessionID          = "mcp.session.id"
+	attrMCPConnectionName     = "mcp.connection.name"
+	attrMCPDefaultTarget      = "mcp.target"
+	attrMCPToolName           = "mcp.tool.name"
+	attrGenAIToolName         = "gen_ai.tool.name"
 
 	attrInputValue     = "input.value"
 	attrInputMimeType  = "input.mime_type"
@@ -53,6 +59,7 @@ const (
 
 	attrErrorType    = "error.type"
 	attrErrorMessage = "error.message"
+	attrError        = "error"
 
 	null        = "null"
 	statusOK    = "OK"
@@ -73,6 +80,10 @@ type traceReceiver struct {
 	res   *resolver
 	out   chan<- event
 	stats *stats
+}
+
+type mcpToolResult struct {
+	IsError bool `json:"isError"`
 }
 
 func runOTLPTraceReceiver(ctx context.Context, cfg Config, res *resolver, out chan<- event, s *stats) error {
@@ -159,30 +170,19 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 		return traceSpanEvent{}, err
 	}
 
-	sessionID, err := requiredStringAttr(spanAttrs, resourceAttrs, attrSessionID, errTraceSessionIDMissing)
-	if err != nil {
-		return traceSpanEvent{}, err
+	sessionID := cmp.Or(
+		strings.TrimSpace(firstStringAttr(spanAttrs, resourceAttrs, attrSessionID)),
+		strings.TrimSpace(firstStringAttr(spanAttrs, resourceAttrs, attrMCPSessionID)),
+	)
+	if sessionID == "" {
+		return traceSpanEvent{}, errTraceSessionIDMissing
 	}
 
-	tenantNamespace := strings.TrimSpace(firstStringAttr(
-		spanAttrs,
-		resourceAttrs,
-		attrAgentZTenantNamespace,
-	))
-	if tenantNamespace == "" {
-		tenantNamespace = strings.TrimSpace(firstStringAttr(
-			spanAttrs,
-			resourceAttrs,
-			attrK8sNamespaceName,
-		))
-	}
-	if tenantNamespace == "" {
-		tenantNamespace = strings.TrimSpace(firstStringAttr(
-			spanAttrs,
-			resourceAttrs,
-			attrServiceNamespace,
-		))
-	}
+	tenantNamespace := cmp.Or(
+		strings.TrimSpace(firstStringAttr(spanAttrs, resourceAttrs, attrAgentZTenantNamespace)),
+		strings.TrimSpace(firstStringAttr(spanAttrs, resourceAttrs, attrK8sNamespaceName)),
+		strings.TrimSpace(firstStringAttr(spanAttrs, resourceAttrs, attrServiceNamespace)),
+	)
 	if tenantNamespace == "" {
 		return traceSpanEvent{}, errTraceTenantNamespaceMissing
 	}
@@ -193,35 +193,53 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 
 	spanClass, operationName := classifySpan(sp.GetName(), spanAttrs)
 	status := statusCode(sp.GetStatus())
-	errorMessage := firstStringAttr(spanAttrs, resourceAttrs, attrErrorMessage)
-	if errorMessage == "" && sp.GetStatus() != nil {
-		errorMessage = sp.GetStatus().GetMessage()
+	statusMessage := ""
+	if sp.GetStatus() != nil {
+		statusMessage = sp.GetStatus().GetMessage()
 	}
+	errorMessage := cmp.Or(
+		firstStringAttr(spanAttrs, resourceAttrs, attrErrorMessage),
+		statusMessage,
+		firstStringAttr(spanAttrs, resourceAttrs, attrError),
+	)
 
 	model := attrString(spanAttrs, attrLLMModelName)
-	toolName := attrString(spanAttrs, attrToolName)
+	toolName := cmp.Or(
+		attrString(spanAttrs, attrToolName),
+		attrString(spanAttrs, attrGenAIToolName),
+		attrString(spanAttrs, attrMCPToolName),
+	)
 
 	payload, strippedAttrs := extractSpanPayload(spanClass, spanAttrs)
 	resourceJSON := jsonObject(resourceAttrsForStorage(resourceAttrs))
 	spanJSON := jsonObject(strippedAttrs)
 	var mcpToolCall *mcpToolCallEvent
 	if spanClass == spanClassTool && toolName != "" {
-		prefix := mcp.OpenCodeGatewayToolsetName + "_"
-		if rest, ok := strings.CutPrefix(toolName, prefix); ok {
-			connectionName, mcpToolName, ok := strings.Cut(rest, "_")
-			if ok && connectionName != "" && mcpToolName != "" {
-				mcpToolCall = &mcpToolCallEvent{
-					agentName:         agentName,
-					traceID:           cloneBytes(sp.GetTraceId()),
-					spanID:            cloneBytes(sp.GetSpanId()),
-					startTime:         start,
-					endTime:           end,
-					durationNS:        durationNS,
-					mcpConnectionName: connectionName,
-					toolName:          mcpToolName,
-					sessionID:         sessionID,
-					failed:            status == statusError || hasPayloadValue(payload.toolError),
-				}
+		connectionName := cmp.Or(
+			attrString(spanAttrs, attrMCPConnectionName),
+			attrString(spanAttrs, attrMCPDefaultTarget),
+		)
+		mcpToolName := cmp.Or(
+			attrString(spanAttrs, attrMCPToolName),
+			attrString(spanAttrs, attrGenAIToolName),
+		)
+		if connectionName != "" && mcpToolName != "" {
+			failed := status == statusError || hasPayloadValue(payload.toolError)
+			result := mcpToolResult{}
+			if !failed && json.Unmarshal(payload.toolResult, &result) == nil {
+				failed = result.IsError
+			}
+			mcpToolCall = &mcpToolCallEvent{
+				agentName:         agentName,
+				traceID:           cloneBytes(sp.GetTraceId()),
+				spanID:            cloneBytes(sp.GetSpanId()),
+				startTime:         start,
+				endTime:           end,
+				durationNS:        durationNS,
+				mcpConnectionName: connectionName,
+				toolName:          mcpToolName,
+				sessionID:         sessionID,
+				failed:            failed,
 			}
 		}
 	}
@@ -321,6 +339,12 @@ func classifySpan(name string, attrs map[string]*commonpb.AnyValue) (string, str
 	case name == "opencode.llm":
 		return spanClassLLM, operationChat
 	case strings.HasPrefix(name, "opencode.tool."):
+		return spanClassTool, operationExecuteTool
+	case attrString(attrs, attrMCPMethodName) == "tools/call":
+		return spanClassTool, operationExecuteTool
+	case attrString(attrs, attrMCPToolName) != "":
+		return spanClassTool, operationExecuteTool
+	case attrString(attrs, attrGenAIToolName) != "":
 		return spanClassTool, operationExecuteTool
 	default:
 		return "", ""

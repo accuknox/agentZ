@@ -99,6 +99,7 @@ run-manager:
 		--tenant-nix-store-size=5Gi \
 		--tenant-nix-store-access-mode=ReadWriteOnce \
 		--tenant-sinjector-clusterissuer-name=selfsigned \
+		--agentgateway-trace-endpoint=172.18.0.1:4317 \
 		--gateway-url=http://172.18.0.1:8090
 
 .PHONY: run-observer

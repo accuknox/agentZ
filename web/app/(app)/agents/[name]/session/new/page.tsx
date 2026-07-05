@@ -4,9 +4,23 @@ import { headers } from "next/headers"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { getAuth } from "@/lib/auth"
 
+type NewSessionPageParams = Promise<{
+  name: string
+}>
+
+type NewSessionSearchParams = Promise<{
+  draft?: string | string[]
+  [key: string]: string | string[] | undefined
+}>
+
+type NewSessionPageProps = {
+  params: NewSessionPageParams
+  searchParams: NewSessionSearchParams
+}
+
 export async function generateMetadata({
   params,
-}: PageProps<"/agents/[name]/session/new">): Promise<Metadata> {
+}: Pick<NewSessionPageProps, "params">): Promise<Metadata> {
   const { name } = await params
 
   return {
@@ -14,10 +28,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function ChatPage({
-  params,
-  searchParams,
-}: PageProps<"/agents/[name]/session/new">) {
+export default async function ChatPage({ params, searchParams }: NewSessionPageProps) {
   const requestHeaders = await headers()
   const auth = getAuth()
   const [routeParams, resolvedSearchParams, session] = await Promise.all([

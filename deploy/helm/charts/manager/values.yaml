@@ -59,6 +59,7 @@ config:
   agentImage: ""
   agentInitImage: ""
   gatewayURL: http://gateway.agentz-system.svc.cluster.local:8090
+  agentgatewayTraceEndpoint: observer.agentz-system.svc.cluster.local:4317
   nixStorePVC: ""
   tenantNixStoreSize: 5Gi
   tenantNixStoreAccessModes:

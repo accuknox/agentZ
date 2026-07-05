@@ -67,6 +67,7 @@ spec:
         - --workflowrun-orphan-retention=168h
         - --controller-image=controller:latest
         - --gateway-url=http://gateway.agentz-system.svc.cluster.local:8090
+        - --agentgateway-trace-endpoint=observer.agentz-system.svc.cluster.local:4317
         - --manager-gateway-token-path=/var/run/secrets/agentz/gateway/token
         - --manager-gateway-token-audience=agentz-gateway
         - --manager-service-account-name=controller-manager

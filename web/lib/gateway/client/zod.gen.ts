@@ -113,10 +113,19 @@ export const zFieldError = z.object({
 
 export const zWorkflowRunTerminalPhase = z.enum(["Succeeded", "Failed"])
 
+export const zWorkflowRunNodePhase = z.enum(["Disabled", "Running", "Succeeded", "Failed"])
+
+export const zWorkflowRunNodePatchPhase = z.enum(["Running", "Succeeded", "Failed"])
+
 export const zWorkflowRunStatus = z.enum(["Pending", "Running", "Succeeded", "Failed", "Unacked"])
 
 export const zPatchWorkflowRunStatusRequest = z.object({
   phase: zWorkflowRunTerminalPhase,
+  message: z.string().max(4096).optional(),
+})
+
+export const zPatchWorkflowRunNodeStatusRequest = z.object({
+  phase: zWorkflowRunNodePatchPhase,
   message: z.string().max(4096).optional(),
 })
 
@@ -169,6 +178,14 @@ export const zWorkflowRunSummary = z.object({
 export const zListWorkflowRunsResponse = z.object({
   workflow_runs: z.array(zWorkflowRunSummary),
   next_page_token: z.string(),
+})
+
+export const zWorkflowRunNodeStatus = z.object({
+  name: zWorkflowNodeName,
+  phase: zWorkflowRunNodePhase,
+  message: z.string(),
+  started_at: z.iso.datetime().optional(),
+  completed_at: z.iso.datetime().optional(),
 })
 
 export const zWorkflowWebhookTrigger = z.object({
@@ -595,10 +612,6 @@ export const zWatchWorkflowRunsRequest = z.object({
   run_names: z.array(zWorkflowRunName).optional(),
 })
 
-export const zWatchWorkflowRunsEvent = z.object({
-  workflow_runs: z.array(zWorkflowRunSummary),
-})
-
 export const zJsonValue = z.union([
   z.boolean(),
   z.number(),
@@ -658,6 +671,7 @@ export const zWorkflowRunDetail = z.object({
       error: "Invalid value: Expected int64 to be <= 9223372036854775807",
     })
     .optional(),
+  node_statuses: z.array(zWorkflowRunNodeStatus),
 })
 
 export const zCreateWorkflowScheduleRequest = z.object({
@@ -698,6 +712,10 @@ export const zSpanPayload = z.object({
 export const zSpanDetailResponse = z.object({
   span: zSpanDetail,
   payload: zSpanPayload,
+})
+
+export const zWatchWorkflowRunsEvent = z.object({
+  workflow_runs: z.array(zWorkflowRunDetail),
 })
 
 export const zJsonObject = z.record(z.string(), zJsonValue)
@@ -1576,3 +1594,17 @@ export const zPatchWorkflowRunStatusPath = z.object({
  * WorkflowRun status updated.
  */
 export const zPatchWorkflowRunStatusResponse = z.void()
+
+export const zPatchWorkflowRunNodeStatusBody = zPatchWorkflowRunNodeStatusRequest
+
+export const zPatchWorkflowRunNodeStatusPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  runName: zWorkflowRunName,
+  nodeName: zWorkflowNodeName,
+})
+
+/**
+ * WorkflowRun node status updated.
+ */
+export const zPatchWorkflowRunNodeStatusResponse = z.void()

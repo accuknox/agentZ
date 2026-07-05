@@ -537,9 +537,35 @@ func (r *Reconciler) syncTerminalStatus(ctx context.Context, run *agentzv1alpha1
 }
 
 func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
+	if r.GatewayClient == nil {
+		return fmt.Errorf("gateway client is not configured")
+	}
+
+	resp, err := r.GatewayClient.GetWorkflowWithResponse(
+		ctx,
+		run.Spec.AgentName,
+		run.Spec.WorkflowName,
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
+	)
+	if err != nil {
+		return fmt.Errorf("get workflow: %w", err)
+	}
+	if resp.JSON200 == nil {
+		return fmt.Errorf("get workflow returned status %d", resp.StatusCode())
+	}
+
+	nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(resp.JSON200.Nodes))
+	for _, node := range resp.JSON200.Nodes {
+		nodes = append(nodes, agentzv1alpha1.WorkflowRunNodeStatus{
+			Name:  node.Name,
+			Phase: agentzv1alpha1.WorkflowRunNodePhaseDisabled,
+		})
+	}
+
 	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
 		status.Phase = agentzv1alpha1.WorkflowRunPhasePending
 		status.ObservedGeneration = run.Generation
+		status.Nodes = nodes
 		r.setActiveConditions(
 			status,
 			run.Generation,

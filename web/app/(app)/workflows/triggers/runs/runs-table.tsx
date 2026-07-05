@@ -22,6 +22,7 @@ import {
   CircleAlert,
   CircleDashed,
   ExternalLink,
+  GitBranch,
   MoreHorizontal,
   Trash2,
   XCircle,
@@ -153,7 +154,16 @@ export function RunsTable({
               continue
             }
 
-            byName.set(run.name, run)
+            byName.set(run.name, {
+              name: run.name,
+              workflow_name: run.workflow_name,
+              trigger_type: run.trigger_type,
+              schedule_name: run.schedule_name,
+              status: run.status,
+              reason: run.reason,
+              created_at: run.created_at,
+              duration_seconds: run.duration_seconds,
+            })
           }
 
           return rows.map((row) => byName.get(row.name) ?? row)
@@ -185,6 +195,7 @@ export function RunsTable({
     })
   )
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const router = useRouter()
   const rows = query.data ?? workflowRuns
   const columns = React.useMemo<ColumnDef<WorkflowRunSummary>[]>(
     () =>
@@ -233,18 +244,38 @@ export function RunsTable({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id] ?? ""}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const graphHref = runGraphHref(agentName, workflowName, row.original.name)
+
+                return (
+                  <TableRow
+                    key={row.id}
+                    className="cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      router.push(graphHref)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") {
+                        return
+                      }
+
+                      event.preventDefault()
+                      router.push(graphHref)
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id] ?? ""}`}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
@@ -422,7 +453,11 @@ function RunActions({
 
   return (
     <>
-      <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="flex justify-end"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8">
@@ -437,6 +472,12 @@ function RunActions({
                 detail={detailQuery.data}
                 isPending={detailQuery.isPending}
               />
+              <DropdownMenuItem asChild>
+                <Link href={runGraphHref(agentName, workflowName, item.name)}>
+                  <GitBranch />
+                  View graph
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
                 <Trash2 />
                 Delete
@@ -458,6 +499,14 @@ function RunActions({
       />
     </>
   )
+}
+
+function runGraphHref(agentName: string, workflowName: string, runName: string): Route {
+  const params = new URLSearchParams()
+  params.set("agent_name", agentName)
+  params.set("workflow_name", workflowName)
+  params.set("run_name", runName)
+  return `/workflows/triggers/runs/graph?${params.toString()}` as Route
 }
 
 function OpenSessionMenuItem({

@@ -1,6 +1,12 @@
 import { cacheLife, cacheTag } from "next/cache"
-import { listWorkflowRuns } from "@/lib/gateway/client"
-import type { Error, ListWorkflowRunsData, WorkflowRunSummary } from "@/lib/gateway/client"
+import { getWorkflowRun, listWorkflowRuns } from "@/lib/gateway/client"
+import type {
+  Error,
+  GetWorkflowRunData,
+  ListWorkflowRunsData,
+  WorkflowRunDetail,
+  WorkflowRunSummary,
+} from "@/lib/gateway/client"
 import { workflowRunsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
@@ -50,6 +56,46 @@ export async function listWorkflowRunsCachedQuery(
     workflowRuns,
     nextPageToken,
     hasNextPage: nextPageToken.length > 0,
+    error: undefined,
+  }
+}
+
+export type GetWorkflowRunQueryResult =
+  | {
+      workflowRun: WorkflowRunDetail
+      error: undefined
+    }
+  | {
+      workflowRun?: undefined
+      error: Error
+    }
+
+export async function getWorkflowRunCachedQuery(
+  agentName: GetWorkflowRunData["path"]["agentName"],
+  workflowName: GetWorkflowRunData["path"]["workflowName"],
+  runName: GetWorkflowRunData["path"]["runName"]
+): Promise<GetWorkflowRunQueryResult> {
+  "use cache: private"
+
+  cacheLife("seconds")
+  cacheTag(workflowRunsTag)
+
+  const { data, error } = await getWorkflowRun({
+    client: getGatewayServerClient(),
+    path: {
+      agentName,
+      workflowName,
+      runName,
+    },
+  })
+  if (error) {
+    return {
+      error,
+    }
+  }
+
+  return {
+    workflowRun: data,
     error: undefined,
   }
 }

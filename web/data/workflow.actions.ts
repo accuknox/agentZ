@@ -7,10 +7,12 @@ import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queri
 import { listWorkflowWebhookTriggersCachedQuery } from "@/data/workflow-trigger.queries"
 import {
   workflowFiltersFormSchema,
+  workflowRunGraphFiltersFormSchema,
   workflowRunFiltersFormSchema,
   workflowTriggerFiltersFormSchema,
 } from "@/data/workflow.schema"
 import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
+import { listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
 
 export async function selectWorkflowFiltersAction(formData: FormData) {
   const agentsResult = await listAgentsCachedQuery()
@@ -148,6 +150,70 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
   )
 }
 
+export async function selectWorkflowRunGraphFiltersAction(formData: FormData) {
+  const agentsResult = await listAgentsCachedQuery()
+  if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
+    redirect("/workflows/triggers/runs/graph")
+  }
+
+  const parsed = workflowRunGraphFiltersFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
+    redirect("/workflows/triggers/runs/graph")
+  }
+
+  const agent =
+    agentsResult.agents.find((currentAgent) => currentAgent.name === parsed.data.agent_name) ??
+    agentsResult.agents[0]
+  if (!agent) {
+    redirect("/workflows/triggers/runs/graph")
+  }
+
+  const workflowsResult = await listWorkflowSummariesCachedQuery(agent.name)
+  if (workflowsResult.error || !workflowsResult.summaries) {
+    redirect(workflowRunGraphPath({ agentName: agent.name }))
+  }
+
+  const workflow =
+    workflowsResult.summaries.find(
+      (currentWorkflow) => currentWorkflow.workflow_name === parsed.data.workflow_name
+    ) ?? workflowsResult.summaries[0]
+  if (!workflow) {
+    redirect(workflowRunGraphPath({ agentName: agent.name }))
+  }
+
+  const runsResult = await listWorkflowRunsCachedQuery(agent.name, workflow.workflow_name, {
+    limit: 200,
+  })
+  if (runsResult.error || !runsResult.workflowRuns) {
+    redirect(
+      workflowRunGraphPath({
+        agentName: agent.name,
+        workflowName: workflow.workflow_name,
+      })
+    )
+  }
+
+  const run =
+    runsResult.workflowRuns.find((currentRun) => currentRun.name === parsed.data.run_name) ??
+    runsResult.workflowRuns[0]
+  if (!run) {
+    redirect(
+      workflowRunGraphPath({
+        agentName: agent.name,
+        workflowName: workflow.workflow_name,
+      })
+    )
+  }
+
+  redirect(
+    workflowRunGraphPath({
+      agentName: agent.name,
+      workflowName: workflow.workflow_name,
+      runName: run.name,
+    })
+  )
+}
+
 function workflowsPath({
   agentName,
   workflowName,
@@ -211,4 +277,30 @@ function workflowRunsPath({
   }
 
   return `/workflows/triggers/runs?${params.toString()}` as Route
+}
+
+function workflowRunGraphPath({
+  agentName,
+  workflowName,
+  runName,
+}: {
+  agentName?: string
+  workflowName?: string
+  runName?: string
+}): Route {
+  const params = new URLSearchParams()
+  if (agentName) {
+    params.set("agent_name", agentName)
+  }
+  if (workflowName) {
+    params.set("workflow_name", workflowName)
+  }
+  if (runName) {
+    params.set("run_name", runName)
+  }
+
+  const query = params.toString()
+  return query === ""
+    ? "/workflows/triggers/runs/graph"
+    : (`/workflows/triggers/runs/graph?${query}` as Route)
 }

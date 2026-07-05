@@ -45,6 +45,35 @@ const Temporary = ({
   )
 }
 
+const Static = ({ id, label, source, target, markerEnd, style }: EdgeProps) => {
+  const sourceNode = useInternalNode(source)
+  const targetNode = useInternalNode(target)
+
+  if (!(sourceNode && targetNode)) {
+    return null
+  }
+
+  const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(sourceNode, targetNode)
+
+  const [edgePath] = getBezierPath({
+    sourcePosition: sourcePos,
+    sourceX: sx,
+    sourceY: sy,
+    targetPosition: targetPos,
+    targetX: tx,
+    targetY: ty,
+  })
+  const labelX = (sx + tx) / 2
+  const labelY = (sy + ty) / 2
+
+  return (
+    <>
+      <BaseEdge id={id} markerEnd={markerEnd} path={edgePath} style={style} />
+      <EdgeLabel label={label} x={labelX} y={labelY} />
+    </>
+  )
+}
+
 const getHandleCoordsByPosition = (node: InternalNode<Node>, handlePosition: Position) => {
   // Choose the handle type based on position - Left is for target, Right is for source
   const handleType = handlePosition === Position.Left ? "target" : "source"
@@ -160,5 +189,6 @@ function EdgeLabel({ label, x, y }: { label: ReactNode; x: number; y: number }) 
 
 export const Edge = {
   Animated,
+  Static,
   Temporary,
 }

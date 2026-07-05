@@ -24,6 +24,7 @@ const labels = new Map<string, string>([
   ["agents", "Agents"],
   ["api-keys", "API Keys"],
   ["file", "File Telemetry"],
+  ["graph", "Graph"],
   ["graphs", "Graphs"],
   ["lens", "Lens"],
   ["mcp", "MCP"],
@@ -67,6 +68,7 @@ const pageRoutes = new Set([
   "/workflows/graphs",
   "/workflows/triggers",
   "/workflows/triggers/runs",
+  "/workflows/triggers/runs/graph",
 ])
 
 export function PageBreadcrumb(): React.JSX.Element {

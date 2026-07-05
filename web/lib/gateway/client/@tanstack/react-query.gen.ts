@@ -40,6 +40,7 @@ import {
   listWorkflowSummaries,
   listWorkflowWebhookTriggers,
   type Options,
+  patchWorkflowRunNodeStatus,
   patchWorkflowRunStatus,
   putSecret,
   updateAgent,
@@ -152,6 +153,9 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersError,
   ListWorkflowWebhookTriggersResponse2,
+  PatchWorkflowRunNodeStatusData,
+  PatchWorkflowRunNodeStatusError,
+  PatchWorkflowRunNodeStatusResponse,
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusError,
   PatchWorkflowRunStatusResponse,
@@ -1273,6 +1277,36 @@ export const patchWorkflowRunStatusMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await patchWorkflowRunStatus({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Set a WorkflowRun node status.
+ *
+ * Records execution progress for one WorkflowRun node. The gateway validates node membership and basic state transitions before patching the WorkflowRun status in the configured namespace.
+ *
+ */
+export const patchWorkflowRunNodeStatusMutation = (
+  options?: Partial<Options<PatchWorkflowRunNodeStatusData>>
+): UseMutationOptions<
+  PatchWorkflowRunNodeStatusResponse,
+  PatchWorkflowRunNodeStatusError,
+  Options<PatchWorkflowRunNodeStatusData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PatchWorkflowRunNodeStatusResponse,
+    PatchWorkflowRunNodeStatusError,
+    Options<PatchWorkflowRunNodeStatusData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await patchWorkflowRunNodeStatus({
         ...options,
         ...fnOptions,
         throwOnError: true,

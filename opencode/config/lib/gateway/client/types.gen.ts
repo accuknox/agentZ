@@ -85,10 +85,19 @@ export type FieldError = {
 
 export type WorkflowRunTerminalPhase = "Succeeded" | "Failed"
 
+export type WorkflowRunNodePhase = "Disabled" | "Running" | "Succeeded" | "Failed"
+
+export type WorkflowRunNodePatchPhase = "Running" | "Succeeded" | "Failed"
+
 export type WorkflowRunStatus = "Pending" | "Running" | "Succeeded" | "Failed" | "Unacked"
 
 export type PatchWorkflowRunStatusRequest = {
   phase: WorkflowRunTerminalPhase
+  message?: string
+}
+
+export type PatchWorkflowRunNodeStatusRequest = {
+  phase: WorkflowRunNodePatchPhase
   message?: string
 }
 
@@ -209,6 +218,15 @@ export type WorkflowRunDetail = {
   started_at?: string
   completed_at?: string
   duration_seconds?: number
+  node_statuses: Array<WorkflowRunNodeStatus>
+}
+
+export type WorkflowRunNodeStatus = {
+  name: WorkflowNodeName
+  phase: WorkflowRunNodePhase
+  message: string
+  started_at?: string
+  completed_at?: string
 }
 
 export type WorkflowWebhookTrigger = {
@@ -563,7 +581,7 @@ export type WatchWorkflowRunsRequest = {
 }
 
 export type WatchWorkflowRunsEvent = {
-  workflow_runs: Array<WorkflowRunSummary>
+  workflow_runs: Array<WorkflowRunDetail>
 }
 
 export type JsonValue =
@@ -2924,3 +2942,61 @@ export type PatchWorkflowRunStatusResponses = {
 
 export type PatchWorkflowRunStatusResponse =
   PatchWorkflowRunStatusResponses[keyof PatchWorkflowRunStatusResponses]
+
+export type PatchWorkflowRunNodeStatusData = {
+  body: PatchWorkflowRunNodeStatusRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Workflow name scoped to an agent.
+     */
+    workflowName: WorkflowName
+    /**
+     * WorkflowRun resource name.
+     */
+    runName: WorkflowRunName
+    /**
+     * Workflow node name.
+     */
+    nodeName: WorkflowNodeName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/nodes/{nodeName}/status"
+}
+
+export type PatchWorkflowRunNodeStatusErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type PatchWorkflowRunNodeStatusError =
+  PatchWorkflowRunNodeStatusErrors[keyof PatchWorkflowRunNodeStatusErrors]
+
+export type PatchWorkflowRunNodeStatusResponses = {
+  /**
+   * WorkflowRun node status updated.
+   */
+  204: void
+}
+
+export type PatchWorkflowRunNodeStatusResponse =
+  PatchWorkflowRunNodeStatusResponses[keyof PatchWorkflowRunNodeStatusResponses]

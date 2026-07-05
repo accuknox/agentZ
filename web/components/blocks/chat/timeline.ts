@@ -33,7 +33,7 @@ export type TimelineRow =
       key: string
       type: "assistant"
     }
-  // "Thinking…" placeholder rendered while the active turn has no content yet.
+  // "Thinking..." placeholder rendered while the active turn has no content yet.
   | { key: string; type: "thinking" }
   // Provider-side retry with a countdown — from SessionStatus.type === "retry".
   | {

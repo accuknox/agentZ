@@ -387,7 +387,7 @@ export function PackageSearch({
             }
           }}
           autoFocus
-          placeholder="Search packages…"
+          placeholder="Search packages..."
           autoComplete="off"
         />
         {query ? (

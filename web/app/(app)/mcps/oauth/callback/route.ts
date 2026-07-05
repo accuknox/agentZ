@@ -1,6 +1,7 @@
 import { revalidateTag } from "next/cache"
 import { cookies } from "next/headers"
 import { agentSecretsTag, mcpsTag, secretsTag } from "@/data/cache"
+import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { createMcpConnection, putSecret } from "@/lib/gateway/client"
 import type { CreateSecretRequest } from "@/lib/gateway/client"
 import {
@@ -127,6 +128,7 @@ export async function GET(request: Request) {
 
       revalidateTag(mcpsTag, { expire: 0 })
     } else {
+      const preferences = await getCurrentUserPreferences()
       const createResult = await putSecret({
         body: {
           type: "oauth",
@@ -148,6 +150,9 @@ export async function GET(request: Request) {
         } satisfies CreateSecretRequest,
         client: getGatewayServerClient(),
         path: { agentName: pending.operation.secret.agentName },
+        query: {
+          update_sandbox: preferences.updateSandbox,
+        },
       })
       if (createResult.error) {
         console.error("oauth secret save failed", {

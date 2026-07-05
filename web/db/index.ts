@@ -1,6 +1,6 @@
 import "dotenv/config"
 import { drizzle } from "drizzle-orm/node-postgres"
-import * as schema from "@/db/auth-schema"
+import * as schema from "@/db/schema"
 import { getEnv } from "@/lib/env"
 
 export { schema }

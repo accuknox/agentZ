@@ -638,6 +638,10 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
     },
   })
   const restoringId = restoreMutation.isPending ? restoreMutation.variables : undefined
+  // Sending must wait for a revert/restore to apply, else the prompt can race
+  // ahead and run against the not-yet-reverted session, appending in place of
+  // replacing the selected turn.
+  const revertPending = isReverting || restoreMutation.isPending
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
@@ -758,7 +762,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                     onRetryHistory={reloadHistory}
                     onRetryStream={reconnectStream}
                     onRevert={handleRevert}
-                    revertDisabled={isBusy || isReverting || restoreMutation.isPending}
+                    revertDisabled={isBusy || revertPending}
                     row={row}
                   />
                 ))}
@@ -767,7 +771,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
               <RevertDock
                 items={reverted}
                 onRestore={restoreMutation.mutate}
-                pending={isReverting || restoreMutation.isPending}
+                pending={revertPending}
                 restoringId={restoringId}
                 summary={session?.summary}
               />
@@ -1056,6 +1060,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                     disabled={
                       blocked ||
                       agentReadiness.isGettingReady ||
+                      revertPending ||
                       (!isBusy && (!selectedModel || !canSubmit))
                     }
                     onStop={isBusy ? () => void abortMessage(directory) : undefined}

@@ -404,6 +404,14 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
         },
       }
 
+    // Redundant with session.status(idle), but a cheap backstop against the UI
+    // hanging at "Working"/"Retry" if that status event is ever missed.
+    case "session.idle":
+      return {
+        ...store,
+        sessionStatus: { ...store.sessionStatus, [event.properties.sessionID]: idleSessionStatus },
+      }
+
     case "todo.updated": {
       // Empty todos means the agent finished; drop the key so the dock unmounts.
       const sessionID = event.properties.sessionID
@@ -811,6 +819,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         case "message.part.delta":
         case "message.part.removed":
         case "session.status":
+        case "session.idle":
         case "session.created":
         case "session.updated":
         case "session.deleted":

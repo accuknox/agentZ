@@ -9,16 +9,7 @@ import { math } from "@streamdown/math"
 import { mermaid } from "@streamdown/mermaid"
 import { BrainIcon, ChevronDownIcon } from "lucide-react"
 import type { ComponentProps, ReactNode } from "react"
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef } from "react"
 import { Streamdown } from "streamdown"
 
 import { Shimmer } from "./shimmer"
@@ -48,7 +39,6 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
   duration?: number
 }
 
-const AUTO_CLOSE_DELAY = 1000
 const MS_IN_S = 1000
 
 export const Reasoning = memo(
@@ -76,14 +66,13 @@ export const Reasoning = memo(
       prop: durationProp,
     })
 
-    const hasEverStreamedRef = useRef(isStreaming)
-    const [hasAutoClosed, setHasAutoClosed] = useState(false)
     const startTimeRef = useRef<number | null>(null)
+    const userClosedRef = useRef(false)
+    const wasStreamingRef = useRef(isStreaming)
 
     // Track when streaming starts and compute duration
     useEffect(() => {
       if (isStreaming) {
-        hasEverStreamedRef.current = true
         if (startTimeRef.current === null) {
           startTimeRef.current = Date.now()
         }
@@ -93,32 +82,26 @@ export const Reasoning = memo(
       }
     }, [isStreaming, setDuration])
 
-    // Auto-open when streaming starts (unless explicitly closed)
     useEffect(() => {
-      if (isStreaming && !isOpen && !isExplicitlyClosed) {
+      if (isStreaming && !wasStreamingRef.current) {
+        userClosedRef.current = false
+      }
+      wasStreamingRef.current = isStreaming
+    }, [isStreaming])
+
+    // Auto-open when streaming starts unless the user closed this block.
+    useEffect(() => {
+      if (isStreaming && !isOpen && !isExplicitlyClosed && !userClosedRef.current) {
         setIsOpen(true)
       }
     }, [isStreaming, isOpen, setIsOpen, isExplicitlyClosed])
 
-    // Auto-close when streaming ends (once only, and only if it ever streamed)
-    useEffect(() => {
-      if (hasEverStreamedRef.current && !isStreaming && isOpen && !hasAutoClosed) {
-        const timer = setTimeout(() => {
-          setIsOpen(false)
-          setHasAutoClosed(true)
-        }, AUTO_CLOSE_DELAY)
-
-        return () => clearTimeout(timer)
-      }
-
-      return undefined
-    }, [isStreaming, isOpen, setIsOpen, hasAutoClosed])
-
     const handleOpenChange = useCallback(
       (newOpen: boolean) => {
+        userClosedRef.current = isStreaming && !newOpen
         setIsOpen(newOpen)
       },
-      [setIsOpen]
+      [isStreaming, setIsOpen]
     )
 
     const contextValue = useMemo(

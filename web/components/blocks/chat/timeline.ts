@@ -168,10 +168,11 @@ function projectTurn(input: {
   out: TimelineRow[]
   partsByMessage: Record<string, Part[]>
   textByPart: Record<string, string>
+  turnKey: string
   userIsLast: boolean
   isBusy: boolean
 }): void {
-  const { assistants, out, partsByMessage, textByPart, userIsLast, isBusy } = input
+  const { assistants, out, partsByMessage, textByPart, turnKey, userIsLast, isBusy } = input
 
   const mergedEntries: RenderEntry[] = []
   const messageIDs: string[] = []
@@ -207,11 +208,11 @@ function projectTurn(input: {
     out.push({
       createdAt: assistants[0]?.time.created ?? 0,
       entries: mergedEntries,
-      key: `assistant:${messageIDs.join(":")}`,
+      key: turnKey,
       type: "assistant",
     })
   } else if (isActiveTurn) {
-    out.push({ key: `thinking:${messageIDs.join(":")}`, type: "thinking" })
+    out.push({ key: `thinking:${turnKey}`, type: "thinking" })
   }
 
   if (lastError) {
@@ -299,6 +300,7 @@ export function projectTimeline(input: ProjectInput): {
       out,
       partsByMessage: input.partsByMessage,
       textByPart: input.textByPart,
+      turnKey: `assistant:${turn.user.id}`,
       userIsLast: index === lastIndex,
     })
 

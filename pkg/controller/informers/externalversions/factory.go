@@ -200,7 +200,7 @@ func (f *sharedInformerFactory) WaitForCacheSyncWithContext(ctx context.Context)
 	res := cache.SyncResult{
 		Synced: make(map[reflect.Type]bool, len(informers)),
 	}
-	failed := false
+	var failed bool
 	for informType, informer := range informers {
 		hasSynced := informer.HasSynced()
 		if !hasSynced {

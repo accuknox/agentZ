@@ -151,7 +151,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 		}
 
 		now := time.Now()
-		hasPending := false
+		var hasPending bool
 		next := s.cfg.MCPProbeStaleAfter
 		for _, item := range items {
 			if item.Status != gatewayapi.MCPConnectionLifecycleAccepted {

@@ -113,7 +113,13 @@ export const zFieldError = z.object({
 
 export const zWorkflowRunTerminalPhase = z.enum(["Succeeded", "Failed"])
 
-export const zWorkflowRunNodePhase = z.enum(["Disabled", "Running", "Succeeded", "Failed"])
+export const zWorkflowRunNodePhase = z.enum([
+  "Disabled",
+  "Running",
+  "Unacked",
+  "Succeeded",
+  "Failed",
+])
 
 export const zWorkflowRunNodePatchPhase = z.enum(["Running", "Succeeded", "Failed"])
 

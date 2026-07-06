@@ -423,7 +423,7 @@ func rewriteNullableSchema(node map[string]any) {
 		return
 	}
 
-	nullable := false
+	var nullable bool
 	filtered := make([]any, 0, len(types))
 	for _, item := range types {
 		text, _ := item.(string)
@@ -450,7 +450,7 @@ func rewriteNullableSchema(node map[string]any) {
 
 func splitNullableUnion(items []any) ([]any, bool) {
 	nonNull := make([]any, 0, len(items))
-	nullable := false
+	var nullable bool
 
 	for _, item := range items {
 		schema, ok := item.(map[string]any)

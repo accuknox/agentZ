@@ -1731,6 +1731,7 @@ components:
       enum:
       - Disabled
       - Running
+      - Unacked
       - Succeeded
       - Failed
 

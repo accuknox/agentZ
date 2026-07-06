@@ -10242,6 +10242,7 @@ components:
       enum:
       - Disabled
       - Running
+      - Unacked
       - Succeeded
       - Failed
       type: string

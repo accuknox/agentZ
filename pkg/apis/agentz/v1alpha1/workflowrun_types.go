@@ -42,6 +42,9 @@ const (
 	WorkflowRunNodePhaseDisabled WorkflowRunNodePhase = "Disabled"
 	// WorkflowRunNodePhaseRunning means the agent is executing the node.
 	WorkflowRunNodePhaseRunning WorkflowRunNodePhase = "Running"
+	// WorkflowRunNodePhaseUnacked means the agent advanced past the node
+	// without first reporting a terminal status for it.
+	WorkflowRunNodePhaseUnacked WorkflowRunNodePhase = "Unacked"
 	// WorkflowRunNodePhaseSucceeded means the node completed successfully.
 	WorkflowRunNodePhaseSucceeded WorkflowRunNodePhase = "Succeeded"
 	// WorkflowRunNodePhaseFailed means the node completed unsuccessfully.
@@ -170,7 +173,7 @@ type WorkflowRunNodeStatus struct {
 	Name string `json:"name"`
 
 	// Phase is the lifecycle state tracked by the executing agent.
-	// +kubebuilder:validation:Enum=Disabled;Running;Succeeded;Failed
+	// +kubebuilder:validation:Enum=Disabled;Running;Unacked;Succeeded;Failed
 	Phase WorkflowRunNodePhase `json:"phase"`
 
 	// Message contains current node context or failure details.

@@ -282,14 +282,6 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 		return err
 	}
 
-	nodeNames := make(map[string]struct{}, len(workflow.Nodes))
-	for _, node := range workflow.Nodes {
-		nodeNames[node.Name] = struct{}{}
-	}
-	if _, ok := nodeNames[nodeName]; !ok {
-		return ErrWorkflowRunNodeNotFound
-	}
-
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	phase := agentzv1alpha1.WorkflowRunNodePhase(req.Phase)
 	var resultErr error
@@ -323,7 +315,7 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 			existing[node.Name] = node
 		}
 
-		var nodeStatus agentzv1alpha1.WorkflowRunNodeStatus
+		var found bool
 		for _, node := range workflow.Nodes {
 			next := existing[node.Name]
 			if next.Name == "" {
@@ -331,66 +323,33 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 				next.Phase = agentzv1alpha1.WorkflowRunNodePhaseDisabled
 			}
 			if node.Name == nodeName {
-				nodeStatus = next
+				found = true
 			}
 			nodes = append(nodes, next)
 		}
-
-		switch phase {
-		case agentzv1alpha1.WorkflowRunNodePhaseRunning:
-		case agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
-			agentzv1alpha1.WorkflowRunNodePhaseFailed:
-		default:
-			resultErr = &NodePhaseConflictError{
-				Node:    nodeName,
-				Current: nodeStatus.Phase,
-				Target:  phase,
-			}
+		if !found {
+			resultErr = ErrWorkflowRunNodeNotFound
 			return nil
 		}
-		if nodeStatus.Phase == phase && nodeStatus.Message == msg {
+
+		now := metav1.Now()
+		nodes, changed, err := applyNodeStatusPatch(
+			nodes,
+			nodeName,
+			phase,
+			msg,
+			now,
+		)
+		if err != nil {
+			resultErr = err
+			return nil
+		}
+		if !changed {
 			resultErr = nil
 			return nil
 		}
 
-		switch phase {
-		case agentzv1alpha1.WorkflowRunNodePhaseRunning:
-			if nodeStatus.Phase != agentzv1alpha1.WorkflowRunNodePhaseDisabled {
-				resultErr = &NodePhaseConflictError{
-					Node:    nodeName,
-					Current: nodeStatus.Phase,
-					Target:  phase,
-				}
-				return nil
-			}
-		case agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
-			agentzv1alpha1.WorkflowRunNodePhaseFailed:
-			if nodeStatus.Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
-				resultErr = &NodePhaseConflictError{
-					Node:    nodeName,
-					Current: nodeStatus.Phase,
-					Target:  phase,
-				}
-				return nil
-			}
-		}
-
 		patch := ctrlclient.MergeFrom(current.DeepCopy())
-		now := metav1.Now()
-		for i := range nodes {
-			if nodes[i].Name != nodeName {
-				continue
-			}
-			nodes[i].Phase = phase
-			nodes[i].Message = msg
-			if phase == agentzv1alpha1.WorkflowRunNodePhaseRunning {
-				nodes[i].StartedAt = &now
-				nodes[i].CompletedAt = nil
-			} else {
-				nodes[i].CompletedAt = &now
-			}
-			break
-		}
 		current.Status.Nodes = nodes
 
 		if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
@@ -404,6 +363,89 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 		return err
 	}
 	return resultErr
+}
+
+func applyNodeStatusPatch(nodes []agentzv1alpha1.WorkflowRunNodeStatus, nodeName string, phase agentzv1alpha1.WorkflowRunNodePhase, msg string, now metav1.Time) ([]agentzv1alpha1.WorkflowRunNodeStatus, bool, error) {
+	target := slices.IndexFunc(nodes, func(node agentzv1alpha1.WorkflowRunNodeStatus) bool {
+		return node.Name == nodeName
+	})
+	if target < 0 {
+		return nil, false, ErrWorkflowRunNodeNotFound
+	}
+
+	next := slices.Clone(nodes)
+	var changed bool
+
+	if phase == agentzv1alpha1.WorkflowRunNodePhaseRunning {
+		for i := range target {
+			if next[i].Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
+				continue
+			}
+			next[i].Phase = agentzv1alpha1.WorkflowRunNodePhaseUnacked
+			next[i].CompletedAt = &now
+			changed = true
+		}
+	}
+
+	current := next[target]
+
+	switch phase {
+	case agentzv1alpha1.WorkflowRunNodePhaseRunning,
+		agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
+		agentzv1alpha1.WorkflowRunNodePhaseFailed:
+	default:
+		return nil, false, &NodePhaseConflictError{
+			Node:    nodeName,
+			Current: current.Phase,
+			Target:  phase,
+		}
+	}
+
+	if current.Phase == phase && current.Message == msg {
+		return next, changed, nil
+	}
+
+	var hasProgressedLaterNode bool
+	for _, node := range next[target+1:] {
+		if node.Phase == agentzv1alpha1.WorkflowRunNodePhaseDisabled {
+			continue
+		}
+		hasProgressedLaterNode = true
+		break
+	}
+
+	if !hasProgressedLaterNode {
+		switch phase {
+		case agentzv1alpha1.WorkflowRunNodePhaseRunning:
+			if current.Phase != agentzv1alpha1.WorkflowRunNodePhaseDisabled {
+				return nil, false, &NodePhaseConflictError{
+					Node:    nodeName,
+					Current: current.Phase,
+					Target:  phase,
+				}
+			}
+		case agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
+			agentzv1alpha1.WorkflowRunNodePhaseFailed:
+			if current.Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
+				return nil, false, &NodePhaseConflictError{
+					Node:    nodeName,
+					Current: current.Phase,
+					Target:  phase,
+				}
+			}
+		}
+	}
+
+	next[target].Phase = phase
+	next[target].Message = msg
+	if phase == agentzv1alpha1.WorkflowRunNodePhaseRunning {
+		next[target].StartedAt = &now
+		next[target].CompletedAt = nil
+	} else {
+		next[target].CompletedAt = &now
+	}
+
+	return next, true, nil
 }
 
 // CreateScheduledRun creates one run from one workflow schedule.

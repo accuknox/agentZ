@@ -175,7 +175,7 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns string, agtNa
 			merged = append(merged, host)
 		}
 
-		changed := false
+		var changed bool
 		for _, host := range addHosts {
 			if _, ok := seen[host]; ok {
 				continue

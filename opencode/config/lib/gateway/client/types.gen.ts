@@ -85,7 +85,7 @@ export type FieldError = {
 
 export type WorkflowRunTerminalPhase = "Succeeded" | "Failed"
 
-export type WorkflowRunNodePhase = "Disabled" | "Running" | "Succeeded" | "Failed"
+export type WorkflowRunNodePhase = "Disabled" | "Running" | "Unacked" | "Succeeded" | "Failed"
 
 export type WorkflowRunNodePatchPhase = "Running" | "Succeeded" | "Failed"
 

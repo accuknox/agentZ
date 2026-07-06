@@ -306,6 +306,7 @@ const nodePhaseClassNames = {
   Disabled:
     "bg-secondary/45 border-border/55 text-muted-foreground w-[19rem] rounded-xl opacity-90 shadow-none transition-[background-color,border-color,box-shadow,transform,opacity] duration-200 ease-out",
   Running: nodeBaseClassName,
+  Unacked: nodeBaseClassName,
   Succeeded: nodeBaseClassName,
   Failed: nodeBaseClassName,
 } satisfies Record<WorkflowRunNodePhase, string>
@@ -320,6 +321,11 @@ const nodeStatusMeta = {
     icon: Spinner,
     label: "Running",
     variant: "running",
+  },
+  Unacked: {
+    icon: CircleAlertIcon,
+    label: "Unacked",
+    variant: "warning",
   },
   Succeeded: {
     icon: CheckCircle2Icon,

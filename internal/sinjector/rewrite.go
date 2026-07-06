@@ -44,7 +44,7 @@ func replaceSecretRefs(ctx context.Context, src string, res secretResolver, targ
 	}
 
 	var out strings.Builder
-	changed := false
+	var changed bool
 	for len(src) > 0 {
 		idx := strings.Index(src, PlaceholderPrefix)
 		if idx < 0 {

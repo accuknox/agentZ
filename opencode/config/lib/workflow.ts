@@ -14,9 +14,13 @@ export function workflowAgentName() {
 
 export function workflowErrorOutput(error: GatewayError) {
   const lines = [`${error.code}: ${error.message}`]
-  if ((error.errors ?? []).some((field) => field.field.startsWith("inputs."))) {
+  if (
+    (error.errors ?? []).some(
+      (field) => field.field.startsWith("inputs.") || field.field.startsWith("arbitrary_json")
+    )
+  ) {
     lines.push(
-      "Hint: inputs must be a flat object keyed by input name. Each value must be a typed schema object with required `type` and `required` fields. Only scalar input types and the documented schema keys are supported. Bounds must be ordered correctly and `multipleOf` must be greater than 0."
+      "Hint: use either inputs or arbitrary_json, never both. inputs must be a flat object keyed by input name with typed scalar schemas. arbitrary_json accepts optional description and default_payload."
     )
   }
   for (const field of error.errors ?? []) {
@@ -46,6 +50,13 @@ export function validateWorkflowDefinition(body: CreateWorkflowRequest) {
     Array<{ edge: CreateWorkflowRequest["edges"][number]; index: number }>
   >()
   const undirected = new Map<string, Set<string>>()
+
+  if (body.inputs && body.arbitrary_json) {
+    issues.push({
+      path: "arbitrary_json",
+      message: "cannot be used with inputs",
+    })
+  }
 
   for (const [name, input] of Object.entries(body.inputs ?? {})) {
     validateWorkflowInput(issues, name, input)

@@ -765,7 +765,7 @@ func runDetailFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDet
 		AgentName:      run.Spec.AgentName,
 		WorkflowName:   run.Spec.WorkflowName,
 		TriggerType:    workflowRunTriggerType(run),
-		Inputs:         inputs,
+		Inputs:         &inputs,
 		TimeoutSeconds: run.Spec.TimeoutSeconds,
 		Status:         workflowRunStatus(run.Status.Phase),
 		Reason:         workflowRunReason(run),

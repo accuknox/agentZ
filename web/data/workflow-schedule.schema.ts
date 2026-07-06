@@ -1,7 +1,11 @@
 import cron from "cron-validate"
 import * as z from "zod"
-import type { WorkflowInputSchema, WorkflowInputs } from "@/lib/gateway/client"
-import { zWorkflowName, zWorkflowScheduleName } from "@/lib/gateway/client/zod.gen"
+import type {
+  WorkflowArbitraryJson,
+  WorkflowInputSchema,
+  WorkflowInputs,
+} from "@/lib/gateway/client"
+import { zJsonValue, zWorkflowName, zWorkflowScheduleName } from "@/lib/gateway/client/zod.gen"
 
 const workflowNameSchema = z
   .string()
@@ -21,9 +25,52 @@ export const workflowScheduleNameSchema = z
 
 const workflowScheduleFieldSchema = z.union([z.string(), z.number(), z.boolean(), z.undefined()])
 
-const workflowScheduleInputsSchema = z.record(z.string(), workflowScheduleFieldSchema)
+export const workflowScheduleInputsSchema = z.record(z.string(), workflowScheduleFieldSchema)
+export const workflowScheduleInputTextSchema = z.codec(z.string(), workflowScheduleFieldSchema, {
+  decode: (value, ctx) => {
+    if (value === "") {
+      return undefined
+    }
 
-type WorkflowScheduleInputValue = string | number | boolean | undefined
+    try {
+      return JSON.parse(value)
+    } catch {
+      ctx.issues.push({
+        code: "custom",
+        input: value,
+        message: "Input value is invalid",
+      })
+      return z.NEVER
+    }
+  },
+  encode: (value) => (value === undefined ? "" : JSON.stringify(value)),
+})
+export const workflowScheduleArbitraryJSONSchema = z.codec(z.string(), zJsonValue.optional(), {
+  decode: (value, ctx) => {
+    if (value.trim() === "") {
+      return undefined
+    }
+
+    try {
+      return JSON.parse(value)
+    } catch {
+      ctx.issues.push({
+        code: "custom",
+        input: value,
+        message: "Input must be valid JSON",
+      })
+      return z.NEVER
+    }
+  },
+  encode: (value) => (value === undefined ? "" : JSON.stringify(value, null, 2)),
+})
+
+export type WorkflowScheduleInputValue = string | number | boolean | undefined
+
+export type WorkflowInputContract = {
+  inputs: WorkflowInputs
+  arbitrary_json?: WorkflowArbitraryJson
+}
 
 const createWorkflowScheduleFormSchema = z.object({
   name: workflowScheduleNameSchema,
@@ -67,26 +114,64 @@ const createWorkflowScheduleFormSchema = z.object({
     .min(1, "Failed runs history limit must be at least 1")
     .max(10, "Failed runs history limit must be at most 10"),
   inputs: workflowScheduleInputsSchema,
+  arbitrary_json: z.string(),
 })
 
 export type CreateWorkflowScheduleFormValues = z.infer<typeof createWorkflowScheduleFormSchema>
 
-export function buildWorkflowScheduleFormSchema(inputSchema: WorkflowInputs) {
+export function buildWorkflowScheduleFormSchema(
+  contract: WorkflowInputContract
+): z.ZodType<CreateWorkflowScheduleFormValues, CreateWorkflowScheduleFormValues> {
+  if (contract.arbitrary_json) {
+    return createWorkflowScheduleFormSchema.extend({
+      inputs: workflowScheduleInputsSchema,
+      arbitrary_json: arbitraryJSONTextSchema,
+    })
+  }
+
   return createWorkflowScheduleFormSchema.extend({
-    inputs: buildWorkflowInputObjectSchema(inputSchema),
+    inputs: buildWorkflowInputObjectSchema(contract.inputs),
   })
 }
 
+const arbitraryJSONTextSchema = z
+  .string()
+  .refine(
+    (value) => workflowScheduleArbitraryJSONSchema.safeDecode(value).success,
+    "Input must be valid JSON"
+  )
+
 function buildWorkflowInputObjectSchema(inputSchema: WorkflowInputs) {
-  const shape: Record<string, z.ZodType<WorkflowScheduleInputValue>> = {}
+  return workflowScheduleInputsSchema.superRefine((values, ctx) => {
+    for (const name of Object.keys(values)) {
+      if (name in inputSchema) {
+        continue
+      }
 
-  for (const [name, input] of Object.entries(inputSchema)) {
-    shape[name] = input.required
-      ? buildWorkflowInputValueSchema(input)
-      : buildWorkflowInputValueSchema(input).optional()
-  }
+      ctx.addIssue({
+        code: "custom",
+        message: "Unrecognized input",
+        path: [name],
+      })
+    }
 
-  return z.strictObject(shape)
+    for (const [name, input] of Object.entries(inputSchema)) {
+      const schema = input.required
+        ? buildWorkflowInputValueSchema(input)
+        : buildWorkflowInputValueSchema(input).optional()
+      const result = schema.safeParse(values[name])
+      if (result.success) {
+        continue
+      }
+
+      for (const issue of result.error.issues) {
+        ctx.addIssue({
+          ...issue,
+          path: [name, ...issue.path],
+        })
+      }
+    }
+  })
 }
 
 export function workflowInputDefaultValues(inputSchema: WorkflowInputs) {

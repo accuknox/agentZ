@@ -40,6 +40,15 @@ const createWorkflowArgs = {
         "Each value must be a typed schema object with explicit fields like type, required, default, and enum. " +
         'Plain strings like {target_url: "string"} and extra JSON Schema metadata are NOT valid.'
     ),
+  arbitrary_json: tool.schema
+    .object({
+      description: tool.schema.string().min(1).max(1024).optional(),
+      default_payload: tool.schema.json().optional(),
+    })
+    .optional()
+    .describe(
+      "Optional arbitrary JSON input contract. Use this instead of inputs when the workflow accepts one free-form JSON payload."
+    ),
   workflow_name: tool.schema
     .string()
     .min(1)

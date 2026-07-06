@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,7 +42,18 @@ type Issue struct {
 }
 
 // ValidateDefinition validates one workflow input contract definition.
-func ValidateDefinition(inputs *gatewayapi.WorkflowInputs, fieldPrefix string) ([]Issue, error) {
+func ValidateDefinition(inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gatewayapi.WorkflowArbitraryJSON) ([]Issue, error) {
+	if inputs != nil && arbitraryJSON != nil {
+		return []Issue{{
+			Field:   "arbitrary_json",
+			Message: "cannot be used with inputs",
+		}}, nil
+	}
+
+	if arbitraryJSON != nil {
+		return validateArbitraryJSON(arbitraryJSON)
+	}
+
 	if inputs == nil {
 		return nil, nil
 	}
@@ -52,12 +63,12 @@ func ValidateDefinition(inputs *gatewayapi.WorkflowInputs, fieldPrefix string) (
 		return nil, err
 	}
 
-	keys := mapsKeys(*inputs)
+	keys := slices.Sorted(maps.Keys(*inputs))
 	issues := make([]Issue, 0, len(keys))
 
 	for _, name := range keys {
 		schema := (*inputs)[name]
-		inputField := fieldPrefix + "." + name
+		inputField := "inputs." + name
 
 		if strings.TrimSpace(name) == "" {
 			issues = append(issues, Issue{
@@ -121,13 +132,14 @@ func ValidateDefinition(inputs *gatewayapi.WorkflowInputs, fieldPrefix string) (
 }
 
 // ValidateValues validates runtime inputs against one workflow input contract.
-func ValidateValues(raw []byte, inputs *gatewayapi.WorkflowInputs, fieldPrefix string) ([]Issue, error) {
-	value, err := decodeValues(raw)
-	if err != nil {
-		return []Issue{{
-			Field:   fieldPrefix,
-			Message: err.Error(),
-		}}, nil
+func ValidateValues(raw []byte, inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gatewayapi.WorkflowArbitraryJSON, fieldPrefix string) ([]Issue, error) {
+	if arbitraryJSON != nil {
+		return jsonValueIssues(raw, fieldPrefix), nil
+	}
+
+	value, issues := workflowInputObject(raw, fieldPrefix)
+	if len(issues) > 0 {
+		return issues, nil
 	}
 
 	if inputs == nil || len(*inputs) == 0 {
@@ -152,6 +164,69 @@ func ValidateValues(raw []byte, inputs *gatewayapi.WorkflowInputs, fieldPrefix s
 	}
 
 	return validateValue(schema, value, fieldPrefix), nil
+}
+
+func validateArbitraryJSON(arbitraryJSON *gatewayapi.WorkflowArbitraryJSON) ([]Issue, error) {
+	if arbitraryJSON.Description != nil && strings.TrimSpace(*arbitraryJSON.Description) == "" {
+		return []Issue{{
+			Field:   "arbitrary_json.description",
+			Message: "must not be empty",
+		}}, nil
+	}
+
+	if arbitraryJSON.DefaultPayload == nil {
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(arbitraryJSON.DefaultPayload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal arbitrary json default payload: %w", err)
+	}
+	return jsonValueIssues(raw, "arbitrary_json.default_payload"), nil
+}
+
+func jsonValueIssues(raw []byte, fieldPrefix string) []Issue {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	_, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err == nil {
+		return nil
+	}
+
+	return []Issue{{
+		Field:   fieldPrefix,
+		Message: "must be valid json",
+	}}
+}
+
+func workflowInputObject(raw []byte, fieldPrefix string) (map[string]any, []Issue) {
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return map[string]any{}, nil
+	}
+
+	value, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		return nil, []Issue{{
+			Field:   fieldPrefix,
+			Message: "must be valid json",
+		}}
+	}
+
+	if value == nil {
+		return map[string]any{}, nil
+	}
+
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, []Issue{{
+			Field:   fieldPrefix,
+			Message: "must be a json object",
+		}}
+	}
+
+	return object, nil
 }
 
 func compileSchema(name string, doc any) (*jsonschema.Schema, error) {
@@ -181,41 +256,11 @@ func compileSchema(name string, doc any) (*jsonschema.Schema, error) {
 	return schema, nil
 }
 
-func decodeValues(raw []byte) (map[string]any, error) {
-	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return map[string]any{}, nil
-	}
-
-	value, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		return nil, fmt.Errorf("must be valid json")
-	}
-	if value == nil {
-		return map[string]any{}, nil
-	}
-
-	object, ok := value.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("must be a json object")
-	}
-
-	return object, nil
-}
-
-func mapsKeys[M ~map[string]V, V any](m M) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 func objectSchemaDocument(inputs gatewayapi.WorkflowInputs) (map[string]any, error) {
 	properties := make(map[string]any, len(inputs))
 	required := make([]string, 0, len(inputs))
 
-	for _, name := range mapsKeys(inputs) {
+	for _, name := range slices.Sorted(maps.Keys(inputs)) {
 		schema := inputs[name]
 		if schema.Required {
 			required = append(required, name)

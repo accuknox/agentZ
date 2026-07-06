@@ -11,7 +11,7 @@ import { triggerWorkflowRunAction } from "@/data/workflow-run.actions"
 import {
   createWorkflowScheduleFormAction,
   deleteWorkflowScheduleFormAction,
-  getWorkflowInputSchemaAction,
+  getWorkflowInputContractAction,
   updateWorkflowScheduleFormAction,
 } from "@/data/workflow-schedule.actions"
 import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
@@ -168,7 +168,7 @@ async function Triggers({ searchParams }: { searchParams: ResolvedSearchParams }
       key={selectedAgent.name}
       agentName={selectedAgent.name}
       deleteWorkflowScheduleAction={deleteWorkflowScheduleFormAction}
-      getWorkflowInputSchemaAction={getWorkflowInputSchemaAction}
+      getWorkflowInputContractAction={getWorkflowInputContractAction}
       hasNextPage={schedulesResult.hasNextPage}
       nextPageToken={schedulesResult.nextPageToken}
       triggerWorkflowRunAction={triggerWorkflowRunAction}
@@ -212,7 +212,7 @@ async function HeaderAction({ searchParams }: { searchParams: ResolvedSearchPara
       key={selectedAgent.name}
       agentName={selectedAgent.name}
       createWorkflowScheduleAction={createWorkflowScheduleFormAction}
-      getWorkflowInputSchemaAction={getWorkflowInputSchemaAction}
+      getWorkflowInputContractAction={getWorkflowInputContractAction}
       workflows={workflowsResult.error ? [] : (workflowsResult.summaries ?? [])}
     />
   )

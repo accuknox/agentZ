@@ -130,7 +130,7 @@ func ValidateRunInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace st
 		return nil, err
 	}
 
-	issues, err := inputworkflow.ValidateValues(raw, def.Inputs, "")
+	issues, err := inputworkflow.ValidateValues(raw, def.Inputs, def.ArbitraryJson, "inputs")
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +327,7 @@ func scheduleViewFromCRD(schedule *agentzv1alpha1.WorkflowSchedule) (gatewayapi.
 		AgentName:      schedule.Spec.AgentName,
 		WorkflowName:   schedule.Spec.WorkflowName,
 		Schedule:       schedule.Spec.Schedule,
-		Inputs:         inputs,
+		Inputs:         &inputs,
 		TimeoutSeconds: schedule.Spec.TimeoutSeconds,
 		Suspend:        schedule.Spec.Suspend,
 		CreatedAt:      schedule.CreationTimestamp.Time,

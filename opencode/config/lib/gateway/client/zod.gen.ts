@@ -156,12 +156,6 @@ export const zListAgentsResponse = z.object({
  */
 export const zApiKeyId = z.string().min(1)
 
-/**
- * Runtime workflow input values. The gateway validates this object against the saved workflow input schema before creating a WorkflowRun.
- *
- */
-export const zWorkflowRunInputs = z.record(z.string(), z.unknown())
-
 export const zWorkflowRunTriggerType = z.enum(["Schedule", "Webhook"])
 
 export const zWorkflowRunSummary = z.object({
@@ -267,27 +261,6 @@ export const zWorkflowInputSchema = z.object({
 })
 
 export const zWorkflowInputs = z.record(z.string(), zWorkflowInputSchema)
-
-export const zCreateWorkflowRequest = z.object({
-  workflow_name: zWorkflowName,
-  title: z.string().min(1).max(256),
-  summary: z.string().min(1).max(4096),
-  inputs: zWorkflowInputs.optional(),
-  nodes: z.array(zWorkflowNode).min(1),
-  edges: z.array(zWorkflowEdge),
-})
-
-export const zWorkflow = z.object({
-  agent_name: zAgentName,
-  workflow_name: zWorkflowName,
-  title: z.string(),
-  summary: z.string(),
-  inputs: zWorkflowInputs.optional(),
-  nodes: z.array(zWorkflowNode),
-  edges: z.array(zWorkflowEdge),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
-})
 
 export const zDeleteWorkflowsRequest = z.object({
   workflow_names: z.array(zWorkflowName).min(1),
@@ -618,16 +591,18 @@ export const zWatchWorkflowRunsRequest = z.object({
   run_names: z.array(zWorkflowRunName).optional(),
 })
 
-export const zJsonValue = z.union([
-  z.boolean(),
-  z.number(),
-  z.string(),
-  z.array(z.lazy((): any => zJsonValue)),
-  z.record(
+export const zJsonValue = z
+  .union([
+    z.boolean(),
+    z.number(),
     z.string(),
-    z.lazy((): any => zJsonValue)
-  ),
-])
+    z.array(z.lazy((): any => zJsonValue)),
+    z.record(
+      z.string(),
+      z.lazy((): any => zJsonValue)
+    ),
+  ])
+  .nullable()
 
 export const zError = z.object({
   code: z.string().min(1),
@@ -654,6 +629,8 @@ export const zListWorkflowSchedulesResponse = z.object({
   workflow_schedules: z.array(zWorkflowSchedule),
   next_page_token: z.string(),
 })
+
+export const zWorkflowRunInputs = zJsonValue
 
 export const zWorkflowRunDetail = z.object({
   name: zWorkflowRunName,
@@ -699,6 +676,38 @@ export const zUpdateWorkflowScheduleRequest = z.object({
   suspend: z.boolean().optional(),
   successful_runs_history_limit: z.int().gte(1).lte(10).optional(),
   failed_runs_history_limit: z.int().gte(1).lte(10).optional(),
+})
+
+/**
+ * Arbitrary JSON workflow input contract. Use this instead of typed workflow inputs when a workflow should accept one free-form JSON payload.
+ *
+ */
+export const zWorkflowArbitraryJson = z.object({
+  description: z.string().min(1).optional(),
+  default_payload: zJsonValue.optional(),
+})
+
+export const zCreateWorkflowRequest = z.object({
+  workflow_name: zWorkflowName,
+  title: z.string().min(1).max(256),
+  summary: z.string().min(1).max(4096),
+  inputs: zWorkflowInputs.optional(),
+  arbitrary_json: zWorkflowArbitraryJson.optional(),
+  nodes: z.array(zWorkflowNode).min(1),
+  edges: z.array(zWorkflowEdge),
+})
+
+export const zWorkflow = z.object({
+  agent_name: zAgentName,
+  workflow_name: zWorkflowName,
+  title: z.string(),
+  summary: z.string(),
+  inputs: zWorkflowInputs.optional(),
+  arbitrary_json: zWorkflowArbitraryJson.optional(),
+  nodes: z.array(zWorkflowNode),
+  edges: z.array(zWorkflowEdge),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 })
 
 export const zSpanDetail = zSpan.and(

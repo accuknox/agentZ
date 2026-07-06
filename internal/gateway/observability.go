@@ -794,9 +794,9 @@ func spanDetailFromRow(w http.ResponseWriter, r *http.Request, row gatewaydb.Gat
 		OperationName:      row.OperationName,
 		OutputTokens:       row.OutputTokens,
 		ParentSpanId:       hex.EncodeToString(row.ParentSpanID),
-		ResourceAttributes: resourceAttrs,
+		ResourceAttributes: &resourceAttrs,
 		SessionId:          row.SessionID,
-		SpanAttributes:     spanAttrs,
+		SpanAttributes:     &spanAttrs,
 		SpanClass:          row.SpanClass,
 		SpanId:             hex.EncodeToString(row.SpanID),
 		StartTime:          row.StartTime,
@@ -824,10 +824,10 @@ func spanPayload(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGe
 		return gatewayapi.SpanPayload{}, false
 	}
 	return gatewayapi.SpanPayload{
-		InputMessages:  inputMessages,
-		OutputMessages: outputMessages,
-		ToolArguments:  toolArguments,
-		ToolResult:     toolResult,
+		InputMessages:  &inputMessages,
+		OutputMessages: &outputMessages,
+		ToolArguments:  &toolArguments,
+		ToolResult:     &toolResult,
 	}, true
 }
 

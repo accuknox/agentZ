@@ -1,13 +1,9 @@
-import { tool } from "@opencode-ai/plugin"
-
 import { getWorkflow, listAgentWorkflowSchedules, zError } from "./gateway"
 import { formatRequestValidationError, workflowErrorOutput } from "./workflow"
 import {
   formatWorkflowInputValidationError,
   validateWorkflowRuntimeInputs,
 } from "./workflow_inputs"
-
-export const jsonValueSchema = buildJSONValueSchema()
 
 export async function validateWorkflowScheduleInputs(
   agentName: string,
@@ -56,7 +52,7 @@ export async function validateWorkflowScheduleInputs(
     }
   }
 
-  const issues = validateWorkflowRuntimeInputs(inputs, workflow.data.inputs)
+  const issues = validateWorkflowRuntimeInputs(inputs, workflow.data)
   if (issues.length === 0) {
     return null
   }
@@ -135,17 +131,4 @@ export async function listWorkflowSchedulesOnce(agentName: string, scheduleName:
     ok: true as const,
     value: schedule,
   }
-}
-
-function buildJSONValueSchema() {
-  const schema: ReturnType<typeof tool.schema.lazy> = tool.schema.lazy(() =>
-    tool.schema.union([
-      tool.schema.boolean(),
-      tool.schema.number(),
-      tool.schema.string(),
-      tool.schema.array(schema),
-      tool.schema.record(tool.schema.string(), schema),
-    ])
-  )
-  return schema
 }

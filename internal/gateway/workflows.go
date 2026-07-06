@@ -83,6 +83,10 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 			(*req.Inputs)[name] = input
 		}
 	}
+	if req.ArbitraryJson != nil && req.ArbitraryJson.Description != nil {
+		trimmed := strings.TrimSpace(*req.ArbitraryJson.Description)
+		req.ArbitraryJson.Description = &trimmed
+	}
 
 	for nodeIndex := range req.Nodes {
 		node := &req.Nodes[nodeIndex]
@@ -134,14 +138,16 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 	}
 
 	apiutil.WriteJSON(w, http.StatusCreated, gatewayapi.Workflow{
-		AgentName:    agtName,
-		WorkflowName: req.WorkflowName,
-		Title:        req.Title,
-		Summary:      req.Summary,
-		Nodes:        req.Nodes,
-		Edges:        req.Edges,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		AgentName:     agtName,
+		WorkflowName:  req.WorkflowName,
+		Title:         req.Title,
+		Summary:       req.Summary,
+		Inputs:        req.Inputs,
+		ArbitraryJson: req.ArbitraryJson,
+		Nodes:         req.Nodes,
+		Edges:         req.Edges,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
 	})
 }
 

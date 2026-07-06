@@ -83,7 +83,12 @@ func ValidateInputs(ctx context.Context, c *gatewayapi.ClientWithResponses, tknP
 		return apierrors.NewInvalid(gk, name, fields)
 	}
 
-	issues, err := ValidateValues(raw, resp.JSON200.Inputs, path.String())
+	issues, err := ValidateValues(
+		raw,
+		resp.JSON200.Inputs,
+		resp.JSON200.ArbitraryJson,
+		path.String(),
+	)
 	if err != nil {
 		fields := field.ErrorList{field.InternalError(
 			path,

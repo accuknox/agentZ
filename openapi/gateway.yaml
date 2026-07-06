@@ -348,6 +348,8 @@ components:
     CreateWorkflowRequest:
       additionalProperties: false
       properties:
+        arbitrary_json:
+          $ref: '#/components/schemas/WorkflowArbitraryJSON'
         edges:
           items:
             $ref: '#/components/schemas/WorkflowEdge'
@@ -543,6 +545,7 @@ components:
         $ref: '#/components/schemas/JSONValue'
       type: object
     JSONValue:
+      nullable: true
       oneOf:
       - type: boolean
       - type: number
@@ -9984,6 +9987,8 @@ components:
       properties:
         agent_name:
           $ref: '#/components/schemas/AgentName'
+        arbitrary_json:
+          $ref: '#/components/schemas/WorkflowArbitraryJSON'
         created_at:
           format: date-time
           type: string
@@ -10015,6 +10020,19 @@ components:
       - edges
       - created_at
       - updated_at
+      type: object
+    WorkflowArbitraryJSON:
+      additionalProperties: false
+      description: |
+        Arbitrary JSON workflow input contract. Use this instead of typed workflow inputs when a workflow should accept one free-form JSON payload.
+      properties:
+        default_payload:
+          allOf:
+          - $ref: '#/components/schemas/JSONValue'
+          x-omitempty: true
+        description:
+          minLength: 1
+          type: string
       type: object
     WorkflowEdge:
       additionalProperties: false
@@ -10222,10 +10240,9 @@ components:
       - node_statuses
       type: object
     WorkflowRunInputs:
-      additionalProperties: true
+      $ref: '#/components/schemas/JSONValue'
       description: |
-        Runtime workflow input values. The gateway validates this object against the saved workflow input schema before creating a WorkflowRun.
-      type: object
+        Runtime workflow input values. The gateway validates this value against the saved workflow input contract before creating a WorkflowRun.
     WorkflowRunName:
       description: WorkflowRun resource name.
       maxLength: 253
@@ -19183,7 +19200,7 @@ paths:
   /api/workflow/{agentName}/{workflowName}/webhook:
     post:
       description: |
-        Validates the request body against the saved workflow input schema, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
+        Validates the request body against the saved workflow input contract, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
       operationId: invokeWorkflowWebhook
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'

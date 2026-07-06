@@ -393,6 +393,7 @@ export type {
   WatchWorkflowRunsResponse,
   WatchWorkflowRunsResponses,
   Workflow,
+  WorkflowArbitraryJson,
   WorkflowEdge,
   WorkflowInputs,
   WorkflowInputScalarValue,

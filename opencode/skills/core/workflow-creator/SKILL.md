@@ -33,7 +33,12 @@ Treat the workflow as a saved directed acyclic graph:
 
 ## Input Schema Rules
 
-- Omit `inputs` entirely when the workflow takes no parameters.
+- Omit `inputs` and `arbitrary_json` when the workflow takes no parameters.
+- Use exactly one input contract: either typed `inputs` or `arbitrary_json`,
+  never both.
+- Use `arbitrary_json` when the workflow should accept one free-form JSON
+  payload. Its allowed fields are `description` and `default_payload`.
+- `arbitrary_json.default_payload` is a prefill example, not a runtime fallback.
 - When present, `inputs` must be a flat object keyed by input name.
 - Each input must be a schema object with at least `type` and `required`.
 - Supported input types are scalar only: `string`, `integer`, `number`, `boolean`.

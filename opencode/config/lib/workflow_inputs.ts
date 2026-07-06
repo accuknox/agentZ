@@ -1,18 +1,17 @@
 import { z, ZodError } from "zod"
 
-import type {
-  WorkflowInputScalarValue,
-  WorkflowInputSchema,
-  WorkflowInputs,
-} from "./gateway/client"
+import type { Workflow, WorkflowInputSchema, WorkflowInputs } from "./gateway/client"
+import { zJsonValue } from "./gateway/client/zod.gen"
 
 export type WorkflowInputValidationIssue = {
   path: string
   message: string
 }
 
-export function validateWorkflowRuntimeInputs(inputs: unknown, schema: WorkflowInputs | undefined) {
-  const result = buildWorkflowInputsSchema(schema).safeParse(inputs)
+export function validateWorkflowRuntimeInputs(inputs: unknown, workflow: Workflow) {
+  const result = workflow.arbitrary_json
+    ? zJsonValue.safeParse(inputs)
+    : buildWorkflowInputsSchema(workflow.inputs).safeParse(inputs)
   if (result.success) {
     return []
   }
@@ -59,10 +58,9 @@ function buildWorkflowInputSchema(input: WorkflowInputSchema) {
   }
 
   if (input.enum && input.enum.length > 0) {
-    schema = schema.refine(
-      (value) => input.enum?.includes(value as WorkflowInputScalarValue) ?? false,
-      { message: `must be one of ${input.enum.map((value) => JSON.stringify(value)).join(", ")}` }
-    )
+    schema = schema.refine((value) => input.enum?.some((item) => item === value) ?? false, {
+      message: `must be one of ${input.enum.map((value) => JSON.stringify(value)).join(", ")}`,
+    })
   }
 
   return schema

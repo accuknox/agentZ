@@ -11,11 +11,15 @@ export type UserPreferences = {
 
 /**
  * getCurrentUserPreferences returns the current user's saved preferences.
+ *
+ * The request headers are read first so Cache Components can defer the auth
+ * and database setup to request time while prerendering the page shell.
  */
 export async function getCurrentUserPreferences(): Promise<UserPreferences> {
+  const requestHeaders = await headers()
   const auth = getAuth()
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   })
   if (!session) {
     throw new Error("unauthorized")
@@ -40,9 +44,10 @@ export async function getCurrentUserPreferences(): Promise<UserPreferences> {
 export async function saveCurrentUserPreferences(
   preferences: UserPreferences
 ): Promise<UserPreferences> {
+  const requestHeaders = await headers()
   const auth = getAuth()
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   })
   if (!session) {
     throw new Error("unauthorized")

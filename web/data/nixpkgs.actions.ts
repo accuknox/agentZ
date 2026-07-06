@@ -77,10 +77,6 @@ export type SearchNixPackagesResponse =
   | { packages: NixPackage[]; error: undefined }
   | { packages: undefined; error: GatewayError }
 
-function dashUnderscoreVariants(word: string): string[] {
-  return [word.replace(/_/g, "-"), word.replace(/-/g, "_"), word]
-}
-
 function getSearchConfig(): SearchConfig {
   const missing = searchConfigEnvKeys.filter((key) => {
     const value = process.env[key]
@@ -130,8 +126,12 @@ function buildSearchBody(query: string, from = 0, size = 20): Record<string, unk
   const positiveWords = rawWords.filter((w) => !w.startsWith("-"))
   const negativeWords = rawWords.filter((w) => w.startsWith("-")).map((w) => w.slice(1))
 
-  const uniquePositiveVariants = [...new Set(positiveWords.flatMap(dashUnderscoreVariants))]
-  const uniqueNegativeVariants = [...new Set(negativeWords.flatMap(dashUnderscoreVariants))]
+  const uniquePositiveVariants = [
+    ...new Set(positiveWords.flatMap((w) => [w.replace(/_/g, "-"), w.replace(/-/g, "_"), w])),
+  ]
+  const uniqueNegativeVariants = [
+    ...new Set(negativeWords.flatMap((w) => [w.replace(/_/g, "-"), w.replace(/-/g, "_"), w])),
+  ]
 
   const fields = [
     "package_attr_name^9.0",

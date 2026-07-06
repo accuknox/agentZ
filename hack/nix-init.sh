@@ -10,7 +10,7 @@ readonly agent_profile_link="${agent_root}/profile"
 readonly agent_cache_key_file="${agent_root}/.agentz-env-key"
 readonly link_root='/tmp/nix-link'
 readonly runtime_store='/runtime-nix-store'
-readonly cache_schema='agentz-nix-init-v3-full-env'
+readonly cache_schema='agentz-nix-init-v4-unfree-pruned-env'
 readonly shared_cache_root='/nix-shared/.agentz-nix-init'
 readonly shared_cache_meta_dir='/nix-shared/.agentz-nix-init/envs'
 readonly shared_cache_lock_dir='/nix-shared/.agentz-nix-init/locks'
@@ -22,16 +22,6 @@ shared_lock_path=''
 
 declare -a packages=()
 
-trim() {
-    local value
-
-    value="$1"
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-
-    printf '%s\n' "$value"
-}
-
 parse_packages() {
     local item
     local trimmed
@@ -41,7 +31,8 @@ parse_packages() {
     fi
 
     while IFS= read -r item; do
-        trimmed="$(trim "$item")"
+        trimmed="${item#"${item%%[![:space:]]*}"}"
+        trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
         if [[ -z "$trimmed" ]]; then
             continue
         fi
@@ -58,6 +49,26 @@ parse_packages() {
     )
 
     return 0
+}
+
+write_pkg_import() {
+    local nixpkgs_path
+    local allow_broken
+
+    nixpkgs_path="$1"
+    allow_broken="$2"
+
+    if [[ -n "$nixpkgs_path" ]]; then
+        printf '  pkgs = import %s {\n' "$nixpkgs_path"
+    else
+        printf '  pkgs = import (builtins.getFlake "%s") {\n' "$nixpkgs_ref"
+        echo '    system = builtins.currentSystem;'
+    fi
+    echo '    config = {'
+    echo '      allowUnfree = true;'
+    printf '      allowBroken = %s;\n' "$allow_broken"
+    echo '    };'
+    echo '  };'
 }
 
 configure_nix() {
@@ -108,13 +119,7 @@ write_env_expr() {
 
     {
         echo 'let'
-        if [[ -n "$nixpkgs_path" ]]; then
-            printf '  pkgs = import %s { };\n' "$nixpkgs_path"
-        else
-            printf \
-                '  pkgs = (builtins.getFlake "%s").legacyPackages.${builtins.currentSystem};\n' \
-                "$nixpkgs_ref"
-        fi
+        write_pkg_import "$nixpkgs_path" false
         echo '  lib = pkgs.lib;'
         echo '  pkgNames = ['
         for pkg in "${packages[@]}"; do
@@ -236,6 +241,81 @@ write_env_expr() {
         echo '      };'
         echo '    }'
     } >"$expr_path"
+}
+
+write_broken_packages_expr() {
+    local expr_path
+    local nixpkgs_path
+    local pkg
+
+    expr_path="$1"
+    nixpkgs_path="$2"
+
+    {
+        echo 'let'
+        write_pkg_import "$nixpkgs_path" true
+        echo '  lib = pkgs.lib;'
+        echo '  pkgNames = ['
+        for pkg in "${packages[@]}"; do
+            printf '    "%s"\n' "$pkg"
+        done
+        echo '  ];'
+        echo '  pkgAttrPath = name: lib.splitString "." name;'
+        echo '  hasPkg = name: lib.hasAttrByPath (pkgAttrPath name) pkgs;'
+        echo '  getPkg = name: lib.getAttrFromPath (pkgAttrPath name) pkgs;'
+        echo '  isBroken = name:'
+        echo '    let'
+        echo '      result = builtins.tryEval ((getPkg name).meta.broken or false);'
+        echo '    in'
+        echo '      result.success && result.value;'
+        echo 'in'
+        echo '  builtins.concatStringsSep "\n"'
+        echo '    (builtins.filter (name: hasPkg name && isBroken name) pkgNames)'
+    } >"$expr_path"
+}
+
+remove_broken_packages() {
+    local broken
+    local expr_path
+    local nixpkgs_path
+    local pkg
+
+    local -A broken_packages=()
+    local -a kept_packages=()
+    local -a removed_packages=()
+
+    expr_path='/tmp/agentz-broken-packages.nix'
+    nixpkgs_path="$1"
+
+    write_broken_packages_expr "$expr_path" "$nixpkgs_path"
+    while IFS= read -r broken || [[ -n "$broken" ]]; do
+        if [[ -z "$broken" ]]; then
+            continue
+        fi
+        broken_packages["$broken"]=1
+    done < <(nix eval --impure --raw --file "$expr_path")
+
+    if [[ "${#broken_packages[@]}" -eq 0 ]]; then
+        return 0
+    fi
+
+    for pkg in "${packages[@]}"; do
+        if [[ -n "${broken_packages[$pkg]:-}" ]]; then
+            removed_packages+=("$pkg")
+            continue
+        fi
+        kept_packages+=("$pkg")
+    done
+
+    packages=("${kept_packages[@]}")
+    echo "removed broken nix packages: ${removed_packages[*]}"
+
+    if [[ "${#packages[@]}" -gt 0 ]]; then
+        return 0
+    fi
+
+    echo 'no installable nix packages remain after removing broken packages'
+    return 0
 }
 
 reuse_agent_env() {
@@ -451,6 +531,12 @@ prepare_agent_store() {
     fi
 
     nixpkgs_path="$(read_nixpkgs_path)"
+    remove_broken_packages "$nixpkgs_path"
+    if [[ "${#packages[@]}" -eq 0 ]]; then
+        reset_agent_store
+        return
+    fi
+
     cache_key="$(build_cache_key "$nixpkgs_path")"
     expected_env_path="$(eval_env_path)"
 

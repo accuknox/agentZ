@@ -1,10 +1,15 @@
 "use server"
 
 import * as z from "zod"
-import { saveCurrentUserPreferences, type UserPreferences } from "@/data/user-preferences"
+import {
+  saveCurrentUserPreferences,
+  themePreferences,
+  type UserPreferences,
+} from "@/data/user-preferences"
 
 const preferencesFormSchema = z.object({
-  updateSandbox: z.stringbool(),
+  theme: z.enum(themePreferences).optional(),
+  updateSandbox: z.stringbool().optional(),
 })
 
 export type PreferencesFormState = {
@@ -29,7 +34,8 @@ export async function savePreferencesAction(
 
   try {
     const preferences = await saveCurrentUserPreferences({
-      updateSandbox: parsed.data.updateSandbox,
+      theme: parsed.data.theme ?? state.preferences.theme,
+      updateSandbox: parsed.data.updateSandbox ?? state.preferences.updateSandbox,
     })
     return { preferences }
   } catch (error) {

@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { PageBreadcrumb } from "@/components/blocks/breadcrumbs/page-breadcrumb"
 import {
@@ -14,6 +15,7 @@ import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { getAuth } from "@/lib/auth"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { ThemeSync } from "./theme-sync"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -47,8 +49,11 @@ async function AppGate({ children }: { children: React.ReactNode }) {
     redirect("/setting-up")
   }
 
+  const preferences = await getCurrentUserPreferences()
+
   return (
     <>
+      <ThemeSync theme={preferences.theme} />
       <Suspense fallback={null}>
         <AppSidebar
           user={{

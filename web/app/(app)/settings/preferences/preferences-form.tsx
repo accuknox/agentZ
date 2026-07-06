@@ -1,6 +1,16 @@
 "use client"
 
 import * as React from "react"
+import { useTheme } from "next-themes"
+import type { ThemePreference } from "@/data/user-preferences"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { savePreferencesAction, type PreferencesFormState } from "./actions"
 
@@ -12,24 +22,60 @@ export function PreferencesForm({
 }: {
   initialState: PreferencesFormState
 }): React.JSX.Element {
-  const [draftChecked, setDraftChecked] = React.useState(initialState.preferences.updateSandbox)
+  const { setTheme } = useTheme()
   const [state, action, pending] = React.useActionState(savePreferencesAction, initialState)
-  const checked = pending ? draftChecked : state.preferences.updateSandbox
+  const [draft, setDraft] = React.useState(initialState.preferences)
+  const preferences = pending ? draft : state.preferences
 
-  function onCheckedChange(nextChecked: boolean) {
-    setDraftChecked(nextChecked)
+  function updatePreferences(next: PreferencesFormState["preferences"]) {
+    setDraft(next)
 
     const formData = new FormData()
-    formData.set("updateSandbox", String(nextChecked))
+    formData.set("theme", next.theme)
+    formData.set("updateSandbox", String(next.updateSandbox))
 
     React.startTransition(() => {
       action(formData)
     })
   }
 
+  function onThemeChange(theme: ThemePreference) {
+    setTheme(theme)
+    updatePreferences({
+      ...preferences,
+      theme,
+    })
+  }
+
+  function onUpdateSandboxChange(updateSandbox: boolean) {
+    updatePreferences({
+      ...preferences,
+      updateSandbox,
+    })
+  }
+
   return (
-    <section className="px-4 md:px-6">
-      <div className="flex items-start justify-between gap-4 py-1">
+    <section className="flex flex-col gap-2 px-4 pb-6 md:px-6">
+      <div className="flex items-start justify-between gap-6 py-2">
+        <div className="min-w-0 space-y-1">
+          <h2 className="text-base font-semibold tracking-normal">Theme</h2>
+          <p className="text-muted-foreground text-sm">Selection is persisted across logins.</p>
+        </div>
+        <Select disabled={pending} onValueChange={onThemeChange} value={preferences.theme}>
+          <SelectTrigger aria-label="Theme" className="w-32 shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="system">System</SelectItem>
+              <SelectItem value="light">Light</SelectItem>
+              <SelectItem value="dark">Dark</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-start justify-between gap-6 py-2">
         <div className="min-w-0 space-y-1">
           <h2 className="text-base font-semibold tracking-normal">
             Auto-accept allowed host suggestions
@@ -45,9 +91,9 @@ export function PreferencesForm({
         </div>
         <Switch
           aria-label="Update sandbox when creating secrets"
-          checked={checked}
+          checked={preferences.updateSandbox}
           disabled={pending}
-          onCheckedChange={onCheckedChange}
+          onCheckedChange={onUpdateSandboxChange}
         />
       </div>
     </section>

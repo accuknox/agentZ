@@ -50,6 +50,13 @@
       "when": 1783242783189,
       "tag": "0006_user_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783311563176,
+      "tag": "0007_hard_morbius",
+      "breakpoints": true
     }
   ]
 }

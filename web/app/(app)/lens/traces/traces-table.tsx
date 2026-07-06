@@ -535,19 +535,21 @@ function SpansInspectorContent({
 }) {
   const [selectedSpanID, setSelectedSpanID] = React.useState<string | undefined>()
   const [detailState, setDetailState] = React.useState<{
+    spanID?: string
     data?: SpanDetailActionData
     error?: Error
   }>({})
   const [detailPending, startDetailTransition] = React.useTransition()
-  const selectedSpan = selectedSpanID
-    ? data?.spans.find((span) => span.spanId === selectedSpanID)
-    : data?.spans[0]
-  const { data: detail, error: detailError } = detailState
+  const selectedSpan = data?.spans.find((span) => span.spanId === selectedSpanID) ?? data?.spans[0]
+  const detail = detailState.spanID === selectedSpan?.spanId ? detailState.data : undefined
+  const detailError = detailState.spanID === selectedSpan?.spanId ? detailState.error : undefined
 
   React.useEffect(() => {
     if (!selectedSpan) {
       return
     }
+
+    let cancelled = false
 
     startDetailTransition(async () => {
       const result = await getSpanDetailAction({
@@ -556,9 +558,19 @@ function SpansInspectorContent({
         traceID: selectedSpan.traceId,
         spanID: selectedSpan.spanId,
       })
-      setDetailState({ data: result.data, error: result.error })
+      if (!cancelled) {
+        setDetailState({
+          spanID: selectedSpan.spanId,
+          data: result.data,
+          error: result.error,
+        })
+      }
     })
-  }, [selectedSpan])
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedSpan, startDetailTransition])
 
   if (pending && !data) {
     return <InspectorSkeleton />
@@ -613,6 +625,10 @@ function SpansInspectorContent({
                   span={span}
                   selected={selectedSpan?.spanId === span.spanId}
                   onClick={() => {
+                    if (selectedSpan?.spanId === span.spanId) {
+                      return
+                    }
+
                     setSelectedSpanID(span.spanId)
                     setDetailState({})
                   }}

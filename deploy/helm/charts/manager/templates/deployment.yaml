@@ -48,7 +48,16 @@ spec:
             - --workflowrun-orphan-retention={{ .Values.config.workflowRunOrphanRetention }}
             - --controller-image={{ .Values.config.controllerImage }}
             - --gateway-url={{ .Values.config.gatewayURL }}
-            - --agentgateway-trace-endpoint={{ required "manager.config.agentgatewayTraceEndpoint is required" .Values.config.agentgatewayTraceEndpoint }}
+            - --agentgateway-trace-mode={{ required "manager.config.agentgatewayTraceMode is required" .Values.config.agentgatewayTraceMode }}
+            {{- if eq .Values.config.agentgatewayTraceMode "service" }}
+            - --agentgateway-trace-service-name={{ required "manager.config.agentgatewayTraceServiceName is required" .Values.config.agentgatewayTraceServiceName }}
+            - --agentgateway-trace-service-namespace={{ required "manager.config.agentgatewayTraceServiceNamespace is required" .Values.config.agentgatewayTraceServiceNamespace }}
+            - --agentgateway-trace-service-port={{ required "manager.config.agentgatewayTraceServicePort is required" .Values.config.agentgatewayTraceServicePort }}
+            {{- end }}
+            {{- if eq .Values.config.agentgatewayTraceMode "static" }}
+            - --agentgateway-trace-host={{ required "manager.config.agentgatewayTraceHost is required" .Values.config.agentgatewayTraceHost }}
+            - --agentgateway-trace-port={{ required "manager.config.agentgatewayTracePort is required" .Values.config.agentgatewayTracePort }}
+            {{- end }}
             - --openbao-addr={{ .Values.config.openBaoAddr }}
             - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}
             - --openbao-k8s-auth-mount-path={{ .Values.config.openBaoK8sAuthMountPath }}

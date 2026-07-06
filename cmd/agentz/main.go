@@ -80,7 +80,12 @@ var (
 	agentImage                                       string
 	controllerImage                                  string
 	gatewayURL                                       string
-	agentgatewayTraceEndpoint                        string
+	agentgatewayTraceMode                            string
+	agentgatewayTraceServiceName                     string
+	agentgatewayTraceServiceNamespace                string
+	agentgatewayTraceServicePort                     int
+	agentgatewayTraceHost                            string
+	agentgatewayTracePort                            int
 	nixStorePVC                                      string
 	agentInitImage                                   string
 	openBaoAddr                                      string
@@ -285,12 +290,51 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:        "agentgateway-trace-endpoint",
-			Usage:       "OTLP/gRPC endpoint used by agentgateway for MCP traces",
-			Destination: &agentgatewayTraceEndpoint,
+			Name:        "agentgateway-trace-mode",
+			Usage:       "OTLP/gRPC backend mode used by agentgateway for MCP traces: service or static",
+			Value:       string(sandboxcontroller.TraceBackendModeService),
+			Destination: &agentgatewayTraceMode,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
+		},
+		&cli.StringFlag{
+			Name:        "agentgateway-trace-service-name",
+			Usage:       "Kubernetes Service name for the agentgateway MCP trace backend",
+			Value:       "observer",
+			Destination: &agentgatewayTraceServiceName,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "agentgateway-trace-service-namespace",
+			Usage:       "Kubernetes namespace for the agentgateway MCP trace Service backend",
+			Value:       "agentz-system",
+			Destination: &agentgatewayTraceServiceNamespace,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.IntFlag{
+			Name:        "agentgateway-trace-service-port",
+			Usage:       "Port for the agentgateway MCP trace Service backend",
+			Value:       4317,
+			Destination: &agentgatewayTraceServicePort,
+		},
+		&cli.StringFlag{
+			Name:        "agentgateway-trace-host",
+			Usage:       "Static host or IP for the agentgateway MCP trace backend",
+			Destination: &agentgatewayTraceHost,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.IntFlag{
+			Name:        "agentgateway-trace-port",
+			Usage:       "Static port for the agentgateway MCP trace backend",
+			Value:       4317,
+			Destination: &agentgatewayTracePort,
 		},
 		&cli.StringFlag{
 			Name:        "nix-store-pvc",
@@ -694,8 +738,16 @@ var managerCmd = &cli.Command{
 		if tenantSinjectorClusterIssuerName == "" {
 			return fmt.Errorf("tenant sinjector clusterissuer name is required")
 		}
-		if agentgatewayTraceEndpoint == "" {
-			return fmt.Errorf("agentgateway trace endpoint is required")
+		traceBackend, err := sandboxcontroller.ParseTraceBackend(
+			agentgatewayTraceMode,
+			agentgatewayTraceServiceName,
+			agentgatewayTraceServiceNamespace,
+			agentgatewayTraceServicePort,
+			agentgatewayTraceHost,
+			agentgatewayTracePort,
+		)
+		if err != nil {
+			return err
 		}
 
 		tenantPVCSize, err := resource.ParseQuantity(tenantNixStoreSize)
@@ -757,10 +809,10 @@ var managerCmd = &cli.Command{
 		}
 
 		sandboxReconciler := &sandboxcontroller.Reconciler{
-			Client:                    mgr.GetClient(),
-			Scheme:                    mgr.GetScheme(),
-			AgentGateway:              agClient,
-			AgentgatewayTraceEndpoint: agentgatewayTraceEndpoint,
+			Client:       mgr.GetClient(),
+			Scheme:       mgr.GetScheme(),
+			AgentGateway: agClient,
+			TraceBackend: traceBackend,
 		}
 		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Sandbox")

@@ -21,8 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/netip"
-	"net/url"
 	"reflect"
 	"slices"
 	"strconv"
@@ -57,24 +55,15 @@ import (
 // Reconciler reconciles Sandbox lifecycle protection and MCP runtime.
 type Reconciler struct {
 	client.Client
-	Scheme                    *runtime.Scheme
-	AgentGateway              agentgatewayclientset.Interface
-	AgentgatewayTraceEndpoint string
+	Scheme       *runtime.Scheme
+	AgentGateway agentgatewayclientset.Interface
+	TraceBackend TraceBackend
 }
 
 const (
-	tracePolicyName        = "mcp-tracing"
 	traceServiceName       = "mcp-otel"
 	traceEndpointSliceName = "mcp-otel"
-	tracePortName          = "otlp-grpc"
-	traceManagedBy         = "agentz"
 )
-
-type traceEndpoint struct {
-	host        string
-	port        gwv1.PortNumber
-	addressType discoveryv1.AddressType
-}
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes/finalizers,verbs=update
@@ -262,7 +251,10 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		if err := r.deleteTracePolicy(ctx, namespace); err != nil {
 			return err
 		}
-		if err := r.deleteTraceEndpoint(ctx, namespace); err != nil {
+		if err := r.deleteTraceBackend(ctx, namespace); err != nil {
+			return err
+		}
+		if err := r.deleteTraceEndpointResources(ctx, namespace); err != nil {
 			return err
 		}
 
@@ -305,9 +297,6 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		return fmt.Errorf("reconcile gateway: %w", err)
 	}
 	if err := r.reconcileGatewayNetworkPolicy(ctx, namespace, owners); err != nil {
-		return err
-	}
-	if err := r.reconcileTraceEndpoint(ctx, namespace, owners); err != nil {
 		return err
 	}
 	if err := r.reconcileTracePolicy(ctx, namespace, owners); err != nil {
@@ -640,85 +629,11 @@ func sandboxOwnerReferences(owners []agentzv1alpha1.Sandbox) []metav1.OwnerRefer
 	return refs
 }
 
-func (r *Reconciler) reconcileTraceEndpoint(ctx context.Context, namespace string, owners []agentzv1alpha1.Sandbox) error {
-	endpoint, err := parseTraceEndpoint(r.AgentgatewayTraceEndpoint)
-	if err != nil {
+func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string, owners []agentzv1alpha1.Sandbox) error {
+	if err := r.deleteTraceEndpointResources(ctx, namespace); err != nil {
 		return err
 	}
-
-	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      traceServiceName,
-			Namespace: namespace,
-		},
-	}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, svc, func() error {
-		svc.OwnerReferences = sandboxOwnerReferences(owners)
-		svc.Spec.Type = corev1.ServiceTypeClusterIP
-		svc.Spec.ExternalName = ""
-		svc.Spec.Selector = nil
-		if endpoint.addressType == discoveryv1.AddressTypeFQDN {
-			svc.Spec.Type = corev1.ServiceTypeExternalName
-			svc.Spec.ExternalName = endpoint.host
-		}
-		svc.Spec.Ports = []corev1.ServicePort{{
-			Name:     tracePortName,
-			Port:     endpoint.port,
-			Protocol: corev1.ProtocolTCP,
-		}}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("reconcile trace endpoint service: %w", err)
-	}
-	if endpoint.addressType == discoveryv1.AddressTypeFQDN {
-		slice := &discoveryv1.EndpointSlice{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      traceEndpointSliceName,
-				Namespace: namespace,
-			},
-		}
-		if err := r.Delete(ctx, slice); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("delete trace endpoint slice: %w", err)
-		}
-		return nil
-	}
-
-	port := endpoint.port
-	portName := tracePortName
-	protocol := corev1.ProtocolTCP
-	slice := &discoveryv1.EndpointSlice{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      traceEndpointSliceName,
-			Namespace: namespace,
-		},
-	}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, slice, func() error {
-		slice.Labels = map[string]string{
-			discoveryv1.LabelServiceName: traceServiceName,
-			discoveryv1.LabelManagedBy:   traceManagedBy,
-		}
-		slice.OwnerReferences = sandboxOwnerReferences(owners)
-		slice.AddressType = endpoint.addressType
-		slice.Ports = []discoveryv1.EndpointPort{{
-			Name:     &portName,
-			Port:     &port,
-			Protocol: &protocol,
-		}}
-		slice.Endpoints = []discoveryv1.Endpoint{{
-			Addresses: []string{endpoint.host},
-		}}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("reconcile trace endpoint slice: %w", err)
-	}
-	return nil
-}
-
-func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string, owners []agentzv1alpha1.Sandbox) error {
-	endpoint, err := parseTraceEndpoint(r.AgentgatewayTraceEndpoint)
-	if err != nil {
+	if err := r.reconcileTraceBackend(ctx, namespace, owners); err != nil {
 		return err
 	}
 
@@ -738,8 +653,7 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 
 	currentSpec := obj.Spec.DeepCopy()
 	currentOwners := slices.Clone(obj.OwnerReferences)
-	port := endpoint.port
-	svcKind := gwv1.Kind("Service")
+	backendRef := tracePolicyBackendRef(r.TraceBackend)
 	randomSampling := agentgatewayshared.CELExpression("true")
 	attrs := &agentgatewayv1alpha1.LogTracingAttributes{
 		Add: []agentgatewayv1alpha1.AttributeAdd{
@@ -803,11 +717,7 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 		}},
 		Frontend: &agentgatewayv1alpha1.Frontend{
 			Tracing: &agentgatewayv1alpha1.Tracing{
-				BackendRef: gwv1.BackendObjectReference{
-					Kind: &svcKind,
-					Name: gwv1.ObjectName(traceServiceName),
-					Port: &port,
-				},
+				BackendRef:     backendRef,
 				Protocol:       agentgatewayv1alpha1.OTLPProtocolGrpc,
 				Attributes:     attrs,
 				Resources:      resources,
@@ -831,43 +741,6 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 	return nil
 }
 
-func parseTraceEndpoint(raw string) (traceEndpoint, error) {
-	endpoint := strings.TrimSpace(raw)
-	if endpoint == "" {
-		return traceEndpoint{}, fmt.Errorf("agentgateway trace endpoint is required")
-	}
-	if !strings.Contains(endpoint, "://") {
-		endpoint = "http://" + endpoint
-	}
-	parsed, err := url.Parse(endpoint)
-	if err != nil {
-		return traceEndpoint{}, fmt.Errorf("parse agentgateway trace endpoint: %w", err)
-	}
-
-	host := parsed.Hostname()
-	portString := parsed.Port()
-	if host == "" || portString == "" {
-		return traceEndpoint{}, fmt.Errorf("agentgateway trace endpoint must be in host:port form")
-	}
-	port, err := strconv.ParseInt(portString, 10, 32)
-	if err != nil || port < 1 || port > 65535 {
-		return traceEndpoint{}, fmt.Errorf("agentgateway trace endpoint port %q is invalid", portString)
-	}
-
-	addressType := discoveryv1.AddressTypeFQDN
-	if addr, err := netip.ParseAddr(host); err == nil {
-		addressType = discoveryv1.AddressTypeIPv6
-		if addr.Is4() {
-			addressType = discoveryv1.AddressTypeIPv4
-		}
-	}
-	return traceEndpoint{
-		host:        host,
-		port:        gwv1.PortNumber(port),
-		addressType: addressType,
-	}, nil
-}
-
 func (r *Reconciler) deleteTracePolicy(ctx context.Context, namespace string) error {
 	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(namespace).Delete(
 		ctx, tracePolicyName, metav1.DeleteOptions{},
@@ -878,7 +751,84 @@ func (r *Reconciler) deleteTracePolicy(ctx context.Context, namespace string) er
 	return nil
 }
 
-func (r *Reconciler) deleteTraceEndpoint(ctx context.Context, namespace string) error {
+func (r *Reconciler) deleteTraceBackend(ctx context.Context, namespace string) error {
+	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayBackends(namespace).Delete(
+		ctx, traceBackendName, metav1.DeleteOptions{},
+	)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete trace backend: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) reconcileTraceBackend(ctx context.Context, namespace string, owners []agentzv1alpha1.Sandbox) error {
+	client := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayBackends(namespace)
+	if r.TraceBackend.Mode == TraceBackendModeService {
+		return r.deleteTraceBackend(ctx, namespace)
+	}
+
+	obj, err := client.Get(ctx, traceBackendName, metav1.GetOptions{})
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return fmt.Errorf("get trace backend: %w", err)
+		}
+		obj = &agentgatewayv1alpha1.AgentgatewayBackend{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      traceBackendName,
+				Namespace: namespace,
+			},
+		}
+	}
+
+	currentSpec := obj.Spec.DeepCopy()
+	currentOwners := slices.Clone(obj.OwnerReferences)
+	obj.OwnerReferences = sandboxOwnerReferences(owners)
+	obj.Spec = agentgatewayv1alpha1.AgentgatewayBackendSpec{
+		Static: &agentgatewayv1alpha1.StaticBackend{
+			Host: r.TraceBackend.Host,
+			Port: r.TraceBackend.Port,
+		},
+	}
+
+	if obj.CreationTimestamp.IsZero() {
+		if _, err := client.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("create trace backend: %w", err)
+		}
+		return nil
+	}
+	if reflect.DeepEqual(currentSpec, obj.Spec) &&
+		reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+		return nil
+	}
+	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("update trace backend: %w", err)
+	}
+	return nil
+}
+
+func tracePolicyBackendRef(cfg TraceBackend) gwv1.BackendObjectReference {
+	if cfg.Mode == TraceBackendModeService {
+		kind := gwv1.Kind("Service")
+		namespace := gwv1.Namespace(cfg.ServiceNamespace)
+		port := cfg.ServicePort
+		return gwv1.BackendObjectReference{
+			Kind:      &kind,
+			Name:      gwv1.ObjectName(cfg.ServiceName),
+			Namespace: &namespace,
+			Port:      &port,
+		}
+	}
+
+	group := gwv1.Group("agentgateway.dev")
+	kind := gwv1.Kind("AgentgatewayBackend")
+	return gwv1.BackendObjectReference{
+		Group: &group,
+		Kind:  &kind,
+		Name:  gwv1.ObjectName(traceBackendName),
+	}
+}
+
+func (r *Reconciler) deleteTraceEndpointResources(ctx context.Context, namespace string) error {
 	slice := &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      traceEndpointSliceName,

@@ -56,7 +56,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Table,
@@ -470,7 +469,7 @@ function RunActions({
               <OpenSessionMenuItem
                 agentName={agentName}
                 detail={detailQuery.data}
-                isPending={detailQuery.isPending}
+                isFetching={detailQuery.isFetching}
               />
               <DropdownMenuItem asChild>
                 <Link href={runGraphHref(agentName, workflowName, item.name)}>
@@ -512,16 +511,17 @@ function runGraphHref(agentName: string, workflowName: string, runName: string):
 function OpenSessionMenuItem({
   agentName,
   detail,
-  isPending,
+  isFetching,
 }: {
   agentName: string
   detail?: WorkflowRunDetail
-  isPending: boolean
+  isFetching: boolean
 }) {
-  if (isPending) {
+  if (isFetching) {
     return (
       <DropdownMenuItem disabled>
-        <Skeleton className="h-4 w-24" />
+        <Spinner />
+        Open session
       </DropdownMenuItem>
     )
   }

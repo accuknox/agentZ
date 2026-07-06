@@ -367,12 +367,11 @@ func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtNam
 	var inputs *gatewayapi.WorkflowInputs
 	var arbitraryJSON *gatewayapi.WorkflowArbitraryJSON
 	if row.InputSchema != nil {
-		var decoded storedInputContract
-		if err := json.Unmarshal(row.InputSchema, &decoded); err != nil {
-			return gatewayapi.Workflow{}, fmt.Errorf("unmarshal workflow input contract: %w", err)
+		var err error
+		inputs, arbitraryJSON, err = decodeInputContract(row.InputSchema)
+		if err != nil {
+			return gatewayapi.Workflow{}, err
 		}
-		inputs = decoded.Inputs
-		arbitraryJSON = decoded.ArbitraryJSON
 	}
 
 	return gatewayapi.Workflow{
@@ -476,6 +475,28 @@ func inputContractJSON(inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gateway
 		return nil, fmt.Errorf("marshal workflow input contract: %w", err)
 	}
 	return raw, nil
+}
+
+func decodeInputContract(raw []byte) (*gatewayapi.WorkflowInputs, *gatewayapi.WorkflowArbitraryJSON, error) {
+	var decoded storedInputContract
+	storedErr := json.Unmarshal(raw, &decoded)
+	if storedErr == nil && (decoded.Inputs != nil || decoded.ArbitraryJSON != nil) {
+		return decoded.Inputs, decoded.ArbitraryJSON, nil
+	}
+
+	var legacy gatewayapi.WorkflowInputs
+	legacyErr := json.Unmarshal(raw, &legacy)
+	if legacyErr == nil && len(legacy) > 0 {
+		return &legacy, nil, nil
+	}
+
+	if storedErr != nil {
+		return nil, nil, fmt.Errorf("unmarshal workflow input contract: %w", storedErr)
+	}
+	if legacyErr != nil {
+		return nil, nil, fmt.Errorf("unmarshal legacy workflow input schema: %w", legacyErr)
+	}
+	return nil, nil, nil
 }
 
 func uniqueNames(names []string) []string {

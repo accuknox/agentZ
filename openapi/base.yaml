@@ -2300,7 +2300,9 @@ components:
           type: string
           minLength: 1
         default_payload:
-          $ref: '#/components/schemas/JSONValue'
+          allOf:
+          - $ref: '#/components/schemas/JSONValue'
+          x-omitempty: true
 
     WorkflowInputStringFormat:
       type: string

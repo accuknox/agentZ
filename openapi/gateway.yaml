@@ -10027,7 +10027,9 @@ components:
         Arbitrary JSON workflow input contract. Use this instead of typed workflow inputs when a workflow should accept one free-form JSON payload.
       properties:
         default_payload:
-          $ref: '#/components/schemas/JSONValue'
+          allOf:
+          - $ref: '#/components/schemas/JSONValue'
+          x-omitempty: true
         description:
           minLength: 1
           type: string

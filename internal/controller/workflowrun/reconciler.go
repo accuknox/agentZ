@@ -604,6 +604,13 @@ func (r *Reconciler) setTerminalStatus(status *agentzv1alpha1.WorkflowRunStatus,
 	if status.CompletedAt == nil {
 		status.CompletedAt = completedAt
 	}
+	for i := range status.Nodes {
+		if status.Nodes[i].Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
+			continue
+		}
+		status.Nodes[i].Phase = agentzv1alpha1.WorkflowRunNodePhaseUnacked
+		status.Nodes[i].CompletedAt = completedAt
+	}
 	status.SetCondition(metav1.Condition{
 		Type:               agentzv1alpha1.WorkflowRunConditionReady,
 		Status:             metav1.ConditionTrue,

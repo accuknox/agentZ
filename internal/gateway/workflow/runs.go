@@ -261,6 +261,13 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		current.Status.Phase = phase
 		current.Status.Message = msg
 		current.Status.CompletedAt = &now
+		for i := range current.Status.Nodes {
+			if current.Status.Nodes[i].Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
+				continue
+			}
+			current.Status.Nodes[i].Phase = agentzv1alpha1.WorkflowRunNodePhaseUnacked
+			current.Status.Nodes[i].CompletedAt = &now
+		}
 
 		if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
 			return err

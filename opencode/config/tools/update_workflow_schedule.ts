@@ -4,7 +4,6 @@ import { type UpdateWorkflowScheduleRequest, updateWorkflowSchedule, zError } fr
 import { zUpdateWorkflowScheduleBody } from "../lib/gateway/client/zod.gen"
 import {
   formatScheduleRequestValidationError,
-  jsonValueSchema,
   validateWorkflowScheduleInputs,
 } from "../lib/workflow_schedule"
 import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
@@ -27,11 +26,9 @@ const args = {
     .min(1)
     .describe("Full replacement cron expression for when the workflow should run."),
   inputs: tool.schema
-    .record(tool.schema.string(), jsonValueSchema)
+    .json()
     .describe(
-      "Full replacement JSON object of runtime workflow inputs. " +
-        "Match the saved workflow input schema exactly. " +
-        "Use {} when the workflow takes no inputs."
+      "Full replacement runtime workflow input value. Use a JSON object for typed workflow inputs, or any JSON value for arbitrary_json workflows."
     ),
   timeout_seconds: tool.schema
     .number()
@@ -51,7 +48,7 @@ Use this tool when the user wants to change an existing saved schedule.
 Authoring rules:
 - name identifies the existing schedule to replace.
 - workflow_name, schedule, inputs, and timeout_seconds are full replacements and must all be provided together.
-- inputs must be a JSON object of runtime values, not an input schema definition.
+- inputs must be runtime values, not an input schema definition.
 - If the workflow has no inputs, pass {}.
 `.trim()
 

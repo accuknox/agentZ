@@ -120,7 +120,7 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 			Message: "required",
 		})
 	}
-	inputIssues, err := workflow.ValidateDefinition(req.Inputs, "inputs")
+	inputIssues, err := workflow.ValidateDefinition(req.Inputs, req.ArbitraryJson)
 	if err != nil {
 		return nil, err
 	}

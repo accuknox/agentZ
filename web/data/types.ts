@@ -1,4 +1,11 @@
-import type { Agent, Sandbox, Error, McpGraphResponse, WorkflowInputs } from "@/lib/gateway/client"
+import type {
+  Agent,
+  Sandbox,
+  Error,
+  McpGraphResponse,
+  WorkflowArbitraryJson,
+  WorkflowInputs,
+} from "@/lib/gateway/client"
 
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
@@ -376,10 +383,11 @@ export type DeleteWorkflowScheduleFormState = {
   error?: Error
 }
 
-export type WorkflowInputSchemaResult =
+export type WorkflowInputContractResult =
   | {
       ok: true
       inputs: WorkflowInputs
+      arbitrary_json?: WorkflowArbitraryJson
     }
   | {
       ok: false

@@ -165,7 +165,7 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
               <div className="flex flex-col gap-2">
                 <p className="text-muted-foreground text-sm">{workflow.summary}</p>
                 <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Inputs: {workflow.inputs ? Object.keys(workflow.inputs).length : 0}
+                  Inputs: {workflowInputSummary(workflow)}
                 </p>
               </div>
             </CollapsibleContent>
@@ -215,6 +215,14 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
       </Canvas>
     </div>
   )
+}
+
+function workflowInputSummary(workflow: WorkflowDefinition) {
+  if (workflow.arbitrary_json) {
+    return "arbitrary JSON"
+  }
+
+  return workflow.inputs ? Object.keys(workflow.inputs).length : 0
 }
 
 function WorkflowAutoLayout({

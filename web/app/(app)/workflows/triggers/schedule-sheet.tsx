@@ -5,12 +5,12 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
 import * as z from "zod"
 import type {
+  JsonValue,
+  WorkflowArbitraryJson,
   WorkflowInputSchema,
-  WorkflowInputs,
   WorkflowSchedule,
   WorkflowSummary,
 } from "@/lib/gateway/client"
-import { zWorkflowInputScalarValue } from "@/lib/gateway/client/zod.gen"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -44,16 +45,19 @@ import { Spinner } from "@/components/ui/spinner"
 import type {
   CreateWorkflowScheduleFormState,
   UpdateWorkflowScheduleFormState,
-  WorkflowInputSchemaResult,
+  WorkflowInputContractResult,
 } from "@/data/types"
 import {
   buildWorkflowScheduleFormSchema,
+  type CreateWorkflowScheduleFormValues,
+  type WorkflowInputContract,
+  type WorkflowScheduleInputValue,
   workflowInputDefaultValues,
+  workflowScheduleInputsSchema,
 } from "@/data/workflow-schedule.schema"
 
 const historyLimitDefault = 3
 const timeoutSecondsDefault = 3600
-const workflowInputValuesSchema = z.record(z.string(), zWorkflowInputScalarValue).catch({})
 const scheduleServerFieldSchema = z.enum([
   "name",
   "workflow_name",
@@ -62,21 +66,11 @@ const scheduleServerFieldSchema = z.enum([
   "timeout_seconds",
   "successful_runs_history_limit",
   "failed_runs_history_limit",
+  "arbitrary_json",
 ])
 const scheduleInputServerFieldSchema = z.templateLiteral(["inputs.", z.string().min(1)])
 
-type ScheduleFormValues = {
-  name: string
-  workflow_name: string
-  schedule: string
-  time_zone: string
-  timeout_seconds: number
-  successful_runs_history_limit: number
-  failed_runs_history_limit: number
-  inputs: Record<string, unknown>
-}
-
-const createDefaults: ScheduleFormValues = {
+const createDefaults: CreateWorkflowScheduleFormValues = {
   name: "",
   workflow_name: "",
   schedule: "",
@@ -85,6 +79,7 @@ const createDefaults: ScheduleFormValues = {
   successful_runs_history_limit: historyLimitDefault,
   failed_runs_history_limit: historyLimitDefault,
   inputs: {},
+  arbitrary_json: "",
 }
 
 type ScheduleSheetActionState = CreateWorkflowScheduleFormState | UpdateWorkflowScheduleFormState
@@ -95,15 +90,21 @@ type ScheduleSheetAction = (
   formData: FormData
 ) => Promise<ScheduleSheetActionState>
 
+type ScheduleFormControl = Control<
+  CreateWorkflowScheduleFormValues,
+  unknown,
+  CreateWorkflowScheduleFormValues
+>
+
 type ScheduleSheetCreateProps = {
   agentName: string
   mode: "create"
   workflows: WorkflowSummary[]
   createWorkflowScheduleAction: ScheduleSheetAction
-  getWorkflowInputSchemaAction: (
+  getWorkflowInputContractAction: (
     agentName: string,
     workflowName: string
-  ) => Promise<WorkflowInputSchemaResult>
+  ) => Promise<WorkflowInputContractResult>
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }
@@ -114,10 +115,10 @@ type ScheduleSheetUpdateProps = {
   workflows: WorkflowSummary[]
   scheduleItem: WorkflowSchedule
   putWorkflowScheduleAction: ScheduleSheetAction
-  getWorkflowInputSchemaAction: (
+  getWorkflowInputContractAction: (
     agentName: string,
     workflowName: string
-  ) => Promise<WorkflowInputSchemaResult>
+  ) => Promise<WorkflowInputContractResult>
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }
@@ -125,22 +126,24 @@ type ScheduleSheetUpdateProps = {
 type ScheduleSheetProps = ScheduleSheetCreateProps | ScheduleSheetUpdateProps
 
 export function ScheduleSheet(props: ScheduleSheetProps) {
-  const { agentName, getWorkflowInputSchemaAction, mode, onOpenChangeAction, open, workflows } =
+  const { agentName, getWorkflowInputContractAction, mode, onOpenChangeAction, open, workflows } =
     props
   const scheduleItem = mode === "update" ? props.scheduleItem : null
-  const [workflowInputs, setWorkflowInputs] = React.useState<WorkflowInputs>({})
+  const [workflowInputContract, setWorkflowInputContract] = React.useState<WorkflowInputContract>({
+    inputs: {},
+  })
   const [schemaError, setSchemaError] = React.useState<string>()
   const [schemaPending, startSchemaTransition] = React.useTransition()
   const schemaRequestRef = React.useRef(0)
   const formSchema = React.useMemo(
-    () => buildWorkflowScheduleFormSchema(workflowInputs),
-    [workflowInputs]
+    () => buildWorkflowScheduleFormSchema(workflowInputContract),
+    [workflowInputContract]
   )
-  const resolver = React.useMemo<Resolver<ScheduleFormValues>>(
+  const resolver = React.useMemo<Resolver<CreateWorkflowScheduleFormValues>>(
     () => (values, context, options) => zodResolver(formSchema)(values, context, options),
     [formSchema]
   )
-  const initialValues = React.useMemo<ScheduleFormValues>(() => {
+  const initialValues = React.useMemo<CreateWorkflowScheduleFormValues>(() => {
     if (mode === "create") {
       const firstWorkflowName = workflows[0]?.workflow_name ?? ""
       return {
@@ -156,7 +159,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
     return createDefaults
   }, [mode, scheduleItem, workflows])
-  const form = useForm<ScheduleFormValues>({
+  const form = useForm<CreateWorkflowScheduleFormValues>({
     resolver,
     mode: "onBlur",
     defaultValues: createDefaults,
@@ -170,52 +173,64 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     formAction,
     {}
   )
-  const loadWorkflowInputs = React.useCallback(
-    async (workflowName: string, values: ScheduleFormValues) => {
+  const loadWorkflowInputContract = React.useCallback(
+    async (workflowName: string, values: CreateWorkflowScheduleFormValues) => {
       const requestId = schemaRequestRef.current + 1
       schemaRequestRef.current = requestId
 
       if (!workflowName) {
-        setWorkflowInputs({})
+        setWorkflowInputContract({ inputs: {} })
         setSchemaError(undefined)
         form.reset({
           ...values,
           inputs: {},
+          arbitrary_json: "",
         })
         return
       }
 
-      const result = await getWorkflowInputSchemaAction(agentName, workflowName)
+      const result = await getWorkflowInputContractAction(agentName, workflowName)
       if (schemaRequestRef.current !== requestId) {
         return
       }
 
       if (!result.ok) {
-        setWorkflowInputs({})
+        setWorkflowInputContract({ inputs: {} })
         setSchemaError(result.error.message)
         form.reset({
           ...values,
           workflow_name: workflowName,
           inputs: {},
+          arbitrary_json: "",
         })
         return
       }
 
+      const contract = {
+        inputs: result.inputs,
+        arbitrary_json: result.arbitrary_json,
+      }
       const inputs =
-        mode === "create"
+        contract.arbitrary_json || mode === "create"
           ? workflowInputDefaultValues(result.inputs)
           : mergeWorkflowInputValues(result.inputs, values.inputs)
+      const arbitraryJSON = contract.arbitrary_json
+        ? mode === "create"
+          ? workflowArbitraryJSONDefaultValue(contract.arbitrary_json)
+          : values.arbitrary_json
+        : ""
 
-      setWorkflowInputs(result.inputs)
+      setWorkflowInputContract(contract)
       setSchemaError(undefined)
       form.reset({
         ...values,
         workflow_name: workflowName,
         inputs,
+        arbitrary_json: arbitraryJSON,
       })
       void form.trigger()
     },
-    [agentName, form, getWorkflowInputSchemaAction, mode]
+    [agentName, form, getWorkflowInputContractAction, mode]
   )
 
   React.useEffect(() => {
@@ -224,9 +239,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     }
 
     startSchemaTransition(() => {
-      void loadWorkflowInputs(initialValues.workflow_name, initialValues)
+      void loadWorkflowInputContract(initialValues.workflow_name, initialValues)
     })
-  }, [initialValues, loadWorkflowInputs, open])
+  }, [initialValues, loadWorkflowInputContract, open])
 
   React.useEffect(() => {
     if (!state.error?.errors) {
@@ -238,7 +253,13 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
         continue
       }
 
-      const inputField = scheduleInputServerFieldSchema.safeParse(err.field)
+      const field =
+        workflowInputContract.arbitrary_json &&
+        (err.field === "inputs" || err.field.startsWith("inputs."))
+          ? "arbitrary_json"
+          : err.field
+
+      const inputField = scheduleInputServerFieldSchema.safeParse(field)
       if (inputField.success) {
         form.setError(inputField.data, {
           type: "server",
@@ -247,7 +268,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
         continue
       }
 
-      const scheduleField = scheduleServerFieldSchema.safeParse(err.field)
+      const scheduleField = scheduleServerFieldSchema.safeParse(field)
       if (scheduleField.success) {
         form.setError(scheduleField.data, {
           type: "server",
@@ -255,7 +276,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
         })
       }
     }
-  }, [form, state.error])
+  }, [form, state.error, workflowInputContract.arbitrary_json])
 
   const workflowName = useWatch({ control: form.control, name: "workflow_name" })
   const generalErrorMessage = React.useMemo(() => {
@@ -280,6 +301,8 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
           error.field === "timeout_seconds" ||
           error.field === "successful_runs_history_limit" ||
           error.field === "failed_runs_history_limit" ||
+          error.field === "arbitrary_json" ||
+          error.field === "inputs" ||
           error.field.startsWith("inputs.")
         )
       }) ?? []
@@ -295,12 +318,19 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     }
 
     const values = form.getValues()
+    if (workflowInputContract.arbitrary_json) {
+      formData.set("arbitrary_json", values.arbitrary_json)
+      React.startTransition(() => {
+        action(formData)
+      })
+      return
+    }
+
     for (const [name, value] of Object.entries(values.inputs)) {
-      const parsed = zWorkflowInputScalarValue.safeParse(value)
-      if (!parsed.success || parsed.data === "") {
+      if (value === undefined || value === "") {
         continue
       }
-      formData.set(`input:${name}`, JSON.stringify(parsed.data))
+      formData.set(`input:${name}`, JSON.stringify(value))
     }
 
     React.startTransition(() => {
@@ -312,7 +342,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     if (!nextOpen) {
       schemaRequestRef.current += 1
       setSchemaError(undefined)
-      setWorkflowInputs({})
+      setWorkflowInputContract({ inputs: {} })
     }
     onOpenChangeAction(nextOpen)
   }
@@ -327,7 +357,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
     startSchemaTransition(() => {
       const currentValues = form.getValues()
-      void loadWorkflowInputs(nextWorkflowName, {
+      void loadWorkflowInputContract(nextWorkflowName, {
         ...currentValues,
         workflow_name: nextWorkflowName,
       })
@@ -541,7 +571,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
             {workflowName ? (
               <WorkflowInputsSection
                 control={form.control}
-                inputs={workflowInputs}
+                contract={workflowInputContract}
                 pending={schemaPending}
               />
             ) : null}
@@ -565,15 +595,13 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
 function WorkflowInputsSection({
   control,
-  inputs,
+  contract,
   pending,
 }: {
-  control: Control<ScheduleFormValues, unknown, ScheduleFormValues>
-  inputs: WorkflowInputs
+  control: ScheduleFormControl
+  contract: WorkflowInputContract
   pending: boolean
 }) {
-  const entries = Object.entries(inputs)
-
   if (pending) {
     return (
       <Field>
@@ -582,6 +610,12 @@ function WorkflowInputsSection({
       </Field>
     )
   }
+
+  if (contract.arbitrary_json) {
+    return <WorkflowArbitraryJSONField control={control} input={contract.arbitrary_json} />
+  }
+
+  const entries = Object.entries(contract.inputs)
 
   if (entries.length === 0) {
     return (
@@ -604,6 +638,39 @@ function WorkflowInputsSection({
   )
 }
 
+function WorkflowArbitraryJSONField({
+  control,
+  input,
+}: {
+  control: ScheduleFormControl
+  input: WorkflowArbitraryJson
+}) {
+  return (
+    <Controller
+      name="arbitrary_json"
+      control={control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor="input-arbitrary-json">Arbitrary JSON</FieldLabel>
+          <Textarea
+            id="input-arbitrary-json"
+            name={field.name}
+            ref={field.ref}
+            value={field.value}
+            onBlur={field.onBlur}
+            onChange={field.onChange}
+            placeholder={input.description ?? "Enter JSON"}
+            className="min-h-48 resize-y font-mono"
+            spellCheck={false}
+            aria-invalid={fieldState.invalid}
+          />
+          {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+        </Field>
+      )}
+    />
+  )
+}
+
 function WorkflowInputField({
   name,
   input,
@@ -611,7 +678,7 @@ function WorkflowInputField({
 }: {
   name: string
   input: WorkflowInputSchema
-  control: Control<ScheduleFormValues, unknown, ScheduleFormValues>
+  control: ScheduleFormControl
 }) {
   const enumValues = input.enum
 
@@ -641,7 +708,11 @@ function WorkflowInputField({
               <Select
                 value={field.value === undefined ? "__empty__" : JSON.stringify(field.value)}
                 onValueChange={(value) => {
-                  field.onChange(value === "__empty__" ? undefined : JSON.parse(value))
+                  field.onChange(
+                    value === "__empty__"
+                      ? undefined
+                      : enumValues.find((enumValue) => JSON.stringify(enumValue) === value)
+                  )
                 }}
               >
                 <SelectTrigger
@@ -771,8 +842,8 @@ function WorkflowInputField({
   )
 }
 
-function scheduleValuesFromItem(item: WorkflowSchedule): ScheduleFormValues {
-  const inputs = workflowInputValuesSchema.parse(item.inputs)
+function scheduleValuesFromItem(item: WorkflowSchedule): CreateWorkflowScheduleFormValues {
+  const inputs = workflowScheduleInputsSchema.catch({}).parse(item.inputs)
 
   return {
     name: item.name,
@@ -783,26 +854,42 @@ function scheduleValuesFromItem(item: WorkflowSchedule): ScheduleFormValues {
     successful_runs_history_limit: item.successful_runs_history_limit,
     failed_runs_history_limit: item.failed_runs_history_limit,
     inputs,
+    arbitrary_json: jsonText(item.inputs),
   }
 }
 
-function workflowInputFormValue(value: unknown) {
-  const parsed = zWorkflowInputScalarValue.safeParse(value)
-  return parsed.success ? parsed.data.toString() : ""
+function workflowInputFormValue(value: WorkflowScheduleInputValue) {
+  return value === undefined ? "" : value.toString()
 }
 
 function mergeWorkflowInputValues(
-  inputSchema: WorkflowInputs,
-  currentInputs: Record<string, unknown>
+  inputSchema: WorkflowInputContract["inputs"],
+  currentInputs: CreateWorkflowScheduleFormValues["inputs"]
 ) {
   const defaults = workflowInputDefaultValues(inputSchema)
-  const nextInputs: Record<string, unknown> = {}
+  const nextInputs: CreateWorkflowScheduleFormValues["inputs"] = {}
 
   for (const name of Object.keys(inputSchema)) {
     nextInputs[name] = currentInputs[name] ?? defaults[name]
   }
 
   return nextInputs
+}
+
+function workflowArbitraryJSONDefaultValue(input: WorkflowArbitraryJson) {
+  if (!("default_payload" in input)) {
+    return ""
+  }
+
+  return jsonText(input.default_payload)
+}
+
+function jsonText(value: JsonValue | undefined) {
+  if (value === undefined) {
+    return ""
+  }
+
+  return JSON.stringify(value, null, 2)
 }
 
 function resolveInputType(input: WorkflowInputSchema) {

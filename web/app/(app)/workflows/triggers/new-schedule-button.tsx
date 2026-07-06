@@ -4,14 +4,14 @@ import * as React from "react"
 import { Plus } from "lucide-react"
 import type { WorkflowSummary } from "@/lib/gateway/client"
 import { Button } from "@/components/ui/button"
-import type { CreateWorkflowScheduleFormState, WorkflowInputSchemaResult } from "@/data/types"
+import type { CreateWorkflowScheduleFormState, WorkflowInputContractResult } from "@/data/types"
 import { ScheduleSheet } from "./schedule-sheet"
 
 export function NewScheduleButton({
   agentName,
   workflows,
   createWorkflowScheduleAction,
-  getWorkflowInputSchemaAction,
+  getWorkflowInputContractAction,
 }: {
   agentName: string
   workflows: WorkflowSummary[]
@@ -20,10 +20,10 @@ export function NewScheduleButton({
     state: CreateWorkflowScheduleFormState,
     formData: FormData
   ) => Promise<CreateWorkflowScheduleFormState>
-  getWorkflowInputSchemaAction: (
+  getWorkflowInputContractAction: (
     agentName: string,
     workflowName: string
-  ) => Promise<WorkflowInputSchemaResult>
+  ) => Promise<WorkflowInputContractResult>
 }) {
   const [open, setOpen] = React.useState(false)
   const disabled = workflows.length === 0
@@ -43,7 +43,7 @@ export function NewScheduleButton({
         mode="create"
         workflows={workflows}
         createWorkflowScheduleAction={createWorkflowScheduleAction}
-        getWorkflowInputSchemaAction={getWorkflowInputSchemaAction}
+        getWorkflowInputContractAction={getWorkflowInputContractAction}
         open={open}
         onOpenChangeAction={setOpen}
       />

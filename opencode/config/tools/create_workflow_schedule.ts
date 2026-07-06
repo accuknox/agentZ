@@ -4,7 +4,6 @@ import { createWorkflowSchedule, type CreateWorkflowScheduleRequest, zError } fr
 import { zCreateWorkflowScheduleBody } from "../lib/gateway/client/zod.gen"
 import {
   formatScheduleRequestValidationError,
-  jsonValueSchema,
   validateWorkflowScheduleInputs,
 } from "../lib/workflow_schedule"
 import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
@@ -27,9 +26,9 @@ const args = {
     .min(1)
     .describe("Cron expression for when the workflow should run."),
   inputs: tool.schema
-    .record(tool.schema.string(), jsonValueSchema)
+    .json()
     .describe(
-      "JSON object of runtime workflow inputs. Match the saved workflow input schema exactly. Use {} when the workflow takes no inputs."
+      "Runtime workflow input value. Use a JSON object for typed workflow inputs, or any JSON value for arbitrary_json workflows."
     ),
   timeout_seconds: tool.schema
     .number()
@@ -46,7 +45,7 @@ Use this tool when the user wants a saved workflow to run on a cron schedule.
 
 Authoring rules:
 - name and workflow_name must be DNS labels up to 32 characters.
-- inputs must be a JSON object of runtime values, not an input schema definition.
+- inputs must be runtime values, not an input schema definition.
 - If the workflow has no inputs, pass {}.
 - If the schedule name already exists, do not rename it automatically. Surface the conflict and ask for a new name.
 

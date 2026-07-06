@@ -53,7 +53,7 @@ var workflowRunScheduleCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "inputs-json",
-			Usage: "JSON object copied into the WorkflowRun spec",
+			Usage: "JSON value copied into the WorkflowRun spec",
 			Value: "null",
 			Config: cli.StringConfig{
 				TrimSpace: true,

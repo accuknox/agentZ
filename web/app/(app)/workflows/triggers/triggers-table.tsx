@@ -50,7 +50,7 @@ import {
 import type {
   DeleteWorkflowScheduleFormState,
   UpdateWorkflowScheduleFormState,
-  WorkflowInputSchemaResult,
+  WorkflowInputContractResult,
 } from "@/data/types"
 import type { TriggerWorkflowRunActionState } from "@/data/workflow-run.actions"
 import { ScheduleSheet } from "./schedule-sheet"
@@ -70,7 +70,7 @@ export function ScheduleTriggersTable({
   hasNextPage,
   nextPageToken,
   deleteWorkflowScheduleAction,
-  getWorkflowInputSchemaAction,
+  getWorkflowInputContractAction,
   triggerWorkflowRunAction,
   updateWorkflowScheduleAction,
 }: {
@@ -84,10 +84,10 @@ export function ScheduleTriggersTable({
     state: DeleteWorkflowScheduleFormState,
     formData: FormData
   ) => Promise<DeleteWorkflowScheduleFormState>
-  getWorkflowInputSchemaAction: (
+  getWorkflowInputContractAction: (
     agentName: string,
     workflowName: string
-  ) => Promise<WorkflowInputSchemaResult>
+  ) => Promise<WorkflowInputContractResult>
   triggerWorkflowRunAction: (
     agentName: string,
     workflowName: string,
@@ -112,14 +112,14 @@ export function ScheduleTriggersTable({
         agentName,
         workflows,
         deleteWorkflowScheduleAction,
-        getWorkflowInputSchemaAction,
+        getWorkflowInputContractAction,
         triggerWorkflowRunAction,
         updateWorkflowScheduleAction
       ),
     [
       agentName,
       deleteWorkflowScheduleAction,
-      getWorkflowInputSchemaAction,
+      getWorkflowInputContractAction,
       triggerWorkflowRunAction,
       updateWorkflowScheduleAction,
       workflows,
@@ -230,10 +230,10 @@ function createColumns(
     state: DeleteWorkflowScheduleFormState,
     formData: FormData
   ) => Promise<DeleteWorkflowScheduleFormState>,
-  getWorkflowInputSchemaAction: (
+  getWorkflowInputContractAction: (
     agentName: string,
     workflowName: string
-  ) => Promise<WorkflowInputSchemaResult>,
+  ) => Promise<WorkflowInputContractResult>,
   triggerWorkflowRunAction: (
     agentName: string,
     workflowName: string,
@@ -313,7 +313,7 @@ function createColumns(
           workflows={workflows}
           item={row.original}
           deleteWorkflowScheduleAction={deleteWorkflowScheduleAction}
-          getWorkflowInputSchemaAction={getWorkflowInputSchemaAction}
+          getWorkflowInputContractAction={getWorkflowInputContractAction}
           triggerWorkflowRunAction={triggerWorkflowRunAction}
           updateWorkflowScheduleAction={updateWorkflowScheduleAction}
         />
@@ -327,7 +327,7 @@ function ScheduleActions({
   workflows,
   item,
   deleteWorkflowScheduleAction,
-  getWorkflowInputSchemaAction,
+  getWorkflowInputContractAction,
   triggerWorkflowRunAction,
   updateWorkflowScheduleAction,
 }: {
@@ -339,10 +339,10 @@ function ScheduleActions({
     state: DeleteWorkflowScheduleFormState,
     formData: FormData
   ) => Promise<DeleteWorkflowScheduleFormState>
-  getWorkflowInputSchemaAction: (
+  getWorkflowInputContractAction: (
     agentName: string,
     workflowName: string
-  ) => Promise<WorkflowInputSchemaResult>
+  ) => Promise<WorkflowInputContractResult>
   triggerWorkflowRunAction: (
     agentName: string,
     workflowName: string,
@@ -394,7 +394,7 @@ function ScheduleActions({
         workflows={workflows}
         scheduleItem={item}
         putWorkflowScheduleAction={updateWorkflowScheduleAction}
-        getWorkflowInputSchemaAction={getWorkflowInputSchemaAction}
+        getWorkflowInputContractAction={getWorkflowInputContractAction}
         open={editOpen}
         onOpenChangeAction={setEditOpen}
       />

@@ -21,7 +21,7 @@ Use this tool when you need the saved workflow's definition. Prefer this tool ov
 The tool returns:
 
 - workflow metadata and summary
-- declared workflow inputs
+- workflow input contract
 - start and terminal nodes
 - nodes in execution order
 - complete node instructions, goals, done criteria, preferred skills, and preferred tools
@@ -174,7 +174,7 @@ function workflowToMarkdown(workflow: Workflow) {
     `- Agent: \`${workflow.agent_name}\``,
     `- Workflow name: \`${workflow.workflow_name}\``,
     `- Summary: ${workflow.summary}`,
-    `- Inputs: ${workflow.inputs ? Object.keys(workflow.inputs).length : 0}`,
+    `- Inputs: ${inputSummary(workflow)}`,
     `- Created at: ${workflow.created_at}`,
     `- Updated at: ${workflow.updated_at}`,
     `- Node count: ${workflow.nodes.length}`,
@@ -187,7 +187,7 @@ function workflowToMarkdown(workflow: Workflow) {
     `- Unconditional edges: ${workflow.edges.length - conditionalEdgeCount}`,
     "",
     "## Inputs",
-    workflow.inputs ? formatInputs(workflow.inputs) : "- No declared inputs.",
+    formatInputContract(workflow),
     "",
     "## Execution Order",
   ]
@@ -246,6 +246,29 @@ function joinTransitions(edges: Array<WorkflowEdge>) {
       return `\`${edge.source}\` -> \`${edge.target}\`${branch}`
     })
     .join(", ")
+}
+
+function inputSummary(workflow: Workflow) {
+  if (workflow.arbitrary_json) {
+    return "arbitrary JSON"
+  }
+
+  return workflow.inputs ? Object.keys(workflow.inputs).length : 0
+}
+
+function formatInputContract(workflow: Workflow) {
+  if (workflow.arbitrary_json) {
+    const lines = ["- Mode: arbitrary JSON"]
+    if (workflow.arbitrary_json.description) {
+      lines.push(`- Description: ${workflow.arbitrary_json.description}`)
+    }
+    if (workflow.arbitrary_json.default_payload !== undefined) {
+      lines.push(`- Default payload: ${JSON.stringify(workflow.arbitrary_json.default_payload)}`)
+    }
+    return lines.join("\n")
+  }
+
+  return workflow.inputs ? formatInputs(workflow.inputs) : "- No declared inputs."
 }
 
 function formatInputs(inputs: NonNullable<Workflow["inputs"]>) {

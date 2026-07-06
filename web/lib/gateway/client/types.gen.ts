@@ -146,6 +146,7 @@ export type CreateWorkflowRequest = {
   title: string
   summary: string
   inputs?: WorkflowInputs
+  arbitrary_json?: WorkflowArbitraryJson
   nodes: Array<WorkflowNode>
   edges: Array<WorkflowEdge>
 }
@@ -156,6 +157,7 @@ export type Workflow = {
   title: string
   summary: string
   inputs?: WorkflowInputs
+  arbitrary_json?: WorkflowArbitraryJson
   nodes: Array<WorkflowNode>
   edges: Array<WorkflowEdge>
   created_at: string
@@ -181,13 +183,7 @@ export type WorkflowSchedule = {
  */
 export type ApiKeyId = string
 
-/**
- * Runtime workflow input values. The gateway validates this object against the saved workflow input schema before creating a WorkflowRun.
- *
- */
-export type WorkflowRunInputs = {
-  [key: string]: unknown
-}
+export type WorkflowRunInputs = JsonValue
 
 export type WorkflowRunTriggerType = "Schedule" | "Webhook"
 
@@ -281,6 +277,15 @@ export type WorkflowEdge = {
 
 export type WorkflowInputs = {
   [key: string]: WorkflowInputSchema
+}
+
+/**
+ * Arbitrary JSON workflow input contract. Use this instead of typed workflow inputs when a workflow should accept one free-form JSON payload.
+ *
+ */
+export type WorkflowArbitraryJson = {
+  description?: string
+  default_payload?: JsonValue
 }
 
 export type WorkflowInputStringFormat = "email" | "uri" | "uuid" | "date" | "date-time"
@@ -592,6 +597,7 @@ export type JsonValue =
   | {
       [key: string]: JsonValue
     }
+  | null
 
 export type JsonObject = {
   [key: string]: JsonValue

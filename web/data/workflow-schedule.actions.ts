@@ -14,19 +14,22 @@ import { agentWorkflowsTag, workflowsTag } from "@/data/cache"
 import {
   buildWorkflowScheduleFormSchema,
   type CreateWorkflowScheduleFormValues,
+  type WorkflowInputContract,
+  workflowScheduleArbitraryJSONSchema,
+  workflowScheduleInputTextSchema,
   workflowScheduleNameSchema,
 } from "@/data/workflow-schedule.schema"
 import type {
   CreateWorkflowScheduleFormState,
   DeleteWorkflowScheduleFormState,
   UpdateWorkflowScheduleFormState,
-  WorkflowInputSchemaResult,
+  WorkflowInputContractResult,
 } from "@/data/types"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 type ParsedScheduleForm = {
   data: CreateWorkflowScheduleFormValues
-  inputs: JsonValue
+  inputs?: JsonValue
 }
 
 type WorkflowScheduleInputsJSON = Record<string, string | number | boolean>
@@ -40,8 +43,6 @@ const scheduleFormDataSchema = z.object({
   successful_runs_history_limit: z.coerce.number(),
   failed_runs_history_limit: z.coerce.number(),
 })
-
-const workflowScheduleInputJSONSchema = z.union([z.string(), z.number(), z.boolean()])
 
 export async function createWorkflowScheduleFormAction(
   agentName: string,
@@ -76,10 +77,10 @@ export async function createWorkflowScheduleFormAction(
   finishWorkflowScheduleMutation(agentName)
 }
 
-export async function getWorkflowInputSchemaAction(
+export async function getWorkflowInputContractAction(
   agentName: string,
   workflowName: string
-): Promise<WorkflowInputSchemaResult> {
+): Promise<WorkflowInputContractResult> {
   const result = await getWorkflow({
     client: getGatewayServerClient(),
     path: {
@@ -97,6 +98,7 @@ export async function getWorkflowInputSchemaAction(
   return {
     ok: true,
     inputs: result.data.inputs ?? {},
+    arbitrary_json: result.data.arbitrary_json,
   }
 }
 
@@ -176,40 +178,7 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
   const values: CreateWorkflowScheduleFormValues = {
     ...scalarValues.data,
     inputs: {},
-  }
-
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith("input:")) {
-      continue
-    }
-
-    const name = key.slice("input:".length)
-    const inputValue = z.string().safeParse(value)
-    if (!inputValue.success) {
-      return invalidFormState("Schedule configuration is invalid", inputValue.error.issues)
-    }
-
-    if (inputValue.data.length === 0) {
-      values.inputs[name] = undefined
-      continue
-    }
-
-    try {
-      const parsedInput = workflowScheduleInputJSONSchema.safeParse(JSON.parse(inputValue.data))
-      if (!parsedInput.success) {
-        return invalidFormState("Schedule configuration is invalid", parsedInput.error.issues)
-      }
-
-      values.inputs[name] = parsedInput.data
-    } catch {
-      return invalidFormState("Schedule configuration is invalid", [
-        {
-          code: "custom",
-          message: "Input value is invalid",
-          path: [name],
-        },
-      ])
-    }
+    arbitrary_json: z.string().parse(formData.get("arbitrary_json") ?? ""),
   }
 
   const workflowResult = await getWorkflow({
@@ -223,9 +192,40 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
     return { error: workflowResult.error }
   }
 
-  const parsed = buildWorkflowScheduleFormSchema(workflowResult.data.inputs ?? {}).safeParse(values)
+  const contract: WorkflowInputContract = {
+    inputs: workflowResult.data.inputs ?? {},
+    arbitrary_json: workflowResult.data.arbitrary_json,
+  }
+
+  if (!contract.arbitrary_json) {
+    const inputs = workflowScheduleFormInputs(formData)
+    if ("error" in inputs) {
+      return inputs
+    }
+    values.inputs = inputs.value
+  }
+
+  const parsed = buildWorkflowScheduleFormSchema(contract).safeParse(values)
   if (!parsed.success) {
     return invalidFormState("Schedule configuration is invalid", parsed.error.issues)
+  }
+
+  if (contract.arbitrary_json) {
+    const inputs = workflowScheduleArbitraryJSONSchema.safeDecode(parsed.data.arbitrary_json)
+    if (!inputs.success) {
+      return invalidFormState("Schedule configuration is invalid", [
+        {
+          code: "custom",
+          message: "Input must be valid JSON",
+          path: ["arbitrary_json"],
+        },
+      ])
+    }
+
+    return {
+      data: parsed.data,
+      inputs: inputs.data,
+    } satisfies ParsedScheduleForm
   }
 
   return {
@@ -240,13 +240,13 @@ function finishWorkflowScheduleMutation(agentName: string): never {
   redirect(`/workflows/triggers?agent_name=${encodeURIComponent(agentName)}&type=schedule`)
 }
 
-function invalidFormState(message: string, issues: z.ZodIssue[], field?: string) {
+function invalidFormState(message: string, issues: z.ZodIssue[]) {
   return {
     error: {
       code: "INVALID_FORM",
       message,
       errors: issues.map((issue) => ({
-        field: field ?? issue.path.join("."),
+        field: issue.path.join("."),
         message: issue.message,
       })),
     },
@@ -267,4 +267,35 @@ function workflowScheduleInputsToJSON(
   }
 
   return jsonInputs
+}
+
+function workflowScheduleFormInputs(formData: FormData) {
+  const inputs: CreateWorkflowScheduleFormValues["inputs"] = {}
+
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("input:")) {
+      continue
+    }
+
+    const name = key.slice("input:".length)
+    const inputValue = z.string().safeParse(value)
+    if (!inputValue.success) {
+      return invalidFormState("Schedule configuration is invalid", inputValue.error.issues)
+    }
+
+    const parsedInput = workflowScheduleInputTextSchema.safeDecode(inputValue.data)
+    if (!parsedInput.success) {
+      return invalidFormState("Schedule configuration is invalid", [
+        {
+          code: "custom",
+          message: "Input value is invalid",
+          path: [name],
+        },
+      ])
+    }
+
+    inputs[name] = parsedInput.data
+  }
+
+  return { value: inputs }
 }

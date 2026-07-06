@@ -1113,7 +1113,7 @@ export const createWorkflowRunMutation = (
 /**
  * Trigger a workflow run through a webhook API key.
  *
- * Validates the request body against the saved workflow input schema, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
+ * Validates the request body against the saved workflow input contract, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
  *
  */
 export const invokeWorkflowWebhookMutation = (

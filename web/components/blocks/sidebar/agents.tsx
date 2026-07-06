@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { motion } from "motion/react"
 import { AgentDialog } from "@/app/agent/agent-dialog"
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
+import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Dialog,
@@ -41,6 +41,7 @@ import { agentIsGettingReady, watchAgentsQueryOptions } from "@/components/agent
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type {
   AgentSessionListItem,
+  DeleteSessionFormState,
   ListAgentActionResponse,
   ListSandboxActionResponse,
 } from "@/data/types"
@@ -283,37 +284,32 @@ function SessionItem({
 }) {
   const href = `/agents/${agentName}/${session.id}` as Route
   const [open, setOpen] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
+    deleteAgentSessionAction.bind(null, agentName),
+    { success: false }
+  )
+  const [isTransitionPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
   const router = useRouter()
   const newSessionPath = `/agents/${agentName}/session/new` as Route
+  const isBusy = isPending || isTransitionPending
 
-  const handleDelete = useCallback(
-    async (formData: FormData) => {
-      setError(null)
-      const state = await deleteAgentSessionAction(agentName, { success: false }, formData)
+  useEffect(() => {
+    if (isPending || !pendingState.success) return
 
-      if (state.error) {
-        setError(new Error(state.error.message))
-        return
-      }
+    startTransition(() => {
+      setOpen(false)
 
-      startTransition(() => {
-        setOpen(false)
-
-        void queryClient.invalidateQueries({
-          queryKey: agentSessionsQueryOptions(agentName, true).queryKey,
-        })
-
-        if (path === href) {
-          router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
-          router.refresh()
-        }
+      void queryClient.invalidateQueries({
+        queryKey: agentSessionsQueryOptions(agentName, true).queryKey,
       })
-    },
-    [agentName, href, newSessionPath, path, queryClient, router]
-  )
+
+      if (path !== href) return
+
+      router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
+      router.refresh()
+    })
+  }, [agentName, href, isPending, newSessionPath, path, pendingState.success, queryClient, router])
 
   return (
     <>
@@ -341,7 +337,7 @@ function SessionItem({
         className="text-destructive ring-sidebar-ring hover:bg-destructive/10 hover:text-destructive absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm opacity-0 outline-hidden transition-opacity group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2"
         onClick={() => setOpen(true)}
       >
-        {isPending ? <Spinner className="size-3" /> : <Trash2 size={16} />}
+        {isTransitionPending ? <Spinner className="size-3" /> : <Trash2 size={16} />}
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent showCloseButton={false}>
@@ -351,21 +347,21 @@ function SessionItem({
               This will permanently delete <span className="font-medium">{session.title}</span>.
             </DialogDescription>
           </DialogHeader>
-          {error ? (
+          {pendingState.error ? (
             <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
-              {error.message}
+              {pendingState.error.message}
             </p>
           ) : null}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={isPending}>
+              <Button type="button" variant="outline" disabled={isBusy}>
                 Cancel
               </Button>
             </DialogClose>
-            <form action={handleDelete}>
+            <form action={action}>
               <input type="hidden" name="sessionID" value={session.id} />
-              <Button type="submit" variant="destructive" disabled={isPending}>
-                {isPending ? <Spinner /> : <Trash2 />}
+              <Button type="submit" variant="destructive" disabled={isBusy}>
+                {isBusy ? <Spinner /> : <Trash2 />}
                 Delete
               </Button>
             </form>

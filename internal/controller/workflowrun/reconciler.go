@@ -242,7 +242,7 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 		if err != nil {
 			return fmt.Errorf("delete workflow session: %w", err)
 		}
-		if resp.StatusCode() != http.StatusNoContent && resp.StatusCode() != http.StatusNotFound {
+		if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound {
 			return fmt.Errorf(
 				"delete workflow session returned status %d",
 				resp.StatusCode(),

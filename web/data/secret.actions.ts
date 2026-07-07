@@ -7,7 +7,6 @@ import * as z from "zod"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { deleteSecret, putSecret } from "@/lib/gateway/client"
 import type { CreateSecretRequest } from "@/lib/gateway/client"
-import { zSecretKey } from "@/lib/gateway/client/zod.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import {
   beginOAuthFlow,
@@ -18,7 +17,7 @@ import {
 import { agentSecretsTag, secretsTag } from "@/data/cache"
 import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { defaultMcpAuthLocation, type ParsedMcpForm } from "@/data/mcp.schema"
-import { oauthSecretFormInputSchema, secretFormInputSchema } from "./schema"
+import { oauthSecretFormInputSchema, secretFormInputSchema, secretKeySchema } from "./schema"
 import type { DeleteSecretFormState, PutSecretFormState } from "./types"
 
 export async function putSecretFormAction(
@@ -162,7 +161,7 @@ export async function deleteSecretFormAction(
   _: DeleteSecretFormState,
   formData: FormData
 ): Promise<DeleteSecretFormState> {
-  const parsed = z.object({ key: zSecretKey }).safeParse(Object.fromEntries(formData))
+  const parsed = z.object({ key: secretKeySchema }).safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
     return invalidFieldState(
       "key",

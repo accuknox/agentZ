@@ -36,12 +36,16 @@ type WorkflowScheduleInputsJSON = Record<string, string | number | boolean>
 
 const scheduleFormDataSchema = z.object({
   name: workflowScheduleNameSchema,
-  workflow_name: z.string().min(1, "Workflow is required"),
-  schedule: z.string(),
-  time_zone: z.string(),
-  timeout_seconds: z.coerce.number(),
-  successful_runs_history_limit: z.coerce.number(),
-  failed_runs_history_limit: z.coerce.number(),
+  workflow_name: z.string({ error: "Workflow is required" }).min(1, "Workflow is required"),
+  schedule: z.string({ error: "Schedule is required" }),
+  time_zone: z.string({ error: "Timezone is required" }),
+  timeout_seconds: z.coerce.number({ error: "Timeout must be a number" }),
+  successful_runs_history_limit: z.coerce.number({
+    error: "Successful runs history limit must be a number",
+  }),
+  failed_runs_history_limit: z.coerce.number({
+    error: "Failed runs history limit must be a number",
+  }),
 })
 
 export async function createWorkflowScheduleFormAction(
@@ -178,7 +182,9 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
   const values: CreateWorkflowScheduleFormValues = {
     ...scalarValues.data,
     inputs: {},
-    arbitrary_json: z.string().parse(formData.get("arbitrary_json") ?? ""),
+    arbitrary_json: z
+      .string({ error: "Arbitrary JSON must be text" })
+      .parse(formData.get("arbitrary_json") ?? ""),
   }
 
   const workflowResult = await getWorkflow({
@@ -278,7 +284,7 @@ function workflowScheduleFormInputs(formData: FormData) {
     }
 
     const name = key.slice("input:".length)
-    const inputValue = z.string().safeParse(value)
+    const inputValue = z.string({ error: "Input value must be text" }).safeParse(value)
     if (!inputValue.success) {
       return invalidFormState("Schedule configuration is invalid", inputValue.error.issues)
     }

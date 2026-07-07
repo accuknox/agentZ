@@ -6,7 +6,9 @@ import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
 import type { DeleteSessionFormState } from "@/data/types"
 
 const deleteOpencodeSessionFormSchema = z.object({
-  sessionID: z.string().min(1),
+  sessionID: z
+    .string({ error: "OpenCode session ID is required" })
+    .min(1, "OpenCode session ID is required"),
 })
 
 // deleteAgentSessionAction deletes one OpenCode session for a single agent.

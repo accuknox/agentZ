@@ -68,7 +68,10 @@ const scheduleServerFieldSchema = z.enum([
   "failed_runs_history_limit",
   "arbitrary_json",
 ])
-const scheduleInputServerFieldSchema = z.templateLiteral(["inputs.", z.string().min(1)])
+const scheduleInputServerFieldSchema = z.templateLiteral([
+  "inputs.",
+  z.string({ error: "Workflow input name is required" }).min(1, "Workflow input name is required"),
+])
 
 const createDefaults: CreateWorkflowScheduleFormValues = {
   name: "",

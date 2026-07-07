@@ -13,8 +13,12 @@ import { passwordFieldDescription, passwordSchema } from "@/lib/password-policy"
 
 const changePasswordSchema = z
   .object({
-    confirmPassword: z.string().min(1, "Confirm your new password."),
-    currentPassword: z.string().min(1, "Enter your current password."),
+    confirmPassword: z
+      .string({ error: "Confirm your new password." })
+      .min(1, "Confirm your new password."),
+    currentPassword: z
+      .string({ error: "Enter your current password." })
+      .min(1, "Enter your current password."),
     newPassword: passwordSchema,
   })
   .refine((value) => value.newPassword === value.confirmPassword, {

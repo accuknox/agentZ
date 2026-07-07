@@ -21,11 +21,21 @@ import { sandboxesTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 const sandboxFormDataListsSchema = z.object({
-  packages: z.array(z.string()),
-  allowedHosts: z.array(z.string()),
-  mcpConnectionRefs: z.array(z.string()),
-  mcpRequireConsentTool: z.array(z.string()),
-  mcpTool: z.array(z.string()),
+  packages: z.array(z.string({ error: "Package name must be text" }), {
+    error: "Packages must be a list",
+  }),
+  allowedHosts: z.array(z.string({ error: "Allowed host must be text" }), {
+    error: "Allowed hosts must be a list",
+  }),
+  mcpConnectionRefs: z.array(z.string({ error: "MCP connection name must be text" }), {
+    error: "MCP connections must be a list",
+  }),
+  mcpRequireConsentTool: z.array(z.string({ error: "MCP consent tool must be text" }), {
+    error: "MCP consent tools must be a list",
+  }),
+  mcpTool: z.array(z.string({ error: "MCP tool must be text" }), {
+    error: "MCP tools must be a list",
+  }),
 })
 
 type SandboxFormValues = Omit<z.input<typeof createSandboxFormSchema>, "name">

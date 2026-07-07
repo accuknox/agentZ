@@ -9,8 +9,10 @@ import { getAuth } from "@/lib/auth"
 import { signInReturnTo, signInURL } from "@/lib/sign-in-redirect"
 
 const providerSignInFormSchema = z.object({
-  returnTo: z.string().optional().catch(undefined),
-  authPath: z.enum(["/signin", "/signup"]).catch("/signin"),
+  returnTo: z.string({ error: "Return URL must be text" }).optional().catch(undefined),
+  authPath: z
+    .enum(["/signin", "/signup"], { error: "Authentication path is invalid" })
+    .catch("/signin"),
 })
 
 async function signInWithProvider(provider: SocialProvider, formData: FormData): Promise<never> {

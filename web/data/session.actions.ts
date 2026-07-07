@@ -9,7 +9,7 @@ import { getAuth } from "@/lib/auth"
 import { signInURL } from "@/lib/sign-in-redirect"
 
 const deleteSessionFormSchema = z.object({
-  token: z.string().min(1),
+  token: z.string({ error: "Session token is required" }).min(1, "Session token is required"),
 })
 
 export async function deleteSessionFormAction(

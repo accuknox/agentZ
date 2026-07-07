@@ -37,8 +37,8 @@ type TwoFactorSetup = {
 
 const manageResponseSchema = z.discriminatedUnion("status", [
   z.object({
-    action: z.enum(["disable", "enable"]),
-    provider: z.enum(["credential", "github", "google"]),
+    action: z.enum(["disable", "enable"], { error: "2FA action is invalid" }),
+    provider: z.enum(["credential", "github", "google"], { error: "Re-auth provider is invalid" }),
     status: z.literal("reauth_required"),
   }),
   z.object({
@@ -63,8 +63,15 @@ type TwoFactorSettingsProps = {
 }
 
 const reauthenticateSchema = z.object({
-  password: z.string().min(1, "Enter your current password."),
+  password: z
+    .string({ error: "Enter your current password." })
+    .min(1, "Enter your current password."),
 })
+
+const totpCodeSchema = z
+  .string({ error: "Enter a valid 6-digit code" })
+  .trim()
+  .regex(/^\d{6}$/, "Enter a valid 6-digit code")
 
 const twoFactorRedirectResponseSchema = z.object({
   twoFactorRedirect: z.literal(true),
@@ -224,13 +231,14 @@ export function TwoFactorSettings({
   }
 
   async function verify(code: string): Promise<string | undefined> {
-    if (!/^\d{6}$/.test(code)) {
-      return "Enter a valid 6-digit code"
+    const parsed = totpCodeSchema.safeParse(code)
+    if (!parsed.success) {
+      return parsed.error.issues[0]?.message
     }
 
     setPendingAction("enable")
     try {
-      const result = await authClient.twoFactor.verifyTotp({ code })
+      const result = await authClient.twoFactor.verifyTotp({ code: parsed.data })
       if (result.error) {
         return result.error.message ?? "Invalid code"
       }

@@ -228,7 +228,6 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
         inputs,
         arbitrary_json: arbitraryJSON,
       })
-      void form.trigger()
     },
     [agentName, form, getWorkflowInputContractAction, mode]
   )

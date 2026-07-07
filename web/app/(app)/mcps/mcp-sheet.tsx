@@ -93,6 +93,12 @@ const initialServerResults = 8
 const discoveryDebounceMs = 500
 const discoveryErrorMessage =
   "If the MCP server supports OAuth, please fill in the required fields in advanced section manually."
+const discoveryURLSchema = z
+  .url({ protocol: /^https$/, error: "MCP server URL must be a valid HTTPS URL" })
+  .refine(
+    (value) => !/^https:\/\/[^/?#]*@/.test(value),
+    "MCP server URL must not include credentials"
+  )
 const oauthAdvancedFields = [
   {
     name: "oauth_issuer",
@@ -285,14 +291,6 @@ function useDebouncedValue<T>(value: T, delay: number) {
   return debounced
 }
 
-function isHTTPSURL(value: string) {
-  try {
-    return new URL(value).protocol === "https:"
-  } catch {
-    return false
-  }
-}
-
 function accordionReducer(state: string[], action: AccordionAction) {
   if (action.type === "set") {
     return action.value
@@ -409,15 +407,13 @@ const ServerURLField = React.memo(function ServerURLField({
       return results
     }
 
-    try {
-      const customURL = new URL(query)
-      if (customURL.protocol === "https:" && !hasExactCatalogURL) {
-        results.push({
-          kind: "custom",
-          mcpUrl: query,
-        })
-      }
-    } catch {}
+    const customURL = discoveryURLSchema.safeParse(query)
+    if (customURL.success && !hasExactCatalogURL) {
+      results.push({
+        kind: "custom",
+        mcpUrl: customURL.data,
+      })
+    }
 
     return results
   }, [deferredEndpointURL])
@@ -683,11 +679,14 @@ export function McpSheet({
   })
   const trimmedEndpointURL = endpointURL.trim()
   const debouncedEndpointURL = useDebouncedValue(trimmedEndpointURL, discoveryDebounceMs)
-  const validEndpointURL = isHTTPSURL(trimmedEndpointURL)
+  const validEndpointURL = discoveryURLSchema.safeParse(trimmedEndpointURL).success
   const discoveryURL = discoveryURLOverride ?? debouncedEndpointURL
   const oauthQuery = useQuery({
     ...oauthDiscoveryQueryOptions(discoveryURL),
-    enabled: authMode === "oauth" && hasTriggeredDiscovery && isHTTPSURL(discoveryURL),
+    enabled:
+      authMode === "oauth" &&
+      hasTriggeredDiscovery &&
+      discoveryURLSchema.safeParse(discoveryURL).success,
   })
   const { refetch: refetchOAuthDiscovery } = oauthQuery
   const oauthDiscoveryData = oauthQuery.data?.oauth
@@ -715,7 +714,7 @@ export function McpSheet({
     authMode === "oauth" &&
     hasTriggeredDiscovery &&
     isCurrentDiscoveryTarget &&
-    isHTTPSURL(discoveryURL)
+    discoveryURLSchema.safeParse(discoveryURL).success
       ? discoveryURL
       : undefined
   const discoveryWarningKey =
@@ -1141,7 +1140,7 @@ export function McpSheet({
     }
 
     const nextURL = trimmedEndpointURL
-    if (!isHTTPSURL(nextURL)) {
+    if (!discoveryURLSchema.safeParse(nextURL).success) {
       return
     }
 

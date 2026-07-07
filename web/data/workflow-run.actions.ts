@@ -18,11 +18,15 @@ export type TriggerWorkflowRunActionState = {
 }
 
 const deleteWorkflowRunFormSchema = z.object({
-  run_name: z.string().min(1),
+  run_name: z
+    .string({ error: "Workflow run name is required" })
+    .min(1, "Workflow run name is required"),
 })
 
 const triggerWorkflowRunFormSchema = z.object({
-  schedule_name: z.string().min(1),
+  schedule_name: z
+    .string({ error: "Workflow schedule name is required" })
+    .min(1, "Workflow schedule name is required"),
 })
 
 /**

@@ -8,8 +8,8 @@ import {
 } from "@/data/user-preferences"
 
 const preferencesFormSchema = z.object({
-  theme: z.enum(themePreferences).optional(),
-  updateSandbox: z.stringbool().optional(),
+  theme: z.enum(themePreferences, { error: "Theme preference is invalid" }).optional(),
+  updateSandbox: z.stringbool({ error: "Sandbox update preference is invalid" }).optional(),
 })
 
 export type PreferencesFormState = {

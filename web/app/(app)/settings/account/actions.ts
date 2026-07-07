@@ -8,7 +8,7 @@ import type { SocialProvider } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
 
 const reauthenticationFormSchema = z.object({
-  action: z.enum(["enable", "disable"]).catch("enable"),
+  action: z.enum(["enable", "disable"], { error: "2FA action is invalid" }).catch("enable"),
 })
 
 async function reauthenticateWithProvider(

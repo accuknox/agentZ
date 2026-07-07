@@ -79,6 +79,16 @@ type OAuthDiscoveryPayload = z.infer<typeof oauthDiscoveryResponseSchema> & {
 const clientCredentialsAccordionItem = "client-credentials"
 const advancedAccordionItem = "advanced"
 const discoveryDebounceMs = 500
+const discoveryURLSchema = z
+  .url({ protocol: /^https$/, error: "OAuth server URL must be a valid HTTPS URL" })
+  .refine((value) => {
+    if (!URL.canParse(value)) {
+      return false
+    }
+
+    const url = new URL(value)
+    return !url.username && !url.password
+  }, "OAuth server URL must not include credentials")
 const initialFormValues: OAuthSecretFormInput = {
   key: "",
   endpoint_url: "",
@@ -231,15 +241,6 @@ function isServerErrorField(value: string): value is ServerErrorField {
   return serverErrorFields.some((field) => field === value)
 }
 
-function isHTTPSURL(value: string) {
-  try {
-    const url = new URL(value)
-    return url.protocol === "https:" && !url.username && !url.password
-  } catch {
-    return false
-  }
-}
-
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = React.useState(value)
 
@@ -309,7 +310,7 @@ export function OAuthSecretSheet({
   })
   const trimmedEndpointURL = endpointURL.trim()
   const debouncedEndpointURL = useDebouncedValue(trimmedEndpointURL, discoveryDebounceMs)
-  const validEndpointURL = isHTTPSURL(trimmedEndpointURL)
+  const validEndpointURL = discoveryURLSchema.safeParse(trimmedEndpointURL).success
   const discoveryURL = discoveryURLOverride ?? debouncedEndpointURL
   const oauthDiscoveryState = useWatch({
     control,
@@ -337,7 +338,7 @@ export function OAuthSecretSheet({
   ] = oauthFields
   const oauthQuery = useQuery({
     ...oauthDiscoveryQueryOptions(discoveryURL),
-    enabled: open && hasTriggeredDiscovery && isHTTPSURL(discoveryURL),
+    enabled: open && hasTriggeredDiscovery && discoveryURLSchema.safeParse(discoveryURL).success,
   })
   const { refetch: refetchOAuthDiscovery } = oauthQuery
   const provider = findOAuthSecretCatalogByServerURL(trimmedEndpointURL)
@@ -675,7 +676,7 @@ export function OAuthSecretSheet({
     }
 
     const nextURL = trimmedEndpointURL
-    if (!isHTTPSURL(nextURL)) {
+    if (!discoveryURLSchema.safeParse(nextURL).success) {
       return
     }
 

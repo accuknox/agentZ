@@ -11,51 +11,31 @@ const reservedHeaderNames = new Set([
 
 const authLocationHeaderSchema = z.object({
   name: z
-    .string()
+    .string({ error: "Header name must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   prefix: z
-    .string()
+    .string({ error: "Header prefix must be text" })
     .optional()
     .transform((value) => (value === undefined ? undefined : value.trim())),
 })
 
 const optionalHTTPSURLSchema = z
-  .string()
+  .string({ error: "URL must be text" })
   .optional()
   .transform((value) => value?.trim() || undefined)
-  .superRefine((value, ctx) => {
-    if (value === undefined) {
-      return
-    }
-
-    let url: URL
-    try {
-      url = new URL(value)
-    } catch {
-      ctx.addIssue({
-        code: "custom",
-        message: "URL must be a valid URL",
-      })
-      return
-    }
-
-    if (url.protocol !== "https:") {
-      ctx.addIssue({
-        code: "custom",
-        message: "URL must use HTTPS",
-      })
-    }
-    if (url.username || url.password) {
-      ctx.addIssue({
-        code: "custom",
-        message: "URL must not include credentials",
-      })
-    }
-  })
+  .pipe(
+    z
+      .url({ protocol: /^https$/, error: "URL must be a valid HTTPS URL" })
+      .refine((value) => {
+        const url = new URL(value)
+        return !url.username && !url.password
+      }, "URL must not include credentials")
+      .optional()
+  )
 
 const oauthScopesInputSchema = z
-  .string()
+  .string({ error: "OAuth scopes must be text" })
   .optional()
   .transform((value) => value ?? "")
   .transform((value) =>
@@ -85,7 +65,7 @@ const authLocationResultSchema = authLocationHeaderSchema.superRefine((value, ct
 const formSchema = z.object({
   name: z
     .string({
-      error: "Must be a valid DNS name. Only Lower-case alphabets, hyphens and dots are allowed.",
+      error: "MCP name is required",
     })
     .trim()
     .min(1, "Name is required")
@@ -93,57 +73,45 @@ const formSchema = z.object({
       message: "Name must be at most 128 characters",
     }),
   endpoint_url: z
-    .string()
+    .string({ error: "MCP server URL is required" })
     .trim()
     .min(1, "MCP server URL is required")
-    .superRefine((value, ctx) => {
-      let url: URL
-      try {
-        url = new URL(value)
-      } catch {
-        ctx.addIssue({
-          code: "custom",
-          message: "MCP server URL must be a valid URL",
-        })
-        return
-      }
-
-      if (url.protocol !== "https:") {
-        ctx.addIssue({
-          code: "custom",
-          message: "MCP server URL must use HTTPS",
-        })
-      }
-      if (url.username || url.password) {
-        ctx.addIssue({
-          code: "custom",
-          message: "MCP server URL must not include credentials",
-        })
-      }
-    }),
+    .pipe(
+      z
+        .url({ protocol: /^https$/, error: "MCP server URL must be a valid HTTPS URL" })
+        .refine((value) => {
+          const url = new URL(value)
+          return !url.username && !url.password
+        }, "MCP server URL must not include credentials")
+    ),
   endpoint_timeout: z
-    .string()
+    .string({ error: "Endpoint timeout must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   extra_headers: z.array(
     z.object({
-      key: z.string().trim(),
-      value: z.string().trim(),
-    })
+      key: z.string({ error: "Header key must be text" }).trim(),
+      value: z.string({ error: "Header value must be text" }).trim(),
+    }),
+    { error: "Extra headers must be a list" }
   ),
-  auth_mode: z.enum(["bearer", "oauth"]),
-  oauth_discovery_state: z.enum(["idle", "discovering", "success", "manual"]).default("idle"),
+  auth_mode: z.enum(["bearer", "oauth"], { error: "Select an authentication mode" }),
+  oauth_discovery_state: z
+    .enum(["idle", "discovering", "success", "manual"], {
+      error: "OAuth discovery state is invalid",
+    })
+    .default("idle"),
   bearer_token: z
-    .string()
+    .string({ error: "Bearer token must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   oauth_scopes: oauthScopesInputSchema,
   oauth_client_id: z
-    .string()
+    .string({ error: "Client ID must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   oauth_client_secret: z
-    .string()
+    .string({ error: "Client secret must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   oauth_issuer: optionalHTTPSURLSchema,
@@ -152,19 +120,19 @@ const formSchema = z.object({
   oauth_registration_endpoint: optionalHTTPSURLSchema,
   oauth_resource: optionalHTTPSURLSchema,
   oauth_location_header_name: z
-    .string()
+    .string({ error: "OAuth header name must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   oauth_location_header_prefix: z
-    .string()
+    .string({ error: "OAuth header prefix must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   bearer_location_header_name: z
-    .string()
+    .string({ error: "Bearer header name must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
   bearer_location_header_prefix: z
-    .string()
+    .string({ error: "Bearer header prefix must be text" })
     .optional()
     .transform((value) => value?.trim() || undefined),
 })

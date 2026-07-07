@@ -31,7 +31,7 @@ type DisableResponse = {
 }
 
 const manageBodySchema = z.object({
-  action: z.enum(["enable", "disable"]),
+  action: z.enum(["enable", "disable"], { error: "2FA action is invalid" }),
 })
 
 /**

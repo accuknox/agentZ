@@ -17,8 +17,10 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
 
 const deleteAPIKeyFormSchema = z.object({
-  configId: z.union([z.literal(agentAPIKeyConfigID), z.literal(webhookAPIKeyConfigID)]),
-  keyID: z.string().min(1),
+  configId: z.union([z.literal(agentAPIKeyConfigID), z.literal(webhookAPIKeyConfigID)], {
+    error: "API key configuration is required",
+  }),
+  keyID: z.string({ error: "API key ID is required" }).min(1, "API key ID is required"),
 })
 
 export async function createAPIKeyFormAction(

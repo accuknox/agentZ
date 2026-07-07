@@ -31,14 +31,14 @@ const invalidChallengeMessages = new Set([
 const challengeSchemas = {
   totp: z.object({
     code: z
-      .string()
+      .string({ error: "Enter a valid 6-digit code" })
       .trim()
       .regex(/^\d{6}$/, "Enter a valid 6-digit code"),
-    trustDevice: z.boolean(),
+    trustDevice: z.boolean({ error: "Remember-device selection is required" }),
   }),
   backup: z.object({
-    code: z.string().trim().min(1, "Enter a backup code"),
-    trustDevice: z.boolean(),
+    code: z.string({ error: "Enter a backup code" }).trim().min(1, "Enter a backup code"),
+    trustDevice: z.boolean({ error: "Remember-device selection is required" }),
   }),
 }
 

@@ -23,47 +23,66 @@ export const workflowScheduleNameSchema = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens")
   .pipe(zWorkflowScheduleName)
 
-const workflowScheduleFieldSchema = z.union([z.string(), z.number(), z.boolean(), z.undefined()])
+const workflowScheduleFieldSchema = z.union(
+  [
+    z.string({ error: "Input value must be text" }),
+    z.number({ error: "Input value must be a number" }),
+    z.boolean({ error: "Input value must be true or false" }),
+    z.undefined(),
+  ],
+  { error: "Input value must be text, a number, or true/false" }
+)
 
-export const workflowScheduleInputsSchema = z.record(z.string(), workflowScheduleFieldSchema)
-export const workflowScheduleInputTextSchema = z.codec(z.string(), workflowScheduleFieldSchema, {
-  decode: (value, ctx) => {
-    if (value === "") {
-      return undefined
-    }
+export const workflowScheduleInputsSchema = z.record(
+  z.string({ error: "Input name must be text" }),
+  workflowScheduleFieldSchema
+)
+export const workflowScheduleInputTextSchema = z.codec(
+  z.string({ error: "Input value must be text" }),
+  workflowScheduleFieldSchema,
+  {
+    decode: (value, ctx) => {
+      if (value === "") {
+        return undefined
+      }
 
-    try {
-      return JSON.parse(value)
-    } catch {
-      ctx.issues.push({
-        code: "custom",
-        input: value,
-        message: "Input value is invalid",
-      })
-      return z.NEVER
-    }
-  },
-  encode: (value) => (value === undefined ? "" : JSON.stringify(value)),
-})
-export const workflowScheduleArbitraryJSONSchema = z.codec(z.string(), zJsonValue.optional(), {
-  decode: (value, ctx) => {
-    if (value.trim() === "") {
-      return undefined
-    }
+      try {
+        return JSON.parse(value)
+      } catch {
+        ctx.issues.push({
+          code: "custom",
+          input: value,
+          message: "Input value must be valid JSON",
+        })
+        return z.NEVER
+      }
+    },
+    encode: (value) => (value === undefined ? "" : JSON.stringify(value)),
+  }
+)
+export const workflowScheduleArbitraryJSONSchema = z.codec(
+  z.string({ error: "Input JSON must be text" }),
+  zJsonValue.optional(),
+  {
+    decode: (value, ctx) => {
+      if (value.trim() === "") {
+        return undefined
+      }
 
-    try {
-      return JSON.parse(value)
-    } catch {
-      ctx.issues.push({
-        code: "custom",
-        input: value,
-        message: "Input must be valid JSON",
-      })
-      return z.NEVER
-    }
-  },
-  encode: (value) => (value === undefined ? "" : JSON.stringify(value, null, 2)),
-})
+      try {
+        return JSON.parse(value)
+      } catch {
+        ctx.issues.push({
+          code: "custom",
+          input: value,
+          message: "Input must be valid JSON",
+        })
+        return z.NEVER
+      }
+    },
+    encode: (value) => (value === undefined ? "" : JSON.stringify(value, null, 2)),
+  }
+)
 
 export type WorkflowScheduleInputValue = string | number | boolean | undefined
 
@@ -97,7 +116,7 @@ const createWorkflowScheduleFormSchema = z.object({
         message: "Use a valid 5-field cron expression",
       }
     ),
-  time_zone: z.string().trim().min(1, "Timezone is required"),
+  time_zone: z.string({ error: "Timezone is required" }).trim().min(1, "Timezone is required"),
   timeout_seconds: z
     .number({ error: "Timeout must be a number" })
     .int("Timeout must be a whole number")
@@ -114,7 +133,7 @@ const createWorkflowScheduleFormSchema = z.object({
     .min(1, "Failed runs history limit must be at least 1")
     .max(10, "Failed runs history limit must be at most 10"),
   inputs: workflowScheduleInputsSchema,
-  arbitrary_json: z.string(),
+  arbitrary_json: z.string({ error: "Input JSON must be text" }),
 })
 
 export type CreateWorkflowScheduleFormValues = z.infer<typeof createWorkflowScheduleFormSchema>
@@ -157,8 +176,8 @@ function buildWorkflowInputObjectSchema(inputSchema: WorkflowInputs) {
 
     for (const [name, input] of Object.entries(inputSchema)) {
       const schema = input.required
-        ? buildWorkflowInputValueSchema(input)
-        : buildWorkflowInputValueSchema(input).optional()
+        ? buildWorkflowInputValueSchema(name, input)
+        : buildWorkflowInputValueSchema(name, input).optional()
       const result = schema.safeParse(values[name])
       if (result.success) {
         continue
@@ -184,23 +203,25 @@ export function workflowInputDefaultValues(inputSchema: WorkflowInputs) {
   return values
 }
 
-function buildWorkflowInputValueSchema(input: WorkflowInputSchema) {
+function buildWorkflowInputValueSchema(name: string, input: WorkflowInputSchema) {
   let schema: z.ZodType<Exclude<WorkflowScheduleInputValue, undefined>>
+  const label = input.description ?? name
 
   switch (input.type) {
     case "boolean":
       schema = z.boolean({
-        error: (issue) => (issue.input === undefined ? "Required" : "Value must be true or false"),
+        error: (issue) =>
+          issue.input === undefined ? `${label} is required` : `${label} must be true or false`,
       })
       break
     case "integer":
-      schema = buildWorkflowNumberSchema(input, true)
+      schema = buildWorkflowNumberSchema(label, input, true)
       break
     case "number":
-      schema = buildWorkflowNumberSchema(input, false)
+      schema = buildWorkflowNumberSchema(label, input, false)
       break
     case "string":
-      schema = buildWorkflowStringSchema(input)
+      schema = buildWorkflowStringSchema(label, input)
       break
   }
 
@@ -214,40 +235,41 @@ function buildWorkflowInputValueSchema(input: WorkflowInputSchema) {
   return schema
 }
 
-function buildWorkflowStringSchema(input: WorkflowInputSchema) {
+function buildWorkflowStringSchema(label: string, input: WorkflowInputSchema) {
   let schema = z.string({
-    error: (issue) => (issue.input === undefined ? "Required" : "Value must be a string"),
+    error: (issue) =>
+      issue.input === undefined ? `${label} is required` : `${label} must be text`,
   })
 
   if (input.minLength !== undefined) {
-    schema = schema.min(input.minLength)
+    schema = schema.min(input.minLength, `${label} must be at least ${input.minLength} characters`)
   }
   if (input.maxLength !== undefined) {
-    schema = schema.max(input.maxLength)
+    schema = schema.max(input.maxLength, `${label} must be at most ${input.maxLength} characters`)
   }
   if (input.pattern !== undefined) {
-    schema = schema.regex(new RegExp(input.pattern), "Value does not match the required pattern")
+    schema = schema.regex(new RegExp(input.pattern), `${label} does not match the required pattern`)
   }
 
   switch (input.format) {
     case "date":
       schema = schema.refine((value) => dateStringPattern.test(value), {
-        message: "Use a valid date",
+        message: `${label} must be a valid date`,
       })
       break
     case "date-time":
       schema = schema.refine((value) => !Number.isNaN(Date.parse(value)), {
-        message: "Use a valid date and time",
+        message: `${label} must be a valid date and time`,
       })
       break
     case "email":
-      schema = schema.email("Use a valid email address")
+      schema = schema.email(`${label} must be a valid email address`)
       break
     case "uri":
-      schema = schema.url("Use a valid URL")
+      schema = schema.url(`${label} must be a valid URL`)
       break
     case "uuid":
-      schema = schema.uuid("Use a valid UUID")
+      schema = schema.uuid(`${label} must be a valid UUID`)
       break
     case undefined:
       break
@@ -256,29 +278,40 @@ function buildWorkflowStringSchema(input: WorkflowInputSchema) {
   return schema
 }
 
-function buildWorkflowNumberSchema(input: WorkflowInputSchema, integer: boolean) {
+function buildWorkflowNumberSchema(label: string, input: WorkflowInputSchema, integer: boolean) {
   let schema = integer
     ? z.int({
-        error: (issue) => (issue.input === undefined ? "Required" : "Value must be a whole number"),
+        error: (issue) =>
+          issue.input === undefined ? `${label} is required` : `${label} must be a whole number`,
       })
     : z.number({
-        error: (issue) => (issue.input === undefined ? "Required" : "Value must be a number"),
+        error: (issue) =>
+          issue.input === undefined ? `${label} is required` : `${label} must be a number`,
       })
 
   if (input.minimum !== undefined) {
-    schema = schema.gte(input.minimum)
+    schema = schema.gte(input.minimum, `${label} must be at least ${input.minimum}`)
   }
   if (input.maximum !== undefined) {
-    schema = schema.lte(input.maximum)
+    schema = schema.lte(input.maximum, `${label} must be at most ${input.maximum}`)
   }
   if (input.exclusiveMinimum !== undefined) {
-    schema = schema.gt(input.exclusiveMinimum)
+    schema = schema.gt(
+      input.exclusiveMinimum,
+      `${label} must be greater than ${input.exclusiveMinimum}`
+    )
   }
   if (input.exclusiveMaximum !== undefined) {
-    schema = schema.lt(input.exclusiveMaximum)
+    schema = schema.lt(
+      input.exclusiveMaximum,
+      `${label} must be less than ${input.exclusiveMaximum}`
+    )
   }
   if (input.multipleOf !== undefined) {
-    schema = schema.multipleOf(input.multipleOf)
+    schema = schema.multipleOf(
+      input.multipleOf,
+      `${label} must be a multiple of ${input.multipleOf}`
+    )
   }
 
   return schema

@@ -73,13 +73,16 @@ const identitySchema = z.object({
 })
 
 const selectedMcpToolSchema = z.object({
-  name: z.string().min(1),
-  requireConsent: z.boolean(),
+  name: z.string({ error: "MCP tool name is required" }).min(1, "MCP tool name is required"),
+  requireConsent: z.boolean({ error: "MCP tool consent setting is required" }),
 })
 
 const selectedMcpConnectionRefSchema = z.object({
-  name: zMcpConnectionName,
-  tools: z.array(selectedMcpToolSchema),
+  name: z
+    .string({ error: "MCP connection name is required" })
+    .min(1, "MCP connection name is required")
+    .pipe(zMcpConnectionName),
+  tools: z.array(selectedMcpToolSchema, { error: "MCP tools must be a list" }),
 })
 
 const allowedHostsStepSchema = z.object({
@@ -89,11 +92,16 @@ const allowedHostsStepSchema = z.object({
 })
 
 const packageStepSchema = z.object({
-  packages: z.array(z.string().min(1)),
+  packages: z.array(
+    z.string({ error: "Package name is required" }).min(1, "Package name is required"),
+    { error: "Packages must be a list" }
+  ),
 })
 
 const mcpStepSchema = z.object({
-  mcpConnectionRefs: z.array(selectedMcpConnectionRefSchema),
+  mcpConnectionRefs: z.array(selectedMcpConnectionRefSchema, {
+    error: "MCP connections must be a list",
+  }),
 })
 
 type SandboxIdentity = z.infer<typeof identitySchema>

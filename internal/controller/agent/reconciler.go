@@ -160,13 +160,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
-	err = r.reconcileNixPVCs(ctx, agt)
+	err = r.reconcilePVCs(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("reconcile nix pvcs: %w", err)
+		return ctrl.Result{}, fmt.Errorf("reconcile agent pvcs: %w", err)
 	}
 
 	if !ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
@@ -385,31 +385,60 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	return requests
 }
 
-func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *agentzv1alpha1.Agent) error {
-	agentPVC := &corev1.PersistentVolumeClaim{}
-	agentPVC.Name = agt.Name + "-nix"
-	agentPVC.Namespace = agt.Namespace
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, agentPVC, func() error {
-		agentPVC.Labels = resourceLabels(agt)
-		if len(agentPVC.Spec.AccessModes) == 0 {
-			agentPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
-				corev1.ReadWriteOnce,
-			}
+func (r *Reconciler) reconcilePVCs(ctx context.Context, agt *agentzv1alpha1.Agent) error {
+	nixSize := agt.Spec.NixStoreSize
+	if nixSize.IsZero() {
+		nixSize = resource.MustParse("5Gi")
+	}
+
+	nixPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agt.Name + "-nix",
+			Namespace: agt.Namespace,
+		},
+	}
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, nixPVC, func() error {
+		nixPVC.Labels = resourceLabels(agt)
+		nixPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteOnce,
 		}
-		if agentPVC.Spec.Resources.Requests == nil {
-			size := agt.Spec.NixStoreSize
-			if size.IsZero() {
-				size = resource.MustParse("5Gi")
-			}
-			agentPVC.Spec.Resources.Requests = corev1.ResourceList{
-				corev1.ResourceStorage: size,
-			}
+		nixPVC.Spec.Resources.Requests = corev1.ResourceList{
+			corev1.ResourceStorage: nixSize,
 		}
-		return ctrl.SetControllerReference(agt, agentPVC, r.Scheme)
+		return ctrl.SetControllerReference(agt, nixPVC, r.Scheme)
 	})
 	if err != nil {
 		return fmt.Errorf("ensure agent nix pvc: %w", err)
 	}
+
+	homeSize := agt.Spec.HomeSize
+	if homeSize.IsZero() {
+		homeSize = resource.MustParse("5Gi")
+	}
+
+	homePVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agt.Name + "-home",
+			Namespace: agt.Namespace,
+		},
+	}
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, homePVC, func() error {
+		homePVC.Labels = resourceLabels(agt)
+		homePVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteOnce,
+		}
+		homePVC.Spec.Resources.Requests = corev1.ResourceList{
+			corev1.ResourceStorage: homeSize,
+		}
+		if r.Config.AgentHomeStorageClass != "" {
+			homePVC.Spec.StorageClassName = &r.Config.AgentHomeStorageClass
+		}
+		return ctrl.SetControllerReference(agt, homePVC, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("ensure agent home pvc: %w", err)
+	}
+
 	return nil
 }
 

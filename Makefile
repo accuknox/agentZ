@@ -98,6 +98,7 @@ run-manager:
 		--nix-store-pvc=nix-store \
 		--tenant-nix-store-size=5Gi \
 		--tenant-nix-store-access-mode=ReadWriteOnce \
+		--agent-home-storage-class=csi-s3 \
 		--tenant-sinjector-clusterissuer-name=selfsigned \
 		--agentgateway-trace-mode=static \
 		--agentgateway-trace-host=172.18.0.1 \

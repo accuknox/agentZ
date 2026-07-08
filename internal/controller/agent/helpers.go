@@ -52,11 +52,11 @@ const (
 	setWorkflowRunStatusToolName   = "set_workflowrun_status"
 	updateWorkflowScheduleToolName = "update_workflow_schedule"
 	nixAgentVolume                 = "nix-agent"
+	homeAgentVolume                = "home-agent"
 	nixRuntimeStoreVolume          = "nix-runtime-store"
 	nixAgentMount                  = "/mnt/nix"
 	nixRuntimeStoreMount           = "/nix/store"
 	nixRuntimeStageMount           = "/runtime-nix-store"
-	nixHomeSubPath                 = "home"
 	nixStoreSubPath                = "nix"
 	nixVolumeRootMount             = "/pvc"
 	nixLinkVolume                  = "nix-link"
@@ -114,6 +114,7 @@ type RuntimeConfig struct {
 	ManagerOpenBaoK8sAuthRole        string
 	ManagerOpenBaoK8sAuthTokenPath   string
 	GatewayTokenAudience             string
+	AgentHomeStorageClass            string
 }
 
 func selectorLabels(agt *agentzv1alpha1.Agent) map[string]string {

@@ -143,6 +143,9 @@ manager:
     # Optional storage class for the tenant nix store PVC.
     tenantNixStoreStorageClass: ""
 
+    # Optional storage class for per-agent home PVCs.
+    agentHomeStorageClass: csi-s3
+
     # OpenBao address used by manager-managed workloads.
     openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
 

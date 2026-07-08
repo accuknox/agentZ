@@ -70,6 +70,7 @@ config:
   tenantNixStoreAccessModes:
     - ReadWriteOnce
   tenantNixStoreStorageClass: ""
+  agentHomeStorageClass: csi-s3
   openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
   managerOpenBaoAddr: ""
   openBaoSecretMountPath: kv

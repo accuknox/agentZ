@@ -109,6 +109,7 @@ var (
 	tenantNixStoreSize                               string
 	tenantNixStoreAccessModes                        []string
 	tenantNixStoreStorageClass                       string
+	agentHomeStorageClass                            string
 	tenantSinjectorClusterIssuerName                 string
 	watchNamespace                                   string
 	enableWebhooks                                   bool
@@ -363,6 +364,14 @@ var managerCmd = &cli.Command{
 			Name:        "tenant-nix-store-storage-class",
 			Usage:       "Optional storage class for the tenant nix store PVC",
 			Destination: &tenantNixStoreStorageClass,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "agent-home-storage-class",
+			Usage:       "Optional storage class for per-agent home PVCs",
+			Destination: &agentHomeStorageClass,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -781,6 +790,7 @@ var managerCmd = &cli.Command{
 			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
 			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
 			GatewayTokenAudience:             managerGatewayTokenAudience,
+			AgentHomeStorageClass:            agentHomeStorageClass,
 			SinjectorImage:                   controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,

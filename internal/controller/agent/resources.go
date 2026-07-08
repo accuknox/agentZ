@@ -191,17 +191,25 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 	}
 
 	volumes = append(volumes, corev1.Volume{
+		Name: homeAgentVolume,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: agt.Name + "-home",
+			},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      homeAgentVolume,
+		MountPath: agentHomeDir,
+		SubPath:   "home",
+	})
+	volumes = append(volumes, corev1.Volume{
 		Name: nixAgentVolume,
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 				ClaimName: agt.Name + "-nix",
 			},
 		},
-	})
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      nixAgentVolume,
-		MountPath: "/home/agentz",
-		SubPath:   nixHomeSubPath,
 	})
 	initContainers = append(initContainers, corev1.Container{
 		Name:            homeInitName,
@@ -218,7 +226,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 			},
 		},
 		VolumeMounts: []corev1.VolumeMount{{
-			Name:      nixAgentVolume,
+			Name:      homeAgentVolume,
 			MountPath: nixVolumeRootMount,
 		}},
 	})
@@ -402,7 +410,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 							Name:            "agent",
 							Image:           image,
 							ImagePullPolicy: agt.Spec.ImagePullPolicy,
-							WorkingDir:      "/home/agentz",
+							WorkingDir:      agentHomeDir,
 							Args: []string{
 								"serve",
 								"--hostname=0.0.0.0",

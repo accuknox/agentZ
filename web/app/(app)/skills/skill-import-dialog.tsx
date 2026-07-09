@@ -1,9 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, FileArchive, RotateCcw, TriangleAlert } from "lucide-react"
+import { Controller, useForm, type Control } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
+import { Field, FieldError } from "@/components/ui/field"
 import {
   Dialog,
   DialogClose,
@@ -38,11 +41,116 @@ const apiErrorSchema = z.object({
   error: z.string(),
 })
 
+const skillNameSchema = z
+  .string({ error: "Skill name is required" })
+  .trim()
+  .min(1, "Skill name is required")
+  .max(64, "Skill name must be at most 64 characters")
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Skill name is invalid")
+
+const importFormSchema = z.object({
+  renames: z.record(z.string(), skillNameSchema),
+})
+
 type ImportPreview = z.infer<typeof importPreviewSchema>["skills"][number]
+type ImportFormValues = z.infer<typeof importFormSchema>
 type ImportChoice = {
   action: "create" | "overwrite" | "rename"
   rename: string
 }
+
+type ImportPreviewRowProps = {
+  action: ImportChoice["action"]
+  control: Control<ImportFormValues>
+  pending: boolean
+  rename: string
+  skill: ImportPreview
+  onActionChange: (name: string, action: ImportChoice["action"]) => void
+  onRenameChange: (name: string, rename: string) => void
+}
+
+const ImportPreviewRow = React.memo(function ImportPreviewRow({
+  action,
+  control,
+  pending,
+  rename,
+  skill,
+  onActionChange,
+  onRenameChange,
+}: ImportPreviewRowProps) {
+  return (
+    <div className="min-w-0 border-b py-3 last:border-b-0">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {skill.conflict ? (
+            <TriangleAlert aria-hidden="true" className="text-destructive size-4 shrink-0" />
+          ) : (
+            <Check aria-hidden="true" className="text-primary size-4 shrink-0" />
+          )}
+          <span className="min-w-0 truncate font-medium" title={skill.name}>
+            {skill.name}
+          </span>
+        </div>
+        <span
+          className={cn("shrink-0 text-sm", skill.conflict ? "text-destructive" : "text-primary")}
+        >
+          {skill.conflict ? "Conflict" : "Create"}
+        </span>
+      </div>
+      {skill.conflict ? (
+        <div className="mt-2 grid min-w-0 grid-cols-[8.5rem_minmax(0,1fr)] items-center gap-3">
+          <Select
+            value={action}
+            onValueChange={(value) => {
+              onActionChange(skill.name, value === "rename" ? "rename" : "overwrite")
+            }}
+          >
+            <SelectTrigger className="w-full" aria-label={`Resolution for ${skill.name}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="overwrite">Overwrite</SelectItem>
+                <SelectItem value="rename">Rename</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {action === "rename" ? (
+            <Controller
+              name={`renames.${skill.name}`}
+              control={control}
+              defaultValue={rename}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid} className="min-w-0 gap-1">
+                  <Input
+                    {...field}
+                    className="min-w-0"
+                    aria-label={`New name for ${skill.name}`}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-invalid={fieldState.invalid}
+                    disabled={pending}
+                    placeholder="new-skill-name..."
+                    onChange={(event) => {
+                      field.onChange(event)
+                      onRenameChange(skill.name, event.currentTarget.value)
+                    }}
+                  />
+                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                </Field>
+              )}
+            />
+          ) : (
+            <div className="text-muted-foreground flex min-w-0 items-center justify-end gap-2 text-sm">
+              <RotateCcw aria-hidden="true" className="size-4 shrink-0" />
+              <span className="truncate">Will replace existing skill</span>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+})
 
 export function SkillImportDialog({
   agentName,
@@ -62,7 +170,41 @@ export function SkillImportDialog({
   const [choices, setChoices] = React.useState<Record<string, ImportChoice>>({})
   const [error, setError] = React.useState<string>()
   const [pending, startTransition] = React.useTransition()
+  const {
+    clearErrors,
+    control,
+    handleSubmit,
+    reset: resetForm,
+  } = useForm<ImportFormValues>({
+    resolver: zodResolver(importFormSchema),
+    defaultValues: {
+      renames: {},
+    },
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    shouldUnregister: true,
+  })
   const conflicts = preview.filter((skill) => skill.conflict).length
+
+  const changeAction = React.useCallback((name: string, action: ImportChoice["action"]) => {
+    setChoices((current) => ({
+      ...current,
+      [name]: {
+        action,
+        rename: current[name]?.rename ?? "",
+      },
+    }))
+  }, [])
+
+  const changeRename = React.useCallback((name: string, rename: string) => {
+    setChoices((current) => ({
+      ...current,
+      [name]: {
+        action: "rename",
+        rename,
+      },
+    }))
+  }, [])
 
   function reset() {
     setDragging(false)
@@ -70,6 +212,7 @@ export function SkillImportDialog({
     setPreview([])
     setChoices({})
     setError(undefined)
+    resetForm({ renames: {} })
     if (inputRef.current) {
       inputRef.current.value = ""
     }
@@ -80,13 +223,14 @@ export function SkillImportDialog({
       setFile(undefined)
       setPreview([])
       setChoices({})
-      setError("Import file must be .md or .zip")
+      setError("Import file must be .md or .zip. Choose a supported file.")
       return
     }
     setFile(nextFile)
     setPreview([])
     setChoices({})
     setError(undefined)
+    resetForm({ renames: {} })
   }
 
   function chooseDroppedFile(items: DataTransferItemList, files: FileList) {
@@ -142,13 +286,16 @@ export function SkillImportDialog({
             ])
           )
         )
+        resetForm({
+          renames: Object.fromEntries(nextPreview.map((skill) => [skill.name, ""])),
+        })
       } catch {
-        setError("Preview failed")
+        setError("Preview failed. Try again or pick a different file.")
       }
     })
   }
 
-  function applyImport() {
+  function applyImport(values: ImportFormValues) {
     if (!file || preview.length === 0) {
       return
     }
@@ -165,7 +312,7 @@ export function SkillImportDialog({
         return {
           action: "rename",
           name: skill.name,
-          rename: choice.rename,
+          rename: values.renames[skill.name] ?? choice.rename,
         }
       }
       return {
@@ -194,7 +341,7 @@ export function SkillImportDialog({
         setOpen(false)
         await onImported()
       } catch {
-        setError("Import failed")
+        setError("Import failed. Try again.")
       }
     })
   }
@@ -212,15 +359,15 @@ export function SkillImportDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Upload skill</DialogTitle>
-          <DialogDescription className="sr-only">
-            Upload a Markdown or zip skill file.
-          </DialogDescription>
+          <DialogDescription>Upload a Markdown or zip skill file.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <button
             type="button"
+            aria-label="Skill file"
             className={cn(
-              "border-border/70 text-muted-foreground hover:bg-muted/30 flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dotted p-6 text-center transition-colors",
+              "flex min-h-40 touch-manipulation flex-col items-center justify-center gap-3 rounded-lg border-2 border-dotted p-6 text-center transition-colors outline-none",
+              "border-border/70 text-muted-foreground hover:bg-muted/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3",
               dragging && "border-primary bg-primary/10 text-primary",
               error && !dragging && "border-destructive/60 bg-destructive/5 text-destructive"
             )}
@@ -241,114 +388,60 @@ export function SkillImportDialog({
               chooseDroppedFile(event.dataTransfer.items, event.dataTransfer.files)
             }}
           >
-            <FileArchive />
-            <span className="text-sm">{file ? file.name : "Drag and drop or click to upload"}</span>
+            <FileArchive aria-hidden="true" className="size-7" />
+            <span className="text-sm">
+              {file ? file.name : "Drag and drop or click to upload…"}
+            </span>
+            {!file ? <span className="text-muted-foreground text-xs">.md or .zip</span> : null}
           </button>
           <Input
             ref={inputRef}
             className="hidden"
             type="file"
+            name="skill-file"
+            aria-label="Skill file"
             accept=".md,.zip"
             disabled={pending}
             onChange={(event) => chooseFile(event.currentTarget.files?.[0])}
           />
           {error ? (
-            <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
+            <p aria-live="polite" className="text-destructive flex items-center gap-2 text-sm">
+              <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
               {error}
             </p>
           ) : null}
           {preview.length > 0 ? (
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">
+            <div
+              className="text-muted-foreground flex items-center justify-between gap-3 text-sm tabular-nums"
+              aria-live="polite"
+            >
+              <span>
                 {preview.length} skill{preview.length === 1 ? "" : "s"} ready
               </span>
               {conflicts > 0 ? (
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className="text-destructive">
                   {conflicts} conflict{conflicts === 1 ? "" : "s"}
                 </span>
               ) : (
-                <span className="text-emerald-600 dark:text-emerald-400">No conflicts</span>
+                <span className="text-primary">No conflicts</span>
               )}
             </div>
           ) : null}
           {preview.length > 0 ? (
-            <div className="max-h-72 overflow-y-auto">
+            <div>
               {preview.map((skill) => {
                 const choice = choices[skill.name]
                 return (
-                  <div key={skill.name} className="min-w-0 border-b py-3 last:border-b-0">
-                    <div className="flex min-w-0 items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        {skill.conflict ? (
-                          <TriangleAlert className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                        ) : (
-                          <Check className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                        )}
-                        <span className="min-w-0 truncate font-medium" title={skill.name}>
-                          {skill.name}
-                        </span>
-                      </div>
-                      <span
-                        className={cn(
-                          "shrink-0 text-sm",
-                          skill.conflict
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-emerald-600 dark:text-emerald-400"
-                        )}
-                      >
-                        {skill.conflict ? "Conflict" : "Create"}
-                      </span>
-                    </div>
-                    {skill.conflict ? (
-                      <div className="mt-2 grid min-w-0 grid-cols-[8.5rem_minmax(0,1fr)] items-center gap-3">
-                        <Select
-                          value={choice?.action ?? "overwrite"}
-                          onValueChange={(value) => {
-                            setChoices((current) => ({
-                              ...current,
-                              [skill.name]: {
-                                action: value === "rename" ? "rename" : "overwrite",
-                                rename: current[skill.name]?.rename ?? "",
-                              },
-                            }))
-                          }}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              <SelectItem value="overwrite">Overwrite</SelectItem>
-                              <SelectItem value="rename">Rename</SelectItem>
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                        {choice?.action === "rename" ? (
-                          <Input
-                            value={choice.rename}
-                            className="min-w-0"
-                            disabled={pending}
-                            placeholder="new-skill-name"
-                            onChange={(event) => {
-                              const rename = event.currentTarget.value
-                              setChoices((current) => ({
-                                ...current,
-                                [skill.name]: {
-                                  action: "rename",
-                                  rename,
-                                },
-                              }))
-                            }}
-                          />
-                        ) : (
-                          <div className="text-muted-foreground flex min-w-0 items-center justify-end gap-2 text-sm">
-                            <RotateCcw className="size-4 shrink-0" />
-                            <span className="truncate">Will replace existing skill</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
+                  <ImportPreviewRow
+                    key={skill.name}
+                    action={choice?.action ?? "overwrite"}
+                    control={control}
+                    pending={pending}
+                    rename={choice?.rename ?? ""}
+                    skill={skill}
+                    onActionChange={changeAction}
+                    onRenameChange={changeRename}
+                  />
                 )
               })}
             </div>
@@ -366,7 +459,14 @@ export function SkillImportDialog({
               Preview
             </Button>
           ) : (
-            <Button type="button" disabled={pending} onClick={applyImport}>
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                clearErrors()
+                void handleSubmit(applyImport)()
+              }}
+            >
               {pending ? <Spinner /> : null}
               Import
             </Button>

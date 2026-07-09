@@ -230,3 +230,36 @@ rules:
   - patch
   - update
   - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: manager-role
+  namespace: agentz-system
+rules:
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - skills
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - skills/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - skills/status
+  verbs:
+  - get
+  - patch
+  - update

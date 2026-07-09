@@ -2,7 +2,7 @@ import "server-only"
 
 import { TextDecoder } from "node:util"
 import matter from "gray-matter"
-import { fromBufferPromise, type Entry } from "yauzl"
+import { fromBufferPromise, type Entry, type Options, type ZipFile } from "yauzl"
 import * as z from "zod"
 import { type SkillWrite, skillNameSchema } from "@/lib/skills/storage"
 
@@ -12,6 +12,12 @@ const maxSkillBytes = 64 * 1024
 const maxFileBytes = 1024 * 1024
 const maxFileCount = 200
 const skillFileName = "SKILL.md"
+const skillFileSuffix = `/${skillFileName}`
+const zipOptions: Options = {
+  lazyEntries: true,
+  strictFileNames: true,
+  validateEntrySizes: true,
+}
 
 const decoder = new TextDecoder("utf-8", { fatal: true })
 
@@ -32,6 +38,16 @@ const skillFrontmatterSchema = z
   .passthrough()
 
 type SkillFrontmatter = z.infer<typeof skillFrontmatterSchema>
+
+type ZipEntry = {
+  path: string
+  content: Buffer
+}
+
+type ZipFileEntry = {
+  path: string
+  sizeLimit: number
+}
 
 export type ImportDecision =
   | {
@@ -115,69 +131,163 @@ function skillFromMarkdown(bytes: Buffer): SkillWrite {
 }
 
 async function skillsFromZip(bytes: Buffer): Promise<SkillWrite[]> {
-  const zip = await fromBufferPromise(bytes, {
-    lazyEntries: true,
-    strictFileNames: true,
-    validateEntrySizes: true,
-  })
-  const skills = new Map<string, Map<string, Buffer>>()
-  const paths = new Set<string>()
+  const zip = await fromBufferPromise(bytes, zipOptions)
+  const entries: ZipFileEntry[] = []
+  const roots = new Set<string>()
+  const seen = new Set<string>()
   let extractedBytes = 0
   let fileCount = 0
 
   try {
     for await (const entry of zip.eachEntry()) {
-      const path = zipFilePath(entry)
-      if (!path) {
+      const path = skillArchivePath(entry)
+      if (path === undefined) {
         continue
       }
+
       fileCount += 1
       if (fileCount > maxFileCount) {
         throw new Error("import contains too many files")
       }
+
       extractedBytes += entry.uncompressedSize
       if (extractedBytes > maxExtractedBytes) {
         throw new Error("import expands to too much data")
       }
 
-      const key = `${path.skillName}/${path.filePath}`
-      if (paths.has(key)) {
+      if (seen.has(path)) {
         throw new Error("import contains duplicate file paths")
       }
-      paths.add(key)
+      seen.add(path)
 
-      const sizeLimit = path.filePath === skillFileName ? maxSkillBytes : maxFileBytes
+      const sizeLimit =
+        path.endsWith(skillFileSuffix) || path === skillFileName ? maxSkillBytes : maxFileBytes
       if (entry.uncompressedSize > sizeLimit) {
-        throw new Error(`${key} is too large`)
+        throw new Error(`${path} is too large`)
       }
 
-      const files = skills.get(path.skillName) ?? new Map<string, Buffer>()
-      files.set(path.filePath, await readEntry(zip, entry, sizeLimit))
-      skills.set(path.skillName, files)
+      if (path === skillFileName) {
+        roots.add("")
+      } else if (path.endsWith(skillFileSuffix)) {
+        roots.add(path.slice(0, -skillFileSuffix.length))
+      }
+      entries.push({ path, sizeLimit })
     }
   } finally {
     zip.close()
   }
 
-  const out: SkillWrite[] = []
-  for (const [name, files] of skills) {
-    const skillFile = files.get(skillFileName)
-    if (!skillFile) {
-      throw new Error(`${name} is missing SKILL.md`)
-    }
-    const frontmatter = parseSkillFile(skillFile)
-    if (frontmatter.name !== name) {
-      throw new Error(`${name} frontmatter.name must match its directory`)
-    }
-    out.push({
-      name,
-      files: [...files].map(([path, content]) => ({ path, content })),
-    })
-  }
-  if (out.length === 0) {
+  if (roots.size === 0) {
     throw new Error("import contains no skills")
   }
+
+  const sortedRoots = [...roots].sort((a, b) => a.length - b.length)
+  for (const [index, root] of sortedRoots.entries()) {
+    const nestedRoot = sortedRoots
+      .slice(index + 1)
+      .find((item) => root === "" || item.startsWith(`${root}/`))
+    if (nestedRoot !== undefined) {
+      throw new Error("import contains nested skill directories")
+    }
+  }
+
+  const out: SkillWrite[] = []
+  const filesByRoot = new Map(sortedRoots.map((root) => [root, [] as ZipEntry[]]))
+  const imported = new Map<string, { root: string; path: string; sizeLimit: number }>()
+  for (const root of sortedRoots) {
+    for (const entry of entries) {
+      if (root !== "" && !entry.path.startsWith(`${root}/`)) {
+        continue
+      }
+
+      imported.set(entry.path, {
+        root,
+        path: root === "" ? entry.path : entry.path.slice(root.length + 1),
+        sizeLimit: entry.sizeLimit,
+      })
+    }
+  }
+
+  const readZip = await fromBufferPromise(bytes, zipOptions)
+  try {
+    for await (const entry of readZip.eachEntry()) {
+      const path = skillArchivePath(entry)
+      if (path === undefined) {
+        continue
+      }
+
+      const importedFile = imported.get(path)
+      if (importedFile === undefined) {
+        continue
+      }
+
+      const rootFiles = filesByRoot.get(importedFile.root)
+      if (rootFiles === undefined) {
+        throw new Error("import contains an invalid skill directory")
+      }
+      rootFiles.push({
+        path: importedFile.path,
+        content: await readEntry(readZip, entry, importedFile.sizeLimit),
+      })
+    }
+  } finally {
+    readZip.close()
+  }
+
+  const names = new Set<string>()
+  for (const root of sortedRoots) {
+    const skillFiles = filesByRoot.get(root)
+    if (skillFiles === undefined) {
+      throw new Error("import contains an invalid skill directory")
+    }
+
+    const skillFile = skillFiles.find((file) => file.path === skillFileName)?.content
+    if (skillFile === undefined) {
+      throw new Error("import contains an invalid skill directory")
+    }
+
+    const frontmatter = parseSkillFile(skillFile)
+    if (names.has(frontmatter.name)) {
+      throw new Error("import contains duplicate skill names")
+    }
+    names.add(frontmatter.name)
+
+    out.push({
+      name: frontmatter.name,
+      files: skillFiles,
+    })
+  }
+
   return out.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function skillArchivePath(entry: Entry): string | undefined {
+  if (entry.isEncrypted()) {
+    throw new Error("encrypted zip entries are not supported")
+  }
+  if (!entry.canDecodeFileData()) {
+    throw new Error("zip entry encoding is not supported")
+  }
+
+  const unixMode = entry.externalFileAttributes >>> 16
+  if ((unixMode & 0o170000) === 0o120000) {
+    throw new Error("zip symlinks are not supported")
+  }
+
+  const raw = entry.fileName
+  const path = raw.endsWith("/") ? raw.slice(0, -1) : raw
+  const parts = path.split("/")
+  if (
+    raw.includes("\0") ||
+    parts.some((part) => part.length === 0 || part === "." || part === "..")
+  ) {
+    throw new Error("zip entry path is invalid")
+  }
+
+  if (raw.endsWith("/")) {
+    return
+  }
+  return parts.join("/")
 }
 
 function parseSkillFile(bytes: Buffer): SkillFrontmatter {
@@ -207,50 +317,7 @@ function parseSkillFile(bytes: Buffer): SkillFrontmatter {
   return frontmatter.data
 }
 
-function zipFilePath(entry: Entry): { skillName: string; filePath: string } | undefined {
-  if (entry.isEncrypted()) {
-    throw new Error("encrypted zip entries are not supported")
-  }
-  if (!entry.canDecodeFileData()) {
-    throw new Error("zip entry encoding is not supported")
-  }
-  if (isZipSymlink(entry)) {
-    throw new Error("zip symlinks are not supported")
-  }
-
-  const raw = entry.fileName
-  if (raw.includes("\\") || raw.includes("\0") || raw.startsWith("/") || /^[A-Za-z]:/.test(raw)) {
-    throw new Error("zip entry path is invalid")
-  }
-
-  const directoryPath = raw.endsWith("/") ? raw.slice(0, -1) : raw
-  const parts = directoryPath.split("/")
-  if (parts.some((part) => part.length === 0 || part === "." || part === "..")) {
-    throw new Error("zip entry path is invalid")
-  }
-  if (raw.endsWith("/")) {
-    return
-  }
-  if (parts.length < 2) {
-    throw new Error("zip entries must be inside skill directories")
-  }
-
-  return {
-    skillName: skillNameSchema.parse(parts[0]),
-    filePath: parts.slice(1).join("/"),
-  }
-}
-
-function isZipSymlink(entry: Entry): boolean {
-  const unixMode = entry.externalFileAttributes >>> 16
-  return (unixMode & 0o170000) === 0o120000
-}
-
-async function readEntry(
-  zip: Awaited<ReturnType<typeof fromBufferPromise>>,
-  entry: Entry,
-  limit: number
-) {
+async function readEntry(zip: ZipFile, entry: Entry, limit: number): Promise<Buffer> {
   const stream = await zip.openReadStreamPromise(entry)
   const chunks: Buffer[] = []
   let size = 0

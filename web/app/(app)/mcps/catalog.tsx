@@ -45,7 +45,7 @@ import {
   WordPress,
   Zoom,
 } from "@ridemountainpig/svgl-react"
-import { Globe, PlugZap } from "lucide-react"
+import { Cable } from "lucide-react"
 import type { SVGProps } from "react"
 
 export type McpServer = {
@@ -54,8 +54,9 @@ export type McpServer = {
   icon: React.ComponentType<SVGProps<SVGSVGElement>>
 }
 
-const mcpFallbackIcon = Globe
-export const mcpConnectionFallbackIcon = PlugZap
+const Globe = Cable
+const mcpFallbackIcon = Cable
+export const mcpConnectionFallbackIcon = Cable
 
 function themedIcon(
   lightThemeIcon: React.ComponentType<SVGProps<SVGSVGElement>>,
@@ -80,7 +81,7 @@ export const mcpServers = [
   {
     name: "AdisInsight",
     mcpUrl: "https://adisinsight-mcp.springer.com/mcp",
-    icon: Globe,
+    icon: Cable,
   },
   {
     name: "Adobe Experience Manager",
@@ -100,27 +101,27 @@ export const mcpServers = [
   {
     name: "AirOps",
     mcpUrl: "https://app.airops.com/mcp",
-    icon: Globe,
+    icon: Cable,
   },
   {
     name: "Airtable",
     mcpUrl: "https://mcp.airtable.com/mcp",
-    icon: Globe,
+    icon: Cable,
   },
   {
     name: "Airwallex Developer",
     mcpUrl: "https://mcp-demo.airwallex.com/developer",
-    icon: Globe,
+    icon: Cable,
   },
   {
     name: "Amplitude",
     mcpUrl: "https://mcp.amplitude.com/mcp",
-    icon: Globe,
+    icon: Cable,
   },
   {
     name: "Apollo.io",
     mcpUrl: "https://mcp.apollo.io/mcp",
-    icon: Globe,
+    icon: Cable,
   },
   {
     name: "Asana",

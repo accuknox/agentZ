@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles } from "lucide-react"
+import { ScrollText } from "lucide-react"
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 
 export function NavSkills() {
@@ -10,7 +10,7 @@ export function NavSkills() {
       <SidebarMenuItem>
         <SidebarMenuButton asChild tooltip="Skills">
           <Link href="/skills">
-            <Sparkles />
+            <ScrollText />
             <span>Skills</span>
           </Link>
         </SidebarMenuButton>

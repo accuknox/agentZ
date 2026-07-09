@@ -16,9 +16,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Box,
+  Cable,
   ChevronDown,
   Globe2,
-  PlugZap,
   PackageSearch as PackageSearchIcon,
   Plus,
   UserCheck,
@@ -196,7 +196,7 @@ const steps = [
   {
     id: "mcps",
     title: "MCP",
-    icon: PlugZap,
+    icon: Cable,
   },
   {
     id: "allowedHosts",

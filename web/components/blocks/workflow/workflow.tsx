@@ -9,7 +9,7 @@ import {
   CircleDashedIcon,
   CornerDownLeftIcon,
   HammerIcon,
-  SparklesIcon,
+  ScrollTextIcon,
   XCircleIcon,
   XIcon,
 } from "lucide-react"
@@ -199,7 +199,7 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
               <Section title="Done criteria" value={selectedWorkflowNode.done_criteria} />
               <PreferenceList
                 emptyLabel="No preferred skills"
-                icon={<SparklesIcon className="size-3.5" />}
+                icon={<ScrollTextIcon className="size-3.5" />}
                 items={selectedWorkflowNode.preferred_skills}
                 title="Preferred skills"
               />
@@ -291,7 +291,7 @@ function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvas
             className="inline-flex items-center gap-1.5"
             aria-label={`Preferred skills: ${skillCount}`}
           >
-            <SparklesIcon className="text-chart-1 size-4" />
+            <ScrollTextIcon className="text-chart-1 size-4" />
             <span className="text-foreground/90 font-mono">x{skillCount}</span>
           </span>
           <span

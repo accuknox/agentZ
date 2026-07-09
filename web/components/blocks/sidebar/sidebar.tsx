@@ -16,6 +16,7 @@ import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
 import { NavSandboxes } from "./sandboxes"
+import { NavSkills } from "./skills"
 import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
 
@@ -43,10 +44,11 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
           <Suspense fallback={null}>
             <NavLens />
           </Suspense>
-          <NavSecrets />
           <NavSandboxes />
-          <NavWorkflows />
+          <NavSecrets />
           <NavMCPs />
+          <NavSkills />
+          <NavWorkflows />
         </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupLabel>Agents</SidebarGroupLabel>

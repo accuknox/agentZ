@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactCompiler: true,
   typedRoutes: true,
+  experimental: {
+    turbopackFileSystemCacheForDev: false,
+  },
 }
 
 export default nextConfig

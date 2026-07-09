@@ -201,6 +201,8 @@ components:
         created_at:
           format: date-time
           type: string
+        home_storage_prefix:
+          type: string
         last_activity:
           format: date-time
           type: string
@@ -219,6 +221,7 @@ components:
       - last_activity
       - created_at
       - modified_at
+      - home_storage_prefix
       - status
       type: object
     AgentName:

@@ -127,6 +127,7 @@ export type Agent = {
   last_activity: string
   created_at: string
   modified_at: string
+  home_storage_prefix: string
   status: AgentStatus
 }
 

@@ -143,6 +143,7 @@ export const zAgent = z.object({
   last_activity: z.iso.datetime(),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
+  home_storage_prefix: z.string(),
   status: zAgentStatus,
 })
 

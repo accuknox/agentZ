@@ -1838,6 +1838,8 @@ components:
         modified_at:
           type: string
           format: date-time
+        home_storage_prefix:
+          type: string
         status:
           $ref: '#/components/schemas/AgentStatus'
       required:
@@ -1846,6 +1848,7 @@ components:
       - last_activity
       - created_at
       - modified_at
+      - home_storage_prefix
       - status
 
     AgentStatus:

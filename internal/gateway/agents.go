@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -133,12 +134,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
-		Name:         row.AgentName,
-		SandboxName:  req.SandboxName,
-		CreatedAt:    row.CreatedAt,
-		ModifiedAt:   row.UpdatedAt,
-		LastActivity: row.UpdatedAt,
-		Status:       gatewayapi.PROGRESSING,
+		Name:              row.AgentName,
+		SandboxName:       req.SandboxName,
+		HomeStoragePrefix: "",
+		CreatedAt:         row.CreatedAt,
+		ModifiedAt:        row.UpdatedAt,
+		LastActivity:      row.UpdatedAt,
+		Status:            gatewayapi.PROGRESSING,
 	})
 }
 
@@ -236,13 +238,19 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	if view := statusFromAgent(updated); view != nil {
 		status = statusFromView(view)
 	}
+	homeStoragePrefix, err := s.agentHomeStoragePrefix(r.Context(), ns, row.AgentName)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, gatewayapi.Agent{
-		Name:         row.AgentName,
-		SandboxName:  updated.Spec.SandboxRef.Name,
-		CreatedAt:    row.CreatedAt,
-		ModifiedAt:   row.UpdatedAt,
-		LastActivity: row.UpdatedAt,
-		Status:       status,
+		Name:              row.AgentName,
+		SandboxName:       updated.Spec.SandboxRef.Name,
+		HomeStoragePrefix: homeStoragePrefix,
+		CreatedAt:         row.CreatedAt,
+		ModifiedAt:        row.UpdatedAt,
+		LastActivity:      row.UpdatedAt,
+		Status:            status,
 	})
 }
 
@@ -394,6 +402,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
 				prevItem.ModifiedAt.Equal(item.ModifiedAt) &&
+				prevItem.HomeStoragePrefix == item.HomeStoragePrefix &&
 				prevItem.Status == item.Status
 			if unchanged {
 				continue
@@ -471,6 +480,11 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		return nil, "", err
 	}
 
+	homeStoragePrefixes, err := s.agentHomeStoragePrefixes(ctx, ns)
+	if err != nil {
+		return nil, "", err
+	}
+
 	items := make([]gatewayapi.Agent, 0, limit)
 	var next string
 	for _, row := range rows {
@@ -481,6 +495,7 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 
 		status := gatewayapi.UNSPECIFIED
 		sandboxName := gatewayapi.SandboxName("")
+		var homeStoragePrefix string
 		resolved, resolveErr := s.resolver.resolveAgent(ctx, ns, row.AgentName)
 		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
@@ -488,18 +503,52 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		if resolved != nil && resolved.Agent != nil {
 			status = statusFromView(statusFromAgent(resolved.Agent))
 			sandboxName = resolved.Agent.Spec.SandboxRef.Name
+			homeStoragePrefix = homeStoragePrefixes[row.AgentName]
 		}
 
 		items = append(items, gatewayapi.Agent{
-			Name:         row.AgentName,
-			SandboxName:  sandboxName,
-			LastActivity: row.UpdatedAt,
-			CreatedAt:    row.CreatedAt,
-			ModifiedAt:   row.UpdatedAt,
-			Status:       status,
+			Name:              row.AgentName,
+			SandboxName:       sandboxName,
+			HomeStoragePrefix: homeStoragePrefix,
+			LastActivity:      row.UpdatedAt,
+			CreatedAt:         row.CreatedAt,
+			ModifiedAt:        row.UpdatedAt,
+			Status:            status,
 		})
 	}
 	return items, next, nil
+}
+
+func (s *Service) agentHomeStoragePrefix(ctx context.Context, namespace string, agentName string) (string, error) {
+	pvc := &corev1.PersistentVolumeClaim{}
+	key := types.NamespacedName{
+		Namespace: namespace,
+		Name:      agentName + "-home",
+	}
+	if err := s.k8sClient.Get(ctx, key, pvc); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("get agent home pvc: %w", err)
+	}
+	return pvc.Spec.VolumeName, nil
+}
+
+func (s *Service) agentHomeStoragePrefixes(ctx context.Context, namespace string) (map[string]string, error) {
+	pvcs := &corev1.PersistentVolumeClaimList{}
+	if err := s.k8sClient.List(ctx, pvcs, ctrlclient.InNamespace(namespace)); err != nil {
+		return nil, fmt.Errorf("list agent home pvcs: %w", err)
+	}
+
+	prefixes := map[string]string{}
+	for _, pvc := range pvcs.Items {
+		agentName, ok := strings.CutSuffix(pvc.Name, "-home")
+		if !ok {
+			continue
+		}
+		prefixes[agentName] = pvc.Spec.VolumeName
+	}
+	return prefixes, nil
 }
 
 //nolint:gocyclo

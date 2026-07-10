@@ -7,6 +7,7 @@ import {
   createAgent,
   createMcpConnection,
   createSandbox,
+  createSkill,
   createWorkflow,
   createWorkflowRun,
   createWorkflowSchedule,
@@ -14,12 +15,14 @@ import {
   deleteMcpConnection,
   deleteSandbox,
   deleteSecret,
+  deleteSkill,
   deleteWorkflowRun,
   deleteWorkflows,
   deleteWorkflowSchedule,
   ensureTenant,
   getMcpConnection,
   getMcpGraph,
+  getSkillReferences,
   getSpanDetail,
   getTenant,
   getWorkflow,
@@ -33,6 +36,7 @@ import {
   listProcessObservability,
   listSandboxes,
   listSecrets,
+  listSkills,
   listSpans,
   listTraceSessions,
   listWorkflowRuns,
@@ -45,6 +49,7 @@ import {
   putSecret,
   updateAgent,
   updateSandbox,
+  updateSkill,
   updateWorkflowSchedule,
 } from "../sdk.gen"
 import type {
@@ -57,6 +62,9 @@ import type {
   CreateSandboxData,
   CreateSandboxError,
   CreateSandboxResponse,
+  CreateSkillData,
+  CreateSkillError,
+  CreateSkillResponse,
   CreateWorkflowData,
   CreateWorkflowError,
   CreateWorkflowResponse,
@@ -78,6 +86,9 @@ import type {
   DeleteSecretData,
   DeleteSecretError,
   DeleteSecretResponse,
+  DeleteSkillData,
+  DeleteSkillError,
+  DeleteSkillResponse,
   DeleteWorkflowRunData,
   DeleteWorkflowRunError,
   DeleteWorkflowRunResponse,
@@ -96,6 +107,9 @@ import type {
   GetMcpGraphData,
   GetMcpGraphError,
   GetMcpGraphResponse,
+  GetSkillReferencesData,
+  GetSkillReferencesError,
+  GetSkillReferencesResponse,
   GetSpanDetailData,
   GetSpanDetailError,
   GetSpanDetailResponse,
@@ -135,6 +149,9 @@ import type {
   ListSecretsData,
   ListSecretsError,
   ListSecretsResponse2,
+  ListSkillsData,
+  ListSkillsError,
+  ListSkillsResponse2,
   ListSpansData,
   ListSpansError,
   ListSpansResponse2,
@@ -168,6 +185,9 @@ import type {
   UpdateSandboxData,
   UpdateSandboxError,
   UpdateSandboxResponse,
+  UpdateSkillData,
+  UpdateSkillError,
+  UpdateSkillResponse,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleError,
   UpdateWorkflowScheduleResponse,
@@ -362,6 +382,125 @@ export const updateAgentMutation = (
   }
   return mutationOptions
 }
+
+export const listSkillsQueryKey = (options?: Options<ListSkillsData>) =>
+  createQueryKey("listSkills", options)
+
+/**
+ * List immutable Skill resources.
+ */
+export const listSkillsOptions = (options?: Options<ListSkillsData>) =>
+  queryOptions<
+    ListSkillsResponse2,
+    ListSkillsError,
+    ListSkillsResponse2,
+    ReturnType<typeof listSkillsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listSkills({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listSkillsQueryKey(options),
+  })
+
+/**
+ * Create an immutable Skill resource.
+ */
+export const createSkillMutation = (
+  options?: Partial<Options<CreateSkillData>>
+): UseMutationOptions<CreateSkillResponse, CreateSkillError, Options<CreateSkillData>> => {
+  const mutationOptions: UseMutationOptions<
+    CreateSkillResponse,
+    CreateSkillError,
+    Options<CreateSkillData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createSkill({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete an immutable Skill resource.
+ */
+export const deleteSkillMutation = (
+  options?: Partial<Options<DeleteSkillData>>
+): UseMutationOptions<DeleteSkillResponse, DeleteSkillError, Options<DeleteSkillData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteSkillResponse,
+    DeleteSkillError,
+    Options<DeleteSkillData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteSkill({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Update an immutable Skill active version and references.
+ */
+export const updateSkillMutation = (
+  options?: Partial<Options<UpdateSkillData>>
+): UseMutationOptions<UpdateSkillResponse, UpdateSkillError, Options<UpdateSkillData>> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateSkillResponse,
+    UpdateSkillError,
+    Options<UpdateSkillData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateSkill({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getSkillReferencesQueryKey = (options: Options<GetSkillReferencesData>) =>
+  createQueryKey("getSkillReferences", options)
+
+/**
+ * List Agents and Sandboxes referencing an immutable Skill.
+ */
+export const getSkillReferencesOptions = (options: Options<GetSkillReferencesData>) =>
+  queryOptions<
+    GetSkillReferencesResponse,
+    GetSkillReferencesError,
+    GetSkillReferencesResponse,
+    ReturnType<typeof getSkillReferencesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getSkillReferences({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getSkillReferencesQueryKey(options),
+  })
 
 export const listTraceSessionsQueryKey = (options: Options<ListTraceSessionsData>) =>
   createQueryKey("listTraceSessions", options)

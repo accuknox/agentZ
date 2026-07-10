@@ -23,8 +23,8 @@ const decoder = new TextDecoder("utf-8", { fatal: true })
 
 const frontmatterNameSchema = z
   .string({ error: "frontmatter.name must be a string" })
-  .min(1, "frontmatter.name must be 1-64 characters")
-  .max(64, "frontmatter.name must be 1-64 characters")
+  .min(1, "frontmatter.name must be 1-32 characters")
+  .max(32, "frontmatter.name must be 1-32 characters")
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "frontmatter.name is invalid")
 
 const skillFrontmatterSchema = z
@@ -78,6 +78,20 @@ export const importDecisionsSchema = z.array(
   ])
 )
 
+export function jsonFormField<T>(schema: z.ZodType<T>) {
+  return z
+    .string()
+    .transform((value, ctx) => {
+      try {
+        return JSON.parse(value) as unknown
+      } catch {
+        ctx.addIssue({ code: "custom", message: "invalid JSON" })
+        return z.NEVER
+      }
+    })
+    .pipe(schema)
+}
+
 export async function skillsFromUpload(fileName: string, bytes: Buffer): Promise<SkillWrite[]> {
   if (bytes.length > maxUploadBytes) {
     throw new Error("import file is too large")
@@ -108,7 +122,7 @@ export function skillsForApply(skills: SkillWrite[], decisions: ImportDecision[]
       throw new Error("import contains duplicate destination names")
     }
     seen.add(name)
-    out.push({ name, files: skill.files })
+    out.push({ name, description: skill.description, files: skill.files })
   }
 
   if (out.length !== skills.length) {
@@ -121,6 +135,7 @@ function skillFromMarkdown(bytes: Buffer): SkillWrite {
   const frontmatter = parseSkillFile(bytes)
   return {
     name: frontmatter.name,
+    description: frontmatter.description,
     files: [
       {
         path: skillFileName,
@@ -254,6 +269,7 @@ async function skillsFromZip(bytes: Buffer): Promise<SkillWrite[]> {
 
     out.push({
       name: frontmatter.name,
+      description: frontmatter.description,
       files: skillFiles,
     })
   }

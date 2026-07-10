@@ -1,7 +1,7 @@
 "use client"
 
 import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   AmazonWebServicesDark,
@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Select,
   SelectContent,
@@ -61,7 +62,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
-import type { AgentStatus, Sandbox } from "@/lib/gateway/client"
+import type { AgentStatus, Sandbox, Skill } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type { ComponentType, SVGProps } from "react"
 import type * as z from "zod"
@@ -71,11 +72,13 @@ type Mode = "create" | "update"
 type AgentDialogProps = {
   mode: Mode
   sandboxes: Sandbox[]
+  immutableSkills: Skill[]
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
   agentName?: string
   initialAgentStatus?: AgentStatus
   initialSandboxName?: string
+  initialSkills?: string[]
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
   trigger?: React.ReactNode
@@ -265,11 +268,13 @@ function SandboxSelect({
 export function AgentDialog({
   mode,
   sandboxes,
+  immutableSkills,
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
   agentName,
   initialAgentStatus,
   initialSandboxName,
+  initialSkills = [],
   open,
   onOpenChangeAction,
   trigger,
@@ -287,6 +292,7 @@ export function AgentDialog({
   const defaultValues: AgentFormValues = {
     name: agentName ?? "",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
+    skills: initialSkills,
     model: undefined,
     smallModel: undefined,
   }
@@ -368,6 +374,11 @@ export function AgentDialog({
     })
   )
   const showModelFields = mode === "update"
+  const selectedSkills = useWatch({
+    control: form.control,
+    name: "skills",
+    defaultValue: initialSkills,
+  })
 
   useEffect(() => {
     if (!modelCatalog.data) {
@@ -391,6 +402,7 @@ export function AgentDialog({
       switch (error.field) {
         case "name":
         case "sandboxName":
+        case "skills":
         case "model":
         case "smallModel":
           field = error.field
@@ -441,6 +453,7 @@ export function AgentDialog({
       return (
         error.field === "name" ||
         error.field === "sandboxName" ||
+        error.field === "skills" ||
         error.field === "model" ||
         error.field === "smallModel" ||
         error.field === "opencode.model" ||
@@ -472,10 +485,13 @@ export function AgentDialog({
           <DialogDescription>
             {mode === "create"
               ? "Create an agent with a name and sandbox."
-              : "Update the sandbox and live model settings for this agent."}
+              : "Update the sandbox, immutable skills, and live model settings for this agent."}
           </DialogDescription>
         </DialogHeader>
         <form id="agent-form-simple" action={submit} className="space-y-5">
+          {selectedSkills.map((skill) => (
+            <input key={skill} type="hidden" name="skills" value={skill} />
+          ))}
           <FieldGroup>
             {mode === "create" ? (
               <Controller
@@ -544,6 +560,29 @@ export function AgentDialog({
                       before continuing.
                     </FieldDescription>
                   ) : null}
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+            <Controller
+              name="skills"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="agent-form-skills">Immutable skills</FieldLabel>
+                  <MultiSelectDropdown
+                    id="agent-form-skills"
+                    invalid={fieldState.invalid}
+                    options={immutableSkills.map((skill) => ({
+                      label: skill.name,
+                      value: skill.name,
+                    }))}
+                    value={field.value}
+                    placeholder="Select skills"
+                    emptyMessage="No immutable skills"
+                    onBlurAction={field.onBlur}
+                    onValueChangeAction={field.onChange}
+                  />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}

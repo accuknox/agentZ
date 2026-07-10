@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
-import type { Agent, Sandbox } from "@/lib/gateway/client"
+import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,6 +33,7 @@ type DeleteAgentAction = (
 
 export function createAgentColumns(
   deleteAgentAction: DeleteAgentAction,
+  immutableSkills: Skill[],
   sandboxes: Sandbox[],
   initialHasNextSandboxPage: boolean,
   initialNextSandboxPageToken: string
@@ -79,6 +80,7 @@ export function createAgentColumns(
           <AgentActions
             agent={agent}
             deleteAgentAction={deleteAgentAction}
+            immutableSkills={immutableSkills}
             sandboxes={sandboxes}
             initialHasNextSandboxPage={initialHasNextSandboxPage}
             initialNextSandboxPageToken={initialNextSandboxPageToken}
@@ -92,12 +94,14 @@ export function createAgentColumns(
 function AgentActions({
   agent,
   deleteAgentAction,
+  immutableSkills,
   sandboxes,
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
 }: {
   agent: Agent
   deleteAgentAction: DeleteAgentAction
+  immutableSkills: Skill[]
   sandboxes: Sandbox[]
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
@@ -134,6 +138,8 @@ function AgentActions({
         agentName={agent.name}
         initialAgentStatus={agent.status}
         initialSandboxName={agent.sandboxName}
+        initialSkills={agent.skills}
+        immutableSkills={immutableSkills}
         sandboxes={sandboxes}
         initialHasNextSandboxPage={initialHasNextSandboxPage}
         initialNextSandboxPageToken={initialNextSandboxPageToken}

@@ -21,6 +21,7 @@ type SkillFrontmatter = {
 const ignoredDirectories = new Set([".git", "node_modules"])
 const globalHome = homedir()
 const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(globalHome, ".config")
+const immutableSkillsPath = process.env.AGENTZ_IMMUTABLE_SKILLS_PATH
 
 function ancestorDirectories(directory: string, worktree: string): string[] {
   const current = path.resolve(directory)
@@ -64,6 +65,9 @@ function skillRoots(
   }
 
   pushRoot(path.join(globalHome, ".claude", "skills"), "global")
+  if (immutableSkillsPath) {
+    pushRoot(immutableSkillsPath, "global")
+  }
   pushRoot(path.join(globalHome, ".agents", "skills"), "global")
 
   for (const ancestor of ancestorDirectories(directory, worktree)) {

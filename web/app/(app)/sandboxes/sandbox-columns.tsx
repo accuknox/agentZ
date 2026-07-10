@@ -81,6 +81,15 @@ export function createSandboxColumns(
       },
     },
     {
+      accessorFn: (sandbox) => sandbox.metadata.skill_count,
+      id: "skills",
+      header: "Skills",
+      cell: ({ row }) => {
+        const count = row.getValue<number>("skills")
+        return `${count} skill${count === 1 ? "" : "s"}`
+      },
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button

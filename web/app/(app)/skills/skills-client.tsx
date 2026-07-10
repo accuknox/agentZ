@@ -4,10 +4,21 @@ import type { Route } from "next"
 import * as React from "react"
 import { useRouter } from "@bprogress/next/app"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Download, MoreHorizontal, Trash2, Upload } from "lucide-react"
+import {
+  BotIcon,
+  Download,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  ScrollText,
+  Trash2,
+  TriangleAlert,
+  Upload,
+} from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
   DialogClose,
@@ -17,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,12 +50,21 @@ import { SkillImportDialog } from "./skill-import-dialog"
 import { SkillTable } from "./skill-table"
 
 const pageSize = 50
+const allAgentsValue = "all"
 
+const skillKindSchema = z.enum(["mutable", "immutable"])
 const skillSchema = z.object({
+  type: skillKindSchema,
   name: z.string(),
   fileCount: z.number(),
   sizeBytes: z.number(),
   modifiedAt: z.string().nullable(),
+  description: z.string().optional(),
+  version: z.number().optional(),
+  storagePath: z.string().optional(),
+  agents: z.array(z.string()).default([]),
+  sandboxes: z.array(z.string()).default([]),
+  createdAt: z.string().optional(),
 })
 
 const listResponseSchema = z.object({
@@ -52,24 +73,35 @@ const listResponseSchema = z.object({
   hasNextPage: z.boolean(),
 })
 
+const versionsResponseSchema = z.object({
+  versions: z.array(z.number().int().min(1)),
+})
+
 const apiErrorSchema = z.object({
   error: z.string(),
 })
 
 export type Skill = z.infer<typeof skillSchema>
+type SkillKind = z.infer<typeof skillKindSchema>
 
-function skillsQueryOptions(agentName: string, pageToken: string) {
+const emptySkills: Skill[] = []
+
+function skillsQueryOptions(type: SkillKind, agentName: string, pageToken: string) {
   return queryOptions({
-    queryKey: ["skills", agentName, pageToken],
-    enabled: agentName.length > 0,
+    queryKey: ["skills", type, agentName, pageToken],
+    enabled: type === "immutable" || agentName.length > 0,
     queryFn: async () => {
       const params = new URLSearchParams({
-        agent_name: agentName,
+        type,
         limit: String(pageSize),
       })
+      if (agentName && (type === "mutable" || agentName !== allAgentsValue)) {
+        params.set("agent_name", agentName)
+      }
       if (pageToken) {
         params.set("page_token", pageToken)
       }
+
       const response = await fetch(`/api/skills/list?${params}`)
       const data = await response.json()
       if (!response.ok) {
@@ -83,36 +115,82 @@ function skillsQueryOptions(agentName: string, pageToken: string) {
 export function SkillsClient({
   agents,
   initialAgentName,
+  initialType = "mutable",
 }: {
   agents: Agent[]
   initialAgentName?: string
+  initialType?: SkillKind
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const firstAgentName = agents[0]?.name ?? ""
   const initialAgentExists = agents.some((agent) => agent.name === initialAgentName)
-  const startAgentName = initialAgentExists && initialAgentName ? initialAgentName : firstAgentName
+  const startType = initialType === "immutable" ? "immutable" : "mutable"
+  const startAgentName =
+    startType === "immutable"
+      ? initialAgentExists && initialAgentName
+        ? initialAgentName
+        : allAgentsValue
+      : initialAgentExists && initialAgentName
+        ? initialAgentName
+        : firstAgentName
+  const [type, setType] = React.useState<SkillKind>(startType)
   const [agentName, setAgentName] = React.useState(startAgentName)
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set())
   const [error, setError] = React.useState<string>()
   const [deleteNames, setDeleteNames] = React.useState<string[]>([])
+  const [editingSkill, setEditingSkill] = React.useState<Skill>()
   const [importOpen, setImportOpen] = React.useState(false)
   const [exporting, setExporting] = React.useState(false)
+  const routeType = skillKindSchema.catch(startType).parse(searchParams.get("type") ?? undefined)
   const routeAgentName = searchParams.get("agent_name") ?? ""
   const pageToken =
-    routeAgentName === "" || routeAgentName === agentName
+    routeType === type && (routeAgentName === "" || routeAgentName === agentName)
       ? (searchParams.get("page_token") ?? "")
       : ""
 
-  const skillsOptions = skillsQueryOptions(agentName, pageToken)
+  const skillsOptions = skillsQueryOptions(type, agentName, pageToken)
   const query = useQuery(skillsOptions)
-  const skills = query.data?.skills ?? []
+  const skills = query.data?.skills ?? emptySkills
+  const skillsByName = React.useMemo(
+    () => new Map(skills.map((skill) => [skill.name, skill])),
+    [skills]
+  )
+  const deleteTargets = deleteNames.flatMap((name) => {
+    const skill = skillsByName.get(name)
+    return skill ? [skill] : []
+  })
+  const defaultImportAgentName = agentName === allAgentsValue ? firstAgentName : agentName
 
-  function chooseAgent(name: string) {
+  function routeFor(nextType: SkillKind, nextAgentName: string, nextPageToken = ""): Route {
+    const params = new URLSearchParams({ type: nextType })
+    if (nextAgentName && (nextType === "mutable" || nextAgentName !== allAgentsValue)) {
+      params.set("agent_name", nextAgentName)
+    }
+    if (nextPageToken) {
+      params.set("page_token", nextPageToken)
+    }
+    return `/skills?${params}` as Route
+  }
+
+  function chooseType(nextType: SkillKind) {
+    const nextAgentName =
+      nextType === "immutable"
+        ? agentName || allAgentsValue
+        : agentName && agentName !== allAgentsValue
+          ? agentName
+          : firstAgentName
     setSelected(new Set())
-    setAgentName(name)
-    router.replace(`/skills?agent_name=${encodeURIComponent(name)}` as Route)
+    setType(nextType)
+    setAgentName(nextAgentName)
+    router.replace(routeFor(nextType, nextAgentName))
+  }
+
+  function chooseAgent(nextAgentName: string) {
+    setSelected(new Set())
+    setAgentName(nextAgentName)
+    router.replace(routeFor(type, nextAgentName))
   }
 
   async function refreshSkills() {
@@ -132,7 +210,8 @@ export function SkillsClient({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          agentName,
+          type,
+          agentName: type === "mutable" ? agentName : undefined,
           skillNames,
         }),
       })
@@ -141,10 +220,14 @@ export function SkillsClient({
         return
       }
 
+      const disposition = response.headers.get("Content-Disposition") ?? ""
+      const filename =
+        /filename="([^"]+)"/.exec(disposition)?.[1] ??
+        (type === "mutable" ? `${agentName}-skills.zip` : "skills.zip")
       const href = URL.createObjectURL(await response.blob())
       const link = document.createElement("a")
       link.href = href
-      link.download = `${agentName}-skills.zip`
+      link.download = filename
       link.click()
       URL.revokeObjectURL(href)
     } finally {
@@ -163,7 +246,8 @@ export function SkillsClient({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        agentName,
+        type,
+        agentName: type === "mutable" ? agentName : undefined,
         skillNames: deleteNames,
       }),
     })
@@ -177,6 +261,9 @@ export function SkillsClient({
     await refreshSkills()
   }
 
+  const canUseMutableSkills = type === "immutable" || agentName.length > 0
+  const showAgentFilter = type === "immutable" || agents.length > 0
+
   return (
     <>
       <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
@@ -184,7 +271,7 @@ export function SkillsClient({
           <h1 className="text-2xl font-semibold tracking-normal">Skills</h1>
         </div>
         <SkillsActions
-          disabled={!agentName}
+          disabled={!canUseMutableSkills}
           exporting={exporting}
           selectedCount={selected.size}
           onDelete={() => setDeleteNames([...selected])}
@@ -193,25 +280,51 @@ export function SkillsClient({
         />
       </div>
       <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        {agents.length > 0 ? (
-          <Select value={agentName} onValueChange={chooseAgent}>
-            <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52">
+        <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
+          <Select value={type} onValueChange={(value) => chooseType(skillKindSchema.parse(value))}>
+            <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.name} value={agent.name}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="mutable">
+                  <Pencil className="inline-block" />
+                  Mutable
+                </SelectItem>
+                <SelectItem value="immutable">
+                  <Lock className="inline-block" />
+                  Immutable
+                </SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
-        ) : null}
+          {showAgentFilter ? (
+            <Select value={agentName} onValueChange={chooseAgent}>
+              <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {type === "immutable" ? (
+                    <SelectItem value={allAgentsValue}>
+                      <ScrollText className="inline-block" />
+                      All
+                    </SelectItem>
+                  ) : null}
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.name} value={agent.name}>
+                      <BotIcon className="inline-block" />
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
       </div>
       {error ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive mx-4 mt-4 rounded-lg border p-3 text-sm md:mx-6">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive mx-4 mt-4 mb-4 rounded-lg border px-4 py-3 text-sm md:mx-6">
           {error}
         </div>
       ) : null}
@@ -223,19 +336,35 @@ export function SkillsClient({
         loading={query.isPending}
         nextPageToken={query.data?.nextPageToken ?? ""}
         selected={selected}
+        showAgents={type === "immutable" && agentName === allAgentsValue}
+        showImmutable={type === "immutable"}
         setDeleteNames={setDeleteNames}
         setSelected={setSelected}
+        onEdit={setEditingSkill}
         onExport={(name) => void exportSkills([name])}
       />
       <SkillImportDialog
-        agentName={agentName}
+        agents={agents}
+        agentName={defaultImportAgentName}
         open={importOpen}
         setOpen={setImportOpen}
         onImported={refreshSkills}
       />
+      <EditSkillDialog
+        key={editingSkill ? `${editingSkill.name}:${editingSkill.version ?? 1}` : "edit-skill"}
+        skill={editingSkill}
+        open={Boolean(editingSkill)}
+        setOpen={(open) => {
+          if (!open) {
+            setEditingSkill(undefined)
+          }
+        }}
+        onUpdated={refreshSkills}
+      />
       <DeleteDialog
         names={deleteNames}
         open={deleteNames.length > 0}
+        targets={deleteTargets}
         setOpen={(open) => {
           if (!open) {
             setDeleteNames([])
@@ -272,7 +401,12 @@ function SkillsActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          <DropdownMenuItem onSelect={onImport}>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              onImport()
+            }}
+          >
             <Upload />
             Import
           </DropdownMenuItem>
@@ -294,18 +428,157 @@ function SkillsActions({
   )
 }
 
+function EditSkillDialog({
+  skill,
+  open,
+  setOpen,
+  onUpdated,
+}: {
+  skill?: Skill
+  open: boolean
+  setOpen: (open: boolean) => void
+  onUpdated: () => Promise<void>
+}) {
+  const [error, setError] = React.useState<{ skillName: string; message: string }>()
+  const [pending, startTransition] = React.useTransition()
+  const [version, setVersion] = React.useState(String(skill?.version ?? 1))
+  const versionsQuery = useQuery(
+    queryOptions({
+      queryKey: ["skills", "versions", skill?.name],
+      enabled: open && Boolean(skill?.name),
+      queryFn: async () => {
+        if (!skill?.name) {
+          throw new Error("Skill name is required")
+        }
+        const params = new URLSearchParams({ skill_name: skill.name })
+        const response = await fetch(`/api/skills/versions?${params}`)
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(apiErrorSchema.parse(data).error)
+        }
+        return versionsResponseSchema.parse(data).versions
+      },
+    })
+  )
+  const versionValues = new Set(versionsQuery.data ?? [])
+  if (skill?.version) {
+    versionValues.add(skill.version)
+  }
+  const versions = [...versionValues].toSorted((a, b) => a - b)
+  const errorMessage = error && error.skillName === skill?.name ? error.message : undefined
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!skill) {
+      return
+    }
+    const nextVersion = Number(version)
+    if (!versions.includes(nextVersion)) {
+      setError({
+        skillName: skill.name,
+        message: "Version is unavailable",
+      })
+      return
+    }
+
+    startTransition(async () => {
+      setError(undefined)
+      const response = await fetch("/api/skills/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: skill.name,
+          version: nextVersion,
+        }),
+      })
+      if (!response.ok) {
+        setError({
+          skillName: skill.name,
+          message: apiErrorSchema.parse(await response.json()).error,
+        })
+        return
+      }
+      setOpen(false)
+      await onUpdated()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{skill ? `Change version for ${skill.name}` : "Change version"}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={submit}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="skill-edit-version" required>
+                Version
+              </FieldLabel>
+              <Select
+                value={version}
+                disabled={pending || versionsQuery.isPending}
+                onValueChange={(value) => {
+                  setError(undefined)
+                  setVersion(value)
+                }}
+              >
+                <SelectTrigger id="skill-edit-version" aria-invalid={Boolean(errorMessage)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {versions.map((item) => (
+                      <SelectItem key={item} value={String(item)}>
+                        v{item}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
+          {(errorMessage ?? versionsQuery.error?.message) ? (
+            <p className="text-destructive text-sm">
+              {errorMessage ?? versionsQuery.error?.message}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={pending}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={pending || versions.length === 0}>
+              {pending ? <Spinner /> : <Pencil />}
+              Update
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function DeleteDialog({
   names,
   open,
+  targets,
   setOpen,
   onDelete,
 }: {
   names: string[]
   open: boolean
+  targets: Skill[]
   setOpen: (open: boolean) => void
   onDelete: () => Promise<void>
 }) {
   const [pending, startTransition] = React.useTransition()
+  const agentRefs = new Set(targets.flatMap((skill) => skill.agents))
+  const sandboxRefs = new Set(targets.flatMap((skill) => skill.sandboxes))
+  const hasRefs = agentRefs.size > 0 || sandboxRefs.size > 0
   const title = names.length === 1 ? `Delete ${names[0]}?` : `Delete ${names.length} skills?`
 
   return (
@@ -315,6 +588,16 @@ function DeleteDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>This will remove the skill permanently.</DialogDescription>
         </DialogHeader>
+        {hasRefs ? (
+          <Alert variant="warning">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <AlertDescription>
+              Referenced by {agentRefs.size} agent{agentRefs.size === 1 ? "" : "s"} and{" "}
+              {sandboxRefs.size} sandbox{sandboxRefs.size === 1 ? "" : "es"}. Deletion detaches
+              those references and removes every stored version.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={pending}>

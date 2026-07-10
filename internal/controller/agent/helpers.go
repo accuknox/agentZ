@@ -28,11 +28,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
 	opencodeConfigKey              = "opencode.json"
+	immutableSkillsManifestKey     = "immutable-skills.json"
 	configVolume                   = "config"
 	opencodeConfigDir              = "/etc/agentz/opencode"
 	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
@@ -58,7 +60,10 @@ const (
 	nixRuntimeStoreMount           = "/nix/store"
 	nixRuntimeStageMount           = "/runtime-nix-store"
 	nixStoreSubPath                = "nix"
+	homeStoreSubPath               = "home"
+	immutableSkillsSubPath         = "immutable-skills"
 	nixVolumeRootMount             = "/pvc"
+	homeVolumeRootMount            = "/pvc-home"
 	nixLinkVolume                  = "nix-link"
 	nixLinkMount                   = "/tmp/nix-link"
 	nixLinkStage                   = "/tmp/nix-link"
@@ -83,8 +88,12 @@ const (
 	egressPolicySuffix             = "-egress"
 	opencodeConfigSchema           = "https://opencode.ai/config.json"
 	agentHomeDir                   = "/home/agentz"
+	opencodeImmutableSkillsPath    = "/var/lib/agentz/skills/immutable"
 	opencodeWritableSkillsPath     = agentHomeDir + "/.agents/skills"
 	opencodeBundledSkillsPath      = "/etc/opencode/skills/defaults"
+	immutableSkillsBucketVolume    = "immutable-skills-bucket"
+	immutableSkillsSecretMount     = "/var/run/secrets/agentz/immutable-skills-bucket"
+	immutableSkillsInitName        = "immutable-skills-init"
 )
 
 var (
@@ -115,6 +124,7 @@ type RuntimeConfig struct {
 	ManagerOpenBaoK8sAuthTokenPath   string
 	GatewayTokenAudience             string
 	AgentHomeStorageClass            string
+	SkillStore                       skill.Config
 }
 
 func selectorLabels(agt *agentzv1alpha1.Agent) map[string]string {
@@ -229,6 +239,7 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	cfg.Skills = &opencodeSkillsFile{
 		Paths: []string{
 			opencodeBundledSkillsPath,
+			opencodeImmutableSkillsPath,
 			opencodeWritableSkillsPath,
 		},
 	}
@@ -329,18 +340,20 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config                  json.RawMessage `json:"config"`
-	Instructions            []string        `json:"instructions"`
-	Env                     []corev1.EnvVar `json:"env"`
-	Packages                []string        `json:"packages"`
-	MCPURL                  string          `json:"mcpUrl"`
-	MCPConsentPermissionIDs []string        `json:"mcpConsentPermissionIds"`
-	MCPRefs                 []mcpRefConfig  `json:"mcpRefs"`
+	Config                  json.RawMessage       `json:"config"`
+	Instructions            []string              `json:"instructions"`
+	Env                     []corev1.EnvVar       `json:"env"`
+	Packages                []string              `json:"packages"`
+	MCPURL                  string                `json:"mcpUrl"`
+	MCPConsentPermissionIDs []string              `json:"mcpConsentPermissionIds"`
+	MCPRefs                 []mcpRefConfig        `json:"mcpRefs"`
+	Skills                  []skill.ManifestSkill `json:"skills"`
 }
 
 type packageJobHashInput struct {
-	Image    string   `json:"image"`
-	Packages []string `json:"packages"`
+	Image    string                `json:"image"`
+	Packages []string              `json:"packages"`
+	Skills   []skill.ManifestSkill `json:"skills"`
 }
 
 func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) string {
@@ -357,15 +370,17 @@ func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, 
 		MCPURL:                  envCfg.MCPURL,
 		MCPConsentPermissionIDs: envCfg.MCPConsentPermissionIDs,
 		MCPRefs:                 envCfg.MCPRefs,
+		Skills:                  envCfg.Skills,
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)
 }
 
-func packageJobHash(image string, packages []string) string {
+func packageJobHash(image string, envCfg sandboxConfig) string {
 	hashInput, _ := json.Marshal(packageJobHashInput{
 		Image:    strings.TrimSpace(image),
-		Packages: packages,
+		Packages: envCfg.Packages,
+		Skills:   envCfg.Skills,
 	})
 	sum := sha256.Sum256(hashInput)
 	return fmt.Sprintf("%x", sum)

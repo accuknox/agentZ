@@ -1,4 +1,4 @@
-package skillcreator
+package skill
 
 import (
 	"bytes"

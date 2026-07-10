@@ -23,6 +23,7 @@ rules:
   - ""
   resources:
   - namespaces
+  - secrets
   verbs:
   - create
   - get
@@ -60,6 +61,7 @@ rules:
   - list-workflows
   - patch
   - set-workflowrun-status
+  - update
   - update-workflow-schedule
   - watch
 - apiGroups:
@@ -69,6 +71,7 @@ rules:
   - mcpconnections/finalizers
   - sandboxes/finalizers
   - secrets/finalizers
+  - skills/finalizers
   - workflowruns/finalizers
   verbs:
   - update
@@ -79,6 +82,7 @@ rules:
   - mcpconnections/status
   - sandboxes/status
   - secrets/status
+  - skills/status
   - tenants/status
   - workflowruns/status
   - workflowschedules/status
@@ -90,7 +94,6 @@ rules:
   - agentz.accuknox.com
   resources:
   - mcpconnections
-  - sandboxes
   - secrets
   verbs:
   - get
@@ -100,15 +103,17 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - tenants
+  - sandboxes
   verbs:
   - get
   - list
-  - use
+  - patch
+  - update
   - watch
 - apiGroups:
   - agentz.accuknox.com
   resources:
+  - skills
   - workflowruns
   verbs:
   - create
@@ -117,6 +122,15 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - tenants
+  verbs:
+  - get
+  - list
+  - use
   - watch
 - apiGroups:
   - agentz.accuknox.com
@@ -230,36 +244,3 @@ rules:
   - patch
   - update
   - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: manager-role
-  namespace: agentz-system
-rules:
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
-  - skills
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
-  - skills/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
-  - skills/status
-  verbs:
-  - get
-  - patch
-  - update

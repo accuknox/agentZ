@@ -17,38 +17,75 @@ import type {
   ListSandboxActionResponse,
 } from "@/data/types"
 import * as z from "zod"
-import { sandboxesTag } from "@/data/cache"
+import { sandboxesTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
-
-const sandboxFormDataListsSchema = z.object({
-  packages: z.array(z.string({ error: "Package name must be text" }), {
-    error: "Packages must be a list",
-  }),
-  allowedHosts: z.array(z.string({ error: "Allowed host must be text" }), {
-    error: "Allowed hosts must be a list",
-  }),
-  mcpConnectionRefs: z.array(z.string({ error: "MCP connection name must be text" }), {
-    error: "MCP connections must be a list",
-  }),
-  mcpRequireConsentTool: z.array(z.string({ error: "MCP consent tool must be text" }), {
-    error: "MCP consent tools must be a list",
-  }),
-  mcpTool: z.array(z.string({ error: "MCP tool must be text" }), {
-    error: "MCP tools must be a list",
-  }),
-})
 
 type SandboxFormValues = Omit<z.input<typeof createSandboxFormSchema>, "name">
 
-type SandboxFormValuesResult =
-  | {
-      data: SandboxFormValues
-      error: undefined
+const mcpToolRefSchema = z.string({ error: "MCP tool must be text" }).transform((value, ctx) => {
+  const [name, tool, extra] = value.split("\u0000")
+  if (!name || !tool || extra !== undefined) {
+    ctx.addIssue({ code: "custom", message: "MCP tool reference is invalid" })
+    return z.NEVER
+  }
+  return { name, tool }
+})
+
+const sandboxFormDataSchema = z
+  .object({
+    packages: z.array(z.string({ error: "Package name must be text" }), {
+      error: "Packages must be a list",
+    }),
+    allowedHosts: z.array(z.string({ error: "Allowed host must be text" }), {
+      error: "Allowed hosts must be a list",
+    }),
+    mcpConnectionRefs: z.array(z.string({ error: "MCP connection name must be text" }), {
+      error: "MCP connections must be a list",
+    }),
+    mcpRequireConsentTool: z.array(mcpToolRefSchema, {
+      error: "MCP consent tools must be a list",
+    }),
+    mcpTool: z.array(mcpToolRefSchema, {
+      error: "MCP tools must be a list",
+    }),
+    skills: z.array(z.string({ error: "Skill name must be text" }), {
+      error: "Skills must be a list",
+    }),
+  })
+  .transform((data, ctx): SandboxFormValues => {
+    const refsByName = new Map(
+      data.mcpConnectionRefs.map((name) => [
+        name,
+        { name, tools: [] as SandboxFormValues["mcpConnectionRefs"][number]["tools"] },
+      ])
+    )
+    const consentByTool = new Set(
+      data.mcpRequireConsentTool.map((ref) => `${ref.name}\u0000${ref.tool}`)
+    )
+
+    for (const ref of data.mcpTool) {
+      const connection = refsByName.get(ref.name)
+      if (!connection) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["mcpTool"],
+          message: "MCP tool references an unselected connection",
+        })
+        return z.NEVER
+      }
+      connection.tools.push({
+        name: ref.tool,
+        requireConsent: consentByTool.has(`${ref.name}\u0000${ref.tool}`),
+      })
     }
-  | {
-      data: undefined
-      error: z.ZodError
+
+    return {
+      packages: data.packages,
+      allowedHosts: data.allowedHosts,
+      mcpConnectionRefs: [...refsByName.values()],
+      skills: data.skills,
     }
+  })
 
 export async function listSandboxesAction(
   query?: ListSandboxesData["query"]
@@ -78,58 +115,15 @@ export async function listSandboxesAction(
   }
 }
 
-function sandboxFormValues(formData: FormData): SandboxFormValuesResult {
-  const parsed = sandboxFormDataListsSchema.safeParse({
+function sandboxFormValues(formData: FormData) {
+  return sandboxFormDataSchema.safeParse({
     packages: formData.getAll("packages"),
     allowedHosts: formData.getAll("allowedHosts"),
     mcpConnectionRefs: formData.getAll("mcpConnectionRefs"),
     mcpRequireConsentTool: formData.getAll("mcpRequireConsentTool"),
     mcpTool: formData.getAll("mcpTool"),
+    skills: formData.getAll("skills"),
   })
-  if (!parsed.success) {
-    return { data: undefined, error: parsed.error }
-  }
-
-  const refsByName = new Map<
-    string,
-    {
-      name: string
-      tools: Array<{ name: string; requireConsent: boolean }>
-    }
-  >()
-  for (const name of parsed.data.mcpConnectionRefs) {
-    refsByName.set(name, {
-      name,
-      tools: [],
-    })
-  }
-  const consentByTool = new Set(parsed.data.mcpRequireConsentTool)
-  for (const value of parsed.data.mcpTool) {
-    const [name, toolName] = value.split("\u0000")
-    if (!name || !toolName) {
-      continue
-    }
-    const ref = refsByName.get(name)
-    if (!ref) {
-      continue
-    }
-    ref.tools.push({
-      name: toolName,
-      requireConsent: consentByTool.has(`${name}\u0000${toolName}`),
-    })
-  }
-
-  return {
-    error: undefined,
-    data: {
-      packages: parsed.data.packages,
-      allowedHosts: parsed.data.allowedHosts,
-      mcpConnectionRefs: [...refsByName.values()].map((ref) => ({
-        name: ref.name,
-        tools: ref.tools,
-      })),
-    },
-  }
 }
 
 export async function deleteSandboxFormAction(
@@ -175,6 +169,7 @@ export async function deleteSandboxFormAction(
   }
 
   updateTag(sandboxesTag)
+  updateTag(skillsTag)
   redirect("/sandboxes")
 }
 
@@ -183,7 +178,7 @@ export async function createSandboxFormAction(
   formData: FormData
 ): Promise<CreateSandboxFormState> {
   const values = sandboxFormValues(formData)
-  if (values.error) {
+  if (!values.success) {
     return invalidSandboxFormState(values.error)
   }
 
@@ -211,6 +206,7 @@ export async function createSandboxFormAction(
           })),
         })
       ),
+      skills: parsed.data.skills,
     },
   })
 
@@ -219,6 +215,7 @@ export async function createSandboxFormAction(
   }
 
   updateTag(sandboxesTag)
+  updateTag(skillsTag)
   redirect("/sandboxes")
 }
 
@@ -228,7 +225,7 @@ export async function updateSandboxFormAction(
   formData: FormData
 ): Promise<CreateSandboxFormState> {
   const values = sandboxFormValues(formData)
-  if (values.error) {
+  if (!values.success) {
     return invalidSandboxFormState(values.error)
   }
 
@@ -253,6 +250,7 @@ export async function updateSandboxFormAction(
           })),
         })
       ),
+      skills: parsed.data.skills,
     },
   })
 
@@ -261,6 +259,7 @@ export async function updateSandboxFormAction(
   }
 
   updateTag(sandboxesTag)
+  updateTag(skillsTag)
   redirect("/sandboxes")
 }
 

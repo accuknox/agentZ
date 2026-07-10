@@ -9,7 +9,15 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowLeft, ArrowRight, ArrowUpDown, Download, MoreHorizontal, Trash2 } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
+  Download,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from "lucide-react"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -30,14 +38,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatByteSize, formatTimestampWithAge } from "@/lib/format"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { formatAge, formatByteSize } from "@/lib/format"
 import type { Skill } from "./skills-client"
 
 const columnClassName: Record<string, string> = {
   select: "w-12",
   name: "min-w-56",
-  fileCount: "w-28",
-  sizeBytes: "w-32",
+  version: "w-24",
+  fileCount: "w-24",
+  sizeBytes: "w-28",
+  agents: "w-52",
   modifiedAt: "w-44",
   actions: "w-14",
 }
@@ -50,8 +61,11 @@ export function SkillTable({
   loading,
   nextPageToken,
   selected,
+  showAgents,
+  showImmutable,
   setDeleteNames,
   setSelected,
+  onEdit,
   onExport,
 }: {
   data: Skill[]
@@ -61,8 +75,11 @@ export function SkillTable({
   loading: boolean
   nextPageToken: string
   selected: Set<string>
+  showAgents: boolean
+  showImmutable: boolean
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+  onEdit: (skill: Skill) => void
   onExport: (name: string) => void
 }) {
   "use no memo"
@@ -74,11 +91,14 @@ export function SkillTable({
       createSkillColumns({
         exporting,
         selected,
+        showAgents,
+        showImmutable,
         setDeleteNames,
         setSelected,
+        onEdit,
         onExport,
       }),
-    [exporting, onExport, selected, setDeleteNames, setSelected]
+    [exporting, onEdit, onExport, selected, setDeleteNames, setSelected, showAgents, showImmutable]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -122,7 +142,7 @@ export function SkillTable({
             ))}
           </TableHeader>
           <TableBody>
-            {loading ? <SkillTableSkeleton /> : null}
+            {loading ? <SkillTableSkeleton columns={columns.length} /> : null}
             {!loading && error ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="text-destructive h-24 text-center">
@@ -181,17 +201,23 @@ export function SkillTable({
 function createSkillColumns({
   exporting,
   selected,
+  showAgents,
+  showImmutable,
   setDeleteNames,
   setSelected,
+  onEdit,
   onExport,
 }: {
   exporting: boolean
   selected: Set<string>
+  showAgents: boolean
+  showImmutable: boolean
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+  onEdit: (skill: Skill) => void
   onExport: (name: string) => void
 }): ColumnDef<Skill>[] {
-  return [
+  const columns: ColumnDef<Skill>[] = [
     {
       id: "select",
       header: ({ table }) => {
@@ -238,71 +264,62 @@ function createSkillColumns({
     },
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: ({ column }) => <SortButton column={column} label="Name" />,
       cell: ({ row }) => (
         <span className="block min-w-0 truncate font-medium" title={row.original.name}>
           {row.original.name}
         </span>
       ),
     },
+  ]
+
+  if (showImmutable) {
+    columns.push({
+      accessorKey: "version",
+      header: ({ column }) => <SortButton column={column} label="Version" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground whitespace-nowrap">
+          v{row.original.version ?? 1}
+        </span>
+      ),
+    })
+  }
+
+  columns.push(
     {
       accessorKey: "fileCount",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Files
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: ({ column }) => <SortButton column={column} label="Files" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">{row.original.fileCount}</span>
       ),
     },
     {
       accessorKey: "sizeBytes",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Size
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: ({ column }) => <SortButton column={column} label="Size" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
           {formatByteSize(row.original.sizeBytes)}
         </span>
       ),
-    },
+    }
+  )
+
+  if (showAgents) {
+    columns.push({
+      id: "agents",
+      header: "Agents",
+      cell: ({ row }) => <AgentsSummary agents={row.original.agents ?? []} />,
+      enableSorting: false,
+    })
+  }
+
+  columns.push(
     {
       accessorKey: "modifiedAt",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Modified
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: ({ column }) => <SortButton column={column} label="Modified" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
-          {formatTimestampWithAge(row.original.modifiedAt)}
+          {formatAge(row.original.modifiedAt)}
         </span>
       ),
       sortingFn: (a, b) => {
@@ -318,23 +335,69 @@ function createSkillColumns({
           exporting={exporting}
           skill={row.original}
           setDeleteNames={setDeleteNames}
+          onEdit={onEdit}
           onExport={onExport}
         />
       ),
       enableSorting: false,
-    },
-  ]
+    }
+  )
+
+  return columns
+}
+
+function SortButton({
+  column,
+  label,
+}: {
+  column: { toggleSorting: (desc?: boolean) => void; getIsSorted: () => false | "asc" | "desc" }
+  label: string
+}) {
+  return (
+    <Button
+      className="-ml-2"
+      variant="ghost"
+      onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+    >
+      {label}
+      <ArrowUpDown />
+    </Button>
+  )
+}
+
+function AgentsSummary({ agents }: { agents: string[] }) {
+  if (agents.length === 0) {
+    return <span className="text-muted-foreground">-</span>
+  }
+  const sorted = agents.toSorted()
+  const summary =
+    sorted.length <= 2
+      ? sorted.join(", ")
+      : `${sorted.slice(0, 2).join(", ")}, +${sorted.length - 2}`
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <code className="cursor-default">{summary}</code>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={6}>{sorted.join(", ")}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 function SkillRowActions({
   exporting,
   skill,
   setDeleteNames,
+  onEdit,
   onExport,
 }: {
   exporting: boolean
   skill: Skill
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
+  onEdit: (skill: Skill) => void
   onExport: (name: string) => void
 }) {
   return (
@@ -348,6 +411,12 @@ function SkillRowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
+            {skill.type === "immutable" ? (
+              <DropdownMenuItem onSelect={() => onEdit(skill)}>
+                <Pencil />
+                Edit
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem disabled={exporting} onSelect={() => onExport(skill.name)}>
               {exporting ? <Spinner /> : <Download />}
               Export
@@ -366,27 +435,14 @@ function SkillRowActions({
   )
 }
 
-function SkillTableSkeleton() {
-  return Array.from({ length: 6 }, (_, index) => (
+function SkillTableSkeleton({ columns }: { columns: number }) {
+  return Array.from({ length: 8 }, (_, index) => (
     <TableRow key={index}>
-      <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.select}`}>
-        <Skeleton className="size-4 rounded-sm" />
-      </TableCell>
-      <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.name}`}>
-        <Skeleton className="h-4 w-full max-w-56" />
-      </TableCell>
-      <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.fileCount}`}>
-        <Skeleton className="h-4 w-12" />
-      </TableCell>
-      <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.sizeBytes}`}>
-        <Skeleton className="h-4 w-16" />
-      </TableCell>
-      <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.modifiedAt}`}>
-        <Skeleton className="h-4 w-24" />
-      </TableCell>
-      <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.actions}`}>
-        <Skeleton className="size-8 rounded-md" />
-      </TableCell>
+      {Array.from({ length: columns }, (_, column) => (
+        <TableCell key={column} className="h-11 px-4 py-1.5">
+          <Skeleton className="h-4 w-full max-w-32" />
+        </TableCell>
+      ))}
     </TableRow>
   ))
 }

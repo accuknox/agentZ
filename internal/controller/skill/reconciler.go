@@ -18,40 +18,138 @@ package skill
 
 import (
 	"context"
+	"fmt"
+	"slices"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-// SkillReconciler reconciles a Skill object
+const skillFinalizer = "agentz.accuknox.com/immutable-skill"
+
+// SkillReconciler reconciles immutable Skill objects.
 type SkillReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme      *runtime.Scheme
+	StoreConfig skillpkg.Config
 }
 
-// +kubebuilder:rbac:groups=agentz.accuknox.com,namespace=agentz-system,resources=skills,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=agentz.accuknox.com,namespace=agentz-system,resources=skills/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=agentz.accuknox.com,namespace=agentz-system,resources=skills/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch;update;patch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Skill object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
+// Reconcile keeps immutable Skill deletion and references consistent.
 func (r *SkillReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	skill := &agentzv1alpha1.Skill{}
+	err := r.Get(ctx, req.NamespacedName, skill)
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	// TODO(user): your logic here
+	if !skill.DeletionTimestamp.IsZero() {
+		if !ctrlutil.ContainsFinalizer(skill, skillFinalizer) {
+			return ctrl.Result{}, nil
+		}
+		if err := r.detachReferences(ctx, skill); err != nil {
+			return ctrl.Result{}, fmt.Errorf("detach skill references: %w", err)
+		}
+		store, err := skillpkg.New(ctx, r.StoreConfig)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("create immutable skill store client: %w", err)
+		}
+		if err := store.DeleteImmutableSkill(ctx, skill.Namespace, skill.Name); err != nil {
+			return ctrl.Result{}, fmt.Errorf("delete immutable skill objects: %w", err)
+		}
 
+		patch := client.MergeFrom(skill.DeepCopy())
+		ctrlutil.RemoveFinalizer(skill, skillFinalizer)
+		if err := r.Patch(ctx, skill, patch); err != nil {
+			return ctrl.Result{}, fmt.Errorf("remove skill finalizer: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
+	if ctrlutil.ContainsFinalizer(skill, skillFinalizer) {
+		return ctrl.Result{}, nil
+	}
+	patch := client.MergeFrom(skill.DeepCopy())
+	ctrlutil.AddFinalizer(skill, skillFinalizer)
+	if err := r.Patch(ctx, skill, patch); err != nil {
+		return ctrl.Result{}, fmt.Errorf("add skill finalizer: %w", err)
+	}
 	return ctrl.Result{}, nil
+}
+
+func (r *SkillReconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1.Skill) error {
+	agents := &agentzv1alpha1.AgentList{}
+	if err := r.List(ctx, agents, client.InNamespace(skill.Namespace)); err != nil {
+		return fmt.Errorf("list agents: %w", err)
+	}
+	for _, item := range agents.Items {
+		if !slices.Contains(item.Spec.Skills, skill.Name) {
+			continue
+		}
+		key := types.NamespacedName{Name: item.Name, Namespace: item.Namespace}
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			agt := &agentzv1alpha1.Agent{}
+			if err := r.Get(ctx, key, agt); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			next := slices.DeleteFunc(append([]string{}, agt.Spec.Skills...), func(name string) bool {
+				return name == skill.Name
+			})
+			if len(next) == len(agt.Spec.Skills) {
+				return nil
+			}
+			agt.Spec.Skills = next
+			return r.Update(ctx, agt)
+		})
+		if err != nil {
+			return fmt.Errorf("detach skill from agent %q: %w", item.Name, err)
+		}
+	}
+
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	if err := r.List(ctx, sandboxes, client.InNamespace(skill.Namespace)); err != nil {
+		return fmt.Errorf("list sandboxes: %w", err)
+	}
+	for _, item := range sandboxes.Items {
+		if !slices.Contains(item.Spec.Skills, skill.Name) {
+			continue
+		}
+		key := types.NamespacedName{Name: item.Name, Namespace: item.Namespace}
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			sandbox := &agentzv1alpha1.Sandbox{}
+			if err := r.Get(ctx, key, sandbox); err != nil {
+				if errors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			next := slices.DeleteFunc(append([]string{}, sandbox.Spec.Skills...), func(name string) bool {
+				return name == skill.Name
+			})
+			if len(next) == len(sandbox.Spec.Skills) {
+				return nil
+			}
+			sandbox.Spec.Skills = next
+			return r.Update(ctx, sandbox)
+		})
+		if err != nil {
+			return fmt.Errorf("detach skill from sandbox %q: %w", item.Name, err)
+		}
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -62,6 +62,15 @@ export const zSandboxName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
+ * Immutable Skill resource name.
+ */
+export const zSkillName = z
+  .string()
+  .min(1)
+  .max(32)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+/**
  * MCPConnection resource name.
  */
 export const zMcpConnectionName = z
@@ -135,6 +144,51 @@ export const zPatchWorkflowRunNodeStatusRequest = z.object({
   message: z.string().max(4096).optional(),
 })
 
+export const zSkill = z.object({
+  name: zSkillName,
+  description: z.string().min(1).max(1024),
+  version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  storage_path: z.string().min(1),
+  agents: z.array(zAgentName),
+  sandboxes: z.array(zSandboxName),
+  created_at: z.iso.datetime(),
+  modified_at: z.iso.datetime(),
+})
+
+export const zListSkillsResponse = z.object({
+  skills: z.array(zSkill),
+  next_page_token: z.string(),
+})
+
+export const zSkillReferences = z.object({
+  agents: z.array(zAgentName),
+  sandboxes: z.array(zSandboxName),
+})
+
+export const zCreateSkillRequest = z.object({
+  name: zSkillName,
+  description: z.string().min(1).max(1024),
+  version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  storage_path: z.string().min(1),
+  agents: z.array(zAgentName).optional(),
+})
+
+export const zUpdateSkillRequest = z.object({
+  version: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  storage_path: z.string().min(1).optional(),
+  agents: z.array(zAgentName).optional(),
+})
+
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
 
 export const zAgent = z.object({
@@ -143,6 +197,8 @@ export const zAgent = z.object({
   last_activity: z.iso.datetime(),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
+  home_storage_prefix: z.string(),
+  skills: z.array(zSkillName),
   status: zAgentStatus,
 })
 
@@ -282,12 +338,14 @@ export const zCreateAgentRequest = z.object({
   name: zAgentName,
   env: z.record(z.string(), z.string()).optional(),
   sandboxName: zSandboxName,
+  skills: z.array(zSkillName).optional(),
   opencode: zAgentOpencodeConfig.optional(),
 })
 
 export const zUpdateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),
   sandboxName: zSandboxName.optional(),
+  skills: z.array(zSkillName).optional(),
   opencode: zAgentOpencodeConfig.optional(),
 })
 
@@ -844,6 +902,7 @@ export const zSandbox = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
+  skills: z.array(zSkillName),
   created_at: z.iso.datetime(),
   metadata: z.object({
     package_count: z
@@ -851,6 +910,10 @@ export const zSandbox = z.object({
       .gte(0)
       .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
     allowed_host_count: z
+      .int()
+      .gte(0)
+      .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+    skill_count: z
       .int()
       .gte(0)
       .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
@@ -868,12 +931,14 @@ export const zCreateSandboxRequest = z.object({
   packages: z.array(z.string().min(1)).optional(),
   allowed_hosts: z.array(z.string().min(1)).optional(),
   mcp_connection_refs: z.array(zMcpConnectionRef).optional(),
+  skills: z.array(zSkillName).optional(),
 })
 
 export const zUpdateSandboxRequest = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
+  skills: z.array(zSkillName),
 })
 
 export const zMcpConnectionTool = z.object({
@@ -1009,6 +1074,11 @@ export const zCreateMcpConnectionRequest = z.object({
 export const zAgentNameQuery = zAgentName
 
 /**
+ * Optional Agent name.
+ */
+export const zAgentNameQueryOptional = zAgentName
+
+/**
  * Agent name.
  */
 export const zAgentNamePath = zAgentName
@@ -1017,6 +1087,11 @@ export const zAgentNamePath = zAgentName
  * Sandbox name.
  */
 export const zSandboxNamePath = zSandboxName
+
+/**
+ * Skill name.
+ */
+export const zSkillNamePath = zSkillName
 
 /**
  * MCPConnection name.
@@ -1153,6 +1228,53 @@ export const zWatchAgentsBody = zWatchAgentsRequest
  * Stream of agent status changes.
  */
 export const zWatchAgentsResponse = zWatchAgentsEvent
+
+export const zListSkillsQuery = z.object({
+  agent_name: zAgentName.optional(),
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated immutable skills.
+ */
+export const zListSkillsResponse2 = zListSkillsResponse
+
+export const zCreateSkillBody = zCreateSkillRequest
+
+/**
+ * Skill created.
+ */
+export const zCreateSkillResponse = zSkill
+
+export const zDeleteSkillPath = z.object({
+  skillName: zSkillName,
+})
+
+/**
+ * Skill deleted.
+ */
+export const zDeleteSkillResponse = z.void()
+
+export const zUpdateSkillBody = zUpdateSkillRequest
+
+export const zUpdateSkillPath = z.object({
+  skillName: zSkillName,
+})
+
+/**
+ * Skill updated.
+ */
+export const zUpdateSkillResponse = zSkill
+
+export const zGetSkillReferencesPath = z.object({
+  skillName: zSkillName,
+})
+
+/**
+ * Skill references.
+ */
+export const zGetSkillReferencesResponse = zSkillReferences
 
 export const zListTraceSessionsPath = z.object({
   agentName: zAgentName,

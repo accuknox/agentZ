@@ -47,6 +47,11 @@ export type AgentName = string
 export type SandboxName = string
 
 /**
+ * Immutable Skill resource name.
+ */
+export type SkillName = string
+
+/**
  * MCPConnection resource name.
  */
 export type McpConnectionName = string
@@ -106,6 +111,11 @@ export type ListAgentsResponse = {
   next_page_token: string
 }
 
+export type ListSkillsResponse = {
+  skills: Array<Skill>
+  next_page_token: string
+}
+
 export type ListWorkflowSchedulesResponse = {
   workflow_schedules: Array<WorkflowSchedule>
   next_page_token: string
@@ -128,7 +138,38 @@ export type Agent = {
   created_at: string
   modified_at: string
   home_storage_prefix: string
+  skills: Array<SkillName>
   status: AgentStatus
+}
+
+export type Skill = {
+  name: SkillName
+  description: string
+  version: number
+  storage_path: string
+  agents: Array<AgentName>
+  sandboxes: Array<SandboxName>
+  created_at: string
+  modified_at: string
+}
+
+export type SkillReferences = {
+  agents: Array<AgentName>
+  sandboxes: Array<SandboxName>
+}
+
+export type CreateSkillRequest = {
+  name: SkillName
+  description: string
+  version: number
+  storage_path: string
+  agents?: Array<AgentName>
+}
+
+export type UpdateSkillRequest = {
+  version?: number
+  storage_path?: string
+  agents?: Array<AgentName>
 }
 
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
@@ -139,6 +180,7 @@ export type CreateAgentRequest = {
     [key: string]: string
   }
   sandboxName: SandboxName
+  skills?: Array<SkillName>
   opencode?: AgentOpencodeConfig
 }
 
@@ -328,6 +370,7 @@ export type UpdateAgentRequest = {
     [key: string]: string
   }
   sandboxName?: SandboxName
+  skills?: Array<SkillName>
   opencode?: AgentOpencodeConfig
 }
 
@@ -695,10 +738,12 @@ export type Sandbox = {
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
+  skills: Array<SkillName>
   created_at: string
   metadata: {
     package_count: number
     allowed_host_count: number
+    skill_count: number
     referenced_by_agent: boolean
   }
 }
@@ -713,12 +758,14 @@ export type CreateSandboxRequest = {
   packages?: Array<string>
   allowed_hosts?: Array<string>
   mcp_connection_refs?: Array<McpConnectionRef>
+  skills?: Array<SkillName>
 }
 
 export type UpdateSandboxRequest = {
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
+  skills: Array<SkillName>
 }
 
 export type McpConnectionRef = {
@@ -863,6 +910,11 @@ export type McpConnectionOAuthCredentials = {
 export type AgentNameQuery = AgentName
 
 /**
+ * Optional Agent name.
+ */
+export type AgentNameQueryOptional = AgentName
+
+/**
  * Agent name.
  */
 export type AgentNamePath = AgentName
@@ -871,6 +923,11 @@ export type AgentNamePath = AgentName
  * Sandbox name.
  */
 export type SandboxNamePath = SandboxName
+
+/**
+ * Skill name.
+ */
+export type SkillNamePath = SkillName
 
 /**
  * MCPConnection name.
@@ -1200,6 +1257,205 @@ export type WatchAgentsResponses = {
 }
 
 export type WatchAgentsResponse = WatchAgentsResponses[keyof WatchAgentsResponses]
+
+export type ListSkillsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Optional Agent name.
+     */
+    agent_name?: AgentName
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/skill"
+}
+
+export type ListSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListSkillsError = ListSkillsErrors[keyof ListSkillsErrors]
+
+export type ListSkillsResponses = {
+  /**
+   * Paginated immutable skills.
+   */
+  200: ListSkillsResponse
+}
+
+export type ListSkillsResponse2 = ListSkillsResponses[keyof ListSkillsResponses]
+
+export type CreateSkillData = {
+  body: CreateSkillRequest
+  path?: never
+  query?: never
+  url: "/api/skill"
+}
+
+export type CreateSkillErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateSkillError = CreateSkillErrors[keyof CreateSkillErrors]
+
+export type CreateSkillResponses = {
+  /**
+   * Skill created.
+   */
+  201: Skill
+}
+
+export type CreateSkillResponse = CreateSkillResponses[keyof CreateSkillResponses]
+
+export type DeleteSkillData = {
+  body?: never
+  path: {
+    /**
+     * Skill name.
+     */
+    skillName: SkillName
+  }
+  query?: never
+  url: "/api/skill/{skillName}"
+}
+
+export type DeleteSkillErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteSkillError = DeleteSkillErrors[keyof DeleteSkillErrors]
+
+export type DeleteSkillResponses = {
+  /**
+   * Skill deleted.
+   */
+  204: void
+}
+
+export type DeleteSkillResponse = DeleteSkillResponses[keyof DeleteSkillResponses]
+
+export type UpdateSkillData = {
+  body: UpdateSkillRequest
+  path: {
+    /**
+     * Skill name.
+     */
+    skillName: SkillName
+  }
+  query?: never
+  url: "/api/skill/{skillName}"
+}
+
+export type UpdateSkillErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateSkillError = UpdateSkillErrors[keyof UpdateSkillErrors]
+
+export type UpdateSkillResponses = {
+  /**
+   * Skill updated.
+   */
+  200: Skill
+}
+
+export type UpdateSkillResponse = UpdateSkillResponses[keyof UpdateSkillResponses]
+
+export type GetSkillReferencesData = {
+  body?: never
+  path: {
+    /**
+     * Skill name.
+     */
+    skillName: SkillName
+  }
+  query?: never
+  url: "/api/skill/{skillName}/references"
+}
+
+export type GetSkillReferencesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetSkillReferencesError = GetSkillReferencesErrors[keyof GetSkillReferencesErrors]
+
+export type GetSkillReferencesResponses = {
+  /**
+   * Skill references.
+   */
+  200: SkillReferences
+}
+
+export type GetSkillReferencesResponse =
+  GetSkillReferencesResponses[keyof GetSkillReferencesResponses]
 
 export type ListTraceSessionsData = {
   body?: never

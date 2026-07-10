@@ -29,6 +29,7 @@ const columnClassName: Record<string, string> = {
   packages: "w-32",
   allowed_hosts: "w-36",
   mcps: "w-28",
+  skills: "w-28",
   created_at: "w-44",
   actions: "w-14",
 }

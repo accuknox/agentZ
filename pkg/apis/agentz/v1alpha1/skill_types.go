@@ -20,29 +20,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// SkillSpec defines the desired state of Skill
+// SkillSpec defines the desired state of an immutable Skill.
 type SkillSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// Description summarizes when the skill should be used.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=1024
+	Description string `json:"description"`
 
-	// foo is an example field of Skill. Edit skill_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	// Version is the active stored version for all Agent and Sandbox references.
+	// +kubebuilder:validation:Minimum=1
+	Version int64 `json:"version"`
+
+	// StoragePath is the full object storage directory for the active version.
+	// +kubebuilder:validation:MinLength=1
+	StoragePath string `json:"storagePath"`
 }
 
 // SkillStatus defines the observed state of Skill.
 type SkillStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
 	// conditions represent the current state of the Skill resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
 	//
@@ -61,26 +56,26 @@ type SkillStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// Skill is the Schema for the skills API
+// Skill is the Schema for the skills API.
 type Skill struct {
 	metav1.TypeMeta `json:",inline"`
 
-	// metadata is a standard object metadata
+	// metadata is a standard object metadata.
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	// spec defines the desired state of Skill
+	// spec defines the desired state of Skill.
 	// +required
 	Spec SkillSpec `json:"spec"`
 
-	// status defines the observed state of Skill
+	// status defines the observed state of Skill.
 	// +optional
 	Status SkillStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// SkillList contains a list of Skill
+// SkillList contains a list of Skill.
 type SkillList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitzero"`

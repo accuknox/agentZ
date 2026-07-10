@@ -84,8 +84,18 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name, fields := validateCreateAgentRequest(req)
-	envFields, err := s.validateAgentSandboxName(r.Context(), ns, req.SandboxName)
+	envFields, serr := s.validateAgentSandboxName(r.Context(), ns, req.SandboxName)
 	fields = append(fields, envFields...)
+	if serr != nil {
+		writeInternalError(w, r, serr)
+		return
+	}
+	var rawSkills []gatewayapi.SkillName
+	if req.Skills != nil {
+		rawSkills = *req.Skills
+	}
+	skills, skillFields, err := s.validateSkillRefs(r.Context(), ns, rawSkills)
+	fields = append(fields, skillFields...)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -137,6 +147,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		Name:              row.AgentName,
 		SandboxName:       req.SandboxName,
 		HomeStoragePrefix: "",
+		Skills:            skills,
 		CreatedAt:         row.CreatedAt,
 		ModifiedAt:        row.UpdatedAt,
 		LastActivity:      row.UpdatedAt,
@@ -184,6 +195,24 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 				"request validation failed",
 				errBadRequest,
 				envFields...,
+			))
+			return
+		}
+	}
+	if req.Skills != nil {
+		var skillFields []gatewayapi.FieldError
+		_, skillFields, err := s.validateSkillRefs(r.Context(), ns, *req.Skills)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		if len(skillFields) > 0 {
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				skillFields...,
 			))
 			return
 		}
@@ -251,6 +280,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		ModifiedAt:        row.UpdatedAt,
 		LastActivity:      row.UpdatedAt,
 		Status:            status,
+		Skills:            skillsFromCRD(updated.Spec.Skills),
 	})
 }
 
@@ -403,7 +433,8 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
 				prevItem.ModifiedAt.Equal(item.ModifiedAt) &&
 				prevItem.HomeStoragePrefix == item.HomeStoragePrefix &&
-				prevItem.Status == item.Status
+				prevItem.Status == item.Status &&
+				slices.Equal(prevItem.Skills, item.Skills)
 			if unchanged {
 				continue
 			}
@@ -504,6 +535,18 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 			status = statusFromView(statusFromAgent(resolved.Agent))
 			sandboxName = resolved.Agent.Spec.SandboxRef.Name
 			homeStoragePrefix = homeStoragePrefixes[row.AgentName]
+			skills := skillsFromCRD(resolved.Agent.Spec.Skills)
+			items = append(items, gatewayapi.Agent{
+				Name:              row.AgentName,
+				SandboxName:       sandboxName,
+				HomeStoragePrefix: homeStoragePrefix,
+				LastActivity:      row.UpdatedAt,
+				CreatedAt:         row.CreatedAt,
+				ModifiedAt:        row.UpdatedAt,
+				Status:            status,
+				Skills:            skills,
+			})
+			continue
 		}
 
 		items = append(items, gatewayapi.Agent{
@@ -514,6 +557,7 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 			CreatedAt:         row.CreatedAt,
 			ModifiedAt:        row.UpdatedAt,
 			Status:            status,
+			Skills:            []gatewayapi.SkillName{},
 		})
 	}
 	return items, next, nil
@@ -656,6 +700,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 			},
 		},
 	}
+	if req.Skills != nil {
+		agt.Spec.Skills = stringsFromSkillNames(*req.Skills)
+	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
 	return agt
 }
@@ -668,6 +715,9 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 		return true
 	}
 	if req.Opencode != nil {
+		return true
+	}
+	if req.Skills != nil {
 		return true
 	}
 	return false
@@ -685,6 +735,9 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 		agt.Spec.SandboxRef = &corev1.LocalObjectReference{
 			Name: *req.SandboxName,
 		}
+	}
+	if req.Skills != nil {
+		agt.Spec.Skills = stringsFromSkillNames(*req.Skills)
 	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
 }

@@ -10,10 +10,12 @@ export const metadata: Metadata = {
 
 const skillsSearchParamsSchema = z.object({
   agent_name: searchParamStringSchema,
+  type: z.enum(["mutable", "immutable"]).catch("mutable"),
 })
 
 type SkillsSearchParams = {
   agent_name?: SearchParamStringInput
+  type?: SearchParamStringInput
 }
 
 export default async function SkillsPage({
@@ -41,7 +43,11 @@ export default async function SkillsPage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <SkillsClient agents={agents.agents} initialAgentName={params.agent_name} />
+      <SkillsClient
+        agents={agents.agents}
+        initialAgentName={params.agent_name}
+        initialType={params.type}
+      />
     </main>
   )
 }

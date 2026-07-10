@@ -62,6 +62,7 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	skillpkg "github.com/accuknox/agentz/internal/skill"
 	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	// +kubebuilder:scaffold:imports
@@ -111,6 +112,11 @@ var (
 	tenantNixStoreAccessModes                        []string
 	tenantNixStoreStorageClass                       string
 	agentHomeStorageClass                            string
+	skillsS3Endpoint                                 string
+	skillsS3Region                                   string
+	skillsS3Bucket                                   string
+	skillsS3AccessKeyID                              string
+	skillsS3SecretAccessKey                          string
 	tenantSinjectorClusterIssuerName                 string
 	watchNamespace                                   string
 	enableWebhooks                                   bool
@@ -373,6 +379,51 @@ var managerCmd = &cli.Command{
 			Name:        "agent-home-storage-class",
 			Usage:       "Optional storage class for per-agent home PVCs",
 			Destination: &agentHomeStorageClass,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-endpoint",
+			Usage:       "S3-compatible endpoint for immutable skill storage",
+			Destination: &skillsS3Endpoint,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_ENDPOINT"),
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-region",
+			Usage:       "S3 region for immutable skill storage",
+			Destination: &skillsS3Region,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_REGION"),
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-bucket",
+			Usage:       "S3 bucket for immutable skill storage",
+			Destination: &skillsS3Bucket,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_BUCKET"),
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-access-key-id",
+			Usage:       "S3 access key ID for immutable skill storage",
+			Destination: &skillsS3AccessKeyID,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_ACCESS_KEY_ID"),
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-secret-access-key",
+			Usage:       "S3 secret access key for immutable skill storage",
+			Destination: &skillsS3SecretAccessKey,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY"),
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -759,6 +810,16 @@ var managerCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		skillStoreConfig := skillpkg.Config{
+			Endpoint:        skillsS3Endpoint,
+			Region:          skillsS3Region,
+			Bucket:          skillsS3Bucket,
+			AccessKeyID:     skillsS3AccessKeyID,
+			SecretAccessKey: skillsS3SecretAccessKey,
+		}
+		if err := skillStoreConfig.Validate(); err != nil {
+			return err
+		}
 
 		tenantPVCSize, err := resource.ParseQuantity(tenantNixStoreSize)
 		if err != nil {
@@ -792,6 +853,7 @@ var managerCmd = &cli.Command{
 			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
 			GatewayTokenAudience:             managerGatewayTokenAudience,
 			AgentHomeStorageClass:            agentHomeStorageClass,
+			SkillStore:                       skillStoreConfig,
 			SinjectorImage:                   controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,
@@ -950,8 +1012,9 @@ var managerCmd = &cli.Command{
 		}
 
 		skillReconciler := &skill.SkillReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:      mgr.GetClient(),
+			Scheme:      mgr.GetScheme(),
+			StoreConfig: skillStoreConfig,
 		}
 		if err := skillReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "Skill")

@@ -56,6 +56,10 @@ type SandboxSpec struct {
 	// sandbox in order.
 	// +optional
 	MCPConnectionRefs []MCPConnectionRef `json:"mcpConnectionRefs,omitempty"`
+
+	// Skills lists immutable Skill names exposed through this sandbox.
+	// +optional
+	Skills []string `json:"skills,omitempty"`
 }
 
 // SandboxStatus defines the observed state of Sandbox.
@@ -68,6 +72,9 @@ type SandboxStatus struct {
 
 	// MCPRefCount is the number of MCP connection references configured.
 	MCPRefCount int `json:"mcpRefCount"`
+
+	// SkillCount is the number of immutable skills configured.
+	SkillCount int `json:"skillCount"`
 
 	// conditions represent the current state of the Sandbox resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.

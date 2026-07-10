@@ -138,13 +138,34 @@ manager:
 
     # Access modes for the tenant nix store PVC.
     tenantNixStoreAccessModes:
-      - ReadWriteOnce
+    - ReadWriteOnce
 
     # Optional storage class for the tenant nix store PVC.
     tenantNixStoreStorageClass: ""
 
     # Optional storage class for per-agent home PVCs.
     agentHomeStorageClass: csi-s3
+
+    # S3-compatible endpoint for immutable Skill object storage.
+    skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
+
+    # S3 region for immutable Skill object storage.
+    skillsS3Region: ""
+
+    # S3 bucket for immutable Skill object storage.
+    skillsS3Bucket: agentz
+
+    # Secret containing the immutable Skill S3 access key ID.
+    skillsS3AccessKeyIDSecretName: agentz-skills-s3
+
+    # Secret key containing the immutable Skill S3 access key ID.
+    skillsS3AccessKeyIDSecretKey: access-key-id
+
+    # Secret containing the immutable Skill S3 secret access key.
+    skillsS3SecretAccessKeySecretName: agentz-skills-s3
+
+    # Secret key containing the immutable Skill S3 secret access key.
+    skillsS3SecretAccessKeySecretKey: secret-access-key
 
     # OpenBao address used by manager-managed workloads.
     openBaoAddr: http://openbao.openbao.svc.cluster.local:8200

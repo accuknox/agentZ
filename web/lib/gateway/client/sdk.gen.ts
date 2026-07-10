@@ -14,6 +14,9 @@ import type {
   CreateSandboxData,
   CreateSandboxErrors,
   CreateSandboxResponses,
+  CreateSkillData,
+  CreateSkillErrors,
+  CreateSkillResponses,
   CreateWorkflowData,
   CreateWorkflowErrors,
   CreateWorkflowResponses,
@@ -35,6 +38,9 @@ import type {
   DeleteSecretData,
   DeleteSecretErrors,
   DeleteSecretResponses,
+  DeleteSkillData,
+  DeleteSkillErrors,
+  DeleteSkillResponses,
   DeleteWorkflowRunData,
   DeleteWorkflowRunErrors,
   DeleteWorkflowRunResponses,
@@ -53,6 +59,9 @@ import type {
   GetMcpGraphData,
   GetMcpGraphErrors,
   GetMcpGraphResponses,
+  GetSkillReferencesData,
+  GetSkillReferencesErrors,
+  GetSkillReferencesResponses,
   GetSpanDetailData,
   GetSpanDetailErrors,
   GetSpanDetailResponses,
@@ -92,6 +101,9 @@ import type {
   ListSecretsData,
   ListSecretsErrors,
   ListSecretsResponses,
+  ListSkillsData,
+  ListSkillsErrors,
+  ListSkillsResponses,
   ListSpansData,
   ListSpansErrors,
   ListSpansResponses,
@@ -125,6 +137,9 @@ import type {
   UpdateSandboxData,
   UpdateSandboxErrors,
   UpdateSandboxResponses,
+  UpdateSkillData,
+  UpdateSkillErrors,
+  UpdateSkillResponses,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
@@ -149,6 +164,7 @@ import {
   zCreateAgentBody,
   zCreateMcpConnectionBody,
   zCreateSandboxBody,
+  zCreateSkillBody,
   zCreateWorkflowBody,
   zCreateWorkflowPath,
   zCreateWorkflowRunPath,
@@ -159,6 +175,7 @@ import {
   zDeleteSandboxPath,
   zDeleteSecretBody,
   zDeleteSecretPath,
+  zDeleteSkillPath,
   zDeleteWorkflowRunPath,
   zDeleteWorkflowsBody,
   zDeleteWorkflowSchedulePath,
@@ -166,6 +183,7 @@ import {
   zGetMcpConnectionPath,
   zGetMcpGraphPath,
   zGetMcpGraphQuery,
+  zGetSkillReferencesPath,
   zGetSpanDetailPath,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
@@ -185,6 +203,7 @@ import {
   zListSandboxesQuery,
   zListSecretsPath,
   zListSecretsQuery,
+  zListSkillsQuery,
   zListSpansPath,
   zListSpansQuery,
   zListTraceSessionsPath,
@@ -207,6 +226,8 @@ import {
   zUpdateAgentPath,
   zUpdateSandboxBody,
   zUpdateSandboxPath,
+  zUpdateSkillBody,
+  zUpdateSkillPath,
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
@@ -397,6 +418,118 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options?.headers,
     },
+  })
+
+/**
+ * List immutable Skill resources.
+ */
+export const listSkills = <ThrowOnError extends boolean = false>(
+  options?: Options<ListSkillsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListSkillsResponses, ListSkillsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListSkillsQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill",
+    ...options,
+  })
+
+/**
+ * Create an immutable Skill resource.
+ */
+export const createSkill = <ThrowOnError extends boolean = false>(
+  options: Options<CreateSkillData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateSkillResponses, CreateSkillErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateSkillBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an immutable Skill resource.
+ */
+export const deleteSkill = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteSkillData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<DeleteSkillResponses, DeleteSkillErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteSkillPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/{skillName}",
+    ...options,
+  })
+
+/**
+ * Update an immutable Skill active version and references.
+ */
+export const updateSkill = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateSkillData, ThrowOnError>
+) =>
+  (options.client ?? client).put<UpdateSkillResponses, UpdateSkillErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateSkillBody,
+          path: zUpdateSkillPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/{skillName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List Agents and Sandboxes referencing an immutable Skill.
+ */
+export const getSkillReferences = <ThrowOnError extends boolean = false>(
+  options: Options<GetSkillReferencesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetSkillReferencesResponses,
+    GetSkillReferencesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetSkillReferencesPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/{skillName}/references",
+    ...options,
   })
 
 /**

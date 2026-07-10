@@ -21,7 +21,7 @@ export const skillNameSchema = z
   .string({ error: "Skill name is required" })
   .trim()
   .min(1, "Skill name is required")
-  .max(64, "Skill name must be at most 64 characters")
+  .max(32, "Skill name must be at most 32 characters")
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Skill name is invalid")
 
 export const skillNamesSchema = z
@@ -29,11 +29,27 @@ export const skillNamesSchema = z
   .min(1, "Select at least one skill")
   .max(200, "Select at most 200 skills")
 
+export const skillVersionSchema = z.number().int().min(1)
+
+const skillDirectoryNameSchema = z
+  .string({ error: "skill name is not a directory name" })
+  .min(1, "skill name is not a directory name")
+  .refine((name) => !name.includes("/") && !name.includes("\\"), {
+    message: "skill name is not a directory name",
+  })
+
 const homeStoragePrefixSchema = z
   .string({ error: "Agent home is not ready" })
   .trim()
   .min(1, "Agent home is not ready")
   .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "Agent home storage prefix is invalid")
+
+const tenantNamespaceSchema = z
+  .string({ error: "Tenant namespace is required" })
+  .trim()
+  .min(1, "Tenant namespace is required")
+  .max(63, "Tenant namespace must be at most 63 characters")
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, "Tenant namespace is invalid")
 
 type SkillFile = {
   path: string
@@ -42,6 +58,7 @@ type SkillFile = {
 
 export type SkillWrite = {
   name: string
+  description: string
   files: SkillFile[]
 }
 
@@ -68,7 +85,7 @@ function s3Client(): NodeJsClient<S3Client> {
   const env = getEnv()
   client = new S3Client({
     endpoint: env.SKILLS_S3_ENDPOINT,
-    forcePathStyle: false,
+    forcePathStyle: true,
     region: env.SKILLS_S3_REGION,
     credentials: {
       accessKeyId: env.SKILLS_S3_ACCESS_KEY_ID,
@@ -89,6 +106,26 @@ export function skillsRootKey(homeStoragePrefix: string): string {
 
 export function skillRootKey(homeStoragePrefix: string, skillName: string): string {
   return `${skillsRootKey(homeStoragePrefix)}${skillNameSchema.parse(skillName)}/`
+}
+
+export function immutableSkillRootKey(tenantNamespace: string, skillName: string): string {
+  return `${tenantNamespaceSchema.parse(tenantNamespace)}/immutable-skills/${skillNameSchema.parse(skillName)}/`
+}
+
+export function immutableSkillVersionRootKey(
+  tenantNamespace: string,
+  skillName: string,
+  version: number
+): string {
+  return `${immutableSkillRootKey(tenantNamespace, skillName)}v${skillVersionSchema.parse(version)}/`
+}
+
+export function immutableSkillStoragePath(
+  tenantNamespace: string,
+  skillName: string,
+  version: number
+): string {
+  return `s3://${bucket()}/${immutableSkillVersionRootKey(tenantNamespace, skillName, version)}`
 }
 
 export async function listSkillNames(homeStoragePrefix: string): Promise<string[]> {
@@ -151,15 +188,92 @@ export async function listSkillPage(
     .filter((name) => name !== undefined)
 
   return {
-    skills: await Promise.all(names.map((name) => skillSummary(homeStoragePrefix, name))),
+    skills: await Promise.all(names.map((name) => mutableSkillSummary(homeStoragePrefix, name))),
     nextPageToken: output.NextContinuationToken ?? "",
     hasNextPage: Boolean(output.IsTruncated),
   }
 }
 
+export async function listImmutableSkillVersions(
+  tenantNamespace: string,
+  skillName: string
+): Promise<number[]> {
+  const prefix = immutableSkillRootKey(tenantNamespace, skillName)
+  const versions = new Set<number>()
+  let token: string | undefined
+
+  do {
+    const output = await s3Client().send(
+      new ListObjectsV2Command({
+        Bucket: bucket(),
+        Delimiter: "/",
+        Prefix: prefix,
+        ContinuationToken: token,
+      })
+    )
+    for (const item of output.CommonPrefixes ?? []) {
+      if (!item.Prefix?.startsWith(prefix)) {
+        continue
+      }
+      const version = /^v(\d+)\/$/.exec(item.Prefix.slice(prefix.length))?.[1]
+      if (version) {
+        versions.add(Number(version))
+      }
+    }
+    token = output.NextContinuationToken
+  } while (token)
+
+  return [...versions].sort((a, b) => a - b)
+}
+
+export async function writeImmutableSkillVersion(
+  tenantNamespace: string,
+  skill: SkillWrite,
+  version: number
+): Promise<string> {
+  const prefix = immutableSkillVersionRootKey(tenantNamespace, skill.name, version)
+  for (const file of skill.files) {
+    await s3Client().send(
+      new PutObjectCommand({
+        Body: file.content,
+        Bucket: bucket(),
+        Key: `${prefix}${file.path}`,
+      })
+    )
+  }
+  return immutableSkillStoragePath(tenantNamespace, skill.name, version)
+}
+
+export async function deleteImmutableSkillVersion(
+  tenantNamespace: string,
+  skillName: string,
+  version: number
+): Promise<void> {
+  await deletePrefix(immutableSkillVersionRootKey(tenantNamespace, skillName, version))
+}
+
+export async function immutableSkillSummary(storagePath: string): Promise<SkillSummary> {
+  const { prefix } = parseStoragePath(storagePath)
+  const parts = prefix.split("/").filter(Boolean)
+  const name = parts.at(-2)
+  if (!name) {
+    throw new Error("immutable skill storage path is invalid")
+  }
+  return skillSummaryFromRoot(prefix, name)
+}
+
 export async function deleteSkills(homeStoragePrefix: string, skillNames: string[]): Promise<void> {
   for (const name of skillNamesSchema.parse(skillNames)) {
     await deletePrefix(skillRootKey(homeStoragePrefix, name))
+  }
+}
+
+export async function deleteSkillDirectories(
+  homeStoragePrefix: string,
+  skillNames: string[]
+): Promise<void> {
+  for (const name of skillNames) {
+    await deletePrefix(skillDirectoryRootKey(homeStoragePrefix, name))
   }
 }
 
@@ -213,14 +327,14 @@ export async function streamSkillsZip(
   skillNames: string[]
 ): Promise<ReadableStream> {
   const zip = new ZipFile()
-  for (const name of skillNamesSchema.parse(skillNames)) {
-    const root = skillRootKey(homeStoragePrefix, name)
+  for (const name of z.array(skillDirectoryNameSchema).min(1).max(200).parse(skillNames)) {
+    const root = skillDirectoryRootKey(homeStoragePrefix, name)
     for (const key of await listKeys(root)) {
       const path = key.slice(root.length)
       if (!path || path.endsWith("/")) {
         continue
       }
-      zip.addReadStreamLazy(`${name}/${path}`, (done) => {
+      zip.addReadStreamLazy(`${zipSkillName(name)}/${path}`, (done) => {
         s3Client()
           .send(new GetObjectCommand({ Bucket: bucket(), Key: key }))
           .then((object) => {
@@ -241,6 +355,48 @@ export async function streamSkillsZip(
     throw new Error("zip stream is unavailable")
   }
   return zipOutputBody(zip.outputStream)
+}
+
+export async function streamImmutableSkillsZip(
+  skills: Array<{ name: string; storagePath: string }>
+): Promise<ReadableStream> {
+  const zip = new ZipFile()
+  for (const skill of skills) {
+    const { prefix } = parseStoragePath(skill.storagePath)
+    for (const key of await listKeys(prefix)) {
+      const path = key.slice(prefix.length)
+      if (!path || path.endsWith("/")) {
+        continue
+      }
+      zip.addReadStreamLazy(`${zipSkillName(skill.name)}/${path}`, (done) => {
+        s3Client()
+          .send(new GetObjectCommand({ Bucket: bucket(), Key: key }))
+          .then((object) => {
+            if (!object.Body) {
+              done(new Error("object body is empty"), Readable.from([]))
+              return
+            }
+            done(null, object.Body)
+          })
+          .catch((error: unknown) => {
+            done(error, Readable.from([]))
+          })
+      })
+    }
+  }
+  zip.end()
+  if (!(zip.outputStream instanceof Readable)) {
+    throw new Error("zip stream is unavailable")
+  }
+  return zipOutputBody(zip.outputStream)
+}
+
+function skillDirectoryRootKey(homeStoragePrefix: string, skillName: string): string {
+  return `${skillsRootKey(homeStoragePrefix)}${skillDirectoryNameSchema.parse(skillName)}/`
+}
+
+function zipSkillName(name: string): string {
+  return skillDirectoryNameSchema.parse(name)
 }
 
 function zipOutputBody(stream: Readable): ReadableStream<Uint8Array> {
@@ -281,8 +437,15 @@ async function listKeys(prefix: string): Promise<string[]> {
   return keys
 }
 
-async function skillSummary(homeStoragePrefix: string, skillName: string): Promise<SkillSummary> {
+async function mutableSkillSummary(
+  homeStoragePrefix: string,
+  skillName: string
+): Promise<SkillSummary> {
   const prefix = `${skillsRootKey(homeStoragePrefix)}${skillName}/`
+  return skillSummaryFromRoot(prefix, skillName)
+}
+
+async function skillSummaryFromRoot(prefix: string, skillName: string): Promise<SkillSummary> {
   let fileCount = 0
   let sizeBytes = 0
   let modifiedAt: Date | undefined
@@ -315,6 +478,20 @@ async function skillSummary(homeStoragePrefix: string, skillName: string): Promi
     sizeBytes,
     modifiedAt: modifiedAt?.toISOString() ?? null,
   }
+}
+
+function parseStoragePath(path: string): { bucketName: string; prefix: string } {
+  const url = new URL(z.string().startsWith("s3://").parse(path))
+  const bucketName = url.hostname
+  const expectedBucket = bucket()
+  if (bucketName !== expectedBucket) {
+    throw new Error("immutable skill bucket is invalid")
+  }
+  const prefix = url.pathname.slice(1)
+  if (!prefix || prefix.includes("../") || prefix.includes("/..")) {
+    throw new Error("immutable skill storage path is invalid")
+  }
+  return { bucketName, prefix: prefix.endsWith("/") ? prefix : `${prefix}/` }
 }
 
 async function deletePrefix(prefix: string): Promise<void> {

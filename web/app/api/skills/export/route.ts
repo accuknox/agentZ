@@ -1,11 +1,19 @@
 import { agentForSkills } from "@/lib/skills/agent"
-import { skillNamesSchema, streamSkillsZip } from "@/lib/skills/storage"
+import { listImmutableSkills } from "@/lib/skills/gateway"
+import { streamImmutableSkillsZip, streamSkillsZip } from "@/lib/skills/storage"
 import * as z from "zod"
 
-const exportRequestSchema = z.object({
-  agentName: z.string().min(1),
-  skillNames: skillNamesSchema,
-})
+const exportRequestSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("mutable"),
+    agentName: z.string().min(1, "agent is required"),
+    skillNames: z.array(z.string()).min(1, "Select at least one skill"),
+  }),
+  z.object({
+    type: z.literal("immutable"),
+    skillNames: z.array(z.string()).min(1, "Select at least one skill"),
+  }),
+])
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -17,16 +25,46 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    const agent = await agentForSkills(parsed.data.agentName)
-    const body = await streamSkillsZip(agent.home_storage_prefix, parsed.data.skillNames)
-    return new Response(body, {
-      headers: {
-        "Content-Disposition": `attachment; filename="${parsed.data.agentName}-skills.zip"`,
-        "Content-Type": "application/zip",
-      },
-    })
+    if (parsed.data.type === "mutable") {
+      const agent = await agentForSkills(parsed.data.agentName)
+      const body = await streamSkillsZip(agent.home_storage_prefix, parsed.data.skillNames)
+      return zipResponse(body, mutableExportName(parsed.data.agentName, parsed.data.skillNames))
+    }
+
+    const requested = new Set(parsed.data.skillNames)
+    const skills = (await listImmutableSkills())
+      .filter((skill) => requested.has(skill.name))
+      .map((skill) => ({ name: skill.name, storagePath: skill.storage_path }))
+    if (skills.length !== requested.size) {
+      throw new Error("skill not found")
+    }
+    const body = await streamImmutableSkillsZip(skills)
+    return zipResponse(body, immutableExportName(parsed.data.skillNames))
   } catch (error) {
     const message = error instanceof Error ? error.message : "export skills failed"
     return Response.json({ error: message }, { status: 400 })
   }
+}
+
+function zipResponse(body: ReadableStream, filename: string): Response {
+  return new Response(body, {
+    headers: {
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Type": "application/zip",
+    },
+  })
+}
+
+function mutableExportName(agentName: string, skillNames: string[]): string {
+  if (skillNames.length === 1) {
+    return `${agentName}-${skillNames[0]}.zip`
+  }
+  return `${agentName}-${skillNames.length}x-skills.zip`
+}
+
+function immutableExportName(skillNames: string[]): string {
+  if (skillNames.length === 1) {
+    return `${skillNames[0]}.zip`
+  }
+  return `${skillNames.length}x-skills.zip`
 }

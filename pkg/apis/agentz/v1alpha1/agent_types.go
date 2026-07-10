@@ -109,6 +109,10 @@ type AgentSpec struct {
 	// +optional
 	SandboxRef *corev1.LocalObjectReference `json:"sandboxRef,omitempty"`
 
+	// Skills lists immutable Skill names attached directly to this Agent.
+	// +optional
+	Skills []string `json:"skills,omitempty"`
+
 	// NixStoreSize sets the size of the agent-specific nix store PVC.
 	// +kubebuilder:default="5Gi"
 	// +optional

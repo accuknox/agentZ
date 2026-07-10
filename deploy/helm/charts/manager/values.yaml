@@ -43,7 +43,7 @@ containerSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - ALL
+    - ALL
 
 config:
   logLevel: info
@@ -68,9 +68,16 @@ config:
   nixStorePVC: ""
   tenantNixStoreSize: 5Gi
   tenantNixStoreAccessModes:
-    - ReadWriteOnce
+  - ReadWriteOnce
   tenantNixStoreStorageClass: ""
   agentHomeStorageClass: csi-s3
+  skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
+  skillsS3Region: ""
+  skillsS3Bucket: agentz
+  skillsS3AccessKeyIDSecretName: agentz-skills-s3
+  skillsS3AccessKeyIDSecretKey: access-key-id
+  skillsS3SecretAccessKeySecretName: agentz-skills-s3
+  skillsS3SecretAccessKeySecretKey: secret-access-key
   openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
   managerOpenBaoAddr: ""
   openBaoSecretMountPath: kv

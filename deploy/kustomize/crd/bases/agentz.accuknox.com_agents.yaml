@@ -317,6 +317,11 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              skills:
+                description: Skills lists immutable Skill names attached directly to this Agent.
+                items:
+                  type: string
+                type: array
               smallModel:
                 description: SmallModel sets the small OpenCode model in provider/model form.
                 type: string

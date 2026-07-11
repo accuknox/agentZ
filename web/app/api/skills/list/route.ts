@@ -15,8 +15,6 @@ const listSkillsQuerySchema = z.object({
 })
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const tenantNamespace = await tenantNamespaceForSkills()
-
   try {
     const parsed = listSkillsQuerySchema.safeParse({
       type: request.nextUrl.searchParams.get("type") ?? undefined,
@@ -30,6 +28,8 @@ export async function GET(request: NextRequest): Promise<Response> {
         { status: 400 }
       )
     }
+
+    const tenantNamespace = await tenantNamespaceForSkills()
 
     if (parsed.data.type === "mutable") {
       if (!parsed.data.agent_name) {

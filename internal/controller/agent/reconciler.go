@@ -56,7 +56,7 @@ type Reconciler struct {
 	Bao    OpenBaoProvisioner
 }
 
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch;patch;update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=create-workflow;create-workflow-schedule;delete-workflow-schedule;delete-workflows;get-workflow;list-workflow-schedules;list-workflows;set-workflowrun-status;update-workflow-schedule
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/finalizers,verbs=update

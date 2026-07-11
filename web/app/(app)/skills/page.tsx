@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import * as z from "zod"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
@@ -23,10 +24,16 @@ export default async function SkillsPage({
 }: {
   searchParams: Promise<SkillsSearchParams>
 }) {
-  const [agents, params] = await Promise.all([
-    listAgentsCachedQuery({ limit: 200 }),
-    skillsSearchParamsSchema.parse(await searchParams),
-  ])
+  return (
+    <Suspense>
+      <SkillsContent searchParams={searchParams} />
+    </Suspense>
+  )
+}
+
+async function SkillsContent({ searchParams }: { searchParams: Promise<SkillsSearchParams> }) {
+  const params = skillsSearchParamsSchema.parse(await searchParams)
+  const agents = await listAgentsCachedQuery({ limit: 200 })
 
   if (agents.error) {
     return (

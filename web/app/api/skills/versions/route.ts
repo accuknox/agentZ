@@ -8,12 +8,11 @@ const versionsQuerySchema = z.object({
 })
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const tenantNamespace = await tenantNamespaceForSkills()
-
   try {
     const { skill_name: skillName } = versionsQuerySchema.parse({
       skill_name: request.nextUrl.searchParams.get("skill_name") ?? undefined,
     })
+    const tenantNamespace = await tenantNamespaceForSkills()
     const versions = await listImmutableSkillVersions(tenantNamespace, skillName)
     return Response.json({ versions })
   } catch (error) {

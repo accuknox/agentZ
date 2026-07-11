@@ -231,6 +231,7 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 					RestartPolicy:                corev1.RestartPolicyNever,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(bool),
+						FSGroup:      ptr.To(agentRuntimeGID),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},

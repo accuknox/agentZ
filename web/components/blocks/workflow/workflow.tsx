@@ -380,7 +380,7 @@ const runStatusMeta = {
     variant: "destructive",
   },
   Unacked: {
-    className: "text-amber-500",
+    className: "text-warning",
     icon: CircleAlertIcon,
     label: "Unacked",
     variant: "warning",

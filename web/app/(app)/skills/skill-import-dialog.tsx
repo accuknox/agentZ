@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Check, FileArchive, RotateCcw, TriangleAlert } from "lucide-react"
+import { Check, FileArchive, Replace, TriangleAlert } from "lucide-react"
 import { Controller, useForm, useWatch, type Control, type FieldErrors } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,9 @@ import type { SkillImportPreview } from "@/data/types"
 import { cn } from "@/lib/utils"
 
 const importTypeSchema = z.enum(["mutable", "immutable"])
+const renameSchema = z.string().refine((name) => zSkillName.safeParse(name).success, {
+  message: "Use 1–32 lowercase letters, numbers, or hyphens",
+})
 
 const importFormSchema = z
   .object({
@@ -55,7 +58,7 @@ const importFormSchema = z
       if (resolution !== "rename") {
         continue
       }
-      const rename = zSkillName.safeParse(value.renames[name])
+      const rename = renameSchema.safeParse(value.renames[name])
       if (!rename.success) {
         ctx.addIssue({
           code: "custom",
@@ -433,7 +436,7 @@ function ImportPreviewRow({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {conflict ? (
-            <TriangleAlert className="text-destructive size-4 shrink-0" />
+            <TriangleAlert className="text-warning size-4 shrink-0" />
           ) : (
             <Check className="text-primary size-4 shrink-0" />
           )}
@@ -441,7 +444,7 @@ function ImportPreviewRow({
             {skill.name}
           </span>
         </div>
-        <span className={cn("text-sm", conflict ? "text-destructive" : "text-primary")}>
+        <span className={cn("text-sm", conflict ? "text-warning" : "text-primary")}>
           {conflict ? "Conflict" : "Create"}
         </span>
       </div>
@@ -485,7 +488,7 @@ function ImportPreviewRow({
             />
           ) : (
             <div className="text-muted-foreground flex items-center justify-end gap-2 text-sm">
-              <RotateCcw className="size-4" />
+              <Replace className="size-4" />
               <span>Will overwrite</span>
             </div>
           )}

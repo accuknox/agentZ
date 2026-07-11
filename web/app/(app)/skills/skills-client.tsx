@@ -53,6 +53,7 @@ import { SkillTable } from "./skill-table"
 
 const pageSize = 50
 const allAgentsValue = "__all_agents__"
+const skillListsQueryKey = ["skills", "list"] as const
 
 const skillKindSchema = z.enum(["mutable", "immutable"])
 const skillSummarySchema = z.object({
@@ -86,7 +87,7 @@ const versionSchema = z.number().int().min(1)
 
 function skillsQueryOptions(type: SkillKind, agentName: string, pageToken: string) {
   return queryOptions({
-    queryKey: ["skills", type, agentName, pageToken],
+    queryKey: [...skillListsQueryKey, type, agentName, pageToken],
     enabled: type === "immutable" || agentName.length > 0,
     queryFn: async (): Promise<SkillListData> => {
       const params = new URLSearchParams({ type, limit: String(pageSize) })
@@ -194,9 +195,8 @@ export function SkillsClient({
   }
 
   async function refreshSkills() {
-    // Prefix key - intentionally broad to invalidate all skills queries.
-    // eslint-disable-next-line @tanstack/query/prefer-query-options
-    await queryClient.invalidateQueries({ queryKey: ["skills"] })
+    // The list prefix avoids invalidating skill metadata queries.
+    await queryClient.invalidateQueries({ queryKey: skillListsQueryKey })
   }
 
   async function exportSkills(skillNames: string[]) {
@@ -245,11 +245,9 @@ export function SkillsClient({
     const namesToDelete = deleteNames
     const deletedSet = new Set(namesToDelete)
 
-    // Prefix key - intentionally broad to update all skills queries.
-    queryClient.setQueriesData<SkillListData>(
-      // eslint-disable-next-line @tanstack/query/prefer-query-options
-      { queryKey: ["skills"] },
-      (old) => (old ? { ...old, skills: old.skills.filter((s) => !deletedSet.has(s.name)) } : old)
+    // The list prefix avoids treating version query data as a skill list.
+    queryClient.setQueriesData<SkillListData>({ queryKey: skillListsQueryKey }, (old) =>
+      old ? { ...old, skills: old.skills.filter((s) => !deletedSet.has(s.name)) } : old
     )
 
     setDeleteNames([])

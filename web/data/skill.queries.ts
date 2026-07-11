@@ -29,7 +29,7 @@ export async function listImmutableSkillsCachedQuery(): Promise<ListImmutableSki
       skills: undefined,
       error: {
         code: "LIST_IMMUTABLE_SKILLS_FAILED",
-        message: error instanceof Error ? error.message : "Failed to load immutable skills",
+        message: error instanceof globalThis.Error ? error.message : "Failed to load immutable skills",
       },
     }
   }

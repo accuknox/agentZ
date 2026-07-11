@@ -193,7 +193,7 @@ export const ContextContentFooter = ({
 }
 
 const Tokens = ({ tokens }: { tokens?: number }) => (
-  <span>{tokens === undefined ? "—" : compactFormatter.format(tokens)}</span>
+  <span>{tokens === undefined ? "-" : compactFormatter.format(tokens)}</span>
 )
 
 export type ContextInputUsageProps = ComponentProps<"div">

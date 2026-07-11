@@ -170,7 +170,6 @@ func (r *Reconciler) updateStatus(ctx context.Context, sandbox *agentzv1alpha1.S
 		status.PackageCount = len(current.Spec.Packages)
 		status.AllowedHostCount = len(current.Spec.AllowedHosts)
 		status.MCPRefCount = len(current.Spec.MCPConnectionRefs)
-		status.SkillCount = len(current.Spec.Skills)
 		if reflect.DeepEqual(current.Status, *status) {
 			return nil
 		}

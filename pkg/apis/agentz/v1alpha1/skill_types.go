@@ -16,9 +16,7 @@ limitations under the License.
 
 package v1alpha1
 
-import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
+import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // SkillSpec defines the desired state of an immutable Skill.
 type SkillSpec struct {
@@ -36,25 +34,7 @@ type SkillSpec struct {
 	StoragePath string `json:"storagePath"`
 }
 
-// SkillStatus defines the observed state of Skill.
-type SkillStatus struct {
-	// conditions represent the current state of the Skill resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
-	// +listType=map
-	// +listMapKey=type
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
 // +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
 
 // Skill is the Schema for the skills API.
 type Skill struct {
@@ -67,10 +47,6 @@ type Skill struct {
 	// spec defines the desired state of Skill.
 	// +required
 	Spec SkillSpec `json:"spec"`
-
-	// status defines the observed state of Skill.
-	// +optional
-	Status SkillStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true

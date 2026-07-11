@@ -1,5 +1,6 @@
 import "server-only"
 
+import { buffer } from "node:stream/consumers"
 import { TextDecoder } from "node:util"
 import matter from "gray-matter"
 import { fromBufferPromise, type Entry, type Options, type ZipFile } from "yauzl"
@@ -11,6 +12,8 @@ const maxExtractedBytes = 20 * 1024 * 1024
 const maxSkillBytes = 64 * 1024
 const maxFileBytes = 1024 * 1024
 const maxFileCount = 200
+const maxEntryCount = 400
+const maxPathBytes = 1024
 const skillFileName = "SKILL.md"
 const skillFileSuffix = `/${skillFileName}`
 const zipOptions: Options = {
@@ -60,23 +63,30 @@ export type ImportDecision =
       rename: string
     }
 
-export const importDecisionsSchema = z.array(
-  z.discriminatedUnion("action", [
-    z.object({
-      action: z.literal("create"),
-      name: skillNameSchema,
-    }),
-    z.object({
-      action: z.literal("overwrite"),
-      name: skillNameSchema,
-    }),
-    z.object({
-      action: z.literal("rename"),
-      name: skillNameSchema,
-      rename: skillNameSchema,
-    }),
-  ])
-)
+export const importDecisionsSchema = z
+  .array(
+    z.discriminatedUnion("action", [
+      z.object({
+        action: z.literal("create"),
+        name: skillNameSchema,
+      }),
+      z.object({
+        action: z.literal("overwrite"),
+        name: skillNameSchema,
+      }),
+      z.object({
+        action: z.literal("rename"),
+        name: skillNameSchema,
+        rename: skillNameSchema,
+      }),
+    ])
+  )
+  .min(1, "At least one import decision is required")
+  .max(200, "At most 200 skills can be imported")
+  .refine(
+    (decisions) => new Set(decisions.map((decision) => decision.name)).size === decisions.length,
+    "Import decisions must reference unique skills"
+  )
 
 export function jsonFormField<T>(schema: z.ZodType<T>) {
   return z
@@ -85,7 +95,7 @@ export function jsonFormField<T>(schema: z.ZodType<T>) {
       try {
         return JSON.parse(value) as unknown
       } catch {
-        ctx.addIssue({ code: "custom", message: "invalid JSON" })
+        ctx.addIssue({ code: "custom", message: "Invalid JSON" })
         return z.NEVER
       }
     })
@@ -122,7 +132,20 @@ export function skillsForApply(skills: SkillWrite[], decisions: ImportDecision[]
       throw new Error("import contains duplicate destination names")
     }
     seen.add(name)
-    out.push({ name, description: skill.description, files: skill.files })
+    const files = skill.files.map((file) => {
+      if (decision.action !== "rename" || file.path !== skillFileName) {
+        return file
+      }
+
+      const doc = matter(decoder.decode(file.content))
+      const frontmatter = skillFrontmatterSchema.parse(doc.data)
+      const content = Buffer.from(matter.stringify(doc.content, { ...frontmatter, name }))
+      if (content.length > maxSkillBytes) {
+        throw new Error("renamed SKILL.md is too large")
+      }
+      return { path: file.path, content }
+    })
+    out.push({ name, description: skill.description, files })
   }
 
   if (out.length !== skills.length) {
@@ -152,9 +175,14 @@ async function skillsFromZip(bytes: Buffer): Promise<SkillWrite[]> {
   const seen = new Set<string>()
   let extractedBytes = 0
   let fileCount = 0
+  let entryCount = 0
 
   try {
     for await (const entry of zip.eachEntry()) {
+      entryCount += 1
+      if (entryCount > maxEntryCount) {
+        throw new Error("import contains too many entries")
+      }
       const path = skillArchivePath(entry)
       if (path === undefined) {
         continue
@@ -291,6 +319,9 @@ function skillArchivePath(entry: Entry): string | undefined {
   }
 
   const raw = entry.fileName
+  if (Buffer.byteLength(raw) > maxPathBytes) {
+    throw new Error("zip entry path is too long")
+  }
   const path = raw.endsWith("/") ? raw.slice(0, -1) : raw
   const parts = path.split("/")
   if (
@@ -335,16 +366,9 @@ function parseSkillFile(bytes: Buffer): SkillFrontmatter {
 
 async function readEntry(zip: ZipFile, entry: Entry, limit: number): Promise<Buffer> {
   const stream = await zip.openReadStreamPromise(entry)
-  const chunks: Buffer[] = []
-  let size = 0
-
-  for await (const chunk of stream) {
-    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk
-    size += buffer.length
-    if (size > limit) {
-      throw new Error(`${entry.fileName} is too large`)
-    }
-    chunks.push(buffer)
+  const content = await buffer(stream)
+  if (content.length > limit) {
+    throw new Error(`${entry.fileName} is too large`)
   }
-  return Buffer.concat(chunks)
+  return content
 }

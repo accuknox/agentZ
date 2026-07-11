@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   experimental: {
     turbopackFileSystemCacheForDev: false,
+    serverActions: {
+      bodySizeLimit: "11mb",
+    },
   },
 }
 

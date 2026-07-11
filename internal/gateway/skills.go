@@ -15,7 +15,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
-	"github.com/accuknox/agentz/internal/skill"
+	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -67,20 +67,27 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 	slices.SortFunc(skillList.Items, func(a, b agentzv1alpha1.Skill) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+	refsBySkill, err := s.listSkillReferences(r.Context(), ns)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 
 	items := make([]gatewayapi.Skill, 0, len(skillList.Items))
-	for _, skill := range skillList.Items {
+	for _, item := range skillList.Items {
 		if params.AgentName != nil {
-			if _, ok := effective[skill.Name]; !ok {
+			if _, ok := effective[item.Name]; !ok {
 				continue
 			}
 		}
-		refs, err := s.skillReferences(r.Context(), ns, skill.Name)
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
+		refs, ok := refsBySkill[item.Name]
+		if !ok {
+			refs = gatewayapi.SkillReferences{
+				Agents:    []gatewayapi.AgentName{},
+				Sandboxes: []gatewayapi.SandboxName{},
+			}
 		}
-		items = append(items, skillFromCRD(skill, refs))
+		items = append(items, skillFromCRD(item, refs))
 	}
 
 	start := min(offset, len(items))
@@ -115,17 +122,10 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rawAgents []gatewayapi.AgentName
-	if req.Agents != nil {
-		rawAgents = *req.Agents
-	}
-	agents, fields, err := s.validateSkillAgentRefs(r.Context(), ns, rawAgents)
-	fields = append(fields, validateSkillName("name", req.Name)...)
-	fields = append(fields, validateSkillSpec(req.Description, req.Version, req.StoragePath)...)
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
+	fields := validateSkillName("name", req.Name)
+	fields = append(fields, validateSkillSpec(
+		ns, req.Name, req.Description, req.Version, req.StoragePath,
+	)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -162,18 +162,17 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, mapKubeHTTPError("create skill", err))
 		return
 	}
-	if len(agents) > 0 {
-		if err := s.setSkillAgentRefs(r.Context(), ns, req.Name, agents); err != nil {
-			_ = s.k8sClient.Delete(r.Context(), skill)
-			writeError(w, r, mapKubeHTTPError("attach skill", err))
-			return
-		}
-	}
-
-	refs, err := s.skillReferences(r.Context(), ns, skill.Name)
+	refsBySkill, err := s.listSkillReferences(r.Context(), ns)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
+	}
+	refs := refsBySkill[skill.Name]
+	if refs.Agents == nil {
+		refs.Agents = []gatewayapi.AgentName{}
+	}
+	if refs.Sandboxes == nil {
+		refs.Sandboxes = []gatewayapi.SandboxName{}
 	}
 	writeJSON(w, http.StatusCreated, skillFromCRD(*skill, refs))
 }
@@ -192,17 +191,17 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 	}
 
 	fields := validateSkillName("skillName", skillName)
-	fields = append(fields, validateUpdateSkillRequest(req)...)
-	var agents []gatewayapi.AgentName
-	if req.Agents != nil {
-		var agentFields []gatewayapi.FieldError
-		agents, agentFields, err = s.validateSkillAgentRefs(r.Context(), ns, *req.Agents)
-		fields = append(fields, agentFields...)
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
+	if req.Version < 1 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "version", Message: "must be at least 1",
+		})
 	}
+	if req.Description != nil {
+		fields = append(fields, validateSkillDescription(*req.Description)...)
+	}
+	fields = append(fields, validateSkillStoragePath(
+		"storage_path", ns, skillName, req.Version, req.StoragePath,
+	)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -221,9 +220,10 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		if err := s.k8sClient.Get(r.Context(), key, current); err != nil {
 			return err
 		}
-		if req.Version != nil {
-			current.Spec.Version = *req.Version
-			current.Spec.StoragePath = *req.StoragePath
+		current.Spec.Version = req.Version
+		current.Spec.StoragePath = req.StoragePath
+		if req.Description != nil {
+			current.Spec.Description = *req.Description
 		}
 		if err := s.k8sClient.Update(r.Context(), current); err != nil {
 			return err
@@ -235,17 +235,17 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		writeError(w, r, mapKubeHTTPError("update skill", err))
 		return
 	}
-	if req.Agents != nil {
-		if err := s.setSkillAgentRefs(r.Context(), ns, skillName, agents); err != nil {
-			writeError(w, r, mapKubeHTTPError("attach skill", err))
-			return
-		}
-	}
-
-	refs, err := s.skillReferences(r.Context(), ns, updated.Name)
+	refsBySkill, err := s.listSkillReferences(r.Context(), ns)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
+	}
+	refs := refsBySkill[updated.Name]
+	if refs.Agents == nil {
+		refs.Agents = []gatewayapi.AgentName{}
+	}
+	if refs.Sandboxes == nil {
+		refs.Sandboxes = []gatewayapi.SandboxName{}
 	}
 	writeJSON(w, http.StatusOK, skillFromCRD(*updated, refs))
 }
@@ -302,10 +302,17 @@ func (s *Service) GetSkillReferences(w http.ResponseWriter, r *http.Request, ski
 		writeError(w, r, mapKubeHTTPError("get skill", err))
 		return
 	}
-	refs, err := s.skillReferences(r.Context(), ns, skill.Name)
+	refsBySkill, err := s.listSkillReferences(r.Context(), ns)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
+	}
+	refs := refsBySkill[skill.Name]
+	if refs.Agents == nil {
+		refs.Agents = []gatewayapi.AgentName{}
+	}
+	if refs.Sandboxes == nil {
+		refs.Sandboxes = []gatewayapi.SandboxName{}
 	}
 	writeJSON(w, http.StatusOK, refs)
 }
@@ -319,43 +326,70 @@ func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences) g
 		Agents:      refs.Agents,
 		Sandboxes:   refs.Sandboxes,
 		CreatedAt:   skill.CreationTimestamp.Time,
-		ModifiedAt:  skill.GetObjectMeta().GetCreationTimestamp().Time,
 	}
 }
 
-func (s *Service) skillReferences(ctx context.Context, namespace string, skillName string) (gatewayapi.SkillReferences, error) {
+func (s *Service) listSkillReferences(ctx context.Context, namespace string) (map[string]gatewayapi.SkillReferences, error) {
 	agents := &agentzv1alpha1.AgentList{}
 	if err := s.k8sClient.List(ctx, agents, ctrlclient.InNamespace(namespace)); err != nil {
-		return gatewayapi.SkillReferences{}, fmt.Errorf("list agents: %w", err)
+		return nil, fmt.Errorf("list agents: %w", err)
 	}
 	sandboxes := &agentzv1alpha1.SandboxList{}
 	if err := s.k8sClient.List(ctx, sandboxes, ctrlclient.InNamespace(namespace)); err != nil {
-		return gatewayapi.SkillReferences{}, fmt.Errorf("list sandboxes: %w", err)
+		return nil, fmt.Errorf("list sandboxes: %w", err)
 	}
 
-	sandboxRefs := map[string]struct{}{}
-	sandboxNames := make([]gatewayapi.SandboxName, 0)
+	sandboxSkills := make(map[string][]string, len(sandboxes.Items))
+	agentRefs := map[string]map[string]struct{}{}
+	sandboxRefs := map[string]map[string]struct{}{}
 	for _, sandbox := range sandboxes.Items {
-		if !slices.Contains(sandbox.Spec.Skills, skillName) {
-			continue
+		sandboxSkills[sandbox.Name] = sandbox.Spec.Skills
+		for _, name := range sandbox.Spec.Skills {
+			if sandboxRefs[name] == nil {
+				sandboxRefs[name] = map[string]struct{}{}
+			}
+			sandboxRefs[name][sandbox.Name] = struct{}{}
 		}
-		sandboxRefs[sandbox.Name] = struct{}{}
-		sandboxNames = append(sandboxNames, sandbox.Name)
 	}
 
-	agentNames := make([]gatewayapi.AgentName, 0)
 	for _, agt := range agents.Items {
-		referenced := slices.Contains(agt.Spec.Skills, skillName)
-		if !referenced && agt.Spec.SandboxRef != nil {
-			_, referenced = sandboxRefs[agt.Spec.SandboxRef.Name]
+		names := append([]string{}, agt.Spec.Skills...)
+		if agt.Spec.SandboxRef != nil {
+			names = append(names, sandboxSkills[agt.Spec.SandboxRef.Name]...)
 		}
-		if referenced {
-			agentNames = append(agentNames, agt.Name)
+		for _, name := range names {
+			if agentRefs[name] == nil {
+				agentRefs[name] = map[string]struct{}{}
+			}
+			agentRefs[name][agt.Name] = struct{}{}
 		}
 	}
-	slices.Sort(agentNames)
-	slices.Sort(sandboxNames)
-	return gatewayapi.SkillReferences{Agents: agentNames, Sandboxes: sandboxNames}, nil
+
+	refs := make(map[string]gatewayapi.SkillReferences, len(agentRefs)+len(sandboxRefs))
+	for name, items := range agentRefs {
+		names := make([]gatewayapi.AgentName, 0, len(items))
+		for item := range items {
+			names = append(names, item)
+		}
+		slices.Sort(names)
+		refs[name] = gatewayapi.SkillReferences{
+			Agents: names, Sandboxes: []gatewayapi.SandboxName{},
+		}
+	}
+	for name, items := range sandboxRefs {
+		names := make([]gatewayapi.SandboxName, 0, len(items))
+		for item := range items {
+			names = append(names, item)
+		}
+		slices.Sort(names)
+		ref := refs[name]
+		if ref.Agents == nil {
+			ref.Agents = []gatewayapi.AgentName{}
+		}
+		ref.Sandboxes = names
+		refs[name] = ref
+	}
+	return refs, nil
 }
 
 func (s *Service) effectiveAgentSkills(ctx context.Context, namespace string, agentName string) (map[string]struct{}, error) {
@@ -400,7 +434,34 @@ func validateSkillName(field string, name string) []gatewayapi.FieldError {
 	return fields
 }
 
-func validateSkillSpec(description string, version int64, storagePath string) []gatewayapi.FieldError {
+func validateSkillSpec(namespace, name, description string, version int64, storagePath string) []gatewayapi.FieldError {
+	fields := validateSkillDescription(description)
+	if version < 1 {
+		fields = append(fields, gatewayapi.FieldError{
+			Field: "version", Message: "must be at least 1",
+		})
+	}
+	fields = append(fields, validateSkillStoragePath(
+		"storage_path", namespace, name, version, storagePath,
+	)...)
+	return fields
+}
+
+func validateSkillStoragePath(field, namespace, name string, version int64, storagePath string) []gatewayapi.FieldError {
+	bucket, _, err := skillpkg.ParseStoragePath(storagePath)
+	if err != nil {
+		return []gatewayapi.FieldError{{Field: field, Message: err.Error()}}
+	}
+	expected := (skillpkg.Config{Bucket: bucket}).StoragePath(namespace, name, version)
+	if storagePath != expected {
+		return []gatewayapi.FieldError{{
+			Field: field, Message: "must match the skill namespace, name, and version",
+		}}
+	}
+	return nil
+}
+
+func validateSkillDescription(description string) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
 	if strings.TrimSpace(description) == "" {
 		fields = append(fields, gatewayapi.FieldError{
@@ -411,46 +472,6 @@ func validateSkillSpec(description string, version int64, storagePath string) []
 		fields = append(fields, gatewayapi.FieldError{
 			Field: "description", Message: "must be at most 1024 characters",
 		})
-	}
-	if version < 1 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field: "version", Message: "must be at least 1",
-		})
-	}
-	fields = append(fields, validateSkillStoragePath("storage_path", storagePath)...)
-	return fields
-}
-
-func validateSkillStoragePath(field string, storagePath string) []gatewayapi.FieldError {
-	if strings.TrimSpace(storagePath) == "" {
-		return []gatewayapi.FieldError{{Field: field, Message: "required"}}
-	}
-	if _, _, err := skill.ParseStoragePath(storagePath); err != nil {
-		return []gatewayapi.FieldError{{Field: field, Message: err.Error()}}
-	}
-	return nil
-}
-
-func validateUpdateSkillRequest(req gatewayapi.UpdateSkillRequest) []gatewayapi.FieldError {
-	fields := []gatewayapi.FieldError{}
-	if req.Version == nil && req.StoragePath != nil {
-		fields = append(fields, gatewayapi.FieldError{
-			Field: "version", Message: "required when storage_path is set",
-		})
-	}
-	if req.Version != nil {
-		if *req.Version < 1 {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "version", Message: "must be at least 1",
-			})
-		}
-		if req.StoragePath == nil {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "storage_path", Message: "required when version is set",
-			})
-		} else {
-			fields = append(fields, validateSkillStoragePath("storage_path", *req.StoragePath)...)
-		}
 	}
 	return fields
 }
@@ -490,102 +511,13 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, names
 			}
 			return nil, nil, fmt.Errorf("get skill %q: %w", name, err)
 		}
-		out = append(out, name)
-	}
-	return out, fields, nil
-}
-
-func (s *Service) validateSkillAgentRefs(ctx context.Context, namespace string, names []gatewayapi.AgentName) ([]gatewayapi.AgentName, []gatewayapi.FieldError, error) {
-	out := make([]gatewayapi.AgentName, 0, len(names))
-	fields := []gatewayapi.FieldError{}
-	seen := map[string]int{}
-	for i, name := range names {
-		if name == "" {
+		if !skill.DeletionTimestamp.IsZero() {
 			fields = append(fields, gatewayapi.FieldError{
-				Field: fmt.Sprintf("agents[%d]", i), Message: "required",
+				Field: fmt.Sprintf("skills[%d]", i), Message: "skill is being deleted",
 			})
 			continue
-		}
-		if first, ok := seen[name]; ok {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("agents[%d]", i),
-				Message: fmt.Sprintf("duplicate value %q first seen at index %d", name, first),
-			})
-			continue
-		}
-		seen[name] = i
-		if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "agents", Message: "must contain valid agent names",
-			})
-			continue
-		}
-		agt := &agentzv1alpha1.Agent{}
-		key := types.NamespacedName{Name: name, Namespace: namespace}
-		if err := s.k8sClient.Get(ctx, key, agt); err != nil {
-			if apierrors.IsNotFound(err) {
-				fields = append(fields, gatewayapi.FieldError{
-					Field: fmt.Sprintf("agents[%d]", i), Message: "agent not found",
-				})
-				continue
-			}
-			return nil, nil, fmt.Errorf("get agent %q: %w", name, err)
 		}
 		out = append(out, name)
 	}
 	return out, fields, nil
-}
-
-func (s *Service) setSkillAgentRefs(ctx context.Context, namespace string, skillName string, names []gatewayapi.AgentName) error {
-	targets := make(map[string]struct{}, len(names))
-	for _, name := range names {
-		targets[name] = struct{}{}
-	}
-
-	agents := &agentzv1alpha1.AgentList{}
-	if err := s.k8sClient.List(ctx, agents, ctrlclient.InNamespace(namespace)); err != nil {
-		return fmt.Errorf("list agents: %w", err)
-	}
-	for _, item := range agents.Items {
-		_, wants := targets[item.Name]
-		has := slices.Contains(item.Spec.Skills, skillName)
-		if wants == has {
-			continue
-		}
-		key := types.NamespacedName{Name: item.Name, Namespace: item.Namespace}
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			agt := &agentzv1alpha1.Agent{}
-			if err := s.k8sClient.Get(ctx, key, agt); err != nil {
-				return err
-			}
-			if wants {
-				if !slices.Contains(agt.Spec.Skills, skillName) {
-					agt.Spec.Skills = append(agt.Spec.Skills, skillName)
-					slices.Sort(agt.Spec.Skills)
-				}
-			}
-			if !wants {
-				agt.Spec.Skills = slices.DeleteFunc(append([]string{}, agt.Spec.Skills...), func(name string) bool {
-					return name == skillName
-				})
-			}
-			return s.k8sClient.Update(ctx, agt)
-		})
-		if err != nil {
-			return fmt.Errorf("update agent %q skill refs: %w", item.Name, err)
-		}
-	}
-	return nil
-}
-
-func skillsFromCRD(names []string) []gatewayapi.SkillName {
-	out := make([]gatewayapi.SkillName, 0, len(names))
-	out = append(out, names...)
-	return out
-}
-
-func stringsFromSkillNames(names []gatewayapi.SkillName) []string {
-	out := make([]string, 0, len(names))
-	out = append(out, names...)
-	return out
 }

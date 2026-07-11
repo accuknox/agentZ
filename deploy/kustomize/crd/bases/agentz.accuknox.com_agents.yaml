@@ -320,8 +320,12 @@ spec:
               skills:
                 description: Skills lists immutable Skill names attached directly to this Agent.
                 items:
+                  maxLength: 32
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                   type: string
+                maxItems: 200
                 type: array
+                x-kubernetes-list-type: set
               smallModel:
                 description: SmallModel sets the small OpenCode model in provider/model form.
                 type: string

@@ -72,7 +72,7 @@ config:
   tenantNixStoreStorageClass: ""
   agentHomeStorageClass: csi-s3
   skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
-  skillsS3Region: ""
+  skillsS3Region: us-east-1
   skillsS3Bucket: agentz
   skillsS3AccessKeyIDSecretName: agentz-skills-s3
   skillsS3AccessKeyIDSecretKey: access-key-id

@@ -111,6 +111,10 @@ type AgentSpec struct {
 
 	// Skills lists immutable Skill names attached directly to this Agent.
 	// +optional
+	// +listType=set
+	// +kubebuilder:validation:MaxItems=200
+	// +kubebuilder:validation:items:MaxLength=32
+	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Skills []string `json:"skills,omitempty"`
 
 	// NixStoreSize sets the size of the agent-specific nix store PVC.

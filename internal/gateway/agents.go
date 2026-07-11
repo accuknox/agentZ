@@ -280,7 +280,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		ModifiedAt:        row.UpdatedAt,
 		LastActivity:      row.UpdatedAt,
 		Status:            status,
-		Skills:            skillsFromCRD(updated.Spec.Skills),
+		Skills:            append([]gatewayapi.SkillName{}, updated.Spec.Skills...),
 	})
 }
 
@@ -535,7 +535,7 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 			status = statusFromView(statusFromAgent(resolved.Agent))
 			sandboxName = resolved.Agent.Spec.SandboxRef.Name
 			homeStoragePrefix = homeStoragePrefixes[row.AgentName]
-			skills := skillsFromCRD(resolved.Agent.Spec.Skills)
+			skills := append([]gatewayapi.SkillName{}, resolved.Agent.Spec.Skills...)
 			items = append(items, gatewayapi.Agent{
 				Name:              row.AgentName,
 				SandboxName:       sandboxName,
@@ -701,7 +701,7 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 		},
 	}
 	if req.Skills != nil {
-		agt.Spec.Skills = stringsFromSkillNames(*req.Skills)
+		agt.Spec.Skills = slices.Clone(*req.Skills)
 	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
 	return agt
@@ -737,7 +737,7 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 		}
 	}
 	if req.Skills != nil {
-		agt.Spec.Skills = stringsFromSkillNames(*req.Skills)
+		agt.Spec.Skills = slices.Clone(*req.Skills)
 	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
 }

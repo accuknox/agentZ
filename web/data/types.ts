@@ -404,3 +404,13 @@ export type ProviderModelItem = {
   providerID: string
   variants?: string[]
 }
+
+export type SkillImportPreview = {
+  name: string
+  mutableConflictAgents: string[]
+  immutableConflict: boolean
+}
+
+export type SkillImportApplySkill = {
+  name: string
+}

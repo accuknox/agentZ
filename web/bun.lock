@@ -16,6 +16,7 @@
         "@opencode-ai/sdk": "^1.17.11",
         "@radix-ui/react-use-controllable-state": "^1.2.3",
         "@ridemountainpig/svgl-react": "^1.0.17",
+        "@smithy/types": "4.16.0",
         "@stepperize/react": "^6.1.0",
         "@streamdown/cjk": "^1.0.3",
         "@streamdown/code": "^1.1.1",

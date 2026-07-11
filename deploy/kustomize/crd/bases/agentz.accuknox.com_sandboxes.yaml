@@ -110,8 +110,12 @@ spec:
               skills:
                 description: Skills lists immutable Skill names exposed through this sandbox.
                 items:
+                  maxLength: 32
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                   type: string
+                maxItems: 200
                 type: array
+                x-kubernetes-list-type: set
             type: object
           status:
             description: status defines the observed state of Sandbox
@@ -193,14 +197,10 @@ spec:
               packageCount:
                 description: PackageCount is the number of nix packages configured.
                 type: integer
-              skillCount:
-                description: SkillCount is the number of immutable skills configured.
-                type: integer
             required:
             - allowedHostCount
             - mcpRefCount
             - packageCount
-            - skillCount
             type: object
         required:
         - spec

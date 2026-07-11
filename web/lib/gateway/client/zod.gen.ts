@@ -154,7 +154,6 @@ export const zSkill = z.object({
   agents: z.array(zAgentName),
   sandboxes: z.array(zSandboxName),
   created_at: z.iso.datetime(),
-  modified_at: z.iso.datetime(),
 })
 
 export const zListSkillsResponse = z.object({
@@ -174,19 +173,14 @@ export const zCreateSkillRequest = z.object({
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
   storage_path: z.string().min(1),
-  agents: z.array(zAgentName).optional(),
 })
 
 export const zUpdateSkillRequest = z.object({
-  version: z.coerce
-    .bigint()
-    .gte(BigInt(1))
-    .max(BigInt("9223372036854775807"), {
-      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-    })
-    .optional(),
-  storage_path: z.string().min(1).optional(),
-  agents: z.array(zAgentName).optional(),
+  description: z.string().min(1).max(1024).optional(),
+  version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  storage_path: z.string().min(1),
 })
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])

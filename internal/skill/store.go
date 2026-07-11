@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -35,8 +37,12 @@ const (
 	// BucketSecretSecretAccessKeyKey stores the S3 secret access key.
 	BucketSecretSecretAccessKeyKey = "secret-access-key"
 
-	immutableDir = "immutable-skills"
-	deleteBatch  = 1000
+	immutableDir            = "immutable-skills"
+	deleteBatch             = 1000
+	maxStoredFiles          = 200
+	maxStoredFileBytes      = 1024 * 1024
+	maxStoredSkillFileBytes = 64 * 1024
+	maxStoredTotalBytes     = 20 * 1024 * 1024
 )
 
 var skillNameRE = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -52,7 +58,8 @@ type Config struct {
 
 // Manifest lists immutable skill versions to stage for one Agent pod.
 type Manifest struct {
-	Skills []ManifestSkill `json:"skills"`
+	Namespace string          `json:"namespace"`
+	Skills    []ManifestSkill `json:"skills"`
 }
 
 // ManifestSkill describes one immutable skill version in a pod bootstrap manifest.
@@ -113,19 +120,19 @@ func (c Config) SecretData() map[string][]byte {
 // Validate reports whether all required storage settings are present.
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.Endpoint) == "" {
-		return fmt.Errorf("skills s3 endpoint is required")
+		return errors.New("skills s3 endpoint is required")
 	}
 	if strings.TrimSpace(c.Region) == "" {
-		return fmt.Errorf("skills s3 region is required")
+		return errors.New("skills s3 region is required")
 	}
 	if strings.TrimSpace(c.Bucket) == "" {
-		return fmt.Errorf("skills s3 bucket is required")
+		return errors.New("skills s3 bucket is required")
 	}
 	if strings.TrimSpace(c.AccessKeyID) == "" {
-		return fmt.Errorf("skills s3 access key id is required")
+		return errors.New("skills s3 access key id is required")
 	}
 	if strings.TrimSpace(c.SecretAccessKey) == "" {
-		return fmt.Errorf("skills s3 secret access key is required")
+		return errors.New("skills s3 secret access key is required")
 	}
 	return nil
 }
@@ -156,28 +163,39 @@ func New(ctx context.Context, c Config) (*Client, error) {
 	}, nil
 }
 
-// ImmutableSkillPrefix returns the object key prefix for all versions of one immutable skill.
-func ImmutableSkillPrefix(namespace, name string) string {
+func immutableSkillPrefix(namespace, name string) string {
 	return namespace + "/" + immutableDir + "/" + name + "/"
 }
 
-// ImmutableVersionPrefix returns the object key prefix for one immutable skill version.
-func ImmutableVersionPrefix(namespace, name string, version int64) string {
-	return ImmutableSkillPrefix(namespace, name) + "v" + strconv.FormatInt(version, 10) + "/"
+func immutableVersionPrefix(namespace, name string, version int64) string {
+	return immutableSkillPrefix(namespace, name) + "v" + strconv.FormatInt(version, 10) + "/"
 }
 
 // StoragePath returns the full S3 URI for one immutable skill version.
 func (c Config) StoragePath(namespace, name string, version int64) string {
-	return "s3://" + c.Bucket + "/" + ImmutableVersionPrefix(namespace, name, version)
+	return "s3://" + c.Bucket + "/" + immutableVersionPrefix(namespace, name, version)
+}
+
+// ParseStoragePath splits an S3 storage URI into its bucket and object prefix.
+func ParseStoragePath(storagePath string) (string, string, error) {
+	rest, ok := strings.CutPrefix(storagePath, "s3://")
+	if !ok {
+		return "", "", errors.New("skill storage path must be an s3 URI")
+	}
+	bucket, prefix, ok := strings.Cut(rest, "/")
+	prefix = strings.TrimSuffix(prefix, "/")
+	if !ok || bucket == "" || prefix == "" || !fs.ValidPath(prefix) {
+		return "", "", errors.New("skill storage path must contain a safe bucket and prefix")
+	}
+	return bucket, prefix + "/", nil
 }
 
 // DeleteImmutableSkill deletes every stored version of one immutable skill.
 func (c *Client) DeleteImmutableSkill(ctx context.Context, namespace, name string) error {
-	return c.DeletePrefix(ctx, c.bucket, ImmutableSkillPrefix(namespace, name))
+	return c.deletePrefix(ctx, c.bucket, immutableSkillPrefix(namespace, name))
 }
 
-// DeletePrefix deletes all objects below bucket/prefix.
-func (c *Client) DeletePrefix(ctx context.Context, bucket, prefix string) error {
+func (c *Client) deletePrefix(ctx context.Context, bucket, prefix string) error {
 	var keys []s3types.ObjectIdentifier
 	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
@@ -219,38 +237,74 @@ func (c *Client) DownloadManifest(ctx context.Context, manifestPath, targetDir s
 	if err := json.NewDecoder(file).Decode(&manifest); err != nil {
 		return fmt.Errorf("decode immutable skill manifest: %w", err)
 	}
+	if manifest.Namespace == "" || len(manifest.Namespace) > 63 || !skillNameRE.MatchString(manifest.Namespace) {
+		return errors.New("immutable skill manifest namespace is invalid")
+	}
 	slices.SortFunc(manifest.Skills, func(a, b ManifestSkill) int {
 		return strings.Compare(a.Name, b.Name)
 	})
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		return fmt.Errorf("create immutable skill root: %w", err)
+
+	targetDir, err = filepath.Abs(targetDir)
+	if err != nil {
+		return fmt.Errorf("resolve immutable skill root: %w", err)
 	}
-	for _, skill := range manifest.Skills {
-		if !skillNameRE.MatchString(skill.Name) {
-			return fmt.Errorf("invalid immutable skill name")
+	if filepath.Dir(targetDir) == targetDir {
+		return errors.New("immutable skill root must not be a filesystem root")
+	}
+	if err := os.MkdirAll(filepath.Dir(targetDir), 0o755); err != nil {
+		return fmt.Errorf("create immutable skill parent: %w", err)
+	}
+	staging, err := os.MkdirTemp(filepath.Dir(targetDir), ".immutable-skills-")
+	if err != nil {
+		return fmt.Errorf("create immutable skill staging directory: %w", err)
+	}
+	defer os.RemoveAll(staging)
+
+	for i, item := range manifest.Skills {
+		if item.Name == "" || len(item.Name) > 32 || !skillNameRE.MatchString(item.Name) {
+			return errors.New("immutable skill name is invalid")
 		}
-		bucket, prefix, err := ParseStoragePath(skill.StoragePath)
-		if err != nil {
-			return err
+		if i > 0 && manifest.Skills[i-1].Name == item.Name {
+			return errors.New("immutable skill manifest contains duplicate names")
 		}
-		if bucket != c.bucket {
-			return fmt.Errorf("immutable skill bucket %q is not configured", bucket)
+		if item.Version < 1 {
+			return errors.New("immutable skill version is invalid")
 		}
-		dst := filepath.Join(targetDir, skill.Name)
-		if err := os.RemoveAll(dst); err != nil {
-			return fmt.Errorf("clear immutable skill directory: %w", err)
+		if item.StoragePath != (Config{Bucket: c.bucket}).StoragePath(
+			manifest.Namespace,
+			item.Name,
+			item.Version,
+		) {
+			return errors.New("immutable skill storage path does not match its identity")
 		}
-		if err := c.DownloadPrefix(ctx, bucket, prefix, dst); err != nil {
-			return fmt.Errorf("download immutable skill %q: %w", skill.Name, err)
+		dst := filepath.Join(staging, item.Name)
+		prefix := immutableVersionPrefix(manifest.Namespace, item.Name, item.Version)
+		if err := c.downloadSkill(ctx, prefix, dst); err != nil {
+			return fmt.Errorf("download immutable skill %q: %w", item.Name, err)
+		}
+		if err := Validate(dst); err != nil {
+			return fmt.Errorf("validate immutable skill %q: %w", item.Name, err)
 		}
 	}
-	return nil
+
+	return replaceDirectory(staging, targetDir)
 }
 
-// DownloadPrefix copies all objects below bucket/prefix into targetDir.
-func (c *Client) DownloadPrefix(ctx context.Context, bucket, prefix, targetDir string) error {
+func (c *Client) downloadSkill(ctx context.Context, prefix, targetDir string) error {
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("create immutable skill directory: %w", err)
+	}
+	root, err := os.OpenRoot(targetDir)
+	if err != nil {
+		return fmt.Errorf("open immutable skill directory: %w", err)
+	}
+	defer root.Close()
+
+	var fileCount int
+	var totalBytes int64
+	hasSkillFile := false
 	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
-		Bucket: aws.String(bucket),
+		Bucket: aws.String(c.bucket),
 		Prefix: aws.String(prefix),
 	})
 	for paginator.HasMorePages() {
@@ -262,38 +316,39 @@ func (c *Client) DownloadPrefix(ctx context.Context, bucket, prefix, targetDir s
 			if item.Key == nil || strings.HasSuffix(*item.Key, "/") {
 				continue
 			}
-			if err := c.downloadObject(ctx, bucket, prefix, *item.Key, targetDir); err != nil {
+			rel, ok := strings.CutPrefix(*item.Key, prefix)
+			if !ok || !fs.ValidPath(rel) {
+				return errors.New("immutable skill object key is unsafe")
+			}
+			fileCount++
+			if fileCount > maxStoredFiles {
+				return errors.New("immutable skill contains too many files")
+			}
+			limit := int64(maxStoredFileBytes)
+			if rel == skillFileName {
+				limit = maxStoredSkillFileBytes
+				hasSkillFile = true
+			}
+			if size := aws.ToInt64(item.Size); size < 0 || size > limit {
+				return fmt.Errorf("immutable skill file %q is too large", rel)
+			}
+			n, err := c.downloadObject(ctx, root, *item.Key, rel, limit)
+			if err != nil {
 				return err
+			}
+			totalBytes += n
+			if totalBytes > maxStoredTotalBytes {
+				return errors.New("immutable skill contains too much data")
 			}
 		}
 	}
+	if fileCount == 0 {
+		return errors.New("immutable skill storage prefix is empty")
+	}
+	if !hasSkillFile {
+		return errors.New("immutable skill is missing SKILL.md")
+	}
 	return nil
-}
-
-// ParseStoragePath splits an s3://bucket/prefix URI.
-func ParseStoragePath(path string) (string, string, error) {
-	rest, ok := strings.CutPrefix(path, "s3://")
-	if !ok {
-		return "", "", fmt.Errorf("skill storage path must be an s3 uri")
-	}
-	bucket, prefix, ok := strings.Cut(rest, "/")
-	if !ok || bucket == "" || prefix == "" {
-		return "", "", fmt.Errorf("skill storage path must include bucket and prefix")
-	}
-	if strings.Contains(prefix, "\\") {
-		return "", "", fmt.Errorf("skill storage path prefix is unsafe")
-	}
-	trimmed := strings.TrimSuffix(prefix, "/")
-	for part := range strings.SplitSeq(trimmed, "/") {
-		if part == "" || part == "." || part == ".." {
-			return "", "", fmt.Errorf("skill storage path prefix is unsafe")
-		}
-	}
-	prefix = trimmed
-	if prefix != "" && !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	return bucket, prefix, nil
 }
 
 func readSecretFile(dir, name string) (string, error) {
@@ -309,7 +364,7 @@ func readSecretFile(dir, name string) (string, error) {
 }
 
 func (c *Client) deleteKeys(ctx context.Context, bucket string, keys []s3types.ObjectIdentifier) error {
-	_, err := c.s3.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+	result, err := c.s3.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 		Bucket: aws.String(bucket),
 		Delete: &s3types.Delete{
 			Objects: keys,
@@ -319,51 +374,68 @@ func (c *Client) deleteKeys(ctx context.Context, bucket string, keys []s3types.O
 	if err != nil {
 		return fmt.Errorf("delete s3 objects: %w", err)
 	}
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("delete s3 objects: %d object failures", len(result.Errors))
+	}
 	return nil
 }
 
-func (c *Client) downloadObject(ctx context.Context, bucket, prefix, key, targetDir string) error {
-	rel, ok := strings.CutPrefix(key, prefix)
-	if !ok || rel == "" {
-		return nil
-	}
-	local, err := localPath(targetDir, rel)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
-		return fmt.Errorf("create immutable skill directory: %w", err)
+func (c *Client) downloadObject(ctx context.Context, root *os.Root, key, rel string, limit int64) (int64, error) {
+	if err := root.MkdirAll(path.Dir(rel), 0o755); err != nil {
+		return 0, fmt.Errorf("create immutable skill directory: %w", err)
 	}
 	object, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(bucket),
+		Bucket: aws.String(c.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return fmt.Errorf("get s3 object: %w", err)
+		return 0, fmt.Errorf("get s3 object: %w", err)
 	}
-	defer object.Body.Close()
 
-	file, err := os.OpenFile(local, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	file, err := root.OpenFile(rel, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
-		return fmt.Errorf("open immutable skill file: %w", err)
+		return 0, errors.Join(
+			fmt.Errorf("open immutable skill file: %w", err),
+			object.Body.Close(),
+		)
 	}
-	defer file.Close()
-	if _, err := io.Copy(file, object.Body); err != nil {
-		return fmt.Errorf("write immutable skill file: %w", err)
+	n, copyErr := io.Copy(file, io.LimitReader(object.Body, limit+1))
+	err = errors.Join(copyErr, file.Close(), object.Body.Close())
+	if err != nil {
+		return 0, fmt.Errorf("write immutable skill file: %w", err)
 	}
-	return nil
+	if n > limit {
+		return 0, fmt.Errorf("immutable skill file %q is too large", rel)
+	}
+	return n, nil
 }
 
-func localPath(root, rel string) (string, error) {
-	if rel == "" {
-		return "", errors.New("empty object key")
+func replaceDirectory(staging, target string) error {
+	backup := target + ".previous"
+	if err := os.RemoveAll(backup); err != nil {
+		return fmt.Errorf("remove previous immutable skill backup: %w", err)
 	}
-	clean := filepath.Clean(rel)
-	if clean == "." ||
-		clean == ".." ||
-		filepath.IsAbs(clean) ||
-		strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("unsafe object key")
+	hadTarget := true
+	if err := os.Rename(target, backup); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("preserve current immutable skills: %w", err)
+		}
+		hadTarget = false
 	}
-	return filepath.Join(root, clean), nil
+	if err := os.Rename(staging, target); err != nil {
+		if !hadTarget {
+			return fmt.Errorf("activate immutable skills: %w", err)
+		}
+		return errors.Join(
+			fmt.Errorf("activate immutable skills: %w", err),
+			os.Rename(backup, target),
+		)
+	}
+	if !hadTarget {
+		return nil
+	}
+	if err := os.RemoveAll(backup); err != nil {
+		return fmt.Errorf("remove replaced immutable skills: %w", err)
+	}
+	return nil
 }

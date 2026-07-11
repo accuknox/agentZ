@@ -82,7 +82,6 @@ rules:
   - mcpconnections/status
   - sandboxes/status
   - secrets/status
-  - skills/status
   - tenants/status
   - workflowruns/status
   - workflowschedules/status

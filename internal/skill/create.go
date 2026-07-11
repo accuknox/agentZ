@@ -21,7 +21,6 @@ const (
 
 var (
 	namePattern        = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	nameCleanupPattern = regexp.MustCompile(`[^a-z0-9]+`)
 	errInvalidResource = errors.New("resource must be one of scripts, references, assets")
 )
 
@@ -52,9 +51,7 @@ func Init(cfg InitConfig) (string, error) {
 		return "", errors.New("path must not be empty")
 	}
 
-	name := strings.Trim(strings.ToLower(cfg.Name), " -")
-	name = nameCleanupPattern.ReplaceAllString(name, "-")
-	name = strings.Trim(name, "-")
+	name := cfg.Name
 	if !namePattern.MatchString(name) {
 		return "", fmt.Errorf("skill name %q must match %s", name, namePattern.String())
 	}
@@ -212,8 +209,8 @@ func parse(content []byte) (skillFile, error) {
 		return skillFile{}, errors.New("skill frontmatter is required")
 	}
 
-	raw := map[string]any{}
-	body, err := frontmatter.Parse(bytes.NewReader(content), &raw)
+	doc := skillFile{}
+	body, err := frontmatter.Parse(bytes.NewReader(content), &doc.Frontmatter)
 	if err != nil {
 		return skillFile{}, fmt.Errorf("skill frontmatter is invalid YAML: %w", err)
 	}
@@ -221,73 +218,6 @@ func parse(content []byte) (skillFile, error) {
 		return skillFile{}, errors.New("skill frontmatter is not closed")
 	}
 
-	doc := skillFile{Body: string(body)}
-	if value, ok := raw["name"]; ok {
-		text, ok := value.(string)
-		if !ok {
-			return skillFile{}, errors.New("frontmatter.name must be a string")
-		}
-		doc.Frontmatter.Name = text
-	}
-	if value, ok := raw["description"]; ok {
-		text, ok := value.(string)
-		if !ok {
-			return skillFile{}, errors.New("frontmatter.description must be a string")
-		}
-		doc.Frontmatter.Description = text
-	}
-	if value, ok := raw["license"]; ok {
-		text, ok := value.(string)
-		if !ok {
-			return skillFile{}, errors.New("frontmatter.license must be a string")
-		}
-		doc.Frontmatter.License = text
-	}
-	if value, ok := raw["compatibility"]; ok {
-		text, ok := value.(string)
-		if !ok {
-			return skillFile{}, errors.New("frontmatter.compatibility must be a string")
-		}
-		doc.Frontmatter.Compatibility = text
-	}
-	if value, ok := raw["metadata"]; ok {
-		meta, err := parseMetadata(value)
-		if err != nil {
-			return skillFile{}, err
-		}
-		doc.Frontmatter.Metadata = meta
-	}
-
+	doc.Body = string(body)
 	return doc, nil
-}
-
-func parseMetadata(value any) (map[string]string, error) {
-	items := make(map[string]string)
-
-	switch m := value.(type) {
-	case map[string]any:
-		for key, item := range m {
-			text, ok := item.(string)
-			if !ok {
-				return nil, errors.New("frontmatter.metadata values must be strings")
-			}
-			items[key] = text
-		}
-	case map[any]any:
-		for key, item := range m {
-			text, ok := item.(string)
-			if !ok {
-				return nil, errors.New("frontmatter.metadata values must be strings")
-			}
-			name, ok := key.(string)
-			if !ok {
-				return nil, errors.New("frontmatter.metadata keys must be strings")
-			}
-			items[name] = text
-		}
-	default:
-		return nil, errors.New("frontmatter.metadata must be a mapping")
-	}
-
-	return items, nil
 }

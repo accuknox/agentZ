@@ -208,6 +208,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListSkillsResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -2030,9 +2032,6 @@ components:
         created_at:
           type: string
           format: date-time
-        modified_at:
-          type: string
-          format: date-time
       required:
       - name
       - description
@@ -2041,7 +2040,6 @@ components:
       - agents
       - sandboxes
       - created_at
-      - modified_at
 
     SkillReferences:
       type: object
@@ -2074,16 +2072,16 @@ components:
         storage_path:
           type: string
           minLength: 1
-        agents:
-          type: array
-          items:
-            $ref: '#/components/schemas/AgentName'
       required: [name, description, version, storage_path]
 
     UpdateSkillRequest:
       type: object
       additionalProperties: false
       properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1024
         version:
           type: integer
           format: int64
@@ -2091,11 +2089,7 @@ components:
         storage_path:
           type: string
           minLength: 1
-        agents:
-          type: array
-          items:
-            $ref: '#/components/schemas/AgentName'
-      minProperties: 1
+      required: [version, storage_path]
 
     AgentStatus:
       type: string

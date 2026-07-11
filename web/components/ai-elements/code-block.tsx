@@ -373,7 +373,7 @@ export const CodeBlockContent = ({
   // Memoized raw tokens for immediate display
   const rawTokens = useMemo(() => createRawTokens(code), [code])
 
-  // Synchronous cache lookup — avoids setState in effect for cached results
+  // Synchronous cache lookup - avoids setState in effect for cached results
   const syncTokens = useMemo(
     () => highlightCode(code, language) ?? rawTokens,
     [code, language, rawTokens]

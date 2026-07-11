@@ -9,7 +9,7 @@ K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
 IGNORE_NOT_FOUND ?= false
 SKILLS_S3_ENDPOINT ?= http://localhost:9000
-SKILLS_S3_REGION ?= ""
+SKILLS_S3_REGION ?= us-east-1
 SKILLS_S3_BUCKET ?= agentz
 SKILLS_S3_ACCESS_KEY_ID ?= admin
 SKILLS_S3_SECRET_ACCESS_KEY ?= admin
@@ -36,6 +36,9 @@ generate:
 		output:rbac:artifacts:config=deploy/kustomize/rbac \
 		output:webhook:artifacts:config=deploy/kustomize/webhook \
 		output:crd:artifacts:config=deploy/kustomize/crd/bases
+	cp deploy/kustomize/crd/bases/*.yaml deploy/helm/charts/manager/crds/
+	cd web && bun run gen:openapi-client
+	cd opencode/config && bun run gen:openapi-client
 
 .PHONY: fmt
 fmt:

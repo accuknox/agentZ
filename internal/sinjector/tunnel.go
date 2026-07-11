@@ -18,7 +18,7 @@ import (
 
 // readBufferedConn wraps a net.Conn so that reads come from a buffered reader
 // first, then fall through to the underlying connection. This is necessary when
-// peeking bytes to decide which protocol handler to use — the peeked bytes must
+// peeking bytes to decide which protocol handler to use - the peeked bytes must
 // still be available to the handler.
 type readBufferedConn struct {
 	net.Conn

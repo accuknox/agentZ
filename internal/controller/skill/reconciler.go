@@ -22,7 +22,6 @@ import (
 	"slices"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,21 +34,19 @@ import (
 
 const skillFinalizer = "agentz.accuknox.com/immutable-skill"
 
-// SkillReconciler reconciles immutable Skill objects.
-type SkillReconciler struct {
+// Reconciler reconciles immutable Skill objects.
+type Reconciler struct {
 	client.Client
-	Scheme      *runtime.Scheme
 	StoreConfig skillpkg.Config
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch;update;patch
 
 // Reconcile keeps immutable Skill deletion and references consistent.
-func (r *SkillReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	skill := &agentzv1alpha1.Skill{}
 	err := r.Get(ctx, req.NamespacedName, skill)
 	if err != nil {
@@ -90,7 +87,7 @@ func (r *SkillReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	return ctrl.Result{}, nil
 }
 
-func (r *SkillReconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1.Skill) error {
+func (r *Reconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1.Skill) error {
 	agents := &agentzv1alpha1.AgentList{}
 	if err := r.List(ctx, agents, client.InNamespace(skill.Namespace)); err != nil {
 		return fmt.Errorf("list agents: %w", err)
@@ -153,7 +150,7 @@ func (r *SkillReconciler) detachReferences(ctx context.Context, skill *agentzv1a
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *SkillReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Skill{}).
 		Named("skill").

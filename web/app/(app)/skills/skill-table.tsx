@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatAge, formatByteSize } from "@/lib/format"
-import type { Skill } from "./skills-client"
+import type { ImmutableSkill, Skill } from "./skills-client"
 
 const columnClassName: Record<string, string> = {
   select: "w-12",
@@ -79,7 +79,7 @@ export function SkillTable({
   showImmutable: boolean
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
-  onEdit: (skill: Skill) => void
+  onEdit: (skill: ImmutableSkill) => void
   onExport: (name: string) => void
 }) {
   "use no memo"
@@ -214,7 +214,7 @@ function createSkillColumns({
   showImmutable: boolean
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
-  onEdit: (skill: Skill) => void
+  onEdit: (skill: ImmutableSkill) => void
   onExport: (name: string) => void
 }): ColumnDef<Skill>[] {
   const columns: ColumnDef<Skill>[] = [
@@ -277,11 +277,12 @@ function createSkillColumns({
     columns.push({
       accessorKey: "version",
       header: ({ column }) => <SortButton column={column} label="Version" />,
-      cell: ({ row }) => (
-        <span className="text-muted-foreground whitespace-nowrap">
-          v{row.original.version ?? 1}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const skill = row.original
+        return skill.type === "immutable" ? (
+          <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
+        ) : null
+      },
     })
   }
 
@@ -308,7 +309,9 @@ function createSkillColumns({
     columns.push({
       id: "agents",
       header: "Agents",
-      cell: ({ row }) => <AgentsSummary agents={row.original.agents ?? []} />,
+      cell: ({ row }) => (
+        <AgentsSummary agents={row.original.type === "immutable" ? row.original.agents : []} />
+      ),
       enableSorting: false,
     })
   }
@@ -397,7 +400,7 @@ function SkillRowActions({
   exporting: boolean
   skill: Skill
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
-  onEdit: (skill: Skill) => void
+  onEdit: (skill: ImmutableSkill) => void
   onExport: (name: string) => void
 }) {
   return (

@@ -79,7 +79,7 @@ spec:
         - --tenant-nix-store-size=5Gi
         - --tenant-nix-store-access-mode=ReadWriteOnce
         - --skills-s3-endpoint=http://rustfs.rustfs.svc.cluster.local:9000
-        - --skills-s3-region=""
+        - --skills-s3-region=us-east-1
         - --skills-s3-bucket=agentz
         - --tenant-sinjector-clusterissuer-name=selfsigned
         env:

@@ -1,21 +1,24 @@
 import { agentForSkills } from "@/lib/skills/agent"
 import { listImmutableSkills } from "@/lib/skills/gateway"
-import { streamImmutableSkillsZip, streamSkillsZip } from "@/lib/skills/storage"
+import { skillNamesSchema, streamImmutableSkillsZip, streamSkillsZip } from "@/lib/skills/storage"
+import { tenantNamespaceForSkills } from "@/lib/skills/tenant"
 import * as z from "zod"
 
 const exportRequestSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("mutable"),
     agentName: z.string().min(1, "agent is required"),
-    skillNames: z.array(z.string()).min(1, "Select at least one skill"),
+    skillNames: skillNamesSchema,
   }),
   z.object({
     type: z.literal("immutable"),
-    skillNames: z.array(z.string()).min(1, "Select at least one skill"),
+    skillNames: skillNamesSchema,
   }),
 ])
 
 export async function POST(request: Request): Promise<Response> {
+  const tenantNamespace = await tenantNamespaceForSkills()
+
   try {
     const parsed = exportRequestSchema.safeParse(await request.json())
     if (!parsed.success) {
@@ -34,11 +37,11 @@ export async function POST(request: Request): Promise<Response> {
     const requested = new Set(parsed.data.skillNames)
     const skills = (await listImmutableSkills())
       .filter((skill) => requested.has(skill.name))
-      .map((skill) => ({ name: skill.name, storagePath: skill.storage_path }))
+      .map((skill) => ({ name: skill.name, version: skill.version }))
     if (skills.length !== requested.size) {
       throw new Error("skill not found")
     }
-    const body = await streamImmutableSkillsZip(skills)
+    const body = await streamImmutableSkillsZip(tenantNamespace, skills)
     return zipResponse(body, immutableExportName(parsed.data.skillNames))
   } catch (error) {
     const message = error instanceof Error ? error.message : "export skills failed"

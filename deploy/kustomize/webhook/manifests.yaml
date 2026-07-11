@@ -89,26 +89,6 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-agentz-accuknox-com-v1alpha1-skill
-  failurePolicy: Fail
-  name: mskill-v1alpha1.kb.io
-  rules:
-  - apiGroups:
-    - agentz.accuknox.com
-    apiVersions:
-    - v1alpha1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - skills
-  sideEffects: None
-- admissionReviewVersions:
-  - v1
-  clientConfig:
-    service:
-      name: webhook-service
-      namespace: system
       path: /mutate-agentz-accuknox-com-v1alpha1-workflowrun
   failurePolicy: Fail
   name: mworkflowrun-v1alpha1.kb.io
@@ -229,26 +209,6 @@ webhooks:
     - UPDATE
     resources:
     - secrets
-  sideEffects: None
-- admissionReviewVersions:
-  - v1
-  clientConfig:
-    service:
-      name: webhook-service
-      namespace: system
-      path: /validate-agentz-accuknox-com-v1alpha1-skill
-  failurePolicy: Fail
-  name: vskill-v1alpha1.kb.io
-  rules:
-  - apiGroups:
-    - agentz.accuknox.com
-    apiVersions:
-    - v1alpha1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - skills
   sideEffects: None
 - admissionReviewVersions:
   - v1

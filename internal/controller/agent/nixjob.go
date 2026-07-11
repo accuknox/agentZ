@@ -35,13 +35,16 @@ import (
 )
 
 func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *agentzv1alpha1.Agent, envCfg sandboxConfig) (bool, error) {
-	desired := r.buildPackageJob(agt, envCfg)
+	desired, err := r.buildPackageJob(agt, envCfg)
+	if err != nil {
+		return false, err
+	}
 	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return false, fmt.Errorf("set controller reference: %w", err)
 	}
 
 	current := &batchv1.Job{}
-	err := r.Get(ctx, client.ObjectKeyFromObject(desired), current)
+	err = r.Get(ctx, client.ObjectKeyFromObject(desired), current)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			if err := r.Create(ctx, desired); err != nil {
@@ -90,13 +93,16 @@ func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *agentzv1alpha
 	return false, nil
 }
 
-func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) *batchv1.Job {
+func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) (*batchv1.Job, error) {
 	image := r.Config.AgentInitImage
 	if image == "" {
 		image = nixInitImage
 	}
 
-	hash := packageJobHash(image, envCfg)
+	hash, err := packageJobHash(image, r.Config.SkillStore, envCfg)
+	if err != nil {
+		return nil, err
+	}
 	labels := packageJobLabels(agt)
 	podLabels := make(map[string]string, len(labels))
 	maps.Copy(podLabels, labels)
@@ -118,7 +124,7 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 		Name:  "AGENTZ_NIX_ROOT",
 		Value: nixVolumeRootMount + "/" + nixStoreSubPath,
 	}}
-	initContainers := []corev1.Container{}
+	initContainers := make([]corev1.Container, 0, 1)
 
 	if len(envCfg.Packages) > 0 {
 		env = append(env, corev1.EnvVar{
@@ -144,65 +150,64 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 			Value: r.Config.SharedNixPVC,
 		})
 	}
+	volumes = append(volumes, corev1.Volume{
+		Name: homeAgentVolume,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: agt.Name + "-home",
+			},
+		},
+	})
+	immutableArgs := []string{"clear-immutable-skills"}
+	immutableMounts := []corev1.VolumeMount{{
+		Name: homeAgentVolume, MountPath: homeVolumeRootMount,
+	}}
 	if len(envCfg.Skills) > 0 {
-		volumes = append(
-			volumes,
-			corev1.Volume{
-				Name: homeAgentVolume,
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: agt.Name + "-home",
+		immutableArgs = []string{"sync-immutable-skills"}
+		volumes = append(volumes, corev1.Volume{
+			Name: configVolume,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: agt.Name,
 					},
 				},
 			},
-			corev1.Volume{
-				Name: configVolume,
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: agt.Name,
-						},
-					},
-				},
-			},
-			corev1.Volume{
-				Name: immutableSkillsBucketVolume,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: skill.BucketSecretName,
-					},
-				},
-			},
-		)
-		initContainers = append(initContainers, corev1.Container{
-			Name:            immutableSkillsInitName,
-			Image:           image,
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Args:            []string{"sync-immutable-skills"},
-			Env: []corev1.EnvVar{{
-				Name:  "AGENTZ_IMMUTABLE_SKILLS_TARGET",
-				Value: homeVolumeRootMount + "/" + immutableSkillsSubPath,
-			}},
-			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: ptr.To(false),
-				RunAsUser:                ptr.To(agentRuntimeUID),
-				RunAsGroup:               ptr.To(agentRuntimeGID),
-				RunAsNonRoot:             ptr.To(true),
-				Capabilities: &corev1.Capabilities{
-					Drop: []corev1.Capability{"ALL"},
-				},
-			},
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: homeAgentVolume, MountPath: homeVolumeRootMount},
-				{Name: configVolume, MountPath: opencodeConfigDir, ReadOnly: true},
-				{
-					Name:      immutableSkillsBucketVolume,
-					MountPath: immutableSkillsSecretMount,
-					ReadOnly:  true,
+		}, corev1.Volume{
+			Name: immutableSkillsBucketVolume,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: skill.BucketSecretName,
 				},
 			},
 		})
+		immutableMounts = append(immutableMounts,
+			corev1.VolumeMount{Name: configVolume, MountPath: opencodeConfigDir, ReadOnly: true},
+			corev1.VolumeMount{
+				Name: immutableSkillsBucketVolume, MountPath: immutableSkillsSecretMount, ReadOnly: true,
+			},
+		)
 	}
+	initContainers = append(initContainers, corev1.Container{
+		Name:            immutableSkillsInitName,
+		Image:           image,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Args:            immutableArgs,
+		Env: []corev1.EnvVar{{
+			Name:  "AGENTZ_IMMUTABLE_SKILLS_TARGET",
+			Value: homeVolumeRootMount + "/" + immutableSkillsSubPath,
+		}},
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+			RunAsUser:                ptr.To(agentRuntimeUID),
+			RunAsGroup:               ptr.To(agentRuntimeGID),
+			RunAsNonRoot:             ptr.To(true),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		},
+		VolumeMounts: immutableMounts,
+	})
 
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -252,7 +257,7 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 func findJobCondition(job *batchv1.Job, typ batchv1.JobConditionType) *batchv1.JobCondition {

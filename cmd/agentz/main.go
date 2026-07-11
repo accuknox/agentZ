@@ -115,8 +115,6 @@ var (
 	skillsS3Endpoint                                 string
 	skillsS3Region                                   string
 	skillsS3Bucket                                   string
-	skillsS3AccessKeyID                              string
-	skillsS3SecretAccessKey                          string
 	tenantSinjectorClusterIssuerName                 string
 	watchNamespace                                   string
 	enableWebhooks                                   bool
@@ -395,6 +393,7 @@ var managerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:        "skills-s3-region",
 			Usage:       "S3 region for immutable skill storage",
+			Value:       "us-east-1",
 			Destination: &skillsS3Region,
 			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_REGION"),
 			Config: cli.StringConfig{
@@ -406,24 +405,6 @@ var managerCmd = &cli.Command{
 			Usage:       "S3 bucket for immutable skill storage",
 			Destination: &skillsS3Bucket,
 			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_BUCKET"),
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.StringFlag{
-			Name:        "skills-s3-access-key-id",
-			Usage:       "S3 access key ID for immutable skill storage",
-			Destination: &skillsS3AccessKeyID,
-			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_ACCESS_KEY_ID"),
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.StringFlag{
-			Name:        "skills-s3-secret-access-key",
-			Usage:       "S3 secret access key for immutable skill storage",
-			Destination: &skillsS3SecretAccessKey,
-			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY"),
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -814,8 +795,8 @@ var managerCmd = &cli.Command{
 			Endpoint:        skillsS3Endpoint,
 			Region:          skillsS3Region,
 			Bucket:          skillsS3Bucket,
-			AccessKeyID:     skillsS3AccessKeyID,
-			SecretAccessKey: skillsS3SecretAccessKey,
+			AccessKeyID:     strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_ACCESS_KEY_ID")),
+			SecretAccessKey: strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY")),
 		}
 		if err := skillStoreConfig.Validate(); err != nil {
 			return err
@@ -924,10 +905,6 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "Secret")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupSkillWebhookWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Skill")
-				os.Exit(1)
-			}
 		}
 
 		workflowScheduleReconciler := &workflowschedulecontroller.Reconciler{
@@ -1011,13 +988,12 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
-		skillReconciler := &skill.SkillReconciler{
+		skillReconciler := &skill.Reconciler{
 			Client:      mgr.GetClient(),
-			Scheme:      mgr.GetScheme(),
 			StoreConfig: skillStoreConfig,
 		}
 		if err := skillReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "Failed to create controller", "controller", "Skill")
+			setupLog.Error(err, "failed to create controller", "controller", "Skill")
 			os.Exit(1)
 		}
 

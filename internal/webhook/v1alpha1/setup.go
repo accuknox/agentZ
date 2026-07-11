@@ -25,7 +25,6 @@ import (
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
 	sandboxwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/sandbox"
 	secretwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/secret"
-	skillwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/skill"
 	tenantwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/tenant"
 	workflowrunwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowrun"
 	workflowschedulewebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowschedule"
@@ -67,9 +66,4 @@ func SetupTenantWebhookWithManager(mgr ctrl.Manager) error {
 // SetupSecretWebhookWithManager registers the Secret webhook.
 func SetupSecretWebhookWithManager(mgr ctrl.Manager) error {
 	return secretwebhook.RegisterWithManager(mgr)
-}
-
-// SetupSkillWebhookWithManager registers the Skill webhook.
-func SetupSkillWebhookWithManager(mgr ctrl.Manager) error {
-	return skillwebhook.RegisterWithManager(mgr)
 }

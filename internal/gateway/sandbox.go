@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -200,7 +201,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 			Packages:          packages,
 			AllowedHosts:      allowedHosts,
 			MCPConnectionRefs: mcpConnectionRefs,
-			Skills:            stringsFromSkillNames(skills),
+			Skills:            slices.Clone(skills),
 		},
 	}
 
@@ -357,7 +358,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		sandbox.Spec.Packages = packages
 		sandbox.Spec.AllowedHosts = allowedHosts
 		sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
-		sandbox.Spec.Skills = stringsFromSkillNames(skills)
+		sandbox.Spec.Skills = slices.Clone(skills)
 
 		if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
 			return updateErr
@@ -414,7 +415,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandb
 		Packages:          packages,
 		AllowedHosts:      allowedHosts,
 		McpConnectionRefs: mcpConnectionRefs,
-		Skills:            skillsFromCRD(sb.Spec.Skills),
+		Skills:            append([]gatewayapi.SkillName{}, sb.Spec.Skills...),
 		CreatedAt:         sb.CreationTimestamp.Time,
 	}
 	out.Metadata.PackageCount = int32(len(packages))

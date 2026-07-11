@@ -137,15 +137,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile configmap: %w", err)
 	}
 
-	if len(envCfg.Skills) > 0 {
-		err = r.reconcileImmutableSkillsBucketSecret(ctx, agt)
-		if err != nil {
-			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-			if updateErr != nil {
-				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
-			}
-			return ctrl.Result{}, fmt.Errorf("reconcile immutable skills bucket secret: %w", err)
+	err = r.reconcileImmutableSkillsBucketSecret(ctx, agt)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
+		return ctrl.Result{}, fmt.Errorf("reconcile immutable skills bucket secret: %w", err)
 	}
 
 	err = r.reconcileServiceAccount(ctx, agt, agt.Name, resourceLabels(agt))
@@ -243,7 +241,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 
-	hash := configHash(opencodeCfg, instructionFiles, agt.Spec.Env, envCfg)
+	hash, err := configHash(opencodeCfg, instructionFiles, agt.Spec.Env, envCfg)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	err = r.reconcileDeployment(ctx, agt, hash, envCfg, true)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)

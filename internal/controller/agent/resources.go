@@ -64,13 +64,14 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *agentzv1alpha1
 		for _, item := range instructionFiles {
 			current.Data[path.Base(item.Path)] = item.Content
 		}
-		if len(skills) > 0 {
-			raw, err := json.MarshalIndent(skill.Manifest{Skills: skills}, "", "  ")
-			if err != nil {
-				return fmt.Errorf("marshal immutable skills manifest: %w", err)
-			}
-			current.Data[immutableSkillsManifestKey] = string(append(raw, '\n'))
+		raw, err := json.MarshalIndent(skill.Manifest{
+			Namespace: agt.Namespace,
+			Skills:    skills,
+		}, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal immutable skills manifest: %w", err)
 		}
+		current.Data[immutableSkillsManifestKey] = string(append(raw, '\n'))
 		return ctrl.SetControllerReference(agt, current, r.Scheme)
 	})
 	if err != nil {

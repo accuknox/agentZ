@@ -507,22 +507,6 @@ function createSkillSelectionColumns({
       cell: ({ row }) => `v${row.original.version}`,
     },
     {
-      id: "modified",
-      accessorKey: "modified_at",
-      header: ({ column }) => (
-        <Button
-          className="text-foreground -ml-2"
-          variant="plain"
-          size="sm"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Modified
-          <ArrowUpDown />
-        </Button>
-      ),
-      cell: ({ row }) => formatAge(row.original.modified_at),
-    },
-    {
       id: "attach",
       header: "",
       accessorFn: (row) => selectedNames.has(row.name),

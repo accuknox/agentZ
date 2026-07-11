@@ -378,10 +378,6 @@ components:
     CreateSkillRequest:
       additionalProperties: false
       properties:
-        agents:
-          items:
-            $ref: '#/components/schemas/AgentName'
-          type: array
         description:
           maxLength: 1024
           minLength: 1
@@ -9558,9 +9554,6 @@ components:
           maxLength: 1024
           minLength: 1
           type: string
-        modified_at:
-          format: date-time
-          type: string
         name:
           $ref: '#/components/schemas/SkillName'
         sandboxes:
@@ -9582,7 +9575,6 @@ components:
       - agents
       - sandboxes
       - created_at
-      - modified_at
       type: object
     SkillName:
       description: Immutable Skill resource name.
@@ -10027,12 +10019,11 @@ components:
       type: object
     UpdateSkillRequest:
       additionalProperties: false
-      minProperties: 1
       properties:
-        agents:
-          items:
-            $ref: '#/components/schemas/AgentName'
-          type: array
+        description:
+          maxLength: 1024
+          minLength: 1
+          type: string
         storage_path:
           minLength: 1
           type: string
@@ -10040,6 +10031,9 @@ components:
           format: int64
           minimum: 1
           type: integer
+      required:
+      - version
+      - storage_path
       type: object
     UpdateWorkflowScheduleRequest:
       additionalProperties: false
@@ -18821,6 +18815,8 @@ paths:
           description: Paginated immutable skills.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: List immutable Skill resources.

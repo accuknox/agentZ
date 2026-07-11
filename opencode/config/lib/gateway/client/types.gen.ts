@@ -150,7 +150,6 @@ export type Skill = {
   agents: Array<AgentName>
   sandboxes: Array<SandboxName>
   created_at: string
-  modified_at: string
 }
 
 export type SkillReferences = {
@@ -163,13 +162,12 @@ export type CreateSkillRequest = {
   description: string
   version: number
   storage_path: string
-  agents?: Array<AgentName>
 }
 
 export type UpdateSkillRequest = {
-  version?: number
-  storage_path?: string
-  agents?: Array<AgentName>
+  description?: string
+  version: number
+  storage_path: string
 }
 
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
@@ -1283,6 +1281,11 @@ export type ListSkillsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
   /**
    * Unexpected server error.
    */

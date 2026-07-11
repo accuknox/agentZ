@@ -615,6 +615,9 @@ main() {
         sync-immutable-skills)
             agentz skill sync-immutable --target-dir="${AGENTZ_IMMUTABLE_SKILLS_TARGET:-/var/lib/agentz/skills/immutable}"
             ;;
+        clear-immutable-skills)
+            rm -rf "${AGENTZ_IMMUTABLE_SKILLS_TARGET:-/var/lib/agentz/skills/immutable}"
+            ;;
         *)
             echo "unknown mode: $mode"
             exit 1

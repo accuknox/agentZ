@@ -59,6 +59,10 @@ type SandboxSpec struct {
 
 	// Skills lists immutable Skill names exposed through this sandbox.
 	// +optional
+	// +listType=set
+	// +kubebuilder:validation:MaxItems=200
+	// +kubebuilder:validation:items:MaxLength=32
+	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Skills []string `json:"skills,omitempty"`
 }
 
@@ -72,9 +76,6 @@ type SandboxStatus struct {
 
 	// MCPRefCount is the number of MCP connection references configured.
 	MCPRefCount int `json:"mcpRefCount"`
-
-	// SkillCount is the number of immutable skills configured.
-	SkillCount int `json:"skillCount"`
 
 	// conditions represent the current state of the Sandbox resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.

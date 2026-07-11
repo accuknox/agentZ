@@ -78,7 +78,7 @@ type AgentDialogProps = {
   agentName?: string
   initialAgentStatus?: AgentStatus
   initialSandboxName?: string
-  initialSkills?: string[]
+  initialSkills?: string[] | null
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
   trigger?: React.ReactNode
@@ -282,6 +282,7 @@ export function AgentDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const router = useRouter()
   const dialogOpen = open ?? internalOpen
+  const skills = initialSkills ?? []
   const agentReadiness = useAgentReadiness(agentName, initialAgentStatus)
   const hasSandboxes = sandboxes.length > 0
   const formAction =
@@ -292,7 +293,7 @@ export function AgentDialog({
   const defaultValues: AgentFormValues = {
     name: agentName ?? "",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
-    skills: initialSkills,
+    skills,
     model: undefined,
     smallModel: undefined,
   }
@@ -377,7 +378,7 @@ export function AgentDialog({
   const selectedSkills = useWatch({
     control: form.control,
     name: "skills",
-    defaultValue: initialSkills,
+    defaultValue: skills,
   })
 
   useEffect(() => {

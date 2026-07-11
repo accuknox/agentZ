@@ -352,17 +352,20 @@ type configHashInput struct {
 
 type packageJobHashInput struct {
 	Image    string                `json:"image"`
+	Endpoint string                `json:"endpoint"`
+	Region   string                `json:"region"`
+	Bucket   string                `json:"bucket"`
 	Packages []string              `json:"packages"`
 	Skills   []skill.ManifestSkill `json:"skills"`
 }
 
-func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) string {
+func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) (string, error) {
 	instructions := make([]string, 0, len(instructionFiles))
 	for _, item := range instructionFiles {
 		instructions = append(instructions, item.Path+"\n"+item.Content)
 	}
 
-	hashInput, _ := json.Marshal(configHashInput{
+	hashInput, err := json.Marshal(configHashInput{
 		Config:                  opencodeCfg,
 		Instructions:            instructions,
 		Env:                     env,
@@ -372,18 +375,27 @@ func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, 
 		MCPRefs:                 envCfg.MCPRefs,
 		Skills:                  envCfg.Skills,
 	})
+	if err != nil {
+		return "", fmt.Errorf("marshal agent config hash input: %w", err)
+	}
 	sum := sha256.Sum256(hashInput)
-	return fmt.Sprintf("%x", sum)
+	return fmt.Sprintf("%x", sum), nil
 }
 
-func packageJobHash(image string, envCfg sandboxConfig) string {
-	hashInput, _ := json.Marshal(packageJobHashInput{
+func packageJobHash(image string, store skill.Config, envCfg sandboxConfig) (string, error) {
+	hashInput, err := json.Marshal(packageJobHashInput{
 		Image:    strings.TrimSpace(image),
+		Endpoint: store.Endpoint,
+		Region:   store.Region,
+		Bucket:   store.Bucket,
 		Packages: envCfg.Packages,
 		Skills:   envCfg.Skills,
 	})
+	if err != nil {
+		return "", fmt.Errorf("marshal package job hash input: %w", err)
+	}
 	sum := sha256.Sum256(hashInput)
-	return fmt.Sprintf("%x", sum)
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func renderOpencodeInstructions(spec agentzv1alpha1.AgentSpec) []opencodeInstructionFile {

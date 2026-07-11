@@ -2,17 +2,21 @@ import { NextRequest } from "next/server"
 import * as z from "zod"
 import { listSkills as listGatewaySkills } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { zAgentName } from "@/lib/gateway/client/zod.gen"
 import { agentForSkills } from "@/lib/skills/agent"
 import { immutableSkillSummary, listSkillPage } from "@/lib/skills/storage"
+import { tenantNamespaceForSkills } from "@/lib/skills/tenant"
 
 const listSkillsQuerySchema = z.object({
-  type: z.enum(["mutable", "immutable"]).default("mutable"),
-  agent_name: z.string().min(1).optional(),
+  type: z.enum(["mutable", "immutable"]),
+  agent_name: zAgentName.optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   page_token: z.string().min(1).optional(),
 })
 
 export async function GET(request: NextRequest): Promise<Response> {
+  const tenantNamespace = await tenantNamespaceForSkills()
+
   try {
     const parsed = listSkillsQuerySchema.safeParse({
       type: request.nextUrl.searchParams.get("type") ?? undefined,
@@ -28,7 +32,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     if (parsed.data.type === "mutable") {
-      if (!parsed.data.agent_name || parsed.data.agent_name === "all") {
+      if (!parsed.data.agent_name) {
         return Response.json({ error: "agent is required" }, { status: 400 })
       }
       const agent = await agentForSkills(parsed.data.agent_name)
@@ -45,10 +49,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const result = await listGatewaySkills({
       client: getGatewayServerClient(),
       query: {
-        agent_name:
-          parsed.data.agent_name && parsed.data.agent_name !== "all"
-            ? parsed.data.agent_name
-            : undefined,
+        agent_name: parsed.data.agent_name,
         limit: parsed.data.limit,
         page_token: parsed.data.page_token,
       },
@@ -59,17 +60,13 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     const skills = await Promise.all(
       result.data.skills.map(async (skill) => {
-        const summary = await immutableSkillSummary(skill.storage_path)
+        const summary = await immutableSkillSummary(tenantNamespace, skill.name, skill.version)
         return {
           ...summary,
           type: "immutable" as const,
-          description: skill.description,
           version: skill.version,
-          storagePath: skill.storage_path,
           agents: skill.agents,
           sandboxes: skill.sandboxes,
-          createdAt: skill.created_at,
-          modifiedAt: skill.modified_at,
         }
       })
     )

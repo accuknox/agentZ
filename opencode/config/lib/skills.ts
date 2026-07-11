@@ -2,6 +2,7 @@ import matter from "gray-matter"
 import fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
+import * as z from "zod"
 
 export type SkillRecord = {
   name: string
@@ -13,12 +14,11 @@ export type SkillRecord = {
   root: string
 }
 
-type SkillFrontmatter = {
-  name: string
-  description: string
-}
-
 const ignoredDirectories = new Set([".git", "node_modules"])
+const skillFrontmatterSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+})
 const globalHome = homedir()
 const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(globalHome, ".config")
 const immutableSkillsPath = process.env.AGENTZ_IMMUTABLE_SKILLS_PATH
@@ -65,9 +65,6 @@ function skillRoots(
   }
 
   pushRoot(path.join(globalHome, ".claude", "skills"), "global")
-  if (immutableSkillsPath) {
-    pushRoot(immutableSkillsPath, "global")
-  }
   pushRoot(path.join(globalHome, ".agents", "skills"), "global")
 
   for (const ancestor of ancestorDirectories(directory, worktree)) {
@@ -81,16 +78,12 @@ function skillRoots(
     pushRoot(path.join(ancestor, ".opencode", "skills"), "project")
   }
 
-  return roots
-}
-
-function hasSkillFrontmatter(data: unknown): data is SkillFrontmatter {
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    return false
+  // Attached immutable skills are authoritative over writable project and home roots.
+  if (immutableSkillsPath) {
+    pushRoot(immutableSkillsPath, "global")
   }
 
-  const record = data as Record<string, unknown>
-  return typeof record.name === "string" && typeof record.description === "string"
+  return roots
 }
 
 async function collectSkillFiles(root: string): Promise<string[]> {
@@ -135,13 +128,14 @@ async function readSkillFile(
     return
   }
 
-  if (!hasSkillFrontmatter(parsed.data)) {
+  const frontmatter = skillFrontmatterSchema.safeParse(parsed.data)
+  if (!frontmatter.success) {
     return
   }
 
   return {
-    name: parsed.data.name,
-    description: parsed.data.description,
+    name: frontmatter.data.name,
+    description: frontmatter.data.description,
     content: parsed.content,
     location: file,
     baseDir: path.dirname(file),

@@ -4,7 +4,7 @@ import { type UpdateWorkflowScheduleRequest, updateWorkflowSchedule, zError } fr
 import { zUpdateWorkflowScheduleBody } from "../lib/gateway/client/zod.gen"
 import {
   formatScheduleRequestValidationError,
-  validateWorkflowScheduleInputs,
+  resolveWorkflowScheduleInputs,
 } from "../lib/workflow_schedule"
 import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
@@ -26,9 +26,16 @@ const args = {
     .min(1)
     .describe("Full replacement cron expression for when the workflow should run."),
   inputs: tool.schema
-    .json()
+    .record(tool.schema.string(), tool.schema.unknown())
+    .optional()
     .describe(
-      "Full replacement runtime workflow input value. Use a JSON object for typed workflow inputs, or any JSON value for arbitrary_json workflows."
+      "Full replacement runtime input object for a typed-input workflow. Omit this for workflows without inputs. Do not use it for arbitrary_json workflows."
+    ),
+  arbitrary_json: tool.schema
+    .string()
+    .optional()
+    .describe(
+      'Full replacement JSON-encoded runtime input for an arbitrary_json workflow, for example {"message":"hello","tags":["a","b"],"count":42}. Do not use it for typed-input workflows.'
     ),
   timeout_seconds: tool.schema
     .number()
@@ -47,9 +54,11 @@ Use this tool when the user wants to change an existing saved schedule.
 
 Authoring rules:
 - name identifies the existing schedule to replace.
-- workflow_name, schedule, inputs, and timeout_seconds are full replacements and must all be provided together.
-- inputs must be runtime values, not an input schema definition.
-- If the workflow has no inputs, pass {}.
+- workflow_name, schedule, and timeout_seconds are full replacements and must all be provided together.
+- For a typed-input workflow, pass runtime values in inputs.
+- For an arbitrary_json workflow, pass one JSON-encoded value in arbitrary_json.
+- Never pass both inputs and arbitrary_json.
+- If the workflow has no inputs, omit inputs or pass {}.
 `.trim()
 
 export default tool({
@@ -74,28 +83,29 @@ export default tool({
       },
     })
 
-    const bodyInput = {
-      schedule: args.schedule.trim(),
-      inputs: args.inputs,
-      timeout_seconds: args.timeout_seconds,
-    }
-
-    const validation = await validateWorkflowScheduleInputs(
+    const resolved = await resolveWorkflowScheduleInputs(
       agentName,
       args.workflow_name,
-      args.inputs
+      args.inputs,
+      args.arbitrary_json
     )
-    if (validation) {
+    if (resolved.error) {
       context.metadata({
         title: "Workflow schedule update failed",
         metadata: {
           agent_name: agentName,
           name: args.name,
           workflow_name: args.workflow_name,
-          ...validation.metadata,
+          ...resolved.error.metadata,
         },
       })
-      return validation.message
+      return resolved.error.message
+    }
+
+    const bodyInput = {
+      schedule: args.schedule.trim(),
+      inputs: resolved.value,
+      timeout_seconds: args.timeout_seconds,
     }
 
     const bodyResult = zUpdateWorkflowScheduleBody.safeParse(bodyInput)

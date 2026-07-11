@@ -4,7 +4,7 @@ import { createWorkflowSchedule, type CreateWorkflowScheduleRequest, zError } fr
 import { zCreateWorkflowScheduleBody } from "../lib/gateway/client/zod.gen"
 import {
   formatScheduleRequestValidationError,
-  validateWorkflowScheduleInputs,
+  resolveWorkflowScheduleInputs,
 } from "../lib/workflow_schedule"
 import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
@@ -26,9 +26,16 @@ const args = {
     .min(1)
     .describe("Cron expression for when the workflow should run."),
   inputs: tool.schema
-    .json()
+    .record(tool.schema.string(), tool.schema.unknown())
+    .optional()
     .describe(
-      "Runtime workflow input value. Use a JSON object for typed workflow inputs, or any JSON value for arbitrary_json workflows."
+      "Runtime input object for a typed-input workflow. Omit this for workflows without inputs. Do not use it for arbitrary_json workflows."
+    ),
+  arbitrary_json: tool.schema
+    .string()
+    .optional()
+    .describe(
+      'JSON-encoded runtime input for an arbitrary_json workflow, for example {"message":"hello","tags":["a","b"],"count":42}. Do not use it for typed-input workflows.'
     ),
   timeout_seconds: tool.schema
     .number()
@@ -45,8 +52,10 @@ Use this tool when the user wants a saved workflow to run on a cron schedule.
 
 Authoring rules:
 - name and workflow_name must be DNS labels up to 32 characters.
-- inputs must be runtime values, not an input schema definition.
-- If the workflow has no inputs, pass {}.
+- For a typed-input workflow, pass runtime values in inputs.
+- For an arbitrary_json workflow, pass one JSON-encoded value in arbitrary_json.
+- Never pass both inputs and arbitrary_json.
+- If the workflow has no inputs, omit inputs or pass {}.
 - If the schedule name already exists, do not rename it automatically. Surface the conflict and ask for a new name.
 
 Successful calls save the schedule which are then triggered automatically based on the provided "schedule".
@@ -74,31 +83,32 @@ export default tool({
       },
     })
 
-    const bodyInput = {
-      name: args.name,
-      schedule: args.schedule.trim(),
-      inputs: args.inputs,
-      timeout_seconds: args.timeout_seconds,
-      successful_runs_history_limit: 3,
-      failed_runs_history_limit: 3,
-    }
-
-    const validation = await validateWorkflowScheduleInputs(
+    const resolved = await resolveWorkflowScheduleInputs(
       agentName,
       args.workflow_name,
-      args.inputs
+      args.inputs,
+      args.arbitrary_json
     )
-    if (validation) {
+    if (resolved.error) {
       context.metadata({
         title: "Workflow schedule creation failed",
         metadata: {
           agent_name: agentName,
           name: args.name,
           workflow_name: args.workflow_name,
-          ...validation.metadata,
+          ...resolved.error.metadata,
         },
       })
-      return validation.message
+      return resolved.error.message
+    }
+
+    const bodyInput = {
+      name: args.name,
+      schedule: args.schedule.trim(),
+      inputs: resolved.value,
+      timeout_seconds: args.timeout_seconds,
+      successful_runs_history_limit: 3,
+      failed_runs_history_limit: 3,
     }
 
     const bodyResult = zCreateWorkflowScheduleBody.safeParse(bodyInput)

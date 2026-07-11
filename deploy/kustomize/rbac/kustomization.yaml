@@ -22,6 +22,9 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the agentz itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
+- skill_admin_role.yaml
+- skill_editor_role.yaml
+- skill_viewer_role.yaml
 - secret_admin_role.yaml
 - secret_editor_role.yaml
 - secret_viewer_role.yaml

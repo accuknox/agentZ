@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactCompiler: true,
   typedRoutes: true,
+  experimental: {
+    turbopackFileSystemCacheForDev: false,
+    serverActions: {
+      bodySizeLimit: "11mb",
+    },
+  },
 }
 
 export default nextConfig

@@ -28,11 +28,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
 	opencodeConfigKey              = "opencode.json"
+	immutableSkillsManifestKey     = "immutable-skills.json"
 	configVolume                   = "config"
 	opencodeConfigDir              = "/etc/agentz/opencode"
 	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
@@ -52,13 +54,16 @@ const (
 	setWorkflowRunStatusToolName   = "set_workflowrun_status"
 	updateWorkflowScheduleToolName = "update_workflow_schedule"
 	nixAgentVolume                 = "nix-agent"
+	homeAgentVolume                = "home-agent"
 	nixRuntimeStoreVolume          = "nix-runtime-store"
 	nixAgentMount                  = "/mnt/nix"
 	nixRuntimeStoreMount           = "/nix/store"
 	nixRuntimeStageMount           = "/runtime-nix-store"
-	nixHomeSubPath                 = "home"
 	nixStoreSubPath                = "nix"
+	homeStoreSubPath               = "home"
+	immutableSkillsSubPath         = "immutable-skills"
 	nixVolumeRootMount             = "/pvc"
+	homeVolumeRootMount            = "/pvc-home"
 	nixLinkVolume                  = "nix-link"
 	nixLinkMount                   = "/tmp/nix-link"
 	nixLinkStage                   = "/tmp/nix-link"
@@ -83,8 +88,12 @@ const (
 	egressPolicySuffix             = "-egress"
 	opencodeConfigSchema           = "https://opencode.ai/config.json"
 	agentHomeDir                   = "/home/agentz"
+	opencodeImmutableSkillsPath    = "/var/lib/agentz/skills/immutable"
 	opencodeWritableSkillsPath     = agentHomeDir + "/.agents/skills"
 	opencodeBundledSkillsPath      = "/etc/opencode/skills/defaults"
+	immutableSkillsBucketVolume    = "immutable-skills-bucket"
+	immutableSkillsSecretMount     = "/var/run/secrets/agentz/immutable-skills-bucket"
+	immutableSkillsInitName        = "immutable-skills-init"
 )
 
 var (
@@ -114,6 +123,8 @@ type RuntimeConfig struct {
 	ManagerOpenBaoK8sAuthRole        string
 	ManagerOpenBaoK8sAuthTokenPath   string
 	GatewayTokenAudience             string
+	AgentHomeStorageClass            string
+	SkillStore                       skill.Config
 }
 
 func selectorLabels(agt *agentzv1alpha1.Agent) map[string]string {
@@ -228,6 +239,7 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	cfg.Skills = &opencodeSkillsFile{
 		Paths: []string{
 			opencodeBundledSkillsPath,
+			opencodeImmutableSkillsPath,
 			opencodeWritableSkillsPath,
 		},
 	}
@@ -328,27 +340,32 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config                  json.RawMessage `json:"config"`
-	Instructions            []string        `json:"instructions"`
-	Env                     []corev1.EnvVar `json:"env"`
-	Packages                []string        `json:"packages"`
-	MCPURL                  string          `json:"mcpUrl"`
-	MCPConsentPermissionIDs []string        `json:"mcpConsentPermissionIds"`
-	MCPRefs                 []mcpRefConfig  `json:"mcpRefs"`
+	Config                  json.RawMessage       `json:"config"`
+	Instructions            []string              `json:"instructions"`
+	Env                     []corev1.EnvVar       `json:"env"`
+	Packages                []string              `json:"packages"`
+	MCPURL                  string                `json:"mcpUrl"`
+	MCPConsentPermissionIDs []string              `json:"mcpConsentPermissionIds"`
+	MCPRefs                 []mcpRefConfig        `json:"mcpRefs"`
+	Skills                  []skill.ManifestSkill `json:"skills"`
 }
 
 type packageJobHashInput struct {
-	Image    string   `json:"image"`
-	Packages []string `json:"packages"`
+	Image    string                `json:"image"`
+	Endpoint string                `json:"endpoint"`
+	Region   string                `json:"region"`
+	Bucket   string                `json:"bucket"`
+	Packages []string              `json:"packages"`
+	Skills   []skill.ManifestSkill `json:"skills"`
 }
 
-func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) string {
+func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) (string, error) {
 	instructions := make([]string, 0, len(instructionFiles))
 	for _, item := range instructionFiles {
 		instructions = append(instructions, item.Path+"\n"+item.Content)
 	}
 
-	hashInput, _ := json.Marshal(configHashInput{
+	hashInput, err := json.Marshal(configHashInput{
 		Config:                  opencodeCfg,
 		Instructions:            instructions,
 		Env:                     env,
@@ -356,18 +373,29 @@ func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, 
 		MCPURL:                  envCfg.MCPURL,
 		MCPConsentPermissionIDs: envCfg.MCPConsentPermissionIDs,
 		MCPRefs:                 envCfg.MCPRefs,
+		Skills:                  envCfg.Skills,
 	})
+	if err != nil {
+		return "", fmt.Errorf("marshal agent config hash input: %w", err)
+	}
 	sum := sha256.Sum256(hashInput)
-	return fmt.Sprintf("%x", sum)
+	return fmt.Sprintf("%x", sum), nil
 }
 
-func packageJobHash(image string, packages []string) string {
-	hashInput, _ := json.Marshal(packageJobHashInput{
+func packageJobHash(image string, store skill.Config, envCfg sandboxConfig) (string, error) {
+	hashInput, err := json.Marshal(packageJobHashInput{
 		Image:    strings.TrimSpace(image),
-		Packages: packages,
+		Endpoint: store.Endpoint,
+		Region:   store.Region,
+		Bucket:   store.Bucket,
+		Packages: envCfg.Packages,
+		Skills:   envCfg.Skills,
 	})
+	if err != nil {
+		return "", fmt.Errorf("marshal package job hash input: %w", err)
+	}
 	sum := sha256.Sum256(hashInput)
-	return fmt.Sprintf("%x", sum)
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func renderOpencodeInstructions(spec agentzv1alpha1.AgentSpec) []opencodeInstructionFile {

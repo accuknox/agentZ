@@ -8,6 +8,11 @@ GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
 IGNORE_NOT_FOUND ?= false
+SKILLS_S3_ENDPOINT ?= http://localhost:9000
+SKILLS_S3_REGION ?= us-east-1
+SKILLS_S3_BUCKET ?= agentz
+SKILLS_S3_ACCESS_KEY_ID ?= admin
+SKILLS_S3_SECRET_ACCESS_KEY ?= admin
 
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
@@ -23,7 +28,7 @@ generate:
 	sqlc generate
 	go run ./hack/generate_opencode_gateway.go
 	oapi-codegen \
-		--include-tags agents,tenants,lens,secrets,sandboxes,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
+		--include-tags agents,tenants,lens,secrets,sandboxes,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
@@ -31,6 +36,9 @@ generate:
 		output:rbac:artifacts:config=deploy/kustomize/rbac \
 		output:webhook:artifacts:config=deploy/kustomize/webhook \
 		output:crd:artifacts:config=deploy/kustomize/crd/bases
+	cp deploy/kustomize/crd/bases/*.yaml deploy/helm/charts/manager/crds/
+	cd web && bun run gen:openapi-client
+	cd opencode/config && bun run gen:openapi-client
 
 .PHONY: fmt
 fmt:
@@ -80,7 +88,9 @@ run-gateway:
 run-manager:
 	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
 	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --audience=$(GATEWAY_JWT_AUDIENCE) --duration=24h > /tmp/gateway-sa-token
-	go run ./cmd/agentz manager \
+	AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
+	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
+		go run ./cmd/agentz manager \
 		--health-probe-bind-address=:8888 \
 		--enable-webhooks=false \
 		--workflowrun-orphan-retention=168h \
@@ -98,6 +108,10 @@ run-manager:
 		--nix-store-pvc=nix-store \
 		--tenant-nix-store-size=5Gi \
 		--tenant-nix-store-access-mode=ReadWriteOnce \
+		--agent-home-storage-class=csi-s3 \
+		--skills-s3-endpoint=$(SKILLS_S3_ENDPOINT) \
+		--skills-s3-region=$(SKILLS_S3_REGION) \
+		--skills-s3-bucket=$(SKILLS_S3_BUCKET) \
 		--tenant-sinjector-clusterissuer-name=selfsigned \
 		--agentgateway-trace-mode=static \
 		--agentgateway-trace-host=172.18.0.1 \

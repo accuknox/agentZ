@@ -8,7 +8,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import type { Agent, Sandbox } from "@/lib/gateway/client"
+import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,7 @@ const columnClassName: Record<string, string> = {
 
 export function AgentTable({
   agents,
+  immutableSkills,
   sandboxes,
   hasNextPage,
   initialHasNextSandboxPage,
@@ -39,6 +40,7 @@ export function AgentTable({
   deleteAgentAction,
 }: {
   agents: Agent[]
+  immutableSkills: Skill[]
   sandboxes: Sandbox[]
   hasNextPage: boolean
   initialHasNextSandboxPage: boolean
@@ -58,11 +60,18 @@ export function AgentTable({
     () =>
       createAgentColumns(
         deleteAgentAction,
+        immutableSkills,
         sandboxes,
         initialHasNextSandboxPage,
         initialNextSandboxPageToken
       ),
-    [deleteAgentAction, sandboxes, initialHasNextSandboxPage, initialNextSandboxPageToken]
+    [
+      deleteAgentAction,
+      immutableSkills,
+      sandboxes,
+      initialHasNextSandboxPage,
+      initialNextSandboxPageToken,
+    ]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({

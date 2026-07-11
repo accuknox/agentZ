@@ -16,7 +16,7 @@ export function WizardShell<TStep extends WizardStep>({
 }: WizardShellProps<TStep>) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center">
-      <div className="flex w-full justify-start px-4 sm:justify-center sm:px-0">
+      <div className="flex w-full justify-start px-4 sm:justify-center sm:px-6">
         <WizardStepNav
           canVisitStepAction={canVisitStepAction}
           currentIndex={currentIndex}

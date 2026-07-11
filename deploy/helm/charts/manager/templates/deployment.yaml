@@ -79,6 +79,9 @@ spec:
             {{- range .Values.config.tenantNixStoreAccessModes }}
             - --tenant-nix-store-access-mode={{ . }}
             {{- end }}
+            - --skills-s3-endpoint={{ required "manager.config.skillsS3Endpoint is required" .Values.config.skillsS3Endpoint }}
+            - --skills-s3-region={{ required "manager.config.skillsS3Region is required" .Values.config.skillsS3Region }}
+            - --skills-s3-bucket={{ required "manager.config.skillsS3Bucket is required" .Values.config.skillsS3Bucket }}
             - --tenant-sinjector-clusterissuer-name={{ .Values.config.tenantSinjectorClusterIssuerName }}
             {{- if .Values.config.leaderElect }}
             - --leader-elect
@@ -101,6 +104,9 @@ spec:
             {{- if .Values.config.tenantNixStoreStorageClass }}
             - --tenant-nix-store-storage-class={{ .Values.config.tenantNixStoreStorageClass }}
             {{- end }}
+            {{- if .Values.config.agentHomeStorageClass }}
+            - --agent-home-storage-class={{ .Values.config.agentHomeStorageClass }}
+            {{- end }}
             {{- if .Values.config.watchNamespace }}
             - --watch-namespace={{ .Values.config.watchNamespace }}
             {{- end }}
@@ -111,6 +117,17 @@ spec:
             {{- range .Values.extraArgs }}
             - {{ . | quote }}
             {{- end }}
+          env:
+            - name: AGENTZ_SKILLS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "manager.config.skillsS3AccessKeyIDSecretName is required" .Values.config.skillsS3AccessKeyIDSecretName }}
+                  key: {{ required "manager.config.skillsS3AccessKeyIDSecretKey is required" .Values.config.skillsS3AccessKeyIDSecretKey }}
+            - name: AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "manager.config.skillsS3SecretAccessKeySecretName is required" .Values.config.skillsS3SecretAccessKeySecretName }}
+                  key: {{ required "manager.config.skillsS3SecretAccessKeySecretKey is required" .Values.config.skillsS3SecretAccessKeySecretKey }}
           {{- if .Values.config.enableWebhooks }}
           ports:
             - containerPort: {{ .Values.service.webhook.targetPort }}

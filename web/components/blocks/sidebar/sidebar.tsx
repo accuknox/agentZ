@@ -13,9 +13,11 @@ import {
 } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
+import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
 import { NavSandboxes } from "./sandboxes"
+import { NavSkills } from "./skills"
 import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
 
@@ -28,9 +30,10 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 }
 
 export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
-  const [agents, sandboxes] = await Promise.all([
+  const [agents, sandboxes, skills] = await Promise.all([
     listAgentsCachedQuery(),
     listSandboxesCachedQuery({ limit: 50 }),
+    listImmutableSkillsCachedQuery(),
   ])
 
   return (
@@ -43,14 +46,15 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
           <Suspense fallback={null}>
             <NavLens />
           </Suspense>
-          <NavSecrets />
           <NavSandboxes />
-          <NavWorkflows />
+          <NavSecrets />
           <NavMCPs />
+          <NavSkills />
+          <NavWorkflows />
         </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupLabel>Agents</SidebarGroupLabel>
-          <NavAgents agents={agents} sandboxes={sandboxes} />
+          <NavAgents agents={agents} immutableSkills={skills.skills ?? []} sandboxes={sandboxes} />
         </SidebarGroup>
       </SidebarContent>
       {user ? (

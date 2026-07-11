@@ -1,0 +1,441 @@
+package skill
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+)
+
+const (
+	// BucketSecretName is the tenant namespace Secret mounted by Agent init containers.
+	BucketSecretName = "agentz-immutable-skills-bucket"
+
+	// BucketSecretEndpointKey stores the S3-compatible endpoint URL.
+	BucketSecretEndpointKey = "endpoint"
+	// BucketSecretRegionKey stores the S3 region.
+	BucketSecretRegionKey = "region"
+	// BucketSecretBucketKey stores the bucket name.
+	BucketSecretBucketKey = "bucket"
+	// BucketSecretAccessKeyIDKey stores the S3 access key ID.
+	BucketSecretAccessKeyIDKey = "access-key-id"
+	// BucketSecretSecretAccessKeyKey stores the S3 secret access key.
+	BucketSecretSecretAccessKeyKey = "secret-access-key"
+
+	immutableDir            = "immutable-skills"
+	deleteBatch             = 1000
+	maxStoredFiles          = 200
+	maxStoredFileBytes      = 1024 * 1024
+	maxStoredSkillFileBytes = 64 * 1024
+	maxStoredTotalBytes     = 20 * 1024 * 1024
+)
+
+var skillNameRE = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+// Config contains S3-compatible object storage settings.
+type Config struct {
+	Endpoint        string
+	Region          string
+	Bucket          string
+	AccessKeyID     string
+	SecretAccessKey string
+}
+
+// Manifest lists immutable skill versions to stage for one Agent pod.
+type Manifest struct {
+	Namespace string          `json:"namespace"`
+	Skills    []ManifestSkill `json:"skills"`
+}
+
+// ManifestSkill describes one immutable skill version in a pod bootstrap manifest.
+type ManifestSkill struct {
+	Name        string `json:"name"`
+	Version     int64  `json:"version"`
+	StoragePath string `json:"storagePath"`
+}
+
+// Client wraps object storage operations needed by immutable skills.
+type Client struct {
+	bucket string
+	s3     *s3.Client
+}
+
+// ConfigFromDir reads a mounted Kubernetes Secret directory into Config.
+func ConfigFromDir(dir string) (Config, error) {
+	endpoint, err := readSecretFile(dir, BucketSecretEndpointKey)
+	if err != nil {
+		return Config{}, err
+	}
+	region, err := readSecretFile(dir, BucketSecretRegionKey)
+	if err != nil {
+		return Config{}, err
+	}
+	bucket, err := readSecretFile(dir, BucketSecretBucketKey)
+	if err != nil {
+		return Config{}, err
+	}
+	accessKeyID, err := readSecretFile(dir, BucketSecretAccessKeyIDKey)
+	if err != nil {
+		return Config{}, err
+	}
+	secretAccessKey, err := readSecretFile(dir, BucketSecretSecretAccessKeyKey)
+	if err != nil {
+		return Config{}, err
+	}
+	return Config{
+		Endpoint:        endpoint,
+		Region:          region,
+		Bucket:          bucket,
+		AccessKeyID:     accessKeyID,
+		SecretAccessKey: secretAccessKey,
+	}, nil
+}
+
+// SecretData returns Kubernetes Secret data for immutable skill downloads.
+func (c Config) SecretData() map[string][]byte {
+	return map[string][]byte{
+		BucketSecretEndpointKey:        []byte(c.Endpoint),
+		BucketSecretRegionKey:          []byte(c.Region),
+		BucketSecretBucketKey:          []byte(c.Bucket),
+		BucketSecretAccessKeyIDKey:     []byte(c.AccessKeyID),
+		BucketSecretSecretAccessKeyKey: []byte(c.SecretAccessKey),
+	}
+}
+
+// Validate reports whether all required storage settings are present.
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.Endpoint) == "" {
+		return errors.New("skills s3 endpoint is required")
+	}
+	if strings.TrimSpace(c.Region) == "" {
+		return errors.New("skills s3 region is required")
+	}
+	if strings.TrimSpace(c.Bucket) == "" {
+		return errors.New("skills s3 bucket is required")
+	}
+	if strings.TrimSpace(c.AccessKeyID) == "" {
+		return errors.New("skills s3 access key id is required")
+	}
+	if strings.TrimSpace(c.SecretAccessKey) == "" {
+		return errors.New("skills s3 secret access key is required")
+	}
+	return nil
+}
+
+// New creates an object storage client.
+func New(ctx context.Context, c Config) (*Client, error) {
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	cfg, err := config.LoadDefaultConfig(
+		ctx,
+		config.WithRegion(c.Region),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			c.AccessKeyID,
+			c.SecretAccessKey,
+			"",
+		)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load s3 config: %w", err)
+	}
+	return &Client{
+		bucket: c.Bucket,
+		s3: s3.NewFromConfig(cfg, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(c.Endpoint)
+			o.UsePathStyle = true
+		}),
+	}, nil
+}
+
+func immutableSkillPrefix(namespace, name string) string {
+	return namespace + "/" + immutableDir + "/" + name + "/"
+}
+
+func immutableVersionPrefix(namespace, name string, version int64) string {
+	return immutableSkillPrefix(namespace, name) + "v" + strconv.FormatInt(version, 10) + "/"
+}
+
+// StoragePath returns the full S3 URI for one immutable skill version.
+func (c Config) StoragePath(namespace, name string, version int64) string {
+	return "s3://" + c.Bucket + "/" + immutableVersionPrefix(namespace, name, version)
+}
+
+// ParseStoragePath splits an S3 storage URI into its bucket and object prefix.
+func ParseStoragePath(storagePath string) (string, string, error) {
+	rest, ok := strings.CutPrefix(storagePath, "s3://")
+	if !ok {
+		return "", "", errors.New("skill storage path must be an s3 URI")
+	}
+	bucket, prefix, ok := strings.Cut(rest, "/")
+	prefix = strings.TrimSuffix(prefix, "/")
+	if !ok || bucket == "" || prefix == "" || !fs.ValidPath(prefix) {
+		return "", "", errors.New("skill storage path must contain a safe bucket and prefix")
+	}
+	return bucket, prefix + "/", nil
+}
+
+// DeleteImmutableSkill deletes every stored version of one immutable skill.
+func (c *Client) DeleteImmutableSkill(ctx context.Context, namespace, name string) error {
+	return c.deletePrefix(ctx, c.bucket, immutableSkillPrefix(namespace, name))
+}
+
+func (c *Client) deletePrefix(ctx context.Context, bucket, prefix string) error {
+	var keys []s3types.ObjectIdentifier
+	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("list s3 prefix: %w", err)
+		}
+		for _, item := range page.Contents {
+			if item.Key == nil {
+				continue
+			}
+			keys = append(keys, s3types.ObjectIdentifier{Key: item.Key})
+			if len(keys) == deleteBatch {
+				if err := c.deleteKeys(ctx, bucket, keys); err != nil {
+					return err
+				}
+				keys = keys[:0]
+			}
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return c.deleteKeys(ctx, bucket, keys)
+}
+
+// DownloadManifest stages all immutable skills from manifestPath into targetDir.
+func (c *Client) DownloadManifest(ctx context.Context, manifestPath, targetDir string) error {
+	file, err := os.Open(manifestPath)
+	if err != nil {
+		return fmt.Errorf("open immutable skill manifest: %w", err)
+	}
+	defer file.Close()
+
+	var manifest Manifest
+	if err := json.NewDecoder(file).Decode(&manifest); err != nil {
+		return fmt.Errorf("decode immutable skill manifest: %w", err)
+	}
+	if manifest.Namespace == "" || len(manifest.Namespace) > 63 || !skillNameRE.MatchString(manifest.Namespace) {
+		return errors.New("immutable skill manifest namespace is invalid")
+	}
+	slices.SortFunc(manifest.Skills, func(a, b ManifestSkill) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	targetDir, err = filepath.Abs(targetDir)
+	if err != nil {
+		return fmt.Errorf("resolve immutable skill root: %w", err)
+	}
+	if filepath.Dir(targetDir) == targetDir {
+		return errors.New("immutable skill root must not be a filesystem root")
+	}
+	if err := os.MkdirAll(filepath.Dir(targetDir), 0o755); err != nil {
+		return fmt.Errorf("create immutable skill parent: %w", err)
+	}
+	staging, err := os.MkdirTemp(filepath.Dir(targetDir), ".immutable-skills-")
+	if err != nil {
+		return fmt.Errorf("create immutable skill staging directory: %w", err)
+	}
+	defer os.RemoveAll(staging)
+
+	for i, item := range manifest.Skills {
+		if item.Name == "" || len(item.Name) > 32 || !skillNameRE.MatchString(item.Name) {
+			return errors.New("immutable skill name is invalid")
+		}
+		if i > 0 && manifest.Skills[i-1].Name == item.Name {
+			return errors.New("immutable skill manifest contains duplicate names")
+		}
+		if item.Version < 1 {
+			return errors.New("immutable skill version is invalid")
+		}
+		if item.StoragePath != (Config{Bucket: c.bucket}).StoragePath(
+			manifest.Namespace,
+			item.Name,
+			item.Version,
+		) {
+			return errors.New("immutable skill storage path does not match its identity")
+		}
+		dst := filepath.Join(staging, item.Name)
+		prefix := immutableVersionPrefix(manifest.Namespace, item.Name, item.Version)
+		if err := c.downloadSkill(ctx, prefix, dst); err != nil {
+			return fmt.Errorf("download immutable skill %q: %w", item.Name, err)
+		}
+		if err := Validate(dst); err != nil {
+			return fmt.Errorf("validate immutable skill %q: %w", item.Name, err)
+		}
+	}
+
+	return replaceDirectory(staging, targetDir)
+}
+
+func (c *Client) downloadSkill(ctx context.Context, prefix, targetDir string) error {
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("create immutable skill directory: %w", err)
+	}
+	root, err := os.OpenRoot(targetDir)
+	if err != nil {
+		return fmt.Errorf("open immutable skill directory: %w", err)
+	}
+	defer root.Close()
+
+	var fileCount int
+	var totalBytes int64
+	hasSkillFile := false
+	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
+		Bucket: aws.String(c.bucket),
+		Prefix: aws.String(prefix),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("list s3 prefix: %w", err)
+		}
+		for _, item := range page.Contents {
+			if item.Key == nil || strings.HasSuffix(*item.Key, "/") {
+				continue
+			}
+			rel, ok := strings.CutPrefix(*item.Key, prefix)
+			if !ok || !fs.ValidPath(rel) {
+				return errors.New("immutable skill object key is unsafe")
+			}
+			fileCount++
+			if fileCount > maxStoredFiles {
+				return errors.New("immutable skill contains too many files")
+			}
+			limit := int64(maxStoredFileBytes)
+			if rel == skillFileName {
+				limit = maxStoredSkillFileBytes
+				hasSkillFile = true
+			}
+			if size := aws.ToInt64(item.Size); size < 0 || size > limit {
+				return fmt.Errorf("immutable skill file %q is too large", rel)
+			}
+			n, err := c.downloadObject(ctx, root, *item.Key, rel, limit)
+			if err != nil {
+				return err
+			}
+			totalBytes += n
+			if totalBytes > maxStoredTotalBytes {
+				return errors.New("immutable skill contains too much data")
+			}
+		}
+	}
+	if fileCount == 0 {
+		return errors.New("immutable skill storage prefix is empty")
+	}
+	if !hasSkillFile {
+		return errors.New("immutable skill is missing SKILL.md")
+	}
+	return nil
+}
+
+func readSecretFile(dir, name string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		return "", fmt.Errorf("read bucket secret %q: %w", name, err)
+	}
+	value := strings.TrimSpace(string(data))
+	if value == "" {
+		return "", fmt.Errorf("bucket secret %q is empty", name)
+	}
+	return value, nil
+}
+
+func (c *Client) deleteKeys(ctx context.Context, bucket string, keys []s3types.ObjectIdentifier) error {
+	result, err := c.s3.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: aws.String(bucket),
+		Delete: &s3types.Delete{
+			Objects: keys,
+			Quiet:   aws.Bool(true),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("delete s3 objects: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("delete s3 objects: %d object failures", len(result.Errors))
+	}
+	return nil
+}
+
+func (c *Client) downloadObject(ctx context.Context, root *os.Root, key, rel string, limit int64) (int64, error) {
+	if err := root.MkdirAll(path.Dir(rel), 0o755); err != nil {
+		return 0, fmt.Errorf("create immutable skill directory: %w", err)
+	}
+	object, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("get s3 object: %w", err)
+	}
+
+	file, err := root.OpenFile(rel, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return 0, errors.Join(
+			fmt.Errorf("open immutable skill file: %w", err),
+			object.Body.Close(),
+		)
+	}
+	n, copyErr := io.Copy(file, io.LimitReader(object.Body, limit+1))
+	err = errors.Join(copyErr, file.Close(), object.Body.Close())
+	if err != nil {
+		return 0, fmt.Errorf("write immutable skill file: %w", err)
+	}
+	if n > limit {
+		return 0, fmt.Errorf("immutable skill file %q is too large", rel)
+	}
+	return n, nil
+}
+
+func replaceDirectory(staging, target string) error {
+	backup := target + ".previous"
+	if err := os.RemoveAll(backup); err != nil {
+		return fmt.Errorf("remove previous immutable skill backup: %w", err)
+	}
+	hadTarget := true
+	if err := os.Rename(target, backup); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("preserve current immutable skills: %w", err)
+		}
+		hadTarget = false
+	}
+	if err := os.Rename(staging, target); err != nil {
+		if !hadTarget {
+			return fmt.Errorf("activate immutable skills: %w", err)
+		}
+		return errors.Join(
+			fmt.Errorf("activate immutable skills: %w", err),
+			os.Rename(backup, target),
+		)
+	}
+	if !hadTarget {
+		return nil
+	}
+	if err := os.RemoveAll(backup); err != nil {
+		return fmt.Errorf("remove replaced immutable skills: %w", err)
+	}
+	return nil
+}

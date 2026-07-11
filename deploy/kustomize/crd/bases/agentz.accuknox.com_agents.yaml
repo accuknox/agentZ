@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: agents.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -200,6 +200,14 @@ spec:
                   - name
                   type: object
                 type: array
+              homeSize:
+                anyOf:
+                - type: integer
+                - type: string
+                default: 5Gi
+                description: HomeSize sets the size of the agent home PVC mounted at /home/agentz.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
               image:
                 description: Image is the container image used for the Agent runtime.
                 type: string
@@ -309,6 +317,15 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              skills:
+                description: Skills lists immutable Skill names attached directly to this Agent.
+                items:
+                  maxLength: 32
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
+                maxItems: 200
+                type: array
+                x-kubernetes-list-type: set
               smallModel:
                 description: SmallModel sets the small OpenCode model in provider/model form.
                 type: string

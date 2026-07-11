@@ -36,6 +36,13 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/AgentName'
+    AgentNameQueryOptional:
+      description: Optional Agent name.
+      in: query
+      name: agent_name
+      required: false
+      schema:
+        $ref: '#/components/schemas/AgentName'
     AggregatedQuery:
       description: When true, returns aggregated events with occurrence counts over the time range.
       in: query
@@ -109,6 +116,13 @@ components:
       schema:
         minLength: 1
         type: string
+    SkillNamePath:
+      description: Skill name.
+      in: path
+      name: skillName
+      required: true
+      schema:
+        $ref: '#/components/schemas/SkillName'
     SpanIDQuery:
       description: Lowercase hexadecimal OTLP span ID.
       in: query
@@ -201,6 +215,8 @@ components:
         created_at:
           format: date-time
           type: string
+        home_storage_prefix:
+          type: string
         last_activity:
           format: date-time
           type: string
@@ -211,6 +227,10 @@ components:
           $ref: '#/components/schemas/AgentName'
         sandboxName:
           $ref: '#/components/schemas/SandboxName'
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          type: array
         status:
           $ref: '#/components/schemas/AgentStatus'
       required:
@@ -219,6 +239,8 @@ components:
       - last_activity
       - created_at
       - modified_at
+      - home_storage_prefix
+      - skills
       - status
       type: object
     AgentName:
@@ -272,6 +294,10 @@ components:
           $ref: '#/components/schemas/AgentOpencodeConfig'
         sandboxName:
           $ref: '#/components/schemas/SandboxName'
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          type: array
       required:
       - name
       - sandboxName
@@ -312,6 +338,10 @@ components:
             minLength: 1
             type: string
           type: array
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          type: array
       required:
       - name
       type: object
@@ -344,6 +374,28 @@ components:
       - type
       - key
       - hosts
+      type: object
+    CreateSkillRequest:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        name:
+          $ref: '#/components/schemas/SkillName'
+        storage_path:
+          minLength: 1
+          type: string
+        version:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - name
+      - description
+      - version
+      - storage_path
       type: object
     CreateWorkflowRequest:
       additionalProperties: false
@@ -651,6 +703,19 @@ components:
           type: string
       required:
       - items
+      - next_page_token
+      type: object
+    ListSkillsResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        skills:
+          items:
+            $ref: '#/components/schemas/Skill'
+          type: array
+      required:
+      - skills
       - next_page_token
       type: object
     ListSpansResponse:
@@ -9319,9 +9384,14 @@ components:
               type: integer
             referenced_by_agent:
               type: boolean
+            skill_count:
+              format: int32
+              minimum: 0
+              type: integer
           required:
           - package_count
           - allowed_host_count
+          - skill_count
           - referenced_by_agent
           type: object
         name:
@@ -9331,11 +9401,16 @@ components:
             minLength: 1
             type: string
           type: array
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          type: array
       required:
       - name
       - packages
       - allowed_hosts
       - mcp_connection_refs
+      - skills
       - created_at
       - metadata
       type: object
@@ -9465,6 +9540,63 @@ components:
       description: Secret value. Max 48 KB.
       maxLength: 49152
       type: string
+    Skill:
+      additionalProperties: false
+      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/AgentName'
+          type: array
+        created_at:
+          format: date-time
+          type: string
+        description:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        name:
+          $ref: '#/components/schemas/SkillName'
+        sandboxes:
+          items:
+            $ref: '#/components/schemas/SandboxName'
+          type: array
+        storage_path:
+          minLength: 1
+          type: string
+        version:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - name
+      - description
+      - version
+      - storage_path
+      - agents
+      - sandboxes
+      - created_at
+      type: object
+    SkillName:
+      description: Immutable Skill resource name.
+      maxLength: 32
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    SkillReferences:
+      additionalProperties: false
+      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/AgentName'
+          type: array
+        sandboxes:
+          items:
+            $ref: '#/components/schemas/SandboxName'
+          type: array
+      required:
+      - agents
+      - sandboxes
+      type: object
     Span:
       additionalProperties: false
       properties:
@@ -9853,6 +9985,10 @@ components:
           $ref: '#/components/schemas/AgentOpencodeConfig'
         sandboxName:
           $ref: '#/components/schemas/SandboxName'
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          type: array
       type: object
     UpdateSandboxRequest:
       additionalProperties: false
@@ -9871,10 +10007,33 @@ components:
             minLength: 1
             type: string
           type: array
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          type: array
       required:
       - packages
       - allowed_hosts
       - mcp_connection_refs
+      - skills
+      type: object
+    UpdateSkillRequest:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        storage_path:
+          minLength: 1
+          type: string
+        version:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - version
+      - storage_path
       type: object
     UpdateWorkflowScheduleRequest:
       additionalProperties: false
@@ -18640,6 +18799,119 @@ paths:
       summary: Watch secret status changes for an agent.
       tags:
       - secrets
+  /api/skill:
+    get:
+      operationId: listSkills
+      parameters:
+      - $ref: '#/components/parameters/AgentNameQueryOptional'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListSkillsResponse'
+          description: Paginated immutable skills.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List immutable Skill resources.
+      tags:
+      - skills
+    post:
+      operationId: createSkill
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkillRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Skill'
+          description: Skill created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create an immutable Skill resource.
+      tags:
+      - skills
+  /api/skill/{skillName}:
+    delete:
+      operationId: deleteSkill
+      parameters:
+      - $ref: '#/components/parameters/SkillNamePath'
+      responses:
+        "204":
+          description: Skill deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete an immutable Skill resource.
+      tags:
+      - skills
+    put:
+      operationId: updateSkill
+      parameters:
+      - $ref: '#/components/parameters/SkillNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkillRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Skill'
+          description: Skill updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Update an immutable Skill active version and references.
+      tags:
+      - skills
+  /api/skill/{skillName}/references:
+    get:
+      operationId: getSkillReferences
+      parameters:
+      - $ref: '#/components/parameters/SkillNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillReferences'
+          description: Skill references.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Agents and Sandboxes referencing an immutable Skill.
+      tags:
+      - skills
   /api/tenant:
     get:
       operationId: getTenant
@@ -19310,6 +19582,8 @@ tags:
   name: secrets
 - description: Sandbox resource management APIs.
   name: sandboxes
+- description: Immutable skill catalog and attachment APIs.
+  name: skills
 - description: MCPConnection resource and credential management APIs.
   name: mcp-connections
 - description: Workflow definition management APIs.

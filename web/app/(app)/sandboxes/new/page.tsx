@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { defaultSandboxPackages } from "@/data/sandbox-defaults"
+import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { SandboxWizard } from "../wizard"
 
 export const metadata: Metadata = {
@@ -22,11 +23,15 @@ export default function NewSandboxPage() {
 }
 
 async function NewSandboxWizard() {
-  const result = await listMcpConnectionsCachedQuery({ limit: 200 })
+  const [result, skills] = await Promise.all([
+    listMcpConnectionsCachedQuery({ limit: 200 }),
+    listImmutableSkillsCachedQuery(),
+  ])
   return (
     <SandboxWizard
       mode="create"
       initialPackages={[...defaultSandboxPackages]}
+      immutableSkills={skills.skills ?? []}
       mcpConnections={result.mcpConnections ?? []}
     />
   )

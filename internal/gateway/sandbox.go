@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -98,6 +99,16 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name, fields := validateCreateSandboxRequest(req)
+	var rawSkills []gatewayapi.SkillName
+	if req.Skills != nil {
+		rawSkills = *req.Skills
+	}
+	skills, skillFields, err := s.validateSkillRefs(r.Context(), ns, rawSkills)
+	fields = append(fields, skillFields...)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -190,6 +201,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 			Packages:          packages,
 			AllowedHosts:      allowedHosts,
 			MCPConnectionRefs: mcpConnectionRefs,
+			Skills:            slices.Clone(skills),
 		},
 	}
 
@@ -315,7 +327,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		})
 	}
 	packages := req.Packages
-	fields = s.validateSandboxMCPConnections(r.Context(), mcpConnectionRefs)
+	skills, skillFields, err := s.validateSkillRefs(r.Context(), ns, req.Skills)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	fields = append(fields, skillFields...)
+	fields = append(fields, s.validateSandboxMCPConnections(r.Context(), mcpConnectionRefs)...)
 	if len(fields) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
@@ -340,6 +358,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		sandbox.Spec.Packages = packages
 		sandbox.Spec.AllowedHosts = allowedHosts
 		sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
+		sandbox.Spec.Skills = slices.Clone(skills)
 
 		if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
 			return updateErr
@@ -396,10 +415,12 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandb
 		Packages:          packages,
 		AllowedHosts:      allowedHosts,
 		McpConnectionRefs: mcpConnectionRefs,
+		Skills:            append([]gatewayapi.SkillName{}, sb.Spec.Skills...),
 		CreatedAt:         sb.CreationTimestamp.Time,
 	}
 	out.Metadata.PackageCount = int32(len(packages))
 	out.Metadata.AllowedHostCount = int32(len(allowedHosts))
+	out.Metadata.SkillCount = int32(len(sb.Spec.Skills))
 	out.Metadata.ReferencedByAgent = referenced
 	return out
 }

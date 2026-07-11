@@ -3,6 +3,7 @@ import * as z from "zod"
 import { deleteAgentFormAction } from "@/data/agent.actions"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
+import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { AgentTable } from "@/app/agent-table"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { BotIcon } from "@/components/bot-icon"
@@ -44,11 +45,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<Hom
 }
 
 async function SandboxesHeader() {
-  const sandboxes = await listSandboxesCachedQuery({ limit: 50 })
+  const [sandboxes, skills] = await Promise.all([
+    listSandboxesCachedQuery({ limit: 50 }),
+    listImmutableSkillsCachedQuery(),
+  ])
   if (sandboxes.error) return null
   return (
     <AgentDialog
       mode="create"
+      immutableSkills={skills.skills ?? []}
       sandboxes={sandboxes.sandboxes}
       initialHasNextSandboxPage={sandboxes.hasNextPage}
       initialNextSandboxPageToken={sandboxes.nextPageToken}
@@ -80,9 +85,10 @@ async function Agents({
   ) => Promise<DeleteAgentFormState>
 }) {
   const params = searchParams ? homeSearchParamsSchema.parse(await searchParams) : undefined
-  const [result, sandboxes] = await Promise.all([
+  const [result, sandboxes, skills] = await Promise.all([
     listAgentsCachedQuery({ limit: 50, page_token: params?.page_token }),
     listSandboxesCachedQuery({ limit: 50 }),
+    listImmutableSkillsCachedQuery(),
   ])
 
   if (result.error) {
@@ -96,6 +102,7 @@ async function Agents({
   return (
     <AgentTable
       agents={result.agents}
+      immutableSkills={skills.skills ?? []}
       sandboxes={sandboxes.error ? [] : sandboxes.sandboxes}
       hasNextPage={result.hasNextPage}
       initialHasNextSandboxPage={sandboxes.error ? false : sandboxes.hasNextPage}

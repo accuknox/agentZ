@@ -56,6 +56,14 @@ type SandboxSpec struct {
 	// sandbox in order.
 	// +optional
 	MCPConnectionRefs []MCPConnectionRef `json:"mcpConnectionRefs,omitempty"`
+
+	// Skills lists immutable Skill names exposed through this sandbox.
+	// +optional
+	// +listType=set
+	// +kubebuilder:validation:MaxItems=200
+	// +kubebuilder:validation:items:MaxLength=32
+	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Skills []string `json:"skills,omitempty"`
 }
 
 // SandboxStatus defines the observed state of Sandbox.

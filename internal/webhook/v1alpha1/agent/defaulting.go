@@ -53,5 +53,8 @@ func (d *Defaulter) Default(_ context.Context, agt *agentzv1alpha1.Agent) error 
 	if agt.Spec.NixStoreSize.IsZero() {
 		agt.Spec.NixStoreSize = resource.MustParse("5Gi")
 	}
+	if agt.Spec.HomeSize.IsZero() {
+		agt.Spec.HomeSize = resource.MustParse("5Gi")
+	}
 	return nil
 }

@@ -6,6 +6,7 @@ import { sandboxAllowedHostSchema } from "@/data/schema"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
+import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import type { SecretHost } from "@/lib/gateway/client"
 import { SandboxWizard } from "../../wizard"
 
@@ -36,8 +37,13 @@ export default async function UpdateSandboxPage({ params }: UpdateSandboxPagePro
 async function UpdateSandboxContent({ name }: { name: string }) {
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 })
   const mcpResult = listMcpConnectionsCachedQuery({ limit: 200 })
+  const skillsResult = listImmutableSkillsCachedQuery()
   const secretHostSuggestions = listSandboxSecretHostSuggestions(name)
-  const [sandboxes, mcpConnections] = await Promise.all([sandboxResult, mcpResult])
+  const [sandboxes, mcpConnections, skills] = await Promise.all([
+    sandboxResult,
+    mcpResult,
+    skillsResult,
+  ])
 
   if (sandboxes.error || !sandboxes.sandboxes) {
     return (
@@ -65,6 +71,7 @@ async function UpdateSandboxContent({ name }: { name: string }) {
     packages: sandbox.packages ?? [],
     allowedHosts: sandbox.allowed_hosts ?? [],
     mcpConnectionRefs,
+    skills: sandbox.skills,
   })
 
   return (
@@ -79,6 +86,8 @@ async function UpdateSandboxContent({ name }: { name: string }) {
         initialPackages={sandbox.packages ?? []}
         initialAllowedHosts={sandbox.allowed_hosts ?? []}
         initialMcpConnectionRefs={mcpConnectionRefs}
+        initialSkills={sandbox.skills}
+        immutableSkills={skills.skills ?? []}
         mcpConnections={mcpConnections.mcpConnections ?? []}
         secretHostSuggestions={secretHostSuggestions}
       />

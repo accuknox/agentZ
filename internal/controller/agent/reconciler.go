@@ -44,6 +44,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -60,10 +61,12 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
@@ -125,13 +128,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("render opencode config: %w", err)
 	}
 
-	err = r.reconcileConfigMap(ctx, agt, string(opencodeCfg), instructionFiles)
+	err = r.reconcileConfigMap(ctx, agt, string(opencodeCfg), instructionFiles, envCfg.Skills)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
 		return ctrl.Result{}, fmt.Errorf("reconcile configmap: %w", err)
+	}
+
+	err = r.reconcileImmutableSkillsBucketSecret(ctx, agt)
+	if err != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+		}
+		return ctrl.Result{}, fmt.Errorf("reconcile immutable skills bucket secret: %w", err)
 	}
 
 	err = r.reconcileServiceAccount(ctx, agt, agt.Name, resourceLabels(agt))
@@ -160,13 +172,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile service: %w", err)
 	}
 
-	err = r.reconcileNixPVCs(ctx, agt)
+	err = r.reconcilePVCs(ctx, agt)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("reconcile nix pvcs: %w", err)
+		return ctrl.Result{}, fmt.Errorf("reconcile agent pvcs: %w", err)
 	}
 
 	if !ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
@@ -202,7 +214,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile egress policy: %w", err)
 	}
 
-	jobReady, err := r.reconcilePackageJob(ctx, agt, envCfg.Packages)
+	jobReady, err := r.reconcilePackageJob(ctx, agt, envCfg)
 	if err != nil {
 		if deleteErr := r.deleteDeployment(ctx, agt); deleteErr != nil {
 			return ctrl.Result{}, fmt.Errorf("delete deployment: %w", deleteErr)
@@ -229,8 +241,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 
-	hash := configHash(opencodeCfg, instructionFiles, agt.Spec.Env, envCfg)
-	err = r.reconcileDeployment(ctx, agt, hash, envCfg.Packages, true)
+	hash, err := configHash(opencodeCfg, instructionFiles, agt.Spec.Env, envCfg)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = r.reconcileDeployment(ctx, agt, hash, envCfg, true)
 	if err != nil {
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -252,6 +267,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Agent{}).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSandbox)).
+		Watches(&agentzv1alpha1.Skill{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSkill)).
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{}).
@@ -270,6 +286,7 @@ type sandboxConfig struct {
 	MCPURL                  string
 	MCPConsentPermissionIDs []string
 	MCPRefs                 []mcpRefConfig
+	Skills                  []skillpkg.ManifestSkill
 }
 
 type mcpRefConfig struct {
@@ -283,21 +300,51 @@ type mcpToolConfig struct {
 }
 
 func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Agent) (sandboxConfig, error) {
+	cfg := sandboxConfig{
+		Packages:                []string{},
+		AllowedHosts:            []string{},
+		MCPURL:                  "",
+		MCPConsentPermissionIDs: []string{},
+		MCPRefs:                 []mcpRefConfig{},
+		Skills:                  []skillpkg.ManifestSkill{},
+	}
+	skillNames := make([]string, 0, len(agt.Spec.Skills))
+	seenSkills := make(map[string]struct{}, len(agt.Spec.Skills))
+	for _, name := range agt.Spec.Skills {
+		if name == "" {
+			continue
+		}
+		if _, ok := seenSkills[name]; ok {
+			continue
+		}
+		seenSkills[name] = struct{}{}
+		skillNames = append(skillNames, name)
+	}
+
 	ref := agt.Spec.SandboxRef
 	if ref == nil {
-		return sandboxConfig{
-			Packages:                []string{},
-			AllowedHosts:            []string{},
-			MCPURL:                  "",
-			MCPConsentPermissionIDs: []string{},
-			MCPRefs:                 []mcpRefConfig{},
-		}, nil
+		skills, err := r.resolveImmutableSkills(ctx, agt.Namespace, skillNames)
+		if err != nil {
+			return sandboxConfig{}, err
+		}
+		cfg.Skills = skills
+		return cfg, nil
 	}
 
 	sandbox := &agentzv1alpha1.Sandbox{}
 	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
 	if err := r.Get(ctx, key, sandbox); err != nil {
 		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
+	}
+	for _, name := range sandbox.Spec.Skills {
+		if name == "" {
+			continue
+		}
+		if _, ok := seenSkills[name]; ok {
+			continue
+		}
+		seenSkills[name] = struct{}{}
+		skillNames = append(skillNames, name)
 	}
 	packages := make([]string, 0, len(sandbox.Spec.Packages))
 	for _, pkg := range sandbox.Spec.Packages {
@@ -334,13 +381,37 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		})
 	}
 	slices.Sort(mcpConsentPermissionIDs)
-	return sandboxConfig{
-		Packages:                packages,
-		AllowedHosts:            allowedHosts,
-		MCPURL:                  r.sandboxMCPURL(ctx, agt.Namespace, sandbox),
-		MCPConsentPermissionIDs: mcpConsentPermissionIDs,
-		MCPRefs:                 mcpRefs,
-	}, nil
+	skills, err := r.resolveImmutableSkills(ctx, agt.Namespace, skillNames)
+	if err != nil {
+		return sandboxConfig{}, err
+	}
+	cfg.Packages = packages
+	cfg.AllowedHosts = allowedHosts
+	cfg.MCPURL = r.sandboxMCPURL(ctx, agt.Namespace, sandbox)
+	cfg.MCPConsentPermissionIDs = mcpConsentPermissionIDs
+	cfg.MCPRefs = mcpRefs
+	cfg.Skills = skills
+	return cfg, nil
+}
+
+func (r *Reconciler) resolveImmutableSkills(ctx context.Context, namespace string, names []string) ([]skillpkg.ManifestSkill, error) {
+	skills := make([]skillpkg.ManifestSkill, 0, len(names))
+	for _, name := range names {
+		skill := &agentzv1alpha1.Skill{}
+		key := types.NamespacedName{Name: name, Namespace: namespace}
+		if err := r.Get(ctx, key, skill); err != nil {
+			return nil, fmt.Errorf("get immutable skill %q: %w", name, err)
+		}
+		skills = append(skills, skillpkg.ManifestSkill{
+			Name:        skill.Name,
+			Version:     skill.Spec.Version,
+			StoragePath: skill.Spec.StoragePath,
+		})
+	}
+	slices.SortFunc(skills, func(a, b skillpkg.ManifestSkill) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return skills, nil
 }
 
 func (r *Reconciler) sandboxMCPURL(ctx context.Context, namespace string, sandbox *agentzv1alpha1.Sandbox) string {
@@ -385,31 +456,108 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	return requests
 }
 
-func (r *Reconciler) reconcileNixPVCs(ctx context.Context, agt *agentzv1alpha1.Agent) error {
-	agentPVC := &corev1.PersistentVolumeClaim{}
-	agentPVC.Name = agt.Name + "-nix"
-	agentPVC.Namespace = agt.Namespace
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, agentPVC, func() error {
-		agentPVC.Labels = resourceLabels(agt)
-		if len(agentPVC.Spec.AccessModes) == 0 {
-			agentPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
-				corev1.ReadWriteOnce,
-			}
+func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []reconcile.Request {
+	skill, ok := obj.(*agentzv1alpha1.Skill)
+	if !ok {
+		return []reconcile.Request{}
+	}
+
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err := r.List(ctx, sandboxes, client.InNamespace(skill.Namespace))
+	if err != nil {
+		return []reconcile.Request{}
+	}
+	sandboxRefs := map[string]struct{}{}
+	for _, sandbox := range sandboxes.Items {
+		if slices.Contains(sandbox.Spec.Skills, skill.Name) {
+			sandboxRefs[sandbox.Name] = struct{}{}
 		}
-		if agentPVC.Spec.Resources.Requests == nil {
-			size := agt.Spec.NixStoreSize
-			if size.IsZero() {
-				size = resource.MustParse("5Gi")
-			}
-			agentPVC.Spec.Resources.Requests = corev1.ResourceList{
-				corev1.ResourceStorage: size,
-			}
+	}
+
+	agents := &agentzv1alpha1.AgentList{}
+	err = r.List(ctx, agents, client.InNamespace(skill.Namespace))
+	if err != nil {
+		return []reconcile.Request{}
+	}
+
+	requests := []reconcile.Request{}
+	seen := map[string]struct{}{}
+	for _, agt := range agents.Items {
+		referenced := slices.Contains(agt.Spec.Skills, skill.Name)
+		if !referenced && agt.Spec.SandboxRef != nil {
+			_, referenced = sandboxRefs[agt.Spec.SandboxRef.Name]
 		}
-		return ctrl.SetControllerReference(agt, agentPVC, r.Scheme)
+		if !referenced {
+			continue
+		}
+		if _, ok := seen[agt.Name]; ok {
+			continue
+		}
+		seen[agt.Name] = struct{}{}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      agt.Name,
+				Namespace: agt.Namespace,
+			},
+		})
+	}
+	return requests
+}
+
+func (r *Reconciler) reconcilePVCs(ctx context.Context, agt *agentzv1alpha1.Agent) error {
+	nixSize := agt.Spec.NixStoreSize
+	if nixSize.IsZero() {
+		nixSize = resource.MustParse("5Gi")
+	}
+
+	nixPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agt.Name + "-nix",
+			Namespace: agt.Namespace,
+		},
+	}
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, nixPVC, func() error {
+		nixPVC.Labels = resourceLabels(agt)
+		nixPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteOnce,
+		}
+		nixPVC.Spec.Resources.Requests = corev1.ResourceList{
+			corev1.ResourceStorage: nixSize,
+		}
+		return ctrl.SetControllerReference(agt, nixPVC, r.Scheme)
 	})
 	if err != nil {
 		return fmt.Errorf("ensure agent nix pvc: %w", err)
 	}
+
+	homeSize := agt.Spec.HomeSize
+	if homeSize.IsZero() {
+		homeSize = resource.MustParse("5Gi")
+	}
+
+	homePVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agt.Name + "-home",
+			Namespace: agt.Namespace,
+		},
+	}
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, homePVC, func() error {
+		homePVC.Labels = resourceLabels(agt)
+		homePVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteOnce,
+		}
+		homePVC.Spec.Resources.Requests = corev1.ResourceList{
+			corev1.ResourceStorage: homeSize,
+		}
+		if r.Config.AgentHomeStorageClass != "" {
+			homePVC.Spec.StorageClassName = &r.Config.AgentHomeStorageClass
+		}
+		return ctrl.SetControllerReference(agt, homePVC, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("ensure agent home pvc: %w", err)
+	}
+
 	return nil
 }
 

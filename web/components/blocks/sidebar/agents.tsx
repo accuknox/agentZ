@@ -30,7 +30,7 @@ import {
 import { BotIcon, ChevronRightIcon, Plus, Trash2 } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { formatShortAge } from "@/lib/format"
-import type { Agent, AgentStatus } from "@/lib/gateway/client"
+import type { Agent, AgentStatus, Skill } from "@/lib/gateway/client"
 import {
   experimental_streamedQuery as streamedQuery,
   queryOptions,
@@ -80,9 +80,11 @@ function sortSessions(sessions: readonly AgentSessionListItem[]): AgentSessionLi
 
 export function NavAgents({
   agents,
+  immutableSkills,
   sandboxes,
 }: {
   agents: ListAgentActionResponse
+  immutableSkills: Skill[]
   sandboxes: ListSandboxActionResponse
 }) {
   const initialAgents = agents.agents ?? []
@@ -113,6 +115,7 @@ export function NavAgents({
         <SidebarMenuItem>
           <AgentDialog
             mode="create"
+            immutableSkills={immutableSkills}
             sandboxes={sandboxes.error ? [] : sandboxes.sandboxes}
             initialHasNextSandboxPage={sandboxes.error ? false : sandboxes.hasNextPage}
             initialNextSandboxPageToken={sandboxes.error ? "" : sandboxes.nextPageToken}

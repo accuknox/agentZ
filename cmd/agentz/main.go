@@ -55,12 +55,14 @@ import (
 	"github.com/accuknox/agentz/internal/controller/mcpconn"
 	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
 	"github.com/accuknox/agentz/internal/controller/secret"
+	"github.com/accuknox/agentz/internal/controller/skill"
 	"github.com/accuknox/agentz/internal/controller/tenant"
 	workflowruncontroller "github.com/accuknox/agentz/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/agentz/internal/controller/workflowschedule"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	skillpkg "github.com/accuknox/agentz/internal/skill"
 	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	// +kubebuilder:scaffold:imports
@@ -109,6 +111,10 @@ var (
 	tenantNixStoreSize                               string
 	tenantNixStoreAccessModes                        []string
 	tenantNixStoreStorageClass                       string
+	agentHomeStorageClass                            string
+	skillsS3Endpoint                                 string
+	skillsS3Region                                   string
+	skillsS3Bucket                                   string
 	tenantSinjectorClusterIssuerName                 string
 	watchNamespace                                   string
 	enableWebhooks                                   bool
@@ -363,6 +369,42 @@ var managerCmd = &cli.Command{
 			Name:        "tenant-nix-store-storage-class",
 			Usage:       "Optional storage class for the tenant nix store PVC",
 			Destination: &tenantNixStoreStorageClass,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "agent-home-storage-class",
+			Usage:       "Optional storage class for per-agent home PVCs",
+			Destination: &agentHomeStorageClass,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-endpoint",
+			Usage:       "S3-compatible endpoint for immutable skill storage",
+			Destination: &skillsS3Endpoint,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_ENDPOINT"),
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-region",
+			Usage:       "S3 region for immutable skill storage",
+			Value:       "us-east-1",
+			Destination: &skillsS3Region,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_REGION"),
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "skills-s3-bucket",
+			Usage:       "S3 bucket for immutable skill storage",
+			Destination: &skillsS3Bucket,
+			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_BUCKET"),
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -749,6 +791,16 @@ var managerCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		skillStoreConfig := skillpkg.Config{
+			Endpoint:        skillsS3Endpoint,
+			Region:          skillsS3Region,
+			Bucket:          skillsS3Bucket,
+			AccessKeyID:     strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_ACCESS_KEY_ID")),
+			SecretAccessKey: strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY")),
+		}
+		if err := skillStoreConfig.Validate(); err != nil {
+			return err
+		}
 
 		tenantPVCSize, err := resource.ParseQuantity(tenantNixStoreSize)
 		if err != nil {
@@ -781,6 +833,8 @@ var managerCmd = &cli.Command{
 			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
 			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
 			GatewayTokenAudience:             managerGatewayTokenAudience,
+			AgentHomeStorageClass:            agentHomeStorageClass,
+			SkillStore:                       skillStoreConfig,
 			SinjectorImage:                   controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,
@@ -931,6 +985,15 @@ var managerCmd = &cli.Command{
 		}
 		if err := secretReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Secret")
+			os.Exit(1)
+		}
+
+		skillReconciler := &skill.Reconciler{
+			Client:      mgr.GetClient(),
+			StoreConfig: skillStoreConfig,
+		}
+		if err := skillReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "Skill")
 			os.Exit(1)
 		}
 

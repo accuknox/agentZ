@@ -20,6 +20,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	baoapi "github.com/openbao/openbao/api/v2"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -161,6 +162,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	defer resolver.Close()
 
 	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add core scheme: %w", err)
+	}
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("add agentz scheme: %w", err)
 	}

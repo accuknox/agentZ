@@ -5,6 +5,7 @@ import {
   zMcpConnectionName,
   zSandboxName,
   zSecretKey,
+  zSkillName,
 } from "@/lib/gateway/client/zod.gen"
 
 export const secretKeySchema = z
@@ -346,6 +347,13 @@ function canonicalCIDR(value: string) {
 
 export const agentNameSchema = agentNameInputSchema
 export const sandboxNameSchema = sandboxNameInputSchema
+export const skillNameSchema = z
+  .string({ error: "Skill name is required" })
+  .trim()
+  .min(1, "Skill name is required")
+  .max(32, "Skill name must be at most 32 characters")
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Skill name is invalid")
+  .pipe(zSkillName)
 export const sandboxAllowedHostSchema = z
   .string({ error: "Host is required" })
   .trim()
@@ -356,16 +364,19 @@ export const sandboxAllowedHostSchema = z
 export const createAgentSimpleFormSchema = z.object({
   name: agentNameSchema,
   sandboxName: sandboxNameSchema,
+  skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
 })
 
 export const updateAgentSimpleFormSchema = z.object({
   sandboxName: sandboxNameSchema,
+  skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
   model: optionalModelSchema,
   smallModel: optionalSmallModelSchema,
 })
 
 export const createSandboxFormSchema = z.object({
   name: sandboxNameSchema,
+  skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
   packages: z.array(sandboxPackageSchema, { error: "Packages must be a list" }),
   mcpConnectionRefs: z
     .array(selectedMcpConnectionSchema, { error: "MCP connections must be a list" })

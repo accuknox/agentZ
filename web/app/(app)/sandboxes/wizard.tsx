@@ -16,9 +16,10 @@ import {
   ArrowLeft,
   ArrowRight,
   Box,
+  Cable,
   ChevronDown,
   Globe2,
-  PlugZap,
+  ScrollText,
   PackageSearch as PackageSearchIcon,
   Plus,
   UserCheck,
@@ -61,8 +62,13 @@ import { createSandboxFormAction, updateSandboxFormAction } from "@/data/sandbox
 import * as z from "zod"
 import { sandboxAllowedHostSchema, sandboxNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { getMcpConnection, type McpConnectionSummary, type SecretHost } from "@/lib/gateway/client"
-import { zMcpConnectionName } from "@/lib/gateway/client/zod.gen"
+import {
+  getMcpConnection,
+  type McpConnectionSummary,
+  type SecretHost,
+  type Skill,
+} from "@/lib/gateway/client"
+import { zMcpConnectionName, zSkillName } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { PackageSearch } from "./package-search"
 
@@ -104,17 +110,23 @@ const mcpStepSchema = z.object({
   }),
 })
 
+const skillsStepSchema = z.object({
+  skills: z.array(zSkillName, { error: "Skills must be a list" }),
+})
+
 type SandboxIdentity = z.infer<typeof identitySchema>
 type SelectedMcpTool = z.infer<typeof selectedMcpToolSchema>
 type SelectedMcpConnectionRef = z.infer<typeof selectedMcpConnectionRefSchema>
 type PackageStepValues = z.infer<typeof packageStepSchema>
 type McpStepValues = z.infer<typeof mcpStepSchema>
+type SkillsStepValues = z.infer<typeof skillsStepSchema>
 type AllowedHostsStepValues = z.infer<typeof allowedHostsStepSchema>
 
 type SandboxWizardData = {
   identity?: SandboxIdentity
   packages?: string[]
   mcps?: SelectedMcpConnectionRef[]
+  skills?: string[]
   allowedHosts?: AllowedHostsDraft
 }
 
@@ -127,6 +139,8 @@ type SandboxWizardProps = {
   initialAllowedHosts?: string[]
   initialMcpConnectionRefs?: SelectedMcpConnectionRef[]
   initialPackages?: string[]
+  initialSkills?: string[]
+  immutableSkills: Skill[]
   mcpConnections: McpConnectionSummary[]
   mode: SandboxWizardMode
   secretHostSuggestions?: Promise<SecretHost[]>
@@ -146,9 +160,18 @@ type AllowedHostsStepProps = {
   initialDraft: string
   mcpConnectionRefs: SelectedMcpConnectionRef[]
   packages: string[]
+  skills: string[]
   mode: SandboxWizardMode
   secretHostSuggestions?: Promise<SecretHost[]>
   onAllowedHostsChangeAction: (data: AllowedHostsDraft) => void
+  onPrev: () => void
+}
+
+type SkillsStepProps = {
+  immutableSkills: Skill[]
+  initialSkills: string[]
+  onAdvanceAction: () => void
+  onNext: (skills: string[]) => void
   onPrev: () => void
 }
 
@@ -164,6 +187,7 @@ const formIdByStep = {
   identity: "sandbox-form-identity",
   packages: "sandbox-form-packages",
   mcps: "sandbox-form-mcps",
+  skills: "sandbox-form-skills",
   allowedHosts: "sandbox-form-allowed-hosts",
 } as const
 
@@ -179,7 +203,15 @@ const mcpColumnClassName: Record<string, string> = {
   attach: "w-14",
 }
 
+const skillColumnClassName: Record<string, string> = {
+  name: "min-w-0 w-0",
+  version: "w-28",
+  modified: "w-32",
+  attach: "w-14",
+}
+
 const defaultMcpSorting: SortingState = [{ id: "age", desc: true }]
+const defaultSkillSorting: SortingState = [{ id: "name", desc: false }]
 const defaultMcpPagination: PaginationState = { pageIndex: 0, pageSize: 10 }
 
 const steps = [
@@ -196,7 +228,12 @@ const steps = [
   {
     id: "mcps",
     title: "MCP",
-    icon: PlugZap,
+    icon: Cable,
+  },
+  {
+    id: "skills",
+    title: "Skills",
+    icon: ScrollText,
   },
   {
     id: "allowedHosts",
@@ -418,6 +455,71 @@ function createMcpSelectionColumns({
               aria-label={`Attach ${connection.name}`}
               disabled={disabled}
               onCheckedChange={(checked) => onSelectedChange(connection, checked)}
+            />
+          </div>
+        )
+      },
+    },
+  ]
+}
+
+function createSkillSelectionColumns({
+  selectedNames,
+  onSelectedChange,
+}: {
+  selectedNames: ReadonlySet<string>
+  onSelectedChange: (skill: Skill, checked: boolean) => void
+}): ColumnDef<Skill>[] {
+  return [
+    {
+      accessorKey: "name",
+      header: ({ column }) => (
+        <Button
+          className="text-foreground -ml-2"
+          variant="plain"
+          size="sm"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Name
+          <ArrowUpDown />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <span className="block min-w-0 truncate font-medium" title={row.original.name}>
+          {row.original.name}
+        </span>
+      ),
+    },
+    {
+      id: "version",
+      accessorKey: "version",
+      header: ({ column }) => (
+        <Button
+          className="text-foreground -ml-2"
+          variant="plain"
+          size="sm"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Version
+          <ArrowUpDown />
+        </Button>
+      ),
+      cell: ({ row }) => `v${row.original.version}`,
+    },
+    {
+      id: "attach",
+      header: "",
+      accessorFn: (row) => selectedNames.has(row.name),
+      cell: ({ row }) => {
+        const skill = row.original
+        const selected = selectedNames.has(skill.name)
+
+        return (
+          <div className="flex justify-end">
+            <Switch
+              checked={selected}
+              aria-label={`Attach ${skill.name}`}
+              onCheckedChange={(checked) => onSelectedChange(skill, checked)}
             />
           </div>
         )
@@ -816,12 +918,162 @@ function McpStep({
   )
 }
 
+function SkillsStep({
+  immutableSkills,
+  initialSkills,
+  onAdvanceAction,
+  onNext,
+  onPrev,
+}: SkillsStepProps) {
+  const form = useForm<SkillsStepValues>({
+    resolver: zodResolver(skillsStepSchema),
+    defaultValues: {
+      skills: initialSkills,
+    },
+  })
+  const selected = useWatch({
+    control: form.control,
+    name: "skills",
+    defaultValue: initialSkills,
+  })
+  const selectedNames = React.useMemo(() => new Set(selected), [selected])
+  const skills = React.useMemo(
+    () => immutableSkills.toSorted((a, b) => a.name.localeCompare(b.name)),
+    [immutableSkills]
+  )
+  const [sorting, setSorting] = React.useState<SortingState>(defaultSkillSorting)
+  const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
+
+  const setSelected = React.useCallback(
+    (skill: Skill, checked: boolean) => {
+      const current = form.getValues("skills") ?? []
+      const next = checked
+        ? Array.from(new Set([...current, skill.name])).toSorted()
+        : current.filter((name) => name !== skill.name)
+
+      form.setValue("skills", next, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    },
+    [form]
+  )
+
+  const columns = React.useMemo(
+    () =>
+      createSkillSelectionColumns({
+        selectedNames,
+        onSelectedChange: setSelected,
+      }),
+    [selectedNames, setSelected]
+  )
+
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({
+    data: skills,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    state: {
+      pagination,
+      sorting,
+    },
+  })
+
+  return (
+    <form
+      id={formIdByStep.skills}
+      onSubmit={form.handleSubmit((data) => onNext(data.skills.toSorted()))}
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
+    >
+      <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
+        <div className="w-full min-w-0 border-b">
+          <Table className="w-[max(100%,34rem)] table-auto">
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={`h-9 ${skillColumnClassName[header.column.id] ?? "px-4"}`}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length > 0 ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={`h-11 py-2 align-middle ${skillColumnClassName[cell.column.id] ?? "px-4"}`}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No immutable skills
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            type="button"
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            type="button"
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      </div>
+      <StepActions>
+        <Button type="button" variant="secondary" onClick={onPrev}>
+          Previous
+        </Button>
+        <Button type="submit" onClick={onAdvanceAction}>
+          Next
+        </Button>
+      </StepActions>
+    </form>
+  )
+}
+
 function AllowedHostsStep({
   identity,
   initialAllowedHosts,
   initialDraft,
   mcpConnectionRefs,
   packages,
+  skills,
   mode,
   secretHostSuggestions,
   onAllowedHostsChangeAction,
@@ -924,6 +1176,9 @@ function AllowedHostsStep({
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (
         <input key={pkg} type="hidden" name="packages" value={pkg} />
+      ))}
+      {skills.map((skill) => (
+        <input key={skill} type="hidden" name="skills" value={skill} />
       ))}
       {mcpConnectionRefs.map((ref) => (
         <React.Fragment key={ref.name}>
@@ -1103,6 +1358,8 @@ export function SandboxWizard({
   initialMcpConnectionRefs = [],
   initialName = "",
   initialPackages = [],
+  initialSkills = [],
+  immutableSkills,
   mcpConnections,
   mode,
   secretHostSuggestions,
@@ -1118,6 +1375,7 @@ export function SandboxWizard({
         identity: initialName ? initialIdentity : undefined,
         packages: initialPackages,
         mcps: initialMcpConnectionRefs,
+        skills: initialSkills,
         allowedHosts: {
           allowedHosts: initialAllowedHosts,
           draft: "",
@@ -1130,6 +1388,7 @@ export function SandboxWizard({
           identity: stepper.metadata.get<SandboxIdentity>("identity") ?? undefined,
           packages: stepper.metadata.get<string[]>("packages") ?? undefined,
           mcps: stepper.metadata.get<SelectedMcpConnectionRef[]>("mcps") ?? undefined,
+          skills: stepper.metadata.get<string[]>("skills") ?? undefined,
           allowedHosts: stepper.metadata.get<AllowedHostsDraft>("allowedHosts") ?? undefined,
         }
         const currentIndex = stepper.state.current.index
@@ -1228,6 +1487,21 @@ export function SandboxWizard({
                   }}
                 />
               ),
+              skills: () => (
+                <SkillsStep
+                  immutableSkills={immutableSkills}
+                  initialSkills={data.skills ?? initialSkills}
+                  onAdvanceAction={() => {
+                    pendingNavigationRef.current = undefined
+                  }}
+                  onPrev={() => requestNavigation({ kind: "prev" })}
+                  onNext={(skills) => {
+                    stepper.metadata.set("skills", skills)
+                    completeNavigation(pendingNavigationRef.current)
+                    pendingNavigationRef.current = undefined
+                  }}
+                />
+              ),
               allowedHosts: () => (
                 <AllowedHostsStep
                   identity={data.identity!}
@@ -1235,6 +1509,7 @@ export function SandboxWizard({
                   initialDraft={data.allowedHosts?.draft ?? ""}
                   mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
                   packages={data.packages ?? initialPackages}
+                  skills={data.skills ?? initialSkills}
                   mode={mode}
                   secretHostSuggestions={secretHostSuggestions}
                   onAllowedHostsChangeAction={(nextData) => {

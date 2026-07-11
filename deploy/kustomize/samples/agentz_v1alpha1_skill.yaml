@@ -1,0 +1,11 @@
+apiVersion: agentz.accuknox.com/v1alpha1
+kind: Skill
+metadata:
+  labels:
+    app.kubernetes.io/name: agentz
+    app.kubernetes.io/managed-by: kustomize
+  name: skill-sample
+spec:
+  description: Demonstrates an immutable skill resource.
+  version: 1
+  storagePath: s3://agentz/default/immutable-skills/skill-sample/v1/

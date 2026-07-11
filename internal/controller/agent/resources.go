@@ -18,6 +18,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"path"
@@ -33,10 +34,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *agentzv1alpha1.Agent, opencodeCfg string, instructionFiles []opencodeInstructionFile) error {
+func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *agentzv1alpha1.Agent, opencodeCfg string, instructionFiles []opencodeInstructionFile, skills []skill.ManifestSkill) error {
 	if opencodeCfg == "" {
 		current := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -62,6 +64,14 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *agentzv1alpha1
 		for _, item := range instructionFiles {
 			current.Data[path.Base(item.Path)] = item.Content
 		}
+		raw, err := json.MarshalIndent(skill.Manifest{
+			Namespace: agt.Namespace,
+			Skills:    skills,
+		}, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal immutable skills manifest: %w", err)
+		}
+		current.Data[immutableSkillsManifestKey] = string(append(raw, '\n'))
 		return ctrl.SetControllerReference(agt, current, r.Scheme)
 	})
 	if err != nil {
@@ -90,8 +100,32 @@ func (r *Reconciler) reconcileService(ctx context.Context, agt *agentzv1alpha1.A
 	return nil
 }
 
-func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *agentzv1alpha1.Agent, hash string, packages []string, mountConfig bool) error {
-	desired := r.buildDeployment(agt, hash, packages, mountConfig)
+func (r *Reconciler) reconcileImmutableSkillsBucketSecret(ctx context.Context, agt *agentzv1alpha1.Agent) error {
+	if err := r.Config.SkillStore.Validate(); err != nil {
+		return err
+	}
+
+	current := &corev1.Secret{}
+	current.Name = skill.BucketSecretName
+	current.Namespace = agt.Namespace
+
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
+		current.Labels = map[string]string{
+			"app.kubernetes.io/name":      "agentz-immutable-skills",
+			"agentz.accuknox.com/managed": "true",
+		}
+		current.Type = corev1.SecretTypeOpaque
+		current.Data = r.Config.SkillStore.SecretData()
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch immutable skills bucket secret: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) reconcileDeployment(ctx context.Context, agt *agentzv1alpha1.Agent, hash string, envCfg sandboxConfig, mountConfig bool) error {
+	desired := r.buildDeployment(agt, hash, envCfg, mountConfig)
 	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return fmt.Errorf("set controller reference: %w", err)
 	}
@@ -166,11 +200,12 @@ func (r *Reconciler) buildService(agt *agentzv1alpha1.Agent) *corev1.Service {
 	}
 }
 
-func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, packages []string, mountConfig bool) *appsv1.Deployment {
+func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, envCfg sandboxConfig, mountConfig bool) *appsv1.Deployment {
 	image := agt.Spec.Image
 	if image == "" {
 		image = r.Config.AgentDefaultImage
 	}
+	packages := envCfg.Packages
 
 	labels := resourceLabels(agt)
 	podLabels := make(map[string]string, len(labels))
@@ -191,17 +226,25 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 	}
 
 	volumes = append(volumes, corev1.Volume{
+		Name: homeAgentVolume,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: agt.Name + "-home",
+			},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      homeAgentVolume,
+		MountPath: agentHomeDir,
+		SubPath:   homeStoreSubPath,
+	})
+	volumes = append(volumes, corev1.Volume{
 		Name: nixAgentVolume,
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 				ClaimName: agt.Name + "-nix",
 			},
 		},
-	})
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      nixAgentVolume,
-		MountPath: "/home/agentz",
-		SubPath:   nixHomeSubPath,
 	})
 	initContainers = append(initContainers, corev1.Container{
 		Name:            homeInitName,
@@ -218,7 +261,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 			},
 		},
 		VolumeMounts: []corev1.VolumeMount{{
-			Name:      nixAgentVolume,
+			Name:      homeAgentVolume,
 			MountPath: nixVolumeRootMount,
 		}},
 	})
@@ -237,6 +280,15 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      configVolume,
 			MountPath: opencodeConfigDir,
+			ReadOnly:  true,
+		})
+	}
+
+	if len(envCfg.Skills) > 0 {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      homeAgentVolume,
+			MountPath: opencodeImmutableSkillsPath,
+			SubPath:   immutableSkillsSubPath,
 			ReadOnly:  true,
 		})
 	}
@@ -402,13 +454,13 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 							Name:            "agent",
 							Image:           image,
 							ImagePullPolicy: agt.Spec.ImagePullPolicy,
-							WorkingDir:      "/home/agentz",
+							WorkingDir:      agentHomeDir,
 							Args: []string{
 								"serve",
 								"--hostname=0.0.0.0",
 								"--port=4096",
 							},
-							Env:       r.agentEnv(agt, packages, mountConfig),
+							Env:       r.agentEnv(agt, envCfg, mountConfig),
 							Resources: agt.Spec.Resources,
 							Ports: []corev1.ContainerPort{
 								{
@@ -436,7 +488,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, pac
 	}
 }
 
-func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, packages []string, mountConfig bool) []corev1.EnvVar {
+func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, mountConfig bool) []corev1.EnvVar {
 	proxy := r.proxyAddress(agt)
 	proxy = strings.TrimPrefix(proxy, "https://")
 	proxy = strings.TrimPrefix(proxy, "http://")
@@ -463,6 +515,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, packages []string, moun
 		corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
 		corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
 		corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+		corev1.EnvVar{Name: "AGENTZ_IMMUTABLE_SKILLS_PATH", Value: opencodeImmutableSkillsPath},
 	)
 	var telemetryURL string
 	if telemetryEndpoint != "" {
@@ -504,7 +557,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, packages []string, moun
 		env = append(env, item)
 	}
 
-	if len(packages) > 0 {
+	if len(envCfg.Packages) > 0 {
 		env = append(
 			env,
 			corev1.EnvVar{

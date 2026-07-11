@@ -109,10 +109,23 @@ type AgentSpec struct {
 	// +optional
 	SandboxRef *corev1.LocalObjectReference `json:"sandboxRef,omitempty"`
 
+	// Skills lists immutable Skill names attached directly to this Agent.
+	// +optional
+	// +listType=set
+	// +kubebuilder:validation:MaxItems=200
+	// +kubebuilder:validation:items:MaxLength=32
+	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Skills []string `json:"skills,omitempty"`
+
 	// NixStoreSize sets the size of the agent-specific nix store PVC.
 	// +kubebuilder:default="5Gi"
 	// +optional
 	NixStoreSize resource.Quantity `json:"nixStoreSize,omitempty"`
+
+	// HomeSize sets the size of the agent home PVC mounted at /home/agentz.
+	// +kubebuilder:default="5Gi"
+	// +optional
+	HomeSize resource.Quantity `json:"homeSize,omitempty"`
 }
 
 // TelemetryConfig defines agent telemetry export settings.

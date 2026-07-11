@@ -23,6 +23,7 @@ rules:
   - ""
   resources:
   - namespaces
+  - secrets
   verbs:
   - create
   - get
@@ -60,6 +61,7 @@ rules:
   - list-workflows
   - patch
   - set-workflowrun-status
+  - update
   - update-workflow-schedule
   - watch
 - apiGroups:
@@ -69,6 +71,7 @@ rules:
   - mcpconnections/finalizers
   - sandboxes/finalizers
   - secrets/finalizers
+  - skills/finalizers
   - workflowruns/finalizers
   verbs:
   - update
@@ -90,7 +93,6 @@ rules:
   - agentz.accuknox.com
   resources:
   - mcpconnections
-  - sandboxes
   - secrets
   verbs:
   - get
@@ -100,15 +102,17 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - tenants
+  - sandboxes
   verbs:
   - get
   - list
-  - use
+  - patch
+  - update
   - watch
 - apiGroups:
   - agentz.accuknox.com
   resources:
+  - skills
   - workflowruns
   verbs:
   - create
@@ -117,6 +121,15 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - tenants
+  verbs:
+  - get
+  - list
+  - use
   - watch
 - apiGroups:
   - agentz.accuknox.com

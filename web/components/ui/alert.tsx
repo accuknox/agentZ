@@ -12,7 +12,7 @@ const alertVariants = cva(
         destructive:
           "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
         warning:
-          "border-[color:color-mix(in_oklab,var(--accent)_35%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_10%,var(--card))] text-[var(--accent)] *:data-[slot=alert-description]:text-[color:color-mix(in_oklab,var(--accent)_82%,var(--muted-foreground))] *:[svg]:text-current",
+          "border-warning/35 bg-warning/10 text-warning *:data-[slot=alert-description]:text-warning/90 *:[svg]:text-current",
       },
     },
     defaultVariants: {

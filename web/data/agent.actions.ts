@@ -6,14 +6,17 @@ import { updateTag } from "next/cache"
 import { createAgent, deleteAgent, updateAgent } from "@/lib/gateway/client"
 import type { CreateAgentFormState, DeleteAgentFormState } from "@/data/types"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
-import { agentsTag } from "@/data/cache"
+import { agentsTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function createAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = createAgentSimpleFormSchema.safeParse(Object.fromEntries(formData))
+  const parsed = createAgentSimpleFormSchema.safeParse({
+    ...Object.fromEntries(formData),
+    skills: formData.getAll("skills"),
+  })
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
   }
@@ -24,6 +27,7 @@ export async function createAgentFormAction(
   }
 
   updateTag(agentsTag)
+  updateTag(skillsTag)
   redirect("/")
 }
 
@@ -32,7 +36,10 @@ export async function updateAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = updateAgentSimpleFormSchema.safeParse(Object.fromEntries(formData))
+  const parsed = updateAgentSimpleFormSchema.safeParse({
+    ...Object.fromEntries(formData),
+    skills: formData.getAll("skills"),
+  })
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
   }
@@ -48,6 +55,7 @@ export async function updateAgentFormAction(
   const result = await updateAgent({
     body: {
       sandboxName: parsed.data.sandboxName,
+      skills: parsed.data.skills,
       ...(opencode ? { opencode } : {}),
     },
     client: getGatewayServerClient(),
@@ -58,6 +66,7 @@ export async function updateAgentFormAction(
   }
 
   updateTag(agentsTag)
+  updateTag(skillsTag)
   redirect("/")
 }
 
@@ -91,5 +100,6 @@ export async function deleteAgentFormAction(
   }
 
   updateTag(agentsTag)
+  updateTag(skillsTag)
   redirect("/")
 }

@@ -597,7 +597,7 @@ prepare_agent_store() {
 }
 
 prepare_home() {
-    mkdir -p /pvc/home /pvc/nix
+    mkdir -p /pvc/home /pvc/immutable-skills /pvc/nix
 }
 
 stage_runtime() {
@@ -634,6 +634,12 @@ main() {
             ;;
         stage-runtime)
             stage_runtime
+            ;;
+        sync-immutable-skills)
+            agentz skill sync-immutable --target-dir="${AGENTZ_IMMUTABLE_SKILLS_TARGET:-/var/lib/agentz/skills/immutable}"
+            ;;
+        clear-immutable-skills)
+            rm -rf "${AGENTZ_IMMUTABLE_SKILLS_TARGET:-/var/lib/agentz/skills/immutable}"
             ;;
         *)
             echo "unknown mode: $mode"

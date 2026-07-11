@@ -13,7 +13,7 @@ rules:
     resources: ["persistentvolumeclaims"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: [""]
-    resources: ["namespaces"]
+    resources: ["namespaces", "secrets"]
     verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
@@ -40,14 +40,21 @@ rules:
     resources: ["agents"]
     verbs: ["create-workflow", "create-workflow-schedule", "delete-workflow-schedule", "delete-workflows", "get", "get-workflow", "list", "list-workflow-schedules", "list-workflows", "patch", "set-workflowrun-status", "update-workflow-schedule", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes", "mcpconnections", "secrets"]
+    resources: ["mcpconnections", "secrets"]
     verbs: ["get", "list", "patch", "watch"]
+  - apiGroups: ["agentz.accuknox.com"]
+    resources: ["sandboxes"]
+    verbs: ["get", "list", "patch", "update", "watch"]
+  - apiGroups: ["agentz.accuknox.com"]
+    resources: ["skills"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources:
       - agents/finalizers
       - sandboxes/finalizers
       - mcpconnections/finalizers
       - secrets/finalizers
+      - skills/finalizers
       - workflowruns/finalizers
     verbs: ["update"]
   - apiGroups: ["agentz.accuknox.com"]

@@ -26,20 +26,25 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *agentzv1alpha1.Agent, packages []string) (bool, error) {
-	desired := r.buildPackageJob(agt, packages)
+func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *agentzv1alpha1.Agent, envCfg sandboxConfig) (bool, error) {
+	desired, err := r.buildPackageJob(agt, envCfg)
+	if err != nil {
+		return false, err
+	}
 	if err := ctrl.SetControllerReference(agt, desired, r.Scheme); err != nil {
 		return false, fmt.Errorf("set controller reference: %w", err)
 	}
 
 	current := &batchv1.Job{}
-	err := r.Get(ctx, client.ObjectKeyFromObject(desired), current)
+	err = r.Get(ctx, client.ObjectKeyFromObject(desired), current)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			if err := r.Create(ctx, desired); err != nil {
@@ -88,13 +93,16 @@ func (r *Reconciler) reconcilePackageJob(ctx context.Context, agt *agentzv1alpha
 	return false, nil
 }
 
-func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, packages []string) *batchv1.Job {
+func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) (*batchv1.Job, error) {
 	image := r.Config.AgentInitImage
 	if image == "" {
 		image = nixInitImage
 	}
 
-	hash := packageJobHash(image, packages)
+	hash, err := packageJobHash(image, r.Config.SkillStore, envCfg)
+	if err != nil {
+		return nil, err
+	}
 	labels := packageJobLabels(agt)
 	podLabels := make(map[string]string, len(labels))
 	maps.Copy(podLabels, labels)
@@ -116,14 +124,15 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, packages []strin
 		Name:  "AGENTZ_NIX_ROOT",
 		Value: nixVolumeRootMount + "/" + nixStoreSubPath,
 	}}
+	initContainers := make([]corev1.Container, 0, 1)
 
-	if len(packages) > 0 {
+	if len(envCfg.Packages) > 0 {
 		env = append(env, corev1.EnvVar{
 			Name:  nixPkgEnv,
-			Value: strings.Join(packages, ","),
+			Value: strings.Join(envCfg.Packages, ","),
 		})
 	}
-	if r.Config.SharedNixPVC != "" && len(packages) > 0 {
+	if r.Config.SharedNixPVC != "" && len(envCfg.Packages) > 0 {
 		volumes = append(volumes, corev1.Volume{
 			Name: packageJobSharedVolume,
 			VolumeSource: corev1.VolumeSource{
@@ -141,6 +150,64 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, packages []strin
 			Value: r.Config.SharedNixPVC,
 		})
 	}
+	volumes = append(volumes, corev1.Volume{
+		Name: homeAgentVolume,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: agt.Name + "-home",
+			},
+		},
+	})
+	immutableArgs := []string{"clear-immutable-skills"}
+	immutableMounts := []corev1.VolumeMount{{
+		Name: homeAgentVolume, MountPath: homeVolumeRootMount,
+	}}
+	if len(envCfg.Skills) > 0 {
+		immutableArgs = []string{"sync-immutable-skills"}
+		volumes = append(volumes, corev1.Volume{
+			Name: configVolume,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: agt.Name,
+					},
+				},
+			},
+		}, corev1.Volume{
+			Name: immutableSkillsBucketVolume,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: skill.BucketSecretName,
+				},
+			},
+		})
+		immutableMounts = append(immutableMounts,
+			corev1.VolumeMount{Name: configVolume, MountPath: opencodeConfigDir, ReadOnly: true},
+			corev1.VolumeMount{
+				Name: immutableSkillsBucketVolume, MountPath: immutableSkillsSecretMount, ReadOnly: true,
+			},
+		)
+	}
+	initContainers = append(initContainers, corev1.Container{
+		Name:            immutableSkillsInitName,
+		Image:           image,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Args:            immutableArgs,
+		Env: []corev1.EnvVar{{
+			Name:  "AGENTZ_IMMUTABLE_SKILLS_TARGET",
+			Value: homeVolumeRootMount + "/" + immutableSkillsSubPath,
+		}},
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+			RunAsUser:                ptr.To(agentRuntimeUID),
+			RunAsGroup:               ptr.To(agentRuntimeGID),
+			RunAsNonRoot:             ptr.To(true),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		},
+		VolumeMounts: immutableMounts,
+	})
 
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -164,11 +231,13 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, packages []strin
 					RestartPolicy:                corev1.RestartPolicyNever,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(bool),
+						FSGroup:      ptr.To(agentRuntimeGID),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
-					Volumes: volumes,
+					Volumes:        volumes,
+					InitContainers: initContainers,
 					Containers: []corev1.Container{{
 						Name:            "nix-prepare",
 						Image:           image,
@@ -189,7 +258,7 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, packages []strin
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 func findJobCondition(job *batchv1.Job, typ batchv1.JobConditionType) *batchv1.JobCondition {

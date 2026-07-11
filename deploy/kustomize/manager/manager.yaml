@@ -78,7 +78,21 @@ spec:
         - --nix-store-pvc=nix-store
         - --tenant-nix-store-size=5Gi
         - --tenant-nix-store-access-mode=ReadWriteOnce
+        - --skills-s3-endpoint=http://rustfs.rustfs.svc.cluster.local:9000
+        - --skills-s3-region=us-east-1
+        - --skills-s3-bucket=agentz
         - --tenant-sinjector-clusterissuer-name=selfsigned
+        env:
+        - name: AGENTZ_SKILLS_S3_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: agentz-skills-s3
+              key: access-key-id
+        - name: AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agentz-skills-s3
+              key: secret-access-key
         image: controller:latest
         name: manager
         ports: []

@@ -82,6 +82,10 @@ const discoveryDebounceMs = 500
 const discoveryURLSchema = z
   .url({ protocol: /^https$/, error: "OAuth server URL must be a valid HTTPS URL" })
   .refine((value) => {
+    if (!URL.canParse(value)) {
+      return false
+    }
+
     const url = new URL(value)
     return !url.username && !url.password
   }, "OAuth server URL must not include credentials")

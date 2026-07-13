@@ -1,6 +1,6 @@
 FROM nixos/nix:2.32.8 AS nix
 
-ARG NIXPKGS_REF=github:NixOS/nixpkgs/567a49d1913ce81ac6e9582e3553dd90a955875f
+ARG NIXPKGS_REF=github:NixOS/nixpkgs/e7a3ca8092b61ff85b6a45bf863ea2b2d6a661b3
 
 RUN nix --extra-experimental-features 'nix-command flakes' \
     flake prefetch "$NIXPKGS_REF" >/dev/null && \

@@ -195,15 +195,15 @@
 
 @keyframes session-progress-whip {
   0% {
-    clip-path: inset(0 100% 0 0 round 999px);
+    transform: translate3d(-130%, 0, 0) scaleX(0.35);
     animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   48% {
-    clip-path: inset(0 0 0 0 round 999px);
+    transform: translate3d(80%, 0, 0) scaleX(1);
     animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
   }
   100% {
-    clip-path: inset(0 0 0 100% round 999px);
+    transform: translate3d(330%, 0, 0) scaleX(0.35);
   }
 }
 
@@ -224,12 +224,24 @@
   }
 
   [data-component="session-progress-bar"] {
-    width: 100%;
+    width: 34%;
     height: 100%;
     border-radius: 999px;
     background: var(--session-progress-color, var(--primary));
-    clip-path: inset(0 100% 0 0 round 999px);
+    opacity: 0.4;
+    transform: translate3d(-130%, 0, 0) scaleX(0.35);
     animation: session-progress-whip var(--session-progress-ms, 1800ms) infinite;
-    will-change: clip-path;
+    will-change: transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

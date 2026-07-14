@@ -4,6 +4,7 @@ import { InputGroup, InputGroupButton, InputGroupTextarea } from "@/components/u
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { ChatStatus, FileUIPart } from "ai"
 import { ArrowUpIcon, SquareIcon, XIcon } from "lucide-react"
 import { nanoid } from "nanoid"
@@ -473,19 +474,21 @@ export const PromptInputTextarea = ({
   ...props
 }: PromptInputTextareaProps) => {
   const attachments = usePromptInputAttachments()
+  const isMobile = useIsMobile()
   const layout = useContext(PromptInputLayoutContext)
   const [isComposing, setIsComposing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wasDisabledRef = useRef(Boolean(disabled))
 
   const focusTextarea = useCallback(() => {
+    if (isMobile) return
     window.requestAnimationFrame(() => {
       const element = textareaRef.current
       if (!element) return
       if (document.activeElement === element) return
       element.focus()
     })
-  }, [])
+  }, [isMobile])
 
   const resizeTextarea = useCallback(
     (element?: HTMLTextAreaElement | null) => {
@@ -590,7 +593,6 @@ export const PromptInputTextarea = ({
       }
 
       if (files.length > 0) {
-        event.preventDefault()
         attachments.add(files)
       }
     },
@@ -631,7 +633,6 @@ export const PromptInputTextarea = ({
 
   return (
     <InputGroupTextarea
-      autoFocus
       className={cn(
         "max-h-48 min-h-7 px-1 py-0.5 text-base leading-6 whitespace-pre-wrap transition-[height] duration-150 ease-out placeholder:font-normal md:text-[15px]",
         className

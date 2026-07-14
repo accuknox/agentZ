@@ -732,10 +732,12 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
       {isBusy ? (
         <div
           aria-hidden="true"
-          className="bg-primary/40 absolute inset-x-0 top-0 h-0.5 animate-pulse"
+          className="absolute inset-x-0 top-0 h-0.5"
           data-component="session-progress"
           data-state="showing"
-        />
+        >
+          <div data-component="session-progress-bar" />
+        </div>
       ) : null}
       <Conversation
         className={cn(
@@ -743,16 +745,16 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
           showStarter && "pointer-events-none opacity-0"
         )}
       >
-        <ConversationContent className="w-full px-4">
+        <ConversationContent className="mx-auto w-full max-w-3xl px-4 py-6">
           {showHistorySkeleton ? (
-            <div className="mx-auto flex w-full flex-col gap-3 lg:w-4/5">
+            <div className="flex w-full flex-col gap-3">
               <Skeleton className="h-16 w-full rounded-md" />
               <Skeleton className="h-24 w-full rounded-md" />
               <Skeleton className="h-16 w-2/3 rounded-md" />
             </div>
           ) : !showStarter ? (
             <>
-              <div className="mx-auto flex w-full flex-col gap-4 lg:w-4/5">
+              <div className="flex w-full flex-col gap-4">
                 {rows.map((row) => (
                   <TimelineRowView
                     agentName={agentName}
@@ -1177,13 +1179,13 @@ function TimelineRowView({
                 <CopyButton content={row.text} />
                 <Button
                   aria-label="Revert to here"
-                  className="h-6 w-6"
+                  className="size-6"
                   disabled={revertDisabled}
                   onClick={() => onRevert(row.messageID)}
                   size="icon"
                   variant="ghost"
                 >
-                  <Undo2Icon className="h-4 w-4" />
+                  <Undo2Icon />
                 </Button>
               </MessageActionBar>
               <span className="text-muted-foreground text-xs">

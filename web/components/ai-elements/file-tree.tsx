@@ -3,7 +3,7 @@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, FileIcon, FolderIcon, FolderOpenIcon } from "lucide-react"
-import type { HTMLAttributes, ReactNode } from "react"
+import type { ComponentProps, HTMLAttributes, ReactNode } from "react"
 import * as React from "react"
 
 type FileTreeContextValue = {
@@ -67,22 +67,17 @@ export function FileTreeFolder({ path, name, className, children, ...props }: Fi
         role="treeitem"
         {...props}
       >
-        <div className="hover:bg-muted/50 flex w-full items-center gap-1 rounded px-2 py-1 transition-colors">
-          <CollapsibleTrigger asChild>
-            <button className="flex shrink-0 items-center" type="button">
-              <ChevronRightIcon
-                className={cn(
-                  "text-muted-foreground size-4 shrink-0 transition-transform",
-                  open && "rotate-90"
-                )}
-              />
-            </button>
-          </CollapsibleTrigger>
+        <CollapsibleTrigger asChild>
           <button
-            className="flex min-w-0 flex-1 items-center gap-1 text-left"
-            onClick={() => tree.toggle(path)}
+            className="hover:bg-muted/50 focus-visible:bg-muted/50 flex w-full items-center gap-1 rounded px-2 py-1 text-left transition-colors"
             type="button"
           >
+            <ChevronRightIcon
+              className={cn(
+                "text-muted-foreground size-4 shrink-0 transition-transform",
+                open && "rotate-90"
+              )}
+            />
             {open ? (
               <FolderOpenIcon className="text-primary size-4 shrink-0" />
             ) : (
@@ -90,7 +85,7 @@ export function FileTreeFolder({ path, name, className, children, ...props }: Fi
             )}
             <span className="truncate">{name}</span>
           </button>
-        </div>
+        </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="ml-4 border-l pl-2" role="group">
             {children}
@@ -101,39 +96,43 @@ export function FileTreeFolder({ path, name, className, children, ...props }: Fi
   )
 }
 
-export type FileTreeFileProps = HTMLAttributes<HTMLDivElement> & {
+export type FileTreeFileProps = ComponentProps<"button"> & {
   icon?: ReactNode
   name: string
   path: string
 }
 
-export function FileTreeFile({ path, name, icon, className, ...props }: FileTreeFileProps) {
+export function FileTreeFile({
+  path,
+  name,
+  icon,
+  className,
+  onClick,
+  ...props
+}: FileTreeFileProps) {
   const tree = React.use(FileTreeContext)
   if (!tree) throw new Error("FileTreeFile must be used within FileTree")
   const selected = tree.selectedPath === path
 
   return (
-    <div
+    <button
       aria-selected={selected}
       className={cn(
-        "hover:bg-muted/50 flex cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors",
+        "hover:bg-muted/50 focus-visible:bg-muted/50 flex w-full items-center gap-1 rounded px-2 py-1 text-left transition-colors",
         selected && "bg-muted",
         className
       )}
-      onClick={() => tree.onSelect?.(path)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault()
-          tree.onSelect?.(path)
-        }
+      onClick={(event) => {
+        onClick?.(event)
+        if (!event.defaultPrevented) tree.onSelect?.(path)
       }}
       role="treeitem"
-      tabIndex={0}
+      type="button"
       {...props}
     >
       <span className="size-4 shrink-0" />
       {icon ?? <FileIcon className="text-primary size-4 shrink-0" />}
       <span className="truncate">{name}</span>
-    </div>
+    </button>
   )
 }

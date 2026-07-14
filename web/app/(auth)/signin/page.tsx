@@ -25,8 +25,11 @@ const providerActions = {
 
 export default function SignInPage({ searchParams }: { searchParams: Promise<AuthSearchParams> }) {
   return (
-    <div className="flex min-h-svh w-full justify-center px-6 py-10 md:px-10 md:py-14">
-      <div className="w-full max-w-xl">
+    <main
+      className="flex min-h-svh w-full items-center justify-center px-4 py-6 md:px-6"
+      id="main-content"
+    >
+      <div className="w-full max-w-md">
         <Suspense
           fallback={
             <SignInForm
@@ -40,7 +43,7 @@ export default function SignInPage({ searchParams }: { searchParams: Promise<Aut
           <SignInGate searchParams={searchParams} />
         </Suspense>
       </div>
-    </div>
+    </main>
   )
 }
 

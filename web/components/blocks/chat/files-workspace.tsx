@@ -47,6 +47,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -166,10 +167,24 @@ function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
   )
 
   return (
-    <aside className="relative hidden h-full min-h-0 shrink-0 overflow-hidden border-l lg:block">
+    <aside className="relative hidden h-full min-h-0 shrink-0 overflow-hidden border-l shadow-sm lg:block">
       <div
         aria-label="Resize files workspace"
-        className="hover:bg-border absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize touch-none transition-colors"
+        aria-orientation="vertical"
+        aria-valuemax={editorOpen ? 1200 : 520}
+        aria-valuemin={editorOpen ? explorerWidth + 240 : 220}
+        aria-valuenow={width}
+        className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize touch-none transition-colors"
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+          event.preventDefault()
+          const nextWidth = width + (event.key === "ArrowLeft" ? 16 : -16)
+          if (editorOpen) {
+            setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
+            return
+          }
+          setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
+        }}
         onPointerDown={(event) => {
           setResizing(true)
           event.currentTarget.setPointerCapture(event.pointerId)
@@ -200,14 +215,17 @@ function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
           setResizing(false)
         }}
         role="separator"
+        tabIndex={0}
       />
       <div className="bg-background h-full min-h-0">
         {rootQuery.isPending ? (
           <div
+            aria-live="polite"
             className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+            role="status"
             style={{ width: explorerWidth }}
           >
-            <Spinner /> Loading workspace
+            <Spinner /> Loading workspace...
           </div>
         ) : rootQuery.isError ? (
           <div
@@ -348,8 +366,15 @@ function WorkspaceBody({
       })
     }
     document.addEventListener("click", guardLink, true)
+    const guardUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", guardUnload)
+
     return () => {
       document.removeEventListener("click", guardLink, true)
+      window.removeEventListener("beforeunload", guardUnload)
     }
   }, [dirty])
 
@@ -371,24 +396,33 @@ function WorkspaceBody({
               className="bg-background flex h-full min-w-0 flex-col"
               style={{ width: workspaceWidth - explorerWidth }}
             >
-              <div className="bg-muted/20 flex h-10 shrink-0 items-end overflow-hidden border-b">
-                <div className="flex min-w-0 flex-1 scrollbar-none self-stretch overflow-x-auto">
+              <div className="bg-muted/20 flex h-10 shrink-0 items-center overflow-hidden px-1.5">
+                <div
+                  aria-label="Open files"
+                  className="flex min-w-0 flex-1 scrollbar-none gap-1 self-stretch overflow-x-auto py-1.5"
+                  role="tablist"
+                >
                   {tabs.map((tab) => (
                     <div
-                      className="hover:bg-muted/50 data-[active=true]:bg-background group relative flex max-w-56 min-w-32 shrink-0 items-center gap-2 border-r px-3 text-sm transition-colors"
+                      className="hover:bg-muted/50 data-[active=true]:bg-background group relative flex max-w-56 min-w-32 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors data-[active=true]:shadow-sm"
                       data-active={selected === tab.path}
                       key={tab.path}
                     >
                       <button
+                        aria-selected={selected === tab.path}
                         className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-left"
                         onClick={() => setSelected(workspaceKey, tab.path)}
+                        role="tab"
                         type="button"
                       >
                         <FileTypeIcon name={tab.name} />
                         <span className="min-w-0 flex-1 truncate">{tab.name}</span>
                       </button>
                       {drafts[tab.path]?.dirty ? (
-                        <span className="bg-primary size-1.5 shrink-0 rounded-full" />
+                        <span
+                          aria-hidden="true"
+                          className="bg-primary size-1.5 shrink-0 rounded-full"
+                        />
                       ) : null}
                       <Button
                         aria-label={`Close ${tab.name}`}
@@ -428,7 +462,7 @@ function WorkspaceBody({
                   <TooltipTrigger asChild>
                     <Button
                       aria-label="Close editor"
-                      className="m-1 shrink-0"
+                      className="shrink-0"
                       onClick={() => onEditorOpenChange(false)}
                       size="icon-sm"
                       variant="ghost"
@@ -439,7 +473,8 @@ function WorkspaceBody({
                   <TooltipContent>Close editor</TooltipContent>
                 </Tooltip>
               </div>
-              <div className="min-h-0 flex-1">
+              <Separator />
+              <div className="min-h-0 flex-1" role="tabpanel">
                 {selected ? (
                   <EditorPane
                     agentName={agentName}
@@ -464,7 +499,19 @@ function WorkspaceBody({
       {editorOpen ? (
         <div
           aria-label="Resize file explorer"
-          className="hover:bg-border relative z-20 w-1 shrink-0 cursor-col-resize touch-none border-l transition-colors"
+          aria-orientation="vertical"
+          aria-valuemax={Math.min(520, workspaceWidth - 240)}
+          aria-valuemin={220}
+          aria-valuenow={explorerWidth}
+          className="hover:bg-border focus-visible:bg-ring relative z-20 w-1 shrink-0 cursor-col-resize touch-none border-l transition-colors"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+            event.preventDefault()
+            const nextWidth = explorerWidth + (event.key === "ArrowLeft" ? 16 : -16)
+            setExplorerWidth(
+              Math.min(520, Math.max(220, Math.min(workspaceWidth - 240, nextWidth)))
+            )
+          }}
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId)
             resize.current = {
@@ -489,11 +536,12 @@ function WorkspaceBody({
             resize.current = null
           }}
           role="separator"
+          tabIndex={0}
         />
       ) : null}
 
       <section className="flex min-h-0 shrink-0 flex-col" style={{ width: explorerWidth }}>
-        <div className="flex h-10 shrink-0 items-center gap-1 border-b px-2">
+        <div className="flex h-10 shrink-0 items-center gap-1 px-2">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">Explorer</span>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -534,7 +582,8 @@ function WorkspaceBody({
             <RefreshCw />
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto py-1">
+        <Separator />
+        <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
           <FileTree
             className="rounded-none border-0 bg-transparent font-sans"
             onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
@@ -621,8 +670,12 @@ function DirectoryTree({ agentName, onAction, path, root }: DirectoryTreeProps) 
 
   if (directoryQuery.isPending) {
     return (
-      <div className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm">
-        <Spinner className="size-3" /> Loading
+      <div
+        aria-live="polite"
+        className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
+        role="status"
+      >
+        <Spinner className="size-3" /> Loading...
       </div>
     )
   }
@@ -892,8 +945,12 @@ function EditorPane({
 
   if (statQuery.isPending || (readText && fileQuery.isPending) || (text && !draft)) {
     return (
-      <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
-        <Spinner /> Loading {filename}
+      <div
+        aria-live="polite"
+        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        role="status"
+      >
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -935,8 +992,12 @@ function EditorPane({
 
   if (!draft) {
     return (
-      <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
-        <Spinner /> Loading {filename}
+      <div
+        aria-live="polite"
+        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        role="status"
+      >
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -1235,15 +1296,25 @@ function RawPreview({
 
   if (rawQuery.isPending || !url) {
     return (
-      <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
-        <Spinner /> Loading preview
+      <div
+        aria-live="polite"
+        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        role="status"
+      >
+        <Spinner /> Loading preview...
       </div>
     )
   }
 
   return image ? (
     // eslint-disable-next-line @next/next/no-img-element -- object URLs are not supported by next/image.
-    <img alt={`Preview of ${filename}`} className="h-full w-full object-contain p-6" src={url} />
+    <img
+      alt={`Preview of ${filename}`}
+      className="h-full w-full object-contain p-6"
+      height={1}
+      src={url}
+      width={1}
+    />
   ) : (
     <iframe className="h-full w-full" src={url} title={`Preview of ${filename}`} />
   )
@@ -1297,9 +1368,18 @@ function EntryDialog({
         </DialogHeader>
         {action.kind !== "delete" ? (
           <Input
+            aria-label={
+              action.kind === "directory" ||
+              (action.kind === "rename" && action.entry.type === "directory")
+                ? "Folder name"
+                : "File name"
+            }
             autoFocus
+            autoComplete="off"
+            name="entry-name"
             onChange={(event) => setName(event.target.value)}
-            placeholder={action.kind === "directory" ? "folder-name" : "filename.ts"}
+            placeholder={action.kind === "directory" ? "folder-name..." : "filename.ts…"}
+            spellCheck={false}
             value={name}
           />
         ) : null}

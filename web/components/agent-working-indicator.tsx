@@ -2,20 +2,20 @@
 
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { cn } from "@/lib/utils"
-import { motion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 import Image from "next/image"
 import { useEffect, useState, type ReactElement } from "react"
 
 /** The emblem spinning steadily clockwise - a sleek "agent thinking" tell. */
-function WorkingEmblem(): ReactElement {
+function WorkingEmblem({ reducedMotion }: { reducedMotion: boolean }): ReactElement {
   return (
     <motion.span
       className="inline-flex size-[30px]"
       initial={{ rotate: 0 }}
-      animate={{ rotate: 360 }}
+      animate={reducedMotion ? undefined : { rotate: 360 }}
       transition={{ duration: 2.5, ease: "linear", repeat: Number.POSITIVE_INFINITY }}
     >
-      <Image alt="" aria-hidden="true" height={30} priority src="/emblem.svg" width={30} />
+      <Image alt="" aria-hidden="true" height={30} src="/emblem.svg" width={30} />
     </motion.span>
   )
 }
@@ -35,6 +35,7 @@ export function AgentWorkingIndicator({
   isWorking,
   className,
 }: AgentWorkingIndicatorProps): ReactElement {
+  const reducedMotion = useReducedMotion() ?? false
   const [visible, setVisible] = useState(isWorking)
 
   if (isWorking && !visible) {
@@ -51,13 +52,15 @@ export function AgentWorkingIndicator({
 
   return (
     <div
+      aria-live="polite"
       className={cn("inline-flex items-center gap-2", className)}
+      role="status"
       style={{
         opacity: isWorking ? 1 : 0,
         transition: "opacity 220ms ease-out",
       }}
     >
-      <WorkingEmblem />
+      <WorkingEmblem reducedMotion={reducedMotion} />
       <Shimmer>Working...</Shimmer>
     </div>
   )

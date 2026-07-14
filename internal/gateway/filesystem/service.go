@@ -154,6 +154,13 @@ func (s *service) createFile(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	parent := path.Dir(req.Path)
+	if parent != "." {
+		if err := s.root.MkdirAll(parent, 0o700); err != nil {
+			writeFailure(w, r, pathFailure(err))
+			return
+		}
+	}
 
 	f, err := s.root.OpenFile(req.Path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -217,7 +224,20 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, pathFailure(err))
 		return
 	}
-	defer s.root.Remove(tmp)
+	removeTmp := true
+	defer func() {
+		if !removeTmp {
+			return
+		}
+		err := s.root.Remove(tmp)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			slog.ErrorContext(
+				r.Context(), "remove temporary file",
+				slog.String("path", req.Path),
+				slog.Any("err", err),
+			)
+		}
+	}()
 
 	_, writeErr := io.WriteString(f, req.Content)
 	syncErr := f.Sync()
@@ -228,19 +248,53 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !overwrite {
-		current, err := s.metadata(req.Path)
+		err := exchangeFiles(s.root, tmp, req.Path)
 		if err != nil {
-			writeFailure(w, r, pathFailure(err))
+			if errors.Is(err, os.ErrNotExist) {
+				writeFailure(w, r, pathFailure(err))
+				return
+			}
+			writeFailure(w, r, internalFailure("replace file atomically", err))
 			return
 		}
+
+		current, err := s.metadata(tmp)
+		if err != nil {
+			restoreErr := exchangeFiles(s.root, tmp, req.Path)
+			if restoreErr != nil {
+				removeTmp = false
+			}
+			writeFailure(
+				w,
+				r,
+				internalFailure(
+					"validate replaced file",
+					errors.Join(err, restoreErr),
+				),
+			)
+			return
+		}
+		current.Path = req.Path
 		if current.Version != req.ExpectedVersion {
+			err := exchangeFiles(s.root, tmp, req.Path)
+			if err != nil {
+				removeTmp = false
+				writeFailure(
+					w,
+					r,
+					internalFailure("restore version-conflicted file", err),
+				)
+				return
+			}
 			writeFailure(w, r, versionConflict(current))
 			return
 		}
 	}
-	if err := s.root.Rename(tmp, req.Path); err != nil {
-		writeFailure(w, r, pathFailure(err))
-		return
+	if overwrite {
+		if err := s.root.Rename(tmp, req.Path); err != nil {
+			writeFailure(w, r, pathFailure(err))
+			return
+		}
 	}
 
 	meta, err = s.metadata(req.Path)
@@ -338,10 +392,12 @@ func (s *service) rename(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, pathFailure(err))
 		return
 	}
-	if _, err := s.root.Lstat(req.Target); err == nil {
+	_, err := s.root.Lstat(req.Target)
+	if err == nil {
 		writeFailure(w, r, entryExists())
 		return
-	} else if !errors.Is(err, os.ErrNotExist) {
+	}
+	if !errors.Is(err, os.ErrNotExist) {
 		writeFailure(w, r, pathFailure(err))
 		return
 	}

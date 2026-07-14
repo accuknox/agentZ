@@ -105,9 +105,12 @@ type Confirmation = {
 type DirectoryTreeProps = {
   agentName: string
   onAction: (action: EntryAction) => void
+  onMove: (path: string, directory: string) => void
   path: string
   root: string
 }
+
+const fileDragType = "application/x-agentz-file-path"
 
 function agentFilesQueryOptions(agentName: string, root: string, path: string) {
   return queryOptions({
@@ -133,7 +136,13 @@ export function FilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
   const { openAgent } = useFileWorkspace()
   const filesOpen = openAgent === agentName
 
-  return filesOpen ? <OpenFilesWorkspace agentName={agentName} sessionId={sessionId} /> : null
+  return (
+    <AnimatePresence initial={false}>
+      {filesOpen ? (
+        <OpenFilesWorkspace agentName={agentName} key={agentName} sessionId={sessionId} />
+      ) : null}
+    </AnimatePresence>
+  )
 }
 
 function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
@@ -167,7 +176,14 @@ function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
   )
 
   return (
-    <aside className="relative hidden h-full min-h-0 shrink-0 overflow-hidden border-l shadow-sm lg:block">
+    <motion.aside
+      animate={{ opacity: 1, x: 0 }}
+      className="relative hidden h-full min-h-0 shrink-0 overflow-hidden border-l shadow-sm lg:block"
+      exit={{ opacity: 0, x: "100%" }}
+      initial={{ opacity: 0, x: "100%" }}
+      style={{ width }}
+      transition={{ duration: reducedMotion || resizing ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+    >
       <div
         aria-label="Resize files workspace"
         aria-orientation="vertical"
@@ -217,7 +233,7 @@ function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
         role="separator"
         tabIndex={0}
       />
-      <div className="bg-background h-full min-h-0">
+      <div className="bg-background h-full min-h-0" style={{ width }}>
         {rootQuery.isPending ? (
           <div
             aria-live="polite"
@@ -255,7 +271,7 @@ function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
           />
         )}
       </div>
-    </aside>
+    </motion.aside>
   )
 }
 
@@ -280,6 +296,7 @@ function WorkspaceBody({
 }) {
   const queryClient = useQueryClient()
   const workspaceKey = `${agentName}:${root}`
+  const editorWidth = workspaceWidth - explorerWidth - 4
   const {
     closeRoot,
     closeTab,
@@ -304,6 +321,45 @@ function WorkspaceBody({
       onEditorOpenChange(true)
     },
     [onEditorOpenChange, openTab, workspaceKey]
+  )
+  const { isPending: movePending, mutate: move } = useMutation(renameAgentEntryMutation())
+  const moveFile = React.useCallback(
+    (path: string, directory: string) => {
+      if (!path) return
+
+      const name = path.slice(path.lastIndexOf("/") + 1)
+      const target = directory === "." ? name : `${directory}/${name}`
+      const sourceDirectory = path.includes("/") ? `${path.slice(0, path.lastIndexOf("/"))}/` : "."
+      const targetDirectory = directory === "." ? "." : `${directory}/`
+      if (
+        target === path ||
+        directory === path ||
+        directory.startsWith(`${path}/`) ||
+        movePending
+      ) {
+        return
+      }
+
+      move(
+        { body: { path, target }, path: { agentName } },
+        {
+          onError: (error) => toast.error("Could not move entry", { description: error.message }),
+          onSuccess: () => {
+            void Promise.all([
+              queryClient.invalidateQueries({
+                queryKey: agentFilesQueryOptions(agentName, root, sourceDirectory).queryKey,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: agentFilesQueryOptions(agentName, root, targetDirectory).queryKey,
+              }),
+            ])
+            moveEntry(workspaceKey, path, target)
+            toast.success(`Moved ${name}`)
+          },
+        }
+      )
+    },
+    [agentName, move, moveEntry, movePending, queryClient, root, workspaceKey]
   )
   const setSelectedDraft = React.useCallback(
     (draft: Draft) => {
@@ -379,14 +435,15 @@ function WorkspaceBody({
   }, [dirty])
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="relative flex h-full min-h-0">
       <AnimatePresence initial={false}>
         {editorOpen ? (
           <motion.div
-            animate={{ width: workspaceWidth - explorerWidth }}
-            className="min-h-0 shrink-0 overflow-hidden"
+            animate={{ width: editorWidth }}
+            className="absolute inset-y-0 z-10 overflow-hidden"
             exit={{ width: 0 }}
             initial={{ width: 0 }}
+            style={{ right: explorerWidth + 4 }}
             transition={{
               duration: reducedMotion ? 0 : 0.3,
               ease: [0.22, 1, 0.36, 1],
@@ -394,7 +451,7 @@ function WorkspaceBody({
           >
             <section
               className="bg-background flex h-full min-w-0 flex-col"
-              style={{ width: workspaceWidth - explorerWidth }}
+              style={{ width: editorWidth }}
             >
               <div className="bg-muted/20 flex h-10 shrink-0 items-center overflow-hidden px-1.5">
                 <div
@@ -503,7 +560,7 @@ function WorkspaceBody({
           aria-valuemax={Math.min(520, workspaceWidth - 240)}
           aria-valuemin={220}
           aria-valuenow={explorerWidth}
-          className="hover:bg-border focus-visible:bg-ring relative z-20 w-1 shrink-0 cursor-col-resize touch-none border-l transition-colors"
+          className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 z-20 w-1 cursor-col-resize touch-none border-l transition-colors"
           onKeyDown={(event) => {
             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
             event.preventDefault()
@@ -536,11 +593,12 @@ function WorkspaceBody({
             resize.current = null
           }}
           role="separator"
+          style={{ right: explorerWidth }}
           tabIndex={0}
         />
       ) : null}
 
-      <section className="flex min-h-0 shrink-0 flex-col" style={{ width: explorerWidth }}>
+      <section className="ml-auto flex min-h-0 shrink-0 flex-col" style={{ width: explorerWidth }}>
         <div className="flex h-10 shrink-0 items-center gap-1 px-2">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">Explorer</span>
           <Tooltip>
@@ -586,10 +644,25 @@ function WorkspaceBody({
         <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
           <FileTree
             className="rounded-none border-0 bg-transparent font-sans"
+            onDragOver={(event) => {
+              if (!event.dataTransfer.types.includes(fileDragType)) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = "move"
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              moveFile(event.dataTransfer.getData(fileDragType), ".")
+            }}
             onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
             selectedPath={selected ?? undefined}
           >
-            <DirectoryTree agentName={agentName} onAction={setAction} path="." root={root} />
+            <DirectoryTree
+              agentName={agentName}
+              onAction={setAction}
+              onMove={moveFile}
+              path="."
+              root={root}
+            />
           </FileTree>
         </div>
       </section>
@@ -665,7 +738,8 @@ function WorkspaceBody({
   )
 }
 
-function DirectoryTree({ agentName, onAction, path, root }: DirectoryTreeProps) {
+function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTreeProps) {
+  const [dropPath, setDropPath] = React.useState<string | null>(null)
   const directoryQuery = useQuery(agentFilesQueryOptions(agentName, root, path))
 
   if (directoryQuery.isPending) {
@@ -710,6 +784,29 @@ function DirectoryTree({ agentName, onAction, path, root }: DirectoryTreeProps) 
             >
               <Copy /> Copy path
             </ContextMenuItem>
+            {!directory ? (
+              <ContextMenuItem
+                onSelect={() => {
+                  void readAgentFileRaw({
+                    parseAs: "blob",
+                    path: { agentName },
+                    query: { path: entryPath },
+                    throwOnError: true,
+                  })
+                    .then(({ data }) => {
+                      const url = URL.createObjectURL(data)
+                      const anchor = document.createElement("a")
+                      anchor.href = url
+                      anchor.download = entry.name
+                      anchor.click()
+                      URL.revokeObjectURL(url)
+                    })
+                    .catch(() => toast.error("Could not download file"))
+                }}
+              >
+                <Download /> Save
+              </ContextMenuItem>
+            ) : null}
             {directory ? (
               <>
                 <ContextMenuSeparator />
@@ -744,13 +841,36 @@ function DirectoryTree({ agentName, onAction, path, root }: DirectoryTreeProps) 
           <ContextMenu key={entry.path}>
             <ContextMenuTrigger asChild>
               <FileTreeFolder
+                className={dropPath === entryPath ? "bg-accent rounded select-none" : "select-none"}
+                draggable
                 name={entry.name}
+                onDragEnd={() => setDropPath(null)}
+                onDragLeave={() => setDropPath(null)}
+                onDragOver={(event) => {
+                  if (!event.dataTransfer.types.includes(fileDragType)) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  event.dataTransfer.dropEffect = "move"
+                  setDropPath(entryPath)
+                }}
+                onDragStart={(event) => {
+                  event.stopPropagation()
+                  event.dataTransfer.setData(fileDragType, entryPath)
+                  event.dataTransfer.effectAllowed = "move"
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setDropPath(null)
+                  onMove(event.dataTransfer.getData(fileDragType), entryPath)
+                }}
                 onContextMenu={(event) => event.stopPropagation()}
                 path={entry.path}
               >
                 <DirectoryTree
                   agentName={agentName}
                   onAction={onAction}
+                  onMove={onMove}
                   path={entry.path}
                   root={root}
                 />
@@ -765,8 +885,15 @@ function DirectoryTree({ agentName, onAction, path, root }: DirectoryTreeProps) 
         <ContextMenu key={entry.path}>
           <ContextMenuTrigger asChild>
             <FileTreeFile
+              className="select-none"
+              draggable
               icon={<FileTypeIcon name={entry.name} />}
               name={entry.name}
+              onDragStart={(event) => {
+                event.stopPropagation()
+                event.dataTransfer.setData(fileDragType, entryPath)
+                event.dataTransfer.effectAllowed = "move"
+              }}
               onContextMenu={(event) => event.stopPropagation()}
               path={entry.path}
             />
@@ -1378,7 +1505,7 @@ function EntryDialog({
             autoComplete="off"
             name="entry-name"
             onChange={(event) => setName(event.target.value)}
-            placeholder={action.kind === "directory" ? "folder-name..." : "filename.ts…"}
+            placeholder={action.kind === "directory" ? "folder-name..." : "filename.md..."}
             spellCheck={false}
             value={name}
           />

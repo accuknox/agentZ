@@ -853,10 +853,10 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                     onOpenChange={setModelSelectorOpen}
                     open={agentReadiness.isGettingReady ? false : modelSelectorOpen}
                   >
-                    <div className="hidden min-w-0 items-center justify-end gap-1.5 md:flex">
+                    <div className="hidden min-w-0 items-center justify-end gap-1.5 @xl/chat:flex">
                       <ModelSelectorTrigger asChild>
                         <PromptInputButton
-                          className="h-8 max-w-[48vw] justify-start px-2 sm:max-w-72"
+                          className="h-8 max-w-72 justify-start px-2"
                           disabled={inputDisabled}
                         >
                           {agentReadiness.isGettingReady ? (
@@ -926,7 +926,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                         </Select>
                       ) : null}
                     </div>
-                    <div className="flex justify-end md:hidden">
+                    <div className="flex justify-end @xl/chat:hidden">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <PromptInputButton

@@ -4,17 +4,14 @@ import * as z from "zod"
 import { clientRedirectToSignIn } from "@/lib/sign-in-redirect"
 import type { ClientOptions } from "@/lib/gateway/client"
 
-const gatewayBaseURLSchema = z
-  .string()
-  .url()
-  .transform((value) => {
-    const url = new URL(value)
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new Error("Gateway base URL must use http or https")
-    }
+const gatewayBaseURLSchema = z.url().transform((value) => {
+  const url = new URL(value)
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Gateway base URL must use http or https")
+  }
 
-    return url.origin
-  })
+  return url.origin
+})
 
 const gatewayBaseURLResponseSchema = z.object({
   baseUrl: gatewayBaseURLSchema,
@@ -52,16 +49,6 @@ async function fetchGatewayResponse<T>(
   }
 
   return await parseResponse(response, schema)
-}
-
-function withBearerToken(request: Request, token: string): Request {
-  const headers = new Headers(request.headers)
-  headers.set("Authorization", `Bearer ${token}`)
-
-  return new Request(request, {
-    headers,
-    signal: request.signal,
-  })
 }
 
 /**
@@ -106,10 +93,20 @@ export async function gatewayAuthenticatedFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const [request, token] = await Promise.all([
-    Promise.resolve(new Request(input, init)),
-    getGatewayToken(),
-  ])
+  const [token, baseUrl] = await Promise.all([getGatewayToken(), getGatewayBaseURL()])
 
-  return fetch(withBearerToken(request, token))
+  if (input instanceof Request) {
+    const headers = new Headers(input.headers)
+    headers.set("Authorization", `Bearer ${token}`)
+    return fetch(new Request(input, { headers }))
+  }
+
+  const url = new URL(input, baseUrl)
+  const gateway = new URL(baseUrl)
+  url.protocol = gateway.protocol
+  url.host = gateway.host
+  const headers = new Headers(init?.headers)
+  headers.set("Authorization", `Bearer ${token}`)
+
+  return fetch(url, { ...init, headers })
 }

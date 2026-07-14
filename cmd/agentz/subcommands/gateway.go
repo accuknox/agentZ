@@ -82,6 +82,13 @@ var gatewayServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:  "filesystem-target-override",
+			Usage: "Override the filesystem target for local port-forward testing",
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
 			Name:  "agent-image",
 			Usage: "Container image for gateway-created Agents",
 			Config: cli.StringConfig{
@@ -152,6 +159,7 @@ var gatewayServeCmd = &cli.Command{
 			ExternalJWTAudience:      c.String("external-jwt-audience"),
 			InternalK8sTokenAudience: c.String("internal-k8s-token-audience"),
 			TargetOverride:           c.String("target-override"),
+			FilesystemTargetOverride: c.String("filesystem-target-override"),
 			AgentImage:               c.String("agent-image"),
 			AgentTraceEndpoint:       c.String("agent-trace-endpoint"),
 			OpenBaoAddr:              c.String("openbao-addr"),

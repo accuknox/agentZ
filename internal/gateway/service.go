@@ -49,6 +49,7 @@ type Config struct {
 	ExternalJWTAudience      string
 	InternalK8sTokenAudience string
 	TargetOverride           string
+	FilesystemTargetOverride string
 	AgentImage               string
 	AgentTraceEndpoint       string
 	OpenBaoAddr              string

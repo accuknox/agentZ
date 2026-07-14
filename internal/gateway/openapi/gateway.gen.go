@@ -28,6 +28,17 @@ const (
 	GatewayBearerScopes = "GatewayBearer.Scopes"
 )
 
+// Defines values for AgentFileConflictCode.
+const (
+	FileVersionConflict AgentFileConflictCode = "file_version_conflict"
+)
+
+// Defines values for AgentFileType.
+const (
+	AgentFileTypeDirectory AgentFileType = "directory"
+	AgentFileTypeFile      AgentFileType = "file"
+)
+
 // Defines values for AgentStatus.
 const (
 	DEGRADED    AgentStatus = "DEGRADED"
@@ -374,7 +385,7 @@ const (
 
 // Defines values for SessionCommandJSONBodyPartsType.
 const (
-	SessionCommandJSONBodyPartsTypeFile SessionCommandJSONBodyPartsType = "file"
+	File SessionCommandJSONBodyPartsType = "file"
 )
 
 // Defines values for PermissionRespondJSONBodyResponse.
@@ -401,6 +412,41 @@ type Agent struct {
 	Status      AgentStatus `json:"status"`
 }
 
+// AgentFile defines model for AgentFile.
+type AgentFile struct {
+	Content    string        `json:"content"`
+	MediaType  string        `json:"media_type"`
+	ModifiedAt time.Time     `json:"modified_at"`
+	Path       string        `json:"path"`
+	Size       int64         `json:"size"`
+	Truncated  bool          `json:"truncated"`
+	Type       AgentFileType `json:"type"`
+	Version    string        `json:"version"`
+}
+
+// AgentFileConflict defines model for AgentFileConflict.
+type AgentFileConflict struct {
+	Code    AgentFileConflictCode `json:"code"`
+	Current AgentFileMetadata     `json:"current"`
+	Message string                `json:"message"`
+}
+
+// AgentFileConflictCode defines model for AgentFileConflict.Code.
+type AgentFileConflictCode string
+
+// AgentFileMetadata defines model for AgentFileMetadata.
+type AgentFileMetadata struct {
+	MediaType  string        `json:"media_type"`
+	ModifiedAt time.Time     `json:"modified_at"`
+	Path       string        `json:"path"`
+	Size       int64         `json:"size"`
+	Type       AgentFileType `json:"type"`
+	Version    string        `json:"version"`
+}
+
+// AgentFileType defines model for AgentFileType.
+type AgentFileType string
+
 // AgentName defines model for AgentName.
 type AgentName = string
 
@@ -420,6 +466,16 @@ type AgentOpencodeProviderConfig struct {
 
 // AgentStatus defines model for AgentStatus.
 type AgentStatus string
+
+// CreateAgentDirectoryRequest defines model for CreateAgentDirectoryRequest.
+type CreateAgentDirectoryRequest struct {
+	Path string `json:"path"`
+}
+
+// CreateAgentFileRequest defines model for CreateAgentFileRequest.
+type CreateAgentFileRequest struct {
+	Path string `json:"path"`
+}
 
 // CreateAgentRequest defines model for CreateAgentRequest.
 type CreateAgentRequest struct {
@@ -1646,6 +1702,12 @@ type PutSecretsResponse struct {
 	Secret SecretListItem `json:"secret"`
 }
 
+// RenameAgentEntryRequest defines model for RenameAgentEntryRequest.
+type RenameAgentEntryRequest struct {
+	Path   string `json:"path"`
+	Target string `json:"target"`
+}
+
 // Sandbox defines model for Sandbox.
 type Sandbox struct {
 	AllowedHosts      []string           `json:"allowed_hosts"`
@@ -2181,6 +2243,14 @@ type WorkflowWebhookTrigger struct {
 	WorkflowName WorkflowName `json:"workflow_name"`
 }
 
+// WriteAgentFileRequest defines model for WriteAgentFileRequest.
+type WriteAgentFileRequest struct {
+	Content         string `json:"content"`
+	ExpectedVersion string `json:"expected_version"`
+	Overwrite       *bool  `json:"overwrite,omitempty"`
+	Path            string `json:"path"`
+}
+
 // ActionQuery defines model for ActionQuery.
 type ActionQuery = ObservabilityAction
 
@@ -2201,6 +2271,9 @@ type EventTimeAfterQuery = time.Time
 
 // EventTimeBeforeQuery defines model for EventTimeBeforeQuery.
 type EventTimeBeforeQuery = time.Time
+
+// FilePathQuery defines model for FilePathQuery.
+type FilePathQuery = string
 
 // FromDateQuery defines model for FromDateQuery.
 type FromDateQuery = openapi_types.Date
@@ -2254,6 +2327,30 @@ type ListAgentsParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
+// DeleteAgentEntryParams defines parameters for DeleteAgentEntry.
+type DeleteAgentEntryParams struct {
+	// Path Path relative to the agent workspace root.
+	Path FilePathQuery `form:"path" json:"path"`
+}
+
+// ReadAgentFileParams defines parameters for ReadAgentFile.
+type ReadAgentFileParams struct {
+	// Path Path relative to the agent workspace root.
+	Path FilePathQuery `form:"path" json:"path"`
+}
+
+// ReadAgentFileRawParams defines parameters for ReadAgentFileRaw.
+type ReadAgentFileRawParams struct {
+	// Path Path relative to the agent workspace root.
+	Path FilePathQuery `form:"path" json:"path"`
+}
+
+// StatAgentFileParams defines parameters for StatAgentFile.
+type StatAgentFileParams struct {
+	// Path Path relative to the agent workspace root.
+	Path FilePathQuery `form:"path" json:"path"`
 }
 
 // GetMCPGraphParams defines parameters for GetMCPGraph.
@@ -2771,6 +2868,18 @@ type WatchAgentsJSONRequestBody = WatchAgentsRequest
 
 // UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
 type UpdateAgentJSONRequestBody = UpdateAgentRequest
+
+// CreateAgentDirectoryJSONRequestBody defines body for CreateAgentDirectory for application/json ContentType.
+type CreateAgentDirectoryJSONRequestBody = CreateAgentDirectoryRequest
+
+// CreateAgentFileJSONRequestBody defines body for CreateAgentFile for application/json ContentType.
+type CreateAgentFileJSONRequestBody = CreateAgentFileRequest
+
+// WriteAgentFileJSONRequestBody defines body for WriteAgentFile for application/json ContentType.
+type WriteAgentFileJSONRequestBody = WriteAgentFileRequest
+
+// RenameAgentEntryJSONRequestBody defines body for RenameAgentEntry for application/json ContentType.
+type RenameAgentEntryJSONRequestBody = RenameAgentEntryRequest
 
 // CreateMCPConnectionJSONRequestBody defines body for CreateMCPConnection for application/json ContentType.
 type CreateMCPConnectionJSONRequestBody = CreateMCPConnectionRequest
@@ -4295,6 +4404,38 @@ type ClientInterface interface {
 
 	UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateAgentDirectoryWithBody request with any body
+	CreateAgentDirectoryWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAgentDirectory(ctx context.Context, agentName AgentNamePath, body CreateAgentDirectoryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentEntry request
+	DeleteAgentEntry(ctx context.Context, agentName AgentNamePath, params *DeleteAgentEntryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReadAgentFile request
+	ReadAgentFile(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAgentFileWithBody request with any body
+	CreateAgentFileWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAgentFile(ctx context.Context, agentName AgentNamePath, body CreateAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WriteAgentFileWithBody request with any body
+	WriteAgentFileWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WriteAgentFile(ctx context.Context, agentName AgentNamePath, body WriteAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReadAgentFileRaw request
+	ReadAgentFileRaw(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileRawParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RenameAgentEntryWithBody request with any body
+	RenameAgentEntryWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RenameAgentEntry(ctx context.Context, agentName AgentNamePath, body RenameAgentEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StatAgentFile request
+	StatAgentFile(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetMCPGraph request
 	GetMCPGraph(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4656,6 +4797,150 @@ func (c *Client) UpdateAgentWithBody(ctx context.Context, agentName AgentNamePat
 
 func (c *Client) UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateAgentRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentDirectoryWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentDirectoryRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentDirectory(ctx context.Context, agentName AgentNamePath, body CreateAgentDirectoryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentDirectoryRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentEntry(ctx context.Context, agentName AgentNamePath, params *DeleteAgentEntryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentEntryRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReadAgentFile(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReadAgentFileRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentFileWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentFileRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentFile(ctx context.Context, agentName AgentNamePath, body CreateAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentFileRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WriteAgentFileWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWriteAgentFileRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WriteAgentFile(ctx context.Context, agentName AgentNamePath, body WriteAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWriteAgentFileRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReadAgentFileRaw(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileRawParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReadAgentFileRawRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RenameAgentEntryWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameAgentEntryRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RenameAgentEntry(ctx context.Context, agentName AgentNamePath, body RenameAgentEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameAgentEntryRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StatAgentFile(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStatAgentFileRequest(c.Server, agentName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6116,6 +6401,402 @@ func NewUpdateAgentRequestWithBody(server string, agentName AgentNamePath, conte
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCreateAgentDirectoryRequest calls the generic CreateAgentDirectory builder with application/json body
+func NewCreateAgentDirectoryRequest(server string, agentName AgentNamePath, body CreateAgentDirectoryJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentDirectoryRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewCreateAgentDirectoryRequestWithBody generates requests for CreateAgentDirectory with any type of body
+func NewCreateAgentDirectoryRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/directory", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAgentEntryRequest generates requests for DeleteAgentEntry
+func NewDeleteAgentEntryRequest(server string, agentName AgentNamePath, params *DeleteAgentEntryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/entry", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "path", runtime.ParamLocationQuery, params.Path); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReadAgentFileRequest generates requests for ReadAgentFile
+func NewReadAgentFileRequest(server string, agentName AgentNamePath, params *ReadAgentFileParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/file", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "path", runtime.ParamLocationQuery, params.Path); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAgentFileRequest calls the generic CreateAgentFile builder with application/json body
+func NewCreateAgentFileRequest(server string, agentName AgentNamePath, body CreateAgentFileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentFileRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewCreateAgentFileRequestWithBody generates requests for CreateAgentFile with any type of body
+func NewCreateAgentFileRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/file", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewWriteAgentFileRequest calls the generic WriteAgentFile builder with application/json body
+func NewWriteAgentFileRequest(server string, agentName AgentNamePath, body WriteAgentFileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWriteAgentFileRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewWriteAgentFileRequestWithBody generates requests for WriteAgentFile with any type of body
+func NewWriteAgentFileRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/file", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewReadAgentFileRawRequest generates requests for ReadAgentFileRaw
+func NewReadAgentFileRawRequest(server string, agentName AgentNamePath, params *ReadAgentFileRawParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/raw", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "path", runtime.ParamLocationQuery, params.Path); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRenameAgentEntryRequest calls the generic RenameAgentEntry builder with application/json body
+func NewRenameAgentEntryRequest(server string, agentName AgentNamePath, body RenameAgentEntryJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRenameAgentEntryRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewRenameAgentEntryRequestWithBody generates requests for RenameAgentEntry with any type of body
+func NewRenameAgentEntryRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/rename", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewStatAgentFileRequest generates requests for StatAgentFile
+func NewStatAgentFileRequest(server string, agentName AgentNamePath, params *StatAgentFileParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/fs/stat", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "path", runtime.ParamLocationQuery, params.Path); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -11394,6 +12075,38 @@ type ClientWithResponsesInterface interface {
 
 	UpdateAgentWithResponse(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
 
+	// CreateAgentDirectoryWithBodyWithResponse request with any body
+	CreateAgentDirectoryWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentDirectoryResp, error)
+
+	CreateAgentDirectoryWithResponse(ctx context.Context, agentName AgentNamePath, body CreateAgentDirectoryJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentDirectoryResp, error)
+
+	// DeleteAgentEntryWithResponse request
+	DeleteAgentEntryWithResponse(ctx context.Context, agentName AgentNamePath, params *DeleteAgentEntryParams, reqEditors ...RequestEditorFn) (*DeleteAgentEntryResp, error)
+
+	// ReadAgentFileWithResponse request
+	ReadAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileParams, reqEditors ...RequestEditorFn) (*ReadAgentFileResp, error)
+
+	// CreateAgentFileWithBodyWithResponse request with any body
+	CreateAgentFileWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentFileResp, error)
+
+	CreateAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, body CreateAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentFileResp, error)
+
+	// WriteAgentFileWithBodyWithResponse request with any body
+	WriteAgentFileWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WriteAgentFileResp, error)
+
+	WriteAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, body WriteAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*WriteAgentFileResp, error)
+
+	// ReadAgentFileRawWithResponse request
+	ReadAgentFileRawWithResponse(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileRawParams, reqEditors ...RequestEditorFn) (*ReadAgentFileRawResp, error)
+
+	// RenameAgentEntryWithBodyWithResponse request with any body
+	RenameAgentEntryWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameAgentEntryResp, error)
+
+	RenameAgentEntryWithResponse(ctx context.Context, agentName AgentNamePath, body RenameAgentEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameAgentEntryResp, error)
+
+	// StatAgentFileWithResponse request
+	StatAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*StatAgentFileResp, error)
+
 	// GetMCPGraphWithResponse request
 	GetMCPGraphWithResponse(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error)
 
@@ -11785,6 +12498,208 @@ func (r UpdateAgentResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateAgentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAgentDirectoryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *AgentFileMetadata
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentDirectoryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentDirectoryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentEntryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentEntryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentEntryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReadAgentFileResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentFile
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON415      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ReadAgentFileResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReadAgentFileResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAgentFileResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *AgentFileMetadata
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentFileResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentFileResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WriteAgentFileResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentFileMetadata
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *AgentFileConflict
+	JSON413      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r WriteAgentFileResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WriteAgentFileResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReadAgentFileRawResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ReadAgentFileRawResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReadAgentFileRawResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RenameAgentEntryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentFileMetadata
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r RenameAgentEntryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RenameAgentEntryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type StatAgentFileResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentFileMetadata
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r StatAgentFileResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StatAgentFileResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13629,6 +14544,110 @@ func (c *ClientWithResponses) UpdateAgentWithResponse(ctx context.Context, agent
 	return ParseUpdateAgentResp(rsp)
 }
 
+// CreateAgentDirectoryWithBodyWithResponse request with arbitrary body returning *CreateAgentDirectoryResp
+func (c *ClientWithResponses) CreateAgentDirectoryWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentDirectoryResp, error) {
+	rsp, err := c.CreateAgentDirectoryWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentDirectoryResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAgentDirectoryWithResponse(ctx context.Context, agentName AgentNamePath, body CreateAgentDirectoryJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentDirectoryResp, error) {
+	rsp, err := c.CreateAgentDirectory(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentDirectoryResp(rsp)
+}
+
+// DeleteAgentEntryWithResponse request returning *DeleteAgentEntryResp
+func (c *ClientWithResponses) DeleteAgentEntryWithResponse(ctx context.Context, agentName AgentNamePath, params *DeleteAgentEntryParams, reqEditors ...RequestEditorFn) (*DeleteAgentEntryResp, error) {
+	rsp, err := c.DeleteAgentEntry(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentEntryResp(rsp)
+}
+
+// ReadAgentFileWithResponse request returning *ReadAgentFileResp
+func (c *ClientWithResponses) ReadAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileParams, reqEditors ...RequestEditorFn) (*ReadAgentFileResp, error) {
+	rsp, err := c.ReadAgentFile(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReadAgentFileResp(rsp)
+}
+
+// CreateAgentFileWithBodyWithResponse request with arbitrary body returning *CreateAgentFileResp
+func (c *ClientWithResponses) CreateAgentFileWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentFileResp, error) {
+	rsp, err := c.CreateAgentFileWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentFileResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, body CreateAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentFileResp, error) {
+	rsp, err := c.CreateAgentFile(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentFileResp(rsp)
+}
+
+// WriteAgentFileWithBodyWithResponse request with arbitrary body returning *WriteAgentFileResp
+func (c *ClientWithResponses) WriteAgentFileWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WriteAgentFileResp, error) {
+	rsp, err := c.WriteAgentFileWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWriteAgentFileResp(rsp)
+}
+
+func (c *ClientWithResponses) WriteAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, body WriteAgentFileJSONRequestBody, reqEditors ...RequestEditorFn) (*WriteAgentFileResp, error) {
+	rsp, err := c.WriteAgentFile(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWriteAgentFileResp(rsp)
+}
+
+// ReadAgentFileRawWithResponse request returning *ReadAgentFileRawResp
+func (c *ClientWithResponses) ReadAgentFileRawWithResponse(ctx context.Context, agentName AgentNamePath, params *ReadAgentFileRawParams, reqEditors ...RequestEditorFn) (*ReadAgentFileRawResp, error) {
+	rsp, err := c.ReadAgentFileRaw(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReadAgentFileRawResp(rsp)
+}
+
+// RenameAgentEntryWithBodyWithResponse request with arbitrary body returning *RenameAgentEntryResp
+func (c *ClientWithResponses) RenameAgentEntryWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameAgentEntryResp, error) {
+	rsp, err := c.RenameAgentEntryWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameAgentEntryResp(rsp)
+}
+
+func (c *ClientWithResponses) RenameAgentEntryWithResponse(ctx context.Context, agentName AgentNamePath, body RenameAgentEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameAgentEntryResp, error) {
+	rsp, err := c.RenameAgentEntry(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameAgentEntryResp(rsp)
+}
+
+// StatAgentFileWithResponse request returning *StatAgentFileResp
+func (c *ClientWithResponses) StatAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*StatAgentFileResp, error) {
+	rsp, err := c.StatAgentFile(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStatAgentFileResp(rsp)
+}
+
 // GetMCPGraphWithResponse request returning *GetMCPGraphResp
 func (c *ClientWithResponses) GetMCPGraphWithResponse(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error) {
 	rsp, err := c.GetMCPGraph(ctx, agentName, params, reqEditors...)
@@ -14710,6 +15729,396 @@ func ParseUpdateAgentResp(rsp *http.Response) (*UpdateAgentResp, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentDirectoryResp parses an HTTP response from a CreateAgentDirectoryWithResponse call
+func ParseCreateAgentDirectoryResp(rsp *http.Response) (*CreateAgentDirectoryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentDirectoryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AgentFileMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentEntryResp parses an HTTP response from a DeleteAgentEntryWithResponse call
+func ParseDeleteAgentEntryResp(rsp *http.Response) (*DeleteAgentEntryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentEntryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReadAgentFileResp parses an HTTP response from a ReadAgentFileWithResponse call
+func ParseReadAgentFileResp(rsp *http.Response) (*ReadAgentFileResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReadAgentFileResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentFile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentFileResp parses an HTTP response from a CreateAgentFileWithResponse call
+func ParseCreateAgentFileResp(rsp *http.Response) (*CreateAgentFileResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentFileResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AgentFileMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWriteAgentFileResp parses an HTTP response from a WriteAgentFileWithResponse call
+func ParseWriteAgentFileResp(rsp *http.Response) (*WriteAgentFileResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WriteAgentFileResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentFileMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest AgentFileConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReadAgentFileRawResp parses an HTTP response from a ReadAgentFileRawWithResponse call
+func ParseReadAgentFileRawResp(rsp *http.Response) (*ReadAgentFileRawResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReadAgentFileRawResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRenameAgentEntryResp parses an HTTP response from a RenameAgentEntryWithResponse call
+func ParseRenameAgentEntryResp(rsp *http.Response) (*RenameAgentEntryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RenameAgentEntryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentFileMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStatAgentFileResp parses an HTTP response from a StatAgentFileWithResponse call
+func ParseStatAgentFileResp(rsp *http.Response) (*StatAgentFileResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StatAgentFileResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentFileMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -17817,6 +19226,30 @@ type ServerInterface interface {
 	// Update an Agent resource.
 	// (PUT /api/agent/{agentName})
 	UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Create a directory in the agent workspace.
+	// (POST /api/agent/{agentName}/fs/directory)
+	CreateAgentDirectory(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Recursively delete an entry from the agent workspace.
+	// (DELETE /api/agent/{agentName}/fs/entry)
+	DeleteAgentEntry(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params DeleteAgentEntryParams)
+	// Read a text file from the agent workspace.
+	// (GET /api/agent/{agentName}/fs/file)
+	ReadAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ReadAgentFileParams)
+	// Create an empty file in the agent workspace.
+	// (POST /api/agent/{agentName}/fs/file)
+	CreateAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Atomically write a text file in the agent workspace.
+	// (PUT /api/agent/{agentName}/fs/file)
+	WriteAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Stream an agent workspace file without text decoding.
+	// (GET /api/agent/{agentName}/fs/raw)
+	ReadAgentFileRaw(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ReadAgentFileRawParams)
+	// Rename an entry in the agent workspace.
+	// (POST /api/agent/{agentName}/fs/rename)
+	RenameAgentEntry(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Read agent workspace entry metadata.
+	// (GET /api/agent/{agentName}/fs/stat)
+	StatAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params StatAgentFileParams)
 	// Get MCP observability graph data for an agent given a date range.
 	// (GET /api/lens/{agentName}/mcp/graph)
 	GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params GetMCPGraphParams)
@@ -18066,6 +19499,54 @@ func (_ Unimplemented) DeleteAgent(w http.ResponseWriter, r *http.Request, agent
 // Update an Agent resource.
 // (PUT /api/agent/{agentName})
 func (_ Unimplemented) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a directory in the agent workspace.
+// (POST /api/agent/{agentName}/fs/directory)
+func (_ Unimplemented) CreateAgentDirectory(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Recursively delete an entry from the agent workspace.
+// (DELETE /api/agent/{agentName}/fs/entry)
+func (_ Unimplemented) DeleteAgentEntry(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params DeleteAgentEntryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read a text file from the agent workspace.
+// (GET /api/agent/{agentName}/fs/file)
+func (_ Unimplemented) ReadAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ReadAgentFileParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create an empty file in the agent workspace.
+// (POST /api/agent/{agentName}/fs/file)
+func (_ Unimplemented) CreateAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Atomically write a text file in the agent workspace.
+// (PUT /api/agent/{agentName}/fs/file)
+func (_ Unimplemented) WriteAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Stream an agent workspace file without text decoding.
+// (GET /api/agent/{agentName}/fs/raw)
+func (_ Unimplemented) ReadAgentFileRaw(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ReadAgentFileRawParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Rename an entry in the agent workspace.
+// (POST /api/agent/{agentName}/fs/rename)
+func (_ Unimplemented) RenameAgentEntry(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read agent workspace entry metadata.
+// (GET /api/agent/{agentName}/fs/stat)
+func (_ Unimplemented) StatAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params StatAgentFileParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -18650,6 +20131,326 @@ func (siw *ServerInterfaceWrapper) UpdateAgent(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateAgent(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAgentDirectory operation middleware
+func (siw *ServerInterfaceWrapper) CreateAgentDirectory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAgentDirectory(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAgentEntry operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAgentEntry(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAgentEntryParams
+
+	// ------------- Required query parameter "path" -------------
+
+	if paramValue := r.URL.Query().Get("path"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "path", r.URL.Query(), &params.Path)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAgentEntry(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReadAgentFile operation middleware
+func (siw *ServerInterfaceWrapper) ReadAgentFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReadAgentFileParams
+
+	// ------------- Required query parameter "path" -------------
+
+	if paramValue := r.URL.Query().Get("path"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "path", r.URL.Query(), &params.Path)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReadAgentFile(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAgentFile operation middleware
+func (siw *ServerInterfaceWrapper) CreateAgentFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAgentFile(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WriteAgentFile operation middleware
+func (siw *ServerInterfaceWrapper) WriteAgentFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WriteAgentFile(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReadAgentFileRaw operation middleware
+func (siw *ServerInterfaceWrapper) ReadAgentFileRaw(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReadAgentFileRawParams
+
+	// ------------- Required query parameter "path" -------------
+
+	if paramValue := r.URL.Query().Get("path"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "path", r.URL.Query(), &params.Path)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReadAgentFileRaw(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameAgentEntry operation middleware
+func (siw *ServerInterfaceWrapper) RenameAgentEntry(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameAgentEntry(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StatAgentFile operation middleware
+func (siw *ServerInterfaceWrapper) StatAgentFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StatAgentFileParams
+
+	// ------------- Required query parameter "path" -------------
+
+	if paramValue := r.URL.Query().Get("path"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "path", r.URL.Query(), &params.Path)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StatAgentFile(w, r, agentName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -22488,6 +24289,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/api/agent/{agentName}", wrapper.UpdateAgent)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/{agentName}/fs/directory", wrapper.CreateAgentDirectory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/agent/{agentName}/fs/entry", wrapper.DeleteAgentEntry)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/fs/file", wrapper.ReadAgentFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/{agentName}/fs/file", wrapper.CreateAgentFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/agent/{agentName}/fs/file", wrapper.WriteAgentFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/fs/raw", wrapper.ReadAgentFileRaw)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/{agentName}/fs/rename", wrapper.RenameAgentEntry)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/fs/stat", wrapper.StatAgentFile)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/{agentName}/mcp/graph", wrapper.GetMCPGraph)
 	})
 	r.Group(func(r chi.Router) {
@@ -22710,290 +24535,302 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"OlWS1Jyl+Gly++32/wQAAP//9HGvlwKQAgA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

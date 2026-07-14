@@ -52,6 +52,52 @@ export const zAgentName = z
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
+export const zAgentFileType = z.enum(["file", "directory"])
+
+export const zAgentFileMetadata = z.object({
+  path: z.string(),
+  size: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  media_type: z.string(),
+  modified_at: z.iso.datetime(),
+  version: z.string(),
+  type: zAgentFileType,
+})
+
+export const zAgentFile = zAgentFileMetadata.and(
+  z.object({
+    content: z.string(),
+    truncated: z.boolean(),
+  })
+)
+
+export const zAgentFileConflict = z.object({
+  code: z.enum(["file_version_conflict"]),
+  message: z.string(),
+  current: zAgentFileMetadata,
+})
+
+export const zCreateAgentFileRequest = z.object({
+  path: z.string().min(1).max(4096),
+})
+
+export const zWriteAgentFileRequest = z.object({
+  path: z.string().min(1).max(4096),
+  content: z.string(),
+  expected_version: z.string().min(1),
+  overwrite: z.boolean().optional().default(false),
+})
+
+export const zCreateAgentDirectoryRequest = z.object({
+  path: z.string().min(1).max(4096),
+})
+
+export const zRenameAgentEntryRequest = z.object({
+  path: z.string().min(1).max(4096),
+  target: z.string().min(1).max(4096),
+})
+
 /**
  * Sandbox resource name.
  */
@@ -1078,6 +1124,11 @@ export const zAgentNameQueryOptional = zAgentName
 export const zAgentNamePath = zAgentName
 
 /**
+ * Path relative to the agent workspace root.
+ */
+export const zFilePathQuery = z.string().min(1).max(4096)
+
+/**
  * Sandbox name.
  */
 export const zSandboxNamePath = zSandboxName
@@ -1222,6 +1273,102 @@ export const zWatchAgentsBody = zWatchAgentsRequest
  * Stream of agent status changes.
  */
 export const zWatchAgentsResponse = zWatchAgentsEvent
+
+export const zReadAgentFilePath = z.object({
+  agentName: zAgentName,
+})
+
+export const zReadAgentFileQuery = z.object({
+  path: z.string().min(1).max(4096),
+})
+
+/**
+ * File content and metadata.
+ */
+export const zReadAgentFileResponse = zAgentFile
+
+export const zCreateAgentFileBody = zCreateAgentFileRequest
+
+export const zCreateAgentFilePath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * File created.
+ */
+export const zCreateAgentFileResponse = zAgentFileMetadata
+
+export const zWriteAgentFileBody = zWriteAgentFileRequest
+
+export const zWriteAgentFilePath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * File written.
+ */
+export const zWriteAgentFileResponse = zAgentFileMetadata
+
+export const zStatAgentFilePath = z.object({
+  agentName: zAgentName,
+})
+
+export const zStatAgentFileQuery = z.object({
+  path: z.string().min(1).max(4096),
+})
+
+/**
+ * Entry metadata.
+ */
+export const zStatAgentFileResponse = zAgentFileMetadata
+
+export const zReadAgentFileRawPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zReadAgentFileRawQuery = z.object({
+  path: z.string().min(1).max(4096),
+})
+
+/**
+ * Raw file content.
+ */
+export const zReadAgentFileRawResponse = z.string()
+
+export const zCreateAgentDirectoryBody = zCreateAgentDirectoryRequest
+
+export const zCreateAgentDirectoryPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Directory created.
+ */
+export const zCreateAgentDirectoryResponse = zAgentFileMetadata
+
+export const zRenameAgentEntryBody = zRenameAgentEntryRequest
+
+export const zRenameAgentEntryPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Entry renamed.
+ */
+export const zRenameAgentEntryResponse = zAgentFileMetadata
+
+export const zDeleteAgentEntryPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zDeleteAgentEntryQuery = z.object({
+  path: z.string().min(1).max(4096),
+})
+
+/**
+ * Entry deleted.
+ */
+export const zDeleteAgentEntryResponse = z.void()
 
 export const zListSkillsQuery = z.object({
   agent_name: zAgentName.optional(),

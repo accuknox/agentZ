@@ -4,6 +4,8 @@ import * as React from "react"
 import type { Route } from "next"
 import Link from "next/link"
 import { useSelectedLayoutSegments } from "next/navigation"
+import { FolderTree } from "lucide-react"
+import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -13,6 +15,16 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Crumb = {
   href?: Route
@@ -76,6 +88,11 @@ const pageRoutes = new Set([
 export function PageBreadcrumb(): React.JSX.Element {
   const segments = useSelectedLayoutSegments().filter((segment) => !segment.startsWith("("))
   const pathKey = segments.join("/")
+  const agent = segments[0] === "agents" ? segments[1] : undefined
+  const { dirtyAgent, openAgent, toggleAgent } = useFileWorkspace()
+  const filesOpen = agent === openAgent
+  const filesDirty = agent === dirtyAgent
+  const [closingAgent, setClosingAgent] = React.useState<string>()
   const home = { href: "/" as Route, label: "Home" }
   const crumbs: Crumb[] = [home]
 
@@ -113,41 +130,93 @@ export function PageBreadcrumb(): React.JSX.Element {
   }, [pathKey])
 
   return (
-    <Breadcrumb ref={containerRef} className="relative min-w-0 overflow-hidden">
-      <BreadcrumbList
-        ref={fullListRef}
-        className="invisible absolute flex-nowrap whitespace-nowrap"
-      >
-        <BreadcrumbCrumbs
-          crumbs={crumbs}
-          currentIndex={crumbs.length - 1}
-          lastIndex={crumbs.length - 1}
-        />
-      </BreadcrumbList>
-      <BreadcrumbList className="min-w-0 flex-nowrap overflow-hidden whitespace-nowrap">
-        {collapsed && crumbs.length > 3 ? (
-          <>
-            <BreadcrumbCrumbs crumbs={[home]} currentIndex={crumbs.length - 1} lastIndex={0} />
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbEllipsis />
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbCrumbs
-              crumbs={tailCrumbs}
-              currentIndex={tailCrumbs.length - 1}
-              lastIndex={tailCrumbs.length - 1}
-            />
-          </>
-        ) : (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <Breadcrumb ref={containerRef} className="relative min-w-0 flex-1 overflow-hidden">
+        <BreadcrumbList
+          ref={fullListRef}
+          className="invisible absolute flex-nowrap whitespace-nowrap"
+        >
           <BreadcrumbCrumbs
             crumbs={crumbs}
             currentIndex={crumbs.length - 1}
             lastIndex={crumbs.length - 1}
           />
-        )}
-      </BreadcrumbList>
-    </Breadcrumb>
+        </BreadcrumbList>
+        <BreadcrumbList className="min-w-0 flex-nowrap overflow-hidden whitespace-nowrap">
+          {collapsed && crumbs.length > 3 ? (
+            <>
+              <BreadcrumbCrumbs crumbs={[home]} currentIndex={crumbs.length - 1} lastIndex={0} />
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbEllipsis />
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbCrumbs
+                crumbs={tailCrumbs}
+                currentIndex={tailCrumbs.length - 1}
+                lastIndex={tailCrumbs.length - 1}
+              />
+            </>
+          ) : (
+            <BreadcrumbCrumbs
+              crumbs={crumbs}
+              currentIndex={crumbs.length - 1}
+              lastIndex={crumbs.length - 1}
+            />
+          )}
+        </BreadcrumbList>
+      </Breadcrumb>
+      {agent ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={filesOpen ? "Close files" : "Open files"}
+              aria-pressed={filesOpen}
+              className="hidden shrink-0 lg:inline-flex"
+              onClick={() => {
+                if (filesOpen && filesDirty) {
+                  setClosingAgent(agent)
+                  return
+                }
+
+                toggleAgent(agent)
+              }}
+              size="icon-sm"
+              variant={filesOpen ? "secondary" : "ghost"}
+            >
+              <FolderTree />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{filesOpen ? "Close files" : "Open files"}</TooltipContent>
+        </Tooltip>
+      ) : null}
+      <Dialog
+        open={closingAgent !== undefined}
+        onOpenChange={(open) => !open && setClosingAgent(undefined)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close files?</DialogTitle>
+            <DialogDescription>Your unsaved file changes will be discarded.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setClosingAgent(undefined)} variant="outline">
+              Cancel
+            </Button>
+            <Button
+              data-dialog-submit
+              onClick={() => {
+                if (closingAgent) toggleAgent(closingAgent)
+                setClosingAgent(undefined)
+              }}
+              variant="destructive"
+            >
+              Discard changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }
 

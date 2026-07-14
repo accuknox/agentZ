@@ -5,6 +5,8 @@ import { queryOptions, type UseMutationOptions } from "@tanstack/react-query"
 import { client } from "../client.gen"
 import {
   createAgent,
+  createAgentDirectory,
+  createAgentFile,
   createMcpConnection,
   createSandbox,
   createSkill,
@@ -12,6 +14,7 @@ import {
   createWorkflowRun,
   createWorkflowSchedule,
   deleteAgent,
+  deleteAgentEntry,
   deleteMcpConnection,
   deleteSandbox,
   deleteSecret,
@@ -47,14 +50,25 @@ import {
   patchWorkflowRunNodeStatus,
   patchWorkflowRunStatus,
   putSecret,
+  readAgentFile,
+  readAgentFileRaw,
+  renameAgentEntry,
+  statAgentFile,
   updateAgent,
   updateSandbox,
   updateSkill,
   updateWorkflowSchedule,
+  writeAgentFile,
 } from "../sdk.gen"
 import type {
   CreateAgentData,
+  CreateAgentDirectoryData,
+  CreateAgentDirectoryError,
+  CreateAgentDirectoryResponse,
   CreateAgentError,
+  CreateAgentFileData,
+  CreateAgentFileError,
+  CreateAgentFileResponse,
   CreateAgentResponse,
   CreateMcpConnectionData,
   CreateMcpConnectionError,
@@ -75,6 +89,9 @@ import type {
   CreateWorkflowScheduleError,
   CreateWorkflowScheduleResponse,
   DeleteAgentData,
+  DeleteAgentEntryData,
+  DeleteAgentEntryError,
+  DeleteAgentEntryResponse,
   DeleteAgentError,
   DeleteAgentResponse,
   DeleteMcpConnectionData,
@@ -179,6 +196,18 @@ import type {
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
+  ReadAgentFileData,
+  ReadAgentFileError,
+  ReadAgentFileRawData,
+  ReadAgentFileRawError,
+  ReadAgentFileRawResponse,
+  ReadAgentFileResponse,
+  RenameAgentEntryData,
+  RenameAgentEntryError,
+  RenameAgentEntryResponse,
+  StatAgentFileData,
+  StatAgentFileError,
+  StatAgentFileResponse,
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
@@ -191,6 +220,9 @@ import type {
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleError,
   UpdateWorkflowScheduleResponse,
+  WriteAgentFileData,
+  WriteAgentFileError,
+  WriteAgentFileResponse,
 } from "../types.gen"
 
 export type QueryKey<TOptions extends Options> = [
@@ -373,6 +405,212 @@ export const updateAgentMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await updateAgent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const readAgentFileQueryKey = (options: Options<ReadAgentFileData>) =>
+  createQueryKey("readAgentFile", options)
+
+/**
+ * Read a text file from the agent workspace.
+ */
+export const readAgentFileOptions = (options: Options<ReadAgentFileData>) =>
+  queryOptions<
+    ReadAgentFileResponse,
+    ReadAgentFileError,
+    ReadAgentFileResponse,
+    ReturnType<typeof readAgentFileQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await readAgentFile({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: readAgentFileQueryKey(options),
+  })
+
+/**
+ * Create an empty file in the agent workspace.
+ */
+export const createAgentFileMutation = (
+  options?: Partial<Options<CreateAgentFileData>>
+): UseMutationOptions<
+  CreateAgentFileResponse,
+  CreateAgentFileError,
+  Options<CreateAgentFileData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateAgentFileResponse,
+    CreateAgentFileError,
+    Options<CreateAgentFileData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createAgentFile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Atomically write a text file in the agent workspace.
+ */
+export const writeAgentFileMutation = (
+  options?: Partial<Options<WriteAgentFileData>>
+): UseMutationOptions<WriteAgentFileResponse, WriteAgentFileError, Options<WriteAgentFileData>> => {
+  const mutationOptions: UseMutationOptions<
+    WriteAgentFileResponse,
+    WriteAgentFileError,
+    Options<WriteAgentFileData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await writeAgentFile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const statAgentFileQueryKey = (options: Options<StatAgentFileData>) =>
+  createQueryKey("statAgentFile", options)
+
+/**
+ * Read agent workspace entry metadata.
+ */
+export const statAgentFileOptions = (options: Options<StatAgentFileData>) =>
+  queryOptions<
+    StatAgentFileResponse,
+    StatAgentFileError,
+    StatAgentFileResponse,
+    ReturnType<typeof statAgentFileQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await statAgentFile({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: statAgentFileQueryKey(options),
+  })
+
+export const readAgentFileRawQueryKey = (options: Options<ReadAgentFileRawData>) =>
+  createQueryKey("readAgentFileRaw", options)
+
+/**
+ * Stream an agent workspace file without text decoding.
+ */
+export const readAgentFileRawOptions = (options: Options<ReadAgentFileRawData>) =>
+  queryOptions<
+    ReadAgentFileRawResponse,
+    ReadAgentFileRawError,
+    ReadAgentFileRawResponse,
+    ReturnType<typeof readAgentFileRawQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await readAgentFileRaw({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: readAgentFileRawQueryKey(options),
+  })
+
+/**
+ * Create a directory in the agent workspace.
+ */
+export const createAgentDirectoryMutation = (
+  options?: Partial<Options<CreateAgentDirectoryData>>
+): UseMutationOptions<
+  CreateAgentDirectoryResponse,
+  CreateAgentDirectoryError,
+  Options<CreateAgentDirectoryData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateAgentDirectoryResponse,
+    CreateAgentDirectoryError,
+    Options<CreateAgentDirectoryData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createAgentDirectory({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Rename an entry in the agent workspace.
+ */
+export const renameAgentEntryMutation = (
+  options?: Partial<Options<RenameAgentEntryData>>
+): UseMutationOptions<
+  RenameAgentEntryResponse,
+  RenameAgentEntryError,
+  Options<RenameAgentEntryData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    RenameAgentEntryResponse,
+    RenameAgentEntryError,
+    Options<RenameAgentEntryData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await renameAgentEntry({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Recursively delete an entry from the agent workspace.
+ */
+export const deleteAgentEntryMutation = (
+  options?: Partial<Options<DeleteAgentEntryData>>
+): UseMutationOptions<
+  DeleteAgentEntryResponse,
+  DeleteAgentEntryError,
+  Options<DeleteAgentEntryData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteAgentEntryResponse,
+    DeleteAgentEntryError,
+    Options<DeleteAgentEntryData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteAgentEntry({
         ...options,
         ...fnOptions,
         throwOnError: true,

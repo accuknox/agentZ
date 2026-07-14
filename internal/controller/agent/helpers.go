@@ -94,6 +94,8 @@ const (
 	immutableSkillsBucketVolume    = "immutable-skills-bucket"
 	immutableSkillsSecretMount     = "/var/run/secrets/agentz/immutable-skills-bucket"
 	immutableSkillsInitName        = "immutable-skills-init"
+	filesystemContainerName        = "filesystem"
+	filesystemPort                 = int32(4097)
 )
 
 var (
@@ -110,7 +112,7 @@ type RuntimeConfig struct {
 	OpenBaoAddr                      string
 	ManagerOpenBaoAddr               string
 	OpenBaoSecretMountPath           string
-	SinjectorImage                   string
+	ControllerImage                  string
 	SinjectorCASecretName            string
 	SinjectorCASecretCertKey         string
 	SinjectorCASecretKeyKey          string

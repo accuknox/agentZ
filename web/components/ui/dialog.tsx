@@ -42,6 +42,7 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  onKeyDown,
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
@@ -56,6 +57,26 @@ function DialogContent({
           "bg-popover text-popover-foreground ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl p-4 text-sm ring-1 duration-100 outline-none sm:max-w-sm",
           className
         )}
+        onKeyDown={(event) => {
+          onKeyDown?.(event)
+          if (
+            event.defaultPrevented ||
+            event.key !== "Enter" ||
+            event.nativeEvent.isComposing ||
+            !(event.target instanceof HTMLInputElement) ||
+            event.target.form
+          ) {
+            return
+          }
+
+          const submit = event.currentTarget.querySelector<HTMLButtonElement>(
+            "[data-dialog-submit]:not(:disabled)"
+          )
+          if (submit) {
+            event.preventDefault()
+            submit.click()
+          }
+        }}
         {...props}
       >
         {children}

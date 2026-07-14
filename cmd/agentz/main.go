@@ -185,6 +185,7 @@ var cmd = &cli.Command{
 	},
 	Commands: []*cli.Command{
 		subcommands.ExtAuthCmd,
+		subcommands.FilesystemCmd,
 		managerCmd,
 		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,
@@ -835,7 +836,7 @@ var managerCmd = &cli.Command{
 			GatewayTokenAudience:             managerGatewayTokenAudience,
 			AgentHomeStorageClass:            agentHomeStorageClass,
 			SkillStore:                       skillStoreConfig,
-			SinjectorImage:                   controllerImage,
+			ControllerImage:                  controllerImage,
 			SinjectorCASecretName:            sinjectorCASecretName,
 			SinjectorCASecretCertKey:         sinjectorCASecretCertKey,
 			SinjectorCASecretKeyKey:          sinjectorCASecretKeyKey,

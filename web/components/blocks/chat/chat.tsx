@@ -92,6 +92,7 @@ import {
 import { motion } from "motion/react"
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import { useStickToBottomContext } from "use-stick-to-bottom"
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -303,6 +304,57 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
 
   flush()
   return result
+}
+
+function ConversationOverflowFades() {
+  const { contentRef, scrollRef } = useStickToBottomContext()
+  const [overflow, setOverflow] = useState({ bottom: false, top: false })
+
+  const updateOverflow = useCallback(() => {
+    const element = scrollRef.current
+    if (!element) return
+
+    const top = element.scrollTop > 2
+    const bottom = element.scrollTop + element.clientHeight < element.scrollHeight - 2
+    setOverflow((current) => {
+      if (current.bottom === bottom && current.top === top) return current
+      return { bottom, top }
+    })
+  }, [scrollRef])
+
+  useEffect(() => {
+    const content = contentRef.current
+    const element = scrollRef.current
+    if (!element) return
+
+    updateOverflow()
+    element.addEventListener("scroll", updateOverflow, { passive: true })
+    const observer = new ResizeObserver(updateOverflow)
+    observer.observe(element)
+    if (content) observer.observe(content)
+
+    return () => {
+      element.removeEventListener("scroll", updateOverflow)
+      observer.disconnect()
+    }
+  }, [contentRef, scrollRef, updateOverflow])
+
+  return (
+    <>
+      {overflow.top ? (
+        <div
+          aria-hidden="true"
+          className="from-background pointer-events-none absolute inset-x-0 top-0 h-6 bg-linear-to-b to-transparent"
+        />
+      ) : null}
+      {overflow.bottom ? (
+        <div
+          aria-hidden="true"
+          className="from-background pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-linear-to-t to-transparent"
+        />
+      ) : null}
+    </>
+  )
 }
 
 function ChatInner({
@@ -808,6 +860,7 @@ function ChatInner({
             </>
           ) : null}
         </ConversationContent>
+        <ConversationOverflowFades />
         {!showStarter ? <ConversationScrollButton /> : null}
       </Conversation>
       <motion.div

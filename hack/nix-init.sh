@@ -213,10 +213,14 @@ write_env_expr() {
         echo '        })'
         echo '    { }'
         echo '    runtimeSpecs;'
+        # Runtime environments must provide their own unversioned entrypoints
+        # when a plain package exposes the same files. Nix priorities preserve
+        # every non-conflicting path while resolving those overlaps.
         echo '  runtimePaths = lib.mapAttrsToList'
         echo '    (_: group:'
-        echo '      group.runtime.withPackages'
-        echo '        (ps: builtins.map (path: lib.getAttrFromPath path ps) group.modules))'
+        echo '      lib.hiPrio ('
+        echo '        group.runtime.withPackages'
+        echo '          (ps: builtins.map (path: lib.getAttrFromPath path ps) group.modules)))'
         echo '    runtimeGroups;'
         echo '  runtimeOutPaths = builtins.attrNames runtimeGroups;'
         echo '  plainPaths = builtins.map'

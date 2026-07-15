@@ -44,6 +44,7 @@ config:
   externalJWTAudience: agentz-gateway
   internalK8sTokenAudience: agentz-gateway
   targetOverride: ""
+  filesystemTargetOverride: ""
   agentImage: ""
   agentTraceEndpoint: ""
   openBaoAddr: http://openbao.openbao.svc.cluster.local:8200

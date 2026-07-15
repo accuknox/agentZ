@@ -55,6 +55,7 @@ config:
   metricsSecure: true
   enableHTTP2: false
   workflowRunOrphanRetention: 168h
+  # Image used for controller-managed workloads and agent filesystem sidecars.
   controllerImage: controller:latest
   agentImage: ""
   agentInitImage: ""

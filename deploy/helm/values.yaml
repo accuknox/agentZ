@@ -115,7 +115,8 @@ manager:
     # Enable HTTP/2.
     enableHTTP2: false
 
-    # Image used by the manager when it creates workflow schedule jobs.
+    # Image used for controller-managed workloads and agent filesystem
+    # sidecars.
     controllerImage: controller:latest
 
     # Default image used for Agent resources created by the system.
@@ -349,6 +350,10 @@ gateway:
 
     # Optional backend target override for local or special routing scenarios.
     targetOverride: ""
+
+    # Optional filesystem service target override for local port-forwarding.
+    # Leave empty to resolve each agent's in-cluster service on port 4097.
+    filesystemTargetOverride: ""
 
     # Default agent image used by the gateway when creating Agent resources.
     agentImage: ""

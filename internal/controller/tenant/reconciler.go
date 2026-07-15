@@ -44,6 +44,7 @@ import (
 )
 
 const (
+	agentLabelKey                  = "agentz.accuknox.com/agent"
 	packageJobLabelKey             = "agentz.accuknox.com/agent-package-job"
 	workflowScheduleRunnerLabelKey = "agentz.accuknox.com/workflow-schedule-runner"
 )
@@ -332,15 +333,34 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 				},
 			},
 		)
+		peerSelector := ciliumpolicyapi.NewESFromK8sLabelSelector(
+			ciliumlabels.LabelSourceK8sKeyPrefix,
+			&slimv1.LabelSelector{
+				MatchExpressions: []slimv1.LabelSelectorRequirement{
+					{
+						Key:      packageJobLabelKey,
+						Operator: slimv1.LabelSelectorOpDoesNotExist,
+					},
+					{
+						Key:      workflowScheduleRunnerLabelKey,
+						Operator: slimv1.LabelSelectorOpDoesNotExist,
+					},
+					{
+						Key:      agentLabelKey,
+						Operator: slimv1.LabelSelectorOpDoesNotExist,
+					},
+				},
+			},
+		)
 
 		policy.Spec = &ciliumpolicyapi.Rule{
-			Description:      "Restrict tenant traffic to the same namespace only.",
+			Description:      "Restrict tenant traffic and isolate agents from each other.",
 			EndpointSelector: selector,
 			Ingress: []ciliumpolicyapi.IngressRule{
 				{
 					IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
 						FromEndpoints: []ciliumpolicyapi.EndpointSelector{
-							selector,
+							peerSelector,
 						},
 					},
 				},
@@ -362,7 +382,7 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 				{
 					EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
 						ToEndpoints: []ciliumpolicyapi.EndpointSelector{
-							selector,
+							peerSelector,
 						},
 					},
 				},

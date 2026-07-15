@@ -45,6 +45,8 @@ fmt:
 	go fmt $(GO_PKGS)
 	goimports -w cmd hack internal pkg
 	yamlfmt .
+	cd web && bun run format
+	cd opencode/config && bun run format
 
 .PHONY: test
 test:
@@ -61,6 +63,8 @@ lint:
 	go vet $(GO_PKGS)
 	golangci-lint run $(GO_PKGS)
 	yamllint .
+	cd web && bun run lint && bun run typecheck
+	cd opencode/config && bun run lint && bun run typecheck
 
 .PHONY: build
 build:
@@ -72,6 +76,7 @@ run-gateway:
 	go run ./cmd/agentz gateway serve \
 		--addr 0.0.0.0:8090 \
 		--target-override=localhost:4096 \
+		--filesystem-target-override=localhost:4097 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
 		--external-jwt-jwks-url=$(BETTER_AUTH_URL)/api/auth/.well-known/jwks.json \
 		--external-jwt-issuer=$(BETTER_AUTH_URL) \

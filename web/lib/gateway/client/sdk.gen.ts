@@ -6,7 +6,13 @@ import type { Client, Options as Options2, TDataShape } from "./client"
 import { client } from "./client.gen"
 import type {
   CreateAgentData,
+  CreateAgentDirectoryData,
+  CreateAgentDirectoryErrors,
+  CreateAgentDirectoryResponses,
   CreateAgentErrors,
+  CreateAgentFileData,
+  CreateAgentFileErrors,
+  CreateAgentFileResponses,
   CreateAgentResponses,
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
@@ -27,6 +33,9 @@ import type {
   CreateWorkflowScheduleErrors,
   CreateWorkflowScheduleResponses,
   DeleteAgentData,
+  DeleteAgentEntryData,
+  DeleteAgentEntryErrors,
+  DeleteAgentEntryResponses,
   DeleteAgentErrors,
   DeleteAgentResponses,
   DeleteMcpConnectionData,
@@ -131,6 +140,18 @@ import type {
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
+  ReadAgentFileData,
+  ReadAgentFileErrors,
+  ReadAgentFileRawData,
+  ReadAgentFileRawErrors,
+  ReadAgentFileRawResponses,
+  ReadAgentFileResponses,
+  RenameAgentEntryData,
+  RenameAgentEntryErrors,
+  RenameAgentEntryResponses,
+  StatAgentFileData,
+  StatAgentFileErrors,
+  StatAgentFileResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
@@ -159,9 +180,16 @@ import type {
   WatchWorkflowRunsErrors,
   WatchWorkflowRunsResponse,
   WatchWorkflowRunsResponses,
+  WriteAgentFileData,
+  WriteAgentFileErrors,
+  WriteAgentFileResponses,
 } from "./types.gen"
 import {
   zCreateAgentBody,
+  zCreateAgentDirectoryBody,
+  zCreateAgentDirectoryPath,
+  zCreateAgentFileBody,
+  zCreateAgentFilePath,
   zCreateMcpConnectionBody,
   zCreateSandboxBody,
   zCreateSkillBody,
@@ -170,6 +198,8 @@ import {
   zCreateWorkflowRunPath,
   zCreateWorkflowScheduleBody,
   zCreateWorkflowSchedulePath,
+  zDeleteAgentEntryPath,
+  zDeleteAgentEntryQuery,
   zDeleteAgentPath,
   zDeleteMcpConnectionPath,
   zDeleteSandboxPath,
@@ -222,6 +252,14 @@ import {
   zPutSecretBody,
   zPutSecretPath,
   zPutSecretQuery,
+  zReadAgentFilePath,
+  zReadAgentFileQuery,
+  zReadAgentFileRawPath,
+  zReadAgentFileRawQuery,
+  zRenameAgentEntryBody,
+  zRenameAgentEntryPath,
+  zStatAgentFilePath,
+  zStatAgentFileQuery,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateSandboxBody,
@@ -236,6 +274,8 @@ import {
   zWatchSecretsPath,
   zWatchWorkflowRunsBody,
   zWatchWorkflowRunsPath,
+  zWriteAgentFileBody,
+  zWriteAgentFilePath,
 } from "./zod.gen"
 
 export type Options<
@@ -418,6 +458,190 @@ export const watchAgents = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options?.headers,
     },
+  })
+
+/**
+ * Read a text file from the agent workspace.
+ */
+export const readAgentFile = <ThrowOnError extends boolean = false>(
+  options: Options<ReadAgentFileData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ReadAgentFileResponses, ReadAgentFileErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zReadAgentFilePath,
+          query: zReadAgentFileQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/file",
+    ...options,
+  })
+
+/**
+ * Create an empty file in the agent workspace.
+ */
+export const createAgentFile = <ThrowOnError extends boolean = false>(
+  options: Options<CreateAgentFileData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateAgentFileResponses, CreateAgentFileErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateAgentFileBody,
+          path: zCreateAgentFilePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/file",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Atomically write a text file in the agent workspace.
+ */
+export const writeAgentFile = <ThrowOnError extends boolean = false>(
+  options: Options<WriteAgentFileData, ThrowOnError>
+) =>
+  (options.client ?? client).put<WriteAgentFileResponses, WriteAgentFileErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWriteAgentFileBody,
+          path: zWriteAgentFilePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/file",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Read agent workspace entry metadata.
+ */
+export const statAgentFile = <ThrowOnError extends boolean = false>(
+  options: Options<StatAgentFileData, ThrowOnError>
+) =>
+  (options.client ?? client).get<StatAgentFileResponses, StatAgentFileErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zStatAgentFilePath,
+          query: zStatAgentFileQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/stat",
+    ...options,
+  })
+
+/**
+ * Stream an agent workspace file without text decoding.
+ */
+export const readAgentFileRaw = <ThrowOnError extends boolean = false>(
+  options: Options<ReadAgentFileRawData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ReadAgentFileRawResponses, ReadAgentFileRawErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zReadAgentFileRawPath,
+          query: zReadAgentFileRawQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/raw",
+    ...options,
+  })
+
+/**
+ * Create a directory in the agent workspace.
+ */
+export const createAgentDirectory = <ThrowOnError extends boolean = false>(
+  options: Options<CreateAgentDirectoryData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateAgentDirectoryResponses,
+    CreateAgentDirectoryErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateAgentDirectoryBody,
+          path: zCreateAgentDirectoryPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/directory",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Rename an entry in the agent workspace.
+ */
+export const renameAgentEntry = <ThrowOnError extends boolean = false>(
+  options: Options<RenameAgentEntryData, ThrowOnError>
+) =>
+  (options.client ?? client).post<RenameAgentEntryResponses, RenameAgentEntryErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zRenameAgentEntryBody,
+          path: zRenameAgentEntryPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/rename",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Recursively delete an entry from the agent workspace.
+ */
+export const deleteAgentEntry = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentEntryData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteAgentEntryResponses,
+    DeleteAgentEntryErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteAgentEntryPath,
+          query: zDeleteAgentEntryQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/fs/entry",
+    ...options,
   })
 
 /**

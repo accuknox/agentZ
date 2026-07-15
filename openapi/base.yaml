@@ -192,6 +192,213 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/agent/{agentName}/fs/file:
+    get:
+      operationId: readAgentFile
+      summary: Read a text file from the agent workspace.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/FilePathQuery'
+      responses:
+        '200':
+          description: File content and metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createAgentFile
+      summary: Create an empty file in the agent workspace.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentFileRequest'
+      responses:
+        '201':
+          description: File created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: writeAgentFile
+      summary: Atomically write a text file in the agent workspace.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteAgentFileRequest'
+      responses:
+        '200':
+          description: File written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: File changed since it was read.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileConflict'
+        '413':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/fs/stat:
+    get:
+      operationId: statAgentFile
+      summary: Read agent workspace entry metadata.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/FilePathQuery'
+      responses:
+        '200':
+          description: Entry metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/fs/raw:
+    get:
+      operationId: readAgentFileRaw
+      summary: Stream an agent workspace file without text decoding.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/FilePathQuery'
+      responses:
+        '200':
+          description: Raw file content.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/fs/directory:
+    post:
+      operationId: createAgentDirectory
+      summary: Create a directory in the agent workspace.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentDirectoryRequest'
+      responses:
+        '201':
+          description: Directory created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/fs/rename:
+    post:
+      operationId: renameAgentEntry
+      summary: Rename an entry in the agent workspace.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameAgentEntryRequest'
+      responses:
+        '200':
+          description: Entry renamed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/fs/entry:
+    delete:
+      operationId: deleteAgentEntry
+      summary: Recursively delete an entry from the agent workspace.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/FilePathQuery'
+      responses:
+        '204':
+          description: Entry deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/skill:
     get:
       operationId: listSkills
@@ -1507,6 +1714,16 @@ components:
       schema:
         $ref: '#/components/schemas/AgentName'
 
+    FilePathQuery:
+      name: path
+      in: query
+      required: true
+      description: Path relative to the agent workspace root.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 4096
+
     SandboxNamePath:
       name: name
       in: path
@@ -1776,6 +1993,108 @@ components:
       minLength: 1
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+
+    AgentFileType:
+      type: string
+      enum: [file, directory]
+
+    AgentFileMetadata:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+        media_type:
+          type: string
+        modified_at:
+          type: string
+          format: date-time
+        version:
+          type: string
+        type:
+          $ref: '#/components/schemas/AgentFileType'
+      required: [path, size, media_type, modified_at, version, type]
+
+    AgentFile:
+      allOf:
+      - $ref: '#/components/schemas/AgentFileMetadata'
+      - type: object
+        additionalProperties: false
+        properties:
+          content:
+            type: string
+          truncated:
+            type: boolean
+        required: [content, truncated]
+
+    AgentFileConflict:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          enum: [file_version_conflict]
+        message:
+          type: string
+        current:
+          $ref: '#/components/schemas/AgentFileMetadata'
+      required: [code, message, current]
+
+    CreateAgentFileRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+      required: [path]
+
+    WriteAgentFileRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        content:
+          type: string
+        expected_version:
+          type: string
+          minLength: 1
+        overwrite:
+          type: boolean
+          default: false
+      required: [path, content, expected_version]
+
+    CreateAgentDirectoryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+      required: [path]
+
+    RenameAgentEntryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        target:
+          type: string
+          minLength: 1
+          maxLength: 4096
+      required: [path, target]
 
     SandboxName:
       type: string

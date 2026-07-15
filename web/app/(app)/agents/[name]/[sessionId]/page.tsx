@@ -31,7 +31,10 @@ async function ChatPageContent({ params }: ChatPageProps) {
   const { name, sessionId } = await params
 
   return (
-    <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
+    <main
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0"
+      data-chat-page
+    >
       <ChatShell agentName={name} sessionId={sessionId} />
     </main>
   )

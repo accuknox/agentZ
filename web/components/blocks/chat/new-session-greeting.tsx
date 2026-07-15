@@ -24,7 +24,7 @@ export function NewSessionGreeting({ firstName, greetingIndex = 0 }: NewSessionG
   if (!firstName) {
     return (
       <div className="pointer-events-none flex justify-center px-4 text-center">
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight text-balance @xl/chat:text-3xl">
           How can I help?
         </h1>
       </div>
@@ -41,7 +41,7 @@ export function NewSessionGreeting({ firstName, greetingIndex = 0 }: NewSessionG
 
   return (
     <div className="pointer-events-none flex justify-center px-4 text-center">
-      <h1 className="text-foreground text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+      <h1 className="text-foreground text-2xl font-semibold tracking-tight text-balance @xl/chat:text-3xl">
         {greeting}
       </h1>
     </div>

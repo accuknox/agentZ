@@ -195,6 +195,12 @@ func (r *Reconciler) buildService(agt *agentzv1alpha1.Agent) *corev1.Service {
 					TargetPort: intstr.FromInt32(4096),
 					Protocol:   corev1.ProtocolTCP,
 				},
+				{
+					Name:       filesystemContainerName,
+					Port:       filesystemPort,
+					TargetPort: intstr.FromInt32(filesystemPort),
+					Protocol:   corev1.ProtocolTCP,
+				},
 			},
 		},
 	}
@@ -233,11 +239,12 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 			},
 		},
 	})
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+	homeMount := corev1.VolumeMount{
 		Name:      homeAgentVolume,
 		MountPath: agentHomeDir,
 		SubPath:   homeStoreSubPath,
-	})
+	}
+	volumeMounts = append(volumeMounts, homeMount)
 	volumes = append(volumes, corev1.Volume{
 		Name: nixAgentVolume,
 		VolumeSource: corev1.VolumeSource{
@@ -480,6 +487,36 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 								},
 							},
 							VolumeMounts: volumeMounts,
+						},
+						{
+							Name:            filesystemContainerName,
+							Image:           r.Config.ControllerImage,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							WorkingDir:      agentHomeDir,
+							Args: []string{
+								"filesystem",
+								"serve",
+								"--addr=0.0.0.0:4097",
+								"--root=" + agentHomeDir,
+							},
+							Ports: []corev1.ContainerPort{
+								{
+									Name:          filesystemContainerName,
+									ContainerPort: filesystemPort,
+									Protocol:      corev1.ProtocolTCP,
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: new(false),
+								ReadOnlyRootFilesystem:   new(true),
+								RunAsUser:                new(agentRuntimeUID),
+								RunAsGroup:               new(agentRuntimeGID),
+								RunAsNonRoot:             new(true),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{homeMount},
 						},
 					},
 				},

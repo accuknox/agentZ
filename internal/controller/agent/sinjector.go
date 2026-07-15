@@ -444,7 +444,7 @@ func (r *Reconciler) buildSinjectorDeployment(agt *agentzv1alpha1.Agent) *appsv1
 					}},
 					Containers: []corev1.Container{{
 						Name:            "sinjector",
-						Image:           r.Config.SinjectorImage,
+						Image:           r.Config.ControllerImage,
 						ImagePullPolicy: agt.Spec.ImagePullPolicy,
 						Args:            args,
 						Ports: []corev1.ContainerPort{{

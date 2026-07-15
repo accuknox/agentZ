@@ -38,11 +38,11 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon" {...sidebarProps}>
-      <SidebarHeader>
+      <SidebarHeader className="p-2">
         <TeamSwitcher />
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup className="gap-y-1">
+      <SidebarContent className="gap-0">
+        <SidebarGroup className="gap-y-1 px-2 py-2">
           <Suspense fallback={null}>
             <NavLens />
           </Suspense>
@@ -52,13 +52,13 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
           <NavSkills />
           <NavWorkflows />
         </SidebarGroup>
-        <SidebarGroup>
+        <SidebarGroup className="px-2 py-2">
           <SidebarGroupLabel>Agents</SidebarGroupLabel>
           <NavAgents agents={agents} immutableSkills={skills.skills ?? []} sandboxes={sandboxes} />
         </SidebarGroup>
       </SidebarContent>
       {user ? (
-        <SidebarFooter>
+        <SidebarFooter className="border-t p-2">
           <NavUser user={user} />
         </SidebarFooter>
       ) : null}

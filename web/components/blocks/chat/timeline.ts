@@ -3,14 +3,13 @@ import type {
   AssistantMessage,
   Message,
   Part,
-  SessionStatus,
   SnapshotFileDiff,
   ToolPart,
   UserMessage,
 } from "@opencode-ai/sdk/v2"
 import { attachmentDataFromPart } from "@/components/blocks/chat/attachments"
-import { type LocalChatMessage } from "@/components/blocks/chat/use-opencode-chat"
-import { unwrapMessageError } from "@/components/blocks/chat/errors"
+import { type OptimisticUserMessage } from "@/components/blocks/chat/use-opencode-chat"
+import { describeMessageError } from "@/components/blocks/chat/errors"
 
 export type RenderEntry =
   | { content: string; key: string; type: "text" }
@@ -18,7 +17,7 @@ export type RenderEntry =
   | { key: string; toolEntries: ToolEntry[]; type: "tool" }
 
 export type TimelineRow =
-  | { key: string; message: LocalChatMessage; type: "local" }
+  | { key: string; message: OptimisticUserMessage; type: "local" }
   | {
       attachments: AttachmentData[]
       createdAt: number
@@ -30,10 +29,8 @@ export type TimelineRow =
   | { createdAt: number; entries: RenderEntry[]; key: string; type: "assistant" }
   // "Thinking..." placeholder rendered while the active turn has no content yet.
   | { key: string; type: "thinking" }
-  | { attempt: number; key: string; message: string; next: number; type: "retry" }
   | { body?: string; diffs: SnapshotFileDiff[]; key: string; title?: string; type: "diff-summary" }
-  | { key: string; type: "divider"; variant: "compaction" | "interrupted" }
-  | { body: string; key: string; kind: "history" | "stream"; label: string; type: "error" }
+  | { key: string; type: "checkpoint"; variant: "compaction" | "interrupted" }
   | { body: string; key: string; label: string; type: "assistant-error" }
 
 const MAX_RENDER_BLOCKS = 25
@@ -146,25 +143,24 @@ function renderParts(parts: Part[], textByPart: Record<string, string>): RenderE
 }
 
 type ProjectInput = {
-  historyError?: string
   isBusy: boolean
-  localMessages: LocalChatMessage[]
+  isRetrying: boolean
+  localMessages: OptimisticUserMessage[]
   messages: Message[]
   partsByMessage: Record<string, Part[]>
   // User turns at or after this id are rolled back: hidden from the transcript
   // and shown in the revert dock instead.
   revertMessageID?: string
-  sessionStatus?: SessionStatus
-  streamError?: string
   textByPart: Record<string, string>
 }
 
-export type RevertedMessage = { id: string; text: string }
+type RevertedMessage = { id: string; text: string }
 
-// Assistant messages replying to one user turn merge into a single row so
-// streaming deltas stay co-located; compaction and errors emit their own rows.
+// Assistant messages replying to one user turn merge until an interruption,
+// which stays at the exact boundary where execution stopped.
 function projectTurn(input: {
   assistants: AssistantMessage[]
+  compacted: boolean
   out: TimelineRow[]
   partsByMessage: Record<string, Part[]>
   textByPart: Record<string, string>
@@ -172,64 +168,69 @@ function projectTurn(input: {
   userIsLast: boolean
   isBusy: boolean
 }): void {
-  const { assistants, out, partsByMessage, textByPart, turnKey, userIsLast, isBusy } = input
+  const { assistants, compacted, out, partsByMessage, textByPart, turnKey, userIsLast, isBusy } =
+    input
 
-  const mergedEntries: RenderEntry[] = []
-  const messageIDs: string[] = []
-  let sawCompaction = false
-  let lastError: ReturnType<typeof unwrapMessageError> | undefined
+  const interruption = compacted
+    ? undefined
+    : assistants.find((assistant) => assistant.error?.name === "MessageAbortedError")
+  let entries: RenderEntry[] = []
+  let createdAt = 0
+  let segment = 0
+  let hasContent = false
+  let error: ReturnType<typeof describeMessageError> | undefined
 
   for (const assistant of assistants) {
-    const parts = partsByMessage[assistant.id] ?? []
-    for (const part of parts) {
-      if (part.type === "compaction") {
-        sawCompaction = true
-      }
-    }
-    mergedEntries.push(...renderParts(parts, textByPart))
-    messageIDs.push(assistant.id)
-    if (assistant.error) {
-      lastError = unwrapMessageError(assistant.error)
-    }
-  }
+    if (entries.length === 0) createdAt = assistant.time.created
+    entries.push(...renderParts(partsByMessage[assistant.id] ?? [], textByPart))
 
-  if (sawCompaction) {
-    out.push({
-      key: `divider:compaction:${assistants[0]?.id ?? messageIDs.join(":")}`,
-      type: "divider",
-      variant: "compaction",
-    })
+    if (assistant === interruption) {
+      if (entries.length > 0) {
+        out.push({
+          createdAt,
+          entries,
+          key: `${turnKey}:${segment}`,
+          type: "assistant",
+        })
+        hasContent = true
+        entries = []
+        segment += 1
+      }
+      out.push({
+        key: `checkpoint:interrupted:${assistant.id}`,
+        type: "checkpoint",
+        variant: "interrupted",
+      })
+      continue
+    }
+
+    if (assistant.error && assistant.error.name !== "MessageAbortedError" && !error) {
+      error = describeMessageError(assistant.error)
+    }
   }
 
   const isActiveTurn = userIsLast && isBusy
-  const hasContent = mergedEntries.length > 0
-
-  if (hasContent) {
+  if (entries.length > 0) {
     out.push({
-      createdAt: assistants[0]?.time.created ?? 0,
-      entries: mergedEntries,
-      key: turnKey,
+      createdAt,
+      entries,
+      key: interruption ? `${turnKey}:${segment}` : turnKey,
       type: "assistant",
     })
-  } else if (isActiveTurn) {
+    hasContent = true
+  }
+
+  if (!hasContent && isActiveTurn) {
     out.push({ key: `thinking:${turnKey}`, type: "thinking" })
   }
 
-  if (lastError) {
-    if (lastError.interrupted) {
-      out.push({
-        key: `divider:interrupted:${assistants.at(-1)?.id ?? "x"}`,
-        type: "divider",
-        variant: "interrupted",
-      })
-    } else {
-      out.push({
-        body: lastError.body,
-        key: `assistant-error:${assistants.at(-1)?.id ?? "x"}`,
-        label: lastError.label,
-        type: "assistant-error",
-      })
-    }
+  if (error) {
+    out.push({
+      body: error.body,
+      key: `assistant-error:${assistants.at(-1)?.id ?? "x"}`,
+      label: error.label,
+      type: "assistant-error",
+    })
   }
 }
 
@@ -281,9 +282,11 @@ export function projectTimeline(input: ProjectInput): {
 
   const lastIndex = visible.length - 1
   visible.forEach((turn, index) => {
-    const attachments = (input.partsByMessage[turn.user.id] ?? [])
+    const userParts = input.partsByMessage[turn.user.id] ?? []
+    const attachments = userParts
       .filter((part): part is Extract<Part, { type: "file" }> => part.type === "file")
       .map(attachmentDataFromPart)
+    const compacted = userParts.some((part) => part.type === "compaction")
 
     out.push({
       attachments,
@@ -294,9 +297,18 @@ export function projectTimeline(input: ProjectInput): {
       type: "user",
     })
 
+    if (compacted) {
+      out.push({
+        key: `checkpoint:compaction:${turn.user.id}`,
+        type: "checkpoint",
+        variant: "compaction",
+      })
+    }
+
     projectTurn({
       assistants: turn.assistants,
-      isBusy: input.isBusy,
+      compacted,
+      isBusy: input.isBusy && !input.isRetrying,
       out,
       partsByMessage: input.partsByMessage,
       textByPart: input.textByPart,
@@ -307,7 +319,7 @@ export function projectTimeline(input: ProjectInput): {
     // Only completed turns: on the active turn the snapshot lands mid-stream
     // and would flicker.
     const diffs = turn.user.summary?.diffs ?? []
-    if (diffs.length > 0 && index !== lastIndex) {
+    if (diffs.length > 0 && (index !== lastIndex || !input.isBusy)) {
       out.push({
         body: turn.user.summary?.body,
         diffs,
@@ -317,39 +329,6 @@ export function projectTimeline(input: ProjectInput): {
       })
     }
   })
-
-  // Retry row takes priority over the Thinking placeholder; the session is
-  // waiting to re-attempt the same turn rather than producing content.
-  if (input.sessionStatus?.type === "retry") {
-    out.push({
-      attempt: input.sessionStatus.attempt,
-      key: `retry:${input.sessionStatus.attempt}`,
-      message: input.sessionStatus.message,
-      next: input.sessionStatus.next,
-      type: "retry",
-    })
-  }
-
-  // History failures sit at the top so they show on empty timelines; stream
-  // failures sit at the bottom, next to the in-flight turn they invalidate.
-  if (input.historyError) {
-    out.unshift({
-      body: input.historyError,
-      key: "history-error",
-      kind: "history",
-      label: "Failed to load history",
-      type: "error",
-    })
-  }
-  if (input.streamError) {
-    out.push({
-      body: input.streamError,
-      key: "stream-error",
-      kind: "stream",
-      label: "Live session disconnected",
-      type: "error",
-    })
-  }
 
   // Cap to recent blocks so huge sessions don't render the whole transcript.
   const rows = out.length > MAX_RENDER_BLOCKS ? out.slice(out.length - MAX_RENDER_BLOCKS) : out

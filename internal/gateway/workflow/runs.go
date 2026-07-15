@@ -445,11 +445,10 @@ func applyNodeStatusPatch(nodes []agentzv1alpha1.WorkflowRunNodeStatus, nodeName
 
 	next[target].Phase = phase
 	next[target].Message = msg
+	next[target].CompletedAt = &now
 	if phase == agentzv1alpha1.WorkflowRunNodePhaseRunning {
 		next[target].StartedAt = &now
 		next[target].CompletedAt = nil
-	} else {
-		next[target].CompletedAt = &now
 	}
 
 	return next, true, nil

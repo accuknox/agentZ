@@ -68,6 +68,9 @@ spec:
             {{- if .Values.config.targetOverride }}
             - --target-override={{ .Values.config.targetOverride }}
             {{- end }}
+            {{- if .Values.config.filesystemTargetOverride }}
+            - --filesystem-target-override={{ .Values.config.filesystemTargetOverride }}
+            {{- end }}
             {{- if .Values.config.agentImage }}
             - --agent-image={{ .Values.config.agentImage }}
             {{- end }}

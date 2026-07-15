@@ -41,6 +41,48 @@ export type ObservabilityAction = "Allowed" | "Blocked"
 
 export type AgentName = string
 
+export type AgentFileType = "file" | "directory"
+
+export type AgentFileMetadata = {
+  path: string
+  size: number
+  media_type: string
+  modified_at: string
+  version: string
+  type: AgentFileType
+}
+
+export type AgentFile = AgentFileMetadata & {
+  content: string
+  truncated: boolean
+}
+
+export type AgentFileConflict = {
+  code: "file_version_conflict"
+  message: string
+  current: AgentFileMetadata
+}
+
+export type CreateAgentFileRequest = {
+  path: string
+}
+
+export type WriteAgentFileRequest = {
+  path: string
+  content: string
+  expected_version: string
+  overwrite?: boolean
+}
+
+export type CreateAgentDirectoryRequest = {
+  path: string
+}
+
+export type RenameAgentEntryRequest = {
+  path: string
+  target: string
+}
+
 /**
  * Sandbox resource name.
  */
@@ -918,6 +960,11 @@ export type AgentNameQueryOptional = AgentName
 export type AgentNamePath = AgentName
 
 /**
+ * Path relative to the agent workspace root.
+ */
+export type FilePathQuery = string
+
+/**
  * Sandbox name.
  */
 export type SandboxNamePath = SandboxName
@@ -1255,6 +1302,368 @@ export type WatchAgentsResponses = {
 }
 
 export type WatchAgentsResponse = WatchAgentsResponses[keyof WatchAgentsResponses]
+
+export type ReadAgentFileData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Path relative to the agent workspace root.
+     */
+    path: string
+  }
+  url: "/api/agent/{agentName}/fs/file"
+}
+
+export type ReadAgentFileErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request validation failed.
+   */
+  413: Error
+  /**
+   * Request validation failed.
+   */
+  415: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReadAgentFileError = ReadAgentFileErrors[keyof ReadAgentFileErrors]
+
+export type ReadAgentFileResponses = {
+  /**
+   * File content and metadata.
+   */
+  200: AgentFile
+}
+
+export type ReadAgentFileResponse = ReadAgentFileResponses[keyof ReadAgentFileResponses]
+
+export type CreateAgentFileData = {
+  body: CreateAgentFileRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/fs/file"
+}
+
+export type CreateAgentFileErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateAgentFileError = CreateAgentFileErrors[keyof CreateAgentFileErrors]
+
+export type CreateAgentFileResponses = {
+  /**
+   * File created.
+   */
+  201: AgentFileMetadata
+}
+
+export type CreateAgentFileResponse = CreateAgentFileResponses[keyof CreateAgentFileResponses]
+
+export type WriteAgentFileData = {
+  body: WriteAgentFileRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/fs/file"
+}
+
+export type WriteAgentFileErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * File changed since it was read.
+   */
+  409: AgentFileConflict
+  /**
+   * Request validation failed.
+   */
+  413: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WriteAgentFileError = WriteAgentFileErrors[keyof WriteAgentFileErrors]
+
+export type WriteAgentFileResponses = {
+  /**
+   * File written.
+   */
+  200: AgentFileMetadata
+}
+
+export type WriteAgentFileResponse = WriteAgentFileResponses[keyof WriteAgentFileResponses]
+
+export type StatAgentFileData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Path relative to the agent workspace root.
+     */
+    path: string
+  }
+  url: "/api/agent/{agentName}/fs/stat"
+}
+
+export type StatAgentFileErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request validation failed.
+   */
+  413: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type StatAgentFileError = StatAgentFileErrors[keyof StatAgentFileErrors]
+
+export type StatAgentFileResponses = {
+  /**
+   * Entry metadata.
+   */
+  200: AgentFileMetadata
+}
+
+export type StatAgentFileResponse = StatAgentFileResponses[keyof StatAgentFileResponses]
+
+export type ReadAgentFileRawData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Path relative to the agent workspace root.
+     */
+    path: string
+  }
+  url: "/api/agent/{agentName}/fs/raw"
+}
+
+export type ReadAgentFileRawErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request validation failed.
+   */
+  413: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReadAgentFileRawError = ReadAgentFileRawErrors[keyof ReadAgentFileRawErrors]
+
+export type ReadAgentFileRawResponses = {
+  /**
+   * Raw file content.
+   */
+  200: Blob | File
+}
+
+export type ReadAgentFileRawResponse = ReadAgentFileRawResponses[keyof ReadAgentFileRawResponses]
+
+export type CreateAgentDirectoryData = {
+  body: CreateAgentDirectoryRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/fs/directory"
+}
+
+export type CreateAgentDirectoryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateAgentDirectoryError = CreateAgentDirectoryErrors[keyof CreateAgentDirectoryErrors]
+
+export type CreateAgentDirectoryResponses = {
+  /**
+   * Directory created.
+   */
+  201: AgentFileMetadata
+}
+
+export type CreateAgentDirectoryResponse =
+  CreateAgentDirectoryResponses[keyof CreateAgentDirectoryResponses]
+
+export type RenameAgentEntryData = {
+  body: RenameAgentEntryRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/fs/rename"
+}
+
+export type RenameAgentEntryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type RenameAgentEntryError = RenameAgentEntryErrors[keyof RenameAgentEntryErrors]
+
+export type RenameAgentEntryResponses = {
+  /**
+   * Entry renamed.
+   */
+  200: AgentFileMetadata
+}
+
+export type RenameAgentEntryResponse = RenameAgentEntryResponses[keyof RenameAgentEntryResponses]
+
+export type DeleteAgentEntryData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Path relative to the agent workspace root.
+     */
+    path: string
+  }
+  url: "/api/agent/{agentName}/fs/entry"
+}
+
+export type DeleteAgentEntryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteAgentEntryError = DeleteAgentEntryErrors[keyof DeleteAgentEntryErrors]
+
+export type DeleteAgentEntryResponses = {
+  /**
+   * Entry deleted.
+   */
+  204: void
+}
+
+export type DeleteAgentEntryResponse = DeleteAgentEntryResponses[keyof DeleteAgentEntryResponses]
 
 export type ListSkillsData = {
   body?: never

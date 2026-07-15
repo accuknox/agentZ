@@ -4,6 +4,7 @@ import { InputGroup, InputGroupButton, InputGroupTextarea } from "@/components/u
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { ChatStatus, FileUIPart } from "ai"
 import { ArrowUpIcon, SquareIcon, XIcon } from "lucide-react"
 import { nanoid } from "nanoid"
@@ -62,6 +63,7 @@ interface AttachmentsContext {
 
 type PromptInputLayoutContextValue = {
   isMultiline: boolean
+  mobile: boolean
   setMultiline: (value: boolean) => void
 }
 
@@ -129,6 +131,7 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onEr
   globalDrop?: boolean
   maxFiles?: number
   maxFileSize?: number
+  mobile?: boolean
   controllerRef?: RefObject<PromptInputController | null>
   onError?: (err: { code: "max_files" | "max_file_size" | "accept"; message: string }) => void
   onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void | Promise<void>
@@ -141,6 +144,7 @@ export const PromptInput = ({
   globalDrop,
   maxFiles,
   maxFileSize,
+  mobile = false,
   controllerRef,
   onError,
   onSubmit,
@@ -366,9 +370,10 @@ export const PromptInput = ({
   const layoutCtx = useMemo<PromptInputLayoutContextValue>(
     () => ({
       isMultiline,
+      mobile,
       setMultiline: setIsMultiline,
     }),
-    [isMultiline]
+    [isMultiline, mobile]
   )
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
@@ -402,7 +407,13 @@ export const PromptInput = ({
         await onSubmit({ files: convertedFiles, text }, event)
         clearAttachments()
       } catch {
-        // Keep attachments available so failed sends can be retried.
+        // Preserve newer edits while restoring a failed submission for retry.
+        if (textarea instanceof HTMLTextAreaElement && text && !textarea.value) {
+          textarea.value = text
+          textarea.dispatchEvent(new Event("input", { bubbles: true }))
+          textarea.focus()
+          textarea.setSelectionRange(text.length, text.length)
+        }
       }
     },
     [clearAttachments, items, onSubmit]
@@ -474,18 +485,20 @@ export const PromptInputTextarea = ({
 }: PromptInputTextareaProps) => {
   const attachments = usePromptInputAttachments()
   const layout = useContext(PromptInputLayoutContext)
+  const isMobile = useIsMobile() || (layout?.mobile ?? false)
   const [isComposing, setIsComposing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wasDisabledRef = useRef(Boolean(disabled))
 
   const focusTextarea = useCallback(() => {
+    if (isMobile) return
     window.requestAnimationFrame(() => {
       const element = textareaRef.current
       if (!element) return
       if (document.activeElement === element) return
       element.focus()
     })
-  }, [])
+  }, [isMobile])
 
   const resizeTextarea = useCallback(
     (element?: HTMLTextAreaElement | null) => {
@@ -590,7 +603,6 @@ export const PromptInputTextarea = ({
       }
 
       if (files.length > 0) {
-        event.preventDefault()
         attachments.add(files)
       }
     },
@@ -631,9 +643,8 @@ export const PromptInputTextarea = ({
 
   return (
     <InputGroupTextarea
-      autoFocus
       className={cn(
-        "max-h-48 min-h-7 px-1 py-0.5 text-base leading-6 whitespace-pre-wrap transition-[height] duration-150 ease-out placeholder:font-normal md:text-[15px]",
+        "max-h-48 min-h-7 px-1 py-0.5 text-base leading-6 whitespace-pre-wrap transition-[height] duration-150 ease-out placeholder:font-normal lg:text-[15px]",
         className
       )}
       name="message"

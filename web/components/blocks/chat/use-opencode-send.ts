@@ -4,6 +4,7 @@ import { useRouter } from "@bprogress/next/app"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { nanoid } from "nanoid"
 import { startTransition, useCallback, useState } from "react"
+import { toast } from "sonner"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -14,7 +15,6 @@ import {
 } from "@/components/blocks/chat/attachments"
 import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import {
-  appendSystemPrompt,
   markOptimisticUserMessageFailed,
   migrateChatOverlay,
   sessionInfoQueryKey,
@@ -69,7 +69,6 @@ export function useOpencodeSend(
       upsertOptimisticUserMessage(queryClient, agentName, activeSessionKey, {
         createdAt,
         id: optimisticID,
-        kind: "optimistic-user",
         status: "pending",
         attachments: optimisticAttachments,
         text,
@@ -131,16 +130,11 @@ export function useOpencodeSend(
       } catch (error) {
         const nextSessionKey = resolvedSessionID ?? activeSessionKey
         markOptimisticUserMessageFailed(queryClient, agentName, nextSessionKey, optimisticID)
-        appendSystemPrompt(
-          queryClient,
-          agentName,
-          nextSessionKey,
-          error instanceof Error && error.message.length > 0
-            ? error.message
-            : "Failed to send message"
-        )
-        throw error instanceof Error ? error : new Error("Failed to send message")
+        throw error
       }
+    },
+    onError: (error) => {
+      toast.error("Failed to send message", { description: error.message })
     },
     // No refetch here: promptAsync resolves at turn start, so a GET now can
     // resolve after the terminal events and clobber the live store with a
@@ -162,23 +156,14 @@ export function useOpencodeSend(
 
       return result.data
     },
-    onError: (error, input) => {
-      appendSystemPrompt(
-        queryClient,
-        agentName,
-        input.sessionID,
-        error instanceof Error && error.message.length > 0
-          ? error.message
-          : "Failed to stop the active run"
-      )
+    onError: (error) => {
+      toast.error("Failed to stop the active run", { description: error.message })
     },
   })
   const { isPending: isAbortPending, mutateAsync: mutateAbortAsync } = abortMutation
 
   const sendMessage = useCallback(
-    async (input: SendMessageInput) => {
-      return mutateSendAsync(input)
-    },
+    (input: SendMessageInput) => mutateSendAsync(input),
     [mutateSendAsync]
   )
 

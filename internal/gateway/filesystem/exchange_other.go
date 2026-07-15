@@ -18,11 +18,8 @@ limitations under the License.
 
 package filesystem
 
-import (
-	"errors"
-	"os"
-)
+import "os"
 
-func exchangeFiles(_ *os.Root, _, _ string) error {
-	return errors.New("atomic file exchange is unsupported")
+func exchangeFiles(_ *os.Root, _, _ string) (bool, error) {
+	return false, nil
 }

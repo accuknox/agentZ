@@ -70,6 +70,8 @@ type AgentSessionsStreamChunk =
       event: OpencodeEvent
     }
 
+const sidebarSpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const
+
 function sortSessions(sessions: readonly AgentSessionListItem[]): AgentSessionListItem[] {
   return [...sessions].sort((x, y) => {
     return y.updatedAt - x.updatedAt || x.id.localeCompare(y.id)
@@ -327,7 +329,7 @@ function SessionItem({
       </SidebarMenuSubButton>
       <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs font-normal group-focus-within/menu-sub-item:opacity-0 group-hover/menu-sub-item:opacity-0">
         {status && status.type !== "idle" ? (
-          <Spinner aria-label="Working" className="size-3" />
+          <SidebarSessionSpinner />
         ) : (
           formatShortAge(session.updatedAt)
         )}
@@ -480,6 +482,32 @@ function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
     staleTime: Infinity,
   })
+}
+
+function SidebarSessionSpinner() {
+  const [frame, setFrame] = useState(0)
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setFrame((current) => {
+        return (current + 1) % sidebarSpinnerFrames.length
+      })
+    }, 80)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  return (
+    <span
+      aria-label="Working"
+      role="status"
+      className="relative top-px inline-flex shrink-0 items-center align-middle text-[14px] leading-none"
+    >
+      {sidebarSpinnerFrames[frame]}
+    </span>
+  )
 }
 
 function agentNameFromPath(path: string) {

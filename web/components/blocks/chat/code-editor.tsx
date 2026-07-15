@@ -18,7 +18,13 @@ type CodeEditorProps = {
   value: string
 }
 
-export function CodeEditor({ filename, onChange, onSave, readOnly, value }: CodeEditorProps) {
+export function CodeEditor({
+  filename,
+  onChange,
+  onSave,
+  readOnly,
+  value,
+}: CodeEditorProps): React.JSX.Element {
   const { resolvedTheme } = useTheme()
   const hostRef = React.useRef<HTMLDivElement>(null)
   const viewRef = React.useRef<EditorView>(null)
@@ -28,9 +34,10 @@ export function CodeEditor({ filename, onChange, onSave, readOnly, value }: Code
   const applyingValueRef = React.useRef(false)
 
   React.useEffect(() => {
+    initialValueRef.current = value
     onChangeRef.current = onChange
     onSaveRef.current = onSave
-  })
+  }, [onChange, onSave, value])
 
   React.useEffect(() => {
     const host = hostRef.current
@@ -141,10 +148,13 @@ export function CodeEditor({ filename, onChange, onSave, readOnly, value }: Code
     }
 
     applyingValueRef.current = true
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: value },
-    })
-    applyingValueRef.current = false
+    try {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
+      })
+    } finally {
+      applyingValueRef.current = false
+    }
   }, [value])
 
   return <div className="h-full min-h-0 overflow-hidden" ref={hostRef} />

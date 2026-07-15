@@ -1333,6 +1333,10 @@ export type ReadAgentFileErrors = {
   /**
    * Request validation failed.
    */
+  413: Error
+  /**
+   * Request validation failed.
+   */
   415: Error
   /**
    * Unexpected server error.
@@ -1465,6 +1469,10 @@ export type StatAgentFileErrors = {
    */
   404: Error
   /**
+   * Request validation failed.
+   */
+  413: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -1508,6 +1516,10 @@ export type ReadAgentFileRawErrors = {
    *
    */
   404: Error
+  /**
+   * Request validation failed.
+   */
+  413: Error
   /**
    * Unexpected server error.
    */

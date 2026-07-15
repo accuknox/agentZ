@@ -273,7 +273,7 @@ export function QuestionDock({
   const customAllowed = question.custom !== false
 
   return (
-    <div className="mx-auto w-full px-4 lg:w-4/5 lg:px-0">
+    <div className="mx-auto w-full px-4 @xl/chat:w-4/5 @xl/chat:px-0">
       <div className="border-primary border-l-2">
         <div className="flex flex-col gap-4 px-4 py-3" onKeyDown={handleKeyDown}>
           <div className="flex flex-col gap-3">
@@ -517,7 +517,7 @@ export function PermissionDock({
   )
 
   return (
-    <div className="mx-auto w-full px-4 lg:w-4/5 lg:px-0">
+    <div className="mx-auto w-full px-4 @xl/chat:w-4/5 @xl/chat:px-0">
       <div className="border-primary border-l-2">
         <div className="flex flex-col gap-4 px-4 py-3">
           <div className="flex flex-col gap-1">
@@ -589,7 +589,7 @@ export function RevertDock({
   const hasDiff = summary !== undefined && summary.files > 0
 
   return (
-    <div className="mx-auto w-full px-4 pb-1 lg:w-4/5 lg:px-0">
+    <div className="mx-auto w-full px-4 pb-1 @xl/chat:w-4/5 @xl/chat:px-0">
       <button
         className="border-destructive/30 bg-destructive/5 hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors"
         onClick={() => setOpen((value) => !value)}
@@ -661,7 +661,7 @@ export function TodoDock({ todos }: { todos: Todo[] }) {
   const preview = inProgress ? inProgress.content : todos[0]?.content
 
   return (
-    <div className="mx-auto w-full px-4 pb-1 lg:w-4/5 lg:px-0">
+    <div className="mx-auto w-full px-4 pb-1 @xl/chat:w-4/5 @xl/chat:px-0">
       <button
         className="border-border bg-muted/30 hover:bg-muted/60 flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors"
         onClick={() => setOpen((value) => !value)}

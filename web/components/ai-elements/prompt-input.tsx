@@ -63,6 +63,7 @@ interface AttachmentsContext {
 
 type PromptInputLayoutContextValue = {
   isMultiline: boolean
+  mobile: boolean
   setMultiline: (value: boolean) => void
 }
 
@@ -130,6 +131,7 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onEr
   globalDrop?: boolean
   maxFiles?: number
   maxFileSize?: number
+  mobile?: boolean
   controllerRef?: RefObject<PromptInputController | null>
   onError?: (err: { code: "max_files" | "max_file_size" | "accept"; message: string }) => void
   onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void | Promise<void>
@@ -142,6 +144,7 @@ export const PromptInput = ({
   globalDrop,
   maxFiles,
   maxFileSize,
+  mobile = false,
   controllerRef,
   onError,
   onSubmit,
@@ -367,9 +370,10 @@ export const PromptInput = ({
   const layoutCtx = useMemo<PromptInputLayoutContextValue>(
     () => ({
       isMultiline,
+      mobile,
       setMultiline: setIsMultiline,
     }),
-    [isMultiline]
+    [isMultiline, mobile]
   )
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
@@ -474,8 +478,8 @@ export const PromptInputTextarea = ({
   ...props
 }: PromptInputTextareaProps) => {
   const attachments = usePromptInputAttachments()
-  const isMobile = useIsMobile()
   const layout = useContext(PromptInputLayoutContext)
+  const isMobile = useIsMobile() || (layout?.mobile ?? false)
   const [isComposing, setIsComposing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wasDisabledRef = useRef(Boolean(disabled))
@@ -634,7 +638,7 @@ export const PromptInputTextarea = ({
   return (
     <InputGroupTextarea
       className={cn(
-        "max-h-48 min-h-7 px-1 py-0.5 text-base leading-6 whitespace-pre-wrap transition-[height] duration-150 ease-out placeholder:font-normal md:text-[15px]",
+        "max-h-48 min-h-7 px-1 py-0.5 text-base leading-6 whitespace-pre-wrap transition-[height] duration-150 ease-out placeholder:font-normal lg:text-[15px]",
         className
       )}
       name="message"

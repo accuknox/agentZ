@@ -27,15 +27,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func exchangeFiles(root *os.Root, first, second string) error {
+func exchangeFiles(root *os.Root, first, second string) (bool, error) {
 	dirName := path.Dir(first)
 	if dirName != path.Dir(second) {
-		return errors.New("exchange files in different directories")
+		return false, errors.New("exchange files in different directories")
 	}
 
 	dir, err := root.Open(dirName)
 	if err != nil {
-		return fmt.Errorf("open exchange directory: %w", err)
+		return false, fmt.Errorf("open exchange directory: %w", err)
 	}
 	exchangeErr := unix.Renameat2(
 		int(dir.Fd()),
@@ -45,9 +45,16 @@ func exchangeFiles(root *os.Root, first, second string) error {
 		unix.RENAME_EXCHANGE,
 	)
 	closeErr := dir.Close()
-	err = errors.Join(exchangeErr, closeErr)
-	if err != nil {
-		return fmt.Errorf("exchange files: %w", err)
+	if closeErr != nil {
+		return false, fmt.Errorf("close exchange directory: %w", closeErr)
 	}
-	return nil
+	if exchangeErr == nil {
+		return true, nil
+	}
+	// FUSE filesystems may report EINVAL for unsupported rename flags.
+	unsupported := errors.Is(exchangeErr, unix.EINVAL) || errors.Is(exchangeErr, unix.ENOSYS) || errors.Is(exchangeErr, unix.EOPNOTSUPP)
+	if unsupported {
+		return false, nil
+	}
+	return false, fmt.Errorf("exchange files: %w", exchangeErr)
 }

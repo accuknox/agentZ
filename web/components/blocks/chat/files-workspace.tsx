@@ -2,7 +2,13 @@
 
 import * as React from "react"
 import type { FileNode } from "@opencode-ai/sdk/v2"
-import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  queryOptions,
+  useIsFetching,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import dynamic from "next/dynamic"
 import {
   Braces,
@@ -16,10 +22,11 @@ import {
   FileImage,
   FilePlus2,
   FolderPlus,
-  PanelRightClose,
   Pencil,
   RefreshCw,
   Save,
+  Scan,
+  Shrink,
   Trash2,
   X,
 } from "lucide-react"
@@ -64,6 +71,7 @@ import {
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { readAgentFileRaw } from "@/lib/gateway/client/sdk.gen"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { cn } from "@/lib/utils"
 
 const CodeEditor = dynamic(
   () => import("@/components/blocks/chat/code-editor").then((module) => module.CodeEditor),
@@ -72,6 +80,7 @@ const CodeEditor = dynamic(
 
 type FilesWorkspaceProps = {
   agentName: string
+  onPreviewerOpenChange: (open: boolean) => void
   sessionId?: string
 }
 
@@ -104,13 +113,46 @@ type Confirmation = {
 
 type DirectoryTreeProps = {
   agentName: string
+  moveOperation: MoveOperation | null
   onAction: (action: EntryAction) => void
   onMove: (path: string, directory: string) => void
   path: string
   root: string
 }
 
+type MoveOperation = {
+  directory: string
+  path: string
+}
+
 const fileDragType = "application/x-agentz-file-path"
+
+async function downloadAgentFile(agentName: string, path: string, filename: string): Promise<void> {
+  const toastId = toast.loading(`Downloading ${filename}...`)
+  try {
+    const { data } = await readAgentFileRaw({
+      parseAs: "blob",
+      path: { agentName },
+      query: { path },
+      throwOnError: true,
+    })
+    const url = URL.createObjectURL(data)
+    try {
+      const anchor = document.createElement("a")
+      anchor.href = url
+      anchor.download = filename
+      anchor.click()
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+    toast.success("Download started", { id: toastId })
+  } catch (error) {
+    toast.error("Could not download file", {
+      description: error instanceof Error ? error.message : undefined,
+      id: toastId,
+    })
+  }
+}
 
 function agentFilesQueryOptions(agentName: string, root: string, path: string) {
   return queryOptions({
@@ -132,27 +174,74 @@ function agentFilesQueryOptions(agentName: string, root: string, path: string) {
   })
 }
 
-export function FilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
+export function FilesWorkspace({
+  agentName,
+  onPreviewerOpenChange,
+  sessionId,
+}: FilesWorkspaceProps): React.JSX.Element {
   const { openAgent } = useFileWorkspace()
   const filesOpen = openAgent === agentName
 
   return (
     <AnimatePresence initial={false}>
       {filesOpen ? (
-        <OpenFilesWorkspace agentName={agentName} key={agentName} sessionId={sessionId} />
+        <OpenFilesWorkspace
+          agentName={agentName}
+          key={agentName}
+          onPreviewerOpenChange={onPreviewerOpenChange}
+          sessionId={sessionId}
+        />
       ) : null}
     </AnimatePresence>
   )
 }
 
-function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
-  const [explorerWidth, setExplorerWidth] = React.useState(288)
+function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: FilesWorkspaceProps) {
+  const [explorerWidth, setExplorerWidth] = React.useState(290)
   const [workspaceWidth, setWorkspaceWidth] = React.useState(760)
+  const [expandedWidth, setExpandedWidth] = React.useState(760)
   const reducedMotion = useReducedMotion()
   const [editorOpen, setEditorOpen] = React.useState(false)
+  const [expanded, setExpanded] = React.useState(false)
+  const [layoutChanging, setLayoutChanging] = React.useState(false)
   const [resizing, setResizing] = React.useState(false)
-  const resize = React.useRef<{ pointerId: number; startWidth: number; startX: number }>(null)
+  const workspace = React.useRef<HTMLElement>(null)
+  const resize = React.useRef<{ startWidth: number; startX: number }>(null)
   const width = editorOpen ? workspaceWidth : explorerWidth
+  const renderedWidth = expanded ? expandedWidth : width
+
+  React.useEffect(() => {
+    const element = workspace.current
+    if (!element) return
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || !expanded) return
+      setExpandedWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [expanded])
+
+  React.useEffect(() => () => onPreviewerOpenChange(false), [onPreviewerOpenChange])
+
+  const handleEditorOpenChange = React.useCallback(
+    (open: boolean) => {
+      setEditorOpen(open)
+      onPreviewerOpenChange(open)
+      if (!open) setExpanded(false)
+    },
+    [onPreviewerOpenChange]
+  )
+
+  const toggleExpanded = React.useCallback(() => {
+    if (!expanded) {
+      const availableWidth = workspace.current?.parentElement?.clientWidth
+      if (availableWidth) setExpandedWidth(availableWidth)
+    }
+    setLayoutChanging(true)
+    setExpanded((current) => !current)
+    window.requestAnimationFrame(() => setLayoutChanging(false))
+  }, [expanded])
 
   const rootQuery = useQuery(
     queryOptions({
@@ -177,63 +266,73 @@ function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
 
   return (
     <motion.aside
-      animate={{ opacity: 1, x: 0 }}
-      className="relative hidden h-full min-h-0 shrink-0 overflow-hidden border-l shadow-sm lg:block"
-      exit={{ opacity: 0, x: "100%" }}
-      initial={{ opacity: 0, x: "100%" }}
-      style={{ width }}
-      transition={{ duration: reducedMotion || resizing ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+      ref={workspace}
+      animate={{ width: expanded ? "100%" : width, x: 0 }}
+      className={cn(
+        "bg-background hidden h-full min-h-0 shrink-0 overflow-hidden shadow-sm lg:block",
+        expanded ? "absolute inset-0 z-40" : "relative border-l"
+      )}
+      exit={{ width: 0, x: "100%" }}
+      initial={{ width: 0, x: "100%" }}
+      transition={{
+        duration: reducedMotion || resizing || layoutChanging ? 0 : 0.2,
+        ease: "linear",
+      }}
     >
+      {!expanded ? (
+        <div
+          aria-label="Resize files workspace"
+          aria-orientation="vertical"
+          aria-valuemax={editorOpen ? 1200 : 520}
+          aria-valuemin={editorOpen ? explorerWidth + 240 : 220}
+          aria-valuenow={width}
+          className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize touch-none transition-colors"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+            event.preventDefault()
+            const nextWidth = width + (event.key === "ArrowLeft" ? 16 : -16)
+            if (editorOpen) {
+              setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
+              return
+            }
+            setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
+          }}
+          onPointerDown={(event) => {
+            setResizing(true)
+            event.currentTarget.setPointerCapture(event.pointerId)
+            resize.current = {
+              startWidth: width,
+              startX: event.clientX,
+            }
+          }}
+          onPointerMove={(event) => {
+            if (!resize.current) return
+            const nextWidth = resize.current.startWidth + resize.current.startX - event.clientX
+            if (editorOpen) {
+              setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
+              return
+            }
+            setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
+          }}
+          onPointerUp={(event) => {
+            resize.current = null
+            setResizing(false)
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            }
+          }}
+          onPointerCancel={() => {
+            resize.current = null
+            setResizing(false)
+          }}
+          role="separator"
+          tabIndex={0}
+        />
+      ) : null}
       <div
-        aria-label="Resize files workspace"
-        aria-orientation="vertical"
-        aria-valuemax={editorOpen ? 1200 : 520}
-        aria-valuemin={editorOpen ? explorerWidth + 240 : 220}
-        aria-valuenow={width}
-        className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize touch-none transition-colors"
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-          event.preventDefault()
-          const nextWidth = width + (event.key === "ArrowLeft" ? 16 : -16)
-          if (editorOpen) {
-            setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
-            return
-          }
-          setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
-        }}
-        onPointerDown={(event) => {
-          setResizing(true)
-          event.currentTarget.setPointerCapture(event.pointerId)
-          resize.current = {
-            pointerId: event.pointerId,
-            startWidth: width,
-            startX: event.clientX,
-          }
-        }}
-        onPointerMove={(event) => {
-          if (!resize.current) return
-          const nextWidth = resize.current.startWidth + resize.current.startX - event.clientX
-          if (editorOpen) {
-            setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
-            return
-          }
-          setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
-        }}
-        onPointerUp={(event) => {
-          resize.current = null
-          setResizing(false)
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-            event.currentTarget.releasePointerCapture(event.pointerId)
-          }
-        }}
-        onPointerCancel={() => {
-          resize.current = null
-          setResizing(false)
-        }}
-        role="separator"
-        tabIndex={0}
-      />
-      <div className="bg-background h-full min-h-0" style={{ width }}>
+        className="bg-background absolute inset-y-0 right-0 min-h-0"
+        style={{ width: renderedWidth }}
+      >
         {rootQuery.isPending ? (
           <div
             aria-live="polite"
@@ -263,11 +362,13 @@ function OpenFilesWorkspace({ agentName, sessionId }: FilesWorkspaceProps) {
             agentName={agentName}
             editorOpen={editorOpen}
             explorerWidth={explorerWidth}
-            onEditorOpenChange={setEditorOpen}
+            expanded={expanded}
+            onEditorOpenChange={handleEditorOpenChange}
+            onExpandedChange={toggleExpanded}
             reducedMotion={reducedMotion || resizing}
             root={rootQuery.data}
             setExplorerWidth={setExplorerWidth}
-            workspaceWidth={workspaceWidth}
+            workspaceWidth={renderedWidth}
           />
         )}
       </div>
@@ -279,7 +380,9 @@ function WorkspaceBody({
   agentName,
   editorOpen,
   explorerWidth,
+  expanded,
   onEditorOpenChange,
+  onExpandedChange,
   reducedMotion,
   root,
   setExplorerWidth,
@@ -288,7 +391,9 @@ function WorkspaceBody({
   agentName: string
   editorOpen: boolean
   explorerWidth: number
+  expanded: boolean
   onEditorOpenChange: (open: boolean) => void
+  onExpandedChange: () => void
   reducedMotion: boolean
   root: string
   setExplorerWidth: React.Dispatch<React.SetStateAction<number>>
@@ -297,6 +402,11 @@ function WorkspaceBody({
   const queryClient = useQueryClient()
   const workspaceKey = `${agentName}:${root}`
   const editorWidth = workspaceWidth - explorerWidth - 4
+  const filesQueryKey = agentFilesQueryOptions(agentName, root, ".").queryKey.slice(0, 3)
+  const filesFetching =
+    useIsFetching({
+      queryKey: filesQueryKey,
+    }) > 0
   const {
     closeRoot,
     closeTab,
@@ -311,10 +421,35 @@ function WorkspaceBody({
   const [action, setAction] = React.useState<EntryAction | null>(null)
   const [confirmation, setConfirmation] = React.useState<Confirmation | null>(null)
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>({})
+  const tabsRef = React.useRef<HTMLDivElement>(null)
+  const tabScrollFrame = React.useRef<number | null>(null)
+  const tabScrollTarget = React.useRef(0)
+  const [tabOverflow, setTabOverflow] = React.useState({ left: false, right: false })
   const resize = React.useRef<{ startWidth: number; startX: number }>(null)
   const dirty = Object.values(drafts).some((draft) => draft.dirty)
   const selected = rootState?.selected ?? null
   const tabs = rootState?.tabs ?? []
+  const moveDrafts = React.useCallback((path: string, target: string) => {
+    setDrafts((current) => {
+      const next = { ...current }
+      const prefix = `${path}/`
+      let changed = false
+      for (const [draftPath, draft] of Object.entries(current)) {
+        if (draftPath === path) {
+          delete next[draftPath]
+          next[target] = draft
+          changed = true
+          continue
+        }
+        if (draftPath.startsWith(prefix)) {
+          delete next[draftPath]
+          next[`${target}/${draftPath.slice(prefix.length)}`] = draft
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [])
   const openFile = React.useCallback(
     (tab: FileTab) => {
       openTab(workspaceKey, tab)
@@ -322,15 +457,49 @@ function WorkspaceBody({
     },
     [onEditorOpenChange, openTab, workspaceKey]
   )
-  const { isPending: movePending, mutate: move } = useMutation(renameAgentEntryMutation())
+  const {
+    isPending: movePending,
+    mutate: move,
+    variables: moveVariables,
+  } = useMutation({
+    ...renameAgentEntryMutation(),
+    onError: (error) => toast.error("Could not move entry", { description: error.message }),
+    onSuccess: async (_, variables) => {
+      const path = variables.body.path
+      const target = variables.body.target
+      const sourceSlash = path.lastIndexOf("/")
+      const targetSlash = target.lastIndexOf("/")
+      const sourceDirectory = sourceSlash === -1 ? "." : `${path.slice(0, sourceSlash)}/`
+      const targetDirectory = targetSlash === -1 ? "." : `${target.slice(0, targetSlash)}/`
+
+      await Promise.allSettled([
+        queryClient.invalidateQueries({
+          queryKey: agentFilesQueryOptions(agentName, root, sourceDirectory).queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: agentFilesQueryOptions(agentName, root, targetDirectory).queryKey,
+        }),
+      ])
+      moveDrafts(path, target)
+      moveEntry(workspaceKey, path, target)
+      toast.success(`Moved ${path.slice(path.lastIndexOf("/") + 1)}`)
+    },
+  })
+  const moveOperation =
+    movePending && moveVariables
+      ? {
+          directory: moveVariables.body.target.includes("/")
+            ? moveVariables.body.target.slice(0, moveVariables.body.target.lastIndexOf("/"))
+            : ".",
+          path: moveVariables.body.path,
+        }
+      : null
   const moveFile = React.useCallback(
     (path: string, directory: string) => {
       if (!path) return
 
       const name = path.slice(path.lastIndexOf("/") + 1)
       const target = directory === "." ? name : `${directory}/${name}`
-      const sourceDirectory = path.includes("/") ? `${path.slice(0, path.lastIndexOf("/"))}/` : "."
-      const targetDirectory = directory === "." ? "." : `${directory}/`
       if (
         target === path ||
         directory === path ||
@@ -340,26 +509,9 @@ function WorkspaceBody({
         return
       }
 
-      move(
-        { body: { path, target }, path: { agentName } },
-        {
-          onError: (error) => toast.error("Could not move entry", { description: error.message }),
-          onSuccess: () => {
-            void Promise.all([
-              queryClient.invalidateQueries({
-                queryKey: agentFilesQueryOptions(agentName, root, sourceDirectory).queryKey,
-              }),
-              queryClient.invalidateQueries({
-                queryKey: agentFilesQueryOptions(agentName, root, targetDirectory).queryKey,
-              }),
-            ])
-            moveEntry(workspaceKey, path, target)
-            toast.success(`Moved ${name}`)
-          },
-        }
-      )
+      move({ body: { path, target }, path: { agentName } })
     },
-    [agentName, move, moveEntry, movePending, queryClient, root, workspaceKey]
+    [agentName, move, movePending]
   )
   const setSelectedDraft = React.useCallback(
     (draft: Draft) => {
@@ -374,6 +526,101 @@ function WorkspaceBody({
   React.useEffect(() => {
     setAgentDirty(agentName, dirty)
   }, [agentName, dirty, setAgentDirty])
+
+  const updateTabOverflow = React.useCallback(() => {
+    const element = tabsRef.current
+    if (!element) return
+    const left = element.scrollLeft > 2
+    const right = element.scrollLeft + element.clientWidth < element.scrollWidth - 2
+    setTabOverflow((current) => {
+      if (current.left === left && current.right === right) return current
+      return { left, right }
+    })
+  }, [])
+
+  const stopTabScroll = React.useCallback(() => {
+    if (tabScrollFrame.current === null) return
+    window.cancelAnimationFrame(tabScrollFrame.current)
+    tabScrollFrame.current = null
+  }, [])
+
+  const scrollTabsBy = React.useCallback(
+    (delta: number) => {
+      const element = tabsRef.current
+      if (!element) return
+
+      if (tabScrollFrame.current === null) {
+        tabScrollTarget.current = element.scrollLeft
+      }
+      const maxScroll = element.scrollWidth - element.clientWidth
+      const boundedDelta = Math.max(-120, Math.min(120, delta))
+      tabScrollTarget.current = Math.max(
+        0,
+        Math.min(maxScroll, tabScrollTarget.current + boundedDelta)
+      )
+      if (reducedMotion) {
+        element.scrollLeft = tabScrollTarget.current
+        return
+      }
+      if (tabScrollFrame.current !== null) return
+
+      const tick = () => {
+        const current = tabsRef.current
+        if (!current) {
+          tabScrollFrame.current = null
+          return
+        }
+
+        const currentMaxScroll = current.scrollWidth - current.clientWidth
+        tabScrollTarget.current = Math.max(0, Math.min(currentMaxScroll, tabScrollTarget.current))
+        const distance = tabScrollTarget.current - current.scrollLeft
+        if (Math.abs(distance) < 0.5) {
+          current.scrollLeft = tabScrollTarget.current
+          tabScrollFrame.current = null
+          return
+        }
+
+        current.scrollLeft += distance * 0.2
+        tabScrollFrame.current = window.requestAnimationFrame(tick)
+      }
+      tabScrollFrame.current = window.requestAnimationFrame(tick)
+    },
+    [reducedMotion]
+  )
+
+  React.useEffect(() => {
+    return stopTabScroll
+  }, [stopTabScroll])
+
+  React.useEffect(() => {
+    const element = tabsRef.current
+    if (!element) return
+
+    updateTabOverflow()
+    element.addEventListener("scroll", updateTabOverflow, { passive: true })
+    const observer = new ResizeObserver(updateTabOverflow)
+    observer.observe(element)
+    return () => {
+      element.removeEventListener("scroll", updateTabOverflow)
+      observer.disconnect()
+    }
+  }, [editorOpen, tabs.length, updateTabOverflow])
+
+  React.useEffect(() => {
+    if (!editorOpen || !selected) {
+      stopTabScroll()
+      return
+    }
+    const element = tabsRef.current
+    if (!element) return
+
+    stopTabScroll()
+    const tab = Array.from(element.querySelectorAll<HTMLElement>("[data-file-tab]")).find(
+      (item) => item.dataset.fileTab === selected
+    )
+    tab?.scrollIntoView({ block: "nearest", inline: "nearest" })
+    updateTabOverflow()
+  }, [editorOpen, selected, stopTabScroll, updateTabOverflow])
 
   React.useEffect(
     () => () => {
@@ -445,92 +692,146 @@ function WorkspaceBody({
             initial={{ width: 0 }}
             style={{ right: explorerWidth + 4 }}
             transition={{
-              duration: reducedMotion ? 0 : 0.3,
-              ease: [0.22, 1, 0.36, 1],
+              duration: reducedMotion ? 0 : 0.2,
+              ease: "linear",
             }}
           >
             <section
               className="bg-background flex h-full min-w-0 flex-col"
               style={{ width: editorWidth }}
             >
-              <div className="bg-muted/20 flex h-10 shrink-0 items-center overflow-hidden px-1.5">
-                <div
-                  aria-label="Open files"
-                  className="flex min-w-0 flex-1 scrollbar-none gap-1 self-stretch overflow-x-auto py-1.5"
-                  role="tablist"
-                >
-                  {tabs.map((tab) => (
-                    <div
-                      className="hover:bg-muted/50 data-[active=true]:bg-background group relative flex max-w-56 min-w-32 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors data-[active=true]:shadow-sm"
-                      data-active={selected === tab.path}
-                      key={tab.path}
-                    >
-                      <button
-                        aria-selected={selected === tab.path}
-                        className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-left"
-                        onClick={() => setSelected(workspaceKey, tab.path)}
-                        role="tab"
-                        type="button"
+              <div className="flex h-10 shrink-0 items-stretch overflow-hidden border-b border-transparent">
+                <div className="relative flex min-w-0 flex-1 overflow-hidden">
+                  {tabOverflow.left ? (
+                    <div className="from-background pointer-events-none absolute inset-y-0 left-0 z-20 w-6 bg-linear-to-r to-transparent" />
+                  ) : null}
+                  {tabOverflow.right ? (
+                    <div className="from-background pointer-events-none absolute inset-y-0 right-0 z-20 w-6 bg-linear-to-l to-transparent" />
+                  ) : null}
+                  <div
+                    ref={tabsRef}
+                    aria-label="Open files"
+                    className="flex min-w-0 flex-1 scrollbar-none items-stretch overflow-x-auto overflow-y-hidden"
+                    onWheel={(event) => {
+                      if (event.ctrlKey || event.deltaY === 0) return
+                      if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
+                        stopTabScroll()
+                        return
+                      }
+
+                      const element = event.currentTarget
+                      const maxScroll = element.scrollWidth - element.clientWidth
+                      const position =
+                        tabScrollFrame.current === null
+                          ? element.scrollLeft
+                          : tabScrollTarget.current
+                      const canScroll = event.deltaY < 0 ? position > 0 : position < maxScroll
+                      if (!canScroll) return
+
+                      event.preventDefault()
+                      const unit =
+                        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                          ? 32
+                          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                            ? element.clientWidth
+                            : 1
+                      scrollTabsBy(event.deltaY * unit)
+                    }}
+                    role="tablist"
+                  >
+                    {tabs.map((tab) => (
+                      <div
+                        className="text-muted-foreground hover:text-foreground data-[active=true]:text-foreground group after:bg-primary relative flex max-w-56 min-w-32 shrink-0 items-center text-sm transition-colors after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-t-sm after:opacity-0 after:content-[''] data-[active=true]:after:opacity-100"
+                        data-active={selected === tab.path}
+                        data-file-tab={tab.path}
+                        key={tab.path}
                       >
-                        <FileTypeIcon name={tab.name} />
-                        <span className="min-w-0 flex-1 truncate">{tab.name}</span>
-                      </button>
-                      {drafts[tab.path]?.dirty ? (
-                        <span
-                          aria-hidden="true"
-                          className="bg-primary size-1.5 shrink-0 rounded-full"
-                        />
-                      ) : null}
-                      <Button
-                        aria-label={`Close ${tab.name}`}
-                        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                        onClick={() => {
-                          const close = () => {
-                            setDrafts((current) => {
-                              const next = { ...current }
-                              delete next[tab.path]
-                              return next
-                            })
-                            closeTab(workspaceKey, tab.path)
-                            if (tabs.length === 1) {
-                              onEditorOpenChange(false)
+                        <button
+                          aria-selected={selected === tab.path}
+                          className="focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-1.5 px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                          onClick={() => setSelected(workspaceKey, tab.path)}
+                          role="tab"
+                          type="button"
+                        >
+                          <span className="flex size-4 shrink-0 items-center justify-center transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
+                            <FileTypeIcon className="text-current" name={tab.name} />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">{tab.name}</span>
+                          {drafts[tab.path]?.dirty ? (
+                            <span
+                              aria-hidden="true"
+                              className="bg-primary size-1.5 shrink-0 rounded-full"
+                            />
+                          ) : null}
+                        </button>
+                        <Button
+                          aria-label={`Close ${tab.name}`}
+                          className="text-muted-foreground hover:text-foreground absolute left-1.5 z-10 size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                          onClick={() => {
+                            const close = () => {
+                              setDrafts((current) => {
+                                const next = { ...current }
+                                delete next[tab.path]
+                                return next
+                              })
+                              closeTab(workspaceKey, tab.path)
+                              if (tabs.length === 1) {
+                                onEditorOpenChange(false)
+                              }
                             }
-                          }
-                          if (drafts[tab.path]?.dirty) {
-                            setConfirmation({
-                              description: `Your unsaved changes to ${tab.name} will be discarded.`,
-                              label: "Discard changes",
-                              onConfirm: close,
-                              title: `Close ${tab.name}?`,
-                            })
-                            return
-                          }
-                          close()
-                        }}
+                            if (drafts[tab.path]?.dirty) {
+                              setConfirmation({
+                                description: `Your unsaved changes to ${tab.name} will be discarded.`,
+                                label: "Discard changes",
+                                onConfirm: close,
+                                title: `Close ${tab.name}?`,
+                              })
+                              return
+                            }
+                            close()
+                          }}
+                          size="icon-sm"
+                          variant="plain"
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1 px-1.5">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-label={expanded ? "Collapse editor" : "Expand editor"}
+                        className="shrink-0"
+                        onClick={onExpandedChange}
+                        size="icon-sm"
+                        variant="ghost"
+                      >
+                        {expanded ? <Shrink /> : <Scan />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {expanded ? "Collapse editor" : "Expand editor"}
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-label="Close editor"
+                        className="shrink-0"
+                        onClick={() => onEditorOpenChange(false)}
                         size="icon-sm"
                         variant="ghost"
                       >
                         <X />
                       </Button>
-                    </div>
-                  ))}
+                    </TooltipTrigger>
+                    <TooltipContent>Close editor</TooltipContent>
+                  </Tooltip>
                 </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      aria-label="Close editor"
-                      className="shrink-0"
-                      onClick={() => onEditorOpenChange(false)}
-                      size="icon-sm"
-                      variant="ghost"
-                    >
-                      <PanelRightClose />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Close editor</TooltipContent>
-                </Tooltip>
               </div>
-              <Separator />
               <div className="min-h-0 flex-1" role="tabpanel">
                 {selected ? (
                   <EditorPane
@@ -605,6 +906,7 @@ function WorkspaceBody({
             <TooltipTrigger asChild>
               <Button
                 aria-label="New file"
+                disabled={movePending}
                 onClick={() => setAction({ kind: "file", parent: "." })}
                 size="icon-sm"
                 variant="ghost"
@@ -618,6 +920,7 @@ function WorkspaceBody({
             <TooltipTrigger asChild>
               <Button
                 aria-label="New folder"
+                disabled={movePending}
                 onClick={() => setAction({ kind: "directory", parent: "." })}
                 size="icon-sm"
                 variant="ghost"
@@ -628,29 +931,49 @@ function WorkspaceBody({
             <TooltipContent>New folder</TooltipContent>
           </Tooltip>
           <Button
-            aria-label="Refresh files"
+            aria-busy={filesFetching}
+            aria-label={filesFetching ? "Refreshing files" : "Refresh files"}
+            disabled={filesFetching}
             onClick={() =>
               void queryClient.invalidateQueries({
-                queryKey: agentFilesQueryOptions(agentName, root, ".").queryKey.slice(0, 3),
+                queryKey: filesQueryKey,
               })
             }
             size="icon-sm"
             variant="ghost"
           >
-            <RefreshCw />
+            {filesFetching ? <Spinner aria-hidden="true" /> : <RefreshCw />}
           </Button>
         </div>
+        {moveOperation ? (
+          <div
+            aria-live="polite"
+            className="bg-muted/50 text-muted-foreground flex items-center gap-2 border-t px-3 py-2 text-xs"
+            role="status"
+          >
+            <Spinner aria-hidden="true" className="size-3" />
+            <span className="truncate">
+              Moving {moveOperation.path.slice(moveOperation.path.lastIndexOf("/") + 1)} to{" "}
+              {moveOperation.directory === "."
+                ? "workspace root"
+                : moveOperation.directory.slice(moveOperation.directory.lastIndexOf("/") + 1)}
+              ...
+            </span>
+          </div>
+        ) : null}
         <Separator />
         <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
           <FileTree
+            aria-busy={movePending}
             className="rounded-none border-0 bg-transparent font-sans"
             onDragOver={(event) => {
-              if (!event.dataTransfer.types.includes(fileDragType)) return
+              if (movePending || !event.dataTransfer.types.includes(fileDragType)) return
               event.preventDefault()
               event.dataTransfer.dropEffect = "move"
             }}
             onDrop={(event) => {
               event.preventDefault()
+              if (movePending) return
               moveFile(event.dataTransfer.getData(fileDragType), ".")
             }}
             onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
@@ -658,6 +981,7 @@ function WorkspaceBody({
           >
             <DirectoryTree
               agentName={agentName}
+              moveOperation={moveOperation}
               onAction={setAction}
               onMove={moveFile}
               path="."
@@ -681,30 +1005,19 @@ function WorkspaceBody({
             setDrafts((current) => {
               const next = { ...current }
               const prefix = `${path}/`
+              let changed = false
               for (const draftPath of Object.keys(next)) {
                 if (draftPath === path || draftPath.startsWith(prefix)) {
                   delete next[draftPath]
+                  changed = true
                 }
               }
-              return next
+              return changed ? next : current
             })
             deleteEntry(workspaceKey, path)
           }}
           onRename={(path, target) => {
-            setDrafts((current) => {
-              const next = { ...current }
-              const prefix = `${path}/`
-              for (const [draftPath, draft] of Object.entries(current)) {
-                if (draftPath === path) {
-                  delete next[draftPath]
-                  next[target] = draft
-                } else if (draftPath.startsWith(prefix)) {
-                  delete next[draftPath]
-                  next[`${target}/${draftPath.slice(prefix.length)}`] = draft
-                }
-              }
-              return next
-            })
+            moveDrafts(path, target)
             moveEntry(workspaceKey, path, target)
           }}
           onOpen={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
@@ -738,7 +1051,14 @@ function WorkspaceBody({
   )
 }
 
-function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTreeProps) {
+function DirectoryTree({
+  agentName,
+  moveOperation,
+  onAction,
+  onMove,
+  path,
+  root,
+}: DirectoryTreeProps) {
   const [dropPath, setDropPath] = React.useState<string | null>(null)
   const directoryQuery = useQuery(agentFilesQueryOptions(agentName, root, path))
 
@@ -786,23 +1106,7 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
             </ContextMenuItem>
             {!directory ? (
               <ContextMenuItem
-                onSelect={() => {
-                  void readAgentFileRaw({
-                    parseAs: "blob",
-                    path: { agentName },
-                    query: { path: entryPath },
-                    throwOnError: true,
-                  })
-                    .then(({ data }) => {
-                      const url = URL.createObjectURL(data)
-                      const anchor = document.createElement("a")
-                      anchor.href = url
-                      anchor.download = entry.name
-                      anchor.click()
-                      URL.revokeObjectURL(url)
-                    })
-                    .catch(() => toast.error("Could not download file"))
-                }}
+                onSelect={() => void downloadAgentFile(agentName, entryPath, entry.name)}
               >
                 <Download /> Save
               </ContextMenuItem>
@@ -810,10 +1114,14 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
             {directory ? (
               <>
                 <ContextMenuSeparator />
-                <ContextMenuItem onSelect={() => onAction({ kind: "file", parent: entryPath })}>
+                <ContextMenuItem
+                  disabled={moveOperation !== null}
+                  onSelect={() => onAction({ kind: "file", parent: entryPath })}
+                >
                   <FilePlus2 /> New file
                 </ContextMenuItem>
                 <ContextMenuItem
+                  disabled={moveOperation !== null}
                   onSelect={() => onAction({ kind: "directory", parent: entryPath })}
                 >
                   <FolderPlus /> New folder
@@ -822,11 +1130,13 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
             ) : null}
             <ContextMenuSeparator />
             <ContextMenuItem
+              disabled={moveOperation !== null}
               onSelect={() => onAction({ kind: "rename", entry: { ...entry, path: entryPath } })}
             >
               <Pencil /> Rename
             </ContextMenuItem>
             <ContextMenuItem
+              disabled={moveOperation !== null}
               onSelect={() => onAction({ kind: "delete", entry: { ...entry, path: entryPath } })}
               variant="destructive"
             >
@@ -841,13 +1151,20 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
           <ContextMenu key={entry.path}>
             <ContextMenuTrigger asChild>
               <FileTreeFolder
-                className={dropPath === entryPath ? "bg-accent rounded select-none" : "select-none"}
-                draggable
+                aria-busy={moveOperation?.path === entryPath}
+                className={cn(
+                  "select-none",
+                  dropPath === entryPath && "bg-accent rounded",
+                  moveOperation?.path === entryPath && "opacity-50",
+                  moveOperation?.directory === entryPath &&
+                    "bg-accent ring-ring/40 rounded ring-1 ring-inset"
+                )}
+                draggable={moveOperation === null}
                 name={entry.name}
                 onDragEnd={() => setDropPath(null)}
                 onDragLeave={() => setDropPath(null)}
                 onDragOver={(event) => {
-                  if (!event.dataTransfer.types.includes(fileDragType)) return
+                  if (moveOperation || !event.dataTransfer.types.includes(fileDragType)) return
                   event.preventDefault()
                   event.stopPropagation()
                   event.dataTransfer.dropEffect = "move"
@@ -862,6 +1179,7 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
                   event.preventDefault()
                   event.stopPropagation()
                   setDropPath(null)
+                  if (moveOperation) return
                   onMove(event.dataTransfer.getData(fileDragType), entryPath)
                 }}
                 onContextMenu={(event) => event.stopPropagation()}
@@ -869,6 +1187,7 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
               >
                 <DirectoryTree
                   agentName={agentName}
+                  moveOperation={moveOperation}
                   onAction={onAction}
                   onMove={onMove}
                   path={entry.path}
@@ -885,8 +1204,9 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
         <ContextMenu key={entry.path}>
           <ContextMenuTrigger asChild>
             <FileTreeFile
-              className="select-none"
-              draggable
+              aria-busy={moveOperation?.path === entryPath}
+              className={cn("select-none", moveOperation?.path === entryPath && "opacity-50")}
+              draggable={moveOperation === null}
               icon={<FileTypeIcon name={entry.name} />}
               name={entry.name}
               onDragStart={(event) => {
@@ -904,27 +1224,27 @@ function DirectoryTree({ agentName, onAction, onMove, path, root }: DirectoryTre
     })
 }
 
-function FileTypeIcon({ name }: { name: string }) {
+function FileTypeIcon({ className = "text-primary", name }: { className?: string; name: string }) {
   const extension = name.slice(name.lastIndexOf(".") + 1).toLowerCase()
 
   if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(extension)) {
-    return <FileImage className="text-primary size-4" />
+    return <FileImage className={cn("size-4", className)} />
   }
   if (["zip", "gz", "tgz", "rar", "7z"].includes(extension)) {
-    return <FileArchive className="text-primary size-4" />
+    return <FileArchive className={cn("size-4", className)} />
   }
   if (
     ["c", "cpp", "css", "go", "html", "java", "js", "jsx", "py", "rs", "tsx", "ts"].includes(
       extension
     )
   ) {
-    return <FileCode2 className="text-primary size-4" />
+    return <FileCode2 className={cn("size-4", className)} />
   }
   if (["json", "jsonc", "toml", "yaml", "yml"].includes(extension)) {
-    return <Braces className="text-primary size-4" />
+    return <Braces className={cn("size-4", className)} />
   }
 
-  return <File className="text-primary size-4" />
+  return <File className={cn("size-4", className)} />
 }
 
 function EditorPane({
@@ -1150,35 +1470,26 @@ function EditorPane({
             <TooltipContent>{preview ? "Show source" : "Preview"}</TooltipContent>
           </Tooltip>
         ) : null}
-        <Button
-          disabled={!draft.dirty || save.isPending || draft.truncated}
-          onClick={() => saveDraft()}
-          size="sm"
-        >
-          {save.isPending ? <Spinner /> : <Save />}
-          Save
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-busy={save.isPending}
+              aria-label={save.isPending ? "Saving file" : "Save file"}
+              disabled={!draft.dirty || save.isPending || draft.truncated}
+              onClick={() => saveDraft()}
+              size="icon-sm"
+              variant="ghost"
+            >
+              {save.isPending ? <Spinner aria-hidden="true" /> : <Save />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{save.isPending ? "Saving..." : "Save file"}</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               aria-label="Download file"
-              onClick={() => {
-                void readAgentFileRaw({
-                  parseAs: "blob",
-                  path: { agentName },
-                  query: { path },
-                  throwOnError: true,
-                })
-                  .then(({ data }) => {
-                    const url = URL.createObjectURL(data)
-                    const anchor = document.createElement("a")
-                    anchor.href = url
-                    anchor.download = filename
-                    anchor.click()
-                    URL.revokeObjectURL(url)
-                  })
-                  .catch(() => toast.error("Could not download file"))
-              }}
+              onClick={() => void downloadAgentFile(agentName, path, filename)}
               size="icon-sm"
               variant="ghost"
             >
@@ -1191,7 +1502,11 @@ function EditorPane({
           <TooltipTrigger asChild>
             <Button
               aria-label="Copy file contents"
-              onClick={() => void navigator.clipboard.writeText(draft.content)}
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(draft.content)
+                  .catch(() => toast.error("Could not copy file contents"))
+              }}
               size="icon-sm"
               variant="ghost"
             >
@@ -1274,7 +1589,7 @@ function EditorPane({
               ) : html ? (
                 <iframe
                   className="h-full w-full bg-white"
-                  sandbox=""
+                  sandbox="allow-scripts"
                   srcDoc={draft.content}
                   title={`Preview of ${filename}`}
                 />
@@ -1332,23 +1647,7 @@ function BinaryPane({
           <TooltipTrigger asChild>
             <Button
               aria-label="Download file"
-              onClick={() => {
-                void readAgentFileRaw({
-                  parseAs: "blob",
-                  path: { agentName },
-                  query: { path },
-                  throwOnError: true,
-                })
-                  .then(({ data }) => {
-                    const url = URL.createObjectURL(data)
-                    const anchor = document.createElement("a")
-                    anchor.href = url
-                    anchor.download = filename
-                    anchor.click()
-                    URL.revokeObjectURL(url)
-                  })
-                  .catch(() => toast.error("Could not download file"))
-              }}
+              onClick={() => void downloadAgentFile(agentName, path, filename)}
               size="icon-sm"
               variant="ghost"
             >
@@ -1411,9 +1710,7 @@ function RawPreview({
 
   React.useEffect(() => {
     return () => {
-      if (url) {
-        URL.revokeObjectURL(url)
-      }
+      if (url) URL.revokeObjectURL(url)
     }
   }, [url])
 
@@ -1472,6 +1769,14 @@ function EntryDialog({
   const remove = useMutation(deleteAgentEntryMutation())
   const pending =
     createFile.isPending || createDirectory.isPending || rename.isPending || remove.isPending
+  const pendingLabel =
+    action.kind === "file"
+      ? "Creating file..."
+      : action.kind === "directory"
+        ? "Creating folder..."
+        : action.kind === "rename"
+          ? "Renaming..."
+          : "Deleting..."
 
   const label =
     action.kind === "file"
@@ -1503,6 +1808,7 @@ function EntryDialog({
             }
             autoFocus
             autoComplete="off"
+            disabled={pending}
             name="entry-name"
             onChange={(event) => setName(event.target.value)}
             placeholder={action.kind === "directory" ? "folder-name..." : "filename.md..."}
@@ -1515,6 +1821,7 @@ function EntryDialog({
             Cancel
           </Button>
           <Button
+            aria-busy={pending}
             data-dialog-submit
             disabled={pending || (action.kind !== "delete" && !name.trim())}
             onClick={() => {
@@ -1588,8 +1895,12 @@ function EntryDialog({
             }}
             variant={action.kind === "delete" ? "destructive" : "default"}
           >
-            {pending ? <Spinner /> : action.kind === "delete" ? <Trash2 /> : null}
-            {action.kind === "delete" ? "Delete" : "Continue"}
+            {pending ? (
+              <Spinner aria-hidden="true" />
+            ) : action.kind === "delete" ? (
+              <Trash2 />
+            ) : null}
+            {pending ? pendingLabel : action.kind === "delete" ? "Delete" : "Continue"}
           </Button>
         </DialogFooter>
       </DialogContent>

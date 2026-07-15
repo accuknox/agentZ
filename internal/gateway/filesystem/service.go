@@ -248,7 +248,7 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !overwrite {
-		err := exchangeFiles(s.root, tmp, req.Path)
+		exchanged, err := exchangeFiles(s.root, tmp, req.Path)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				writeFailure(w, r, pathFailure(err))
@@ -258,9 +258,20 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		current, err := s.metadata(tmp)
+		currentPath := req.Path
+		if exchanged {
+			currentPath = tmp
+		}
+		current, err := s.metadata(currentPath)
 		if err != nil {
-			restoreErr := exchangeFiles(s.root, tmp, req.Path)
+			if !exchanged {
+				writeFailure(w, r, pathFailure(err))
+				return
+			}
+			restored, restoreErr := exchangeFiles(s.root, tmp, req.Path)
+			if restoreErr == nil && !restored {
+				restoreErr = errors.New("atomic file exchange unavailable during restore")
+			}
 			if restoreErr != nil {
 				removeTmp = false
 			}
@@ -276,18 +287,29 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 		}
 		current.Path = req.Path
 		if current.Version != req.ExpectedVersion {
-			err := exchangeFiles(s.root, tmp, req.Path)
-			if err != nil {
-				removeTmp = false
-				writeFailure(
-					w,
-					r,
-					internalFailure("restore version-conflicted file", err),
-				)
-				return
+			if exchanged {
+				restored, restoreErr := exchangeFiles(s.root, tmp, req.Path)
+				if restoreErr == nil && !restored {
+					restoreErr = errors.New("atomic file exchange unavailable during restore")
+				}
+				if restoreErr != nil {
+					removeTmp = false
+					writeFailure(
+						w,
+						r,
+						internalFailure("restore version-conflicted file", restoreErr),
+					)
+					return
+				}
 			}
 			writeFailure(w, r, versionConflict(current))
 			return
+		}
+		if !exchanged {
+			if err := s.root.Rename(tmp, req.Path); err != nil {
+				writeFailure(w, r, pathFailure(err))
+				return
+			}
 		}
 	}
 	if overwrite {

@@ -36,7 +36,11 @@ const emptyRoot: RootState = {
 
 const FileWorkspaceContext = React.createContext<FileWorkspace | null>(null)
 
-export function FileWorkspaceProvider({ children }: { children: React.ReactNode }) {
+export function FileWorkspaceProvider({
+  children,
+}: {
+  children: React.ReactNode
+}): React.JSX.Element {
   const [state, setState] = React.useState<WorkspaceState>({
     roots: {},
   })
@@ -77,6 +81,8 @@ export function FileWorkspaceProvider({ children }: { children: React.ReactNode 
           const tabs = current.tabs.filter(
             (tab) => tab.path !== path && !tab.path.startsWith(prefix)
           )
+          if (tabs.length === current.tabs.length) return state
+
           const selected =
             current.selected === path || current.selected?.startsWith(prefix)
               ? (tabs[0]?.path ?? null)
@@ -99,6 +105,13 @@ export function FileWorkspaceProvider({ children }: { children: React.ReactNode 
           if (!current) return state
 
           const prefix = `${path}/`
+          const selectedMoves =
+            current.selected === path || current.selected?.startsWith(prefix) === true
+          const tabMoves = current.tabs.some(
+            (tab) => tab.path === path || tab.path.startsWith(prefix)
+          )
+          if (!selectedMoves && !tabMoves) return state
+
           return {
             ...state,
             roots: {
@@ -124,9 +137,10 @@ export function FileWorkspaceProvider({ children }: { children: React.ReactNode 
       openTab: (root, tab) =>
         setState((state) => {
           const current = state.roots[root] ?? emptyRoot
-          const tabs = current.tabs.some((open) => open.path === tab.path)
-            ? current.tabs
-            : [...current.tabs, tab]
+          const open = current.tabs.some((item) => item.path === tab.path)
+          if (open && current.selected === tab.path) return state
+
+          const tabs = open ? current.tabs : [...current.tabs, tab]
           return {
             ...state,
             roots: {
@@ -141,13 +155,18 @@ export function FileWorkspaceProvider({ children }: { children: React.ReactNode 
           return state.dirtyAgent === agent ? { ...state, dirtyAgent: undefined } : state
         }),
       setSelected: (root, selected) =>
-        setState((state) => ({
-          ...state,
-          roots: {
-            ...state.roots,
-            [root]: { ...(state.roots[root] ?? emptyRoot), selected },
-          },
-        })),
+        setState((state) => {
+          const current = state.roots[root] ?? emptyRoot
+          if (current.selected === selected) return state
+
+          return {
+            ...state,
+            roots: {
+              ...state.roots,
+              [root]: { ...current, selected },
+            },
+          }
+        }),
       toggleAgent: (agent) =>
         setState((state) => ({
           ...state,

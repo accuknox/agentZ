@@ -131,6 +131,7 @@ type ChatProps = {
   agentName: string
   firstName?: string
   greetingIndex?: number
+  promptMobile?: boolean
   sessionId?: string
 }
 
@@ -304,7 +305,13 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
   return result
 }
 
-function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps) {
+function ChatInner({
+  agentName,
+  firstName,
+  greetingIndex,
+  promptMobile = false,
+  sessionId,
+}: ChatProps) {
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
   const agentReadiness = useAgentReadiness(agentName)
@@ -745,16 +752,16 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
           showStarter && "pointer-events-none opacity-0"
         )}
       >
-        <ConversationContent className="mx-auto w-full max-w-3xl px-4 py-6">
+        <ConversationContent className="w-full px-4">
           {showHistorySkeleton ? (
-            <div className="flex w-full flex-col gap-3">
+            <div className="mx-auto flex w-full flex-col gap-3 @xl/chat:w-4/5">
               <Skeleton className="h-16 w-full rounded-md" />
               <Skeleton className="h-24 w-full rounded-md" />
               <Skeleton className="h-16 w-2/3 rounded-md" />
             </div>
           ) : !showStarter ? (
             <>
-              <div className="flex w-full flex-col gap-4">
+              <div className="mx-auto flex w-full flex-col gap-4 @xl/chat:w-4/5">
                 {rows.map((row) => (
                   <TimelineRowView
                     agentName={agentName}
@@ -814,7 +821,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
         <div
           className={cn(
             "mx-auto flex w-full flex-col",
-            showStarter ? "max-w-3xl gap-8" : "min-w-0 gap-4 px-4 pb-4 lg:w-4/5 lg:px-0"
+            showStarter ? "max-w-3xl gap-8" : "min-w-0 gap-4 px-4 pb-4 @xl/chat:w-4/5 @xl/chat:px-0"
           )}
         >
           {showStarter ? (
@@ -826,6 +833,7 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
             globalDrop
             maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
             maxFiles={chatAttachmentConfig.maxFileCount}
+            mobile={promptMobile}
             multiple
             onError={(error) => {
               toast.error(error.message || chatAttachmentErrorMessage(error.code))
@@ -855,7 +863,12 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                     onOpenChange={setModelSelectorOpen}
                     open={agentReadiness.isGettingReady ? false : modelSelectorOpen}
                   >
-                    <div className="hidden min-w-0 items-center justify-end gap-1.5 @xl/chat:flex">
+                    <div
+                      className={cn(
+                        "hidden min-w-0 items-center justify-end gap-1.5",
+                        !promptMobile && "@xl/chat:flex"
+                      )}
+                    >
                       <ModelSelectorTrigger asChild>
                         <PromptInputButton
                           className="h-8 max-w-72 justify-start px-2"
@@ -928,7 +941,9 @@ function ChatInner({ agentName, firstName, greetingIndex, sessionId }: ChatProps
                         </Select>
                       ) : null}
                     </div>
-                    <div className="flex justify-end @xl/chat:hidden">
+                    <div
+                      className={cn("justify-end", promptMobile ? "flex" : "flex @xl/chat:hidden")}
+                    >
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <PromptInputButton

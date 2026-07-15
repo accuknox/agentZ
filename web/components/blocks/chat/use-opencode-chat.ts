@@ -12,10 +12,12 @@ import type {
   TextPart,
   Todo,
 } from "@opencode-ai/sdk/v2"
-import { QueryClient, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useCallback, useEffectEvent, useEffect, useMemo, useRef, useState } from "react"
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { QueryClient } from "@tanstack/react-query"
+import { useCallback, useEffectEvent, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
-import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
+import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
 
 type SessionMessageRecord = {
   info: Message
@@ -43,31 +45,21 @@ const emptyHitlStore: HitlStore = { permissions: {}, questions: {}, sessions: []
 
 type StreamEvent = OpencodeEventV2
 
-type ChatSystemPrompt = {
-  content: string
-  createdAt: number
-  id: string
-  kind: "system"
-}
-
 export type OptimisticUserMessage = {
   attachments: AttachmentData[]
   createdAt: number
   id: string
-  kind: "optimistic-user"
   status: "failed" | "pending"
   text: string
 }
 
-export type LocalChatMessage = ChatSystemPrompt | OptimisticUserMessage
-
 type UseOpencodeChatResult = {
   applyOptimisticSession: (info: SessionV2) => void
   blocked: boolean
-  historyError?: string
+  loadError?: string
   isBusy: boolean
   isPending: boolean
-  localMessages: LocalChatMessage[]
+  localMessages: OptimisticUserMessage[]
   messages: Message[]
   partsByMessage: Record<string, Part[]>
   permissionRequest?: PermissionRequest
@@ -77,7 +69,7 @@ type UseOpencodeChatResult = {
   session?: SessionV2
   sessionCost: number
   sessionStatus?: SessionStatus
-  reloadHistory: () => void
+  reload: () => void
   reconnectStream: () => void
   streamError?: string
   textByPart: Record<string, string>
@@ -143,11 +135,11 @@ function pruneStore(store: OpencodeChatStore): OpencodeChatStore {
 
 function deriveSessionIsBusy(
   messages: Message[],
-  localMessages: LocalChatMessage[],
+  localMessages: OptimisticUserMessage[],
   sessionStatus: SessionStatus | undefined,
   session: SessionV2 | undefined
 ): boolean {
-  if (localMessages.some((m) => m.kind === "optimistic-user" && m.status === "pending")) {
+  if (localMessages.some((message) => message.status === "pending")) {
     return true
   }
 
@@ -178,24 +170,6 @@ function deriveSessionIsBusy(
   if (last.role === "assistant" && last.time.completed === undefined) return true
 
   return false
-}
-
-function sessionErrorMessage(
-  error: Extract<StreamEvent, { type: "session.error" }>["properties"]["error"]
-) {
-  if (!error) return "Session error"
-
-  switch (error.name) {
-    case "ProviderAuthError":
-    case "UnknownError":
-    case "MessageAbortedError":
-    case "APIError":
-      return error.data.message
-    case "MessageOutputLengthError":
-      return "Response exceeded the model output limit"
-    default:
-      return "Session error"
-  }
 }
 
 function upsertMessage(messages: Message[], next: Message) {
@@ -540,29 +514,8 @@ export function sessionInfoQueryKey(agentName: string, sessionID: string) {
   return ["opencode", "sessionInfo", agentName, sessionID] as const
 }
 
-export function sessionMessagesBaseQueryKey(agentName: string, sessionID: string) {
+function sessionMessagesBaseQueryKey(agentName: string, sessionID: string) {
   return ["opencode", "sessionMessages", agentName, sessionID] as const
-}
-
-export function appendSystemPrompt(
-  queryClient: QueryClient,
-  agentName: string,
-  sessionID: string | undefined,
-  message: string
-) {
-  queryClient.setQueryData<LocalChatMessage[]>(
-    chatOverlayQueryKey(agentName, sessionID),
-    (current) => {
-      const draft = current ? [...current] : []
-      draft.push({
-        content: message,
-        createdAt: Date.now(),
-        id: `sys-${crypto.randomUUID()}`,
-        kind: "system",
-      })
-      return draft.slice(-MAX_CHAT_TURNS)
-    }
-  )
 }
 
 export function upsertOptimisticUserMessage(
@@ -571,13 +524,11 @@ export function upsertOptimisticUserMessage(
   sessionID: string | undefined,
   message: OptimisticUserMessage
 ) {
-  queryClient.setQueryData<LocalChatMessage[]>(
+  queryClient.setQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
     (current) => {
       const draft = current ? [...current] : []
-      const index = draft.findIndex(
-        (item) => item.kind === "optimistic-user" && item.id === message.id
-      )
+      const index = draft.findIndex((item) => item.id === message.id)
       if (index >= 0) {
         draft[index] = message
         return draft
@@ -595,12 +546,12 @@ export function markOptimisticUserMessageFailed(
   sessionID: string | undefined,
   messageID: string
 ) {
-  queryClient.setQueryData<LocalChatMessage[]>(
+  queryClient.setQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
     (current) => {
       const draft = current ? [...current] : []
       return draft.map((item) => {
-        if (item.kind !== "optimistic-user" || item.id !== messageID) return item
+        if (item.id !== messageID) return item
         return {
           ...item,
           status: "failed",
@@ -616,11 +567,11 @@ function removeOptimisticUserMessage(
   sessionID: string | undefined,
   messageID: string
 ) {
-  queryClient.setQueryData<LocalChatMessage[]>(
+  queryClient.setQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
     (current) => {
       const draft = current ? [...current] : []
-      return draft.filter((item) => item.kind !== "optimistic-user" || item.id !== messageID)
+      return draft.filter((item) => item.id !== messageID)
     }
   )
 }
@@ -631,12 +582,15 @@ export function migrateChatOverlay(
   fromSessionID: string | undefined,
   toSessionID: string
 ) {
-  const current = queryClient.getQueryData<LocalChatMessage[]>(
+  const current = queryClient.getQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(agentName, fromSessionID)
   )
   if (!current || current.length === 0) return
 
-  queryClient.setQueryData<LocalChatMessage[]>(chatOverlayQueryKey(agentName, toSessionID), current)
+  queryClient.setQueryData<OptimisticUserMessage[]>(
+    chatOverlayQueryKey(agentName, toSessionID),
+    current
+  )
   queryClient.removeQueries({
     queryKey: chatOverlayQueryKey(agentName, fromSessionID),
     exact: true,
@@ -752,9 +706,10 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   })
   const refetchSession = session.refetch
   const refetchHistory = history.refetch
+  const refetchHitl = hitl.refetch
   const localMessages = useQuery({
     ...queryOptions({
-      queryFn: async (): Promise<LocalChatMessage[]> => [],
+      queryFn: (): OptimisticUserMessage[] => [],
       queryKey: chatOverlayQueryKey(agentName, sessionID),
       staleTime: Infinity,
     }),
@@ -803,12 +758,11 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
       if (event.type === "session.error") {
         const errorSessionID = event.properties.sessionID
         if (!errorSessionID || errorSessionID === sessionID) {
-          appendSystemPrompt(
-            queryClient,
-            agentName,
-            sessionID,
-            sessionErrorMessage(event.properties.error)
-          )
+          const error = describeMessageError(event.properties.error)
+          toast.error(error.label, {
+            description: error.body,
+            id: `chat:${agentName}:${sessionID}:session-error`,
+          })
         }
       }
 
@@ -968,15 +922,10 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     ? (store.sessionStatus[sessionID] ?? idleSessionStatus)
     : undefined
 
-  const processedIds = useRef(new Set<string>())
-
   useEffect(() => {
     if (!sessionID) return
 
     for (const localMessage of localMessages.data) {
-      if (localMessage.kind !== "optimistic-user") continue
-      if (processedIds.current.has(localMessage.id)) continue
-
       const match = messages.find((message) => {
         if (message.role !== "user") return false
         const parts = partsByMessage[message.id] ?? []
@@ -1002,7 +951,6 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
       })
 
       if (!match) continue
-      processedIds.current.add(localMessage.id)
       removeOptimisticUserMessage(queryClient, agentName, sessionID, localMessage.id)
     }
   }, [agentName, localMessages.data, messages, partsByMessage, queryClient, sessionID])
@@ -1012,12 +960,15 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     return store.todos[sessionID] ?? []
   }, [sessionID, store.todos])
 
-  const reloadHistory = useCallback(() => {
-    void refetchHistory()
+  const reload = useCallback(() => {
     if (sessionID) {
       void refetchSession()
     }
-  }, [refetchHistory, refetchSession, sessionID])
+    if (sessionID && session.data?.directory) {
+      void refetchHistory()
+      void refetchHitl()
+    }
+  }, [refetchHistory, refetchHitl, refetchSession, session.data?.directory, sessionID])
 
   // Fold an authoritative Session (e.g. a revert response) into the live store
   // instead of the query cache; seeding the cache flips back to baseStore, which
@@ -1047,7 +998,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   return {
     applyOptimisticSession,
     blocked: permissionRequest !== undefined || questionRequest !== undefined,
-    historyError: history.error instanceof Error ? history.error.message : undefined,
+    loadError: session.error?.message ?? history.error?.message ?? hitl.error?.message,
     isBusy: deriveSessionIsBusy(messages, localMessages.data, sessionStatus, store.session),
     isPending: Boolean(sessionID) && (session.isPending || history.isPending),
     localMessages: localMessages.data,
@@ -1058,7 +1009,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     questions,
     questionRequest,
     reconnectStream,
-    reloadHistory,
+    reload,
     session: store.session,
     sessionCost: messages.reduce(
       (total, m) => (m.role === "assistant" ? total + m.cost : total),

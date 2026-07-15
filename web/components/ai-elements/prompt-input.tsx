@@ -407,7 +407,13 @@ export const PromptInput = ({
         await onSubmit({ files: convertedFiles, text }, event)
         clearAttachments()
       } catch {
-        // Keep attachments available so failed sends can be retried.
+        // Preserve newer edits while restoring a failed submission for retry.
+        if (textarea instanceof HTMLTextAreaElement && text && !textarea.value) {
+          textarea.value = text
+          textarea.dispatchEvent(new Event("input", { bubbles: true }))
+          textarea.focus()
+          textarea.setSelectionRange(text.length, text.length)
+        }
       }
     },
     [clearAttachments, items, onSubmit]

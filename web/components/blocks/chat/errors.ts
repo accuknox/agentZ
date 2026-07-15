@@ -35,77 +35,69 @@ export function opencodeErrorMessage(
   fallback: string
 ): string {
   if (!error) return fallback
-  if ("message" in error && typeof error.message === "string") return error.message
-  if ("data" in error && typeof error.data.message === "string") return error.data.message
+  if ("message" in error) return error.message
+  if ("data" in error) return error.data.message
   return fallback
 }
 
-// AssistantMessage carries an optional `error` discriminated by `name`. We pull
-// out a short label and the provider-authored body so the timeline can render
-// a consistent Error/Interrupted row without leaking raw provider JSON.
-export type AssistantMessageError = AssistantMessage["error"]
-
-export function unwrapMessageError(error: AssistantMessageError | undefined): {
+// AssistantMessage carries an optional error discriminated by name. Keep the
+// provider detail while giving every SDK variant a stable user-facing label.
+export function describeMessageError(error: AssistantMessage["error"]): {
   body: string
-  interrupted: boolean
   label: string
 } {
-  if (!error) return { body: "", interrupted: false, label: "" }
+  if (!error) {
+    return {
+      body: "An unexpected error occurred",
+      label: "Session error",
+    }
+  }
 
   switch (error.name) {
     case "MessageAbortedError": {
       return {
         body: error.data.message || "Run stopped",
-        interrupted: true,
         label: "Interrupted",
       }
     }
     case "ProviderAuthError": {
       return {
         body: error.data.message || "Check provider credentials",
-        interrupted: false,
         label: "Authentication failed",
       }
     }
     case "ContextOverflowError": {
       return {
         body: error.data.message || "Compact the session to continue",
-        interrupted: false,
         label: "Context limit exceeded",
       }
     }
     case "MessageOutputLengthError":
       return {
         body: "Response exceeded the model output limit",
-        interrupted: false,
         label: "Output limit hit",
       }
     case "ContentFilterError": {
       return {
         body: error.data.message || "Blocked by provider safety filter",
-        interrupted: false,
         label: "Content filtered",
       }
     }
     case "StructuredOutputError": {
       return {
         body: error.data.message || "Schema validation retry exhausted",
-        interrupted: false,
         label: "Structured output failed",
       }
     }
     case "APIError": {
       return {
         body: error.data.message || "The provider rejected the request",
-        interrupted: false,
         label: error.data.statusCode ? `Provider error ${error.data.statusCode}` : "Provider error",
       }
     }
-    case "UnknownError":
-    default: {
+    case "UnknownError": {
       return {
         body: error.data.message || "An unexpected error occurred",
-        interrupted: false,
         label: "Session error",
       }
     }

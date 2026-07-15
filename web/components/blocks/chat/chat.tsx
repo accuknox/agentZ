@@ -11,9 +11,14 @@ import {
   AttachmentRemove,
   Attachments,
 } from "@/components/ai-elements/attachments"
-import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
+import {
+  Message as AIMessage,
+  MessageContent as AIMessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message"
 import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
 import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
+import { Checkpoint, CheckpointIcon } from "@/components/ai-elements/checkpoint"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
 import type {
   PromptInputController,
@@ -28,6 +33,8 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Message, MessageAvatar, MessageContent, MessageFooter } from "@/components/ui/message"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,6 +84,7 @@ import {
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { formatMessageTime } from "@/lib/format"
+import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
@@ -136,38 +144,11 @@ type ChatProps = {
   sessionId?: string
 }
 
+type AuthSession = typeof authClient.$Infer.Session
+type AuthUser = AuthSession["user"]
+
 const DEFAULT_REASONING_LEVEL = "__default__"
 const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
-
-function RetryCountdown({
-  attempt,
-  message,
-  next,
-}: {
-  attempt: number
-  message: string
-  next: number
-}) {
-  const [now, setNow] = useState(() => Date.now())
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const remainingMs = Math.max(0, next - now)
-  const seconds = Math.ceil(remainingMs / 1000)
-
-  return (
-    <Alert variant="destructive">
-      <AlertTitle>
-        Retrying turn{attempt > 0 ? ` (attempt ${attempt})` : null}
-        {seconds > 0 ? ` in ${seconds}s` : null}
-      </AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
-  )
-}
 
 type AssistantUsage = {
   modelId?: string
@@ -368,11 +349,12 @@ function ChatInner({
   const activeSessionId = sessionId ?? promotedSessionId
   const agentReadiness = useAgentReadiness(agentName)
   const composerRef = useRef<PromptInputController | null>(null)
+  const { data: authSession } = authClient.useSession()
 
   const {
     applyOptimisticSession,
     blocked,
-    historyError,
+    loadError,
     isBusy,
     isPending,
     localMessages,
@@ -381,7 +363,7 @@ function ChatInner({
     permissionRequest,
     questionRequest,
     reconnectStream,
-    reloadHistory,
+    reload,
     session,
     sessionCost,
     sessionStatus,
@@ -389,6 +371,61 @@ function ChatInner({
     textByPart,
     todos,
   } = useOpencodeChat(agentName, activeSessionId)
+
+  useEffect(() => {
+    const id = `chat:${agentName}:${activeSessionId ?? "new"}:history-error`
+    if (!loadError) {
+      toast.dismiss(id)
+      return
+    }
+
+    toast.error("Failed to load chat", {
+      action: { label: "Retry", onClick: reload },
+      description: loadError,
+      duration: Infinity,
+      id,
+    })
+    return () => {
+      toast.dismiss(id)
+    }
+  }, [activeSessionId, agentName, loadError, reload])
+
+  useEffect(() => {
+    const id = `chat:${agentName}:${activeSessionId ?? "new"}:stream-error`
+    if (!streamError) {
+      toast.dismiss(id)
+      return
+    }
+
+    toast.error("Live session disconnected", {
+      action: { label: "Reconnect", onClick: reconnectStream },
+      description: streamError,
+      duration: Infinity,
+      id,
+    })
+    return () => {
+      toast.dismiss(id)
+    }
+  }, [activeSessionId, agentName, reconnectStream, streamError])
+
+  useEffect(() => {
+    const id = `chat:${agentName}:${activeSessionId ?? "new"}:retry`
+    if (sessionStatus?.type !== "retry") {
+      toast.dismiss(id)
+      return
+    }
+
+    const attempt = sessionStatus.attempt > 0 ? ` (attempt ${sessionStatus.attempt})` : ""
+    toast.warning(`Retrying turn${attempt}`, {
+      description: sessionStatus.message,
+      duration: Infinity,
+      id,
+    })
+    return () => {
+      toast.dismiss(id)
+    }
+  }, [activeSessionId, agentName, sessionStatus])
+
   const directory = session?.directory
   const [model, setModel] = useState<string>("")
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
@@ -760,25 +797,21 @@ function ChatInner({
   const { reverted, rows } = useMemo(
     () =>
       projectTimeline({
-        historyError,
         isBusy,
+        isRetrying: sessionStatus?.type === "retry",
         localMessages,
         messages,
         partsByMessage,
         revertMessageID: session?.revert?.messageID,
-        sessionStatus,
-        streamError,
         textByPart,
       }),
     [
-      historyError,
       isBusy,
       localMessages,
       messages,
       partsByMessage,
       session?.revert?.messageID,
-      sessionStatus,
-      streamError,
+      sessionStatus?.type,
       textByPart,
     ]
   )
@@ -820,11 +853,10 @@ function ChatInner({
                     isBusy={isBusy}
                     isLastBlock={rows.at(-1)?.key === row.key}
                     key={row.key}
-                    onRetryHistory={reloadHistory}
-                    onRetryStream={reconnectStream}
                     onRevert={handleRevert}
                     revertDisabled={isBusy || revertPending}
                     row={row}
+                    user={authSession?.user}
                   />
                 ))}
                 <AgentWorkingIndicator isWorking={isBusy} />
@@ -1159,62 +1191,68 @@ function MessageActionBar({ className, children }: { className?: string; childre
   )
 }
 
+function UserMessageAvatar({ user }: { user?: AuthUser }) {
+  const name = user?.name.trim() || "User"
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+
+  return (
+    <MessageAvatar>
+      <Avatar>
+        <AvatarImage alt={name} src={user?.image ?? undefined} />
+        <AvatarFallback>{initials || "U"}</AvatarFallback>
+      </Avatar>
+    </MessageAvatar>
+  )
+}
+
 function TimelineRowView({
   agentName,
   isBusy,
   isLastBlock,
-  onRetryHistory,
-  onRetryStream,
   onRevert,
   revertDisabled,
   row,
+  user,
 }: {
   agentName: string
   isBusy: boolean
   isLastBlock: boolean
-  onRetryHistory: () => void
-  onRetryStream: () => void
   onRevert: (messageID: string) => void
   revertDisabled: boolean
   row: TimelineRow
+  user?: AuthUser
 }) {
   switch (row.type) {
     case "local": {
-      if (row.message.kind === "system") {
-        return (
-          <Message
-            className="mx-auto w-full max-w-full items-center"
-            from="assistant"
-            key={row.key}
-          >
-            <MessageContent className="border-destructive/20 bg-destructive/5 text-destructive w-fit rounded-md border px-3 py-2">
-              <MessageResponse>{row.message.content}</MessageResponse>
-            </MessageContent>
-          </Message>
-        )
-      }
       return (
-        <Message from="user" key={row.key}>
-          <MessageContent
-            className={cn(
-              row.message.status === "failed"
-                ? "border-destructive/30 bg-destructive/10 text-destructive border"
-                : undefined,
-              row.message.attachments.length > 0 ? "space-y-3" : undefined
-            )}
-          >
-            {row.message.attachments.length > 0 ? (
-              <Attachments variant="inline">
-                {row.message.attachments.map((attachment) => (
-                  <Attachment data={attachment} key={attachment.id}>
-                    <AttachmentPreview />
-                  </Attachment>
-                ))}
-              </Attachments>
-            ) : null}
-            {row.message.text.length > 0 ? (
-              <MessageResponse>{row.message.text}</MessageResponse>
-            ) : null}
+        <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
+          <UserMessageAvatar user={user} />
+          <MessageContent>
+            <AIMessageContent
+              className={cn(
+                row.message.status === "failed"
+                  ? "border-destructive/30 bg-destructive/10 text-destructive border"
+                  : undefined,
+                row.message.attachments.length > 0 ? "space-y-3" : undefined
+              )}
+            >
+              {row.message.attachments.length > 0 ? (
+                <Attachments variant="inline">
+                  {row.message.attachments.map((attachment) => (
+                    <Attachment data={attachment} key={attachment.id}>
+                      <AttachmentPreview />
+                    </Attachment>
+                  ))}
+                </Attachments>
+              ) : null}
+              {row.message.text.length > 0 ? (
+                <MessageResponse>{row.message.text}</MessageResponse>
+              ) : null}
+            </AIMessageContent>
           </MessageContent>
         </Message>
       )
@@ -1223,26 +1261,22 @@ function TimelineRowView({
     case "user": {
       const isEmpty = row.text.length === 0 && row.attachments.length === 0
       return (
-        <Message from="user" key={row.key}>
-          <MessageContent
-            className={cn(
-              row.attachments.length > 0 ? "space-y-3" : undefined,
-              isEmpty ? "hidden" : undefined
-            )}
-          >
-            {row.attachments.length > 0 ? (
-              <Attachments variant="inline">
-                {row.attachments.map((attachment) => (
-                  <Attachment data={attachment} key={attachment.id}>
-                    <AttachmentPreview />
-                  </Attachment>
-                ))}
-              </Attachments>
-            ) : null}
-            {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
-          </MessageContent>
-          {isEmpty ? null : (
-            <div className="ml-auto flex items-center gap-1">
+        <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
+          {isEmpty ? null : <UserMessageAvatar user={user} />}
+          <MessageContent className={isEmpty ? "hidden" : undefined}>
+            <AIMessageContent className={row.attachments.length > 0 ? "space-y-3" : undefined}>
+              {row.attachments.length > 0 ? (
+                <Attachments variant="inline">
+                  {row.attachments.map((attachment) => (
+                    <Attachment data={attachment} key={attachment.id}>
+                      <AttachmentPreview />
+                    </Attachment>
+                  ))}
+                </Attachments>
+              ) : null}
+              {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
+            </AIMessageContent>
+            <MessageFooter className="gap-1 px-0">
               <MessageActionBar>
                 <CopyButton content={row.text} />
                 <Button
@@ -1256,11 +1290,9 @@ function TimelineRowView({
                   <Undo2Icon />
                 </Button>
               </MessageActionBar>
-              <span className="text-muted-foreground text-xs">
-                {formatMessageTime(row.createdAt)}
-              </span>
-            </div>
-          )}
+              <span>{formatMessageTime(row.createdAt)}</span>
+            </MessageFooter>
+          </MessageContent>
         </Message>
       )
     }
@@ -1273,8 +1305,8 @@ function TimelineRowView({
         .map((entry) => entry.content)
         .join("\n\n")
       return (
-        <Message from="assistant" key={row.key}>
-          <MessageContent>
+        <AIMessage from="assistant" key={row.key}>
+          <AIMessageContent>
             {groups.map((group, groupIndex) => {
               switch (group.type) {
                 case "text":
@@ -1307,7 +1339,7 @@ function TimelineRowView({
                   return null
               }
             })}
-          </MessageContent>
+          </AIMessageContent>
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground text-xs">
               {formatMessageTime(row.createdAt)}
@@ -1318,7 +1350,7 @@ function TimelineRowView({
               </MessageActionBar>
             ) : null}
           </div>
-        </Message>
+        </AIMessage>
       )
     }
 
@@ -1330,12 +1362,6 @@ function TimelineRowView({
             <span className="animate-pulse">Thinking...</span>
           </span>
         </div>
-      )
-    }
-
-    case "retry": {
-      return (
-        <RetryCountdown attempt={row.attempt} key={row.key} message={row.message} next={row.next} />
       )
     }
 
@@ -1393,34 +1419,14 @@ function TimelineRowView({
       )
     }
 
-    case "divider": {
+    case "checkpoint": {
       return (
-        <div className="text-muted-foreground flex items-center gap-3 py-2 text-xs" key={row.key}>
-          <div className="bg-border h-px flex-1" />
-          <span className="font-medium tracking-wide uppercase">
+        <Checkpoint key={row.key}>
+          <CheckpointIcon />
+          <span className="shrink-0 text-xs">
             {row.variant === "compaction" ? "Context compacted" : "Interrupted"}
           </span>
-          <div className="bg-border h-px flex-1" />
-        </div>
-      )
-    }
-
-    case "error": {
-      return (
-        <Alert key={row.key} variant="destructive">
-          <AlertTitle>{row.label}</AlertTitle>
-          <AlertDescription className="flex items-center justify-between gap-3">
-            <span>{row.body}</span>
-            <Button
-              onClick={row.kind === "history" ? onRetryHistory : onRetryStream}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        </Checkpoint>
       )
     }
 

@@ -9,6 +9,7 @@ import type {
   QuestionRequest,
   Session as SessionV2,
   SessionStatus,
+  SessionStatusResponse,
   TextPart,
   Todo,
 } from "@opencode-ai/sdk/v2"
@@ -29,7 +30,6 @@ type OpencodeChatStore = {
   partTextAccumDelta: Record<string, string>
   message: Record<string, Message[]>
   session?: SessionV2
-  sessionStatus: Record<string, SessionStatus>
   // Todos are keyed by sessionID and cleared whenever the turn that produced
   // them completes. Empty arrays collapse to "no todos" so the dock hides.
   todos: Record<string, Todo[]>
@@ -204,7 +204,6 @@ function buildStore(
     partTextAccumDelta: {},
     message: {},
     session,
-    sessionStatus: {},
     todos: {},
   }
   const visibleMessageIDs = visibleMessageIDsForRecentTurns(records.map((record) => record.info))
@@ -368,23 +367,6 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
         partTextAccumDelta: nextText,
       }
     }
-
-    case "session.status":
-      return {
-        ...store,
-        sessionStatus: {
-          ...store.sessionStatus,
-          [event.properties.sessionID]: event.properties.status,
-        },
-      }
-
-    // Redundant with session.status(idle), but a cheap backstop against the UI
-    // hanging at "Working"/"Retry" if that status event is ever missed.
-    case "session.idle":
-      return {
-        ...store,
-        sessionStatus: { ...store.sessionStatus, [event.properties.sessionID]: idleSessionStatus },
-      }
 
     case "todo.updated": {
       // Empty todos means the agent finished; drop the key so the dock unmounts.
@@ -707,6 +689,37 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   const refetchSession = session.refetch
   const refetchHistory = history.refetch
   const refetchHitl = hitl.refetch
+  const sessionStatusKey = [
+    "opencode",
+    "sessionStatus",
+    agentName,
+    session.data?.directory ?? "",
+  ] as const
+  const status = useQuery(
+    queryOptions({
+      enabled: Boolean(sessionID && session.data?.directory),
+      queryFn: async () => {
+        const client = await createAgentOpencodeClient(agentName)
+        const result = await client.session.status({
+          directory: session.data?.directory,
+        })
+
+        if (result.error || !result.data) {
+          throw new Error(opencodeErrorMessage(result.error, "Failed to load session status"))
+        }
+
+        return result.data
+      },
+      queryKey: sessionStatusKey,
+      refetchInterval: (query) => {
+        if (!sessionID) return false
+        const current = query.state.data?.[sessionID]
+        return current && current.type !== "idle" ? 1_000 : false
+      },
+      retry: false,
+    })
+  )
+  const refetchStatus = status.refetch
   const localMessages = useQuery({
     ...queryOptions({
       queryFn: (): OptimisticUserMessage[] => [],
@@ -723,7 +736,6 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         partTextAccumDelta: {},
         message: {},
         session: undefined,
-        sessionStatus: {},
         todos: {},
       }
     }
@@ -766,14 +778,26 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         }
       }
 
+      if (event.type === "session.status") {
+        queryClient.setQueryData<SessionStatusResponse>(sessionStatusKey, (current) => ({
+          ...current,
+          [event.properties.sessionID]: event.properties.status,
+        }))
+      }
+
+      if (event.type === "session.idle") {
+        queryClient.setQueryData<SessionStatusResponse>(sessionStatusKey, (current) => ({
+          ...current,
+          [event.properties.sessionID]: idleSessionStatus,
+        }))
+      }
+
       switch (event.type) {
         case "message.updated":
         case "message.removed":
         case "message.part.updated":
         case "message.part.delta":
         case "message.part.removed":
-        case "session.status":
-        case "session.idle":
         case "session.created":
         case "session.updated":
         case "session.deleted":
@@ -918,9 +942,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
       (id) => hitlStore.questions[id] ?? []
     )
   }, [hitlStore.questions, hitlStore.sessions, sessionID])
-  const sessionStatus = sessionID
-    ? (store.sessionStatus[sessionID] ?? idleSessionStatus)
-    : undefined
+  const sessionStatus = sessionID ? (status.data?.[sessionID] ?? idleSessionStatus) : undefined
 
   useEffect(() => {
     if (!sessionID) return
@@ -967,8 +989,16 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     if (sessionID && session.data?.directory) {
       void refetchHistory()
       void refetchHitl()
+      void refetchStatus()
     }
-  }, [refetchHistory, refetchHitl, refetchSession, session.data?.directory, sessionID])
+  }, [
+    refetchHistory,
+    refetchHitl,
+    refetchSession,
+    refetchStatus,
+    session.data?.directory,
+    sessionID,
+  ])
 
   // Fold an authoritative Session (e.g. a revert response) into the live store
   // instead of the query cache; seeding the cache flips back to baseStore, which
@@ -990,10 +1020,11 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     // Recover events missed during the disconnect so a turn that finished
     // mid-gap doesn't leave the UI stuck at "Working".
     void refetchHistory()
+    void refetchStatus()
     if (sessionID) {
       void refetchSession()
     }
-  }, [refetchHistory, refetchSession, sessionID])
+  }, [refetchHistory, refetchSession, refetchStatus, sessionID])
 
   return {
     applyOptimisticSession,

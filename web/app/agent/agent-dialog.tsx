@@ -59,6 +59,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
@@ -78,6 +79,7 @@ type AgentDialogProps = {
   agentName?: string
   initialAgentStatus?: AgentStatus
   initialSandboxName?: string
+  initialMemoryEnabled?: boolean
   initialSkills?: string[] | null
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
@@ -274,6 +276,7 @@ export function AgentDialog({
   agentName,
   initialAgentStatus,
   initialSandboxName,
+  initialMemoryEnabled = false,
   initialSkills = [],
   open,
   onOpenChangeAction,
@@ -294,6 +297,7 @@ export function AgentDialog({
     name: agentName ?? "",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills,
+    memoryEnabled: initialMemoryEnabled,
     model: undefined,
     smallModel: undefined,
   }
@@ -585,6 +589,29 @@ export function AgentDialog({
                     onValueChangeAction={field.onChange}
                   />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+            <Controller
+              name="memoryEnabled"
+              control={form.control}
+              render={({ field }) => (
+                <Field orientation="horizontal">
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
+                    <FieldDescription>
+                      Let this agent curate durable notes and user preferences for future sessions.
+                    </FieldDescription>
+                  </div>
+                  {field.value ? <input type="hidden" name={field.name} /> : null}
+                  <Switch
+                    id="agent-form-memory"
+                    ref={field.ref}
+                    checked={field.value}
+                    onBlur={field.onBlur}
+                    onCheckedChange={field.onChange}
+                    aria-label="Enable persistent memory"
+                  />
                 </Field>
               )}
             />

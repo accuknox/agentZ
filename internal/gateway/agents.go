@@ -144,8 +144,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
-		Name:              row.AgentName,
-		SandboxName:       req.SandboxName,
+		Name:        row.AgentName,
+		SandboxName: req.SandboxName,
+		Memory: gatewayapi.AgentMemoryConfig{
+			Enabled: agt.Spec.Memory.Enabled,
+		},
 		HomeStoragePrefix: "",
 		Skills:            skills,
 		CreatedAt:         row.CreatedAt,
@@ -273,8 +276,11 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.Agent{
-		Name:              row.AgentName,
-		SandboxName:       updated.Spec.SandboxRef.Name,
+		Name:        row.AgentName,
+		SandboxName: updated.Spec.SandboxRef.Name,
+		Memory: gatewayapi.AgentMemoryConfig{
+			Enabled: updated.Spec.Memory.Enabled,
+		},
 		HomeStoragePrefix: homeStoragePrefix,
 		CreatedAt:         row.CreatedAt,
 		ModifiedAt:        row.UpdatedAt,
@@ -429,6 +435,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 			unchanged := ok &&
 				prevItem.Name == item.Name &&
 				prevItem.SandboxName == item.SandboxName &&
+				prevItem.Memory == item.Memory &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
 				prevItem.ModifiedAt.Equal(item.ModifiedAt) &&
@@ -537,8 +544,11 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 			homeStoragePrefix = homeStoragePrefixes[row.AgentName]
 			skills := append([]gatewayapi.SkillName{}, resolved.Agent.Spec.Skills...)
 			items = append(items, gatewayapi.Agent{
-				Name:              row.AgentName,
-				SandboxName:       sandboxName,
+				Name:        row.AgentName,
+				SandboxName: sandboxName,
+				Memory: gatewayapi.AgentMemoryConfig{
+					Enabled: resolved.Agent.Spec.Memory.Enabled,
+				},
 				HomeStoragePrefix: homeStoragePrefix,
 				LastActivity:      row.UpdatedAt,
 				CreatedAt:         row.CreatedAt,
@@ -552,6 +562,7 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		items = append(items, gatewayapi.Agent{
 			Name:              row.AgentName,
 			SandboxName:       sandboxName,
+			Memory:            gatewayapi.AgentMemoryConfig{},
 			HomeStoragePrefix: homeStoragePrefix,
 			LastActivity:      row.UpdatedAt,
 			CreatedAt:         row.CreatedAt,
@@ -703,6 +714,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 	if req.Skills != nil {
 		agt.Spec.Skills = slices.Clone(*req.Skills)
 	}
+	if req.Memory != nil {
+		agt.Spec.Memory.Enabled = req.Memory.Enabled
+	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
 	return agt
 }
@@ -715,6 +729,9 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 		return true
 	}
 	if req.Opencode != nil {
+		return true
+	}
+	if req.Memory != nil {
 		return true
 	}
 	if req.Skills != nil {
@@ -738,6 +755,9 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 	}
 	if req.Skills != nil {
 		agt.Spec.Skills = slices.Clone(*req.Skills)
+	}
+	if req.Memory != nil {
+		agt.Spec.Memory.Enabled = req.Memory.Enabled
 	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
 }

@@ -1994,6 +1994,14 @@ components:
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
 
+    AgentMemoryConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+      required: [enabled]
+
     AgentFileType:
       type: string
       enum: [file, directory]
@@ -2299,6 +2307,8 @@ components:
         last_activity:
           type: string
           format: date-time
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
         created_at:
           type: string
           format: date-time
@@ -2317,6 +2327,7 @@ components:
       - name
       - sandboxName
       - last_activity
+      - memory
       - created_at
       - modified_at
       - home_storage_prefix
@@ -2425,6 +2436,8 @@ components:
       properties:
         name:
           $ref: '#/components/schemas/AgentName'
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
         env:
           type: object
           additionalProperties:
@@ -2969,6 +2982,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
         sandboxName:
           $ref: '#/components/schemas/SandboxName'
         skills:

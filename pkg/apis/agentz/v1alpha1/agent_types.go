@@ -105,6 +105,10 @@ type AgentSpec struct {
 	// +optional
 	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
 
+	// Memory configures persistent, agent-curated memory.
+	// +optional
+	Memory MemoryConfig `json:"memory,omitempty"`
+
 	// SandboxRef references reusable package and policy configuration.
 	// +optional
 	SandboxRef *corev1.LocalObjectReference `json:"sandboxRef,omitempty"`
@@ -126,6 +130,13 @@ type AgentSpec struct {
 	// +kubebuilder:default="5Gi"
 	// +optional
 	HomeSize resource.Quantity `json:"homeSize,omitempty"`
+}
+
+// MemoryConfig defines persistent memory settings for an Agent.
+type MemoryConfig struct {
+	// Enabled makes curated memory available across Agent sessions.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 // TelemetryConfig defines agent telemetry export settings.

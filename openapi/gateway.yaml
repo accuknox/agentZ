@@ -229,6 +229,8 @@ components:
         last_activity:
           format: date-time
           type: string
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
         modified_at:
           format: date-time
           type: string
@@ -246,6 +248,7 @@ components:
       - name
       - sandboxName
       - last_activity
+      - memory
       - created_at
       - modified_at
       - home_storage_prefix
@@ -312,6 +315,14 @@ components:
       - file
       - directory
       type: string
+    AgentMemoryConfig:
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+      required:
+      - enabled
+      type: object
     AgentName:
       maxLength: 32
       minLength: 1
@@ -377,6 +388,8 @@ components:
           additionalProperties:
             type: string
           type: object
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
         name:
           $ref: '#/components/schemas/AgentName'
         opencode:
@@ -10085,6 +10098,8 @@ components:
           additionalProperties:
             type: string
           type: object
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
         sandboxName:

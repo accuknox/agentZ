@@ -218,6 +218,13 @@ spec:
               instruction:
                 description: Instruction defines additional OpenCode instruction content.
                 type: string
+              memory:
+                description: Memory configures persistent, agent-curated memory.
+                properties:
+                  enabled:
+                    description: Enabled makes curated memory available across Agent sessions.
+                    type: boolean
+                type: object
               model:
                 description: Model sets the default OpenCode model in provider/model form.
                 type: string

@@ -569,6 +569,10 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
 		corev1.EnvVar{Name: "AGENTZ_AGENT_NAME", Value: agt.Name},
 		corev1.EnvVar{
+			Name:  "AGENTZ_MEMORY_ENABLED",
+			Value: strconv.FormatBool(agt.Spec.Memory.Enabled),
+		},
+		corev1.EnvVar{
 			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",
 			Value: resourceAttributes,
 		},

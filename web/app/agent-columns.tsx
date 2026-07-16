@@ -138,6 +138,7 @@ function AgentActions({
         agentName={agent.name}
         initialAgentStatus={agent.status}
         initialSandboxName={agent.sandboxName}
+        initialMemoryEnabled={agent.memory.enabled}
         initialSkills={agent.skills}
         immutableSkills={immutableSkills}
         sandboxes={sandboxes}

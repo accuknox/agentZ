@@ -1349,10 +1349,14 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 		}
 		ref := skillReferencesOrEmpty(refs[item.Name])
 		items = append(items, gatewayapi.ImmutableSkillSummary{
-			Name: item.Name, Description: item.Spec.Description,
-			Version: item.Spec.Version, Agents: ref.Agents, Sandboxes: ref.Sandboxes,
-			FileCount: summary.FileCount, SizeBytes: summary.SizeBytes,
-			ModifiedAt: summary.Modified,
+			Name:        item.Name,
+			Description: item.Spec.Description,
+			Version:     item.Spec.Version,
+			Agents:      ref.Agents,
+			Sandboxes:   ref.Sandboxes,
+			FileCount:   summary.FileCount,
+			SizeBytes:   summary.SizeBytes,
+			ModifiedAt:  summary.Modified,
 		})
 	}
 	var next string
@@ -1393,7 +1397,8 @@ func (s *Service) ExportImmutableSkills(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		selections = append(selections, skill.VersionSelection{
-			Name: name, Version: item.Spec.Version,
+			Name:    name,
+			Version: item.Spec.Version,
 		})
 	}
 	w.Header().Set("Content-Type", "application/zip")

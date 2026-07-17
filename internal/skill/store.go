@@ -271,8 +271,7 @@ func (c *Client) VersionSummary(ctx context.Context, namespace, name string, ver
 			}
 			summary.FileCount++
 			summary.SizeBytes += aws.ToInt64(item.Size)
-			if item.LastModified != nil &&
-				(summary.Modified == nil || item.LastModified.After(*summary.Modified)) {
+			if item.LastModified != nil && (summary.Modified == nil || item.LastModified.After(*summary.Modified)) {
 				modified := *item.LastModified
 				summary.Modified = &modified
 			}

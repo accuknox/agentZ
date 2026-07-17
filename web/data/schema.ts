@@ -365,11 +365,13 @@ export const createAgentSimpleFormSchema = z.object({
   name: agentNameSchema,
   sandboxName: sandboxNameSchema,
   skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
+  memoryEnabled: z.boolean(),
 })
 
 export const updateAgentSimpleFormSchema = z.object({
   sandboxName: sandboxNameSchema,
   skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
+  memoryEnabled: z.boolean(),
   model: optionalModelSchema,
   smallModel: optionalSmallModelSchema,
 })

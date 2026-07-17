@@ -41,6 +41,10 @@ export type ObservabilityAction = "Allowed" | "Blocked"
 
 export type AgentName = string
 
+export type AgentMemoryConfig = {
+  enabled: boolean
+}
+
 export type AgentFileType = "file" | "directory"
 
 export type AgentFileMetadata = {
@@ -187,6 +191,7 @@ export type Agent = {
   name: AgentName
   sandboxName: SandboxName
   last_activity: string
+  memory: AgentMemoryConfig
   created_at: string
   modified_at: string
   skills: Array<SkillName>
@@ -298,6 +303,7 @@ export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED"
 
 export type CreateAgentRequest = {
   name: AgentName
+  memory?: AgentMemoryConfig
   env?: {
     [key: string]: string
   }
@@ -491,6 +497,7 @@ export type UpdateAgentRequest = {
   env?: {
     [key: string]: string
   }
+  memory?: AgentMemoryConfig
   sandboxName?: SandboxName
   skills?: Array<SkillName>
   opencode?: AgentOpencodeConfig

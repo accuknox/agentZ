@@ -16,12 +16,21 @@ export async function createAgentFormAction(
   const parsed = createAgentSimpleFormSchema.safeParse({
     ...Object.fromEntries(formData),
     skills: formData.getAll("skills"),
+    memoryEnabled: formData.has("memoryEnabled"),
   })
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
   }
 
-  const result = await createAgent({ body: parsed.data, client: getGatewayServerClient() })
+  const result = await createAgent({
+    body: {
+      name: parsed.data.name,
+      sandboxName: parsed.data.sandboxName,
+      skills: parsed.data.skills,
+      memory: { enabled: parsed.data.memoryEnabled },
+    },
+    client: getGatewayServerClient(),
+  })
   if (result.error) {
     return { error: result.error }
   }
@@ -39,6 +48,7 @@ export async function updateAgentFormAction(
   const parsed = updateAgentSimpleFormSchema.safeParse({
     ...Object.fromEntries(formData),
     skills: formData.getAll("skills"),
+    memoryEnabled: formData.has("memoryEnabled"),
   })
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
@@ -56,6 +66,7 @@ export async function updateAgentFormAction(
     body: {
       sandboxName: parsed.data.sandboxName,
       skills: parsed.data.skills,
+      memory: { enabled: parsed.data.memoryEnabled },
       ...(opencode ? { opencode } : {}),
     },
     client: getGatewayServerClient(),

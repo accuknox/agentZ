@@ -77,6 +77,7 @@ export type {
   AgentFileConflict,
   AgentFileMetadata,
   AgentFileType,
+  AgentMemoryConfig,
   AgentName,
   AgentNameFilterQuery,
   AgentNamePath,

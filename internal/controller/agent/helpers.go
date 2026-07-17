@@ -49,6 +49,8 @@ const (
 	listWorkflowsToolName          = "list_workflows"
 	skillToolName                  = "skill"
 	listSkillsToolName             = "list_skills"
+	memoryToolName                 = "memory"
+	journalToolName                = "journal"
 	deleteWorkflowsToolName        = "delete_workflows"
 	deleteWorkflowScheduleToolName = "delete_workflow_schedule"
 	setWorkflowRunStatusToolName   = "set_workflowrun_status"
@@ -266,6 +268,8 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 		listWorkflowsToolName:          true,
 		skillToolName:                  true,
 		listSkillsToolName:             true,
+		memoryToolName:                 agt.Spec.Memory.Enabled,
+		journalToolName:                agt.Spec.Memory.Enabled,
 		deleteWorkflowsToolName:        true,
 		deleteWorkflowScheduleToolName: true,
 		setWorkflowRunStatusToolName:   false,

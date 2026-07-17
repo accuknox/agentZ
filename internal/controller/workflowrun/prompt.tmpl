@@ -9,10 +9,11 @@ Requirements:
 6. After executing each workflow node, call set_workflowrun_status with mode "node", that node name, and phase "Succeeded" or "Failed".
 7. Execute the workflow end-to-end using the provided inputs.
 8. Do not ask for clarification.
-9. When the workflow finishes, call set_workflowrun_status with mode "run" exactly once.
-10. If execution succeeds, call set_workflowrun_status with mode "run" and phase "Succeeded".
-11. If execution fails, call set_workflowrun_status with mode "run", phase "Failed", and include a concise message.
-12. Don't stop until you have completed all the above steps.
+9. NEVER modify persistent memory or the journal. Do not use memory actions "add", "replace", "remove", or "batch", or the journal action "append". Read-only actions remain allowed.
+10. When the workflow finishes, call set_workflowrun_status with mode "run" exactly once.
+11. If execution succeeds, call set_workflowrun_status with mode "run" and phase "Succeeded".
+12. If execution fails, call set_workflowrun_status with mode "run", phase "Failed", and include a concise message.
+13. Don't stop until you have completed all the above steps.
 
 WorkflowRun name: {{.RunName}}
 Inputs JSON:

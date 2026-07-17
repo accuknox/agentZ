@@ -52,6 +52,10 @@ export const zAgentName = z
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
+export const zAgentMemoryConfig = z.object({
+  enabled: z.boolean(),
+})
+
 export const zAgentFileType = z.enum(["file", "directory"])
 
 export const zAgentFileMetadata = z.object({
@@ -319,6 +323,7 @@ export const zAgent = z.object({
   name: zAgentName,
   sandboxName: zSandboxName,
   last_activity: z.iso.datetime(),
+  memory: zAgentMemoryConfig,
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
   skills: z.array(zSkillName),
@@ -459,6 +464,7 @@ export const zAgentOpencodeConfig = z.object({
 
 export const zCreateAgentRequest = z.object({
   name: zAgentName,
+  memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
   sandboxName: zSandboxName,
   skills: z.array(zSkillName).optional(),
@@ -467,6 +473,7 @@ export const zCreateAgentRequest = z.object({
 
 export const zUpdateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),
+  memory: zAgentMemoryConfig.optional(),
   sandboxName: zSandboxName.optional(),
   skills: z.array(zSkillName).optional(),
   opencode: zAgentOpencodeConfig.optional(),

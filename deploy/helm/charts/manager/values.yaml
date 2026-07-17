@@ -71,7 +71,6 @@ config:
   tenantNixStoreAccessModes:
   - ReadWriteOnce
   tenantNixStoreStorageClass: ""
-  agentHomeStorageClass: csi-s3
   skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
   skillsS3Region: us-east-1
   skillsS3Bucket: agentz

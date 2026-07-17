@@ -73,7 +73,9 @@ build:
 .PHONY: run-gateway
 run-gateway:
 	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
-	go run ./cmd/agentz gateway serve \
+	AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
+	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
+		go run ./cmd/agentz gateway serve \
 		--addr 0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--filesystem-target-override=localhost:4097 \
@@ -87,7 +89,10 @@ run-gateway:
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
 		--openbao-k8s-auth-role=gateway \
-		--openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH)
+		--openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH) \
+		--skills-s3-endpoint=$(SKILLS_S3_ENDPOINT) \
+		--skills-s3-region=$(SKILLS_S3_REGION) \
+		--skills-s3-bucket=$(SKILLS_S3_BUCKET)
 
 .PHONY: run-manager
 run-manager:
@@ -113,7 +118,6 @@ run-manager:
 		--nix-store-pvc=nix-store \
 		--tenant-nix-store-size=5Gi \
 		--tenant-nix-store-access-mode=ReadWriteOnce \
-		--agent-home-storage-class=csi-s3 \
 		--skills-s3-endpoint=$(SKILLS_S3_ENDPOINT) \
 		--skills-s3-region=$(SKILLS_S3_REGION) \
 		--skills-s3-bucket=$(SKILLS_S3_BUCKET) \

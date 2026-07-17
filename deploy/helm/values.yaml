@@ -144,9 +144,6 @@ manager:
     # Optional storage class for the tenant nix store PVC.
     tenantNixStoreStorageClass: ""
 
-    # Optional storage class for per-agent home PVCs.
-    agentHomeStorageClass: csi-s3
-
     # S3-compatible endpoint for immutable Skill object storage.
     skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
 
@@ -395,6 +392,15 @@ gateway:
     # Required PostgreSQL DSN for gateway state.
     postgresDSN: ""
 
+    # Immutable Skill object storage is owned by the gateway.
+    skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
+    skillsS3Region: us-east-1
+    skillsS3Bucket: agentz
+    skillsS3AccessKeyIDSecretName: agentz-skills-s3
+    skillsS3AccessKeyIDSecretKey: access-key-id
+    skillsS3SecretAccessKeySecretName: agentz-skills-s3
+    skillsS3SecretAccessKeySecretKey: secret-access-key
+
   # Extra CLI arguments appended to `agentz gateway serve`.
   extraArgs: []
 
@@ -563,27 +569,6 @@ web:
 
     # Audience for Better Auth JWTs consumed by the gateway.
     gatewayJWTAudience: agentz-gateway
-
-    # S3-compatible endpoint used for mutable and immutable Skill files.
-    skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
-
-    # S3 region used for Skill storage.
-    skillsS3Region: us-east-1
-
-    # S3 bucket used for Skill storage.
-    skillsS3Bucket: agentz
-
-    # Secret containing the Skill S3 access key ID.
-    skillsS3AccessKeyIDSecretName: agentz-skills-s3
-
-    # Secret key containing the Skill S3 access key ID.
-    skillsS3AccessKeyIDSecretKey: access-key-id
-
-    # Secret containing the Skill S3 secret access key.
-    skillsS3SecretAccessKeySecretName: agentz-skills-s3
-
-    # Secret key containing the Skill S3 secret access key.
-    skillsS3SecretAccessKeySecretKey: secret-access-key
 
     # Enable Better Auth email/password sign-in and sign-up.
     enableEmailPasswordAuth: false

@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { AgentGettingReady } from "@/components/agent-readiness"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -46,15 +47,16 @@ const columnClassName: Record<string, string> = {
   select: "w-12",
   name: "min-w-56",
   version: "w-24",
-  fileCount: "w-24",
-  sizeBytes: "w-28",
+  file_count: "w-24",
+  size_bytes: "w-28",
   agents: "w-52",
-  modifiedAt: "w-44",
+  modified_at: "w-44",
   actions: "w-14",
 }
 
 export function SkillTable({
   data,
+  disabled,
   error,
   exporting,
   hasNextPage,
@@ -69,7 +71,8 @@ export function SkillTable({
   onExport,
 }: {
   data: Skill[]
-  error: Error | null
+  disabled: boolean
+  error: { message: string } | null
   exporting: boolean
   hasNextPage: boolean
   loading: boolean
@@ -89,6 +92,7 @@ export function SkillTable({
   const columns = React.useMemo(
     () =>
       createSkillColumns({
+        disabled,
         exporting,
         selected,
         showAgents,
@@ -98,7 +102,17 @@ export function SkillTable({
         onEdit,
         onExport,
       }),
-    [exporting, onEdit, onExport, selected, setDeleteNames, setSelected, showAgents, showImmutable]
+    [
+      disabled,
+      exporting,
+      onEdit,
+      onExport,
+      selected,
+      setDeleteNames,
+      setSelected,
+      showAgents,
+      showImmutable,
+    ]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -142,22 +156,29 @@ export function SkillTable({
             ))}
           </TableHeader>
           <TableBody>
-            {loading ? <SkillTableSkeleton columns={columns.length} /> : null}
-            {!loading && error ? (
+            {disabled ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <AgentGettingReady className="text-muted-foreground inline-flex items-center gap-2 text-sm" />
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {!disabled && loading ? <SkillTableSkeleton columns={columns.length} /> : null}
+            {!disabled && !loading && error ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="text-destructive h-24 text-center">
                   {error.message}
                 </TableCell>
               </TableRow>
             ) : null}
-            {!loading && !error && table.getRowModel().rows.length === 0 ? (
+            {!disabled && !loading && !error && table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
                   No skills
                 </TableCell>
               </TableRow>
             ) : null}
-            {!loading && !error
+            {!disabled && !loading && !error
               ? table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id} data-state={selected.has(row.original.name) && "selected"}>
                     {row.getVisibleCells().map((cell) => (
@@ -179,7 +200,7 @@ export function SkillTable({
           variant="ghost"
           size="sm"
           onClick={clearSelectionAndGoPrevious}
-          disabled={!canGoPrevious || pending}
+          disabled={disabled || !canGoPrevious || pending}
         >
           <ArrowLeft data-icon="inline-start" />
           Previous
@@ -188,7 +209,7 @@ export function SkillTable({
           variant="ghost"
           size="sm"
           onClick={clearSelectionAndGoNext}
-          disabled={!hasNextPage || pending}
+          disabled={disabled || !hasNextPage || pending}
         >
           Next
           <ArrowRight data-icon="inline-end" />
@@ -199,6 +220,7 @@ export function SkillTable({
 }
 
 function createSkillColumns({
+  disabled,
   exporting,
   selected,
   showAgents,
@@ -208,6 +230,7 @@ function createSkillColumns({
   onEdit,
   onExport,
 }: {
+  disabled: boolean
   exporting: boolean
   selected: Set<string>
   showAgents: boolean
@@ -225,6 +248,7 @@ function createSkillColumns({
         const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.original.name))
         return (
           <Checkbox
+            disabled={disabled}
             checked={allSelected}
             aria-label="Select all skills"
             onCheckedChange={(checked) => {
@@ -245,6 +269,7 @@ function createSkillColumns({
       },
       cell: ({ row }) => (
         <Checkbox
+          disabled={disabled}
           checked={selected.has(row.original.name)}
           aria-label={`Select ${row.original.name}`}
           onCheckedChange={(checked) => {
@@ -288,18 +313,18 @@ function createSkillColumns({
 
   columns.push(
     {
-      accessorKey: "fileCount",
+      accessorKey: "file_count",
       header: ({ column }) => <SortButton column={column} label="Files" />,
       cell: ({ row }) => (
-        <span className="text-muted-foreground whitespace-nowrap">{row.original.fileCount}</span>
+        <span className="text-muted-foreground whitespace-nowrap">{row.original.file_count}</span>
       ),
     },
     {
-      accessorKey: "sizeBytes",
+      accessorKey: "size_bytes",
       header: ({ column }) => <SortButton column={column} label="Size" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
-          {formatByteSize(row.original.sizeBytes)}
+          {formatByteSize(row.original.size_bytes)}
         </span>
       ),
     }
@@ -318,16 +343,16 @@ function createSkillColumns({
 
   columns.push(
     {
-      accessorKey: "modifiedAt",
+      accessorKey: "modified_at",
       header: ({ column }) => <SortButton column={column} label="Modified" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
-          {formatAge(row.original.modifiedAt)}
+          {formatAge(row.original.modified_at)}
         </span>
       ),
       sortingFn: (a, b) => {
-        const left = a.original.modifiedAt ? Date.parse(a.original.modifiedAt) : 0
-        const right = b.original.modifiedAt ? Date.parse(b.original.modifiedAt) : 0
+        const left = a.original.modified_at ? Date.parse(a.original.modified_at) : 0
+        const right = b.original.modified_at ? Date.parse(b.original.modified_at) : 0
         return left - right
       },
     },
@@ -335,6 +360,7 @@ function createSkillColumns({
       id: "actions",
       cell: ({ row }) => (
         <SkillRowActions
+          disabled={disabled}
           exporting={exporting}
           skill={row.original}
           setDeleteNames={setDeleteNames}
@@ -391,12 +417,14 @@ function AgentsSummary({ agents }: { agents: string[] }) {
 }
 
 function SkillRowActions({
+  disabled,
   exporting,
   skill,
   setDeleteNames,
   onEdit,
   onExport,
 }: {
+  disabled: boolean
   exporting: boolean
   skill: Skill
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
@@ -407,7 +435,7 @@ function SkillRowActions({
     <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
+          <Button disabled={disabled} variant="ghost" size="icon" className="size-8">
             <span className="sr-only">Open skill menu</span>
             <MoreHorizontal />
           </Button>

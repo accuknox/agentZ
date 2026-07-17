@@ -4,6 +4,7 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, FileArchive, Replace, TriangleAlert } from "lucide-react"
 import { Controller, useForm, useWatch, type Control, type FieldErrors } from "react-hook-form"
+import { toast } from "sonner"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,10 +26,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import type { Agent } from "@/lib/gateway/client"
+import {
+  importSkills,
+  previewSkillImport,
+  type Agent,
+  type SkillImportDecision,
+  type SkillImportPreviewItem,
+} from "@/lib/gateway/client"
 import { zAgentName, zSkillName } from "@/lib/gateway/client/zod.gen"
-import { importApplyAction, importPreviewAction } from "@/data/skill.actions"
-import type { SkillImportPreview } from "@/data/types"
 import { cn } from "@/lib/utils"
 
 const importTypeSchema = z.enum(["mutable", "immutable"])
@@ -69,7 +74,7 @@ const importFormSchema = z
     }
   })
 
-type ImportPreview = SkillImportPreview
+type ImportPreview = SkillImportPreviewItem
 type ImportFormValues = z.infer<typeof importFormSchema>
 type ImportResolution = ImportFormValues["resolutions"][string]
 
@@ -166,15 +171,17 @@ export function SkillImportDialog({
     }
     startTransition(async () => {
       setError(undefined)
-      const body = new FormData()
-      body.set("agents", JSON.stringify(agents.map((agent) => agent.name)))
-      body.set("file", file)
-      const result = await importPreviewAction(body)
+      const result = await previewSkillImport({
+        body: {
+          agents: agents.filter((agent) => agent.status === "IDLE").map((agent) => agent.name),
+          file,
+        },
+      })
       if (result.error) {
-        setError(result.error)
+        setError(result.error.message)
         return
       }
-      const nextPreview = result.skills
+      const nextPreview = result.data.skills
       setPreview(nextPreview)
       form.reset({
         type: "mutable",
@@ -190,26 +197,39 @@ export function SkillImportDialog({
       return
     }
     const renames = values.renames
-    const decisions = preview.map((skill) => {
+    const decisions: SkillImportDecision[] = preview.map((skill) => {
       const conflict = skillHasConflict(skill, values.type, values.agents)
       const resolution = values.resolutions[skill.name]
       if (conflict && resolution === "rename") {
-        return { action: "rename", name: skill.name, rename: renames[skill.name] }
+        return {
+          action: "rename",
+          name: skill.name,
+          rename: renameSchema.parse(renames[skill.name]),
+        }
       }
       return { action: conflict ? "overwrite" : "create", name: skill.name }
     })
 
     startTransition(async () => {
       setError(undefined)
-      const body = new FormData()
-      body.set("type", values.type)
-      body.set("agents", JSON.stringify(values.agents))
-      body.set("file", file)
-      body.set("decisions", JSON.stringify(decisions))
-      const result = await importApplyAction(body)
+      const result = await importSkills({
+        body: { agents: values.agents, decisions, file, kind: values.type },
+      })
       if (result.error) {
-        setError(result.error)
+        setError(result.error.message)
+        toast.error("Failed to import skills")
         return
+      }
+      const failed = result.data.agents.filter((agent) => agent.status === "failed")
+      if (failed.length > 0) {
+        const names = failed.map((agent) => agent.agent)
+        toast.warning(
+          failed.length <= 3
+            ? `Import failed for ${names.join(", ")}`
+            : `Import failed for ${failed.length} agents`
+        )
+      } else {
+        toast.success("Skills imported")
       }
       reset()
       setOpen(false)
@@ -344,6 +364,7 @@ export function SkillImportDialog({
                         invalid={fieldState.invalid}
                         disabled={pending}
                         options={agents.map((agent) => ({
+                          disabled: agent.status !== "IDLE",
                           label: agent.name,
                           value: agent.name,
                         }))}
@@ -504,8 +525,8 @@ function skillHasConflict(
   agents: string[]
 ): boolean {
   if (type === "immutable") {
-    return skill.immutableConflict
+    return skill.immutable_conflict
   }
   const selected = new Set(agents)
-  return skill.mutableConflictAgents.some((agent) => selected.has(agent))
+  return skill.mutable_conflict_agents.some((agent) => selected.has(agent))
 }

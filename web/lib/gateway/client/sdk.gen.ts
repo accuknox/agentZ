@@ -2,7 +2,12 @@
 
 import * as z from "zod"
 
-import type { Client, Options as Options2, TDataShape } from "./client"
+import {
+  type Client,
+  formDataBodySerializer,
+  type Options as Options2,
+  type TDataShape,
+} from "./client"
 import { client } from "./client.gen"
 import type {
   CreateAgentData,
@@ -37,7 +42,13 @@ import type {
   DeleteAgentEntryErrors,
   DeleteAgentEntryResponses,
   DeleteAgentErrors,
+  DeleteAgentMutableSkillsData,
+  DeleteAgentMutableSkillsErrors,
+  DeleteAgentMutableSkillsResponses,
   DeleteAgentResponses,
+  DeleteImmutableSkillsData,
+  DeleteImmutableSkillsErrors,
+  DeleteImmutableSkillsResponses,
   DeleteMcpConnectionData,
   DeleteMcpConnectionErrors,
   DeleteMcpConnectionResponses,
@@ -62,6 +73,12 @@ import type {
   EnsureTenantData,
   EnsureTenantErrors,
   EnsureTenantResponses,
+  ExportAgentMutableSkillsData,
+  ExportAgentMutableSkillsErrors,
+  ExportAgentMutableSkillsResponses,
+  ExportImmutableSkillsData,
+  ExportImmutableSkillsErrors,
+  ExportImmutableSkillsResponses,
   GetMcpConnectionData,
   GetMcpConnectionErrors,
   GetMcpConnectionResponses,
@@ -83,9 +100,15 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunErrors,
   GetWorkflowRunResponses,
+  ImportSkillsData,
+  ImportSkillsErrors,
+  ImportSkillsResponses,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookErrors,
   InvokeWorkflowWebhookResponses,
+  ListAgentMutableSkillsData,
+  ListAgentMutableSkillsErrors,
+  ListAgentMutableSkillsResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentsResponses,
@@ -95,6 +118,12 @@ import type {
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
+  ListImmutableSkillSummariesData,
+  ListImmutableSkillSummariesErrors,
+  ListImmutableSkillSummariesResponses,
+  ListImmutableSkillVersionsData,
+  ListImmutableSkillVersionsErrors,
+  ListImmutableSkillVersionsResponses,
   ListMcpConnectionsData,
   ListMcpConnectionsErrors,
   ListMcpConnectionsResponses,
@@ -137,6 +166,9 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
+  PreviewSkillImportData,
+  PreviewSkillImportErrors,
+  PreviewSkillImportResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -200,7 +232,10 @@ import {
   zCreateWorkflowSchedulePath,
   zDeleteAgentEntryPath,
   zDeleteAgentEntryQuery,
+  zDeleteAgentMutableSkillsBody,
+  zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
+  zDeleteImmutableSkillsBody,
   zDeleteMcpConnectionPath,
   zDeleteSandboxPath,
   zDeleteSecretBody,
@@ -210,6 +245,9 @@ import {
   zDeleteWorkflowsBody,
   zDeleteWorkflowSchedulePath,
   zDeleteWorkflowsPath,
+  zExportAgentMutableSkillsBody,
+  zExportAgentMutableSkillsPath,
+  zExportImmutableSkillsBody,
   zGetMcpConnectionPath,
   zGetMcpGraphPath,
   zGetMcpGraphQuery,
@@ -217,14 +255,19 @@ import {
   zGetSpanDetailPath,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
+  zImportSkillsBody,
   zInvokeWorkflowWebhookBody,
   zInvokeWorkflowWebhookPath,
   zInvokeWorkflowWebhookQuery,
+  zListAgentMutableSkillsPath,
+  zListAgentMutableSkillsQuery,
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
   zListFileObservabilityPath,
   zListFileObservabilityQuery,
+  zListImmutableSkillSummariesQuery,
+  zListImmutableSkillVersionsPath,
   zListMcpConnectionsQuery,
   zListNetworkObservabilityPath,
   zListNetworkObservabilityQuery,
@@ -249,6 +292,7 @@ import {
   zPatchWorkflowRunNodeStatusPath,
   zPatchWorkflowRunStatusBody,
   zPatchWorkflowRunStatusPath,
+  zPreviewSkillImportBody,
   zPutSecretBody,
   zPutSecretPath,
   zPutSecretQuery,
@@ -645,6 +689,168 @@ export const deleteAgentEntry = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * Delete mutable skills from an Agent workspace.
+ */
+export const deleteAgentMutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentMutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteAgentMutableSkillsResponses,
+    DeleteAgentMutableSkillsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zDeleteAgentMutableSkillsBody,
+          path: zDeleteAgentMutableSkillsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/skill",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List mutable skills stored in an Agent workspace.
+ */
+export const listAgentMutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentMutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListAgentMutableSkillsResponses,
+    ListAgentMutableSkillsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListAgentMutableSkillsPath,
+          query: zListAgentMutableSkillsQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/skill",
+    ...options,
+  })
+
+/**
+ * Stream mutable Agent skills as a ZIP archive.
+ */
+export const exportAgentMutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ExportAgentMutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ExportAgentMutableSkillsResponses,
+    ExportAgentMutableSkillsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zExportAgentMutableSkillsBody,
+          path: zExportAgentMutableSkillsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/skill/export",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Parse a skill import and report live conflicts.
+ */
+export const previewSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewSkillImportData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PreviewSkillImportResponses,
+    PreviewSkillImportErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPreviewSkillImportBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/import/preview",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Import mutable or immutable skills.
+ */
+export const importSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<ImportSkillsResponses, ImportSkillsErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zImportSkillsBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/import",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete immutable Skill resources in one request.
+ */
+export const deleteImmutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteImmutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteImmutableSkillsResponses,
+    DeleteImmutableSkillsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zDeleteImmutableSkillsBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
  * List immutable Skill resources.
  */
 export const listSkills = <ThrowOnError extends boolean = false>(
@@ -681,6 +887,58 @@ export const createSkill = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/skill",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List immutable skills with active version file summaries.
+ */
+export const listImmutableSkillSummaries = <ThrowOnError extends boolean = false>(
+  options?: Options<ListImmutableSkillSummariesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListImmutableSkillSummariesResponses,
+    ListImmutableSkillSummariesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListImmutableSkillSummariesQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/summary",
+    ...options,
+  })
+
+/**
+ * Stream selected active immutable Skill versions as ZIP.
+ */
+export const exportImmutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ExportImmutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ExportImmutableSkillsResponses,
+    ExportImmutableSkillsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zExportImmutableSkillsBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/export",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -753,6 +1011,30 @@ export const getSkillReferences = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/skill/{skillName}/references",
+    ...options,
+  })
+
+/**
+ * List stored versions for an immutable Skill.
+ */
+export const listImmutableSkillVersions = <ThrowOnError extends boolean = false>(
+  options: Options<ListImmutableSkillVersionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListImmutableSkillVersionsResponses,
+    ListImmutableSkillVersionsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListImmutableSkillVersionsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/skill/{skillName}/version",
     ...options,
   })
 

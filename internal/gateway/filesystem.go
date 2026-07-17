@@ -72,6 +72,21 @@ func (s *Service) StatAgentFile(w http.ResponseWriter, r *http.Request, agentNam
 	s.proxyFilesystem(w, r, agentName, "/stat")
 }
 
+// ListAgentMutableSkills handles GET /api/agent/{agentName}/skill.
+func (s *Service) ListAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, _ gatewayapi.ListAgentMutableSkillsParams) {
+	s.proxyFilesystem(w, r, agentName, "/skill")
+}
+
+// DeleteAgentMutableSkills handles DELETE /api/agent/{agentName}/skill.
+func (s *Service) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	s.proxyFilesystem(w, r, agentName, "/skill")
+}
+
+// ExportAgentMutableSkills handles POST /api/agent/{agentName}/skill/export.
+func (s *Service) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+	s.proxyFilesystem(w, r, agentName, "/skill/export")
+}
+
 func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAgentName, upstreamPath string) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -87,29 +102,21 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "agent not found", err))
 		return
 	}
-
-	targetAddress := strings.TrimSpace(s.cfg.FilesystemTargetOverride)
-	if targetAddress == "" {
-		serviceName := strings.TrimSpace(resolved.Agent.Status.ServiceName)
-		if serviceName == "" {
-			serviceName = resolved.Agent.Name
+	if strings.HasPrefix(upstreamPath, "/skill") {
+		if statusFromAgent(resolved.Agent).Phase != agentPhaseReady {
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"agent_not_ready",
+				"agent is not ready",
+				errBadRequest,
+			))
+			return
 		}
-		targetAddress = fmt.Sprintf(
-			"%s.%s.svc.cluster.local:%d",
-			serviceName,
-			resolved.Agent.Namespace,
-			filesystemPort,
-		)
 	}
-	targetAddress = strings.TrimPrefix(targetAddress, "https://")
-	targetAddress = strings.TrimPrefix(targetAddress, "http://")
-	target, err := url.Parse("http://" + targetAddress)
+
+	target, err := s.filesystemTarget(resolved)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("parse filesystem target: %w", err))
-		return
-	}
-	if target.Host == "" {
-		writeInternalError(w, r, fmt.Errorf("filesystem target is empty"))
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -159,4 +166,30 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		},
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+func (s *Service) filesystemTarget(resolved *resolvedAgent) (*url.URL, error) {
+	address := strings.TrimSpace(s.cfg.FilesystemTargetOverride)
+	if address == "" {
+		serviceName := strings.TrimSpace(resolved.Agent.Status.ServiceName)
+		if serviceName == "" {
+			serviceName = resolved.Agent.Name
+		}
+		address = fmt.Sprintf(
+			"%s.%s.svc.cluster.local:%d",
+			serviceName,
+			resolved.Agent.Namespace,
+			filesystemPort,
+		)
+	}
+	address = strings.TrimPrefix(address, "https://")
+	address = strings.TrimPrefix(address, "http://")
+	target, err := url.Parse("http://" + address)
+	if err != nil {
+		return nil, fmt.Errorf("parse filesystem target: %w", err)
+	}
+	if target.Host == "" {
+		return nil, errors.New("filesystem target is empty")
+	}
+	return target, nil
 }

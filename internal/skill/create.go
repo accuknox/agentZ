@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/adrg/frontmatter"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -52,11 +51,8 @@ func Init(cfg InitConfig) (string, error) {
 	}
 
 	name := cfg.Name
-	if !namePattern.MatchString(name) {
-		return "", fmt.Errorf("skill name %q must match %s", name, namePattern.String())
-	}
-	if len(name) > 64 {
-		return "", fmt.Errorf("skill name %q must be 1-64 characters", name)
+	if err := ValidateName(name); err != nil {
+		return "", err
 	}
 
 	root, err := filepath.Abs(cfg.Path)
@@ -121,40 +117,25 @@ func Validate(skillDir string) error {
 		return fmt.Errorf("reading %s: %w", skillPath, err)
 	}
 
-	doc, err := parse(content)
+	name, _, err := inspectSkillFile(content)
 	if err != nil {
 		return err
 	}
+	if name != filepath.Base(skillDir) {
+		return errors.New("frontmatter.name must match the skill directory name")
+	}
+	return nil
+}
 
-	issues := make([]string, 0, 6)
-	if len(content) > maxSkillBytes {
-		issues = append(issues, fmt.Sprintf("%s exceeds %d bytes", skillFileName, maxSkillBytes))
+// ValidateName checks the canonical 32-character skill name contract.
+func ValidateName(name string) error {
+	if len(name) == 0 || len(name) > 32 {
+		return errors.New("skill name must be 1-32 characters")
 	}
-	if !namePattern.MatchString(doc.Frontmatter.Name) {
-		issues = append(
-			issues,
-			fmt.Sprintf("frontmatter.name must match %s", namePattern.String()),
-		)
+	if !namePattern.MatchString(name) {
+		return fmt.Errorf("skill name must match %s", namePattern.String())
 	}
-	if len(doc.Frontmatter.Name) == 0 || len(doc.Frontmatter.Name) > 64 {
-		issues = append(issues, "frontmatter.name must be 1-64 characters")
-	}
-	if doc.Frontmatter.Name != filepath.Base(skillDir) {
-		issues = append(issues, "frontmatter.name must match the skill directory name")
-	}
-	desc := strings.TrimSpace(doc.Frontmatter.Description)
-	if len(desc) == 0 || len(desc) > 1024 {
-		issues = append(issues, "frontmatter.description must be 1-1024 characters")
-	}
-	if strings.TrimSpace(doc.Body) == "" {
-		issues = append(issues, "skill body must not be empty")
-	}
-
-	if len(issues) == 0 {
-		return nil
-	}
-
-	return errors.New(strings.Join(issues, "\n"))
+	return nil
 }
 
 func buildBody(name string, examples bool) string {
@@ -201,23 +182,4 @@ func render(doc skillFile) ([]byte, error) {
 	out.WriteString(strings.TrimSpace(doc.Body))
 	out.WriteString("\n")
 	return out.Bytes(), nil
-}
-
-func parse(content []byte) (skillFile, error) {
-	text := string(content)
-	if !strings.HasPrefix(text, "---\n") {
-		return skillFile{}, errors.New("skill frontmatter is required")
-	}
-
-	doc := skillFile{}
-	body, err := frontmatter.Parse(bytes.NewReader(content), &doc.Frontmatter)
-	if err != nil {
-		return skillFile{}, fmt.Errorf("skill frontmatter is invalid YAML: %w", err)
-	}
-	if len(body) == len(content) {
-		return skillFile{}, errors.New("skill frontmatter is not closed")
-	}
-
-	doc.Body = string(body)
-	return doc, nil
 }

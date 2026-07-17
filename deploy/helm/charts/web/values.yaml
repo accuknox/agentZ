@@ -35,9 +35,6 @@ env:
   internalGatewayBaseURL: ""
   # Audience for Better Auth JWTs consumed by the gateway.
   gatewayJWTAudience: agentz-gateway
-  skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
-  skillsS3Region: us-east-1
-  skillsS3Bucket: agentz
   # Enable Better Auth email/password sign-in and sign-up.
   enableEmailPasswordAuth: false
   # Optional comma-separated allowlist for email/password auth.
@@ -63,10 +60,6 @@ env:
   # Optional NixOS search branch.
   nixosSearchESBranch: ""
 
-  skillsS3AccessKeyIDSecretName: agentz-skills-s3
-  skillsS3AccessKeyIDSecretKey: access-key-id
-  skillsS3SecretAccessKeySecretName: agentz-skills-s3
-  skillsS3SecretAccessKeySecretKey: secret-access-key
 
 secrets:
   # Required database DSN for Better Auth and Drizzle.

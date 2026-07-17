@@ -68,14 +68,6 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldAgt, newAgt *agentzv1al
 			"field is immutable",
 		))
 	}
-	if oldAgt.Spec.HomeSize.Cmp(newAgt.Spec.HomeSize) != 0 {
-		path := field.NewPath("spec").Child("homeSize")
-		allErrs = append(allErrs, field.Invalid(
-			path,
-			newAgt.Spec.HomeSize.String(),
-			"field is immutable",
-		))
-	}
 	if len(allErrs) == 0 {
 		return nil, nil
 	}

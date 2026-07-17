@@ -57,11 +57,6 @@ const envSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     MCP_OAUTH_COOKIE_SECRET: z.string().min(32),
     GATEWAY_JWT_AUDIENCE: z.string().trim().min(1).default("agentz-gateway"),
-    SKILLS_S3_ENDPOINT: z.url(),
-    SKILLS_S3_REGION: z.string().trim().min(1),
-    SKILLS_S3_BUCKET: z.string().trim().min(1),
-    SKILLS_S3_ACCESS_KEY_ID: z.string().trim().min(1),
-    SKILLS_S3_SECRET_ACCESS_KEY: z.string().trim().min(1),
     ENABLE_EMAIL_PASSWORD_AUTH: z.stringbool().default(false),
     // When set, only these exact email addresses may use credential auth.
     EMAIL_PASSWORD_AUTH_ALLOWED_USER: csvEmailListSchema.optional(),

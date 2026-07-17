@@ -104,9 +104,6 @@ spec:
             {{- if .Values.config.tenantNixStoreStorageClass }}
             - --tenant-nix-store-storage-class={{ .Values.config.tenantNixStoreStorageClass }}
             {{- end }}
-            {{- if .Values.config.agentHomeStorageClass }}
-            - --agent-home-storage-class={{ .Values.config.agentHomeStorageClass }}
-            {{- end }}
             {{- if .Values.config.watchNamespace }}
             - --watch-namespace={{ .Values.config.watchNamespace }}
             {{- end }}

@@ -207,6 +207,91 @@ export const zListSkillsResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zSkillKind = z.enum(["mutable", "immutable"])
+
+export const zSkillFileSummary = z.object({
+  name: zSkillName,
+  file_count: z.int().gte(1),
+  size_bytes: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  modified_at: z.iso.datetime().nullable(),
+})
+
+export const zMutableSkillSummary = zSkillFileSummary
+
+export const zListMutableSkillsResponse = z.object({
+  skills: z.array(zMutableSkillSummary),
+  next_page_token: z.string(),
+})
+
+export const zImmutableSkillSummary = zSkillFileSummary.and(
+  z.object({
+    description: z.string(),
+    version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+    agents: z.array(zAgentName),
+    sandboxes: z.array(zSandboxName),
+  })
+)
+
+export const zListImmutableSkillSummariesResponse = z.object({
+  skills: z.array(zImmutableSkillSummary),
+  next_page_token: z.string(),
+})
+
+export const zDeleteSkillsRequest = z.object({
+  skill_names: z.array(zSkillName).min(1).max(200),
+})
+
+export const zExportSkillsRequest = z.object({
+  skill_names: z.array(zSkillName).min(1).max(200),
+})
+
+export const zCreateSkillImportDecision = z.object({
+  action: z.enum(["create"]),
+  name: zSkillName,
+})
+
+export const zOverwriteSkillImportDecision = z.object({
+  action: z.enum(["overwrite"]),
+  name: zSkillName,
+})
+
+export const zRenameSkillImportDecision = z.object({
+  action: z.enum(["rename"]),
+  name: zSkillName,
+  rename: zSkillName,
+})
+
+export const zSkillImportDecision = z.discriminatedUnion("action", [
+  zCreateSkillImportDecision.extend({ action: z.literal("create") }),
+  zOverwriteSkillImportDecision.extend({ action: z.literal("overwrite") }),
+  zRenameSkillImportDecision.extend({ action: z.literal("rename") }),
+])
+
+export const zSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  mutable_conflict_agents: z.array(zAgentName),
+  immutable_conflict: z.boolean(),
+})
+
+export const zSkillImportPreviewResponse = z.object({
+  skills: z.array(zSkillImportPreviewItem),
+})
+
+export const zSkillImportAgentResult = z.object({
+  agent: zAgentName,
+  status: z.enum(["succeeded", "failed"]),
+  error: z.string().optional(),
+})
+
+export const zImportSkillsResponse = z.object({
+  skills: z.array(zSkillName),
+  agents: z.array(zSkillImportAgentResult),
+})
+
 export const zSkillReferences = z.object({
   agents: z.array(zAgentName),
   sandboxes: z.array(zSandboxName),
@@ -226,7 +311,6 @@ export const zUpdateSkillRequest = z.object({
   version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  storage_path: z.string().min(1),
 })
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
@@ -237,7 +321,6 @@ export const zAgent = z.object({
   last_activity: z.iso.datetime(),
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
-  home_storage_prefix: z.string(),
   skills: z.array(zSkillName),
   status: zAgentStatus,
 })
@@ -1370,6 +1453,71 @@ export const zDeleteAgentEntryQuery = z.object({
  */
 export const zDeleteAgentEntryResponse = z.void()
 
+export const zDeleteAgentMutableSkillsBody = zDeleteSkillsRequest
+
+export const zDeleteAgentMutableSkillsPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Skills deleted.
+ */
+export const zDeleteAgentMutableSkillsResponse = z.void()
+
+export const zListAgentMutableSkillsPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListAgentMutableSkillsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated mutable skill summaries.
+ */
+export const zListAgentMutableSkillsResponse = zListMutableSkillsResponse
+
+export const zExportAgentMutableSkillsBody = zExportSkillsRequest
+
+export const zExportAgentMutableSkillsPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * ZIP archive containing the selected skills.
+ */
+export const zExportAgentMutableSkillsResponse = z.string()
+
+export const zPreviewSkillImportBody = z.object({
+  file: z.string(),
+  agents: z.array(zAgentName).max(200).optional(),
+})
+
+/**
+ * Parsed skills and current conflicts.
+ */
+export const zPreviewSkillImportResponse = zSkillImportPreviewResponse
+
+export const zImportSkillsBody = z.object({
+  file: z.string(),
+  kind: zSkillKind,
+  agents: z.array(zAgentName).max(200).optional(),
+  decisions: z.array(zSkillImportDecision).min(1).max(200),
+})
+
+/**
+ * A result for every targeted Agent.
+ */
+export const zImportSkillsResponse2 = zImportSkillsResponse
+
+export const zDeleteImmutableSkillsBody = zDeleteSkillsRequest
+
+/**
+ * Skills deleted.
+ */
+export const zDeleteImmutableSkillsResponse = z.void()
+
 export const zListSkillsQuery = z.object({
   agent_name: zAgentName.optional(),
   limit: z.int().gte(1).lte(200).optional().default(50),
@@ -1387,6 +1535,24 @@ export const zCreateSkillBody = zCreateSkillRequest
  * Skill created.
  */
 export const zCreateSkillResponse = zSkill
+
+export const zListImmutableSkillSummariesQuery = z.object({
+  agent_name: zAgentName.optional(),
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated immutable skill summaries.
+ */
+export const zListImmutableSkillSummariesResponse2 = zListImmutableSkillSummariesResponse
+
+export const zExportImmutableSkillsBody = zExportSkillsRequest
+
+/**
+ * ZIP archive containing selected active versions.
+ */
+export const zExportImmutableSkillsResponse = z.string()
 
 export const zDeleteSkillPath = z.object({
   skillName: zSkillName,
@@ -1416,6 +1582,19 @@ export const zGetSkillReferencesPath = z.object({
  * Skill references.
  */
 export const zGetSkillReferencesResponse = zSkillReferences
+
+export const zListImmutableSkillVersionsPath = z.object({
+  skillName: zSkillName,
+})
+
+/**
+ * Sorted stored versions.
+ */
+export const zListImmutableSkillVersionsResponse = z.array(
+  z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  })
+)
 
 export const zListTraceSessionsPath = z.object({
   agentName: zAgentName,

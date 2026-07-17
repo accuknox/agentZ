@@ -212,15 +212,6 @@ spec:
                   - name
                   type: object
                 type: array
-              homeSize:
-                anyOf:
-                - type: integer
-                - type: string
-                default: 5Gi
-                description: HomeSize sets the size of the agent home PVC mounted
-                  at /home/agentz.
-                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                x-kubernetes-int-or-string: true
               image:
                 description: Image is the container image used for the Agent runtime.
                 type: string

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -46,6 +47,11 @@ const (
 	IDLE        AgentStatus = "IDLE"
 	PROGRESSING AgentStatus = "PROGRESSING"
 	UNSPECIFIED AgentStatus = "UNSPECIFIED"
+)
+
+// Defines values for CreateSkillImportDecisionAction.
+const (
+	Create CreateSkillImportDecisionAction = "create"
 )
 
 // Defines values for MCPConnectionLifecycle.
@@ -291,6 +297,16 @@ const (
 	InternalServerError OpencodeeffectHttpApiErrorInternalServerErrorTag = "InternalServerError"
 )
 
+// Defines values for OverwriteSkillImportDecisionAction.
+const (
+	Overwrite OverwriteSkillImportDecisionAction = "overwrite"
+)
+
+// Defines values for RenameSkillImportDecisionAction.
+const (
+	Rename RenameSkillImportDecisionAction = "rename"
+)
+
 // Defines values for SecretState.
 const (
 	Accepted SecretState = "accepted"
@@ -302,6 +318,18 @@ const (
 const (
 	Oauth  SecretType = "oauth"
 	Static SecretType = "static"
+)
+
+// Defines values for SkillImportAgentResultStatus.
+const (
+	SkillImportAgentResultStatusFailed    SkillImportAgentResultStatus = "failed"
+	SkillImportAgentResultStatusSucceeded SkillImportAgentResultStatus = "succeeded"
+)
+
+// Defines values for SkillKind.
+const (
+	Immutable SkillKind = "immutable"
+	Mutable   SkillKind = "mutable"
 )
 
 // Defines values for TenantConditionStatus.
@@ -362,8 +390,8 @@ const (
 
 // Defines values for WorkflowRunTerminalPhase.
 const (
-	WorkflowRunTerminalPhaseFailed    WorkflowRunTerminalPhase = "Failed"
-	WorkflowRunTerminalPhaseSucceeded WorkflowRunTerminalPhase = "Succeeded"
+	Failed    WorkflowRunTerminalPhase = "Failed"
+	Succeeded WorkflowRunTerminalPhase = "Succeeded"
 )
 
 // Defines values for WorkflowRunTriggerType.
@@ -400,12 +428,11 @@ type APIKeyID = string
 
 // Agent defines model for Agent.
 type Agent struct {
-	CreatedAt         time.Time         `json:"created_at"`
-	HomeStoragePrefix string            `json:"home_storage_prefix"`
-	LastActivity      time.Time         `json:"last_activity"`
-	Memory            AgentMemoryConfig `json:"memory"`
-	ModifiedAt        time.Time         `json:"modified_at"`
-	Name              AgentName         `json:"name"`
+	CreatedAt    time.Time         `json:"created_at"`
+	LastActivity time.Time         `json:"last_activity"`
+	Memory       AgentMemoryConfig `json:"memory"`
+	ModifiedAt   time.Time         `json:"modified_at"`
+	Name         AgentName         `json:"name"`
 
 	// SandboxName Sandbox resource name.
 	SandboxName SandboxName `json:"sandboxName"`
@@ -538,6 +565,17 @@ type CreateSecretRequest struct {
 	Value *SecretValue `json:"value,omitempty"`
 }
 
+// CreateSkillImportDecision defines model for CreateSkillImportDecision.
+type CreateSkillImportDecision struct {
+	Action CreateSkillImportDecisionAction `json:"action"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+}
+
+// CreateSkillImportDecisionAction defines model for CreateSkillImportDecision.Action.
+type CreateSkillImportDecisionAction string
+
 // CreateSkillRequest defines model for CreateSkillRequest.
 type CreateSkillRequest struct {
 	Description string `json:"description"`
@@ -581,6 +619,11 @@ type DeleteSecretsRequest struct {
 	Keys []SecretKey `json:"keys"`
 }
 
+// DeleteSkillsRequest defines model for DeleteSkillsRequest.
+type DeleteSkillsRequest struct {
+	SkillNames []SkillName `json:"skill_names"`
+}
+
 // DeleteWorkflowsRequest defines model for DeleteWorkflowsRequest.
 type DeleteWorkflowsRequest struct {
 	WorkflowNames []WorkflowName `json:"workflow_names"`
@@ -592,6 +635,11 @@ type Error struct {
 	Details *JSONValue    `json:"details"`
 	Errors  *[]FieldError `json:"errors,omitempty"`
 	Message string        `json:"message"`
+}
+
+// ExportSkillsRequest defines model for ExportSkillsRequest.
+type ExportSkillsRequest struct {
+	SkillNames []SkillName `json:"skill_names"`
 }
 
 // FieldError defines model for FieldError.
@@ -625,6 +673,26 @@ type FileObservabilityEventAggregated struct {
 	Occurrences       int64               `json:"occurrences"`
 	Process           string              `json:"process"`
 	Source            string              `json:"source"`
+}
+
+// ImmutableSkillSummary defines model for ImmutableSkillSummary.
+type ImmutableSkillSummary struct {
+	Agents      []AgentName `json:"agents"`
+	Description string      `json:"description"`
+	FileCount   int         `json:"file_count"`
+	ModifiedAt  *time.Time  `json:"modified_at"`
+
+	// Name Immutable Skill resource name.
+	Name      SkillName     `json:"name"`
+	Sandboxes []SandboxName `json:"sandboxes"`
+	SizeBytes int64         `json:"size_bytes"`
+	Version   int64         `json:"version"`
+}
+
+// ImportSkillsResponse defines model for ImportSkillsResponse.
+type ImportSkillsResponse struct {
+	Agents []SkillImportAgentResult `json:"agents"`
+	Skills []SkillName              `json:"skills"`
 }
 
 // JSONObject defines model for JSONObject.
@@ -667,10 +735,22 @@ type ListFileObservabilityResponse_Events_Item struct {
 	union json.RawMessage
 }
 
+// ListImmutableSkillSummariesResponse defines model for ListImmutableSkillSummariesResponse.
+type ListImmutableSkillSummariesResponse struct {
+	NextPageToken string                  `json:"next_page_token"`
+	Skills        []ImmutableSkillSummary `json:"skills"`
+}
+
 // ListMCPConnectionsResponse defines model for ListMCPConnectionsResponse.
 type ListMCPConnectionsResponse struct {
 	McpConnections []MCPConnectionSummary `json:"mcp_connections"`
 	NextPageToken  string                 `json:"next_page_token"`
+}
+
+// ListMutableSkillsResponse defines model for ListMutableSkillsResponse.
+type ListMutableSkillsResponse struct {
+	NextPageToken string                `json:"next_page_token"`
+	Skills        []MutableSkillSummary `json:"skills"`
 }
 
 // ListNetworkObservabilityResponse defines model for ListNetworkObservabilityResponse.
@@ -917,6 +997,9 @@ type MCPGraphTool struct {
 	Id           string `json:"id"`
 	Name         string `json:"name"`
 }
+
+// MutableSkillSummary defines model for MutableSkillSummary.
+type MutableSkillSummary = SkillFileSummary
 
 // NetworkObservabilityEvent defines model for NetworkObservabilityEvent.
 type NetworkObservabilityEvent struct {
@@ -1665,6 +1748,17 @@ type OpencodeeffectHttpApiErrorInternalServerErrorTag string
 // OptionalSpanID Lowercase hexadecimal OTLP span ID, or empty for root spans.
 type OptionalSpanID = string
 
+// OverwriteSkillImportDecision defines model for OverwriteSkillImportDecision.
+type OverwriteSkillImportDecision struct {
+	Action OverwriteSkillImportDecisionAction `json:"action"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+}
+
+// OverwriteSkillImportDecisionAction defines model for OverwriteSkillImportDecision.Action.
+type OverwriteSkillImportDecisionAction string
+
 // PatchWorkflowRunNodeStatusRequest defines model for PatchWorkflowRunNodeStatusRequest.
 type PatchWorkflowRunNodeStatusRequest struct {
 	Message *string                   `json:"message,omitempty"`
@@ -1714,6 +1808,20 @@ type RenameAgentEntryRequest struct {
 	Path   string `json:"path"`
 	Target string `json:"target"`
 }
+
+// RenameSkillImportDecision defines model for RenameSkillImportDecision.
+type RenameSkillImportDecision struct {
+	Action RenameSkillImportDecisionAction `json:"action"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+
+	// Rename Immutable Skill resource name.
+	Rename SkillName `json:"rename"`
+}
+
+// RenameSkillImportDecisionAction defines model for RenameSkillImportDecision.Action.
+type RenameSkillImportDecisionAction string
 
 // Sandbox defines model for Sandbox.
 type Sandbox struct {
@@ -1803,6 +1911,48 @@ type Skill struct {
 	StoragePath string        `json:"storage_path"`
 	Version     int64         `json:"version"`
 }
+
+// SkillFileSummary defines model for SkillFileSummary.
+type SkillFileSummary struct {
+	FileCount  int        `json:"file_count"`
+	ModifiedAt *time.Time `json:"modified_at"`
+
+	// Name Immutable Skill resource name.
+	Name      SkillName `json:"name"`
+	SizeBytes int64     `json:"size_bytes"`
+}
+
+// SkillImportAgentResult defines model for SkillImportAgentResult.
+type SkillImportAgentResult struct {
+	Agent  AgentName                    `json:"agent"`
+	Error  *string                      `json:"error,omitempty"`
+	Status SkillImportAgentResultStatus `json:"status"`
+}
+
+// SkillImportAgentResultStatus defines model for SkillImportAgentResult.Status.
+type SkillImportAgentResultStatus string
+
+// SkillImportDecision defines model for SkillImportDecision.
+type SkillImportDecision struct {
+	union json.RawMessage
+}
+
+// SkillImportPreviewItem defines model for SkillImportPreviewItem.
+type SkillImportPreviewItem struct {
+	ImmutableConflict     bool        `json:"immutable_conflict"`
+	MutableConflictAgents []AgentName `json:"mutable_conflict_agents"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+}
+
+// SkillImportPreviewResponse defines model for SkillImportPreviewResponse.
+type SkillImportPreviewResponse struct {
+	Skills []SkillImportPreviewItem `json:"skills"`
+}
+
+// SkillKind defines model for SkillKind.
+type SkillKind string
 
 // SkillName Immutable Skill resource name.
 type SkillName = string
@@ -1980,7 +2130,6 @@ type UpdateSandboxRequest struct {
 // UpdateSkillRequest defines model for UpdateSkillRequest.
 type UpdateSkillRequest struct {
 	Description *string `json:"description,omitempty"`
-	StoragePath string  `json:"storage_path"`
 	Version     int64   `json:"version"`
 }
 
@@ -2310,6 +2459,9 @@ type ToDateQuery = openapi_types.Date
 // UpdateSandboxQuery defines model for UpdateSandboxQuery.
 type UpdateSandboxQuery = bool
 
+// BadGateway defines model for BadGateway.
+type BadGateway = Error
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -2321,6 +2473,9 @@ type InternalError = Error
 
 // NotFound defines model for NotFound.
 type NotFound = Error
+
+// PayloadTooLarge defines model for PayloadTooLarge.
+type PayloadTooLarge = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
@@ -2359,6 +2514,15 @@ type ReadAgentFileRawParams struct {
 type StatAgentFileParams struct {
 	// Path Path relative to the agent workspace root.
 	Path FilePathQuery `form:"path" json:"path"`
+}
+
+// ListAgentMutableSkillsParams defines parameters for ListAgentMutableSkills.
+type ListAgentMutableSkillsParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
 }
 
 // GetMCPGraphParams defines parameters for GetMCPGraph.
@@ -2814,6 +2978,32 @@ type ListSkillsParams struct {
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
 }
 
+// ImportSkillsMultipartBody defines parameters for ImportSkills.
+type ImportSkillsMultipartBody struct {
+	Agents    *[]AgentName          `json:"agents,omitempty"`
+	Decisions []SkillImportDecision `json:"decisions"`
+	File      openapi_types.File    `json:"file"`
+	Kind      SkillKind             `json:"kind"`
+}
+
+// PreviewSkillImportMultipartBody defines parameters for PreviewSkillImport.
+type PreviewSkillImportMultipartBody struct {
+	Agents *[]AgentName       `json:"agents,omitempty"`
+	File   openapi_types.File `json:"file"`
+}
+
+// ListImmutableSkillSummariesParams defines parameters for ListImmutableSkillSummaries.
+type ListImmutableSkillSummariesParams struct {
+	// AgentName Optional Agent name.
+	AgentName *AgentNameQueryOptional `form:"agent_name,omitempty" json:"agent_name,omitempty"`
+
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
 // ListAgentWorkflowSchedulesParams defines parameters for ListAgentWorkflowSchedules.
 type ListAgentWorkflowSchedulesParams struct {
 	// Limit Maximum number of items to return.
@@ -2889,6 +3079,12 @@ type WriteAgentFileJSONRequestBody = WriteAgentFileRequest
 // RenameAgentEntryJSONRequestBody defines body for RenameAgentEntry for application/json ContentType.
 type RenameAgentEntryJSONRequestBody = RenameAgentEntryRequest
 
+// DeleteAgentMutableSkillsJSONRequestBody defines body for DeleteAgentMutableSkills for application/json ContentType.
+type DeleteAgentMutableSkillsJSONRequestBody = DeleteSkillsRequest
+
+// ExportAgentMutableSkillsJSONRequestBody defines body for ExportAgentMutableSkills for application/json ContentType.
+type ExportAgentMutableSkillsJSONRequestBody = ExportSkillsRequest
+
 // CreateMCPConnectionJSONRequestBody defines body for CreateMCPConnection for application/json ContentType.
 type CreateMCPConnectionJSONRequestBody = CreateMCPConnectionRequest
 
@@ -2946,8 +3142,20 @@ type DeleteSecretJSONRequestBody = DeleteSecretsRequest
 // WatchSecretsJSONRequestBody defines body for WatchSecrets for application/json ContentType.
 type WatchSecretsJSONRequestBody = WatchSecretsRequest
 
+// DeleteImmutableSkillsJSONRequestBody defines body for DeleteImmutableSkills for application/json ContentType.
+type DeleteImmutableSkillsJSONRequestBody = DeleteSkillsRequest
+
 // CreateSkillJSONRequestBody defines body for CreateSkill for application/json ContentType.
 type CreateSkillJSONRequestBody = CreateSkillRequest
+
+// ExportImmutableSkillsJSONRequestBody defines body for ExportImmutableSkills for application/json ContentType.
+type ExportImmutableSkillsJSONRequestBody = ExportSkillsRequest
+
+// ImportSkillsMultipartRequestBody defines body for ImportSkills for multipart/form-data ContentType.
+type ImportSkillsMultipartRequestBody ImportSkillsMultipartBody
+
+// PreviewSkillImportMultipartRequestBody defines body for PreviewSkillImport for multipart/form-data ContentType.
+type PreviewSkillImportMultipartRequestBody PreviewSkillImportMultipartBody
 
 // UpdateSkillJSONRequestBody defines body for UpdateSkill for application/json ContentType.
 type UpdateSkillJSONRequestBody = UpdateSkillRequest
@@ -4230,6 +4438,125 @@ func (t *OpencodeToolState) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsCreateSkillImportDecision returns the union data inside the SkillImportDecision as a CreateSkillImportDecision
+func (t SkillImportDecision) AsCreateSkillImportDecision() (CreateSkillImportDecision, error) {
+	var body CreateSkillImportDecision
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided CreateSkillImportDecision
+func (t *SkillImportDecision) FromCreateSkillImportDecision(v CreateSkillImportDecision) error {
+	v.Action = "create"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided CreateSkillImportDecision
+func (t *SkillImportDecision) MergeCreateSkillImportDecision(v CreateSkillImportDecision) error {
+	v.Action = "create"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOverwriteSkillImportDecision returns the union data inside the SkillImportDecision as a OverwriteSkillImportDecision
+func (t SkillImportDecision) AsOverwriteSkillImportDecision() (OverwriteSkillImportDecision, error) {
+	var body OverwriteSkillImportDecision
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOverwriteSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided OverwriteSkillImportDecision
+func (t *SkillImportDecision) FromOverwriteSkillImportDecision(v OverwriteSkillImportDecision) error {
+	v.Action = "overwrite"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOverwriteSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided OverwriteSkillImportDecision
+func (t *SkillImportDecision) MergeOverwriteSkillImportDecision(v OverwriteSkillImportDecision) error {
+	v.Action = "overwrite"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRenameSkillImportDecision returns the union data inside the SkillImportDecision as a RenameSkillImportDecision
+func (t SkillImportDecision) AsRenameSkillImportDecision() (RenameSkillImportDecision, error) {
+	var body RenameSkillImportDecision
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRenameSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided RenameSkillImportDecision
+func (t *SkillImportDecision) FromRenameSkillImportDecision(v RenameSkillImportDecision) error {
+	v.Action = "rename"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRenameSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided RenameSkillImportDecision
+func (t *SkillImportDecision) MergeRenameSkillImportDecision(v RenameSkillImportDecision) error {
+	v.Action = "rename"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SkillImportDecision) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"action"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t SkillImportDecision) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "create":
+		return t.AsCreateSkillImportDecision()
+	case "overwrite":
+		return t.AsOverwriteSkillImportDecision()
+	case "rename":
+		return t.AsRenameSkillImportDecision()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t SkillImportDecision) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SkillImportDecision) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsWorkflowInputScalarValue0 returns the union data inside the WorkflowInputScalarValue as a WorkflowInputScalarValue0
 func (t WorkflowInputScalarValue) AsWorkflowInputScalarValue0() (WorkflowInputScalarValue0, error) {
 	var body WorkflowInputScalarValue0
@@ -4444,6 +4771,19 @@ type ClientInterface interface {
 	// StatAgentFile request
 	StatAgentFile(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteAgentMutableSkillsWithBody request with any body
+	DeleteAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentMutableSkills request
+	ListAgentMutableSkills(ctx context.Context, agentName AgentNamePath, params *ListAgentMutableSkillsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExportAgentMutableSkillsWithBody request with any body
+	ExportAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetMCPGraph request
 	GetMCPGraph(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4623,6 +4963,11 @@ type ClientInterface interface {
 
 	WatchSecrets(ctx context.Context, agentName AgentNamePath, body WatchSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteImmutableSkillsWithBody request with any body
+	DeleteImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteImmutableSkills(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListSkills request
 	ListSkills(ctx context.Context, params *ListSkillsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4630,6 +4975,20 @@ type ClientInterface interface {
 	CreateSkillWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateSkill(ctx context.Context, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExportImmutableSkillsWithBody request with any body
+	ExportImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ExportImmutableSkills(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ImportSkillsWithBody request with any body
+	ImportSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewSkillImportWithBody request with any body
+	PreviewSkillImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListImmutableSkillSummaries request
+	ListImmutableSkillSummaries(ctx context.Context, params *ListImmutableSkillSummariesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteSkill request
 	DeleteSkill(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4641,6 +5000,9 @@ type ClientInterface interface {
 
 	// GetSkillReferences request
 	GetSkillReferences(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListImmutableSkillVersions request
+	ListImmutableSkillVersions(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTenant request
 	GetTenant(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4949,6 +5311,66 @@ func (c *Client) RenameAgentEntry(ctx context.Context, agentName AgentNamePath, 
 
 func (c *Client) StatAgentFile(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStatAgentFileRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentMutableSkillsRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentMutableSkillsRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentMutableSkills(ctx context.Context, agentName AgentNamePath, params *ListAgentMutableSkillsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentMutableSkillsRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ExportAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportAgentMutableSkillsRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportAgentMutableSkillsRequest(c.Server, agentName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5751,6 +6173,30 @@ func (c *Client) WatchSecrets(ctx context.Context, agentName AgentNamePath, body
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteImmutableSkillsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteImmutableSkills(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteImmutableSkillsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListSkills(ctx context.Context, params *ListSkillsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListSkillsRequest(c.Server, params)
 	if err != nil {
@@ -5777,6 +6223,66 @@ func (c *Client) CreateSkillWithBody(ctx context.Context, contentType string, bo
 
 func (c *Client) CreateSkill(ctx context.Context, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateSkillRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ExportImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportImmutableSkillsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ExportImmutableSkills(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportImmutableSkillsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ImportSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewImportSkillsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PreviewSkillImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewSkillImportRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListImmutableSkillSummaries(ctx context.Context, params *ListImmutableSkillSummariesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListImmutableSkillSummariesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5825,6 +6331,18 @@ func (c *Client) UpdateSkill(ctx context.Context, skillName SkillNamePath, body 
 
 func (c *Client) GetSkillReferences(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSkillReferencesRequest(c.Server, skillName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListImmutableSkillVersions(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListImmutableSkillVersionsRequest(c.Server, skillName)
 	if err != nil {
 		return nil, err
 	}
@@ -6805,6 +7323,172 @@ func NewStatAgentFileRequest(server string, agentName AgentNamePath, params *Sta
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewDeleteAgentMutableSkillsRequest calls the generic DeleteAgentMutableSkills builder with application/json body
+func NewDeleteAgentMutableSkillsRequest(server string, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteAgentMutableSkillsRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewDeleteAgentMutableSkillsRequestWithBody generates requests for DeleteAgentMutableSkills with any type of body
+func NewDeleteAgentMutableSkillsRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/skill", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAgentMutableSkillsRequest generates requests for ListAgentMutableSkills
+func NewListAgentMutableSkillsRequest(server string, agentName AgentNamePath, params *ListAgentMutableSkillsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/skill", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewExportAgentMutableSkillsRequest calls the generic ExportAgentMutableSkills builder with application/json body
+func NewExportAgentMutableSkillsRequest(server string, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewExportAgentMutableSkillsRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewExportAgentMutableSkillsRequestWithBody generates requests for ExportAgentMutableSkills with any type of body
+func NewExportAgentMutableSkillsRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/skill/export", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10628,6 +11312,46 @@ func NewWatchSecretsRequestWithBody(server string, agentName AgentNamePath, cont
 	return req, nil
 }
 
+// NewDeleteImmutableSkillsRequest calls the generic DeleteImmutableSkills builder with application/json body
+func NewDeleteImmutableSkillsRequest(server string, body DeleteImmutableSkillsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteImmutableSkillsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDeleteImmutableSkillsRequestWithBody generates requests for DeleteImmutableSkills with any type of body
+func NewDeleteImmutableSkillsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/skill")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListSkillsRequest generates requests for ListSkills
 func NewListSkillsRequest(server string, params *ListSkillsParams) (*http.Request, error) {
 	var err error
@@ -10749,6 +11473,185 @@ func NewCreateSkillRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
+// NewExportImmutableSkillsRequest calls the generic ExportImmutableSkills builder with application/json body
+func NewExportImmutableSkillsRequest(server string, body ExportImmutableSkillsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewExportImmutableSkillsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewExportImmutableSkillsRequestWithBody generates requests for ExportImmutableSkills with any type of body
+func NewExportImmutableSkillsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/skill/export")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewImportSkillsRequestWithBody generates requests for ImportSkills with any type of body
+func NewImportSkillsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/skill/import")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPreviewSkillImportRequestWithBody generates requests for PreviewSkillImport with any type of body
+func NewPreviewSkillImportRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/skill/import/preview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListImmutableSkillSummariesRequest generates requests for ListImmutableSkillSummaries
+func NewListImmutableSkillSummariesRequest(server string, params *ListImmutableSkillSummariesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/skill/summary")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.AgentName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, *params.AgentName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteSkillRequest generates requests for DeleteSkill
 func NewDeleteSkillRequest(server string, skillName SkillNamePath) (*http.Request, error) {
 	var err error
@@ -10847,6 +11750,40 @@ func NewGetSkillReferencesRequest(server string, skillName SkillNamePath) (*http
 	}
 
 	operationPath := fmt.Sprintf("/api/skill/%s/references", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListImmutableSkillVersionsRequest generates requests for ListImmutableSkillVersions
+func NewListImmutableSkillVersionsRequest(server string, skillName SkillNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "skillName", runtime.ParamLocationPath, skillName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/skill/%s/version", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12115,6 +13052,19 @@ type ClientWithResponsesInterface interface {
 	// StatAgentFileWithResponse request
 	StatAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*StatAgentFileResp, error)
 
+	// DeleteAgentMutableSkillsWithBodyWithResponse request with any body
+	DeleteAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error)
+
+	DeleteAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error)
+
+	// ListAgentMutableSkillsWithResponse request
+	ListAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, params *ListAgentMutableSkillsParams, reqEditors ...RequestEditorFn) (*ListAgentMutableSkillsResp, error)
+
+	// ExportAgentMutableSkillsWithBodyWithResponse request with any body
+	ExportAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error)
+
+	ExportAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error)
+
 	// GetMCPGraphWithResponse request
 	GetMCPGraphWithResponse(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error)
 
@@ -12294,6 +13244,11 @@ type ClientWithResponsesInterface interface {
 
 	WatchSecretsWithResponse(ctx context.Context, agentName AgentNamePath, body WatchSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchSecretsResp, error)
 
+	// DeleteImmutableSkillsWithBodyWithResponse request with any body
+	DeleteImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error)
+
+	DeleteImmutableSkillsWithResponse(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error)
+
 	// ListSkillsWithResponse request
 	ListSkillsWithResponse(ctx context.Context, params *ListSkillsParams, reqEditors ...RequestEditorFn) (*ListSkillsResp, error)
 
@@ -12301,6 +13256,20 @@ type ClientWithResponsesInterface interface {
 	CreateSkillWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSkillResp, error)
 
 	CreateSkillWithResponse(ctx context.Context, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSkillResp, error)
+
+	// ExportImmutableSkillsWithBodyWithResponse request with any body
+	ExportImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error)
+
+	ExportImmutableSkillsWithResponse(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error)
+
+	// ImportSkillsWithBodyWithResponse request with any body
+	ImportSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportSkillsResp, error)
+
+	// PreviewSkillImportWithBodyWithResponse request with any body
+	PreviewSkillImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewSkillImportResp, error)
+
+	// ListImmutableSkillSummariesWithResponse request
+	ListImmutableSkillSummariesWithResponse(ctx context.Context, params *ListImmutableSkillSummariesParams, reqEditors ...RequestEditorFn) (*ListImmutableSkillSummariesResp, error)
 
 	// DeleteSkillWithResponse request
 	DeleteSkillWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*DeleteSkillResp, error)
@@ -12312,6 +13281,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetSkillReferencesWithResponse request
 	GetSkillReferencesWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*GetSkillReferencesResp, error)
+
+	// ListImmutableSkillVersionsWithResponse request
+	ListImmutableSkillVersionsWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*ListImmutableSkillVersionsResp, error)
 
 	// GetTenantWithResponse request
 	GetTenantWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTenantResp, error)
@@ -12711,6 +13683,79 @@ func (r StatAgentFileResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r StatAgentFileResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentMutableSkillsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON502      *BadGateway
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentMutableSkillsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentMutableSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentMutableSkillsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListMutableSkillsResponse
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON502      *BadGateway
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentMutableSkillsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentMutableSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ExportAgentMutableSkillsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON502      *BadGateway
+}
+
+// Status returns HTTPResponse.Status
+func (r ExportAgentMutableSkillsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExportAgentMutableSkillsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13865,6 +14910,30 @@ func (r WatchSecretsResp) StatusCode() int {
 	return 0
 }
 
+type DeleteImmutableSkillsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteImmutableSkillsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteImmutableSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListSkillsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13909,6 +14978,103 @@ func (r CreateSkillResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateSkillResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ExportImmutableSkillsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ExportImmutableSkillsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExportImmutableSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ImportSkillsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ImportSkillsResponse
+	JSON400      *BadRequest
+	JSON413      *PayloadTooLarge
+}
+
+// Status returns HTTPResponse.Status
+func (r ImportSkillsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ImportSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PreviewSkillImportResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SkillImportPreviewResponse
+	JSON400      *BadRequest
+	JSON413      *PayloadTooLarge
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewSkillImportResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewSkillImportResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListImmutableSkillSummariesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListImmutableSkillSummariesResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListImmutableSkillSummariesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListImmutableSkillSummariesResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13984,6 +15150,31 @@ func (r GetSkillReferencesResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetSkillReferencesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListImmutableSkillVersionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]int64
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListImmutableSkillVersionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListImmutableSkillVersionsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14659,6 +15850,49 @@ func (c *ClientWithResponses) StatAgentFileWithResponse(ctx context.Context, age
 	return ParseStatAgentFileResp(rsp)
 }
 
+// DeleteAgentMutableSkillsWithBodyWithResponse request with arbitrary body returning *DeleteAgentMutableSkillsResp
+func (c *ClientWithResponses) DeleteAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error) {
+	rsp, err := c.DeleteAgentMutableSkillsWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentMutableSkillsResp(rsp)
+}
+
+func (c *ClientWithResponses) DeleteAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error) {
+	rsp, err := c.DeleteAgentMutableSkills(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentMutableSkillsResp(rsp)
+}
+
+// ListAgentMutableSkillsWithResponse request returning *ListAgentMutableSkillsResp
+func (c *ClientWithResponses) ListAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, params *ListAgentMutableSkillsParams, reqEditors ...RequestEditorFn) (*ListAgentMutableSkillsResp, error) {
+	rsp, err := c.ListAgentMutableSkills(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentMutableSkillsResp(rsp)
+}
+
+// ExportAgentMutableSkillsWithBodyWithResponse request with arbitrary body returning *ExportAgentMutableSkillsResp
+func (c *ClientWithResponses) ExportAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error) {
+	rsp, err := c.ExportAgentMutableSkillsWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportAgentMutableSkillsResp(rsp)
+}
+
+func (c *ClientWithResponses) ExportAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error) {
+	rsp, err := c.ExportAgentMutableSkills(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportAgentMutableSkillsResp(rsp)
+}
+
 // GetMCPGraphWithResponse request returning *GetMCPGraphResp
 func (c *ClientWithResponses) GetMCPGraphWithResponse(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error) {
 	rsp, err := c.GetMCPGraph(ctx, agentName, params, reqEditors...)
@@ -15234,6 +16468,23 @@ func (c *ClientWithResponses) WatchSecretsWithResponse(ctx context.Context, agen
 	return ParseWatchSecretsResp(rsp)
 }
 
+// DeleteImmutableSkillsWithBodyWithResponse request with arbitrary body returning *DeleteImmutableSkillsResp
+func (c *ClientWithResponses) DeleteImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error) {
+	rsp, err := c.DeleteImmutableSkillsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteImmutableSkillsResp(rsp)
+}
+
+func (c *ClientWithResponses) DeleteImmutableSkillsWithResponse(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error) {
+	rsp, err := c.DeleteImmutableSkills(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteImmutableSkillsResp(rsp)
+}
+
 // ListSkillsWithResponse request returning *ListSkillsResp
 func (c *ClientWithResponses) ListSkillsWithResponse(ctx context.Context, params *ListSkillsParams, reqEditors ...RequestEditorFn) (*ListSkillsResp, error) {
 	rsp, err := c.ListSkills(ctx, params, reqEditors...)
@@ -15258,6 +16509,50 @@ func (c *ClientWithResponses) CreateSkillWithResponse(ctx context.Context, body 
 		return nil, err
 	}
 	return ParseCreateSkillResp(rsp)
+}
+
+// ExportImmutableSkillsWithBodyWithResponse request with arbitrary body returning *ExportImmutableSkillsResp
+func (c *ClientWithResponses) ExportImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error) {
+	rsp, err := c.ExportImmutableSkillsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportImmutableSkillsResp(rsp)
+}
+
+func (c *ClientWithResponses) ExportImmutableSkillsWithResponse(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error) {
+	rsp, err := c.ExportImmutableSkills(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportImmutableSkillsResp(rsp)
+}
+
+// ImportSkillsWithBodyWithResponse request with arbitrary body returning *ImportSkillsResp
+func (c *ClientWithResponses) ImportSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportSkillsResp, error) {
+	rsp, err := c.ImportSkillsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseImportSkillsResp(rsp)
+}
+
+// PreviewSkillImportWithBodyWithResponse request with arbitrary body returning *PreviewSkillImportResp
+func (c *ClientWithResponses) PreviewSkillImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewSkillImportResp, error) {
+	rsp, err := c.PreviewSkillImportWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewSkillImportResp(rsp)
+}
+
+// ListImmutableSkillSummariesWithResponse request returning *ListImmutableSkillSummariesResp
+func (c *ClientWithResponses) ListImmutableSkillSummariesWithResponse(ctx context.Context, params *ListImmutableSkillSummariesParams, reqEditors ...RequestEditorFn) (*ListImmutableSkillSummariesResp, error) {
+	rsp, err := c.ListImmutableSkillSummaries(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListImmutableSkillSummariesResp(rsp)
 }
 
 // DeleteSkillWithResponse request returning *DeleteSkillResp
@@ -15293,6 +16588,15 @@ func (c *ClientWithResponses) GetSkillReferencesWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseGetSkillReferencesResp(rsp)
+}
+
+// ListImmutableSkillVersionsWithResponse request returning *ListImmutableSkillVersionsResp
+func (c *ClientWithResponses) ListImmutableSkillVersionsWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*ListImmutableSkillVersionsResp, error) {
+	rsp, err := c.ListImmutableSkillVersions(ctx, skillName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListImmutableSkillVersionsResp(rsp)
 }
 
 // GetTenantWithResponse request returning *GetTenantResp
@@ -16158,6 +17462,133 @@ func ParseStatAgentFileResp(rsp *http.Response) (*StatAgentFileResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentMutableSkillsResp parses an HTTP response from a DeleteAgentMutableSkillsWithResponse call
+func ParseDeleteAgentMutableSkillsResp(rsp *http.Response) (*DeleteAgentMutableSkillsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentMutableSkillsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentMutableSkillsResp parses an HTTP response from a ListAgentMutableSkillsWithResponse call
+func ParseListAgentMutableSkillsResp(rsp *http.Response) (*ListAgentMutableSkillsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentMutableSkillsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListMutableSkillsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseExportAgentMutableSkillsResp parses an HTTP response from a ExportAgentMutableSkillsWithResponse call
+func ParseExportAgentMutableSkillsResp(rsp *http.Response) (*ExportAgentMutableSkillsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExportAgentMutableSkillsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
@@ -18094,6 +19525,46 @@ func ParseWatchSecretsResp(rsp *http.Response) (*WatchSecretsResp, error) {
 	return response, nil
 }
 
+// ParseDeleteImmutableSkillsResp parses an HTTP response from a DeleteImmutableSkillsWithResponse call
+func ParseDeleteImmutableSkillsResp(rsp *http.Response) (*DeleteImmutableSkillsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteImmutableSkillsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListSkillsResp parses an HTTP response from a ListSkillsWithResponse call
 func ParseListSkillsResp(rsp *http.Response) (*ListSkillsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -18175,6 +19646,173 @@ func ParseCreateSkillResp(rsp *http.Response) (*CreateSkillResp, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseExportImmutableSkillsResp parses an HTTP response from a ExportImmutableSkillsWithResponse call
+func ParseExportImmutableSkillsResp(rsp *http.Response) (*ExportImmutableSkillsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExportImmutableSkillsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseImportSkillsResp parses an HTTP response from a ImportSkillsWithResponse call
+func ParseImportSkillsResp(rsp *http.Response) (*ImportSkillsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ImportSkillsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ImportSkillsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePreviewSkillImportResp parses an HTTP response from a PreviewSkillImportWithResponse call
+func ParsePreviewSkillImportResp(rsp *http.Response) (*PreviewSkillImportResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreviewSkillImportResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SkillImportPreviewResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListImmutableSkillSummariesResp parses an HTTP response from a ListImmutableSkillSummariesWithResponse call
+func ParseListImmutableSkillSummariesResp(rsp *http.Response) (*ListImmutableSkillSummariesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListImmutableSkillSummariesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListImmutableSkillSummariesResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -18298,6 +19936,53 @@ func ParseGetSkillReferencesResp(rsp *http.Response) (*GetSkillReferencesResp, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest SkillReferences
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListImmutableSkillVersionsResp parses an HTTP response from a ListImmutableSkillVersionsWithResponse call
+func ParseListImmutableSkillVersionsResp(rsp *http.Response) (*ListImmutableSkillVersionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListImmutableSkillVersionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []int64
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -19282,6 +20967,15 @@ type ServerInterface interface {
 	// Read agent workspace entry metadata.
 	// (GET /api/agent/{agentName}/fs/stat)
 	StatAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params StatAgentFileParams)
+	// Delete mutable skills from an Agent workspace.
+	// (DELETE /api/agent/{agentName}/skill)
+	DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// List mutable skills stored in an Agent workspace.
+	// (GET /api/agent/{agentName}/skill)
+	ListAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListAgentMutableSkillsParams)
+	// Stream mutable Agent skills as a ZIP archive.
+	// (POST /api/agent/{agentName}/skill/export)
+	ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
 	// Get MCP observability graph data for an agent given a date range.
 	// (GET /api/lens/{agentName}/mcp/graph)
 	GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params GetMCPGraphParams)
@@ -19423,12 +21117,27 @@ type ServerInterface interface {
 	// Watch secret status changes for an agent.
 	// (POST /api/secret/{agentName}/watch)
 	WatchSecrets(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Delete immutable Skill resources in one request.
+	// (DELETE /api/skill)
+	DeleteImmutableSkills(w http.ResponseWriter, r *http.Request)
 	// List immutable Skill resources.
 	// (GET /api/skill)
 	ListSkills(w http.ResponseWriter, r *http.Request, params ListSkillsParams)
 	// Create an immutable Skill resource.
 	// (POST /api/skill)
 	CreateSkill(w http.ResponseWriter, r *http.Request)
+	// Stream selected active immutable Skill versions as ZIP.
+	// (POST /api/skill/export)
+	ExportImmutableSkills(w http.ResponseWriter, r *http.Request)
+	// Import mutable or immutable skills.
+	// (POST /api/skill/import)
+	ImportSkills(w http.ResponseWriter, r *http.Request)
+	// Parse a skill import and report live conflicts.
+	// (POST /api/skill/import/preview)
+	PreviewSkillImport(w http.ResponseWriter, r *http.Request)
+	// List immutable skills with active version file summaries.
+	// (GET /api/skill/summary)
+	ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Request, params ListImmutableSkillSummariesParams)
 	// Delete an immutable Skill resource.
 	// (DELETE /api/skill/{skillName})
 	DeleteSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath)
@@ -19438,6 +21147,9 @@ type ServerInterface interface {
 	// List Agents and Sandboxes referencing an immutable Skill.
 	// (GET /api/skill/{skillName}/references)
 	GetSkillReferences(w http.ResponseWriter, r *http.Request, skillName SkillNamePath)
+	// List stored versions for an immutable Skill.
+	// (GET /api/skill/{skillName}/version)
+	ListImmutableSkillVersions(w http.ResponseWriter, r *http.Request, skillName SkillNamePath)
 	// Get the current tenant bootstrap state.
 	// (GET /api/tenant)
 	GetTenant(w http.ResponseWriter, r *http.Request)
@@ -19579,6 +21291,24 @@ func (_ Unimplemented) RenameAgentEntry(w http.ResponseWriter, r *http.Request, 
 // Read agent workspace entry metadata.
 // (GET /api/agent/{agentName}/fs/stat)
 func (_ Unimplemented) StatAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params StatAgentFileParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete mutable skills from an Agent workspace.
+// (DELETE /api/agent/{agentName}/skill)
+func (_ Unimplemented) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List mutable skills stored in an Agent workspace.
+// (GET /api/agent/{agentName}/skill)
+func (_ Unimplemented) ListAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListAgentMutableSkillsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Stream mutable Agent skills as a ZIP archive.
+// (POST /api/agent/{agentName}/skill/export)
+func (_ Unimplemented) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -19862,6 +21592,12 @@ func (_ Unimplemented) WatchSecrets(w http.ResponseWriter, r *http.Request, agen
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Delete immutable Skill resources in one request.
+// (DELETE /api/skill)
+func (_ Unimplemented) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List immutable Skill resources.
 // (GET /api/skill)
 func (_ Unimplemented) ListSkills(w http.ResponseWriter, r *http.Request, params ListSkillsParams) {
@@ -19871,6 +21607,30 @@ func (_ Unimplemented) ListSkills(w http.ResponseWriter, r *http.Request, params
 // Create an immutable Skill resource.
 // (POST /api/skill)
 func (_ Unimplemented) CreateSkill(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Stream selected active immutable Skill versions as ZIP.
+// (POST /api/skill/export)
+func (_ Unimplemented) ExportImmutableSkills(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Import mutable or immutable skills.
+// (POST /api/skill/import)
+func (_ Unimplemented) ImportSkills(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Parse a skill import and report live conflicts.
+// (POST /api/skill/import/preview)
+func (_ Unimplemented) PreviewSkillImport(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List immutable skills with active version file summaries.
+// (GET /api/skill/summary)
+func (_ Unimplemented) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Request, params ListImmutableSkillSummariesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -19889,6 +21649,12 @@ func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, skill
 // List Agents and Sandboxes referencing an immutable Skill.
 // (GET /api/skill/{skillName}/references)
 func (_ Unimplemented) GetSkillReferences(w http.ResponseWriter, r *http.Request, skillName SkillNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List stored versions for an immutable Skill.
+// (GET /api/skill/{skillName}/version)
+func (_ Unimplemented) ListImmutableSkillVersions(w http.ResponseWriter, r *http.Request, skillName SkillNamePath) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -20483,6 +22249,118 @@ func (siw *ServerInterfaceWrapper) StatAgentFile(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.StatAgentFile(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAgentMutableSkills operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAgentMutableSkills(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAgentMutableSkills operation middleware
+func (siw *ServerInterfaceWrapper) ListAgentMutableSkills(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAgentMutableSkillsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgentMutableSkills(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportAgentMutableSkills operation middleware
+func (siw *ServerInterfaceWrapper) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportAgentMutableSkills(w, r, agentName)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -23124,6 +25002,26 @@ func (siw *ServerInterfaceWrapper) WatchSecrets(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteImmutableSkills operation middleware
+func (siw *ServerInterfaceWrapper) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteImmutableSkills(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListSkills operation middleware
 func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Request) {
 
@@ -23184,6 +25082,115 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateSkill(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportImmutableSkills operation middleware
+func (siw *ServerInterfaceWrapper) ExportImmutableSkills(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportImmutableSkills(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportSkills operation middleware
+func (siw *ServerInterfaceWrapper) ImportSkills(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportSkills(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewSkillImport operation middleware
+func (siw *ServerInterfaceWrapper) PreviewSkillImport(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewSkillImport(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListImmutableSkillSummaries operation middleware
+func (siw *ServerInterfaceWrapper) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListImmutableSkillSummariesParams
+
+	// ------------- Optional query parameter "agent_name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "agent_name", r.URL.Query(), &params.AgentName)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListImmutableSkillSummaries(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -23277,6 +25284,37 @@ func (siw *ServerInterfaceWrapper) GetSkillReferences(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSkillReferences(w, r, skillName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListImmutableSkillVersions operation middleware
+func (siw *ServerInterfaceWrapper) ListImmutableSkillVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "skillName" -------------
+	var skillName SkillNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "skillName", chi.URLParam(r, "skillName"), &skillName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skillName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListImmutableSkillVersions(w, r, skillName)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -24345,6 +26383,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/agent/{agentName}/fs/stat", wrapper.StatAgentFile)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/agent/{agentName}/skill", wrapper.DeleteAgentMutableSkills)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/skill", wrapper.ListAgentMutableSkills)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/{agentName}/skill/export", wrapper.ExportAgentMutableSkills)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/{agentName}/mcp/graph", wrapper.GetMCPGraph)
 	})
 	r.Group(func(r chi.Router) {
@@ -24486,10 +26533,25 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/secret/{agentName}/watch", wrapper.WatchSecrets)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/skill", wrapper.DeleteImmutableSkills)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/skill", wrapper.ListSkills)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/skill", wrapper.CreateSkill)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/skill/export", wrapper.ExportImmutableSkills)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/skill/import", wrapper.ImportSkills)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/skill/import/preview", wrapper.PreviewSkillImport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/skill/summary", wrapper.ListImmutableSkillSummaries)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/skill/{skillName}", wrapper.DeleteSkill)
@@ -24499,6 +26561,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/skill/{skillName}/references", wrapper.GetSkillReferences)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/skill/{skillName}/version", wrapper.ListImmutableSkillVersions)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/tenant", wrapper.GetTenant)
@@ -24567,303 +26632,323 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"/p8AAAD//4LjLQbX1AIA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

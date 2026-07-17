@@ -211,6 +211,91 @@ export const zListSkillsResponse = z.object({
   next_page_token: z.string(),
 })
 
+export const zSkillKind = z.enum(["mutable", "immutable"])
+
+export const zSkillFileSummary = z.object({
+  name: zSkillName,
+  file_count: z.int().gte(1),
+  size_bytes: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  modified_at: z.iso.datetime().nullable(),
+})
+
+export const zMutableSkillSummary = zSkillFileSummary
+
+export const zListMutableSkillsResponse = z.object({
+  skills: z.array(zMutableSkillSummary),
+  next_page_token: z.string(),
+})
+
+export const zImmutableSkillSummary = zSkillFileSummary.and(
+  z.object({
+    description: z.string(),
+    version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+    agents: z.array(zAgentName),
+    sandboxes: z.array(zSandboxName),
+  })
+)
+
+export const zListImmutableSkillSummariesResponse = z.object({
+  skills: z.array(zImmutableSkillSummary),
+  next_page_token: z.string(),
+})
+
+export const zDeleteSkillsRequest = z.object({
+  skill_names: z.array(zSkillName).min(1).max(200),
+})
+
+export const zExportSkillsRequest = z.object({
+  skill_names: z.array(zSkillName).min(1).max(200),
+})
+
+export const zCreateSkillImportDecision = z.object({
+  action: z.enum(["create"]),
+  name: zSkillName,
+})
+
+export const zOverwriteSkillImportDecision = z.object({
+  action: z.enum(["overwrite"]),
+  name: zSkillName,
+})
+
+export const zRenameSkillImportDecision = z.object({
+  action: z.enum(["rename"]),
+  name: zSkillName,
+  rename: zSkillName,
+})
+
+export const zSkillImportDecision = z.discriminatedUnion("action", [
+  zCreateSkillImportDecision.extend({ action: z.literal("create") }),
+  zOverwriteSkillImportDecision.extend({ action: z.literal("overwrite") }),
+  zRenameSkillImportDecision.extend({ action: z.literal("rename") }),
+])
+
+export const zSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  mutable_conflict_agents: z.array(zAgentName),
+  immutable_conflict: z.boolean(),
+})
+
+export const zSkillImportPreviewResponse = z.object({
+  skills: z.array(zSkillImportPreviewItem),
+})
+
+export const zSkillImportAgentResult = z.object({
+  agent: zAgentName,
+  status: z.enum(["succeeded", "failed"]),
+  error: z.string().optional(),
+})
+
+export const zImportSkillsResponse = z.object({
+  skills: z.array(zSkillName),
+  agents: z.array(zSkillImportAgentResult),
+})
+
 export const zSkillReferences = z.object({
   agents: z.array(zAgentName),
   sandboxes: z.array(zSandboxName),
@@ -230,7 +315,6 @@ export const zUpdateSkillRequest = z.object({
   version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  storage_path: z.string().min(1),
 })
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
@@ -242,7 +326,6 @@ export const zAgent = z.object({
   memory: zAgentMemoryConfig,
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
-  home_storage_prefix: z.string(),
   skills: z.array(zSkillName),
   status: zAgentStatus,
 })
@@ -1236,658 +1319,329 @@ export const zGetTenantResponse = zTenant
  */
 export const zEnsureTenantResponse = zTenant
 
-export const zListAgentsQuery = z.object({
-  agent_name: z.array(zAgentName).optional(),
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
 /**
  * Paginated agent summaries.
  */
 export const zListAgentsResponse2 = zListAgentsResponse
-
-export const zCreateAgentBody = zCreateAgentRequest
 
 /**
  * Agent resource created.
  */
 export const zCreateAgentResponse = zAgent
 
-export const zDeleteAgentPath = z.object({
-  agentName: zAgentName,
-})
-
 /**
  * Agent was deleted.
  */
 export const zDeleteAgentResponse = z.void()
-
-export const zUpdateAgentBody = zUpdateAgentRequest
-
-export const zUpdateAgentPath = z.object({
-  agentName: zAgentName,
-})
 
 /**
  * Agent resource updated.
  */
 export const zUpdateAgentResponse = zAgent
 
-export const zWatchAgentsBody = zWatchAgentsRequest
-
 /**
  * Stream of agent status changes.
  */
 export const zWatchAgentsResponse = zWatchAgentsEvent
-
-export const zReadAgentFilePath = z.object({
-  agentName: zAgentName,
-})
-
-export const zReadAgentFileQuery = z.object({
-  path: z.string().min(1).max(4096),
-})
 
 /**
  * File content and metadata.
  */
 export const zReadAgentFileResponse = zAgentFile
 
-export const zCreateAgentFileBody = zCreateAgentFileRequest
-
-export const zCreateAgentFilePath = z.object({
-  agentName: zAgentName,
-})
-
 /**
  * File created.
  */
 export const zCreateAgentFileResponse = zAgentFileMetadata
-
-export const zWriteAgentFileBody = zWriteAgentFileRequest
-
-export const zWriteAgentFilePath = z.object({
-  agentName: zAgentName,
-})
 
 /**
  * File written.
  */
 export const zWriteAgentFileResponse = zAgentFileMetadata
 
-export const zStatAgentFilePath = z.object({
-  agentName: zAgentName,
-})
-
-export const zStatAgentFileQuery = z.object({
-  path: z.string().min(1).max(4096),
-})
-
 /**
  * Entry metadata.
  */
 export const zStatAgentFileResponse = zAgentFileMetadata
-
-export const zReadAgentFileRawPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zReadAgentFileRawQuery = z.object({
-  path: z.string().min(1).max(4096),
-})
 
 /**
  * Raw file content.
  */
 export const zReadAgentFileRawResponse = z.string()
 
-export const zCreateAgentDirectoryBody = zCreateAgentDirectoryRequest
-
-export const zCreateAgentDirectoryPath = z.object({
-  agentName: zAgentName,
-})
-
 /**
  * Directory created.
  */
 export const zCreateAgentDirectoryResponse = zAgentFileMetadata
-
-export const zRenameAgentEntryBody = zRenameAgentEntryRequest
-
-export const zRenameAgentEntryPath = z.object({
-  agentName: zAgentName,
-})
 
 /**
  * Entry renamed.
  */
 export const zRenameAgentEntryResponse = zAgentFileMetadata
 
-export const zDeleteAgentEntryPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zDeleteAgentEntryQuery = z.object({
-  path: z.string().min(1).max(4096),
-})
-
 /**
  * Entry deleted.
  */
 export const zDeleteAgentEntryResponse = z.void()
 
-export const zListSkillsQuery = z.object({
-  agent_name: zAgentName.optional(),
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
+/**
+ * Skills deleted.
+ */
+export const zDeleteAgentMutableSkillsResponse = z.void()
+
+/**
+ * Paginated mutable skill summaries.
+ */
+export const zListAgentMutableSkillsResponse = zListMutableSkillsResponse
+
+/**
+ * ZIP archive containing the selected skills.
+ */
+export const zExportAgentMutableSkillsResponse = z.string()
+
+/**
+ * Parsed skills and current conflicts.
+ */
+export const zPreviewSkillImportResponse = zSkillImportPreviewResponse
+
+/**
+ * A result for every targeted Agent.
+ */
+export const zImportSkillsResponse2 = zImportSkillsResponse
+
+/**
+ * Skills deleted.
+ */
+export const zDeleteImmutableSkillsResponse = z.void()
 
 /**
  * Paginated immutable skills.
  */
 export const zListSkillsResponse2 = zListSkillsResponse
 
-export const zCreateSkillBody = zCreateSkillRequest
-
 /**
  * Skill created.
  */
 export const zCreateSkillResponse = zSkill
 
-export const zDeleteSkillPath = z.object({
-  skillName: zSkillName,
-})
+/**
+ * Paginated immutable skill summaries.
+ */
+export const zListImmutableSkillSummariesResponse2 = zListImmutableSkillSummariesResponse
+
+/**
+ * ZIP archive containing selected active versions.
+ */
+export const zExportImmutableSkillsResponse = z.string()
 
 /**
  * Skill deleted.
  */
 export const zDeleteSkillResponse = z.void()
 
-export const zUpdateSkillBody = zUpdateSkillRequest
-
-export const zUpdateSkillPath = z.object({
-  skillName: zSkillName,
-})
-
 /**
  * Skill updated.
  */
 export const zUpdateSkillResponse = zSkill
-
-export const zGetSkillReferencesPath = z.object({
-  skillName: zSkillName,
-})
 
 /**
  * Skill references.
  */
 export const zGetSkillReferencesResponse = zSkillReferences
 
-export const zListTraceSessionsPath = z.object({
-  agentName: zAgentName,
-  sessionID: z.string().min(1),
-})
-
-export const zListTraceSessionsQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  started_after: z.iso.datetime().optional(),
-  started_before: z.iso.datetime().optional(),
-})
+/**
+ * Sorted stored versions.
+ */
+export const zListImmutableSkillVersionsResponse = z.array(
+  z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  })
+)
 
 /**
  * Paginated per-session trace summaries.
  */
 export const zListTraceSessionsResponse2 = zListTraceSessionsResponse
 
-export const zListSpansPath = z.object({
-  agentName: zAgentName,
-  sessionID: z.string().min(1),
-  traceID: zTraceId,
-})
-
-export const zListSpansQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
 /**
  * Paginated spans for a trace.
  */
 export const zListSpansResponse2 = zListSpansResponse
-
-export const zGetSpanDetailPath = z.object({
-  agentName: zAgentName,
-  sessionID: z.string().min(1),
-  traceID: zTraceId,
-  spanID: zSpanId,
-})
 
 /**
  * Span detail with payload and correlated events.
  */
 export const zGetSpanDetailResponse = zSpanDetailResponse
 
-export const zListProcessObservabilityPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListProcessObservabilityQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  event_time_after: z.iso.datetime().optional(),
-  event_time_before: z.iso.datetime().optional(),
-  action: zObservabilityAction.optional(),
-  aggregated: z.boolean().optional().default(false),
-})
-
 /**
  * Paginated process observability events.
  */
 export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
-
-export const zListFileObservabilityPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListFileObservabilityQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  event_time_after: z.iso.datetime().optional(),
-  event_time_before: z.iso.datetime().optional(),
-  action: zObservabilityAction.optional(),
-  aggregated: z.boolean().optional().default(false),
-})
 
 /**
  * Paginated file observability events.
  */
 export const zListFileObservabilityResponse2 = zListFileObservabilityResponse
 
-export const zListNetworkObservabilityPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListNetworkObservabilityQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-  event_time_after: z.iso.datetime().optional(),
-  event_time_before: z.iso.datetime().optional(),
-  action: zObservabilityAction.optional(),
-  aggregated: z.boolean().optional().default(false),
-})
-
 /**
  * Paginated network observability events.
  */
 export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
-
-export const zGetMcpGraphPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zGetMcpGraphQuery = z.object({
-  from: z.iso.date(),
-  to: z.iso.date(),
-})
 
 /**
  * Graph-ready MCP observability for an agent.
  */
 export const zGetMcpGraphResponse = zMcpGraphResponse
 
-export const zListSecretsPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListSecretsQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
 /**
  * Paginated secret keys.
  */
 export const zListSecretsResponse2 = zListSecretsResponse
-
-export const zPutSecretBody = zCreateSecretRequest
-
-export const zPutSecretPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zPutSecretQuery = z.object({
-  update_sandbox: z.boolean().optional().default(false),
-})
 
 /**
  * Secret created.
  */
 export const zPutSecretResponse = zPutSecretsResponse
 
-export const zWatchSecretsBody = zWatchSecretsRequest
-
-export const zWatchSecretsPath = z.object({
-  agentName: zAgentName,
-})
-
 /**
  * Stream of secret updates.
  */
 export const zWatchSecretsResponse = zWatchSecretsEvent
-
-export const zDeleteSecretBody = zDeleteSecretsRequest
-
-export const zDeleteSecretPath = z.object({
-  agentName: zAgentName,
-})
 
 /**
  * Secrets deleted.
  */
 export const zDeleteSecretResponse = z.void()
 
-export const zListSandboxesQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
 /**
  * Paginated sandboxes.
  */
 export const zListSandboxesResponse2 = zListSandboxesResponse
-
-export const zCreateSandboxBody = zCreateSandboxRequest
 
 /**
  * Sandbox created.
  */
 export const zCreateSandboxResponse = zSandbox
 
-export const zDeleteSandboxPath = z.object({
-  sandboxName: zSandboxName,
-})
-
 /**
  * Sandbox deleted.
  */
 export const zDeleteSandboxResponse = z.void()
-
-export const zUpdateSandboxBody = zUpdateSandboxRequest
-
-export const zUpdateSandboxPath = z.object({
-  sandboxName: zSandboxName,
-})
 
 /**
  * Sandbox updated.
  */
 export const zUpdateSandboxResponse = zSandbox
 
-export const zListMcpConnectionsQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
 /**
  * Paginated MCPConnections.
  */
 export const zListMcpConnectionsResponse2 = zListMcpConnectionsResponse
-
-export const zCreateMcpConnectionBody = zCreateMcpConnectionRequest
 
 /**
  * MCPConnection created.
  */
 export const zCreateMcpConnectionResponse = zMcpConnectionDetail
 
-export const zDeleteMcpConnectionPath = z.object({
-  name: zMcpConnectionName,
-})
-
 /**
  * MCPConnection deleted.
  */
 export const zDeleteMcpConnectionResponse = z.void()
-
-export const zGetMcpConnectionPath = z.object({
-  name: zMcpConnectionName,
-})
 
 /**
  * MCPConnection.
  */
 export const zGetMcpConnectionResponse = zMcpConnectionDetail
 
-export const zWatchMcpConnectionsBody = zWatchMcpConnectionsRequest
-
 /**
  * Stream of MCP connection updates.
  */
 export const zWatchMcpConnectionsResponse = zWatchMcpConnectionsEvent
-
-export const zDeleteWorkflowsBody = zDeleteWorkflowsRequest
-
-export const zDeleteWorkflowsPath = z.object({
-  agentName: zAgentName,
-})
 
 /**
  * Workflows deleted.
  */
 export const zDeleteWorkflowsResponse = z.void()
 
-export const zListWorkflowSummariesPath = z.object({
-  agentName: zAgentName,
-})
-
 /**
  * Workflow summaries for an agent.
  */
 export const zListWorkflowSummariesResponse = z.array(zWorkflowSummary)
-
-export const zCreateWorkflowBody = zCreateWorkflowRequest
-
-export const zCreateWorkflowPath = z.object({
-  agentName: zAgentName,
-})
 
 /**
  * Workflow created.
  */
 export const zCreateWorkflowResponse = zWorkflow
 
-export const zGetWorkflowPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-})
-
 /**
  * Workflow definition.
  */
 export const zGetWorkflowResponse = zWorkflow
-
-export const zListAgentWorkflowSchedulesPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListAgentWorkflowSchedulesQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
 
 /**
  * Paginated workflow schedules for an agent.
  */
 export const zListAgentWorkflowSchedulesResponse = zListWorkflowSchedulesResponse
 
-export const zListWorkflowSchedulesPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-})
-
-export const zListWorkflowSchedulesQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
 /**
  * Paginated workflow schedules for a workflow.
  */
 export const zListWorkflowSchedulesResponse2 = zListWorkflowSchedulesResponse
-
-export const zCreateWorkflowScheduleBody = zCreateWorkflowScheduleRequest
-
-export const zCreateWorkflowSchedulePath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-})
 
 /**
  * Workflow schedule created.
  */
 export const zCreateWorkflowScheduleResponse = zWorkflowSchedule
 
-export const zDeleteWorkflowSchedulePath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  scheduleName: zWorkflowScheduleName,
-})
-
 /**
  * Workflow schedule deleted.
  */
 export const zDeleteWorkflowScheduleResponse = z.void()
-
-export const zUpdateWorkflowScheduleBody = zUpdateWorkflowScheduleRequest
-
-export const zUpdateWorkflowSchedulePath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  scheduleName: zWorkflowScheduleName,
-})
 
 /**
  * Workflow schedule updated.
  */
 export const zUpdateWorkflowScheduleResponse = zWorkflowSchedule
 
-export const zCreateWorkflowRunPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  scheduleName: zWorkflowScheduleName,
-})
-
 /**
  * Workflow run accepted.
  */
 export const zCreateWorkflowRunResponse = zWorkflowRunSummary
-
-export const zInvokeWorkflowWebhookBody = zWorkflowRunInputs
-
-export const zInvokeWorkflowWebhookPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-})
-
-export const zInvokeWorkflowWebhookQuery = z.object({
-  timeout_seconds: z.int().gte(1).lte(604800).optional().default(3600),
-})
 
 /**
  * Workflow run accepted.
  */
 export const zInvokeWorkflowWebhookResponse = zWorkflowRunSummary
 
-export const zListWorkflowWebhookTriggersPath = z.object({
-  agentName: zAgentName,
-})
-
-export const zListWorkflowWebhookTriggersQuery = z.object({
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
-
 /**
  * Paginated webhook trigger rows for an agent.
  */
 export const zListWorkflowWebhookTriggersResponse2 = zListWorkflowWebhookTriggersResponse
-
-export const zListWorkflowRunsPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-})
-
-export const zListWorkflowRunsQuery = z.object({
-  status: zWorkflowRunStatus.optional(),
-  trigger_type: zWorkflowRunTriggerType.optional(),
-  schedule_name: zWorkflowScheduleName.optional(),
-  webhook_api_key_id: zApiKeyId.optional(),
-  limit: z.int().gte(1).lte(200).optional().default(50),
-  page_token: z.string().min(1).optional(),
-})
 
 /**
  * Paginated workflow runs for a workflow.
  */
 export const zListWorkflowRunsResponse2 = zListWorkflowRunsResponse
 
-export const zWatchWorkflowRunsBody = zWatchWorkflowRunsRequest
-
-export const zWatchWorkflowRunsPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-})
-
 /**
  * Stream of workflow run updates.
  */
 export const zWatchWorkflowRunsResponse = zWatchWorkflowRunsEvent
-
-export const zDeleteWorkflowRunPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  runName: zWorkflowRunName,
-})
 
 /**
  * Workflow run deleted.
  */
 export const zDeleteWorkflowRunResponse = z.void()
 
-export const zGetWorkflowRunPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  runName: zWorkflowRunName,
-})
-
 /**
  * Workflow run details.
  */
 export const zGetWorkflowRunResponse = zWorkflowRunDetail
 
-export const zPatchWorkflowRunStatusBody = zPatchWorkflowRunStatusRequest
-
-export const zPatchWorkflowRunStatusPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  runName: zWorkflowRunName,
-})
-
 /**
  * WorkflowRun status updated.
  */
 export const zPatchWorkflowRunStatusResponse = z.void()
-
-export const zPatchWorkflowRunNodeStatusBody = zPatchWorkflowRunNodeStatusRequest
-
-export const zPatchWorkflowRunNodeStatusPath = z.object({
-  agentName: zAgentName,
-  workflowName: zWorkflowName,
-  runName: zWorkflowRunName,
-  nodeName: zWorkflowNodeName,
-})
 
 /**
  * WorkflowRun node status updated.

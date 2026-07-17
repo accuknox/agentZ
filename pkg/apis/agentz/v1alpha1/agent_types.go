@@ -125,11 +125,6 @@ type AgentSpec struct {
 	// +kubebuilder:default="5Gi"
 	// +optional
 	NixStoreSize resource.Quantity `json:"nixStoreSize,omitempty"`
-
-	// HomeSize sets the size of the agent home PVC mounted at /home/agentz.
-	// +kubebuilder:default="5Gi"
-	// +optional
-	HomeSize resource.Quantity `json:"homeSize,omitempty"`
 }
 
 // MemoryConfig defines persistent memory settings for an Agent.

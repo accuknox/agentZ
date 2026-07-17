@@ -28,7 +28,4 @@ func TestDefaulterDefault(t *testing.T) {
 	if got := agt.Spec.NixStoreSize.String(); got != "5Gi" {
 		t.Fatalf("NixStoreSize = %q", got)
 	}
-	if got := agt.Spec.HomeSize.String(); got != "5Gi" {
-		t.Fatalf("HomeSize = %q", got)
-	}
 }

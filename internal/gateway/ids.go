@@ -48,8 +48,7 @@ func requestID(r *http.Request) string {
 	return uuid.UUID(b).String()
 }
 
-func validAgentName(w http.ResponseWriter, r *http.Request, agentName string, fields ...string) (string, bool) {
-	name := strings.TrimSpace(agentName)
+func validAgentName(w http.ResponseWriter, r *http.Request, name string, fields ...string) (string, bool) {
 	if name != "" && name != agentzv1alpha1.AgentNameMCPConnection && len(name) <= 32 && len(validation.IsDNS1123Label(name)) == 0 {
 		return name, true
 	}

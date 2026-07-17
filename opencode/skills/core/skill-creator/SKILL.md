@@ -94,7 +94,7 @@ triggers (if at all).
 - file path must be `~/.agents/skills/<skill-name>/SKILL.md`
 - `name` must match `^[a-z0-9]+(-[a-z0-9]+)*$`
 - `name` must match the directory name
-- `name` must be 1-64 characters
+- `name` must be 1-32 characters
 - `description` must be 1-1024 characters
 - body must not be empty
 
@@ -260,7 +260,7 @@ Follow these steps in order.
 ### Skill Naming
 
 - Use lowercase letters, digits, and hyphens only; normalize user-provided titles to hyphen-case (e.g., "Plan Mode" -> `plan-mode`).
-- When generating names, generate a name under 64 characters (letters, digits, hyphens).
+- When generating names, generate a name under 32 characters (letters, digits, hyphens).
 - Prefer short, verb-led phrases that describe the action.
 - Namespace by tool when it improves clarity or triggering (e.g., `gh-address-comments`, `linear-address-issue`).
 - Name the skill folder exactly after the skill name.

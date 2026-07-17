@@ -123,6 +123,10 @@ func (s *service) routes() http.Handler {
 	mux.HandleFunc("POST /directory", s.createDirectory)
 	mux.HandleFunc("POST /rename", s.rename)
 	mux.HandleFunc("DELETE /entry", s.deleteEntry)
+	mux.HandleFunc("GET /skill", s.listSkills)
+	mux.HandleFunc("DELETE /skill", s.deleteSkills)
+	mux.HandleFunc("POST /skill/export", s.exportSkills)
+	mux.HandleFunc("POST /skill/import", s.importSkills)
 	return mux
 }
 

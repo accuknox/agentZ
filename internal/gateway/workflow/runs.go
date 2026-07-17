@@ -82,8 +82,7 @@ func ValidateRunStatusMessage(message string) []gatewayapi.FieldError {
 // ValidateRunTerminalPhase validates a terminal WorkflowRun patch phase.
 func ValidateRunTerminalPhase(phase gatewayapi.WorkflowRunTerminalPhase) []gatewayapi.FieldError {
 	switch phase {
-	case gatewayapi.WorkflowRunTerminalPhaseSucceeded,
-		gatewayapi.WorkflowRunTerminalPhaseFailed:
+	case gatewayapi.Succeeded, gatewayapi.Failed:
 		return nil
 	default:
 		return []gatewayapi.FieldError{{

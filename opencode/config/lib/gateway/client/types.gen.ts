@@ -162,6 +162,16 @@ export type ListSkillsResponse = {
   next_page_token: string
 }
 
+export type ListMutableSkillsResponse = {
+  skills: Array<MutableSkillSummary>
+  next_page_token: string
+}
+
+export type ListImmutableSkillSummariesResponse = {
+  skills: Array<ImmutableSkillSummary>
+  next_page_token: string
+}
+
 export type ListWorkflowSchedulesResponse = {
   workflow_schedules: Array<WorkflowSchedule>
   next_page_token: string
@@ -184,7 +194,6 @@ export type Agent = {
   memory: AgentMemoryConfig
   created_at: string
   modified_at: string
-  home_storage_prefix: string
   skills: Array<SkillName>
   status: AgentStatus
 }
@@ -197,6 +206,80 @@ export type Skill = {
   agents: Array<AgentName>
   sandboxes: Array<SandboxName>
   created_at: string
+}
+
+export type SkillKind = "mutable" | "immutable"
+
+export type SkillFileSummary = {
+  name: SkillName
+  file_count: number
+  size_bytes: number
+  modified_at: string | null
+}
+
+export type MutableSkillSummary = SkillFileSummary
+
+export type ImmutableSkillSummary = SkillFileSummary & {
+  description: string
+  version: number
+  agents: Array<AgentName>
+  sandboxes: Array<SandboxName>
+}
+
+export type DeleteSkillsRequest = {
+  skill_names: Array<SkillName>
+}
+
+export type ExportSkillsRequest = {
+  skill_names: Array<SkillName>
+}
+
+export type SkillImportDecision =
+  | ({
+      action: "create"
+    } & CreateSkillImportDecision)
+  | ({
+      action: "overwrite"
+    } & OverwriteSkillImportDecision)
+  | ({
+      action: "rename"
+    } & RenameSkillImportDecision)
+
+export type CreateSkillImportDecision = {
+  action: "create"
+  name: SkillName
+}
+
+export type OverwriteSkillImportDecision = {
+  action: "overwrite"
+  name: SkillName
+}
+
+export type RenameSkillImportDecision = {
+  action: "rename"
+  name: SkillName
+  rename: SkillName
+}
+
+export type SkillImportPreviewItem = {
+  name: SkillName
+  mutable_conflict_agents: Array<AgentName>
+  immutable_conflict: boolean
+}
+
+export type SkillImportPreviewResponse = {
+  skills: Array<SkillImportPreviewItem>
+}
+
+export type SkillImportAgentResult = {
+  agent: AgentName
+  status: "succeeded" | "failed"
+  error?: string
+}
+
+export type ImportSkillsResponse = {
+  skills: Array<SkillName>
+  agents: Array<SkillImportAgentResult>
 }
 
 export type SkillReferences = {
@@ -214,7 +297,6 @@ export type CreateSkillRequest = {
 export type UpdateSkillRequest = {
   description?: string
   version: number
-  storage_path: string
 }
 
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
@@ -1672,6 +1754,241 @@ export type DeleteAgentEntryResponses = {
 
 export type DeleteAgentEntryResponse = DeleteAgentEntryResponses[keyof DeleteAgentEntryResponses]
 
+export type DeleteAgentMutableSkillsData = {
+  body: DeleteSkillsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/skill"
+}
+
+export type DeleteAgentMutableSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The Agent filesystem is unavailable.
+   */
+  502: Error
+}
+
+export type DeleteAgentMutableSkillsError =
+  DeleteAgentMutableSkillsErrors[keyof DeleteAgentMutableSkillsErrors]
+
+export type DeleteAgentMutableSkillsResponses = {
+  /**
+   * Skills deleted.
+   */
+  204: void
+}
+
+export type DeleteAgentMutableSkillsResponse =
+  DeleteAgentMutableSkillsResponses[keyof DeleteAgentMutableSkillsResponses]
+
+export type ListAgentMutableSkillsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/agent/{agentName}/skill"
+}
+
+export type ListAgentMutableSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The Agent filesystem is unavailable.
+   */
+  502: Error
+}
+
+export type ListAgentMutableSkillsError =
+  ListAgentMutableSkillsErrors[keyof ListAgentMutableSkillsErrors]
+
+export type ListAgentMutableSkillsResponses = {
+  /**
+   * Paginated mutable skill summaries.
+   */
+  200: ListMutableSkillsResponse
+}
+
+export type ListAgentMutableSkillsResponse =
+  ListAgentMutableSkillsResponses[keyof ListAgentMutableSkillsResponses]
+
+export type ExportAgentMutableSkillsData = {
+  body: ExportSkillsRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/skill/export"
+}
+
+export type ExportAgentMutableSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The Agent filesystem is unavailable.
+   */
+  502: Error
+}
+
+export type ExportAgentMutableSkillsError =
+  ExportAgentMutableSkillsErrors[keyof ExportAgentMutableSkillsErrors]
+
+export type ExportAgentMutableSkillsResponses = {
+  /**
+   * ZIP archive containing the selected skills.
+   */
+  200: Blob | File
+}
+
+export type ExportAgentMutableSkillsResponse =
+  ExportAgentMutableSkillsResponses[keyof ExportAgentMutableSkillsResponses]
+
+export type PreviewSkillImportData = {
+  body: {
+    file: Blob | File
+    agents?: Array<AgentName>
+  }
+  path?: never
+  query?: never
+  url: "/api/skill/import/preview"
+}
+
+export type PreviewSkillImportErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+}
+
+export type PreviewSkillImportError = PreviewSkillImportErrors[keyof PreviewSkillImportErrors]
+
+export type PreviewSkillImportResponses = {
+  /**
+   * Parsed skills and current conflicts.
+   */
+  200: SkillImportPreviewResponse
+}
+
+export type PreviewSkillImportResponse =
+  PreviewSkillImportResponses[keyof PreviewSkillImportResponses]
+
+export type ImportSkillsData = {
+  body: {
+    file: Blob | File
+    kind: SkillKind
+    agents?: Array<AgentName>
+    decisions: Array<SkillImportDecision>
+  }
+  path?: never
+  query?: never
+  url: "/api/skill/import"
+}
+
+export type ImportSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+}
+
+export type ImportSkillsError = ImportSkillsErrors[keyof ImportSkillsErrors]
+
+export type ImportSkillsResponses = {
+  /**
+   * A result for every targeted Agent.
+   */
+  200: ImportSkillsResponse
+}
+
+export type ImportSkillsResponse2 = ImportSkillsResponses[keyof ImportSkillsResponses]
+
+export type DeleteImmutableSkillsData = {
+  body: DeleteSkillsRequest
+  path?: never
+  query?: never
+  url: "/api/skill"
+}
+
+export type DeleteImmutableSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteImmutableSkillsError =
+  DeleteImmutableSkillsErrors[keyof DeleteImmutableSkillsErrors]
+
+export type DeleteImmutableSkillsResponses = {
+  /**
+   * Skills deleted.
+   */
+  204: void
+}
+
+export type DeleteImmutableSkillsResponse =
+  DeleteImmutableSkillsResponses[keyof DeleteImmutableSkillsResponses]
+
 export type ListSkillsData = {
   body?: never
   path?: never
@@ -1752,6 +2069,91 @@ export type CreateSkillResponses = {
 }
 
 export type CreateSkillResponse = CreateSkillResponses[keyof CreateSkillResponses]
+
+export type ListImmutableSkillSummariesData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Optional Agent name.
+     */
+    agent_name?: AgentName
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/skill/summary"
+}
+
+export type ListImmutableSkillSummariesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListImmutableSkillSummariesError =
+  ListImmutableSkillSummariesErrors[keyof ListImmutableSkillSummariesErrors]
+
+export type ListImmutableSkillSummariesResponses = {
+  /**
+   * Paginated immutable skill summaries.
+   */
+  200: ListImmutableSkillSummariesResponse
+}
+
+export type ListImmutableSkillSummariesResponse2 =
+  ListImmutableSkillSummariesResponses[keyof ListImmutableSkillSummariesResponses]
+
+export type ExportImmutableSkillsData = {
+  body: ExportSkillsRequest
+  path?: never
+  query?: never
+  url: "/api/skill/export"
+}
+
+export type ExportImmutableSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ExportImmutableSkillsError =
+  ExportImmutableSkillsErrors[keyof ExportImmutableSkillsErrors]
+
+export type ExportImmutableSkillsResponses = {
+  /**
+   * ZIP archive containing selected active versions.
+   */
+  200: Blob | File
+}
+
+export type ExportImmutableSkillsResponse =
+  ExportImmutableSkillsResponses[keyof ExportImmutableSkillsResponses]
 
 export type DeleteSkillData = {
   body?: never
@@ -1875,6 +2277,47 @@ export type GetSkillReferencesResponses = {
 
 export type GetSkillReferencesResponse =
   GetSkillReferencesResponses[keyof GetSkillReferencesResponses]
+
+export type ListImmutableSkillVersionsData = {
+  body?: never
+  path: {
+    /**
+     * Skill name.
+     */
+    skillName: SkillName
+  }
+  query?: never
+  url: "/api/skill/{skillName}/version"
+}
+
+export type ListImmutableSkillVersionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListImmutableSkillVersionsError =
+  ListImmutableSkillVersionsErrors[keyof ListImmutableSkillVersionsErrors]
+
+export type ListImmutableSkillVersionsResponses = {
+  /**
+   * Sorted stored versions.
+   */
+  200: Array<number>
+}
+
+export type ListImmutableSkillVersionsResponse =
+  ListImmutableSkillVersionsResponses[keyof ListImmutableSkillVersionsResponses]
 
 export type ListTraceSessionsData = {
   body?: never

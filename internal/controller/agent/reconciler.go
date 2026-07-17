@@ -530,34 +530,6 @@ func (r *Reconciler) reconcilePVCs(ctx context.Context, agt *agentzv1alpha1.Agen
 		return fmt.Errorf("ensure agent nix pvc: %w", err)
 	}
 
-	homeSize := agt.Spec.HomeSize
-	if homeSize.IsZero() {
-		homeSize = resource.MustParse("5Gi")
-	}
-
-	homePVC := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      agt.Name + "-home",
-			Namespace: agt.Namespace,
-		},
-	}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, homePVC, func() error {
-		homePVC.Labels = resourceLabels(agt)
-		homePVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
-			corev1.ReadWriteOnce,
-		}
-		homePVC.Spec.Resources.Requests = corev1.ResourceList{
-			corev1.ResourceStorage: homeSize,
-		}
-		if r.Config.AgentHomeStorageClass != "" {
-			homePVC.Spec.StorageClassName = &r.Config.AgentHomeStorageClass
-		}
-		return ctrl.SetControllerReference(agt, homePVC, r.Scheme)
-	})
-	if err != nil {
-		return fmt.Errorf("ensure agent home pvc: %w", err)
-	}
-
 	return nil
 }
 

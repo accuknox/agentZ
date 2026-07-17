@@ -3,7 +3,8 @@
 import type { Route } from "next"
 import * as React from "react"
 import { useRouter } from "@bprogress/next/app"
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import {
   BotIcon,
   Download,
@@ -45,34 +46,33 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import type { Agent } from "@/lib/gateway/client"
-import { zSkillName } from "@/lib/gateway/client/zod.gen"
-import { deleteSkillsAction, updateSkillVersionAction } from "@/data/skill.actions"
+import { watchAgentsQueryOptions } from "@/components/agent-readiness"
+import {
+  deleteAgentMutableSkills,
+  deleteImmutableSkills,
+  exportAgentMutableSkills,
+  exportImmutableSkills,
+  updateSkill,
+  type Agent,
+  type ImmutableSkillSummary,
+  type MutableSkillSummary,
+} from "@/lib/gateway/client"
+import {
+  listAgentMutableSkillsOptions,
+  listImmutableSkillSummariesOptions,
+  listImmutableSkillVersionsOptions,
+} from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { SkillImportDialog } from "./skill-import-dialog"
 import { SkillTable } from "./skill-table"
 
 const pageSize = 50
 const allAgentsValue = "__all_agents__"
-const skillListsQueryKey = ["skills", "list"] as const
 
 const skillKindSchema = z.enum(["mutable", "immutable"])
-const skillSummarySchema = z.object({
-  name: zSkillName,
-  fileCount: z.number(),
-  sizeBytes: z.number(),
-  modifiedAt: z.string().nullable(),
-})
-const mutableSkillSchema = skillSummarySchema.extend({ type: z.literal("mutable") })
-const immutableSkillSchema = skillSummarySchema.extend({
-  type: z.literal("immutable"),
-  version: z.number().int().min(1),
-  agents: z.array(z.string()),
-  sandboxes: z.array(z.string()),
-})
-const skillSchema = z.discriminatedUnion("type", [mutableSkillSchema, immutableSkillSchema])
-
-export type Skill = z.infer<typeof skillSchema>
-export type ImmutableSkill = z.infer<typeof immutableSkillSchema>
+export type Skill =
+  | (MutableSkillSummary & { type: "mutable" })
+  | (ImmutableSkillSummary & { type: "immutable" })
+export type ImmutableSkill = ImmutableSkillSummary & { type: "immutable" }
 type SkillKind = z.infer<typeof skillKindSchema>
 
 type SkillListData = {
@@ -82,35 +82,6 @@ type SkillListData = {
 }
 
 const emptySkills: Skill[] = []
-
-const versionSchema = z.number().int().min(1)
-
-function skillsQueryOptions(type: SkillKind, agentName: string, pageToken: string) {
-  return queryOptions({
-    queryKey: [...skillListsQueryKey, type, agentName, pageToken],
-    enabled: type === "immutable" || agentName.length > 0,
-    queryFn: async (): Promise<SkillListData> => {
-      const params = new URLSearchParams({ type, limit: String(pageSize) })
-      if (agentName && (type === "mutable" || agentName !== allAgentsValue)) {
-        params.set("agent_name", agentName)
-      }
-      if (pageToken) {
-        params.set("page_token", pageToken)
-      }
-
-      const response = await fetch(`/api/skills/list?${params}`)
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string }
-        throw new Error(body.error ?? "Failed to load skills")
-      }
-      const body = (await response.json()) as SkillListData
-      if (!Array.isArray(body.skills)) {
-        throw new Error("Invalid skills response")
-      }
-      return body
-    },
-  })
-}
 
 export function SkillsClient({
   agents,
@@ -124,8 +95,10 @@ export function SkillsClient({
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const firstAgentName = agents[0]?.name ?? ""
-  const initialAgentExists = agents.some((agent) => agent.name === initialAgentName)
+  const agentsQuery = useQuery(watchAgentsQueryOptions(agents))
+  const liveAgents = agentsQuery.data ?? agents
+  const firstAgentName = liveAgents[0]?.name ?? ""
+  const initialAgentExists = liveAgents.some((agent) => agent.name === initialAgentName)
   const startType = initialType
   const startAgentName =
     startType === "immutable"
@@ -152,8 +125,39 @@ export function SkillsClient({
       ? (searchParams.get("page_token") ?? "")
       : ""
 
-  const skillsOptions = skillsQueryOptions(type, agentName, pageToken)
-  const query = useQuery(skillsOptions)
+  const selectedAgent = liveAgents.find((agent) => agent.name === agentName)
+  const mutableReady = type === "immutable" || selectedAgent?.status === "IDLE"
+  const mutableOptions = listAgentMutableSkillsOptions({
+    path: { agentName },
+    query: { limit: pageSize, page_token: pageToken || undefined },
+  })
+  const immutableOptions = listImmutableSkillSummariesOptions({
+    query: {
+      agent_name: agentName === allAgentsValue ? undefined : agentName,
+      limit: pageSize,
+      page_token: pageToken || undefined,
+    },
+  })
+  const mutableQuery = useQuery({
+    ...mutableOptions,
+    enabled: type === "mutable" && agentName.length > 0 && mutableReady,
+    select: (result): SkillListData => ({
+      skills: result.skills.map((skill) => ({ ...skill, type: "mutable" })),
+      nextPageToken: result.next_page_token,
+      hasNextPage: result.next_page_token.length > 0,
+    }),
+  })
+  const immutableQuery = useQuery({
+    ...immutableOptions,
+    enabled: type === "immutable",
+    select: (result): SkillListData => ({
+      skills: result.skills.map((skill) => ({ ...skill, type: "immutable" })),
+      nextPageToken: result.next_page_token,
+      hasNextPage: result.next_page_token.length > 0,
+    }),
+  })
+  const query = type === "mutable" ? mutableQuery : immutableQuery
+  const queryKey = type === "mutable" ? mutableOptions.queryKey : immutableOptions.queryKey
   const skills = query.data?.skills ?? emptySkills
   const skillsByName = React.useMemo(
     () => new Map(skills.map((skill) => [skill.name, skill])),
@@ -195,8 +199,7 @@ export function SkillsClient({
   }
 
   async function refreshSkills() {
-    // The list prefix avoids invalidating skill metadata queries.
-    await queryClient.invalidateQueries({ queryKey: skillListsQueryKey })
+    await queryClient.invalidateQueries({ queryKey })
   }
 
   async function exportSkills(skillNames: string[]) {
@@ -206,31 +209,31 @@ export function SkillsClient({
     setError(undefined)
     setExporting(true)
     try {
-      const response = await fetch("/api/skills/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          agentName: type === "mutable" ? agentName : undefined,
-          skillNames,
-        }),
-      })
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string }
-        setError(body.error ?? "Failed to export skills")
+      const result =
+        type === "mutable"
+          ? await exportAgentMutableSkills({
+              path: { agentName },
+              body: { skill_names: skillNames },
+            })
+          : await exportImmutableSkills({ body: { skill_names: skillNames } })
+      if (result.error) {
+        setError(result.error.message)
+        toast.error(skillNames.length === 1 ? "Failed to export skill" : "Failed to export skills")
         return
       }
 
-      const disposition = response.headers.get("Content-Disposition") ?? ""
-      const filename =
-        /filename="([^"]+)"/.exec(disposition)?.[1] ??
-        (type === "mutable" ? `${agentName}-skills.zip` : "skills.zip")
-      const href = URL.createObjectURL(await response.blob())
+      let filename = "skills.zip"
+      if (type === "mutable") {
+        filename =
+          skillNames.length === 1 ? `${agentName}-${skillNames[0]}.zip` : `${agentName}-skills.zip`
+      }
+      const href = URL.createObjectURL(result.data)
       const link = document.createElement("a")
       link.href = href
       link.download = filename
       link.click()
       URL.revokeObjectURL(href)
+      toast.success(skillNames.length === 1 ? "Skill exported" : "Skills exported")
     } finally {
       setExporting(false)
     }
@@ -243,29 +246,28 @@ export function SkillsClient({
     setError(undefined)
 
     const namesToDelete = deleteNames
-    const deletedSet = new Set(namesToDelete)
-
-    // The list prefix avoids treating version query data as a skill list.
-    queryClient.setQueriesData<SkillListData>({ queryKey: skillListsQueryKey }, (old) =>
-      old ? { ...old, skills: old.skills.filter((s) => !deletedSet.has(s.name)) } : old
-    )
-
     setDeleteNames([])
     setSelected(new Set())
 
-    const result = await deleteSkillsAction(
+    const result =
       type === "mutable"
-        ? { type, agentName, skillNames: namesToDelete }
-        : { type, skillNames: namesToDelete }
-    )
+        ? await deleteAgentMutableSkills({
+            path: { agentName },
+            body: { skill_names: namesToDelete },
+          })
+        : await deleteImmutableSkills({ body: { skill_names: namesToDelete } })
     if (result.error) {
-      setError(result.error)
+      setError(result.error.message)
+      toast.error(namesToDelete.length === 1 ? "Failed to delete skill" : "Failed to delete skills")
       await refreshSkills()
+      return
     }
+    toast.success(namesToDelete.length === 1 ? "Skill deleted" : "Skills deleted")
+    await refreshSkills()
   }
 
-  const canUseMutableSkills = type === "immutable" || agentName.length > 0
-  const showAgentFilter = type === "immutable" || agents.length > 0
+  const canUseMutableSkills = mutableReady && (type === "immutable" || agentName.length > 0)
+  const showAgentFilter = type === "immutable" || liveAgents.length > 0
 
   return (
     <>
@@ -314,7 +316,7 @@ export function SkillsClient({
                       All
                     </SelectItem>
                   ) : null}
-                  {agents.map((agent) => (
+                  {liveAgents.map((agent) => (
                     <SelectItem key={agent.name} value={agent.name}>
                       <BotIcon className="inline-block" />
                       {agent.name}
@@ -333,6 +335,7 @@ export function SkillsClient({
       ) : null}
       <SkillTable
         data={skills}
+        disabled={!mutableReady}
         error={query.error}
         exporting={exporting}
         hasNextPage={query.data?.hasNextPage ?? false}
@@ -347,7 +350,7 @@ export function SkillsClient({
         onExport={(name) => void exportSkills([name])}
       />
       <SkillImportDialog
-        agents={agents}
+        agents={liveAgents}
         open={importOpen}
         setOpen={setImportOpen}
         onImported={refreshSkills}
@@ -444,26 +447,10 @@ function EditSkillDialog({
   const [error, setError] = React.useState<{ skillName: string; message: string }>()
   const [pending, startTransition] = React.useTransition()
   const [version, setVersion] = React.useState(String(skill?.version ?? ""))
-  const versionsQuery = useQuery(
-    queryOptions({
-      queryKey: ["skills", "versions", skill?.name],
-      enabled: open && Boolean(skill?.name),
-      queryFn: async () => {
-        if (!skill?.name) {
-          throw new Error("Skill name is required")
-        }
-        const params = new URLSearchParams({ skill_name: skill.name })
-        const response = await fetch(`/api/skills/versions?${params}`)
-        if (!response.ok) {
-          const body = (await response.json()) as { error?: string }
-          throw new Error(body.error ?? "Failed to load versions")
-        }
-        const body = (await response.json()) as { versions: number[] }
-        versionSchema.array().parse(body.versions)
-        return body.versions
-      },
-    })
-  )
+  const versionsQuery = useQuery({
+    ...listImmutableSkillVersionsOptions({ path: { skillName: skill?.name ?? "" } }),
+    enabled: open && Boolean(skill?.name),
+  })
   const versionValues = new Set(versionsQuery.data ?? [])
   if (skill) {
     versionValues.add(skill.version)
@@ -484,14 +471,16 @@ function EditSkillDialog({
 
     startTransition(async () => {
       setError(undefined)
-      const result = await updateSkillVersionAction({
-        name: skill.name,
-        version: nextVersion,
+      const result = await updateSkill({
+        path: { skillName: skill.name },
+        body: { version: nextVersion },
       })
       if (result.error) {
-        setError({ skillName: skill.name, message: result.error })
+        setError({ skillName: skill.name, message: result.error.message })
+        toast.error("Failed to update skill version")
         return
       }
+      toast.success("Skill version updated")
       setOpen(false)
       await onUpdated()
     })

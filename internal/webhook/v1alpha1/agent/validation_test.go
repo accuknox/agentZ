@@ -57,7 +57,6 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
 		Spec: agentzv1alpha1.AgentSpec{
 			NixStoreSize: resource.MustParse("5Gi"),
-			HomeSize:     resource.MustParse("5Gi"),
 		},
 	}
 	newAgt := oldAgt.DeepCopy()
@@ -66,14 +65,6 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 	_, err := validator.ValidateUpdate(context.Background(), oldAgt, newAgt)
 	if err == nil {
 		t.Fatal("ValidateUpdate() unexpectedly accepted nixStoreSize mutation")
-	}
-
-	newAgt = oldAgt.DeepCopy()
-	newAgt.Spec.HomeSize = resource.MustParse("10Gi")
-
-	_, err = validator.ValidateUpdate(context.Background(), oldAgt, newAgt)
-	if err == nil {
-		t.Fatal("ValidateUpdate() unexpectedly accepted homeSize mutation")
 	}
 
 	valid := oldAgt.DeepCopy()
@@ -102,7 +93,6 @@ func TestValidatorValidateUpdateAcceptsOpenRouterModelID(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
 		Spec: agentzv1alpha1.AgentSpec{
 			NixStoreSize: resource.MustParse("5Gi"),
-			HomeSize:     resource.MustParse("5Gi"),
 		},
 	}
 	newAgt := oldAgt.DeepCopy()

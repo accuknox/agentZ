@@ -49,7 +49,7 @@ func requestID(r *http.Request) string {
 }
 
 func validAgentName(w http.ResponseWriter, r *http.Request, agentName string, fields ...string) (string, bool) {
-	name := strings.TrimSpace(agentName)
+	name := agentName
 	if name != "" && name != agentzv1alpha1.AgentNameMCPConnection && len(name) <= 32 && len(validation.IsDNS1123Label(name)) == 0 {
 		return name, true
 	}

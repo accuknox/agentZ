@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -88,14 +88,7 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 				continue
 			}
 		}
-		refs, ok := refsBySkill[item.Name]
-		if !ok {
-			refs = gatewayapi.SkillReferences{
-				Agents:    []gatewayapi.AgentName{},
-				Sandboxes: []gatewayapi.SandboxName{},
-			}
-		}
-		items = append(items, skillFromCRD(item, refs))
+		items = append(items, skillFromCRD(item, refsBySkill[item.Name]))
 	}
 
 	start := min(offset, len(items))
@@ -176,12 +169,6 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	refs := refsBySkill[skill.Name]
-	if refs.Agents == nil {
-		refs.Agents = []gatewayapi.AgentName{}
-	}
-	if refs.Sandboxes == nil {
-		refs.Sandboxes = []gatewayapi.SandboxName{}
-	}
 	writeJSON(w, http.StatusCreated, skillFromCRD(*skill, refs))
 }
 
@@ -217,13 +204,13 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		))
 		return
 	}
-	if _, err := s.skillStore.VersionSummary(r.Context(), ns, skillName, req.Version); err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"immutable skill version not found",
-			err,
-		))
+	_, err = s.skillStore.VersionSummary(r.Context(), ns, skillName, req.Version)
+	if errors.Is(err, fs.ErrNotExist) {
+		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "immutable skill version not found", err))
+		return
+	}
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("inspect immutable skill version: %w", err))
 		return
 	}
 	storagePath := s.cfg.SkillStore.StoragePath(ns, skillName, req.Version)
@@ -256,12 +243,6 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		return
 	}
 	refs := refsBySkill[updated.Name]
-	if refs.Agents == nil {
-		refs.Agents = []gatewayapi.AgentName{}
-	}
-	if refs.Sandboxes == nil {
-		refs.Sandboxes = []gatewayapi.SandboxName{}
-	}
 	writeJSON(w, http.StatusOK, skillFromCRD(*updated, refs))
 }
 
@@ -322,17 +303,12 @@ func (s *Service) GetSkillReferences(w http.ResponseWriter, r *http.Request, ski
 		writeInternalError(w, r, err)
 		return
 	}
-	refs := refsBySkill[skill.Name]
-	if refs.Agents == nil {
-		refs.Agents = []gatewayapi.AgentName{}
-	}
-	if refs.Sandboxes == nil {
-		refs.Sandboxes = []gatewayapi.SandboxName{}
-	}
+	refs := skillReferencesOrEmpty(refsBySkill[skill.Name])
 	writeJSON(w, http.StatusOK, refs)
 }
 
 func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences) gatewayapi.Skill {
+	refs = skillReferencesOrEmpty(refs)
 	return gatewayapi.Skill{
 		Name:        skill.Name,
 		Description: skill.Spec.Description,
@@ -342,6 +318,16 @@ func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences) g
 		Sandboxes:   refs.Sandboxes,
 		CreatedAt:   skill.CreationTimestamp.Time,
 	}
+}
+
+func skillReferencesOrEmpty(refs gatewayapi.SkillReferences) gatewayapi.SkillReferences {
+	if refs.Agents == nil {
+		refs.Agents = []gatewayapi.AgentName{}
+	}
+	if refs.Sandboxes == nil {
+		refs.Sandboxes = []gatewayapi.SandboxName{}
+	}
+	return refs
 }
 
 func (s *Service) listSkillReferences(ctx context.Context, namespace string) (map[string]gatewayapi.SkillReferences, error) {
@@ -398,9 +384,6 @@ func (s *Service) listSkillReferences(ctx context.Context, namespace string) (ma
 		}
 		slices.Sort(names)
 		ref := refs[name]
-		if ref.Agents == nil {
-			ref.Agents = []gatewayapi.AgentName{}
-		}
 		ref.Sandboxes = names
 		refs[name] = ref
 	}
@@ -432,21 +415,10 @@ func (s *Service) effectiveAgentSkills(ctx context.Context, namespace string, ag
 }
 
 func validateSkillName(field string, name string) []gatewayapi.FieldError {
-	fields := []gatewayapi.FieldError{}
-	if name == "" {
-		fields = append(fields, gatewayapi.FieldError{Field: field, Message: "required"})
+	if err := skill.ValidateName(name); err != nil {
+		return []gatewayapi.FieldError{{Field: field, Message: err.Error()}}
 	}
-	if len(name) > 32 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field: field, Message: "must be at most 32 characters",
-		})
-	}
-	if errs := validation.IsDNS1123Label(name); name != "" && len(errs) > 0 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field: field, Message: "must be a valid DNS label",
-		})
-	}
-	return fields
+	return []gatewayapi.FieldError{}
 }
 
 func validateSkillSpec(namespace, name, description string, version int64, storagePath string) []gatewayapi.FieldError {
@@ -541,7 +513,6 @@ const maxSkillUploadBytes = 10 << 20
 
 type immutableImportPlan struct {
 	tree    skill.Tree
-	action  skill.DecisionAction
 	version int64
 	current *agentzv1alpha1.Skill
 }
@@ -643,7 +614,7 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	generated := make([]gatewayapi.SkillImportDecision, 0, len(values))
+	decisions := make([]skill.Decision, 0, len(values))
 	for _, raw := range values {
 		var decision gatewayapi.SkillImportDecision
 		if err := json.Unmarshal([]byte(raw), &decision); err != nil {
@@ -652,10 +623,6 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request) {
 			))
 			return
 		}
-		generated = append(generated, decision)
-	}
-	decisions := make([]skill.Decision, 0, len(generated))
-	for _, decision := range generated {
 		action, err := decision.Discriminator()
 		if err != nil {
 			writeError(w, r, newAPIError(
@@ -721,6 +688,10 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, r, err)
 		return
 	}
+	names := make([]gatewayapi.SkillName, 0, len(bundle.Skills))
+	for _, tree := range bundle.Skills {
+		names = append(names, tree.Name)
+	}
 	if kind == gatewayapi.Immutable {
 		results, err := s.importImmutableSkills(
 			r.Context(), ns, bundle, decisions, agents,
@@ -728,10 +699,6 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			writeError(w, r, err)
 			return
-		}
-		names := make([]gatewayapi.SkillName, 0, len(bundle.Skills))
-		for _, tree := range bundle.Skills {
-			names = append(names, tree.Name)
 		}
 		writeJSON(w, http.StatusOK, gatewayapi.ImportSkillsResponse{
 			Skills: names, Agents: results,
@@ -774,16 +741,21 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	for i, agentName := range agents {
 		wg.Go(func() {
-			s.skillImports <- struct{}{}
+			select {
+			case s.skillImports <- struct{}{}:
+			case <-r.Context().Done():
+				message := r.Context().Err().Error()
+				results[i] = gatewayapi.SkillImportAgentResult{
+					Agent: agentName, Status: gatewayapi.SkillImportAgentResultStatusFailed,
+					Error: &message,
+				}
+				return
+			}
 			defer func() { <-s.skillImports }()
 			results[i] = s.importMutableSkills(r.Context(), ns, agentName, archiveName, header)
 		})
 	}
 	wg.Wait()
-	names := make([]gatewayapi.SkillName, 0, len(bundle.Skills))
-	for _, tree := range bundle.Skills {
-		names = append(names, tree.Name)
-	}
 	writeJSON(w, http.StatusOK, gatewayapi.ImportSkillsResponse{
 		Skills: names, Agents: results,
 	})
@@ -844,7 +816,7 @@ func (s *Service) importImmutableSkills(ctx context.Context, namespace string, b
 			current = nil
 		}
 		plans = append(plans, immutableImportPlan{
-			tree: tree, action: action, version: version, current: current,
+			tree: tree, version: version, current: current,
 		})
 	}
 
@@ -854,23 +826,28 @@ func (s *Service) importImmutableSkills(ctx context.Context, namespace string, b
 			http.StatusInternalServerError, "internal_error", "tenant is unavailable", err,
 		)
 	}
-	for _, plan := range plans {
-		if err := s.skillStore.UploadVersion(ctx, namespace, plan.tree, plan.version); err != nil {
+	for i, plan := range plans {
+		err := s.skillStore.UploadVersion(ctx, namespace, plan.tree, plan.version)
+		if err != nil {
+			cleanupErr := s.rollbackImmutableImport(ctx, namespace, nil, plans[:i])
 			if !errors.Is(err, skill.ErrVersionExists) {
 				return nil, newAPIError(
 					http.StatusInternalServerError,
 					"storage_unavailable",
 					"immutable skill storage is unavailable",
-					err,
+					errors.Join(err, cleanupErr),
 				)
 			}
 			return nil, newAPIError(
 				http.StatusConflict,
 				"version_conflict",
 				"immutable skill version already exists",
-				err,
+				errors.Join(err, cleanupErr),
 			)
 		}
+	}
+
+	for i, plan := range plans {
 		storagePath := s.cfg.SkillStore.StoragePath(namespace, plan.tree.Name, plan.version)
 		if plan.current == nil {
 			item := &agentzv1alpha1.Skill{
@@ -890,9 +867,11 @@ func (s *Service) importImmutableSkills(ctx context.Context, namespace string, b
 				},
 			}
 			if err := s.k8sClient.Create(ctx, item); err != nil {
-				cleanupErr := s.skillStore.DeleteVersion(
-					ctx, namespace, plan.tree.Name, plan.version,
-				)
+				applied := plans[:i+1]
+				if apierrors.IsAlreadyExists(err) {
+					applied = plans[:i]
+				}
+				cleanupErr := s.rollbackImmutableImport(ctx, namespace, applied, plans)
 				return nil, mapKubeHTTPError(
 					"create immutable skill",
 					errors.Join(err, cleanupErr),
@@ -912,9 +891,11 @@ func (s *Service) importImmutableSkills(ctx context.Context, namespace string, b
 			return s.k8sClient.Update(ctx, item)
 		})
 		if err != nil {
-			cleanupErr := s.skillStore.DeleteVersion(
-				ctx, namespace, plan.tree.Name, plan.version,
-			)
+			applied := plans[:i+1]
+			if apierrors.IsConflict(err) {
+				applied = plans[:i]
+			}
+			cleanupErr := s.rollbackImmutableImport(ctx, namespace, applied, plans)
 			return nil, mapKubeHTTPError(
 				"update immutable skill",
 				errors.Join(err, cleanupErr),
@@ -964,6 +945,74 @@ func (s *Service) importImmutableSkills(ctx context.Context, namespace string, b
 	return results, nil
 }
 
+func (s *Service) rollbackImmutableImport(ctx context.Context, namespace string, applied, uploaded []immutableImportPlan) error {
+	ctx = context.WithoutCancel(ctx)
+
+	var rollbackErr error
+	activeVersions := make(map[string]struct{}, len(applied))
+	for _, plan := range slices.Backward(applied) {
+		if plan.current == nil {
+			item := &agentzv1alpha1.Skill{}
+			key := types.NamespacedName{Namespace: namespace, Name: plan.tree.Name}
+			err := s.k8sClient.Get(ctx, key, item)
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			if err != nil {
+				activeVersions[plan.tree.Name] = struct{}{}
+				rollbackErr = errors.Join(rollbackErr, err)
+				continue
+			}
+			expectedPath := s.cfg.SkillStore.StoragePath(namespace, plan.tree.Name, plan.version)
+			if item.Spec.Version != plan.version || item.Spec.StoragePath != expectedPath {
+				err = errors.New("created immutable skill changed before rollback")
+				activeVersions[plan.tree.Name] = struct{}{}
+				rollbackErr = errors.Join(rollbackErr, err)
+				continue
+			}
+			uid := item.UID
+			resourceVersion := item.ResourceVersion
+			err = s.k8sClient.Delete(ctx, item, ctrlclient.Preconditions{
+				UID: &uid, ResourceVersion: &resourceVersion,
+			})
+			if apierrors.IsNotFound(err) {
+				err = nil
+			}
+			if err != nil {
+				activeVersions[plan.tree.Name] = struct{}{}
+			}
+			rollbackErr = errors.Join(rollbackErr, err)
+			continue
+		}
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			item := &agentzv1alpha1.Skill{}
+			key := types.NamespacedName{Namespace: namespace, Name: plan.tree.Name}
+			if err := s.k8sClient.Get(ctx, key, item); err != nil {
+				return err
+			}
+			expectedPath := s.cfg.SkillStore.StoragePath(namespace, plan.tree.Name, plan.version)
+			if item.Spec.Version != plan.version || item.Spec.StoragePath != expectedPath {
+				return errors.New("updated immutable skill changed before rollback")
+			}
+			item.Spec = plan.current.Spec
+			return s.k8sClient.Update(ctx, item)
+		})
+		if err != nil {
+			activeVersions[plan.tree.Name] = struct{}{}
+		}
+		rollbackErr = errors.Join(rollbackErr, err)
+	}
+	for _, plan := range uploaded {
+		if _, active := activeVersions[plan.tree.Name]; active {
+			continue
+		}
+		rollbackErr = errors.Join(rollbackErr, s.skillStore.DeleteVersion(
+			ctx, namespace, plan.tree.Name, plan.version,
+		))
+	}
+	return rollbackErr
+}
+
 func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxSkillUploadBytes+(1<<20))
 	reader, err := r.MultipartReader()
@@ -991,14 +1040,13 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 			writeError(w, r, newAPIError(status, code, "skill upload is invalid", err))
 			return skill.Bundle{}, false
 		}
-		if part.FormName() == "file" {
-			if hasFile {
-				err = errors.New("skill upload contains multiple files")
-			} else {
-				bundle, err = skill.Parse(part.FileName(), part)
-				hasFile = true
-			}
-		} else {
+		switch {
+		case part.FormName() == "file" && hasFile:
+			err = errors.New("skill upload contains multiple files")
+		case part.FormName() == "file":
+			bundle, err = skill.Parse(part.FileName(), part)
+			hasFile = true
+		default:
 			var value []byte
 			value, err = io.ReadAll(io.LimitReader(part, (64<<10)+1))
 			if err == nil && len(value) > 64<<10 {
@@ -1018,16 +1066,15 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			status = http.StatusRequestEntityTooLarge
 			code = "upload_too_large"
-		} else {
-			switch {
-			case errors.Is(err, skill.ErrLimitExceeded):
-				status = http.StatusRequestEntityTooLarge
-				code = "upload_too_large"
-			case errors.Is(err, skill.ErrInvalidTree):
-				code = "invalid_skill_tree"
-			case errors.Is(err, skill.ErrMalformedMetadata):
-				code = "malformed_skill_metadata"
-			}
+		}
+		switch {
+		case errors.Is(err, skill.ErrLimitExceeded):
+			status = http.StatusRequestEntityTooLarge
+			code = "upload_too_large"
+		case errors.Is(err, skill.ErrInvalidTree):
+			code = "invalid_skill_tree"
+		case errors.Is(err, skill.ErrMalformedMetadata):
+			code = "malformed_skill_metadata"
 		}
 		writeError(w, r, newAPIError(status, code, "skill upload is invalid", err))
 		return skill.Bundle{}, false
@@ -1053,8 +1100,8 @@ func importAgentNames(w http.ResponseWriter, r *http.Request) ([]gatewayapi.Agen
 	names := make([]gatewayapi.AgentName, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		name := strings.TrimSpace(value)
-		if _, ok := validAgentName(w, r, name, "agents"); !ok {
+		name, ok := validAgentName(w, r, value, "agents")
+		if !ok {
 			return nil, false
 		}
 		if _, ok := seen[name]; ok {
@@ -1117,42 +1164,49 @@ func (s *Service) importMutableSkills(ctx context.Context, namespace string, age
 		Agent: agentName, Status: gatewayapi.SkillImportAgentResultStatusFailed,
 	}
 	resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
-	if err == nil && statusFromAgent(resolved.Agent).Phase != agentPhaseReady {
-		err = errors.New("agent is not ready")
+	if err != nil {
+		message := err.Error()
+		result.Error = &message
+		return result
 	}
-	if err == nil {
-		var target *url.URL
-		target, err = s.filesystemTarget(resolved)
-		if err == nil {
-			target.Path = "/skill/import"
-			var archive *os.File
-			archive, err = os.Open(archivePath)
-			if err != nil {
-				message := err.Error()
-				result.Error = &message
-				return result
-			}
-			var req *http.Request
-			req, err = http.NewRequestWithContext(
-				ctx, http.MethodPost, target.String(), archive,
-			)
-			if err != nil {
-				err = errors.Join(err, archive.Close())
-			} else {
-				req.Header.Set("Content-Type", "application/zip")
-				req.Header.Set("X-Agentz-Skill-Decisions", string(decisions))
-				var resp *http.Response
-				resp, err = http.DefaultClient.Do(req)
-				if err == nil {
-					body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-					closeErr := resp.Body.Close()
-					err = errors.Join(readErr, closeErr)
-					if err == nil && resp.StatusCode != http.StatusNoContent {
-						err = fmt.Errorf("mutable skill import returned %s: %s", resp.Status, body)
-					}
-				}
-			}
-		}
+	if statusFromAgent(resolved.Agent).Phase != agentPhaseReady {
+		err = errors.New("agent is not ready")
+		message := err.Error()
+		result.Error = &message
+		return result
+	}
+	target, err := s.filesystemTarget(resolved)
+	if err != nil {
+		message := err.Error()
+		result.Error = &message
+		return result
+	}
+	target.Path = "/skill/import"
+	archive, err := os.Open(archivePath)
+	if err != nil {
+		message := err.Error()
+		result.Error = &message
+		return result
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), archive)
+	if err != nil {
+		err = errors.Join(err, archive.Close())
+		message := err.Error()
+		result.Error = &message
+		return result
+	}
+	req.Header.Set("Content-Type", "application/zip")
+	req.Header.Set("X-Agentz-Skill-Decisions", string(decisions))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		message := err.Error()
+		result.Error = &message
+		return result
+	}
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	err = errors.Join(readErr, resp.Body.Close())
+	if err == nil && resp.StatusCode != http.StatusNoContent {
+		err = fmt.Errorf("mutable skill import returned %s: %s", resp.Status, body)
 	}
 	if err != nil {
 		message := err.Error()
@@ -1290,13 +1344,7 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			writeInternalError(w, r, fmt.Errorf("summarize immutable skill: %w", err))
 			return
 		}
-		ref := refs[item.Name]
-		if ref.Agents == nil {
-			ref.Agents = []gatewayapi.AgentName{}
-		}
-		if ref.Sandboxes == nil {
-			ref.Sandboxes = []gatewayapi.SandboxName{}
-		}
+		ref := skillReferencesOrEmpty(refs[item.Name])
 		items = append(items, gatewayapi.ImmutableSkillSummary{
 			Name: item.Name, Description: item.Spec.Description,
 			Version: item.Spec.Version, Agents: ref.Agents, Sandboxes: ref.Sandboxes,
@@ -1336,7 +1384,8 @@ func (s *Service) ExportImmutableSkills(w http.ResponseWriter, r *http.Request) 
 			writeError(w, r, mapKubeHTTPError("get immutable skill", err))
 			return
 		}
-		if _, err := s.skillStore.VersionSummary(r.Context(), ns, name, item.Spec.Version); err != nil {
+		_, err := s.skillStore.VersionSummary(r.Context(), ns, name, item.Spec.Version)
+		if err != nil {
 			writeInternalError(w, r, fmt.Errorf("inspect immutable skill export: %w", err))
 			return
 		}

@@ -23,6 +23,7 @@ const (
 	maxFiles          = 200
 	maxEntries        = 400
 	maxPathBytes      = 1024
+	maxCanonicalBytes = maxExtractedBytes + (1 << 20)
 )
 
 // ErrLimitExceeded identifies imports whose upload or expanded contents exceed
@@ -75,6 +76,16 @@ type Bundle struct {
 
 // Parse reads and validates a Markdown or ZIP skill import.
 func Parse(name string, r io.Reader) (_ Bundle, retErr error) {
+	return parse(name, r, maxUploadBytes)
+}
+
+// ParseCanonicalZIP revalidates a gateway-generated ZIP whose size may exceed
+// the public upload limit after canonical re-encoding.
+func ParseCanonicalZIP(r io.Reader) (_ Bundle, retErr error) {
+	return parse("skills.zip", r, maxCanonicalBytes)
+}
+
+func parse(name string, r io.Reader, maxBytes int64) (_ Bundle, retErr error) {
 	spool, err := os.CreateTemp("", "agentz-skill-import-*")
 	if err != nil {
 		return Bundle{}, fmt.Errorf("create skill import spool: %w", err)
@@ -84,12 +95,12 @@ func Parse(name string, r io.Reader) (_ Bundle, retErr error) {
 		retErr = errors.Join(retErr, spool.Close(), os.Remove(spoolName))
 	}()
 
-	size, err := io.Copy(spool, io.LimitReader(r, maxUploadBytes+1))
+	size, err := io.Copy(spool, io.LimitReader(r, maxBytes+1))
 	if err != nil {
 		return Bundle{}, fmt.Errorf("spool skill import: %w", err)
 	}
-	if size > maxUploadBytes {
-		return Bundle{}, fmt.Errorf("%w: upload exceeds 10 mib", ErrLimitExceeded)
+	if size > maxBytes {
+		return Bundle{}, fmt.Errorf("%w: archive exceeds its allowed size", ErrLimitExceeded)
 	}
 	if _, err := spool.Seek(0, io.SeekStart); err != nil {
 		return Bundle{}, fmt.Errorf("rewind skill import: %w", err)
@@ -100,6 +111,9 @@ func Parse(name string, r io.Reader) (_ Bundle, retErr error) {
 		content, err := io.ReadAll(io.LimitReader(spool, maxSkillBytes+1))
 		if err != nil {
 			return Bundle{}, fmt.Errorf("read skill markdown: %w", err)
+		}
+		if len(content) > maxSkillBytes {
+			return Bundle{}, fmt.Errorf("%w: skill.md exceeds 64 kib", ErrLimitExceeded)
 		}
 		return parseMarkdown(content)
 	case ".zip":

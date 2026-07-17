@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"os"
 	"path"
 	"slices"
 	"strconv"
@@ -22,13 +21,9 @@ import (
 )
 
 const (
-	mutableSkillsRoot  = ".agents/skills"
-	maxSkillImportSize = 10 << 20
+	mutableSkillsRoot           = ".agents/skills"
+	maxCanonicalSkillImportSize = 21 << 20
 )
-
-type archivedFile struct {
-	name string
-}
 
 type committedSkill struct {
 	name      string
@@ -71,7 +66,8 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 	var next string
 	for _, entry := range entries {
 		name := entry.Name()
-		if !entry.IsDir() || skill.ValidateName(name) != nil || name <= start {
+		isSkill := entry.IsDir() && skill.ValidateName(name) == nil && name > start
+		if !isSkill {
 			continue
 		}
 		if len(items) == limit {
@@ -81,27 +77,32 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 		var count int
 		var size int64
 		var modified time.Time
-		err := fs.WalkDir(s.root.FS(), path.Join(mutableSkillsRoot, name), func(fpath string, item fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if item.IsDir() {
+		err := fs.WalkDir(
+			s.root.FS(),
+			path.Join(mutableSkillsRoot, name),
+			func(filePath string, item fs.DirEntry, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if item.IsDir() {
+					return nil
+				}
+				info, err := item.Info()
+				if err != nil {
+					return err
+				}
+				if !info.Mode().IsRegular() {
+					return errors.New("mutable skill contains a non-regular file")
+				}
+				count++
+				size += info.Size()
+				if info.ModTime().After(modified) {
+					modified = info.ModTime()
+				}
+				_ = filePath
 				return nil
-			}
-			info, err := item.Info()
-			if err != nil {
-				return err
-			}
-			if !info.Mode().IsRegular() {
-				return errors.New("mutable skill contains a non-regular file")
-			}
-			count++
-			size += info.Size()
-			if info.ModTime().After(modified) {
-				modified = info.ModTime()
-			}
-			return nil
-		})
+			},
+		)
 		if err != nil {
 			writeFailure(w, r, internalFailure("summarize mutable skill", err))
 			return
@@ -125,11 +126,11 @@ func (s *service) deleteSkills(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, ferr)
 		return
 	}
-	names, ferr := requestedSkills(req.SkillNames)
-	if ferr != nil {
-		writeFailure(w, r, ferr)
+	if err := skill.ValidateNames(req.SkillNames); err != nil {
+		writeFailure(w, r, badRequest("skill_names is invalid", err))
 		return
 	}
+	names := req.SkillNames
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -155,13 +156,13 @@ func (s *service) exportSkills(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, ferr)
 		return
 	}
-	names, ferr := requestedSkills(req.SkillNames)
-	if ferr != nil {
-		writeFailure(w, r, ferr)
+	if err := skill.ValidateNames(req.SkillNames); err != nil {
+		writeFailure(w, r, badRequest("skill_names is invalid", err))
 		return
 	}
+	names := req.SkillNames
 
-	files := make([]archivedFile, 0)
+	files := make([]string, 0)
 	for _, name := range names {
 		root := path.Join(mutableSkillsRoot, name)
 		info, err := s.root.Stat(root)
@@ -180,7 +181,7 @@ func (s *service) exportSkills(w http.ResponseWriter, r *http.Request) {
 			if !info.Mode().IsRegular() {
 				return errors.New("mutable skill contains a non-regular file")
 			}
-			files = append(files, archivedFile{name: filePath})
+			files = append(files, filePath)
 			return nil
 		})
 		if err != nil {
@@ -188,9 +189,7 @@ func (s *service) exportSkills(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	slices.SortFunc(files, func(a, b archivedFile) int {
-		return strings.Compare(a.name, b.name)
-	})
+	slices.Sort(files)
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="skills.zip"`)
@@ -199,11 +198,11 @@ func (s *service) exportSkills(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *service) writeSkillArchive(w io.Writer, files []archivedFile) error {
+func (s *service) writeSkillArchive(w io.Writer, files []string) error {
 	zw := zip.NewWriter(w)
-	for _, archived := range files {
-		name := strings.TrimPrefix(archived.name, mutableSkillsRoot+"/")
-		src, err := s.root.Open(archived.name)
+	for _, file := range files {
+		name := strings.TrimPrefix(file, mutableSkillsRoot+"/")
+		src, err := s.root.Open(file)
 		if err != nil {
 			return errors.Join(err, zw.Close())
 		}
@@ -228,7 +227,7 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, badRequest("skill import decisions are invalid", err))
 		return
 	}
-	bundle, err := skill.Parse("skills.zip", http.MaxBytesReader(w, r.Body, maxSkillImportSize+1))
+	bundle, err := skill.ParseCanonicalZIP(http.MaxBytesReader(w, r.Body, maxCanonicalSkillImportSize+1))
 	if err != nil {
 		writeFailure(w, r, badRequest("skill import is invalid", err))
 		return
@@ -248,7 +247,9 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 			writeFailure(w, r, badRequest("skill import destination is invalid", err))
 			return
 		}
-		if decision.Action != skill.DecisionCreate && decision.Action != skill.DecisionOverwrite && decision.Action != skill.DecisionRename {
+		switch decision.Action {
+		case skill.DecisionCreate, skill.DecisionOverwrite, skill.DecisionRename:
+		default:
 			writeFailure(w, r, badRequest("skill import decision action is invalid", nil))
 			return
 		}
@@ -273,10 +274,19 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 	}
 	stageID := rand.Text()
 	backupID := rand.Text()
+	var preserveTransaction bool
 	defer func() {
 		for _, tree := range bundle.Skills {
 			stage := path.Join(mutableSkillsRoot, ".stage-"+stageID+"-"+tree.Name)
 			backup := path.Join(mutableSkillsRoot, ".backup-"+backupID+"-"+tree.Name)
+			if preserveTransaction {
+				slog.ErrorContext(
+					r.Context(),
+					"retain mutable skill transaction for recovery",
+					slog.String("stage", stage), slog.String("backup", backup),
+				)
+				continue
+			}
 			if err := errors.Join(s.root.RemoveAll(stage), s.root.RemoveAll(backup)); err != nil {
 				slog.ErrorContext(r.Context(), "remove mutable skill transaction", slog.Any("err", err))
 			}
@@ -305,19 +315,6 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 				writeFailure(w, r, internalFailure("write staged skill file", err))
 				return
 			}
-		}
-		err := fs.WalkDir(s.root.FS(), root, func(name string, _ fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if os.Geteuid() == 0 {
-				return s.root.Chown(name, 1000, 1000)
-			}
-			return nil
-		})
-		if err != nil {
-			writeFailure(w, r, internalFailure("prepare staged skill", err))
-			return
 		}
 	}
 
@@ -354,24 +351,21 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 		action := actions[tree.Name]
 		if action == skill.DecisionOverwrite {
 			exchanged, err := exchangeFiles(s.root, staged, destination)
+			if err == nil && !exchanged {
+				err = errors.New("atomic filesystem exchange is unsupported")
+			}
 			if err == nil && exchanged {
 				err = s.root.Rename(staged, saved)
 				if err != nil {
 					_, restoreErr := exchangeFiles(s.root, staged, destination)
+					preserveTransaction = restoreErr != nil
 					err = errors.Join(err, restoreErr)
 				}
 			}
-			if err == nil && !exchanged {
-				err = s.root.Rename(destination, saved)
-				if err == nil {
-					err = s.root.Rename(staged, destination)
-					if err != nil {
-						err = errors.Join(err, s.root.Rename(saved, destination))
-					}
-				}
-			}
 			if err != nil {
-				err = errors.Join(err, s.rollbackSkills(committed))
+				rollbackErr := s.rollbackSkills(committed)
+				preserveTransaction = preserveTransaction || rollbackErr != nil
+				err = errors.Join(err, rollbackErr)
 				writeFailure(w, r, internalFailure("commit mutable skill overwrite", err))
 				return
 			}
@@ -379,7 +373,9 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err := s.root.Rename(staged, destination); err != nil {
-			err = errors.Join(err, s.rollbackSkills(committed))
+			rollbackErr := s.rollbackSkills(committed)
+			preserveTransaction = rollbackErr != nil
+			err = errors.Join(err, rollbackErr)
 			writeFailure(w, r, internalFailure("commit mutable skill create", err))
 			return
 		}
@@ -395,15 +391,15 @@ func (s *service) rollbackSkills(committed []committedSkill) error {
 			rollbackErr = errors.Join(rollbackErr, s.root.RemoveAll(item.name))
 			continue
 		}
-		rollbackErr = errors.Join(rollbackErr, s.root.RemoveAll(item.name))
-		rollbackErr = errors.Join(rollbackErr, s.root.Rename(item.backup, item.name))
+		exchanged, err := exchangeFiles(s.root, item.name, item.backup)
+		if err == nil && !exchanged {
+			err = errors.New("atomic filesystem exchange is unsupported")
+		}
+		if err != nil {
+			rollbackErr = errors.Join(rollbackErr, err)
+			continue
+		}
+		rollbackErr = errors.Join(rollbackErr, s.root.RemoveAll(item.backup))
 	}
 	return rollbackErr
-}
-
-func requestedSkills(raw []gatewayapi.SkillName) ([]string, *failure) {
-	if err := skill.ValidateNames(raw); err != nil {
-		return nil, badRequest("skill_names is invalid", err)
-	}
-	return raw, nil
 }

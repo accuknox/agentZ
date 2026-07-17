@@ -3,7 +3,7 @@
 import type { Route } from "next"
 import * as React from "react"
 import { useRouter } from "@bprogress/next/app"
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   BotIcon,
@@ -52,7 +52,6 @@ import {
   deleteImmutableSkills,
   exportAgentMutableSkills,
   exportImmutableSkills,
-  listImmutableSkillVersions,
   updateSkill,
   type Agent,
   type ImmutableSkillSummary,
@@ -61,6 +60,7 @@ import {
 import {
   listAgentMutableSkillsOptions,
   listImmutableSkillSummariesOptions,
+  listImmutableSkillVersionsOptions,
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { SkillImportDialog } from "./skill-import-dialog"
 import { SkillTable } from "./skill-table"
@@ -82,8 +82,6 @@ type SkillListData = {
 }
 
 const emptySkills: Skill[] = []
-
-const versionSchema = z.number().int().min(1)
 
 export function SkillsClient({
   agents,
@@ -244,12 +242,6 @@ export function SkillsClient({
     setError(undefined)
 
     const namesToDelete = deleteNames
-    const deletedSet = new Set(namesToDelete)
-
-    queryClient.setQueryData<SkillListData>(queryKey, (old) =>
-      old ? { ...old, skills: old.skills.filter((s) => !deletedSet.has(s.name)) } : old
-    )
-
     setDeleteNames([])
     setSelected(new Set())
 
@@ -267,6 +259,7 @@ export function SkillsClient({
       return
     }
     toast.success("Skills deleted")
+    await refreshSkills()
   }
 
   const canUseMutableSkills = mutableReady && (type === "immutable" || agentName.length > 0)
@@ -450,23 +443,10 @@ function EditSkillDialog({
   const [error, setError] = React.useState<{ skillName: string; message: string }>()
   const [pending, startTransition] = React.useTransition()
   const [version, setVersion] = React.useState(String(skill?.version ?? ""))
-  const versionsQuery = useQuery(
-    queryOptions({
-      queryKey: ["skills", "versions", skill?.name],
-      enabled: open && Boolean(skill?.name),
-      queryFn: async () => {
-        if (!skill?.name) {
-          throw new Error("Skill name is required")
-        }
-        const result = await listImmutableSkillVersions({ path: { skillName: skill.name } })
-        if (result.error) {
-          throw new Error(result.error.message)
-        }
-        versionSchema.array().parse(result.data)
-        return result.data
-      },
-    })
-  )
+  const versionsQuery = useQuery({
+    ...listImmutableSkillVersionsOptions({ path: { skillName: skill?.name ?? "" } }),
+    enabled: open && Boolean(skill?.name),
+  })
   const versionValues = new Set(versionsQuery.data ?? [])
   if (skill) {
     versionValues.add(skill.version)

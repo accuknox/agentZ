@@ -3,6 +3,7 @@ package skill
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -33,6 +34,51 @@ func TestParseMarkdown(t *testing.T) {
 	}
 	if bundle.Skills[0].Description != "Deploy an application." {
 		t.Fatalf("Description = %q", bundle.Skills[0].Description)
+	}
+}
+
+func TestParseMarkdownRejectsOversizedSkill(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse("deploy.md", bytes.NewReader(make([]byte, maxSkillBytes+1)))
+	if !errors.Is(err, ErrLimitExceeded) {
+		t.Fatalf("Parse() error = %v, want ErrLimitExceeded", err)
+	}
+}
+
+func TestParseCanonicalZIPAllowsReencodedArchive(t *testing.T) {
+	t.Parallel()
+
+	var archive bytes.Buffer
+	zw := zip.NewWriter(&archive)
+	files := make([]zipTestFile, 0, 12)
+	files = append(files, zipTestFile{
+		name:    "deploy/SKILL.md",
+		content: []byte("---\nname: deploy\ndescription: description\n---\n\n# Body\n"),
+	})
+	for i := range 11 {
+		files = append(files, zipTestFile{
+			name: fmt.Sprintf("deploy/references/%02d", i), content: make([]byte, maxFileBytes),
+		})
+	}
+	for _, file := range files {
+		h := &zip.FileHeader{Name: file.name, Method: zip.Store}
+		entry, err := zw.CreateHeader(h)
+		if err != nil {
+			t.Fatalf("create %q: %v", file.name, err)
+		}
+		if _, err := entry.Write(file.content); err != nil {
+			t.Fatalf("write %q: %v", file.name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close archive: %v", err)
+	}
+	if _, err := Parse("skills.zip", bytes.NewReader(archive.Bytes())); !errors.Is(err, ErrLimitExceeded) {
+		t.Fatalf("Parse() error = %v, want ErrLimitExceeded", err)
+	}
+	if _, err := ParseCanonicalZIP(bytes.NewReader(archive.Bytes())); err != nil {
+		t.Fatalf("ParseCanonicalZIP() error = %v", err)
 	}
 }
 

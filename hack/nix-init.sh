@@ -624,6 +624,7 @@ main() {
             ;;
         clear-immutable-skills)
             rm -rf "${AGENTZ_IMMUTABLE_SKILLS_TARGET:-/var/lib/agentz/skills/immutable}"
+            mkdir -p "${AGENTZ_IMMUTABLE_SKILLS_TARGET:-/var/lib/agentz/skills/immutable}"
             ;;
         *)
             echo "unknown mode: $mode"

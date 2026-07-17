@@ -577,7 +577,7 @@ func (c *Client) downloadObject(ctx context.Context, root *os.Root, key, rel str
 		return 0, fmt.Errorf("get s3 object: %w", err)
 	}
 
-	file, err := root.OpenFile(rel, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	file, err := root.Create(rel)
 	if err != nil {
 		return 0, errors.Join(
 			fmt.Errorf("open immutable skill file: %w", err),

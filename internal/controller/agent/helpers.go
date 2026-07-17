@@ -54,7 +54,6 @@ const (
 	setWorkflowRunStatusToolName   = "set_workflowrun_status"
 	updateWorkflowScheduleToolName = "update_workflow_schedule"
 	nixAgentVolume                 = "nix-agent"
-	homeAgentVolume                = "home-agent"
 	nixRuntimeStoreVolume          = "nix-runtime-store"
 	nixAgentMount                  = "/mnt/nix"
 	nixRuntimeStoreMount           = "/nix/store"
@@ -63,7 +62,6 @@ const (
 	homeStoreSubPath               = "home"
 	immutableSkillsSubPath         = "immutable-skills"
 	nixVolumeRootMount             = "/pvc"
-	homeVolumeRootMount            = "/pvc-home"
 	nixLinkVolume                  = "nix-link"
 	nixLinkMount                   = "/tmp/nix-link"
 	nixLinkStage                   = "/tmp/nix-link"
@@ -95,6 +93,7 @@ const (
 	immutableSkillsSecretMount     = "/var/run/secrets/agentz/immutable-skills-bucket"
 	immutableSkillsInitName        = "immutable-skills-init"
 	filesystemContainerName        = "filesystem"
+	filesystemTempVolume           = "filesystem-tmp"
 	filesystemPort                 = int32(4097)
 )
 
@@ -125,7 +124,6 @@ type RuntimeConfig struct {
 	ManagerOpenBaoK8sAuthRole        string
 	ManagerOpenBaoK8sAuthTokenPath   string
 	GatewayTokenAudience             string
-	AgentHomeStorageClass            string
 	SkillStore                       skill.Config
 }
 

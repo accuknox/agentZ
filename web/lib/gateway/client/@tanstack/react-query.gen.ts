@@ -15,6 +15,8 @@ import {
   createWorkflowSchedule,
   deleteAgent,
   deleteAgentEntry,
+  deleteAgentMutableSkills,
+  deleteImmutableSkills,
   deleteMcpConnection,
   deleteSandbox,
   deleteSecret,
@@ -23,6 +25,8 @@ import {
   deleteWorkflows,
   deleteWorkflowSchedule,
   ensureTenant,
+  exportAgentMutableSkills,
+  exportImmutableSkills,
   getMcpConnection,
   getMcpGraph,
   getSkillReferences,
@@ -30,10 +34,14 @@ import {
   getTenant,
   getWorkflow,
   getWorkflowRun,
+  importSkills,
   invokeWorkflowWebhook,
+  listAgentMutableSkills,
   listAgents,
   listAgentWorkflowSchedules,
   listFileObservability,
+  listImmutableSkillSummaries,
+  listImmutableSkillVersions,
   listMcpConnections,
   listNetworkObservability,
   listProcessObservability,
@@ -49,6 +57,7 @@ import {
   type Options,
   patchWorkflowRunNodeStatus,
   patchWorkflowRunStatus,
+  previewSkillImport,
   putSecret,
   readAgentFile,
   readAgentFileRaw,
@@ -93,7 +102,13 @@ import type {
   DeleteAgentEntryError,
   DeleteAgentEntryResponse,
   DeleteAgentError,
+  DeleteAgentMutableSkillsData,
+  DeleteAgentMutableSkillsError,
+  DeleteAgentMutableSkillsResponse,
   DeleteAgentResponse,
+  DeleteImmutableSkillsData,
+  DeleteImmutableSkillsError,
+  DeleteImmutableSkillsResponse,
   DeleteMcpConnectionData,
   DeleteMcpConnectionError,
   DeleteMcpConnectionResponse,
@@ -118,6 +133,12 @@ import type {
   EnsureTenantData,
   EnsureTenantError,
   EnsureTenantResponse,
+  ExportAgentMutableSkillsData,
+  ExportAgentMutableSkillsError,
+  ExportAgentMutableSkillsResponse,
+  ExportImmutableSkillsData,
+  ExportImmutableSkillsError,
+  ExportImmutableSkillsResponse,
   GetMcpConnectionData,
   GetMcpConnectionError,
   GetMcpConnectionResponse,
@@ -139,9 +160,15 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunError,
   GetWorkflowRunResponse,
+  ImportSkillsData,
+  ImportSkillsError,
+  ImportSkillsResponse2,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookError,
   InvokeWorkflowWebhookResponse,
+  ListAgentMutableSkillsData,
+  ListAgentMutableSkillsError,
+  ListAgentMutableSkillsResponse,
   ListAgentsData,
   ListAgentsError,
   ListAgentsResponse2,
@@ -151,6 +178,12 @@ import type {
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
+  ListImmutableSkillSummariesData,
+  ListImmutableSkillSummariesError,
+  ListImmutableSkillSummariesResponse2,
+  ListImmutableSkillVersionsData,
+  ListImmutableSkillVersionsError,
+  ListImmutableSkillVersionsResponse,
   ListMcpConnectionsData,
   ListMcpConnectionsError,
   ListMcpConnectionsResponse2,
@@ -193,6 +226,9 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusError,
   PatchWorkflowRunStatusResponse,
+  PreviewSkillImportData,
+  PreviewSkillImportError,
+  PreviewSkillImportResponse,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
@@ -621,6 +657,162 @@ export const deleteAgentEntryMutation = (
   return mutationOptions
 }
 
+/**
+ * Delete mutable skills from an Agent workspace.
+ */
+export const deleteAgentMutableSkillsMutation = (
+  options?: Partial<Options<DeleteAgentMutableSkillsData>>
+): UseMutationOptions<
+  DeleteAgentMutableSkillsResponse,
+  DeleteAgentMutableSkillsError,
+  Options<DeleteAgentMutableSkillsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteAgentMutableSkillsResponse,
+    DeleteAgentMutableSkillsError,
+    Options<DeleteAgentMutableSkillsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteAgentMutableSkills({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listAgentMutableSkillsQueryKey = (options: Options<ListAgentMutableSkillsData>) =>
+  createQueryKey("listAgentMutableSkills", options)
+
+/**
+ * List mutable skills stored in an Agent workspace.
+ */
+export const listAgentMutableSkillsOptions = (options: Options<ListAgentMutableSkillsData>) =>
+  queryOptions<
+    ListAgentMutableSkillsResponse,
+    ListAgentMutableSkillsError,
+    ListAgentMutableSkillsResponse,
+    ReturnType<typeof listAgentMutableSkillsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentMutableSkills({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentMutableSkillsQueryKey(options),
+  })
+
+/**
+ * Stream mutable Agent skills as a ZIP archive.
+ */
+export const exportAgentMutableSkillsMutation = (
+  options?: Partial<Options<ExportAgentMutableSkillsData>>
+): UseMutationOptions<
+  ExportAgentMutableSkillsResponse,
+  ExportAgentMutableSkillsError,
+  Options<ExportAgentMutableSkillsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ExportAgentMutableSkillsResponse,
+    ExportAgentMutableSkillsError,
+    Options<ExportAgentMutableSkillsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await exportAgentMutableSkills({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Parse a skill import and report live conflicts.
+ */
+export const previewSkillImportMutation = (
+  options?: Partial<Options<PreviewSkillImportData>>
+): UseMutationOptions<
+  PreviewSkillImportResponse,
+  PreviewSkillImportError,
+  Options<PreviewSkillImportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PreviewSkillImportResponse,
+    PreviewSkillImportError,
+    Options<PreviewSkillImportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await previewSkillImport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Import mutable or immutable skills.
+ */
+export const importSkillsMutation = (
+  options?: Partial<Options<ImportSkillsData>>
+): UseMutationOptions<ImportSkillsResponse2, ImportSkillsError, Options<ImportSkillsData>> => {
+  const mutationOptions: UseMutationOptions<
+    ImportSkillsResponse2,
+    ImportSkillsError,
+    Options<ImportSkillsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await importSkills({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete immutable Skill resources in one request.
+ */
+export const deleteImmutableSkillsMutation = (
+  options?: Partial<Options<DeleteImmutableSkillsData>>
+): UseMutationOptions<
+  DeleteImmutableSkillsResponse,
+  DeleteImmutableSkillsError,
+  Options<DeleteImmutableSkillsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteImmutableSkillsResponse,
+    DeleteImmutableSkillsError,
+    Options<DeleteImmutableSkillsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteImmutableSkills({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
 export const listSkillsQueryKey = (options?: Options<ListSkillsData>) =>
   createQueryKey("listSkills", options)
 
@@ -659,6 +851,61 @@ export const createSkillMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await createSkill({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listImmutableSkillSummariesQueryKey = (
+  options?: Options<ListImmutableSkillSummariesData>
+) => createQueryKey("listImmutableSkillSummaries", options)
+
+/**
+ * List immutable skills with active version file summaries.
+ */
+export const listImmutableSkillSummariesOptions = (
+  options?: Options<ListImmutableSkillSummariesData>
+) =>
+  queryOptions<
+    ListImmutableSkillSummariesResponse2,
+    ListImmutableSkillSummariesError,
+    ListImmutableSkillSummariesResponse2,
+    ReturnType<typeof listImmutableSkillSummariesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listImmutableSkillSummaries({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listImmutableSkillSummariesQueryKey(options),
+  })
+
+/**
+ * Stream selected active immutable Skill versions as ZIP.
+ */
+export const exportImmutableSkillsMutation = (
+  options?: Partial<Options<ExportImmutableSkillsData>>
+): UseMutationOptions<
+  ExportImmutableSkillsResponse,
+  ExportImmutableSkillsError,
+  Options<ExportImmutableSkillsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ExportImmutableSkillsResponse,
+    ExportImmutableSkillsError,
+    Options<ExportImmutableSkillsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await exportImmutableSkills({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -738,6 +985,34 @@ export const getSkillReferencesOptions = (options: Options<GetSkillReferencesDat
       return data
     },
     queryKey: getSkillReferencesQueryKey(options),
+  })
+
+export const listImmutableSkillVersionsQueryKey = (
+  options: Options<ListImmutableSkillVersionsData>
+) => createQueryKey("listImmutableSkillVersions", options)
+
+/**
+ * List stored versions for an immutable Skill.
+ */
+export const listImmutableSkillVersionsOptions = (
+  options: Options<ListImmutableSkillVersionsData>
+) =>
+  queryOptions<
+    ListImmutableSkillVersionsResponse,
+    ListImmutableSkillVersionsError,
+    ListImmutableSkillVersionsResponse,
+    ReturnType<typeof listImmutableSkillVersionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listImmutableSkillVersions({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listImmutableSkillVersionsQueryKey(options),
   })
 
 export const listTraceSessionsQueryKey = (options: Options<ListTraceSessionsData>) =>

@@ -232,26 +232,23 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 	}
 
 	volumes = append(volumes, corev1.Volume{
-		Name: homeAgentVolume,
-		VolumeSource: corev1.VolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: agt.Name + "-home",
-			},
-		},
-	})
-	homeMount := corev1.VolumeMount{
-		Name:      homeAgentVolume,
-		MountPath: agentHomeDir,
-		SubPath:   homeStoreSubPath,
-	}
-	volumeMounts = append(volumeMounts, homeMount)
-	volumes = append(volumes, corev1.Volume{
 		Name: nixAgentVolume,
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 				ClaimName: agt.Name + "-nix",
 			},
 		},
+	})
+	volumes = append(volumes, corev1.Volume{
+		Name: filesystemTempVolume,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      nixAgentVolume,
+		MountPath: agentHomeDir,
+		SubPath:   homeStoreSubPath,
 	})
 	initContainers = append(initContainers, corev1.Container{
 		Name:            homeInitName,
@@ -268,7 +265,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 			},
 		},
 		VolumeMounts: []corev1.VolumeMount{{
-			Name:      homeAgentVolume,
+			Name:      nixAgentVolume,
 			MountPath: nixVolumeRootMount,
 		}},
 	})
@@ -291,14 +288,12 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 		})
 	}
 
-	if len(envCfg.Skills) > 0 {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      homeAgentVolume,
-			MountPath: opencodeImmutableSkillsPath,
-			SubPath:   immutableSkillsSubPath,
-			ReadOnly:  true,
-		})
-	}
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      nixAgentVolume,
+		MountPath: opencodeImmutableSkillsPath,
+		SubPath:   immutableSkillsSubPath,
+		ReadOnly:  true,
+	})
 
 	bundleKey := r.Config.SinjectorCASecretBundleKey
 	volumes = append(volumes, corev1.Volume{
@@ -516,7 +511,17 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 									Drop: []corev1.Capability{"ALL"},
 								},
 							},
-							VolumeMounts: []corev1.VolumeMount{homeMount},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      nixAgentVolume,
+									MountPath: agentHomeDir,
+									SubPath:   homeStoreSubPath,
+								},
+								{
+									Name:      filesystemTempVolume,
+									MountPath: "/tmp",
+								},
+							},
 						},
 					},
 				},

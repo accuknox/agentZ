@@ -150,17 +150,9 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 			Value: r.Config.SharedNixPVC,
 		})
 	}
-	volumes = append(volumes, corev1.Volume{
-		Name: homeAgentVolume,
-		VolumeSource: corev1.VolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: agt.Name + "-home",
-			},
-		},
-	})
 	immutableArgs := []string{"clear-immutable-skills"}
 	immutableMounts := []corev1.VolumeMount{{
-		Name: homeAgentVolume, MountPath: homeVolumeRootMount,
+		Name: packageJobRootVolume, MountPath: nixVolumeRootMount,
 	}}
 	if len(envCfg.Skills) > 0 {
 		immutableArgs = []string{"sync-immutable-skills"}
@@ -195,7 +187,7 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 		Args:            immutableArgs,
 		Env: []corev1.EnvVar{{
 			Name:  "AGENTZ_IMMUTABLE_SKILLS_TARGET",
-			Value: homeVolumeRootMount + "/" + immutableSkillsSubPath,
+			Value: nixVolumeRootMount + "/" + immutableSkillsSubPath,
 		}},
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: ptr.To(false),

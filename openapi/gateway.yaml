@@ -181,6 +181,12 @@ components:
         type: boolean
   requestBodies: {}
   responses:
+    BadGateway:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: The Agent filesystem is unavailable.
     BadRequest:
       content:
         application/json:
@@ -207,6 +213,12 @@ components:
             $ref: '#/components/schemas/Error'
       description: |
         Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+    PayloadTooLarge:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: Request body or expanded content exceeds a documented limit.
     Unauthorized:
       content:
         application/json:
@@ -223,8 +235,6 @@ components:
       properties:
         created_at:
           format: date-time
-          type: string
-        home_storage_prefix:
           type: string
         last_activity:
           format: date-time
@@ -248,7 +258,6 @@ components:
       - last_activity
       - created_at
       - modified_at
-      - home_storage_prefix
       - skills
       - status
       type: object
@@ -464,6 +473,19 @@ components:
       - key
       - hosts
       type: object
+    CreateSkillImportDecision:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - create
+          type: string
+        name:
+          $ref: '#/components/schemas/SkillName'
+      required:
+      - action
+      - name
+      type: object
     CreateSkillRequest:
       additionalProperties: false
       properties:
@@ -564,6 +586,19 @@ components:
       required:
       - keys
       type: object
+    DeleteSkillsRequest:
+      additionalProperties: false
+      properties:
+        skill_names:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          maxItems: 200
+          minItems: 1
+          type: array
+          uniqueItems: true
+      required:
+      - skill_names
+      type: object
     DeleteWorkflowsRequest:
       additionalProperties: false
       properties:
@@ -593,6 +628,19 @@ components:
       required:
       - code
       - message
+      type: object
+    ExportSkillsRequest:
+      additionalProperties: false
+      properties:
+        skill_names:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          maxItems: 200
+          minItems: 1
+          type: array
+          uniqueItems: true
+      required:
+      - skill_names
       type: object
     FieldError:
       additionalProperties: false
@@ -681,6 +729,46 @@ components:
       - source
       - occurrences
       type: object
+    ImmutableSkillSummary:
+      allOf:
+      - $ref: '#/components/schemas/SkillFileSummary'
+      - additionalProperties: false
+        properties:
+          agents:
+            items:
+              $ref: '#/components/schemas/AgentName'
+            type: array
+          description:
+            type: string
+          sandboxes:
+            items:
+              $ref: '#/components/schemas/SandboxName'
+            type: array
+          version:
+            format: int64
+            minimum: 1
+            type: integer
+        required:
+        - description
+        - version
+        - agents
+        - sandboxes
+        type: object
+    ImportSkillsResponse:
+      additionalProperties: false
+      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/SkillImportAgentResult'
+          type: array
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          type: array
+      required:
+      - skills
+      - agents
+      type: object
     JSONObject:
       additionalProperties:
         $ref: '#/components/schemas/JSONValue'
@@ -725,6 +813,19 @@ components:
       - events
       - next_page_token
       type: object
+    ListImmutableSkillSummariesResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        skills:
+          items:
+            $ref: '#/components/schemas/ImmutableSkillSummary'
+          type: array
+      required:
+      - skills
+      - next_page_token
+      type: object
     ListMCPConnectionsResponse:
       additionalProperties: false
       properties:
@@ -736,6 +837,19 @@ components:
           type: string
       required:
       - mcp_connections
+      - next_page_token
+      type: object
+    ListMutableSkillsResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        skills:
+          items:
+            $ref: '#/components/schemas/MutableSkillSummary'
+          type: array
+      required:
+      - skills
       - next_page_token
       type: object
     ListNetworkObservabilityResponse:
@@ -1240,6 +1354,9 @@ components:
       - connection_id
       - name
       type: object
+    MutableSkillSummary:
+      allOf:
+      - $ref: '#/components/schemas/SkillFileSummary'
     NetworkObservabilityEvent:
       additionalProperties: false
       properties:
@@ -9341,6 +9458,19 @@ components:
       maxLength: 16
       pattern: ^([0-9a-f]{16})?$
       type: string
+    OverwriteSkillImportDecision:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - overwrite
+          type: string
+        name:
+          $ref: '#/components/schemas/SkillName'
+      required:
+      - action
+      - name
+      type: object
     PatchWorkflowRunNodeStatusRequest:
       additionalProperties: false
       properties:
@@ -9459,6 +9589,22 @@ components:
       required:
       - path
       - target
+      type: object
+    RenameSkillImportDecision:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - rename
+          type: string
+        name:
+          $ref: '#/components/schemas/SkillName'
+        rename:
+          $ref: '#/components/schemas/SkillName'
+      required:
+      - action
+      - name
+      - rename
       type: object
     Sandbox:
       additionalProperties: false
@@ -9680,6 +9826,86 @@ components:
       - sandboxes
       - created_at
       type: object
+    SkillFileSummary:
+      additionalProperties: false
+      properties:
+        file_count:
+          minimum: 1
+          type: integer
+        modified_at:
+          format: date-time
+          nullable: true
+          type: string
+        name:
+          $ref: '#/components/schemas/SkillName'
+        size_bytes:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+      - name
+      - file_count
+      - size_bytes
+      - modified_at
+      type: object
+    SkillImportAgentResult:
+      additionalProperties: false
+      properties:
+        agent:
+          $ref: '#/components/schemas/AgentName'
+        error:
+          type: string
+        status:
+          enum:
+          - succeeded
+          - failed
+          type: string
+      required:
+      - agent
+      - status
+      type: object
+    SkillImportDecision:
+      discriminator:
+        mapping:
+          create: '#/components/schemas/CreateSkillImportDecision'
+          overwrite: '#/components/schemas/OverwriteSkillImportDecision'
+          rename: '#/components/schemas/RenameSkillImportDecision'
+        propertyName: action
+      oneOf:
+      - $ref: '#/components/schemas/CreateSkillImportDecision'
+      - $ref: '#/components/schemas/OverwriteSkillImportDecision'
+      - $ref: '#/components/schemas/RenameSkillImportDecision'
+    SkillImportPreviewItem:
+      additionalProperties: false
+      properties:
+        immutable_conflict:
+          type: boolean
+        mutable_conflict_agents:
+          items:
+            $ref: '#/components/schemas/AgentName'
+          type: array
+        name:
+          $ref: '#/components/schemas/SkillName'
+      required:
+      - name
+      - mutable_conflict_agents
+      - immutable_conflict
+      type: object
+    SkillImportPreviewResponse:
+      additionalProperties: false
+      properties:
+        skills:
+          items:
+            $ref: '#/components/schemas/SkillImportPreviewItem'
+          type: array
+      required:
+      - skills
+      type: object
+    SkillKind:
+      enum:
+      - mutable
+      - immutable
+      type: string
     SkillName:
       description: Immutable Skill resource name.
       maxLength: 32
@@ -10128,16 +10354,12 @@ components:
           maxLength: 1024
           minLength: 1
           type: string
-        storage_path:
-          minLength: 1
-          type: string
         version:
           format: int64
           minimum: 1
           type: integer
       required:
       - version
-      - storage_path
       type: object
     UpdateWorkflowScheduleRequest:
       additionalProperties: false
@@ -11019,6 +11241,83 @@ paths:
       summary: Read agent workspace entry metadata.
       tags:
       - agents
+  /api/agent/{agentName}/skill:
+    delete:
+      operationId: deleteAgentMutableSkills
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteSkillsRequest'
+        required: true
+      responses:
+        "204":
+          description: Skills deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "502":
+          $ref: '#/components/responses/BadGateway'
+      summary: Delete mutable skills from an Agent workspace.
+      tags:
+      - skills
+    get:
+      operationId: listAgentMutableSkills
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMutableSkillsResponse'
+          description: Paginated mutable skill summaries.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "502":
+          $ref: '#/components/responses/BadGateway'
+      summary: List mutable skills stored in an Agent workspace.
+      tags:
+      - skills
+  /api/agent/{agentName}/skill/export:
+    post:
+      operationId: exportAgentMutableSkills
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportSkillsRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/zip:
+              schema:
+                format: binary
+                type: string
+          description: ZIP archive containing the selected skills.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "502":
+          $ref: '#/components/responses/BadGateway'
+      summary: Stream mutable Agent skills as a ZIP archive.
+      tags:
+      - skills
   /api/agent/watch:
     post:
       description: |
@@ -19133,6 +19432,26 @@ paths:
       tags:
       - secrets
   /api/skill:
+    delete:
+      operationId: deleteImmutableSkills
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteSkillsRequest'
+        required: true
+      responses:
+        "204":
+          description: Skills deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete immutable Skill resources in one request.
+      tags:
+      - skills
     get:
       operationId: listSkills
       parameters:
@@ -19243,6 +19562,160 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: List Agents and Sandboxes referencing an immutable Skill.
+      tags:
+      - skills
+  /api/skill/{skillName}/version:
+    get:
+      operationId: listImmutableSkillVersions
+      parameters:
+      - $ref: '#/components/parameters/SkillNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  format: int64
+                  minimum: 1
+                  type: integer
+                type: array
+          description: Sorted stored versions.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List stored versions for an immutable Skill.
+      tags:
+      - skills
+  /api/skill/export:
+    post:
+      operationId: exportImmutableSkills
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportSkillsRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/zip:
+              schema:
+                format: binary
+                type: string
+          description: ZIP archive containing selected active versions.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Stream selected active immutable Skill versions as ZIP.
+      tags:
+      - skills
+  /api/skill/import:
+    post:
+      operationId: importSkills
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                agents:
+                  items:
+                    $ref: '#/components/schemas/AgentName'
+                  maxItems: 200
+                  type: array
+                  uniqueItems: true
+                decisions:
+                  items:
+                    $ref: '#/components/schemas/SkillImportDecision'
+                  maxItems: 200
+                  minItems: 1
+                  type: array
+                file:
+                  format: binary
+                  type: string
+                kind:
+                  $ref: '#/components/schemas/SkillKind'
+              required:
+              - file
+              - kind
+              - decisions
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSkillsResponse'
+          description: A result for every targeted Agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+      summary: Import mutable or immutable skills.
+      tags:
+      - skills
+  /api/skill/import/preview:
+    post:
+      operationId: previewSkillImport
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                agents:
+                  items:
+                    $ref: '#/components/schemas/AgentName'
+                  maxItems: 200
+                  type: array
+                  uniqueItems: true
+                file:
+                  format: binary
+                  type: string
+              required:
+              - file
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillImportPreviewResponse'
+          description: Parsed skills and current conflicts.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+      summary: Parse a skill import and report live conflicts.
+      tags:
+      - skills
+  /api/skill/summary:
+    get:
+      operationId: listImmutableSkillSummaries
+      parameters:
+      - $ref: '#/components/parameters/AgentNameQueryOptional'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListImmutableSkillSummariesResponse'
+          description: Paginated immutable skill summaries.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List immutable skills with active version file summaries.
       tags:
       - skills
   /api/tenant:

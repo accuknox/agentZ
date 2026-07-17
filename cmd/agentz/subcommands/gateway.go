@@ -2,10 +2,13 @@ package subcommands
 
 import (
 	"context"
+	"os"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/accuknox/agentz/internal/gateway"
+	"github.com/accuknox/agentz/internal/skill"
 )
 
 var GatewayCmd = &cli.Command{
@@ -148,6 +151,24 @@ var gatewayServeCmd = &cli.Command{
 			Usage: "Maximum age of MCP probe results before they are treated as pending",
 			Value: gateway.DefaultMCPProbeStaleAfter,
 		},
+		&cli.StringFlag{
+			Name:     "skills-s3-endpoint",
+			Usage:    "S3-compatible endpoint for immutable skill storage",
+			Required: true,
+			Config:   cli.StringConfig{TrimSpace: true},
+		},
+		&cli.StringFlag{
+			Name:   "skills-s3-region",
+			Usage:  "S3 region for immutable skill storage",
+			Value:  "us-east-1",
+			Config: cli.StringConfig{TrimSpace: true},
+		},
+		&cli.StringFlag{
+			Name:     "skills-s3-bucket",
+			Usage:    "S3 bucket for immutable skill storage",
+			Required: true,
+			Config:   cli.StringConfig{TrimSpace: true},
+		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
 		return gateway.Serve(ctx, gateway.Config{
@@ -168,6 +189,13 @@ var gatewayServeCmd = &cli.Command{
 			OpenBaoK8sAuthMountPath:  c.String("openbao-k8s-auth-mount-path"),
 			OpenBaoK8sAuthTokenPath:  c.String("openbao-k8s-auth-token-path"),
 			MCPProbeStaleAfter:       c.Duration("mcp-probe-stale-after"),
+			SkillStore: skill.Config{
+				Endpoint:        c.String("skills-s3-endpoint"),
+				Region:          c.String("skills-s3-region"),
+				Bucket:          c.String("skills-s3-bucket"),
+				AccessKeyID:     strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_ACCESS_KEY_ID")),
+				SecretAccessKey: strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY")),
+			},
 		})
 	},
 }

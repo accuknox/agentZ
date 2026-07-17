@@ -29,6 +29,7 @@ import (
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
+	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -58,6 +59,7 @@ type Config struct {
 	OpenBaoK8sAuthMountPath  string
 	OpenBaoK8sAuthTokenPath  string
 	MCPProbeStaleAfter       time.Duration
+	SkillStore               skill.Config
 }
 
 // Service implements the agent gateway HTTP API.
@@ -73,6 +75,8 @@ type Service struct {
 	k8sClient          ctrlclient.Client
 	k8s                kubernetes.Interface
 	externalJWTKeyfunc jwt.Keyfunc
+	skillStore         *skill.Client
+	skillImports       chan struct{}
 }
 
 type statusRecorder struct {
@@ -155,6 +159,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	if cfg.MCPProbeStaleAfter <= 0 {
 		return fmt.Errorf("mcp probe stale after is required")
 	}
+	if err := cfg.SkillStore.Validate(); err != nil {
+		return err
+	}
 
 	resolver, err := newResolver(ctx, cfg.TargetOverride)
 	if err != nil {
@@ -207,6 +214,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+	skillStore, err := skill.New(ctx, cfg.SkillStore)
+	if err != nil {
+		return fmt.Errorf("create immutable skill store: %w", err)
+	}
 
 	svc := &Service{
 		ctx:                ctx,
@@ -219,6 +230,8 @@ func Serve(ctx context.Context, cfg Config) error {
 		k8sClient:          k8sClient,
 		k8s:                k8s,
 		externalJWTKeyfunc: externalJWTKeyfunc,
+		skillStore:         skillStore,
+		skillImports:       make(chan struct{}, 4),
 	}
 
 	srv := &http.Server{

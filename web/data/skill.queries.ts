@@ -1,17 +1,11 @@
 import { cacheLife, cacheTag } from "next/cache"
-import type { Error, Skill } from "@/lib/gateway/client"
+import { listSkills, type Error, type Skill } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { skillsTag } from "@/data/cache"
-import { listImmutableSkills } from "@/lib/skills/gateway"
 
 type ListImmutableSkillResponse =
-  | {
-      skills: Skill[]
-      error: undefined
-    }
-  | {
-      skills: undefined
-      error: Error
-    }
+  | { skills: Skill[]; error: undefined }
+  | { skills: undefined; error: Error }
 
 export async function listImmutableSkillsCachedQuery(): Promise<ListImmutableSkillResponse> {
   "use cache: private"
@@ -19,19 +13,20 @@ export async function listImmutableSkillsCachedQuery(): Promise<ListImmutableSki
   cacheLife("minutes")
   cacheTag(skillsTag)
 
-  try {
-    return {
-      skills: await listImmutableSkills(),
-      error: undefined,
+  const skills: Skill[] = []
+  let pageToken = ""
+  for (;;) {
+    const result = await listSkills({
+      client: getGatewayServerClient(),
+      query: { limit: 200, page_token: pageToken || undefined },
+    })
+    if (result.error) {
+      return { skills: undefined, error: result.error }
     }
-  } catch (error) {
-    return {
-      skills: undefined,
-      error: {
-        code: "LIST_IMMUTABLE_SKILLS_FAILED",
-        message:
-          error instanceof globalThis.Error ? error.message : "Failed to load immutable skills",
-      },
+    skills.push(...result.data.skills)
+    pageToken = result.data.next_page_token
+    if (!pageToken) {
+      return { skills, error: undefined }
     }
   }
 }

@@ -3,7 +3,6 @@ package workflow
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -12,10 +11,9 @@ import (
 
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/skill"
 	"github.com/accuknox/agentz/internal/workflow"
 )
-
-var skillNamePattern = regexp.MustCompile("^[a-z0-9]+(-[a-z0-9]+)*$")
 
 func ValidateLookupRequest(agtName string, wfName string) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 2)
@@ -220,7 +218,7 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 					})
 					continue
 				}
-				if len(skillName) > 64 || !skillNamePattern.MatchString(skillName) {
+				if skill.ValidateName(skillName) != nil {
 					fields = append(fields, gatewayapi.FieldError{
 						Field:   field,
 						Message: "must be a valid skill name",

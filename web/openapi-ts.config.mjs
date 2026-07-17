@@ -13,10 +13,10 @@ const config = {
         strategy: "flat",
       },
       validator: {
-        request: "zod",
+        request: false,
       },
     },
-    "zod",
+    { name: "zod", requests: false },
     { name: "@hey-api/client-next", runtimeConfigPath: "@/lib/gateway/hey-api" },
     "@tanstack/react-query",
   ],

@@ -131,8 +131,10 @@ export function FileTreeFile({
       {...props}
     >
       <span className="size-4 shrink-0" />
-      {icon ?? <FileIcon className="text-primary size-4 shrink-0" />}
-      <span className="truncate">{name}</span>
+      <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
+        {icon ?? <FileIcon className="text-primary" />}
+      </span>
+      <span className="min-w-0 truncate">{name}</span>
     </button>
   )
 }

@@ -3,7 +3,7 @@ import type { Plugin } from "@opencode-ai/plugin"
 import { memory } from "../lib/memory"
 
 const reviewPrompt = `
-Silently review the conversation for memory worth carrying into future sessions. Prioritize user preferences, corrections, personal context, and stable environment or convention facts that would prevent the user from repeating or correcting themselves. Skip task progress, completed-work logs, temporary state, and reusable procedures. If something qualifies, curate compact declarative facts with one memory call, consolidating stale or overlapping entries when useful. Otherwise do nothing. Never mention this review to the user.
+Silently review the conversation for context worth carrying into future sessions. Save stable user, project, or environment facts with memory. Append meaningful work outcomes, decisions, evidence, failed approaches, unresolved questions, and next steps to the journal. Keep curated memory and dated history separate. Skip secrets, raw transcripts, routine narration, and reusable procedures. Use at most one call per applicable tool; otherwise do nothing. Never mention this review.
 `.trim()
 
 export default (async ({ client }) => {
@@ -60,7 +60,7 @@ export default (async ({ client }) => {
 
       const snapshot = await memory.snapshot(input.sessionID).catch(() => undefined)
       if (snapshot) {
-        output.system.push(snapshot)
+        output.system.splice(output.system.length > 0 ? 1 : 0, 0, snapshot)
       }
       if (reviewDue.delete(input.sessionID)) {
         output.system.push(reviewPrompt)

@@ -78,6 +78,7 @@
                 "skill": true,
                 "list_skills": true,
                 "memory": false,
+                "journal": false,
                 "list_workflow_schedules": true,
                 "get_workflow": true,
                 "delete_workflows": true,

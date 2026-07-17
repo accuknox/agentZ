@@ -93,6 +93,7 @@ const (
 	immutableSkillsSecretMount     = "/var/run/secrets/agentz/immutable-skills-bucket"
 	immutableSkillsInitName        = "immutable-skills-init"
 	filesystemContainerName        = "filesystem"
+	filesystemTempVolume           = "filesystem-tmp"
 	filesystemPort                 = int32(4097)
 )
 

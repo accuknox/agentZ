@@ -239,6 +239,12 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 			},
 		},
 	})
+	volumes = append(volumes, corev1.Volume{
+		Name: filesystemTempVolume,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      nixAgentVolume,
 		MountPath: agentHomeDir,
@@ -505,11 +511,17 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 									Drop: []corev1.Capability{"ALL"},
 								},
 							},
-							VolumeMounts: []corev1.VolumeMount{{
-								Name:      nixAgentVolume,
-								MountPath: agentHomeDir,
-								SubPath:   homeStoreSubPath,
-							}},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      nixAgentVolume,
+									MountPath: agentHomeDir,
+									SubPath:   homeStoreSubPath,
+								},
+								{
+									Name:      filesystemTempVolume,
+									MountPath: "/tmp",
+								},
+							},
 						},
 					},
 				},

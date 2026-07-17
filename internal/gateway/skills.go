@@ -1321,6 +1321,9 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 	})
 	filtered := make([]agentzv1alpha1.Skill, 0, len(list.Items))
 	for _, item := range list.Items {
+		if !item.DeletionTimestamp.IsZero() {
+			continue
+		}
 		if params.AgentName != nil {
 			if _, ok := effective[item.Name]; !ok {
 				continue

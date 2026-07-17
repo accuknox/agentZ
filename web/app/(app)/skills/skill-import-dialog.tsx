@@ -217,7 +217,7 @@ export function SkillImportDialog({
       })
       if (result.error) {
         setError(result.error.message)
-        toast.error("Failed to import skills")
+        toast.error(preview.length === 1 ? "Failed to import skill" : "Failed to import skills")
         return
       }
       const failed = result.data.agents.filter((agent) => agent.status === "failed")
@@ -229,7 +229,7 @@ export function SkillImportDialog({
             : `Import failed for ${failed.length} agents`
         )
       } else {
-        toast.success("Skills imported")
+        toast.success(preview.length === 1 ? "Skill imported" : "Skills imported")
       }
       reset()
       setOpen(false)

@@ -218,18 +218,22 @@ export function SkillsClient({
           : await exportImmutableSkills({ body: { skill_names: skillNames } })
       if (result.error) {
         setError(result.error.message)
-        toast.error("Failed to export skills")
+        toast.error(skillNames.length === 1 ? "Failed to export skill" : "Failed to export skills")
         return
       }
 
-      const filename = type === "mutable" ? `${agentName}-skills.zip` : "skills.zip"
+      let filename = "skills.zip"
+      if (type === "mutable") {
+        filename =
+          skillNames.length === 1 ? `${agentName}-${skillNames[0]}.zip` : `${agentName}-skills.zip`
+      }
       const href = URL.createObjectURL(result.data)
       const link = document.createElement("a")
       link.href = href
       link.download = filename
       link.click()
       URL.revokeObjectURL(href)
-      toast.success("Skills exported")
+      toast.success(skillNames.length === 1 ? "Skill exported" : "Skills exported")
     } finally {
       setExporting(false)
     }
@@ -254,11 +258,11 @@ export function SkillsClient({
         : await deleteImmutableSkills({ body: { skill_names: namesToDelete } })
     if (result.error) {
       setError(result.error.message)
-      toast.error("Failed to delete skills")
+      toast.error(namesToDelete.length === 1 ? "Failed to delete skill" : "Failed to delete skills")
       await refreshSkills()
       return
     }
-    toast.success("Skills deleted")
+    toast.success(namesToDelete.length === 1 ? "Skill deleted" : "Skills deleted")
     await refreshSkills()
   }
 

@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
@@ -267,6 +268,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Agent{}).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSandbox)).
+		Watches(&agentzv1alpha1.InferenceProvider{}, handler.EnqueueRequestsFromMapFunc(r.agentsForInferenceProvider)).
 		Watches(&agentzv1alpha1.Skill{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSkill)).
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
@@ -283,6 +285,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 type sandboxConfig struct {
 	Packages                []string
 	AllowedHosts            []string
+	Model                   string
+	SmallModel              string
+	Providers               map[string]*opencodeProviderFile
+	InferenceURL            string
 	MCPURL                  string
 	MCPConsentPermissionIDs []string
 	MCPRefs                 []mcpRefConfig
@@ -303,6 +309,8 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	cfg := sandboxConfig{
 		Packages:                []string{},
 		AllowedHosts:            []string{},
+		Providers:               map[string]*opencodeProviderFile{},
+		InferenceURL:            "",
 		MCPURL:                  "",
 		MCPConsentPermissionIDs: []string{},
 		MCPRefs:                 []mcpRefConfig{},
@@ -322,20 +330,73 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 
 	ref := agt.Spec.SandboxRef
-	if ref == nil {
-		skills, err := r.resolveImmutableSkills(ctx, agt.Namespace, skillNames)
-		if err != nil {
-			return sandboxConfig{}, err
-		}
-		cfg.Skills = skills
-		return cfg, nil
-	}
-
 	sandbox := &agentzv1alpha1.Sandbox{}
 	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
 	if err := r.Get(ctx, key, sandbox); err != nil {
 		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
+	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
+	for _, modelRef := range sandbox.Spec.Inference.Models {
+		provider := providers[modelRef.Provider]
+		if provider == nil {
+			provider = &agentzv1alpha1.InferenceProvider{}
+			key := types.NamespacedName{Name: modelRef.Provider, Namespace: agt.Namespace}
+			if err := r.Get(ctx, key, provider); err != nil {
+				return sandboxConfig{}, fmt.Errorf("get inference provider %q: %w", modelRef.Provider, err)
+			}
+			providers[modelRef.Provider] = provider
+			path := inference.SandboxProviderPath(sandbox.Name, modelRef.Provider)
+			npm := "@ai-sdk/openai-compatible"
+			var apiKey string
+			if provider.Spec.Type == agentzv1alpha1.InferenceProviderTypeOpenAI {
+				npm = "@ai-sdk/openai"
+				apiKey = "inference-gateway"
+			}
+			cfg.Providers[modelRef.Provider] = &opencodeProviderFile{
+				Name:   provider.Spec.DisplayName,
+				NPM:    npm,
+				Models: map[string]opencodeModelFile{},
+				Options: &opencodeProviderOptionsFile{
+					APIKey:  apiKey,
+					BaseURL: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+				},
+			}
+		}
+		var selected *agentzv1alpha1.InferenceModel
+		for i := range provider.Spec.Models {
+			if provider.Spec.Models[i].ID == modelRef.Model {
+				selected = &provider.Spec.Models[i]
+				break
+			}
+		}
+		if selected == nil {
+			return sandboxConfig{}, fmt.Errorf(
+				"inference provider %q does not enable model %q",
+				modelRef.Provider,
+				modelRef.Model,
+			)
+		}
+		cfg.Providers[modelRef.Provider].Models[modelRef.Model] = opencodeModelFile{
+			ID: modelRef.Model, Name: selected.DisplayName,
+			Attachment:  selected.Capabilities.Attachment,
+			Reasoning:   selected.Capabilities.Reasoning,
+			Temperature: selected.Capabilities.Temperature,
+			ToolCall:    selected.Capabilities.ToolCall,
+			Limit: opencodeModelLimitFile{
+				Context: selected.Limits.Context, Input: selected.Limits.Input,
+				Output: selected.Limits.Output,
+			},
+			Modalities: opencodeModelModalitiesFile{
+				Input:  slices.Clone(selected.Modalities.Input),
+				Output: slices.Clone(selected.Modalities.Output),
+			},
+		}
+	}
+	cfg.Model = sandbox.Spec.Inference.DefaultModel.Provider + "/" + sandbox.Spec.Inference.DefaultModel.Model
+	if sandbox.Spec.Inference.SmallModel != nil {
+		cfg.SmallModel = sandbox.Spec.Inference.SmallModel.Provider + "/" + sandbox.Spec.Inference.SmallModel.Model
+	}
+	cfg.InferenceURL = "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local"
 	for _, name := range sandbox.Spec.Skills {
 		if name == "" {
 			continue
@@ -456,6 +517,25 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	return requests
 }
 
+func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.Object) []reconcile.Request {
+	provider := obj.(*agentzv1alpha1.InferenceProvider)
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err := r.List(
+		ctx,
+		sandboxes,
+		client.InNamespace(provider.Namespace),
+		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
+	)
+	if err != nil {
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
+	for i := range sandboxes.Items {
+		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
+	}
+	return requests
+}
+
 func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []reconcile.Request {
 	skill, ok := obj.(*agentzv1alpha1.Skill)
 	if !ok {
@@ -484,7 +564,7 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 	seen := map[string]struct{}{}
 	for _, agt := range agents.Items {
 		referenced := slices.Contains(agt.Spec.Skills, skill.Name)
-		if !referenced && agt.Spec.SandboxRef != nil {
+		if !referenced {
 			_, referenced = sandboxRefs[agt.Spec.SandboxRef.Name]
 		}
 		if !referenced {

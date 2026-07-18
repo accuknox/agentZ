@@ -1,3 +1,24 @@
+global:
+  inference:
+    externalSecrets:
+      enabled: true
+      storeName: agentz-inference
+      refreshInterval: 1m
+      serviceAccount:
+        name: agentz-inference-external-secrets
+        namespace: ""
+        audiences:
+          - https://kubernetes.default.svc
+      openBao:
+        server: http://openbao.openbao.svc.cluster.local:8200
+        kvMount: kv
+        kubernetesAuthMount: kubernetes
+        role: agentz-inference-external-secrets
+        caBundle: ""
+        caProvider: {}
+      tenantNamespaceSelector:
+        app.kubernetes.io/managed-by: agentz
+
 # Controller manager chart.
 manager:
   # Enable the AgentZ controller manager subchart.

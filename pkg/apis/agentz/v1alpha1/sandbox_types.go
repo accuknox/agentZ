@@ -28,7 +28,7 @@ type MCPConnectionRef struct {
 	Tools []SandboxMCPTool `json:"tools"`
 }
 
-// SandboxMCPTool describes one upstream MCP tool exposed through an
+// SandboxMCPTool describes one upstream MCP tool exposed through a
 // sandbox.
 type SandboxMCPTool struct {
 	// Name is the upstream MCP tool name exposed through this sandbox.
@@ -39,8 +39,45 @@ type SandboxMCPTool struct {
 	RequireConsent bool `json:"requireConsent"`
 }
 
+// InferenceModelRef identifies one enabled model on one provider instance.
+type InferenceModelRef struct {
+	// Provider is the immutable InferenceProvider metadata name.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Provider string `json:"provider"`
+
+	// Model is the exact upstream model identifier.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=512
+	Model string `json:"model"`
+}
+
+// SandboxInference defines the model policy inherited by referencing Agents.
+// +kubebuilder:validation:XValidation:rule="self.models.exists(m, m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)",message="default model must belong to the allowlist"
+// +kubebuilder:validation:XValidation:rule="!has(self.smallModel) || self.models.exists(m, m.provider == self.smallModel.provider && m.model == self.smallModel.model)",message="small model must belong to the allowlist"
+type SandboxInference struct {
+	// Models is the hard provider/model allowlist.
+	// +listType=map
+	// +listMapKey=provider
+	// +listMapKey=model
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=500
+	Models []InferenceModelRef `json:"models"`
+
+	// DefaultModel is the required primary OpenCode model.
+	DefaultModel InferenceModelRef `json:"defaultModel"`
+
+	// SmallModel is the optional OpenCode background-task model.
+	// +optional
+	SmallModel *InferenceModelRef `json:"smallModel,omitempty"`
+}
+
 // SandboxSpec defines the desired state of Sandbox.
 type SandboxSpec struct {
+	// Inference defines the model policy inherited by referencing Agents.
+	Inference SandboxInference `json:"inference"`
+
 	// Packages lists nix packages (e.g. "python3", "nodejs_22", "ripgrep") to
 	// install into referencing Agent runtimes. Each entry is prefixed with
 	// nixpkgs# automatically.
@@ -68,6 +105,14 @@ type SandboxSpec struct {
 
 // SandboxStatus defines the observed state of Sandbox.
 type SandboxStatus struct {
+	// ModelCount is the number of allowed inference models.
+	// +optional
+	ModelCount int `json:"modelCount,omitempty"`
+
+	// InferenceReady reports whether referenced providers and models are ready.
+	// +optional
+	InferenceReady bool `json:"inferenceReady,omitempty"`
+
 	// PackageCount is the number of nix packages configured.
 	PackageCount int `json:"packageCount"`
 
@@ -99,6 +144,7 @@ type SandboxStatus struct {
 // +kubebuilder:printcolumn:name="Packages",type=integer,JSONPath=`.status.packageCount`,description="Number of nix packages"
 // +kubebuilder:printcolumn:name="Allowed Hosts",type=integer,JSONPath=`.status.allowedHostCount`,description="Number of allowed hosts"
 // +kubebuilder:printcolumn:name="MCPs",type=integer,JSONPath=`.status.mcpRefCount`,description="Number of MCP connection references"
+// +kubebuilder:printcolumn:name="Models",type=integer,JSONPath=`.status.modelCount`,description="Number of allowed inference models"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age of the Sandbox"
 
 // Sandbox is the Schema for the sandboxes API.

@@ -4,6 +4,7 @@ import {
   zAgentName,
   zMcpConnectionName,
   zSandboxName,
+  zSandboxInference,
   zSecretKey,
   zSkillName,
 } from "@/lib/gateway/client/zod.gen"
@@ -128,18 +129,6 @@ const selectedMcpConnectionSchema = z.object({
     .array(selectedMcpToolSchema, { error: "MCP tools must be a list" })
     .min(1, "Select at least one MCP tool"),
 })
-
-const optionalModelSchema = z
-  .string({ error: "Model must be text" })
-  .trim()
-  .min(1, "Model is required")
-  .optional()
-
-const optionalSmallModelSchema = z
-  .string({ error: "Small model must be text" })
-  .trim()
-  .min(1, "Small model is required")
-  .optional()
 
 const oauthSecretScopesSchema = z
   .string({ error: "Scopes must be text" })
@@ -372,8 +361,6 @@ export const updateAgentSimpleFormSchema = z.object({
   sandboxName: sandboxNameSchema,
   skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
   memoryEnabled: z.boolean(),
-  model: optionalModelSchema,
-  smallModel: optionalSmallModelSchema,
 })
 
 export const createSandboxFormSchema = z.object({
@@ -420,4 +407,5 @@ export const createSandboxFormSchema = z.object({
   allowedHosts: z
     .array(sandboxAllowedHostSchema, { error: "Allowed hosts must be a list" })
     .transform((hosts) => Array.from(new Set(hosts)).sort()),
+  inference: zSandboxInference,
 })

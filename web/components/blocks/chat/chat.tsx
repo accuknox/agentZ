@@ -89,10 +89,11 @@ import { cn } from "@/lib/utils"
 import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import {
-  BotIcon,
-  BrainCircuitIcon,
+  BrainIcon,
   CheckIcon,
   ChevronDownIcon,
+  CpuIcon,
+  GaugeIcon,
   PaperclipIcon,
   Settings2Icon,
   Undo2Icon,
@@ -109,7 +110,6 @@ import {
   ModelSelectorInput,
   ModelSelectorItem,
   ModelSelectorList,
-  ModelSelectorLogo,
   ModelSelectorLogoGroup,
   ModelSelectorName,
   ModelSelectorTrigger,
@@ -961,9 +961,9 @@ function ChatInner({
                         >
                           {agentReadiness.isGettingReady ? (
                             <AgentGettingReady />
-                          ) : selectedModel?.chefSlug ? (
-                            <ModelSelectorLogo provider={selectedModel.chefSlug} />
-                          ) : null}
+                          ) : (
+                            <BrainIcon className="text-muted-foreground size-4" />
+                          )}
                           {agentReadiness.isGettingReady ? null : selectedModel?.name ? (
                             <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
                           ) : (
@@ -1008,7 +1008,7 @@ function ChatInner({
                             size="sm"
                             variant="ghost"
                           >
-                            <BrainCircuitIcon className="text-muted-foreground size-4" />
+                            <GaugeIcon className="text-muted-foreground size-4" />
                             <SelectValue placeholder="Reasoning" />
                           </ReasoningSelectTrigger>
                           <SelectContent align="end" position="popper" side="top" sideOffset={8}>
@@ -1050,11 +1050,7 @@ function ChatInner({
                               disabled={inputDisabled}
                               onSelect={() => setModelSelectorOpen(true)}
                             >
-                              {selectedModel?.chefSlug ? (
-                                <ModelSelectorLogo provider={selectedModel.chefSlug} />
-                              ) : (
-                                <BotIcon />
-                              )}
+                              <BrainIcon />
                               <span className="min-w-0 flex-1 truncate">
                                 {selectedModel?.name ?? "Model"}
                               </span>
@@ -1131,13 +1127,10 @@ function ChatInner({
                                   onSelect={handleModelSelect}
                                   value={item.id}
                                 >
-                                  <ModelSelectorLogo provider={item.chefSlug} />
+                                  <BrainIcon />
                                   <ModelSelectorName>{item.name}</ModelSelectorName>
                                   <ModelSelectorLogoGroup>
-                                    <ModelSelectorLogo
-                                      key={item.providerID}
-                                      provider={item.providerID}
-                                    />
+                                    <CpuIcon key={item.providerID} />
                                   </ModelSelectorLogoGroup>
                                   {selectedModelID === item.id ? (
                                     <CheckIcon className="ml-auto" />

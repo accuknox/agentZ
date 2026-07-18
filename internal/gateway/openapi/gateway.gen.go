@@ -49,9 +49,102 @@ const (
 	UNSPECIFIED AgentStatus = "UNSPECIFIED"
 )
 
+// Defines values for AnthropicInferenceProviderReadType.
+const (
+	AnthropicInferenceProviderReadTypeAnthropic AnthropicInferenceProviderReadType = "Anthropic"
+)
+
+// Defines values for AnthropicInferenceProviderWriteType.
+const (
+	AnthropicInferenceProviderWriteTypeAnthropic AnthropicInferenceProviderWriteType = "Anthropic"
+)
+
+// Defines values for AzureInferenceProviderReadType.
+const (
+	AzureInferenceProviderReadTypeAzure AzureInferenceProviderReadType = "Azure"
+)
+
+// Defines values for AzureInferenceProviderWriteType.
+const (
+	AzureInferenceProviderWriteTypeAzure AzureInferenceProviderWriteType = "Azure"
+)
+
+// Defines values for AzureProviderConfigAuthMode.
+const (
+	AzureProviderConfigAuthModeAPIKey           AzureProviderConfigAuthMode = "APIKey"
+	AzureProviderConfigAuthModeServicePrincipal AzureProviderConfigAuthMode = "ServicePrincipal"
+)
+
+// Defines values for AzureProviderConfigResourceType.
+const (
+	AzureProviderConfigResourceTypeFoundry AzureProviderConfigResourceType = "Foundry"
+	AzureProviderConfigResourceTypeOpenAI  AzureProviderConfigResourceType = "OpenAI"
+)
+
+// Defines values for BedrockInferenceProviderReadType.
+const (
+	BedrockInferenceProviderReadTypeBedrock BedrockInferenceProviderReadType = "Bedrock"
+)
+
+// Defines values for BedrockInferenceProviderWriteType.
+const (
+	BedrockInferenceProviderWriteTypeBedrock BedrockInferenceProviderWriteType = "Bedrock"
+)
+
 // Defines values for CreateSkillImportDecisionAction.
 const (
 	Create CreateSkillImportDecisionAction = "create"
+)
+
+// Defines values for GeminiInferenceProviderReadType.
+const (
+	GeminiInferenceProviderReadTypeGemini GeminiInferenceProviderReadType = "Gemini"
+)
+
+// Defines values for GeminiInferenceProviderWriteType.
+const (
+	GeminiInferenceProviderWriteTypeGemini GeminiInferenceProviderWriteType = "Gemini"
+)
+
+// Defines values for InferenceModelModality.
+const (
+	InferenceModelModalityAudio InferenceModelModality = "audio"
+	InferenceModelModalityImage InferenceModelModality = "image"
+	InferenceModelModalityPdf   InferenceModelModality = "pdf"
+	InferenceModelModalityText  InferenceModelModality = "text"
+	InferenceModelModalityVideo InferenceModelModality = "video"
+)
+
+// Defines values for InferenceModelSuggestionsProvenance.
+const (
+	InferenceModelSuggestionsProvenanceCache    InferenceModelSuggestionsProvenance = "cache"
+	InferenceModelSuggestionsProvenanceLive     InferenceModelSuggestionsProvenance = "live"
+	InferenceModelSuggestionsProvenanceSnapshot InferenceModelSuggestionsProvenance = "snapshot"
+)
+
+// Defines values for InferenceProviderState.
+const (
+	InferenceProviderStateAccepted InferenceProviderState = "Accepted"
+	InferenceProviderStateDegraded InferenceProviderState = "Degraded"
+	InferenceProviderStateReady    InferenceProviderState = "Ready"
+)
+
+// Defines values for InferenceProviderConditionStatus.
+const (
+	InferenceProviderConditionStatusFalse   InferenceProviderConditionStatus = "False"
+	InferenceProviderConditionStatusTrue    InferenceProviderConditionStatus = "True"
+	InferenceProviderConditionStatusUnknown InferenceProviderConditionStatus = "Unknown"
+)
+
+// Defines values for InferenceProviderType.
+const (
+	InferenceProviderTypeAnthropic        InferenceProviderType = "Anthropic"
+	InferenceProviderTypeAzure            InferenceProviderType = "Azure"
+	InferenceProviderTypeBedrock          InferenceProviderType = "Bedrock"
+	InferenceProviderTypeGemini           InferenceProviderType = "Gemini"
+	InferenceProviderTypeOpenAI           InferenceProviderType = "OpenAI"
+	InferenceProviderTypeOpenAICompatible InferenceProviderType = "OpenAICompatible"
+	InferenceProviderTypeVertexAI         InferenceProviderType = "VertexAI"
 )
 
 // Defines values for MCPConnectionLifecycle.
@@ -81,6 +174,32 @@ const (
 const (
 	Allowed ObservabilityAction = "Allowed"
 	Blocked ObservabilityAction = "Blocked"
+)
+
+// Defines values for OpenAICompatibleInferenceProviderReadType.
+const (
+	OpenAICompatibleInferenceProviderReadTypeOpenAICompatible OpenAICompatibleInferenceProviderReadType = "OpenAICompatible"
+)
+
+// Defines values for OpenAICompatibleInferenceProviderWriteType.
+const (
+	OpenAICompatibleInferenceProviderWriteTypeOpenAICompatible OpenAICompatibleInferenceProviderWriteType = "OpenAICompatible"
+)
+
+// Defines values for OpenAICompatibleProviderConfigAuthMode.
+const (
+	OpenAICompatibleProviderConfigAuthModeAPIKey OpenAICompatibleProviderConfigAuthMode = "APIKey"
+	OpenAICompatibleProviderConfigAuthModeNone   OpenAICompatibleProviderConfigAuthMode = "None"
+)
+
+// Defines values for OpenAIInferenceProviderReadType.
+const (
+	OpenAIInferenceProviderReadTypeOpenAI OpenAIInferenceProviderReadType = "OpenAI"
+)
+
+// Defines values for OpenAIInferenceProviderWriteType.
+const (
+	OpenAIInferenceProviderWriteTypeOpenAI OpenAIInferenceProviderWriteType = "OpenAI"
 )
 
 // Defines values for OpencodeAPIErrorName.
@@ -214,7 +333,7 @@ const (
 
 // Defines values for OpencodeSnapshotPartType.
 const (
-	Snapshot OpencodeSnapshotPartType = "snapshot"
+	OpencodeSnapshotPartTypeSnapshot OpencodeSnapshotPartType = "snapshot"
 )
 
 // Defines values for OpencodeStepFinishPartType.
@@ -254,7 +373,7 @@ const (
 
 // Defines values for OpencodeTextPartInputType.
 const (
-	Text OpencodeTextPartInputType = "text"
+	OpencodeTextPartInputTypeText OpencodeTextPartInputType = "text"
 )
 
 // Defines values for OpencodeToolPartType.
@@ -309,9 +428,9 @@ const (
 
 // Defines values for SecretState.
 const (
-	Accepted SecretState = "accepted"
-	Degraded SecretState = "degraded"
-	Ready    SecretState = "ready"
+	SecretStateAccepted SecretState = "accepted"
+	SecretStateDegraded SecretState = "degraded"
+	SecretStateReady    SecretState = "ready"
 )
 
 // Defines values for SecretType.
@@ -344,6 +463,16 @@ const (
 	BOOTSTRAPPING TenantPhase = "BOOTSTRAPPING"
 	FAILED        TenantPhase = "FAILED"
 	READY         TenantPhase = "READY"
+)
+
+// Defines values for VertexAIInferenceProviderReadType.
+const (
+	VertexAIInferenceProviderReadTypeVertexAI VertexAIInferenceProviderReadType = "VertexAI"
+)
+
+// Defines values for VertexAIInferenceProviderWriteType.
+const (
+	VertexAIInferenceProviderWriteTypeVertexAI VertexAIInferenceProviderWriteType = "VertexAI"
 )
 
 // Defines values for WorkflowInputStringFormat.
@@ -407,8 +536,8 @@ const (
 
 // Defines values for SessionListParamsRoots1.
 const (
-	False SessionListParamsRoots1 = "false"
-	True  SessionListParamsRoots1 = "true"
+	SessionListParamsRoots1False SessionListParamsRoots1 = "false"
+	SessionListParamsRoots1True  SessionListParamsRoots1 = "true"
 )
 
 // Defines values for SessionCommandJSONBodyPartsType.
@@ -485,20 +614,99 @@ type AgentName = string
 
 // AgentOpencodeConfig defines model for AgentOpencodeConfig.
 type AgentOpencodeConfig struct {
-	Instruction *string                                 `json:"instruction,omitempty"`
-	Model       *string                                 `json:"model,omitempty"`
-	Providers   *map[string]AgentOpencodeProviderConfig `json:"providers,omitempty"`
-	SmallModel  *string                                 `json:"smallModel,omitempty"`
-}
-
-// AgentOpencodeProviderConfig defines model for AgentOpencodeProviderConfig.
-type AgentOpencodeProviderConfig struct {
-	BaseURL *string   `json:"baseURL,omitempty"`
-	Env     *[]string `json:"env,omitempty"`
+	Instruction *string `json:"instruction,omitempty"`
 }
 
 // AgentStatus defines model for AgentStatus.
 type AgentStatus string
+
+// AnthropicInferenceProviderRead defines model for AnthropicInferenceProviderRead.
+type AnthropicInferenceProviderRead struct {
+	Anthropic AnthropicProviderConfig            `json:"anthropic"`
+	Type      AnthropicInferenceProviderReadType `json:"type"`
+}
+
+// AnthropicInferenceProviderReadType defines model for AnthropicInferenceProviderRead.Type.
+type AnthropicInferenceProviderReadType string
+
+// AnthropicInferenceProviderWrite defines model for AnthropicInferenceProviderWrite.
+type AnthropicInferenceProviderWrite struct {
+	Anthropic   AnthropicProviderConfig             `json:"anthropic"`
+	Credentials InferenceProviderAPIKeyCredentials  `json:"credentials"`
+	DisplayName string                              `json:"display_name"`
+	Models      []InferenceModel                    `json:"models"`
+	Type        AnthropicInferenceProviderWriteType `json:"type"`
+}
+
+// AnthropicInferenceProviderWriteType defines model for AnthropicInferenceProviderWrite.Type.
+type AnthropicInferenceProviderWriteType string
+
+// AnthropicProviderConfig defines model for AnthropicProviderConfig.
+type AnthropicProviderConfig struct {
+	BaseUrl *string `json:"base_url,omitempty"`
+}
+
+// AzureInferenceProviderRead defines model for AzureInferenceProviderRead.
+type AzureInferenceProviderRead struct {
+	Azure AzureProviderConfig            `json:"azure"`
+	Type  AzureInferenceProviderReadType `json:"type"`
+}
+
+// AzureInferenceProviderReadType defines model for AzureInferenceProviderRead.Type.
+type AzureInferenceProviderReadType string
+
+// AzureInferenceProviderWrite defines model for AzureInferenceProviderWrite.
+type AzureInferenceProviderWrite struct {
+	Azure       AzureProviderConfig               `json:"azure"`
+	Credentials InferenceProviderAzureCredentials `json:"credentials"`
+	DisplayName string                            `json:"display_name"`
+	Models      []InferenceModel                  `json:"models"`
+	Type        AzureInferenceProviderWriteType   `json:"type"`
+}
+
+// AzureInferenceProviderWriteType defines model for AzureInferenceProviderWrite.Type.
+type AzureInferenceProviderWriteType string
+
+// AzureProviderConfig defines model for AzureProviderConfig.
+type AzureProviderConfig struct {
+	ApiVersion   string                          `json:"api_version"`
+	AuthMode     AzureProviderConfigAuthMode     `json:"auth_mode"`
+	Project      *string                         `json:"project,omitempty"`
+	ResourceName string                          `json:"resource_name"`
+	ResourceType AzureProviderConfigResourceType `json:"resource_type"`
+}
+
+// AzureProviderConfigAuthMode defines model for AzureProviderConfig.AuthMode.
+type AzureProviderConfigAuthMode string
+
+// AzureProviderConfigResourceType defines model for AzureProviderConfig.ResourceType.
+type AzureProviderConfigResourceType string
+
+// BedrockInferenceProviderRead defines model for BedrockInferenceProviderRead.
+type BedrockInferenceProviderRead struct {
+	Bedrock BedrockProviderConfig            `json:"bedrock"`
+	Type    BedrockInferenceProviderReadType `json:"type"`
+}
+
+// BedrockInferenceProviderReadType defines model for BedrockInferenceProviderRead.Type.
+type BedrockInferenceProviderReadType string
+
+// BedrockInferenceProviderWrite defines model for BedrockInferenceProviderWrite.
+type BedrockInferenceProviderWrite struct {
+	Bedrock     BedrockProviderConfig               `json:"bedrock"`
+	Credentials InferenceProviderBedrockCredentials `json:"credentials"`
+	DisplayName string                              `json:"display_name"`
+	Models      []InferenceModel                    `json:"models"`
+	Type        BedrockInferenceProviderWriteType   `json:"type"`
+}
+
+// BedrockInferenceProviderWriteType defines model for BedrockInferenceProviderWrite.Type.
+type BedrockInferenceProviderWriteType string
+
+// BedrockProviderConfig defines model for BedrockProviderConfig.
+type BedrockProviderConfig struct {
+	Region string `json:"region"`
+}
 
 // CreateAgentDirectoryRequest defines model for CreateAgentDirectoryRequest.
 type CreateAgentDirectoryRequest struct {
@@ -522,6 +730,9 @@ type CreateAgentRequest struct {
 	Skills      *[]SkillName `json:"skills,omitempty"`
 }
 
+// CreateInferenceProviderRequest defines model for CreateInferenceProviderRequest.
+type CreateInferenceProviderRequest = InferenceProviderWriteDiscriminator
+
 // CreateMCPConnectionRequest defines model for CreateMCPConnectionRequest.
 type CreateMCPConnectionRequest struct {
 	Auth        MCPConnectionAuth        `json:"auth"`
@@ -535,6 +746,7 @@ type CreateMCPConnectionRequest struct {
 // CreateSandboxRequest defines model for CreateSandboxRequest.
 type CreateSandboxRequest struct {
 	AllowedHosts      *[]string           `json:"allowed_hosts,omitempty"`
+	Inference         SandboxInference    `json:"inference"`
 	McpConnectionRefs *[]MCPConnectionRef `json:"mcp_connection_refs,omitempty"`
 
 	// Name Sandbox resource name.
@@ -675,6 +887,30 @@ type FileObservabilityEventAggregated struct {
 	Source            string              `json:"source"`
 }
 
+// GeminiInferenceProviderRead defines model for GeminiInferenceProviderRead.
+type GeminiInferenceProviderRead struct {
+	Gemini GeminiProviderConfig            `json:"gemini"`
+	Type   GeminiInferenceProviderReadType `json:"type"`
+}
+
+// GeminiInferenceProviderReadType defines model for GeminiInferenceProviderRead.Type.
+type GeminiInferenceProviderReadType string
+
+// GeminiInferenceProviderWrite defines model for GeminiInferenceProviderWrite.
+type GeminiInferenceProviderWrite struct {
+	Credentials InferenceProviderAPIKeyCredentials `json:"credentials"`
+	DisplayName string                             `json:"display_name"`
+	Gemini      GeminiProviderConfig               `json:"gemini"`
+	Models      []InferenceModel                   `json:"models"`
+	Type        GeminiInferenceProviderWriteType   `json:"type"`
+}
+
+// GeminiInferenceProviderWriteType defines model for GeminiInferenceProviderWrite.Type.
+type GeminiInferenceProviderWriteType string
+
+// GeminiProviderConfig defines model for GeminiProviderConfig.
+type GeminiProviderConfig = map[string]interface{}
+
 // ImmutableSkillSummary defines model for ImmutableSkillSummary.
 type ImmutableSkillSummary struct {
 	Agents      []AgentName `json:"agents"`
@@ -693,6 +929,150 @@ type ImmutableSkillSummary struct {
 type ImportSkillsResponse struct {
 	Agents []SkillImportAgentResult `json:"agents"`
 	Skills []SkillName              `json:"skills"`
+}
+
+// InferenceModel defines model for InferenceModel.
+type InferenceModel struct {
+	Capabilities    InferenceModelCapabilities `json:"capabilities"`
+	CatalogProvider *string                    `json:"catalog_provider,omitempty"`
+	DisplayName     string                     `json:"display_name"`
+	Id              string                     `json:"id"`
+	Limits          InferenceModelLimits       `json:"limits"`
+	Modalities      InferenceModelModalities   `json:"modalities"`
+}
+
+// InferenceModelCapabilities defines model for InferenceModelCapabilities.
+type InferenceModelCapabilities struct {
+	Attachment  bool `json:"attachment"`
+	Reasoning   bool `json:"reasoning"`
+	Temperature bool `json:"temperature"`
+	ToolCall    bool `json:"tool_call"`
+}
+
+// InferenceModelLimits defines model for InferenceModelLimits.
+type InferenceModelLimits struct {
+	Context int32  `json:"context"`
+	Input   *int32 `json:"input,omitempty"`
+	Output  int32  `json:"output"`
+}
+
+// InferenceModelModalities defines model for InferenceModelModalities.
+type InferenceModelModalities struct {
+	Input  []InferenceModelModality `json:"input"`
+	Output []InferenceModelModality `json:"output"`
+}
+
+// InferenceModelModality defines model for InferenceModelModality.
+type InferenceModelModality string
+
+// InferenceModelSuggestion defines model for InferenceModelSuggestion.
+type InferenceModelSuggestion struct {
+	Capabilities    InferenceModelCapabilities `json:"capabilities"`
+	CatalogProvider string                     `json:"catalog_provider"`
+	DisplayName     string                     `json:"display_name"`
+	Id              string                     `json:"id"`
+	Limits          InferenceModelLimits       `json:"limits"`
+	Modalities      InferenceModelModalities   `json:"modalities"`
+}
+
+// InferenceModelSuggestions defines model for InferenceModelSuggestions.
+type InferenceModelSuggestions struct {
+	Models     []InferenceModelSuggestion          `json:"models"`
+	Provenance InferenceModelSuggestionsProvenance `json:"provenance"`
+}
+
+// InferenceModelSuggestionsProvenance defines model for InferenceModelSuggestions.Provenance.
+type InferenceModelSuggestionsProvenance string
+
+// InferenceProvider defines model for InferenceProvider.
+type InferenceProvider struct {
+	Conditions  []InferenceProviderCondition `json:"conditions"`
+	CreatedAt   time.Time                    `json:"created_at"`
+	DisplayName string                       `json:"display_name"`
+
+	// Id Stable tenant-scoped inference provider ID.
+	Id              InferenceProviderName  `json:"id"`
+	ModelCount      int                    `json:"model_count"`
+	Models          []InferenceModel       `json:"models"`
+	ResourceVersion string                 `json:"resource_version"`
+	State           InferenceProviderState `json:"state"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+	UsageCount      int                    `json:"usage_count"`
+	union           json.RawMessage
+}
+
+// InferenceProviderState defines model for InferenceProvider.State.
+type InferenceProviderState string
+
+// InferenceProviderAPIKeyCredentials defines model for InferenceProviderAPIKeyCredentials.
+type InferenceProviderAPIKeyCredentials struct {
+	ApiKey *string `json:"api_key,omitempty"`
+}
+
+// InferenceProviderAzureCredentials defines model for InferenceProviderAzureCredentials.
+type InferenceProviderAzureCredentials struct {
+	ApiKey       *string `json:"api_key,omitempty"`
+	ClientId     *string `json:"client_id,omitempty"`
+	ClientSecret *string `json:"client_secret,omitempty"`
+	TenantId     *string `json:"tenant_id,omitempty"`
+}
+
+// InferenceProviderBedrockCredentials defines model for InferenceProviderBedrockCredentials.
+type InferenceProviderBedrockCredentials struct {
+	AccessKey    *string `json:"access_key,omitempty"`
+	SecretKey    *string `json:"secret_key,omitempty"`
+	SessionToken *string `json:"session_token,omitempty"`
+}
+
+// InferenceProviderCondition defines model for InferenceProviderCondition.
+type InferenceProviderCondition struct {
+	Message string                           `json:"message"`
+	Reason  string                           `json:"reason"`
+	Status  InferenceProviderConditionStatus `json:"status"`
+	Type    string                           `json:"type"`
+}
+
+// InferenceProviderConditionStatus defines model for InferenceProviderCondition.Status.
+type InferenceProviderConditionStatus string
+
+// InferenceProviderHeader defines model for InferenceProviderHeader.
+type InferenceProviderHeader struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// InferenceProviderName Stable tenant-scoped inference provider ID.
+type InferenceProviderName = string
+
+// InferenceProviderReadDiscriminator defines model for InferenceProviderReadDiscriminator.
+type InferenceProviderReadDiscriminator struct {
+	union json.RawMessage
+}
+
+// InferenceProviderReadFields defines model for InferenceProviderReadFields.
+type InferenceProviderReadFields struct {
+	DisplayName string           `json:"display_name"`
+	Models      []InferenceModel `json:"models"`
+}
+
+// InferenceProviderType defines model for InferenceProviderType.
+type InferenceProviderType string
+
+// InferenceProviderUsage defines model for InferenceProviderUsage.
+type InferenceProviderUsage struct {
+	// Provider Stable tenant-scoped inference provider ID.
+	Provider  InferenceProviderName `json:"provider"`
+	Sandboxes []SandboxName         `json:"sandboxes"`
+}
+
+// InferenceProviderVertexCredentials defines model for InferenceProviderVertexCredentials.
+type InferenceProviderVertexCredentials struct {
+	ServiceAccountJson *string `json:"service_account_json,omitempty"`
+}
+
+// InferenceProviderWriteDiscriminator defines model for InferenceProviderWriteDiscriminator.
+type InferenceProviderWriteDiscriminator struct {
+	union json.RawMessage
 }
 
 // JSONObject defines model for JSONObject.
@@ -739,6 +1119,12 @@ type ListFileObservabilityResponse_Events_Item struct {
 type ListImmutableSkillSummariesResponse struct {
 	NextPageToken string                  `json:"next_page_token"`
 	Skills        []ImmutableSkillSummary `json:"skills"`
+}
+
+// ListInferenceProvidersResponse defines model for ListInferenceProvidersResponse.
+type ListInferenceProvidersResponse struct {
+	NextPageToken string              `json:"next_page_token"`
+	Providers     []InferenceProvider `json:"providers"`
 }
 
 // ListMCPConnectionsResponse defines model for ListMCPConnectionsResponse.
@@ -1032,6 +1418,69 @@ type NetworkObservabilityEventAggregated struct {
 
 // ObservabilityAction defines model for ObservabilityAction.
 type ObservabilityAction string
+
+// OpenAICompatibleInferenceProviderRead defines model for OpenAICompatibleInferenceProviderRead.
+type OpenAICompatibleInferenceProviderRead struct {
+	OpenaiCompatible OpenAICompatibleProviderConfig            `json:"openai_compatible"`
+	Type             OpenAICompatibleInferenceProviderReadType `json:"type"`
+}
+
+// OpenAICompatibleInferenceProviderReadType defines model for OpenAICompatibleInferenceProviderRead.Type.
+type OpenAICompatibleInferenceProviderReadType string
+
+// OpenAICompatibleInferenceProviderWrite defines model for OpenAICompatibleInferenceProviderWrite.
+type OpenAICompatibleInferenceProviderWrite struct {
+	Credentials      InferenceProviderAPIKeyCredentials         `json:"credentials"`
+	DisplayName      string                                     `json:"display_name"`
+	Models           []InferenceModel                           `json:"models"`
+	OpenaiCompatible OpenAICompatibleProviderConfig             `json:"openai_compatible"`
+	Type             OpenAICompatibleInferenceProviderWriteType `json:"type"`
+}
+
+// OpenAICompatibleInferenceProviderWriteType defines model for OpenAICompatibleInferenceProviderWrite.Type.
+type OpenAICompatibleInferenceProviderWriteType string
+
+// OpenAICompatibleProviderConfig defines model for OpenAICompatibleProviderConfig.
+type OpenAICompatibleProviderConfig struct {
+	AllowPrivateEndpoint *bool                                  `json:"allow_private_endpoint,omitempty"`
+	AuthHeader           *string                                `json:"auth_header,omitempty"`
+	AuthMode             OpenAICompatibleProviderConfigAuthMode `json:"auth_mode"`
+	AuthPrefix           *string                                `json:"auth_prefix,omitempty"`
+	BaseUrl              string                                 `json:"base_url"`
+	Headers              *[]InferenceProviderHeader             `json:"headers,omitempty"`
+	Path                 *string                                `json:"path,omitempty"`
+	PathPrefix           *string                                `json:"path_prefix,omitempty"`
+	SkipTlsVerify        *bool                                  `json:"skip_tls_verify,omitempty"`
+}
+
+// OpenAICompatibleProviderConfigAuthMode defines model for OpenAICompatibleProviderConfig.AuthMode.
+type OpenAICompatibleProviderConfigAuthMode string
+
+// OpenAIInferenceProviderRead defines model for OpenAIInferenceProviderRead.
+type OpenAIInferenceProviderRead struct {
+	Openai OpenAIProviderConfig            `json:"openai"`
+	Type   OpenAIInferenceProviderReadType `json:"type"`
+}
+
+// OpenAIInferenceProviderReadType defines model for OpenAIInferenceProviderRead.Type.
+type OpenAIInferenceProviderReadType string
+
+// OpenAIInferenceProviderWrite defines model for OpenAIInferenceProviderWrite.
+type OpenAIInferenceProviderWrite struct {
+	Credentials InferenceProviderAPIKeyCredentials `json:"credentials"`
+	DisplayName string                             `json:"display_name"`
+	Models      []InferenceModel                   `json:"models"`
+	Openai      OpenAIProviderConfig               `json:"openai"`
+	Type        OpenAIInferenceProviderWriteType   `json:"type"`
+}
+
+// OpenAIInferenceProviderWriteType defines model for OpenAIInferenceProviderWrite.Type.
+type OpenAIInferenceProviderWriteType string
+
+// OpenAIProviderConfig defines model for OpenAIProviderConfig.
+type OpenAIProviderConfig struct {
+	BaseUrl *string `json:"base_url,omitempty"`
+}
 
 // OpencodeAPIError defines model for OpencodeAPIError.
 type OpencodeAPIError struct {
@@ -1827,6 +2276,7 @@ type RenameSkillImportDecisionAction string
 type Sandbox struct {
 	AllowedHosts      []string           `json:"allowed_hosts"`
 	CreatedAt         time.Time          `json:"created_at"`
+	Inference         SandboxInference   `json:"inference"`
 	McpConnectionRefs []MCPConnectionRef `json:"mcp_connection_refs"`
 	Metadata          struct {
 		AllowedHostCount  int32 `json:"allowed_host_count"`
@@ -1839,6 +2289,21 @@ type Sandbox struct {
 	Name     SandboxName `json:"name"`
 	Packages []string    `json:"packages"`
 	Skills   []SkillName `json:"skills"`
+}
+
+// SandboxInference defines model for SandboxInference.
+type SandboxInference struct {
+	DefaultModel SandboxInferenceModelRef   `json:"default_model"`
+	Models       []SandboxInferenceModelRef `json:"models"`
+	SmallModel   *SandboxInferenceModelRef  `json:"small_model,omitempty"`
+}
+
+// SandboxInferenceModelRef defines model for SandboxInferenceModelRef.
+type SandboxInferenceModelRef struct {
+	Model string `json:"model"`
+
+	// Provider Stable tenant-scoped inference provider ID.
+	Provider InferenceProviderName `json:"provider"`
 }
 
 // SandboxName Sandbox resource name.
@@ -2119,9 +2584,16 @@ type UpdateAgentRequest struct {
 	Skills      *[]SkillName `json:"skills,omitempty"`
 }
 
+// UpdateInferenceProviderRequest defines model for UpdateInferenceProviderRequest.
+type UpdateInferenceProviderRequest struct {
+	Provider        InferenceProviderWriteDiscriminator `json:"provider"`
+	ResourceVersion string                              `json:"resource_version"`
+}
+
 // UpdateSandboxRequest defines model for UpdateSandboxRequest.
 type UpdateSandboxRequest struct {
 	AllowedHosts      []string           `json:"allowed_hosts"`
+	Inference         SandboxInference   `json:"inference"`
 	McpConnectionRefs []MCPConnectionRef `json:"mcp_connection_refs"`
 	Packages          []string           `json:"packages"`
 	Skills            []SkillName        `json:"skills"`
@@ -2144,6 +2616,33 @@ type UpdateWorkflowScheduleRequest struct {
 	TimeoutSeconds             int32      `json:"timeout_seconds"`
 }
 
+// VertexAIInferenceProviderRead defines model for VertexAIInferenceProviderRead.
+type VertexAIInferenceProviderRead struct {
+	Type     VertexAIInferenceProviderReadType `json:"type"`
+	VertexAi VertexAIProviderConfig            `json:"vertex_ai"`
+}
+
+// VertexAIInferenceProviderReadType defines model for VertexAIInferenceProviderRead.Type.
+type VertexAIInferenceProviderReadType string
+
+// VertexAIInferenceProviderWrite defines model for VertexAIInferenceProviderWrite.
+type VertexAIInferenceProviderWrite struct {
+	Credentials InferenceProviderVertexCredentials `json:"credentials"`
+	DisplayName string                             `json:"display_name"`
+	Models      []InferenceModel                   `json:"models"`
+	Type        VertexAIInferenceProviderWriteType `json:"type"`
+	VertexAi    VertexAIProviderConfig             `json:"vertex_ai"`
+}
+
+// VertexAIInferenceProviderWriteType defines model for VertexAIInferenceProviderWrite.Type.
+type VertexAIInferenceProviderWriteType string
+
+// VertexAIProviderConfig defines model for VertexAIProviderConfig.
+type VertexAIProviderConfig struct {
+	Project string `json:"project"`
+	Region  string `json:"region"`
+}
+
 // WatchAgentsEvent defines model for WatchAgentsEvent.
 type WatchAgentsEvent struct {
 	Agents []Agent `json:"agents"`
@@ -2152,6 +2651,16 @@ type WatchAgentsEvent struct {
 // WatchAgentsRequest defines model for WatchAgentsRequest.
 type WatchAgentsRequest struct {
 	AgentNames *[]AgentName `json:"agent_names,omitempty"`
+}
+
+// WatchInferenceProvidersEvent defines model for WatchInferenceProvidersEvent.
+type WatchInferenceProvidersEvent struct {
+	Providers []InferenceProvider `json:"providers"`
+}
+
+// WatchInferenceProvidersRequest defines model for WatchInferenceProvidersRequest.
+type WatchInferenceProvidersRequest struct {
+	ProviderIds *[]InferenceProviderName `json:"provider_ids,omitempty"`
 }
 
 // WatchMCPConnectionsEvent defines model for WatchMCPConnectionsEvent.
@@ -2435,6 +2944,9 @@ type FilePathQuery = string
 // FromDateQuery defines model for FromDateQuery.
 type FromDateQuery = openapi_types.Date
 
+// InferenceProviderNamePath Stable tenant-scoped inference provider ID.
+type InferenceProviderNamePath = InferenceProviderName
+
 // LimitQuery defines model for LimitQuery.
 type LimitQuery = int32
 
@@ -2523,6 +3035,20 @@ type ListAgentMutableSkillsParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
+// ListInferenceProvidersParams defines parameters for ListInferenceProviders.
+type ListInferenceProvidersParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
+// ListInferenceModelSuggestionsParams defines parameters for ListInferenceModelSuggestions.
+type ListInferenceModelSuggestionsParams struct {
+	ProviderType InferenceProviderType `form:"provider_type" json:"provider_type"`
 }
 
 // GetMCPGraphParams defines parameters for GetMCPGraph.
@@ -3085,6 +3611,15 @@ type DeleteAgentMutableSkillsJSONRequestBody = DeleteSkillsRequest
 // ExportAgentMutableSkillsJSONRequestBody defines body for ExportAgentMutableSkills for application/json ContentType.
 type ExportAgentMutableSkillsJSONRequestBody = ExportSkillsRequest
 
+// CreateInferenceProviderJSONRequestBody defines body for CreateInferenceProvider for application/json ContentType.
+type CreateInferenceProviderJSONRequestBody = CreateInferenceProviderRequest
+
+// WatchInferenceProvidersJSONRequestBody defines body for WatchInferenceProviders for application/json ContentType.
+type WatchInferenceProvidersJSONRequestBody = WatchInferenceProvidersRequest
+
+// UpdateInferenceProviderJSONRequestBody defines body for UpdateInferenceProvider for application/json ContentType.
+type UpdateInferenceProviderJSONRequestBody = UpdateInferenceProviderRequest
+
 // CreateMCPConnectionJSONRequestBody defines body for CreateMCPConnection for application/json ContentType.
 type CreateMCPConnectionJSONRequestBody = CreateMCPConnectionRequest
 
@@ -3183,6 +3718,821 @@ type UpdateWorkflowScheduleJSONRequestBody = UpdateWorkflowScheduleRequest
 
 // InvokeWorkflowWebhookJSONRequestBody defines body for InvokeWorkflowWebhook for application/json ContentType.
 type InvokeWorkflowWebhookJSONRequestBody = WorkflowRunInputs
+
+// AsOpenAIInferenceProviderRead returns the union data inside the InferenceProvider as a OpenAIInferenceProviderRead
+func (t InferenceProvider) AsOpenAIInferenceProviderRead() (OpenAIInferenceProviderRead, error) {
+	var body OpenAIInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAIInferenceProviderRead overwrites any union data inside the InferenceProvider as the provided OpenAIInferenceProviderRead
+func (t *InferenceProvider) FromOpenAIInferenceProviderRead(v OpenAIInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAIInferenceProviderRead performs a merge with any union data inside the InferenceProvider, using the provided OpenAIInferenceProviderRead
+func (t *InferenceProvider) MergeOpenAIInferenceProviderRead(v OpenAIInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAnthropicInferenceProviderRead returns the union data inside the InferenceProvider as a AnthropicInferenceProviderRead
+func (t InferenceProvider) AsAnthropicInferenceProviderRead() (AnthropicInferenceProviderRead, error) {
+	var body AnthropicInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnthropicInferenceProviderRead overwrites any union data inside the InferenceProvider as the provided AnthropicInferenceProviderRead
+func (t *InferenceProvider) FromAnthropicInferenceProviderRead(v AnthropicInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnthropicInferenceProviderRead performs a merge with any union data inside the InferenceProvider, using the provided AnthropicInferenceProviderRead
+func (t *InferenceProvider) MergeAnthropicInferenceProviderRead(v AnthropicInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGeminiInferenceProviderRead returns the union data inside the InferenceProvider as a GeminiInferenceProviderRead
+func (t InferenceProvider) AsGeminiInferenceProviderRead() (GeminiInferenceProviderRead, error) {
+	var body GeminiInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGeminiInferenceProviderRead overwrites any union data inside the InferenceProvider as the provided GeminiInferenceProviderRead
+func (t *InferenceProvider) FromGeminiInferenceProviderRead(v GeminiInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGeminiInferenceProviderRead performs a merge with any union data inside the InferenceProvider, using the provided GeminiInferenceProviderRead
+func (t *InferenceProvider) MergeGeminiInferenceProviderRead(v GeminiInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVertexAIInferenceProviderRead returns the union data inside the InferenceProvider as a VertexAIInferenceProviderRead
+func (t InferenceProvider) AsVertexAIInferenceProviderRead() (VertexAIInferenceProviderRead, error) {
+	var body VertexAIInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVertexAIInferenceProviderRead overwrites any union data inside the InferenceProvider as the provided VertexAIInferenceProviderRead
+func (t *InferenceProvider) FromVertexAIInferenceProviderRead(v VertexAIInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVertexAIInferenceProviderRead performs a merge with any union data inside the InferenceProvider, using the provided VertexAIInferenceProviderRead
+func (t *InferenceProvider) MergeVertexAIInferenceProviderRead(v VertexAIInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBedrockInferenceProviderRead returns the union data inside the InferenceProvider as a BedrockInferenceProviderRead
+func (t InferenceProvider) AsBedrockInferenceProviderRead() (BedrockInferenceProviderRead, error) {
+	var body BedrockInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBedrockInferenceProviderRead overwrites any union data inside the InferenceProvider as the provided BedrockInferenceProviderRead
+func (t *InferenceProvider) FromBedrockInferenceProviderRead(v BedrockInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBedrockInferenceProviderRead performs a merge with any union data inside the InferenceProvider, using the provided BedrockInferenceProviderRead
+func (t *InferenceProvider) MergeBedrockInferenceProviderRead(v BedrockInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAzureInferenceProviderRead returns the union data inside the InferenceProvider as a AzureInferenceProviderRead
+func (t InferenceProvider) AsAzureInferenceProviderRead() (AzureInferenceProviderRead, error) {
+	var body AzureInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAzureInferenceProviderRead overwrites any union data inside the InferenceProvider as the provided AzureInferenceProviderRead
+func (t *InferenceProvider) FromAzureInferenceProviderRead(v AzureInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAzureInferenceProviderRead performs a merge with any union data inside the InferenceProvider, using the provided AzureInferenceProviderRead
+func (t *InferenceProvider) MergeAzureInferenceProviderRead(v AzureInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpenAICompatibleInferenceProviderRead returns the union data inside the InferenceProvider as a OpenAICompatibleInferenceProviderRead
+func (t InferenceProvider) AsOpenAICompatibleInferenceProviderRead() (OpenAICompatibleInferenceProviderRead, error) {
+	var body OpenAICompatibleInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAICompatibleInferenceProviderRead overwrites any union data inside the InferenceProvider as the provided OpenAICompatibleInferenceProviderRead
+func (t *InferenceProvider) FromOpenAICompatibleInferenceProviderRead(v OpenAICompatibleInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAICompatibleInferenceProviderRead performs a merge with any union data inside the InferenceProvider, using the provided OpenAICompatibleInferenceProviderRead
+func (t *InferenceProvider) MergeOpenAICompatibleInferenceProviderRead(v OpenAICompatibleInferenceProviderRead) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t InferenceProvider) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Conditions != nil {
+		object["conditions"], err = json.Marshal(t.Conditions)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'conditions': %w", err)
+		}
+	}
+
+	object["created_at"], err = json.Marshal(t.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'created_at': %w", err)
+	}
+
+	object["display_name"], err = json.Marshal(t.DisplayName)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'display_name': %w", err)
+	}
+
+	object["id"], err = json.Marshal(t.Id)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'id': %w", err)
+	}
+
+	object["model_count"], err = json.Marshal(t.ModelCount)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'model_count': %w", err)
+	}
+
+	if t.Models != nil {
+		object["models"], err = json.Marshal(t.Models)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'models': %w", err)
+		}
+	}
+
+	object["resource_version"], err = json.Marshal(t.ResourceVersion)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'resource_version': %w", err)
+	}
+
+	object["state"], err = json.Marshal(t.State)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'state': %w", err)
+	}
+
+	object["updated_at"], err = json.Marshal(t.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'updated_at': %w", err)
+	}
+
+	object["usage_count"], err = json.Marshal(t.UsageCount)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'usage_count': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *InferenceProvider) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["conditions"]; found {
+		err = json.Unmarshal(raw, &t.Conditions)
+		if err != nil {
+			return fmt.Errorf("error reading 'conditions': %w", err)
+		}
+	}
+
+	if raw, found := object["created_at"]; found {
+		err = json.Unmarshal(raw, &t.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'created_at': %w", err)
+		}
+	}
+
+	if raw, found := object["display_name"]; found {
+		err = json.Unmarshal(raw, &t.DisplayName)
+		if err != nil {
+			return fmt.Errorf("error reading 'display_name': %w", err)
+		}
+	}
+
+	if raw, found := object["id"]; found {
+		err = json.Unmarshal(raw, &t.Id)
+		if err != nil {
+			return fmt.Errorf("error reading 'id': %w", err)
+		}
+	}
+
+	if raw, found := object["model_count"]; found {
+		err = json.Unmarshal(raw, &t.ModelCount)
+		if err != nil {
+			return fmt.Errorf("error reading 'model_count': %w", err)
+		}
+	}
+
+	if raw, found := object["models"]; found {
+		err = json.Unmarshal(raw, &t.Models)
+		if err != nil {
+			return fmt.Errorf("error reading 'models': %w", err)
+		}
+	}
+
+	if raw, found := object["resource_version"]; found {
+		err = json.Unmarshal(raw, &t.ResourceVersion)
+		if err != nil {
+			return fmt.Errorf("error reading 'resource_version': %w", err)
+		}
+	}
+
+	if raw, found := object["state"]; found {
+		err = json.Unmarshal(raw, &t.State)
+		if err != nil {
+			return fmt.Errorf("error reading 'state': %w", err)
+		}
+	}
+
+	if raw, found := object["updated_at"]; found {
+		err = json.Unmarshal(raw, &t.UpdatedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'updated_at': %w", err)
+		}
+	}
+
+	if raw, found := object["usage_count"]; found {
+		err = json.Unmarshal(raw, &t.UsageCount)
+		if err != nil {
+			return fmt.Errorf("error reading 'usage_count': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsOpenAIInferenceProviderRead returns the union data inside the InferenceProviderReadDiscriminator as a OpenAIInferenceProviderRead
+func (t InferenceProviderReadDiscriminator) AsOpenAIInferenceProviderRead() (OpenAIInferenceProviderRead, error) {
+	var body OpenAIInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAIInferenceProviderRead overwrites any union data inside the InferenceProviderReadDiscriminator as the provided OpenAIInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) FromOpenAIInferenceProviderRead(v OpenAIInferenceProviderRead) error {
+	v.Type = "OpenAI"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAIInferenceProviderRead performs a merge with any union data inside the InferenceProviderReadDiscriminator, using the provided OpenAIInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) MergeOpenAIInferenceProviderRead(v OpenAIInferenceProviderRead) error {
+	v.Type = "OpenAI"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAnthropicInferenceProviderRead returns the union data inside the InferenceProviderReadDiscriminator as a AnthropicInferenceProviderRead
+func (t InferenceProviderReadDiscriminator) AsAnthropicInferenceProviderRead() (AnthropicInferenceProviderRead, error) {
+	var body AnthropicInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnthropicInferenceProviderRead overwrites any union data inside the InferenceProviderReadDiscriminator as the provided AnthropicInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) FromAnthropicInferenceProviderRead(v AnthropicInferenceProviderRead) error {
+	v.Type = "Anthropic"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnthropicInferenceProviderRead performs a merge with any union data inside the InferenceProviderReadDiscriminator, using the provided AnthropicInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) MergeAnthropicInferenceProviderRead(v AnthropicInferenceProviderRead) error {
+	v.Type = "Anthropic"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGeminiInferenceProviderRead returns the union data inside the InferenceProviderReadDiscriminator as a GeminiInferenceProviderRead
+func (t InferenceProviderReadDiscriminator) AsGeminiInferenceProviderRead() (GeminiInferenceProviderRead, error) {
+	var body GeminiInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGeminiInferenceProviderRead overwrites any union data inside the InferenceProviderReadDiscriminator as the provided GeminiInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) FromGeminiInferenceProviderRead(v GeminiInferenceProviderRead) error {
+	v.Type = "Gemini"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGeminiInferenceProviderRead performs a merge with any union data inside the InferenceProviderReadDiscriminator, using the provided GeminiInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) MergeGeminiInferenceProviderRead(v GeminiInferenceProviderRead) error {
+	v.Type = "Gemini"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVertexAIInferenceProviderRead returns the union data inside the InferenceProviderReadDiscriminator as a VertexAIInferenceProviderRead
+func (t InferenceProviderReadDiscriminator) AsVertexAIInferenceProviderRead() (VertexAIInferenceProviderRead, error) {
+	var body VertexAIInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVertexAIInferenceProviderRead overwrites any union data inside the InferenceProviderReadDiscriminator as the provided VertexAIInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) FromVertexAIInferenceProviderRead(v VertexAIInferenceProviderRead) error {
+	v.Type = "VertexAI"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVertexAIInferenceProviderRead performs a merge with any union data inside the InferenceProviderReadDiscriminator, using the provided VertexAIInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) MergeVertexAIInferenceProviderRead(v VertexAIInferenceProviderRead) error {
+	v.Type = "VertexAI"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBedrockInferenceProviderRead returns the union data inside the InferenceProviderReadDiscriminator as a BedrockInferenceProviderRead
+func (t InferenceProviderReadDiscriminator) AsBedrockInferenceProviderRead() (BedrockInferenceProviderRead, error) {
+	var body BedrockInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBedrockInferenceProviderRead overwrites any union data inside the InferenceProviderReadDiscriminator as the provided BedrockInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) FromBedrockInferenceProviderRead(v BedrockInferenceProviderRead) error {
+	v.Type = "Bedrock"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBedrockInferenceProviderRead performs a merge with any union data inside the InferenceProviderReadDiscriminator, using the provided BedrockInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) MergeBedrockInferenceProviderRead(v BedrockInferenceProviderRead) error {
+	v.Type = "Bedrock"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAzureInferenceProviderRead returns the union data inside the InferenceProviderReadDiscriminator as a AzureInferenceProviderRead
+func (t InferenceProviderReadDiscriminator) AsAzureInferenceProviderRead() (AzureInferenceProviderRead, error) {
+	var body AzureInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAzureInferenceProviderRead overwrites any union data inside the InferenceProviderReadDiscriminator as the provided AzureInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) FromAzureInferenceProviderRead(v AzureInferenceProviderRead) error {
+	v.Type = "Azure"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAzureInferenceProviderRead performs a merge with any union data inside the InferenceProviderReadDiscriminator, using the provided AzureInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) MergeAzureInferenceProviderRead(v AzureInferenceProviderRead) error {
+	v.Type = "Azure"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpenAICompatibleInferenceProviderRead returns the union data inside the InferenceProviderReadDiscriminator as a OpenAICompatibleInferenceProviderRead
+func (t InferenceProviderReadDiscriminator) AsOpenAICompatibleInferenceProviderRead() (OpenAICompatibleInferenceProviderRead, error) {
+	var body OpenAICompatibleInferenceProviderRead
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAICompatibleInferenceProviderRead overwrites any union data inside the InferenceProviderReadDiscriminator as the provided OpenAICompatibleInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) FromOpenAICompatibleInferenceProviderRead(v OpenAICompatibleInferenceProviderRead) error {
+	v.Type = "OpenAICompatible"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAICompatibleInferenceProviderRead performs a merge with any union data inside the InferenceProviderReadDiscriminator, using the provided OpenAICompatibleInferenceProviderRead
+func (t *InferenceProviderReadDiscriminator) MergeOpenAICompatibleInferenceProviderRead(v OpenAICompatibleInferenceProviderRead) error {
+	v.Type = "OpenAICompatible"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t InferenceProviderReadDiscriminator) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t InferenceProviderReadDiscriminator) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "Anthropic":
+		return t.AsAnthropicInferenceProviderRead()
+	case "Azure":
+		return t.AsAzureInferenceProviderRead()
+	case "Bedrock":
+		return t.AsBedrockInferenceProviderRead()
+	case "Gemini":
+		return t.AsGeminiInferenceProviderRead()
+	case "OpenAI":
+		return t.AsOpenAIInferenceProviderRead()
+	case "OpenAICompatible":
+		return t.AsOpenAICompatibleInferenceProviderRead()
+	case "VertexAI":
+		return t.AsVertexAIInferenceProviderRead()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t InferenceProviderReadDiscriminator) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *InferenceProviderReadDiscriminator) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpenAIInferenceProviderWrite returns the union data inside the InferenceProviderWriteDiscriminator as a OpenAIInferenceProviderWrite
+func (t InferenceProviderWriteDiscriminator) AsOpenAIInferenceProviderWrite() (OpenAIInferenceProviderWrite, error) {
+	var body OpenAIInferenceProviderWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAIInferenceProviderWrite overwrites any union data inside the InferenceProviderWriteDiscriminator as the provided OpenAIInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) FromOpenAIInferenceProviderWrite(v OpenAIInferenceProviderWrite) error {
+	v.Type = "OpenAI"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAIInferenceProviderWrite performs a merge with any union data inside the InferenceProviderWriteDiscriminator, using the provided OpenAIInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) MergeOpenAIInferenceProviderWrite(v OpenAIInferenceProviderWrite) error {
+	v.Type = "OpenAI"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAnthropicInferenceProviderWrite returns the union data inside the InferenceProviderWriteDiscriminator as a AnthropicInferenceProviderWrite
+func (t InferenceProviderWriteDiscriminator) AsAnthropicInferenceProviderWrite() (AnthropicInferenceProviderWrite, error) {
+	var body AnthropicInferenceProviderWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnthropicInferenceProviderWrite overwrites any union data inside the InferenceProviderWriteDiscriminator as the provided AnthropicInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) FromAnthropicInferenceProviderWrite(v AnthropicInferenceProviderWrite) error {
+	v.Type = "Anthropic"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnthropicInferenceProviderWrite performs a merge with any union data inside the InferenceProviderWriteDiscriminator, using the provided AnthropicInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) MergeAnthropicInferenceProviderWrite(v AnthropicInferenceProviderWrite) error {
+	v.Type = "Anthropic"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGeminiInferenceProviderWrite returns the union data inside the InferenceProviderWriteDiscriminator as a GeminiInferenceProviderWrite
+func (t InferenceProviderWriteDiscriminator) AsGeminiInferenceProviderWrite() (GeminiInferenceProviderWrite, error) {
+	var body GeminiInferenceProviderWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGeminiInferenceProviderWrite overwrites any union data inside the InferenceProviderWriteDiscriminator as the provided GeminiInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) FromGeminiInferenceProviderWrite(v GeminiInferenceProviderWrite) error {
+	v.Type = "Gemini"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGeminiInferenceProviderWrite performs a merge with any union data inside the InferenceProviderWriteDiscriminator, using the provided GeminiInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) MergeGeminiInferenceProviderWrite(v GeminiInferenceProviderWrite) error {
+	v.Type = "Gemini"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVertexAIInferenceProviderWrite returns the union data inside the InferenceProviderWriteDiscriminator as a VertexAIInferenceProviderWrite
+func (t InferenceProviderWriteDiscriminator) AsVertexAIInferenceProviderWrite() (VertexAIInferenceProviderWrite, error) {
+	var body VertexAIInferenceProviderWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVertexAIInferenceProviderWrite overwrites any union data inside the InferenceProviderWriteDiscriminator as the provided VertexAIInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) FromVertexAIInferenceProviderWrite(v VertexAIInferenceProviderWrite) error {
+	v.Type = "VertexAI"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVertexAIInferenceProviderWrite performs a merge with any union data inside the InferenceProviderWriteDiscriminator, using the provided VertexAIInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) MergeVertexAIInferenceProviderWrite(v VertexAIInferenceProviderWrite) error {
+	v.Type = "VertexAI"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBedrockInferenceProviderWrite returns the union data inside the InferenceProviderWriteDiscriminator as a BedrockInferenceProviderWrite
+func (t InferenceProviderWriteDiscriminator) AsBedrockInferenceProviderWrite() (BedrockInferenceProviderWrite, error) {
+	var body BedrockInferenceProviderWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBedrockInferenceProviderWrite overwrites any union data inside the InferenceProviderWriteDiscriminator as the provided BedrockInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) FromBedrockInferenceProviderWrite(v BedrockInferenceProviderWrite) error {
+	v.Type = "Bedrock"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBedrockInferenceProviderWrite performs a merge with any union data inside the InferenceProviderWriteDiscriminator, using the provided BedrockInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) MergeBedrockInferenceProviderWrite(v BedrockInferenceProviderWrite) error {
+	v.Type = "Bedrock"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAzureInferenceProviderWrite returns the union data inside the InferenceProviderWriteDiscriminator as a AzureInferenceProviderWrite
+func (t InferenceProviderWriteDiscriminator) AsAzureInferenceProviderWrite() (AzureInferenceProviderWrite, error) {
+	var body AzureInferenceProviderWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAzureInferenceProviderWrite overwrites any union data inside the InferenceProviderWriteDiscriminator as the provided AzureInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) FromAzureInferenceProviderWrite(v AzureInferenceProviderWrite) error {
+	v.Type = "Azure"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAzureInferenceProviderWrite performs a merge with any union data inside the InferenceProviderWriteDiscriminator, using the provided AzureInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) MergeAzureInferenceProviderWrite(v AzureInferenceProviderWrite) error {
+	v.Type = "Azure"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpenAICompatibleInferenceProviderWrite returns the union data inside the InferenceProviderWriteDiscriminator as a OpenAICompatibleInferenceProviderWrite
+func (t InferenceProviderWriteDiscriminator) AsOpenAICompatibleInferenceProviderWrite() (OpenAICompatibleInferenceProviderWrite, error) {
+	var body OpenAICompatibleInferenceProviderWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAICompatibleInferenceProviderWrite overwrites any union data inside the InferenceProviderWriteDiscriminator as the provided OpenAICompatibleInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) FromOpenAICompatibleInferenceProviderWrite(v OpenAICompatibleInferenceProviderWrite) error {
+	v.Type = "OpenAICompatible"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAICompatibleInferenceProviderWrite performs a merge with any union data inside the InferenceProviderWriteDiscriminator, using the provided OpenAICompatibleInferenceProviderWrite
+func (t *InferenceProviderWriteDiscriminator) MergeOpenAICompatibleInferenceProviderWrite(v OpenAICompatibleInferenceProviderWrite) error {
+	v.Type = "OpenAICompatible"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t InferenceProviderWriteDiscriminator) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t InferenceProviderWriteDiscriminator) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "Anthropic":
+		return t.AsAnthropicInferenceProviderWrite()
+	case "Azure":
+		return t.AsAzureInferenceProviderWrite()
+	case "Bedrock":
+		return t.AsBedrockInferenceProviderWrite()
+	case "Gemini":
+		return t.AsGeminiInferenceProviderWrite()
+	case "OpenAI":
+		return t.AsOpenAIInferenceProviderWrite()
+	case "OpenAICompatible":
+		return t.AsOpenAICompatibleInferenceProviderWrite()
+	case "VertexAI":
+		return t.AsVertexAIInferenceProviderWrite()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t InferenceProviderWriteDiscriminator) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *InferenceProviderWriteDiscriminator) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsJSONValue0 returns the union data inside the JSONValue as a JSONValue0
 func (t JSONValue) AsJSONValue0() (JSONValue0, error) {
@@ -4784,6 +6134,36 @@ type ClientInterface interface {
 
 	ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListInferenceProviders request
+	ListInferenceProviders(ctx context.Context, params *ListInferenceProvidersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateInferenceProviderWithBody request with any body
+	CreateInferenceProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateInferenceProvider(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListInferenceModelSuggestions request
+	ListInferenceModelSuggestions(ctx context.Context, params *ListInferenceModelSuggestionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WatchInferenceProvidersWithBody request with any body
+	WatchInferenceProvidersWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WatchInferenceProviders(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteInferenceProvider request
+	DeleteInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetInferenceProvider request
+	GetInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateInferenceProviderWithBody request with any body
+	UpdateInferenceProviderWithBody(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetInferenceProviderUsage request
+	GetInferenceProviderUsage(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetMCPGraph request
 	GetMCPGraph(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5371,6 +6751,138 @@ func (c *Client) ExportAgentMutableSkillsWithBody(ctx context.Context, agentName
 
 func (c *Client) ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewExportAgentMutableSkillsRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListInferenceProviders(ctx context.Context, params *ListInferenceProvidersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListInferenceProvidersRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateInferenceProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferenceProviderRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateInferenceProvider(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferenceProviderRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListInferenceModelSuggestions(ctx context.Context, params *ListInferenceModelSuggestionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListInferenceModelSuggestionsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WatchInferenceProvidersWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchInferenceProvidersRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WatchInferenceProviders(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchInferenceProvidersRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteInferenceProviderRequest(c.Server, providerName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInferenceProviderRequest(c.Server, providerName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateInferenceProviderWithBody(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInferenceProviderRequestWithBody(c.Server, providerName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInferenceProviderRequest(c.Server, providerName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetInferenceProviderUsage(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInferenceProviderUsageRequest(c.Server, providerName)
 	if err != nil {
 		return nil, err
 	}
@@ -7489,6 +9001,345 @@ func NewExportAgentMutableSkillsRequestWithBody(server string, agentName AgentNa
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListInferenceProvidersRequest generates requests for ListInferenceProviders
+func NewListInferenceProvidersRequest(server string, params *ListInferenceProvidersParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateInferenceProviderRequest calls the generic CreateInferenceProvider builder with application/json body
+func NewCreateInferenceProviderRequest(server string, body CreateInferenceProviderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateInferenceProviderRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateInferenceProviderRequestWithBody generates requests for CreateInferenceProvider with any type of body
+func NewCreateInferenceProviderRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListInferenceModelSuggestionsRequest generates requests for ListInferenceModelSuggestions
+func NewListInferenceModelSuggestionsRequest(server string, params *ListInferenceModelSuggestionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider/catalog")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "provider_type", runtime.ParamLocationQuery, params.ProviderType); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWatchInferenceProvidersRequest calls the generic WatchInferenceProviders builder with application/json body
+func NewWatchInferenceProvidersRequest(server string, body WatchInferenceProvidersJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWatchInferenceProvidersRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewWatchInferenceProvidersRequestWithBody generates requests for WatchInferenceProviders with any type of body
+func NewWatchInferenceProvidersRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider/watch")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteInferenceProviderRequest generates requests for DeleteInferenceProvider
+func NewDeleteInferenceProviderRequest(server string, providerName InferenceProviderNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "providerName", runtime.ParamLocationPath, providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetInferenceProviderRequest generates requests for GetInferenceProvider
+func NewGetInferenceProviderRequest(server string, providerName InferenceProviderNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "providerName", runtime.ParamLocationPath, providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateInferenceProviderRequest calls the generic UpdateInferenceProvider builder with application/json body
+func NewUpdateInferenceProviderRequest(server string, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateInferenceProviderRequestWithBody(server, providerName, "application/json", bodyReader)
+}
+
+// NewUpdateInferenceProviderRequestWithBody generates requests for UpdateInferenceProvider with any type of body
+func NewUpdateInferenceProviderRequestWithBody(server string, providerName InferenceProviderNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "providerName", runtime.ParamLocationPath, providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetInferenceProviderUsageRequest generates requests for GetInferenceProviderUsage
+func NewGetInferenceProviderUsageRequest(server string, providerName InferenceProviderNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "providerName", runtime.ParamLocationPath, providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/inference-provider/%s/usage", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -13065,6 +14916,36 @@ type ClientWithResponsesInterface interface {
 
 	ExportAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error)
 
+	// ListInferenceProvidersWithResponse request
+	ListInferenceProvidersWithResponse(ctx context.Context, params *ListInferenceProvidersParams, reqEditors ...RequestEditorFn) (*ListInferenceProvidersResp, error)
+
+	// CreateInferenceProviderWithBodyWithResponse request with any body
+	CreateInferenceProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error)
+
+	CreateInferenceProviderWithResponse(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error)
+
+	// ListInferenceModelSuggestionsWithResponse request
+	ListInferenceModelSuggestionsWithResponse(ctx context.Context, params *ListInferenceModelSuggestionsParams, reqEditors ...RequestEditorFn) (*ListInferenceModelSuggestionsResp, error)
+
+	// WatchInferenceProvidersWithBodyWithResponse request with any body
+	WatchInferenceProvidersWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error)
+
+	WatchInferenceProvidersWithResponse(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error)
+
+	// DeleteInferenceProviderWithResponse request
+	DeleteInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*DeleteInferenceProviderResp, error)
+
+	// GetInferenceProviderWithResponse request
+	GetInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderResp, error)
+
+	// UpdateInferenceProviderWithBodyWithResponse request with any body
+	UpdateInferenceProviderWithBodyWithResponse(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error)
+
+	UpdateInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error)
+
+	// GetInferenceProviderUsageWithResponse request
+	GetInferenceProviderUsageWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderUsageResp, error)
+
 	// GetMCPGraphWithResponse request
 	GetMCPGraphWithResponse(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error)
 
@@ -13756,6 +15637,200 @@ func (r ExportAgentMutableSkillsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ExportAgentMutableSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListInferenceProvidersResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListInferenceProvidersResponse
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListInferenceProvidersResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListInferenceProvidersResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateInferenceProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *InferenceProvider
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateInferenceProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateInferenceProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListInferenceModelSuggestionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *InferenceModelSuggestions
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListInferenceModelSuggestionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListInferenceModelSuggestionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WatchInferenceProvidersResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r WatchInferenceProvidersResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WatchInferenceProvidersResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteInferenceProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteInferenceProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteInferenceProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetInferenceProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *InferenceProvider
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetInferenceProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetInferenceProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateInferenceProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *InferenceProvider
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateInferenceProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateInferenceProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetInferenceProviderUsageResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *InferenceProviderUsage
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetInferenceProviderUsageResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetInferenceProviderUsageResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15893,6 +17968,102 @@ func (c *ClientWithResponses) ExportAgentMutableSkillsWithResponse(ctx context.C
 	return ParseExportAgentMutableSkillsResp(rsp)
 }
 
+// ListInferenceProvidersWithResponse request returning *ListInferenceProvidersResp
+func (c *ClientWithResponses) ListInferenceProvidersWithResponse(ctx context.Context, params *ListInferenceProvidersParams, reqEditors ...RequestEditorFn) (*ListInferenceProvidersResp, error) {
+	rsp, err := c.ListInferenceProviders(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListInferenceProvidersResp(rsp)
+}
+
+// CreateInferenceProviderWithBodyWithResponse request with arbitrary body returning *CreateInferenceProviderResp
+func (c *ClientWithResponses) CreateInferenceProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error) {
+	rsp, err := c.CreateInferenceProviderWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateInferenceProviderResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateInferenceProviderWithResponse(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error) {
+	rsp, err := c.CreateInferenceProvider(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateInferenceProviderResp(rsp)
+}
+
+// ListInferenceModelSuggestionsWithResponse request returning *ListInferenceModelSuggestionsResp
+func (c *ClientWithResponses) ListInferenceModelSuggestionsWithResponse(ctx context.Context, params *ListInferenceModelSuggestionsParams, reqEditors ...RequestEditorFn) (*ListInferenceModelSuggestionsResp, error) {
+	rsp, err := c.ListInferenceModelSuggestions(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListInferenceModelSuggestionsResp(rsp)
+}
+
+// WatchInferenceProvidersWithBodyWithResponse request with arbitrary body returning *WatchInferenceProvidersResp
+func (c *ClientWithResponses) WatchInferenceProvidersWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error) {
+	rsp, err := c.WatchInferenceProvidersWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchInferenceProvidersResp(rsp)
+}
+
+func (c *ClientWithResponses) WatchInferenceProvidersWithResponse(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error) {
+	rsp, err := c.WatchInferenceProviders(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchInferenceProvidersResp(rsp)
+}
+
+// DeleteInferenceProviderWithResponse request returning *DeleteInferenceProviderResp
+func (c *ClientWithResponses) DeleteInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*DeleteInferenceProviderResp, error) {
+	rsp, err := c.DeleteInferenceProvider(ctx, providerName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteInferenceProviderResp(rsp)
+}
+
+// GetInferenceProviderWithResponse request returning *GetInferenceProviderResp
+func (c *ClientWithResponses) GetInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderResp, error) {
+	rsp, err := c.GetInferenceProvider(ctx, providerName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetInferenceProviderResp(rsp)
+}
+
+// UpdateInferenceProviderWithBodyWithResponse request with arbitrary body returning *UpdateInferenceProviderResp
+func (c *ClientWithResponses) UpdateInferenceProviderWithBodyWithResponse(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error) {
+	rsp, err := c.UpdateInferenceProviderWithBody(ctx, providerName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateInferenceProviderResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error) {
+	rsp, err := c.UpdateInferenceProvider(ctx, providerName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateInferenceProviderResp(rsp)
+}
+
+// GetInferenceProviderUsageWithResponse request returning *GetInferenceProviderUsageResp
+func (c *ClientWithResponses) GetInferenceProviderUsageWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderUsageResp, error) {
+	rsp, err := c.GetInferenceProviderUsage(ctx, providerName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetInferenceProviderUsageResp(rsp)
+}
+
 // GetMCPGraphWithResponse request returning *GetMCPGraphResp
 func (c *ClientWithResponses) GetMCPGraphWithResponse(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error) {
 	rsp, err := c.GetMCPGraph(ctx, agentName, params, reqEditors...)
@@ -17589,6 +19760,340 @@ func ParseExportAgentMutableSkillsResp(rsp *http.Response) (*ExportAgentMutableS
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListInferenceProvidersResp parses an HTTP response from a ListInferenceProvidersWithResponse call
+func ParseListInferenceProvidersResp(rsp *http.Response) (*ListInferenceProvidersResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListInferenceProvidersResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListInferenceProvidersResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateInferenceProviderResp parses an HTTP response from a CreateInferenceProviderWithResponse call
+func ParseCreateInferenceProviderResp(rsp *http.Response) (*CreateInferenceProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateInferenceProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest InferenceProvider
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListInferenceModelSuggestionsResp parses an HTTP response from a ListInferenceModelSuggestionsWithResponse call
+func ParseListInferenceModelSuggestionsResp(rsp *http.Response) (*ListInferenceModelSuggestionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListInferenceModelSuggestionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest InferenceModelSuggestions
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWatchInferenceProvidersResp parses an HTTP response from a WatchInferenceProvidersWithResponse call
+func ParseWatchInferenceProvidersResp(rsp *http.Response) (*WatchInferenceProvidersResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WatchInferenceProvidersResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteInferenceProviderResp parses an HTTP response from a DeleteInferenceProviderWithResponse call
+func ParseDeleteInferenceProviderResp(rsp *http.Response) (*DeleteInferenceProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteInferenceProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetInferenceProviderResp parses an HTTP response from a GetInferenceProviderWithResponse call
+func ParseGetInferenceProviderResp(rsp *http.Response) (*GetInferenceProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetInferenceProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest InferenceProvider
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateInferenceProviderResp parses an HTTP response from a UpdateInferenceProviderWithResponse call
+func ParseUpdateInferenceProviderResp(rsp *http.Response) (*UpdateInferenceProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateInferenceProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest InferenceProvider
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetInferenceProviderUsageResp parses an HTTP response from a GetInferenceProviderUsageWithResponse call
+func ParseGetInferenceProviderUsageResp(rsp *http.Response) (*GetInferenceProviderUsageResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetInferenceProviderUsageResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest InferenceProviderUsage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -20976,6 +23481,30 @@ type ServerInterface interface {
 	// Stream mutable Agent skills as a ZIP archive.
 	// (POST /api/agent/{agentName}/skill/export)
 	ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// List paginated inference providers.
+	// (GET /api/inference-provider)
+	ListInferenceProviders(w http.ResponseWriter, r *http.Request, params ListInferenceProvidersParams)
+	// Create an inference provider and its write-only credentials.
+	// (POST /api/inference-provider)
+	CreateInferenceProvider(w http.ResponseWriter, r *http.Request)
+	// List provider-filtered Models.dev suggestions.
+	// (GET /api/inference-provider/catalog)
+	ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request, params ListInferenceModelSuggestionsParams)
+	// Watch inference provider status changes.
+	// (POST /api/inference-provider/watch)
+	WatchInferenceProviders(w http.ResponseWriter, r *http.Request)
+	// Delete an unreferenced inference provider.
+	// (DELETE /api/inference-provider/{providerName})
+	DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	// Get an inference provider without credential material.
+	// (GET /api/inference-provider/{providerName})
+	GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	// Replace provider configuration and optionally rotate credentials.
+	// (PUT /api/inference-provider/{providerName})
+	UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	// List Sandboxes referencing an inference provider.
+	// (GET /api/inference-provider/{providerName}/usage)
+	GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
 	// Get MCP observability graph data for an agent given a date range.
 	// (GET /api/lens/{agentName}/mcp/graph)
 	GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params GetMCPGraphParams)
@@ -21309,6 +23838,54 @@ func (_ Unimplemented) ListAgentMutableSkills(w http.ResponseWriter, r *http.Req
 // Stream mutable Agent skills as a ZIP archive.
 // (POST /api/agent/{agentName}/skill/export)
 func (_ Unimplemented) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List paginated inference providers.
+// (GET /api/inference-provider)
+func (_ Unimplemented) ListInferenceProviders(w http.ResponseWriter, r *http.Request, params ListInferenceProvidersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create an inference provider and its write-only credentials.
+// (POST /api/inference-provider)
+func (_ Unimplemented) CreateInferenceProvider(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List provider-filtered Models.dev suggestions.
+// (GET /api/inference-provider/catalog)
+func (_ Unimplemented) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request, params ListInferenceModelSuggestionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Watch inference provider status changes.
+// (POST /api/inference-provider/watch)
+func (_ Unimplemented) WatchInferenceProviders(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete an unreferenced inference provider.
+// (DELETE /api/inference-provider/{providerName})
+func (_ Unimplemented) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get an inference provider without credential material.
+// (GET /api/inference-provider/{providerName})
+func (_ Unimplemented) GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace provider configuration and optionally rotate credentials.
+// (PUT /api/inference-provider/{providerName})
+func (_ Unimplemented) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List Sandboxes referencing an inference provider.
+// (GET /api/inference-provider/{providerName}/usage)
+func (_ Unimplemented) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -22361,6 +24938,251 @@ func (siw *ServerInterfaceWrapper) ExportAgentMutableSkills(w http.ResponseWrite
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ExportAgentMutableSkills(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListInferenceProviders operation middleware
+func (siw *ServerInterfaceWrapper) ListInferenceProviders(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListInferenceProvidersParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListInferenceProviders(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateInferenceProvider operation middleware
+func (siw *ServerInterfaceWrapper) CreateInferenceProvider(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateInferenceProvider(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListInferenceModelSuggestions operation middleware
+func (siw *ServerInterfaceWrapper) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListInferenceModelSuggestionsParams
+
+	// ------------- Required query parameter "provider_type" -------------
+
+	if paramValue := r.URL.Query().Get("provider_type"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "provider_type"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "provider_type", r.URL.Query(), &params.ProviderType)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider_type", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListInferenceModelSuggestions(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WatchInferenceProviders operation middleware
+func (siw *ServerInterfaceWrapper) WatchInferenceProviders(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WatchInferenceProviders(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteInferenceProvider operation middleware
+func (siw *ServerInterfaceWrapper) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "providerName" -------------
+	var providerName InferenceProviderNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerName", chi.URLParam(r, "providerName"), &providerName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "providerName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteInferenceProvider(w, r, providerName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetInferenceProvider operation middleware
+func (siw *ServerInterfaceWrapper) GetInferenceProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "providerName" -------------
+	var providerName InferenceProviderNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerName", chi.URLParam(r, "providerName"), &providerName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "providerName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetInferenceProvider(w, r, providerName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateInferenceProvider operation middleware
+func (siw *ServerInterfaceWrapper) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "providerName" -------------
+	var providerName InferenceProviderNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerName", chi.URLParam(r, "providerName"), &providerName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "providerName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateInferenceProvider(w, r, providerName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetInferenceProviderUsage operation middleware
+func (siw *ServerInterfaceWrapper) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "providerName" -------------
+	var providerName InferenceProviderNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerName", chi.URLParam(r, "providerName"), &providerName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "providerName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetInferenceProviderUsage(w, r, providerName)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -26392,6 +29214,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/agent/{agentName}/skill/export", wrapper.ExportAgentMutableSkills)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/inference-provider", wrapper.ListInferenceProviders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/inference-provider", wrapper.CreateInferenceProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/inference-provider/catalog", wrapper.ListInferenceModelSuggestions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/inference-provider/watch", wrapper.WatchInferenceProviders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/inference-provider/{providerName}", wrapper.DeleteInferenceProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/inference-provider/{providerName}", wrapper.GetInferenceProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/inference-provider/{providerName}", wrapper.UpdateInferenceProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/inference-provider/{providerName}/usage", wrapper.GetInferenceProviderUsage)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/{agentName}/mcp/graph", wrapper.GetMCPGraph)
 	})
 	r.Group(func(r chi.Router) {
@@ -26632,323 +29478,363 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"/p8AAAD//4LjLQbX1AIA",
+	"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",
+	"S02nYp2asxQ/TW6+3vyfAAAA///iGVY0JSoDAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

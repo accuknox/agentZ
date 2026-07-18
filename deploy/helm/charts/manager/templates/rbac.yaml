@@ -14,7 +14,10 @@ rules:
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: [""]
     resources: ["namespaces", "secrets"]
-    verbs: ["create", "get", "list", "patch", "update", "watch"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
@@ -40,7 +43,7 @@ rules:
     resources: ["agents"]
     verbs: ["create-workflow", "create-workflow-schedule", "delete-workflow-schedule", "delete-workflows", "get", "get-workflow", "list", "list-workflow-schedules", "list-workflows", "patch", "set-workflowrun-status", "update", "update-workflow-schedule", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections", "secrets"]
+    resources: ["inferenceproviders", "mcpconnections", "secrets"]
     verbs: ["get", "list", "patch", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["sandboxes"]
@@ -51,6 +54,7 @@ rules:
   - apiGroups: ["agentz.accuknox.com"]
     resources:
       - agents/finalizers
+      - inferenceproviders/finalizers
       - sandboxes/finalizers
       - mcpconnections/finalizers
       - secrets/finalizers
@@ -60,6 +64,7 @@ rules:
   - apiGroups: ["agentz.accuknox.com"]
     resources:
       - agents/status
+      - inferenceproviders/status
       - sandboxes/status
       - mcpconnections/status
       - secrets/status

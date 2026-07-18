@@ -2,12 +2,14 @@ package sandboxutil
 
 import (
 	"context"
+	"slices"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+// AgentBySandboxIndex indexes Agents by their referenced Sandbox name.
 const AgentBySandboxIndex = "spec.sandboxRef.name"
 
 // IndexAgentsBySandbox registers the agent sandbox reference index.
@@ -22,7 +24,7 @@ func IndexAgentsBySandbox(ctx context.Context, idx client.FieldIndexer) error {
 				return nil
 			}
 			ref := agt.Spec.SandboxRef
-			if ref == nil || ref.Name == "" {
+			if ref.Name == "" {
 				return nil
 			}
 			return []string{ref.Name}
@@ -39,7 +41,7 @@ func ReferencedNames(ctx context.Context, c client.Client, ns string) (map[strin
 	}
 	for _, agt := range agents.Items {
 		ref := agt.Spec.SandboxRef
-		if ref == nil || ref.Name == "" {
+		if ref.Name == "" {
 			continue
 		}
 		refs[ref.Name] = true
@@ -47,24 +49,22 @@ func ReferencedNames(ctx context.Context, c client.Client, ns string) (map[strin
 	return refs, nil
 }
 
-// ReferencingAgentName returns the first agent that references sandboxName.
-//
-// The gateway uses a direct controller-runtime client without a cache-backed
-// field index. Listing with MatchingFields against a CRD field then falls back
-// to a Kubernetes API field selector, which does not support
-// spec.sandboxRef.name. Scan the namespace in memory so the helper works
-// with both cached and uncached clients.
-func ReferencingAgentName(ctx context.Context, c client.Client, ns string, sandboxName string) (string, error) {
+// ReferencingAgentNames returns every Agent that references sandboxName.
+func ReferencingAgentNames(ctx context.Context, c client.Reader, ns string, sandboxName string) ([]string, error) {
 	agents := &agentzv1alpha1.AgentList{}
-	if err := c.List(ctx, agents, client.InNamespace(ns)); err != nil {
-		return "", err
+	err := c.List(
+		ctx,
+		agents,
+		client.InNamespace(ns),
+		client.MatchingFields{AgentBySandboxIndex: sandboxName},
+	)
+	if err != nil {
+		return nil, err
 	}
+	names := make([]string, 0)
 	for _, agt := range agents.Items {
-		ref := agt.Spec.SandboxRef
-		if ref == nil || ref.Name != sandboxName {
-			continue
-		}
-		return agt.Name, nil
+		names = append(names, agt.Name)
 	}
-	return "", nil
+	slices.Sort(names)
+	return names, nil
 }

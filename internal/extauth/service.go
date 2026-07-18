@@ -565,7 +565,7 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 		)
 	}
 
-	if agent.Spec.SandboxRef == nil || strings.TrimSpace(agent.Spec.SandboxRef.Name) == "" {
+	if strings.TrimSpace(agent.Spec.SandboxRef.Name) == "" {
 		return "", fmt.Errorf("agent %q has no sandbox", agentName)
 	}
 	agentSandboxName := strings.TrimSpace(agent.Spec.SandboxRef.Name)

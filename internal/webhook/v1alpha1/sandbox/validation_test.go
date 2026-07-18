@@ -41,7 +41,7 @@ func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 		WithObjects(&agentzv1alpha1.Agent{
 			ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "default"},
 			Spec: agentzv1alpha1.AgentSpec{
-				SandboxRef: &corev1.LocalObjectReference{Name: "sandbox"},
+				SandboxRef: corev1.LocalObjectReference{Name: "sandbox"},
 			},
 		}).
 		Build()
@@ -53,5 +53,39 @@ func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 	_, err := NewValidator(client).ValidateDelete(context.Background(), sandbox)
 	if err == nil {
 		t.Fatal("ValidateDelete() unexpectedly succeeded")
+	}
+}
+
+func TestValidatorValidateCreateRejectsDirectProviderEgress(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("AddToScheme() error = %v", err)
+	}
+	provider := &agentzv1alpha1.InferenceProvider{
+		ObjectMeta: metav1.ObjectMeta{Name: "private", Namespace: "default"},
+		Spec: agentzv1alpha1.InferenceProviderSpec{
+			OpenAICompatible: &agentzv1alpha1.OpenAICompatibleProviderConfig{
+				BaseURL: "https://api.internal.example/v1",
+			},
+			Models: []agentzv1alpha1.InferenceModel{{ID: "model"}},
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(provider).Build()
+	model := agentzv1alpha1.InferenceModelRef{Provider: "private", Model: "model"}
+	sandbox := &agentzv1alpha1.Sandbox{
+		ObjectMeta: metav1.ObjectMeta{Name: "sandbox", Namespace: "default"},
+		Spec: agentzv1alpha1.SandboxSpec{
+			AllowedHosts: []string{"**.internal.example"},
+			Inference: agentzv1alpha1.SandboxInference{
+				Models: []agentzv1alpha1.InferenceModelRef{model}, DefaultModel: model,
+			},
+		},
+	}
+
+	_, err := NewValidator(client).ValidateCreate(context.Background(), sandbox)
+	if err == nil {
+		t.Fatal("ValidateCreate() unexpectedly allowed direct provider egress")
 	}
 }

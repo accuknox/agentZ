@@ -17,6 +17,7 @@ import type {
   ListSandboxActionResponse,
 } from "@/data/types"
 import * as z from "zod"
+import { zSandboxName } from "@/lib/gateway/client/zod.gen"
 import { sandboxesTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
@@ -30,6 +31,11 @@ const mcpToolRefSchema = z.string({ error: "MCP tool must be text" }).transform(
   }
   return { name, tool }
 })
+
+const inferenceRefPartSchema = z
+  .string({ error: "Inference model reference must be text" })
+  .trim()
+  .min(1, "Inference model reference is required")
 
 const sandboxFormDataSchema = z
   .object({
@@ -51,13 +57,33 @@ const sandboxFormDataSchema = z
     skills: z.array(z.string({ error: "Skill name must be text" }), {
       error: "Skills must be a list",
     }),
+    inferenceModelProviders: z.array(inferenceRefPartSchema).min(1, "Select at least one model"),
+    inferenceModelIDs: z.array(inferenceRefPartSchema).min(1, "Select at least one model"),
+    inferenceDefaultProvider: inferenceRefPartSchema,
+    inferenceDefaultModel: inferenceRefPartSchema,
+    inferenceSmallProvider: inferenceRefPartSchema.optional(),
+    inferenceSmallModel: inferenceRefPartSchema.optional(),
   })
   .transform((data, ctx): SandboxFormValues => {
-    const refsByName = new Map(
-      data.mcpConnectionRefs.map((name) => [
-        name,
-        { name, tools: [] as SandboxFormValues["mcpConnectionRefs"][number]["tools"] },
-      ])
+    const inferenceModels: SandboxFormValues["inference"]["models"] = []
+    for (const [index, provider] of data.inferenceModelProviders.entries()) {
+      const model = data.inferenceModelIDs[index]
+      if (!model) {
+        ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
+        return z.NEVER
+      }
+      inferenceModels.push({ provider, model })
+    }
+    if (inferenceModels.length !== data.inferenceModelIDs.length) {
+      ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
+      return z.NEVER
+    }
+    if ((data.inferenceSmallProvider === undefined) !== (data.inferenceSmallModel === undefined)) {
+      ctx.addIssue({ code: "custom", message: "Small model reference is incomplete" })
+      return z.NEVER
+    }
+    const refsByName = new Map<string, SandboxFormValues["mcpConnectionRefs"][number]>(
+      data.mcpConnectionRefs.map((name) => [name, { name, tools: [] }])
     )
     const consentByTool = new Set(
       data.mcpRequireConsentTool.map((ref) => `${ref.name}\u0000${ref.tool}`)
@@ -84,6 +110,21 @@ const sandboxFormDataSchema = z
       allowedHosts: data.allowedHosts,
       mcpConnectionRefs: [...refsByName.values()],
       skills: data.skills,
+      inference: {
+        models: inferenceModels,
+        default_model: {
+          provider: data.inferenceDefaultProvider,
+          model: data.inferenceDefaultModel,
+        },
+        ...(data.inferenceSmallProvider && data.inferenceSmallModel
+          ? {
+              small_model: {
+                provider: data.inferenceSmallProvider,
+                model: data.inferenceSmallModel,
+              },
+            }
+          : {}),
+      },
     }
   })
 
@@ -123,6 +164,12 @@ function sandboxFormValues(formData: FormData) {
     mcpRequireConsentTool: formData.getAll("mcpRequireConsentTool"),
     mcpTool: formData.getAll("mcpTool"),
     skills: formData.getAll("skills"),
+    inferenceModelProviders: formData.getAll("inferenceModelProviders"),
+    inferenceModelIDs: formData.getAll("inferenceModelIDs"),
+    inferenceDefaultProvider: formData.get("inferenceDefaultProvider"),
+    inferenceDefaultModel: formData.get("inferenceDefaultModel"),
+    inferenceSmallProvider: formData.get("inferenceSmallProvider") ?? undefined,
+    inferenceSmallModel: formData.get("inferenceSmallModel") ?? undefined,
   })
 }
 
@@ -131,6 +178,11 @@ export async function deleteSandboxFormAction(
   _: DeleteSandboxFormState,
   _formData: FormData
 ): Promise<DeleteSandboxFormState> {
+  const sandboxName = zSandboxName.safeParse(name)
+  if (!sandboxName.success) {
+    return { error: { code: "INVALID_FORM", message: "Invalid sandbox name" } }
+  }
+
   let pageToken = ""
   for (;;) {
     const listResult = await listSandboxes({
@@ -141,7 +193,7 @@ export async function deleteSandboxFormAction(
       return { error: listResult.error }
     }
 
-    const sandbox = listResult.data.sandboxes.find((item) => item.name === name)
+    const sandbox = listResult.data.sandboxes.find((item) => item.name === sandboxName.data)
     if (sandbox) {
       if (sandbox.metadata.referenced_by_agent) {
         return {
@@ -162,7 +214,7 @@ export async function deleteSandboxFormAction(
 
   const result = await deleteSandbox({
     client: getGatewayServerClient(),
-    path: { sandboxName: name },
+    path: { sandboxName: sandboxName.data },
   })
   if (result.error) {
     return { error: result.error }
@@ -207,6 +259,7 @@ export async function createSandboxFormAction(
         })
       ),
       skills: parsed.data.skills,
+      inference: parsed.data.inference,
     },
   })
 
@@ -224,6 +277,11 @@ export async function updateSandboxFormAction(
   _: CreateSandboxFormState,
   formData: FormData
 ): Promise<CreateSandboxFormState> {
+  const sandboxName = zSandboxName.safeParse(name)
+  if (!sandboxName.success) {
+    return invalidSandboxFormState(sandboxName.error)
+  }
+
   const values = sandboxFormValues(formData)
   if (!values.success) {
     return invalidSandboxFormState(values.error)
@@ -237,7 +295,7 @@ export async function updateSandboxFormAction(
 
   const result = await updateSandbox({
     client: getGatewayServerClient(),
-    path: { sandboxName: name },
+    path: { sandboxName: sandboxName.data },
     body: {
       packages: parsed.data.packages,
       allowed_hosts: parsed.data.allowedHosts,
@@ -251,6 +309,7 @@ export async function updateSandboxFormAction(
         })
       ),
       skills: parsed.data.skills,
+      inference: parsed.data.inference,
     },
   })
 

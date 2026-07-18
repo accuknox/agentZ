@@ -19,20 +19,18 @@ package sandbox
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
-
-var log = logf.Log.WithName("sandbox-resource")
 
 // +kubebuilder:webhook:path=/validate-agentz-accuknox-com-v1alpha1-sandbox,mutating=false,failurePolicy=fail,sideEffects=None,groups=agentz.accuknox.com,resources=sandboxes,verbs=create;update;delete,versions=v1alpha1,name=vsandbox-v1alpha1.kb.io,admissionReviewVersions=v1
 
@@ -45,7 +43,7 @@ type Validator struct {
 
 var _ admission.Validator[*agentzv1alpha1.Sandbox] = &Validator{}
 
-// NewValidator builds an Sandbox validator.
+// NewValidator builds a Sandbox validator.
 func NewValidator(c client.Client) *Validator {
 	return &Validator{client: c}
 }
@@ -62,16 +60,15 @@ func (v *Validator) ValidateUpdate(ctx context.Context, _, newSandbox *agentzv1a
 
 // ValidateDelete validates Sandbox deletion.
 func (v *Validator) ValidateDelete(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) (admission.Warnings, error) {
-	log.Info("Validation for Sandbox upon deletion", "name", sandbox.GetName())
 	if v.client == nil {
 		return nil, nil
 	}
 
-	agentName, err := sandboxutil.ReferencingAgentName(ctx, v.client, sandbox.Namespace, sandbox.Name)
+	agentNames, err := sandboxutil.ReferencingAgentNames(ctx, v.client, sandbox.Namespace, sandbox.Name)
 	if err != nil {
 		return nil, err
 	}
-	if agentName == "" {
+	if len(agentNames) == 0 {
 		return nil, nil
 	}
 
@@ -81,7 +78,7 @@ func (v *Validator) ValidateDelete(ctx context.Context, sandbox *agentzv1alpha1.
 		sandbox.Name,
 		field.ErrorList{field.Forbidden(
 			path,
-			"sandbox is referenced by agent "+agentName,
+			"sandbox is referenced by agent "+agentNames[0],
 		)},
 	)
 }
@@ -89,11 +86,112 @@ func (v *Validator) ValidateDelete(ctx context.Context, sandbox *agentzv1alpha1.
 func (v *Validator) validateSandbox(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) error {
 	fields := validateAllowedHostFields(sandbox)
 	fields = append(fields, v.validateMCPConnectionRefs(ctx, sandbox)...)
+	fields = append(fields, v.validateInference(ctx, sandbox)...)
 	if len(fields) == 0 {
 		return nil
 	}
 
 	return apierrors.NewInvalid(sandbox.GroupVersionKind().GroupKind(), sandbox.Name, fields)
+}
+
+func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) field.ErrorList {
+	fields := field.ErrorList{}
+	path := field.NewPath("spec").Child("inference")
+	if len(sandbox.Spec.Inference.Models) == 0 {
+		return append(fields, field.Required(path.Child("models"), "at least one model is required"))
+	}
+
+	allowed := make(map[string]struct{}, len(sandbox.Spec.Inference.Models))
+	byProvider := make(map[string][]string, len(sandbox.Spec.Inference.Models))
+	for i, model := range sandbox.Spec.Inference.Models {
+		if strings.TrimSpace(model.Provider) == "" {
+			fields = append(fields, field.Required(path.Child("models").Index(i).Child("provider"), "field is required"))
+		}
+		if strings.TrimSpace(model.Model) == "" {
+			fields = append(fields, field.Required(path.Child("models").Index(i).Child("model"), "field is required"))
+		}
+		key := model.Provider + "\x00" + model.Model
+		if _, exists := allowed[key]; exists {
+			fields = append(fields, field.Duplicate(path.Child("models").Index(i), model))
+			continue
+		}
+		allowed[key] = struct{}{}
+		byProvider[model.Provider] = append(byProvider[model.Provider], model.Model)
+	}
+
+	defaultKey := sandbox.Spec.Inference.DefaultModel.Provider + "\x00" +
+		sandbox.Spec.Inference.DefaultModel.Model
+	if _, exists := allowed[defaultKey]; !exists {
+		fields = append(fields, field.Invalid(
+			path.Child("defaultModel"), sandbox.Spec.Inference.DefaultModel,
+			"must belong to the model allowlist",
+		))
+	}
+	if sandbox.Spec.Inference.SmallModel != nil {
+		smallKey := sandbox.Spec.Inference.SmallModel.Provider + "\x00" + sandbox.Spec.Inference.SmallModel.Model
+		if _, exists := allowed[smallKey]; !exists {
+			fields = append(fields, field.Invalid(
+				path.Child("smallModel"), sandbox.Spec.Inference.SmallModel,
+				"must belong to the model allowlist",
+			))
+		}
+	}
+	if v.client == nil {
+		return fields
+	}
+
+	for providerID, modelIDs := range byProvider {
+		provider := &agentzv1alpha1.InferenceProvider{}
+		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: providerID}
+		err := v.client.Get(ctx, key, provider)
+		if apierrors.IsNotFound(err) {
+			fields = append(fields, field.NotFound(path.Child("models"), providerID))
+			continue
+		}
+		if err != nil {
+			fields = append(fields, field.InternalError(
+				path.Child("models"), fmt.Errorf("get inference provider %q: %w", providerID, err),
+			))
+			continue
+		}
+		if !provider.DeletionTimestamp.IsZero() {
+			fields = append(fields, field.Forbidden(
+				path.Child("models"), fmt.Sprintf("provider %q is terminating", providerID),
+			))
+			continue
+		}
+		if provider.Spec.OpenAICompatible != nil {
+			endpoint, err := url.Parse(provider.Spec.OpenAICompatible.BaseURL)
+			if err != nil {
+				fields = append(fields, field.InternalError(
+					path.Child("models"), fmt.Errorf("parse provider %q endpoint: %w", providerID, err),
+				))
+				continue
+			}
+			for i, raw := range sandbox.Spec.AllowedHosts {
+				host, err := sandboxutil.ParseHost(raw)
+				if err == nil && host.Allows(endpoint.Hostname()) {
+					fields = append(fields, field.Forbidden(
+						field.NewPath("spec").Child("allowedHosts").Index(i),
+						fmt.Sprintf("direct access to provider %q must use the inference gateway", providerID),
+					))
+				}
+			}
+		}
+		enabled := make(map[string]struct{}, len(provider.Spec.Models))
+		for _, model := range provider.Spec.Models {
+			enabled[model.ID] = struct{}{}
+		}
+		for _, modelID := range modelIDs {
+			if _, exists := enabled[modelID]; exists {
+				continue
+			}
+			fields = append(fields, field.NotFound(
+				path.Child("models"), providerID+"/"+modelID,
+			))
+		}
+	}
+	return fields
 }
 
 func validateAllowedHostFields(sandbox *agentzv1alpha1.Sandbox) field.ErrorList {

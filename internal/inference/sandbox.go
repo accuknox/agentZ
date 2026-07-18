@@ -1,0 +1,140 @@
+package inference
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
+
+	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
+	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
+)
+
+const (
+	// GatewayName is the namespace-local inference Gateway and Service name.
+	GatewayName = "inference"
+	// ParametersName configures only the inference Gateway deployment.
+	ParametersName = "inference-clusterip"
+	// SandboxLabel identifies the Sandbox that owns an inference route.
+	SandboxLabel = "agentz.accuknox.com/inference-sandbox"
+)
+
+// Gateway returns the isolated namespace-local inference Gateway.
+func Gateway(namespace string) *gwv1.Gateway {
+	return &gwv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: GatewayName, Namespace: namespace},
+		Spec: gwv1.GatewaySpec{
+			GatewayClassName: gwv1.ObjectName("agentgateway"),
+			Infrastructure: &gwv1.GatewayInfrastructure{
+				ParametersRef: &gwv1.LocalParametersReference{
+					Group: gwv1.Group("agentgateway.dev"),
+					Kind:  gwv1.Kind("AgentgatewayParameters"),
+					Name:  ParametersName,
+				},
+			},
+			Listeners: []gwv1.Listener{{
+				Name: gwv1.SectionName("inference-http"), Protocol: gwv1.HTTPProtocolType,
+				Port: gwv1.PortNumber(80),
+			}},
+		},
+	}
+}
+
+// SandboxProviderRuntime contains the fail-closed route and authorization
+// policy for one Sandbox/provider pair.
+type SandboxProviderRuntime struct {
+	Route  *gwv1.HTTPRoute
+	Policy *agentgatewayv1alpha1.AgentgatewayPolicy
+}
+
+// SandboxProviderRuntimeName returns the bounded stable identity shared by a
+// route and its authorization policy.
+func SandboxProviderRuntimeName(sandboxName, providerName string) string {
+	name := sandboxName + "-" + providerName
+	if len(name) <= 63 {
+		return name
+	}
+	sum := sha256.Sum256([]byte(name))
+	suffix := hex.EncodeToString(sum[:])[:10]
+	return name[:52] + "-" + suffix
+}
+
+// SandboxProviderPath returns the controller-owned OpenAI-compatible prefix
+// for one Sandbox/provider pair.
+func SandboxProviderPath(sandboxName, providerName string) string {
+	return "/sandboxes/" + sandboxName + "/providers/" + providerName
+}
+
+// RenderSandboxProvider creates a route and fail-closed model policy.
+func RenderSandboxProvider(namespace, sandboxName, providerName string, models []string) SandboxProviderRuntime {
+	name := SandboxProviderRuntimeName(sandboxName, providerName)
+	prefix := SandboxProviderPath(sandboxName, providerName)
+	root := "/"
+	pathType := gwv1.PathMatchPathPrefix
+	group := gwv1.Group("agentgateway.dev")
+	kind := gwv1.Kind("AgentgatewayBackend")
+	labels := map[string]string{
+		SandboxLabel:  sandboxName,
+		ProviderLabel: providerName,
+	}
+	route := &gwv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
+		Spec: gwv1.HTTPRouteSpec{
+			CommonRouteSpec: gwv1.CommonRouteSpec{
+				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(GatewayName)}},
+			},
+			Rules: []gwv1.HTTPRouteRule{{
+				Matches: []gwv1.HTTPRouteMatch{{
+					Path: &gwv1.HTTPPathMatch{Type: &pathType, Value: &prefix},
+				}},
+				Filters: []gwv1.HTTPRouteFilter{{
+					Type: gwv1.HTTPRouteFilterURLRewrite,
+					URLRewrite: &gwv1.HTTPURLRewriteFilter{
+						Path: &gwv1.HTTPPathModifier{
+							Type:               gwv1.PrefixMatchHTTPPathModifier,
+							ReplacePrefixMatch: &root,
+						},
+					},
+				}},
+				BackendRefs: []gwv1.HTTPBackendRef{{
+					BackendRef: gwv1.BackendRef{
+						BackendObjectReference: gwv1.BackendObjectReference{
+							Group: &group, Kind: &kind, Name: gwv1.ObjectName(providerName),
+						},
+					},
+				}},
+			}},
+		},
+	}
+	quoted := make([]string, 0, len(models))
+	for _, model := range models {
+		quoted = append(quoted, fmt.Sprintf("%q", model))
+	}
+	expression := agentgatewayshared.CELExpression(fmt.Sprintf(
+		"default(json(request.body).model, \"\") in [%s]",
+		strings.Join(quoted, ", "),
+	))
+	policy := &agentgatewayv1alpha1.AgentgatewayPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
+		Spec: agentgatewayv1alpha1.AgentgatewayPolicySpec{
+			TargetRefs: []agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agentgatewayshared.LocalPolicyTargetReference{
+					Group: gwv1.Group("gateway.networking.k8s.io"),
+					Kind:  gwv1.Kind("HTTPRoute"),
+					Name:  gwv1.ObjectName(name),
+				},
+			}},
+			Traffic: &agentgatewayv1alpha1.Traffic{
+				Authorization: &agentgatewayshared.Authorization{
+					Action: agentgatewayshared.AuthorizationPolicyActionRequire,
+					Policy: agentgatewayshared.AuthorizationPolicy{
+						MatchExpressions: []agentgatewayshared.CELExpression{expression},
+					},
+				},
+			},
+		},
+	}
+	return SandboxProviderRuntime{Route: route, Policy: policy}
+}

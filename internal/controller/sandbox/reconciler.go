@@ -19,6 +19,7 @@ package sandbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"reflect"
@@ -47,6 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -83,7 +85,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	agentName, err := sandboxutil.ReferencingAgentName(
+	agentNames, err := sandboxutil.ReferencingAgentNames(
 		ctx,
 		r.Client,
 		sandbox.Namespace,
@@ -94,8 +96,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if !sandbox.DeletionTimestamp.IsZero() {
-		if agentName != "" {
-			return ctrl.Result{}, fmt.Errorf("sandbox %q is referenced by agent %q", sandbox.Name, agentName)
+		if len(agentNames) > 0 {
+			return ctrl.Result{}, fmt.Errorf("sandbox %q is referenced by agent %q", sandbox.Name, agentNames[0])
+		}
+		if err := r.deleteStaleInferenceRuntime(ctx, sandbox, map[string]struct{}{}); err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := r.reconcileInferenceGateway(ctx, sandbox.Namespace); err != nil {
+			return ctrl.Result{}, err
 		}
 		if ctrlutil.ContainsFinalizer(sandbox, mcp.SandboxFinalizer) {
 			patch := client.MergeFrom(sandbox.DeepCopy())
@@ -113,6 +121,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.Patch(ctx, sandbox, patch); err != nil {
 			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
 		}
+	}
+	inferenceReady, err := r.reconcileInference(ctx, sandbox)
+	if err != nil {
+		return ctrl.Result{}, errors.Join(err, r.updateStatus(ctx, sandbox, false))
 	}
 
 	packages := defaultPackages(sandbox.Spec.Packages)
@@ -135,7 +147,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.reconcileGateway(ctx, sandbox.Namespace); err != nil {
 			return ctrl.Result{}, err
 		}
-		if err := r.updateStatus(ctx, sandbox); err != nil {
+		if err := r.updateStatus(ctx, sandbox, inferenceReady); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -151,7 +163,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateStatus(ctx, sandbox); err != nil {
+	if err := r.updateStatus(ctx, sandbox, inferenceReady); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -159,7 +171,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // updateStatus computes spec-derived counters and persists them to status.
-func (r *Reconciler) updateStatus(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) error {
+func (r *Reconciler) updateStatus(ctx context.Context, sandbox *agentzv1alpha1.Sandbox, inferenceReady bool) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current := &agentzv1alpha1.Sandbox{}
 		key := types.NamespacedName{Namespace: sandbox.Namespace, Name: sandbox.Name}
@@ -170,6 +182,8 @@ func (r *Reconciler) updateStatus(ctx context.Context, sandbox *agentzv1alpha1.S
 		status.PackageCount = len(current.Spec.Packages)
 		status.AllowedHostCount = len(current.Spec.AllowedHosts)
 		status.MCPRefCount = len(current.Spec.MCPConnectionRefs)
+		status.ModelCount = len(current.Spec.Inference.Models)
+		status.InferenceReady = inferenceReady
 		if reflect.DeepEqual(current.Status, *status) {
 			return nil
 		}
@@ -185,8 +199,77 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&agentzv1alpha1.Sandbox{}).
 		Watches(&agentzv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.sandboxForAgent)).
 		Watches(&agentzv1alpha1.MCPConnection{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForMCPConnection)).
+		Watches(&agentzv1alpha1.InferenceProvider{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceProvider)).
+		Watches(&gwv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceGateway)).
+		Owns(&gwv1.HTTPRoute{}).
+		Watches(&agentgatewayv1alpha1.AgentgatewayPolicy{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePolicy)).
 		Named("sandbox").
 		Complete(r)
+}
+
+func (r *Reconciler) sandboxesForInferenceGateway(ctx context.Context, obj client.Object) []reconcile.Request {
+	if obj.GetName() != inference.GatewayName {
+		return nil
+	}
+	return r.inferenceSandboxRequests(ctx, obj.GetNamespace())
+}
+
+func (r *Reconciler) sandboxesForInferencePolicy(ctx context.Context, obj client.Object) []reconcile.Request {
+	if name := obj.GetLabels()[inference.SandboxLabel]; name != "" {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{
+			Namespace: obj.GetNamespace(), Name: name,
+		}}}
+	}
+	if obj.GetName() != inferenceTracePolicyName {
+		return nil
+	}
+	return r.inferenceSandboxRequests(ctx, obj.GetNamespace())
+}
+
+func (r *Reconciler) inferenceSandboxRequests(ctx context.Context, namespace string) []reconcile.Request {
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	if err := r.List(ctx, sandboxes, client.InNamespace(namespace)); err != nil {
+		slog.ErrorContext(ctx, "list inference sandboxes for runtime status", slog.Any("err", err))
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
+	for i := range sandboxes.Items {
+		if len(sandboxes.Items[i].Spec.Inference.Models) == 0 {
+			continue
+		}
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: namespace, Name: sandboxes.Items[i].Name,
+		}})
+	}
+	return requests
+}
+
+func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj client.Object) []reconcile.Request {
+	provider := obj.(*agentzv1alpha1.InferenceProvider)
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err := r.List(
+		ctx,
+		sandboxes,
+		client.InNamespace(provider.Namespace),
+		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
+	)
+	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"list sandboxes for inference provider",
+			slog.String("namespace", provider.Namespace),
+			slog.String("provider", provider.Name),
+			slog.Any("err", err),
+		)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
+	for _, sandbox := range sandboxes.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(&sandbox),
+		})
+	}
+	return requests
 }
 
 func (r *Reconciler) sandboxForAgent(_ context.Context, obj client.Object) []reconcile.Request {
@@ -195,7 +278,7 @@ func (r *Reconciler) sandboxForAgent(_ context.Context, obj client.Object) []rec
 		return nil
 	}
 	ref := agt.Spec.SandboxRef
-	if ref == nil || ref.Name == "" {
+	if ref.Name == "" {
 		return nil
 	}
 	return []reconcile.Request{{
@@ -278,7 +361,8 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 			return fmt.Errorf("delete namespace gateway: %w", err)
 		}
 
-		if err := r.deleteAgentgatewayParameters(ctx, namespace); err != nil {
+		err := r.deleteAgentgatewayParameters(ctx, namespace, mcp.AgentgatewayParametersName)
+		if err != nil {
 			return err
 		}
 		return nil
@@ -302,7 +386,7 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 	if err := r.reconcileTracePolicy(ctx, namespace, owners); err != nil {
 		return err
 	}
-	return r.ensureAgentgatewayParameters(ctx, namespace)
+	return r.ensureAgentgatewayParameters(ctx, namespace, mcp.AgentgatewayParametersName)
 }
 
 //nolint:gocyclo
@@ -633,7 +717,7 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 	if err := r.deleteTraceEndpointResources(ctx, namespace); err != nil {
 		return err
 	}
-	if err := r.reconcileTraceBackend(ctx, namespace, owners); err != nil {
+	if err := r.reconcileTraceBackend(ctx, namespace, traceBackendName, owners); err != nil {
 		return err
 	}
 
@@ -653,7 +737,7 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 
 	currentSpec := obj.Spec.DeepCopy()
 	currentOwners := slices.Clone(obj.OwnerReferences)
-	backendRef := tracePolicyBackendRef(r.TraceBackend)
+	backendRef := tracePolicyBackendRef(r.TraceBackend, traceBackendName)
 	randomSampling := agentgatewayshared.CELExpression("true")
 	attrs := &agentgatewayv1alpha1.LogTracingAttributes{
 		Add: []agentgatewayv1alpha1.AttributeAdd{
@@ -752,8 +836,12 @@ func (r *Reconciler) deleteTracePolicy(ctx context.Context, namespace string) er
 }
 
 func (r *Reconciler) deleteTraceBackend(ctx context.Context, namespace string) error {
+	return r.deleteNamedTraceBackend(ctx, namespace, traceBackendName)
+}
+
+func (r *Reconciler) deleteNamedTraceBackend(ctx context.Context, namespace, name string) error {
 	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayBackends(namespace).Delete(
-		ctx, traceBackendName, metav1.DeleteOptions{},
+		ctx, name, metav1.DeleteOptions{},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete trace backend: %w", err)
@@ -761,20 +849,20 @@ func (r *Reconciler) deleteTraceBackend(ctx context.Context, namespace string) e
 	return nil
 }
 
-func (r *Reconciler) reconcileTraceBackend(ctx context.Context, namespace string, owners []agentzv1alpha1.Sandbox) error {
+func (r *Reconciler) reconcileTraceBackend(ctx context.Context, namespace, name string, owners []agentzv1alpha1.Sandbox) error {
 	client := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayBackends(namespace)
 	if r.TraceBackend.Mode == TraceBackendModeService {
-		return r.deleteTraceBackend(ctx, namespace)
+		return r.deleteNamedTraceBackend(ctx, namespace, name)
 	}
 
-	obj, err := client.Get(ctx, traceBackendName, metav1.GetOptions{})
+	obj, err := client.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("get trace backend: %w", err)
 		}
 		obj = &agentgatewayv1alpha1.AgentgatewayBackend{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      traceBackendName,
+				Name:      name,
 				Namespace: namespace,
 			},
 		}
@@ -806,7 +894,7 @@ func (r *Reconciler) reconcileTraceBackend(ctx context.Context, namespace string
 	return nil
 }
 
-func tracePolicyBackendRef(cfg TraceBackend) gwv1.BackendObjectReference {
+func tracePolicyBackendRef(cfg TraceBackend, name string) gwv1.BackendObjectReference {
 	if cfg.Mode == TraceBackendModeService {
 		kind := gwv1.Kind("Service")
 		namespace := gwv1.Namespace(cfg.ServiceNamespace)
@@ -824,7 +912,7 @@ func tracePolicyBackendRef(cfg TraceBackend) gwv1.BackendObjectReference {
 	return gwv1.BackendObjectReference{
 		Group: &group,
 		Kind:  &kind,
-		Name:  gwv1.ObjectName(traceBackendName),
+		Name:  gwv1.ObjectName(name),
 	}
 }
 
@@ -861,7 +949,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
 		policy.OwnerReferences = sandboxOwnerReferences(owners)
-		policy.Spec = gatewayNetworkPolicySpec(namespace)
+		policy.Spec = gatewayNetworkPolicySpec(namespace, mcp.GatewayName)
 		return nil
 	})
 	if err != nil {
@@ -870,7 +958,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 	return nil
 }
 
-func gatewayNetworkPolicySpec(namespace string) *ciliumapi.Rule {
+func gatewayNetworkPolicySpec(namespace, gatewayName string) *ciliumapi.Rule {
 	return &ciliumapi.Rule{
 		EndpointSelector: ciliumapi.NewESFromLabels(
 			ciliumlabels.NewLabel(
@@ -880,17 +968,17 @@ func gatewayNetworkPolicySpec(namespace string) *ciliumapi.Rule {
 			),
 			ciliumlabels.NewLabel(
 				"app.kubernetes.io/name",
-				mcp.GatewayName,
+				gatewayName,
 				ciliumlabels.LabelSourceK8s,
 			),
 			ciliumlabels.NewLabel(
 				"app.kubernetes.io/instance",
-				mcp.GatewayName,
+				gatewayName,
 				ciliumlabels.LabelSourceK8s,
 			),
 			ciliumlabels.NewLabel(
 				"gateway.networking.k8s.io/gateway-name",
-				mcp.GatewayName,
+				gatewayName,
 				ciliumlabels.LabelSourceK8s,
 			),
 		),
@@ -931,17 +1019,17 @@ func gatewayNetworkPolicySpec(namespace string) *ciliumapi.Rule {
 	}
 }
 
-func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace string) error {
+func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace, name string) error {
 	client := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayParameters(namespace)
 
-	obj, err := client.Get(ctx, mcp.AgentgatewayParametersName, metav1.GetOptions{})
+	obj, err := client.Get(ctx, name, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("get agentgateway parameters: %w", err)
 	}
 	if apierrors.IsNotFound(err) {
 		obj = &agentgatewayv1alpha1.AgentgatewayParameters{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      mcp.AgentgatewayParametersName,
+				Name:      name,
 				Namespace: namespace,
 			},
 		}
@@ -973,7 +1061,7 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := client.Get(ctx, mcp.AgentgatewayParametersName, metav1.GetOptions{})
+		current, err := client.Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("get agentgateway parameters for update: %w", err)
 		}
@@ -989,9 +1077,9 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 	})
 }
 
-func (r *Reconciler) deleteAgentgatewayParameters(ctx context.Context, namespace string) error {
+func (r *Reconciler) deleteAgentgatewayParameters(ctx context.Context, namespace, name string) error {
 	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayParameters(namespace).Delete(
-		ctx, mcp.AgentgatewayParametersName, metav1.DeleteOptions{},
+		ctx, name, metav1.DeleteOptions{},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete agentgateway parameters: %w", err)

@@ -120,10 +120,6 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns string, agtNa
 	if err != nil {
 		return mapKubeHTTPError("get agent", err)
 	}
-	if agt.Spec.SandboxRef == nil {
-		return nil
-	}
-
 	sandboxName := strings.TrimSpace(agt.Spec.SandboxRef.Name)
 	if sandboxName == "" {
 		return nil
@@ -899,7 +895,12 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName string, add []stri
 
 func mapOpenBaoError(err error) *apiError {
 	if errors.Is(err, baoapi.ErrSecretNotFound) {
-		return newAPIError(http.StatusNotFound, "not_found", "secret not found", err)
+		return newAPIError(http.StatusNotFound, "not_found", "secret not found", errors.New("openbao secret not found"))
 	}
-	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+	return newAPIError(
+		http.StatusInternalServerError,
+		"internal_error",
+		"request failed",
+		errors.New("openbao request failed"),
+	)
 }

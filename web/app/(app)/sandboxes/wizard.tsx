@@ -16,20 +16,29 @@ import {
   ArrowLeft,
   ArrowRight,
   Box,
+  Brain,
   Cable,
   ChevronDown,
   Globe2,
   ScrollText,
   PackageSearch as PackageSearchIcon,
   Plus,
+  RefreshCw,
   UserCheck,
   X,
 } from "lucide-react"
 import * as React from "react"
 import { startTransition, useActionState, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { formatAge } from "@/lib/format"
+import { formatAge, formatCompactNumber } from "@/lib/format"
 import { WizardShell } from "@/components/blocks/wizard/shell"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -50,6 +59,13 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -59,17 +75,22 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { createSandboxFormAction, updateSandboxFormAction } from "@/data/sandbox.actions"
+import { refreshInferenceProvidersAction } from "@/data/inference-provider.actions"
 import * as z from "zod"
 import { sandboxAllowedHostSchema, sandboxNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   getMcpConnection,
   type McpConnectionSummary,
+  type InferenceProvider,
+  type SandboxInference,
+  type SandboxInferenceModelRef,
   type SecretHost,
   type Skill,
 } from "@/lib/gateway/client"
 import { zMcpConnectionName, zSkillName } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
+import { ProviderIcon, providerTypeLabels } from "@/app/(app)/inference-providers/provider-shared"
 import { PackageSearch } from "./package-search"
 
 type SandboxWizardMode = "create" | "update"
@@ -127,6 +148,7 @@ type SandboxWizardData = {
   packages?: string[]
   mcps?: SelectedMcpConnectionRef[]
   skills?: string[]
+  inference?: SandboxInference
   allowedHosts?: AllowedHostsDraft
 }
 
@@ -140,8 +162,10 @@ type SandboxWizardProps = {
   initialMcpConnectionRefs?: SelectedMcpConnectionRef[]
   initialPackages?: string[]
   initialSkills?: string[]
+  initialInference?: SandboxInference
   immutableSkills: Skill[]
   mcpConnections: McpConnectionSummary[]
+  inferenceProviders: InferenceProvider[]
   mode: SandboxWizardMode
   secretHostSuggestions?: Promise<SecretHost[]>
 }
@@ -161,9 +185,18 @@ type AllowedHostsStepProps = {
   mcpConnectionRefs: SelectedMcpConnectionRef[]
   packages: string[]
   skills: string[]
+  inference: SandboxInference
   mode: SandboxWizardMode
   secretHostSuggestions?: Promise<SecretHost[]>
   onAllowedHostsChangeAction: (data: AllowedHostsDraft) => void
+  onPrev: () => void
+}
+
+type ModelsStepProps = {
+  inferenceProviders: InferenceProvider[]
+  initialInference?: SandboxInference
+  onAdvanceAction: () => void
+  onNext: (inference: SandboxInference) => void
   onPrev: () => void
 }
 
@@ -188,6 +221,7 @@ const formIdByStep = {
   packages: "sandbox-form-packages",
   mcps: "sandbox-form-mcps",
   skills: "sandbox-form-skills",
+  models: "sandbox-form-models",
   allowedHosts: "sandbox-form-allowed-hosts",
 } as const
 
@@ -234,6 +268,11 @@ const steps = [
     id: "skills",
     title: "Skills",
     icon: ScrollText,
+  },
+  {
+    id: "models",
+    title: "Models",
+    icon: Brain,
   },
   {
     id: "allowedHosts",
@@ -1067,6 +1106,347 @@ function SkillsStep({
   )
 }
 
+function ModelsStep({
+  inferenceProviders,
+  initialInference,
+  onAdvanceAction,
+  onNext,
+  onPrev,
+}: ModelsStepProps) {
+  const [providers, setProviders] = React.useState(inferenceProviders)
+  const [refreshError, setRefreshError] = React.useState("")
+  const [refreshing, startRefresh] = React.useTransition()
+  const [selected, setSelected] = React.useState<SandboxInferenceModelRef[]>(
+    initialInference?.models ?? []
+  )
+  // The selects only record explicit picks. The effective default derives as
+  // "explicit pick if still selected, else first selected model", so the
+  // draft always has a valid default without a separate validation gate.
+  const [defaultKey, setDefaultKey] = React.useState(() =>
+    initialInference
+      ? JSON.stringify([
+          initialInference.default_model.provider,
+          initialInference.default_model.model,
+        ])
+      : undefined
+  )
+  const [smallKey, setSmallKey] = React.useState(() =>
+    initialInference?.small_model
+      ? JSON.stringify([initialInference.small_model.provider, initialInference.small_model.model])
+      : undefined
+  )
+  const [invalidSubmit, setInvalidSubmit] = React.useState(false)
+
+  const refs = React.useMemo(
+    () => new Map(selected.map((ref) => [JSON.stringify([ref.provider, ref.model]), ref] as const)),
+    [selected]
+  )
+  const providersById = React.useMemo(
+    () => new Map(providers.map((provider) => [provider.id, provider])),
+    [providers]
+  )
+  const selectedCountByProvider = React.useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const ref of selected) {
+      counts.set(ref.provider, (counts.get(ref.provider) ?? 0) + 1)
+    }
+    return counts
+  }, [selected])
+
+  const defaultRef = (defaultKey ? refs.get(defaultKey) : undefined) ?? selected[0]
+  const defaultRefKey = defaultRef
+    ? JSON.stringify([defaultRef.provider, defaultRef.model])
+    : undefined
+  const smallRef = smallKey ? refs.get(smallKey) : undefined
+  // Accordion reads defaultValue only at mount: open providers that hold a
+  // selection (edit mode), or the first provider when starting empty.
+  const initiallyOpenProviders = providers.some((provider) =>
+    selectedCountByProvider.has(provider.id)
+  )
+    ? providers
+        .filter((provider) => selectedCountByProvider.has(provider.id))
+        .map((provider) => provider.id)
+    : providers.slice(0, 1).map((provider) => provider.id)
+
+  function toggleModel(ref: SandboxInferenceModelRef, checked: boolean) {
+    const key = JSON.stringify([ref.provider, ref.model])
+    if (checked) {
+      setSelected((current) =>
+        current.some((item) => JSON.stringify([item.provider, item.model]) === key)
+          ? current
+          : [...current, ref]
+      )
+      setInvalidSubmit(false)
+      return
+    }
+    setSelected((current) =>
+      current.filter((item) => JSON.stringify([item.provider, item.model]) !== key)
+    )
+    if (defaultKey === key) {
+      setDefaultKey(undefined)
+    }
+    if (smallKey === key) {
+      setSmallKey(undefined)
+    }
+  }
+
+  // One options feed both selects; display names fall back to raw IDs when a
+  // provider or model no longer exists in the catalog (e.g. stale edit draft).
+  const modelOptions = selected.map((ref) => {
+    const key = JSON.stringify([ref.provider, ref.model])
+    const provider = providersById.get(ref.provider)
+    const model = provider?.models.find((item) => item.id === ref.model)
+    return (
+      <SelectItem key={key} value={key}>
+        <span className="truncate">{model?.display_name ?? ref.model}</span>
+        <span className="text-muted-foreground truncate">
+          {provider?.display_name ?? ref.provider}
+        </span>
+      </SelectItem>
+    )
+  })
+
+  return (
+    <form
+      id={formIdByStep.models}
+      className="flex min-h-full w-full min-w-0 flex-col gap-5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (!defaultRef) {
+          setInvalidSubmit(true)
+          return
+        }
+        onNext({
+          models: selected,
+          default_model: defaultRef,
+          ...(smallRef ? { small_model: smallRef } : {}),
+        })
+      }}
+    >
+      {providers.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
+          <Brain className="text-muted-foreground size-8" aria-hidden="true" />
+          <div>
+            <p className="font-medium">No inference providers are configured</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Add a provider, then refresh this catalog without losing the rest of your draft.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <a href="/inference-providers" target="_blank" rel="noreferrer">
+                Open provider setup
+              </a>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={refreshing}
+              onClick={() =>
+                startRefresh(async () => {
+                  const result = await refreshInferenceProvidersAction()
+                  if (result.error) {
+                    setRefreshError(result.error.message)
+                    return
+                  }
+                  setRefreshError("")
+                  setProviders(result.providers)
+                })
+              }
+            >
+              {refreshing ? <Spinner /> : <RefreshCw />} Refresh
+            </Button>
+          </div>
+          {refreshError ? (
+            <p role="alert" className="text-destructive text-sm">
+              {refreshError}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="grid min-h-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="order-2 min-w-0 lg:order-1">
+            <Accordion
+              type="multiple"
+              defaultValue={initiallyOpenProviders}
+              className="overflow-hidden rounded-lg border"
+            >
+              {providers.map((provider) => {
+                const selectedCount = selectedCountByProvider.get(provider.id) ?? 0
+                return (
+                  <AccordionItem key={provider.id} value={provider.id}>
+                    <AccordionTrigger className="hover:bg-muted/50 px-3 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0!">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <ProviderIcon type={provider.type} className="size-4 shrink-0" />
+                        <span className="truncate font-medium">{provider.display_name}</span>
+                        <span className="text-muted-foreground hidden truncate text-xs md:inline">
+                          {providerTypeLabels[provider.type]}
+                        </span>
+                      </div>
+                      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                        {selectedCount > 0 ? (
+                          <Badge variant="secondary">{selectedCount} selected</Badge>
+                        ) : null}
+                        {provider.state !== "Ready" ? (
+                          <Badge
+                            variant={provider.state === "Degraded" ? "destructive" : "pending"}
+                          >
+                            {provider.state}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-0">
+                      {provider.models.length === 0 ? (
+                        <p className="text-muted-foreground border-t px-3 py-4 text-sm">
+                          This provider has no models yet.
+                        </p>
+                      ) : (
+                        <div className="divide-y border-t">
+                          {provider.models.map((model) => {
+                            const ref = { provider: provider.id, model: model.id }
+                            const active = refs.has(JSON.stringify([ref.provider, ref.model]))
+                            return (
+                              <label
+                                key={model.id}
+                                className={`hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors ${active ? "bg-primary/5" : ""}`}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-medium">
+                                    {model.display_name}
+                                  </span>
+                                  <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                                    <span className="truncate font-mono">{model.id}</span>
+                                    <span aria-hidden="true">·</span>
+                                    <span className="shrink-0 tabular-nums">
+                                      {formatCompactNumber(model.limits.context)} context
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                                  {model.capabilities.tool_call ? (
+                                    <Badge variant="outline">Tools</Badge>
+                                  ) : null}
+                                  {model.capabilities.reasoning ? (
+                                    <Badge variant="outline">Reasoning</Badge>
+                                  ) : null}
+                                </div>
+                                <Switch
+                                  checked={active}
+                                  onCheckedChange={(checked) => toggleModel(ref, checked)}
+                                  aria-label={`${active ? "Remove" : "Add"} ${model.display_name}`}
+                                />
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                )
+              })}
+            </Accordion>
+          </div>
+          <aside className="order-1 min-w-0 lg:sticky lg:top-0 lg:order-2 lg:self-start">
+            <div className="overflow-hidden rounded-lg border">
+              <div className="bg-muted/30 flex items-center justify-between border-b px-4 py-2.5">
+                <h2 className="text-sm font-medium">Selected models</h2>
+                <Badge variant="secondary">{selected.length}</Badge>
+              </div>
+              <div className="space-y-4 p-4">
+                {selected.length === 0 ? (
+                  <p className="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+                    Expand a provider to start adding models.
+                  </p>
+                ) : (
+                  <ul className="divide-y rounded-md border">
+                    {selected.map((ref) => {
+                      const key = JSON.stringify([ref.provider, ref.model])
+                      const provider = providersById.get(ref.provider)
+                      const model = provider?.models.find((item) => item.id === ref.model)
+                      const displayName = model?.display_name ?? ref.model
+                      return (
+                        <li key={key} className="flex items-center gap-2.5 px-3 py-2">
+                          {provider ? (
+                            <ProviderIcon type={provider.type} className="size-4 shrink-0" />
+                          ) : null}
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium">{displayName}</div>
+                            <div className="text-muted-foreground truncate text-xs">
+                              {provider?.display_name ?? ref.provider}
+                            </div>
+                          </div>
+                          {key === defaultRefKey ? <Badge variant="outline">Default</Badge> : null}
+                          {key === smallKey ? <Badge variant="outline">Small</Badge> : null}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Remove ${displayName}`}
+                            onClick={() => toggleModel(ref, false)}
+                          >
+                            <X />
+                          </Button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                <Field>
+                  <FieldLabel required>Default model</FieldLabel>
+                  <Select
+                    value={defaultRefKey ?? ""}
+                    onValueChange={setDefaultKey}
+                    disabled={selected.length === 0}
+                  >
+                    <SelectTrigger className="w-full" aria-label="Default model">
+                      <SelectValue placeholder="Choose a default model" />
+                    </SelectTrigger>
+                    <SelectContent>{modelOptions}</SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    Model used by default for new sessions and workflow runs.
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel>Small model</FieldLabel>
+                  <Select
+                    value={smallKey ?? "none"}
+                    onValueChange={(value) => setSmallKey(value === "none" ? undefined : value)}
+                    disabled={selected.length === 0}
+                  >
+                    <SelectTrigger className="w-full" aria-label="Small model">
+                      <SelectValue placeholder="Not set" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not set</SelectItem>
+                      {modelOptions}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    Optional cheaper model for lightweight background tasks.
+                  </FieldDescription>
+                </Field>
+                {invalidSubmit && selected.length === 0 ? (
+                  <FieldError errors={[{ message: "Select at least one model to continue." }]} />
+                ) : null}
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
+      <StepActions>
+        <Button type="button" variant="secondary" onClick={onPrev}>
+          Previous
+        </Button>
+        <Button type="submit" onClick={onAdvanceAction} disabled={providers.length === 0}>
+          Next
+        </Button>
+      </StepActions>
+    </form>
+  )
+}
+
 function AllowedHostsStep({
   identity,
   initialAllowedHosts,
@@ -1074,6 +1454,7 @@ function AllowedHostsStep({
   mcpConnectionRefs,
   packages,
   skills,
+  inference,
   mode,
   secretHostSuggestions,
   onAllowedHostsChangeAction,
@@ -1180,6 +1561,28 @@ function AllowedHostsStep({
       {skills.map((skill) => (
         <input key={skill} type="hidden" name="skills" value={skill} />
       ))}
+      {inference.models.map((ref) => (
+        <React.Fragment key={`${ref.provider}-${ref.model}`}>
+          <input type="hidden" name="inferenceModelProviders" value={ref.provider} />
+          <input type="hidden" name="inferenceModelIDs" value={ref.model} />
+        </React.Fragment>
+      ))}
+      <input
+        type="hidden"
+        name="inferenceDefaultProvider"
+        value={inference.default_model.provider}
+      />
+      <input type="hidden" name="inferenceDefaultModel" value={inference.default_model.model} />
+      {inference.small_model && (
+        <>
+          <input
+            type="hidden"
+            name="inferenceSmallProvider"
+            value={inference.small_model.provider}
+          />
+          <input type="hidden" name="inferenceSmallModel" value={inference.small_model.model} />
+        </>
+      )}
       {mcpConnectionRefs.map((ref) => (
         <React.Fragment key={ref.name}>
           <input type="hidden" name="mcpConnectionRefs" value={ref.name} />
@@ -1359,7 +1762,9 @@ export function SandboxWizard({
   initialName = "",
   initialPackages = [],
   initialSkills = [],
+  initialInference,
   immutableSkills,
+  inferenceProviders,
   mcpConnections,
   mode,
   secretHostSuggestions,
@@ -1376,6 +1781,7 @@ export function SandboxWizard({
         packages: initialPackages,
         mcps: initialMcpConnectionRefs,
         skills: initialSkills,
+        models: initialInference,
         allowedHosts: {
           allowedHosts: initialAllowedHosts,
           draft: "",
@@ -1389,6 +1795,7 @@ export function SandboxWizard({
           packages: stepper.metadata.get<string[]>("packages") ?? undefined,
           mcps: stepper.metadata.get<SelectedMcpConnectionRef[]>("mcps") ?? undefined,
           skills: stepper.metadata.get<string[]>("skills") ?? undefined,
+          inference: stepper.metadata.get<SandboxInference>("models") ?? undefined,
           allowedHosts: stepper.metadata.get<AllowedHostsDraft>("allowedHosts") ?? undefined,
         }
         const currentIndex = stepper.state.current.index
@@ -1437,7 +1844,20 @@ export function SandboxWizard({
             currentIndex={currentIndex}
             currentStepId={currentStepId}
             direction={direction}
-            canVisitStepAction={(_, index) => index <= currentIndex || Boolean(data.identity)}
+            canVisitStepAction={(step, index) => {
+              if (index <= currentIndex) {
+                return true
+              }
+              if (!data.identity) {
+                return false
+              }
+              // The allowed-hosts step renders and submits the inference
+              // draft, so skipping ahead without one crashes the form.
+              if (step.id === "allowedHosts") {
+                return Boolean(data.inference)
+              }
+              return true
+            }}
             onStepSelectAction={(step, index) => {
               requestNavigation({ kind: "step", step: step.id, index })
             }}
@@ -1502,6 +1922,21 @@ export function SandboxWizard({
                   }}
                 />
               ),
+              models: () => (
+                <ModelsStep
+                  inferenceProviders={inferenceProviders}
+                  initialInference={data.inference ?? initialInference}
+                  onAdvanceAction={() => {
+                    pendingNavigationRef.current = undefined
+                  }}
+                  onPrev={() => requestNavigation({ kind: "prev" })}
+                  onNext={(inference) => {
+                    stepper.metadata.set("models", inference)
+                    completeNavigation(pendingNavigationRef.current)
+                    pendingNavigationRef.current = undefined
+                  }}
+                />
+              ),
               allowedHosts: () => (
                 <AllowedHostsStep
                   identity={data.identity!}
@@ -1510,6 +1945,7 @@ export function SandboxWizard({
                   mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
                   packages={data.packages ?? initialPackages}
                   skills={data.skills ?? initialSkills}
+                  inference={data.inference ?? initialInference!}
                   mode={mode}
                   secretHostSuggestions={secretHostSuggestions}
                   onAllowedHostsChangeAction={(nextData) => {

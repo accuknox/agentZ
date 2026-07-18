@@ -136,7 +136,6 @@ function AgentActions({
       <AgentDialog
         mode="update"
         agentName={agent.name}
-        initialAgentStatus={agent.status}
         initialSandboxName={agent.sandboxName}
         initialMemoryEnabled={agent.memory.enabled}
         initialSkills={agent.skills}

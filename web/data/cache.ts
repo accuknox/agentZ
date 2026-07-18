@@ -6,6 +6,7 @@ export const mcpsTag = "mcps"
 export const secretsTag = "secrets"
 export const workflowsTag = "workflows"
 export const workflowRunsTag = "workflow-runs"
+export const inferenceProvidersTag = "inference-providers"
 
 export function agentSecretsTag(agentName: string) {
   return `${secretsTag}:${agentName}`

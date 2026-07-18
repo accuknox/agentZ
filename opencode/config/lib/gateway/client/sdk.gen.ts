@@ -19,6 +19,9 @@ import type {
   CreateAgentFileErrors,
   CreateAgentFileResponses,
   CreateAgentResponses,
+  CreateInferenceProviderData,
+  CreateInferenceProviderErrors,
+  CreateInferenceProviderResponses,
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
@@ -49,6 +52,9 @@ import type {
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
+  DeleteInferenceProviderData,
+  DeleteInferenceProviderErrors,
+  DeleteInferenceProviderResponses,
   DeleteMcpConnectionData,
   DeleteMcpConnectionErrors,
   DeleteMcpConnectionResponses,
@@ -79,6 +85,12 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetInferenceProviderData,
+  GetInferenceProviderErrors,
+  GetInferenceProviderResponses,
+  GetInferenceProviderUsageData,
+  GetInferenceProviderUsageErrors,
+  GetInferenceProviderUsageResponses,
   GetMcpConnectionData,
   GetMcpConnectionErrors,
   GetMcpConnectionResponses,
@@ -124,6 +136,12 @@ import type {
   ListImmutableSkillVersionsData,
   ListImmutableSkillVersionsErrors,
   ListImmutableSkillVersionsResponses,
+  ListInferenceModelSuggestionsData,
+  ListInferenceModelSuggestionsErrors,
+  ListInferenceModelSuggestionsResponses,
+  ListInferenceProvidersData,
+  ListInferenceProvidersErrors,
+  ListInferenceProvidersResponses,
   ListMcpConnectionsData,
   ListMcpConnectionsErrors,
   ListMcpConnectionsResponses,
@@ -187,6 +205,9 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateInferenceProviderData,
+  UpdateInferenceProviderErrors,
+  UpdateInferenceProviderResponses,
   UpdateSandboxData,
   UpdateSandboxErrors,
   UpdateSandboxResponses,
@@ -200,6 +221,10 @@ import type {
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WatchInferenceProvidersData,
+  WatchInferenceProvidersErrors,
+  WatchInferenceProvidersResponse,
+  WatchInferenceProvidersResponses,
   WatchMcpConnectionsData,
   WatchMcpConnectionsErrors,
   WatchMcpConnectionsResponse,
@@ -222,6 +247,7 @@ import {
   zCreateAgentDirectoryPath,
   zCreateAgentFileBody,
   zCreateAgentFilePath,
+  zCreateInferenceProviderBody,
   zCreateMcpConnectionBody,
   zCreateSandboxBody,
   zCreateSkillBody,
@@ -236,6 +262,7 @@ import {
   zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
   zDeleteImmutableSkillsBody,
+  zDeleteInferenceProviderPath,
   zDeleteMcpConnectionPath,
   zDeleteSandboxPath,
   zDeleteSecretBody,
@@ -248,6 +275,8 @@ import {
   zExportAgentMutableSkillsBody,
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
+  zGetInferenceProviderPath,
+  zGetInferenceProviderUsagePath,
   zGetMcpConnectionPath,
   zGetMcpGraphPath,
   zGetMcpGraphQuery,
@@ -268,6 +297,8 @@ import {
   zListFileObservabilityQuery,
   zListImmutableSkillSummariesQuery,
   zListImmutableSkillVersionsPath,
+  zListInferenceModelSuggestionsQuery,
+  zListInferenceProvidersQuery,
   zListMcpConnectionsQuery,
   zListNetworkObservabilityPath,
   zListNetworkObservabilityQuery,
@@ -306,6 +337,8 @@ import {
   zStatAgentFileQuery,
   zUpdateAgentBody,
   zUpdateAgentPath,
+  zUpdateInferenceProviderBody,
+  zUpdateInferenceProviderPath,
   zUpdateSandboxBody,
   zUpdateSandboxPath,
   zUpdateSkillBody,
@@ -313,6 +346,7 @@ import {
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
+  zWatchInferenceProvidersBody,
   zWatchMcpConnectionsBody,
   zWatchSecretsBody,
   zWatchSecretsPath,
@@ -1341,6 +1375,213 @@ export const createSandbox = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated inference providers.
+ */
+export const listInferenceProviders = <ThrowOnError extends boolean = false>(
+  options?: Options<ListInferenceProvidersData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListInferenceProvidersResponses,
+    ListInferenceProvidersErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListInferenceProvidersQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider",
+    ...options,
+  })
+
+/**
+ * Create an inference provider and its write-only credentials.
+ */
+export const createInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<CreateInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateInferenceProviderResponses,
+    CreateInferenceProviderErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateInferenceProviderBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an unreferenced inference provider.
+ */
+export const deleteInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteInferenceProviderResponses,
+    DeleteInferenceProviderErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteInferenceProviderPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider/{providerName}",
+    ...options,
+  })
+
+/**
+ * Get an inference provider without credential material.
+ */
+export const getInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetInferenceProviderResponses,
+    GetInferenceProviderErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetInferenceProviderPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider/{providerName}",
+    ...options,
+  })
+
+/**
+ * Replace provider configuration and optionally rotate credentials.
+ */
+export const updateInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateInferenceProviderResponses,
+    UpdateInferenceProviderErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateInferenceProviderBody,
+          path: zUpdateInferenceProviderPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider/{providerName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Watch inference provider status changes.
+ *
+ * Returns an SSE stream. Each payload contains the current read shapes for the requested provider IDs, or all providers when IDs are omitted.
+ *
+ */
+export const watchInferenceProviders = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchInferenceProvidersData, ThrowOnError, WatchInferenceProvidersResponse>
+) =>
+  (options?.client ?? client).sse.post<
+    WatchInferenceProvidersResponses,
+    WatchInferenceProvidersErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWatchInferenceProvidersBody.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider/watch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  })
+
+/**
+ * List Sandboxes referencing an inference provider.
+ */
+export const getInferenceProviderUsage = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferenceProviderUsageData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetInferenceProviderUsageResponses,
+    GetInferenceProviderUsageErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetInferenceProviderUsagePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider/{providerName}/usage",
+    ...options,
+  })
+
+/**
+ * List provider-filtered Models.dev suggestions.
+ */
+export const listInferenceModelSuggestions = <ThrowOnError extends boolean = false>(
+  options: Options<ListInferenceModelSuggestionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListInferenceModelSuggestionsResponses,
+    ListInferenceModelSuggestionsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListInferenceModelSuggestionsQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider/catalog",
+    ...options,
+  })
+
+/**
  * Delete a Sandbox resource.
  */
 export const deleteSandbox = <ThrowOnError extends boolean = false>(
@@ -1363,7 +1604,7 @@ export const deleteSandbox = <ThrowOnError extends boolean = false>(
 /**
  * Update a Sandbox resource.
  *
- * Updates the packages list for an existing Sandbox. The name in the path identifies the Sandbox.
+ * Replaces the mutable configuration for an existing Sandbox. The name in the path identifies the Sandbox.
  *
  */
 export const updateSandbox = <ThrowOnError extends boolean = false>(

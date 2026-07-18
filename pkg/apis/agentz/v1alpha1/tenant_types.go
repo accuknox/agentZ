@@ -138,10 +138,7 @@ func TenantName(organizationID string) string {
 
 	sum := sha256.Sum256([]byte(raw))
 	hash := hex.EncodeToString(sum[:])[:10]
-	maxSlugLen := 63 - len("knox--") - len(hash)
-	if maxSlugLen < 1 {
-		maxSlugLen = 1
-	}
+	maxSlugLen := max(63-len("knox--")-len(hash), 1)
 	if len(slug) > maxSlugLen {
 		slug = strings.Trim(slug[:maxSlugLen], "-")
 		if slug == "" {

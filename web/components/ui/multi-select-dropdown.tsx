@@ -1,6 +1,7 @@
 "use client"
 
-import { ChevronDownIcon } from "lucide-react"
+import { useState } from "react"
+import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -20,6 +21,7 @@ export type MultiSelectDropdownOption = {
 }
 
 function MultiSelectDropdown({
+  allowCustomValues = false,
   className,
   disabled,
   emptyMessage = "No options found.",
@@ -32,6 +34,7 @@ function MultiSelectDropdown({
   searchPlaceholder = "Search...",
   value,
 }: {
+  allowCustomValues?: boolean
   className?: string
   disabled?: boolean
   emptyMessage?: string
@@ -44,14 +47,20 @@ function MultiSelectDropdown({
   searchPlaceholder?: string
   value: string[]
 }) {
+  const [search, setSearch] = useState("")
   const selectedValues = new Set(value)
+  const customValue = search.trim()
+  const canCreate =
+    allowCustomValues &&
+    customValue.length > 0 &&
+    !selectedValues.has(customValue) &&
+    !options.some((option) => option.value === customValue)
   const triggerLabel =
     value.length === 0
       ? placeholder
       : value.length <= 2
-        ? options
-            .filter((option) => selectedValues.has(option.value))
-            .map((option) => option.label)
+        ? value
+            .map((item) => options.find((option) => option.value === item)?.label ?? item)
             .join(", ")
         : `${value.length} selected`
 
@@ -84,9 +93,23 @@ function MultiSelectDropdown({
         sideOffset={8}
       >
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
           <CommandList>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
+            {canCreate ? (
+              <CommandGroup>
+                <CommandItem
+                  value={customValue}
+                  onSelect={() => {
+                    onValueChangeAction([...value, customValue].toSorted())
+                    setSearch("")
+                  }}
+                >
+                  <PlusIcon />
+                  Add {customValue}
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
             <CommandGroup>
               {options.map((option) => {
                 const checked = selectedValues.has(option.value)

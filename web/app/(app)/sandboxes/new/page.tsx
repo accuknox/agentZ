@@ -3,6 +3,7 @@ import { Suspense } from "react"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { defaultSandboxPackages } from "@/data/sandbox-defaults"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
+import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { SandboxWizard } from "../wizard"
 
 export const metadata: Metadata = {
@@ -23,15 +24,17 @@ export default function NewSandboxPage() {
 }
 
 async function NewSandboxWizard() {
-  const [result, skills] = await Promise.all([
+  const [result, skills, providers] = await Promise.all([
     listMcpConnectionsCachedQuery({ limit: 200 }),
     listImmutableSkillsCachedQuery(),
+    listInferenceProvidersCachedQuery(),
   ])
   return (
     <SandboxWizard
       mode="create"
       initialPackages={[...defaultSandboxPackages]}
       immutableSkills={skills.skills ?? []}
+      inferenceProviders={providers.providers ?? []}
       mcpConnections={result.mcpConnections ?? []}
     />
   )

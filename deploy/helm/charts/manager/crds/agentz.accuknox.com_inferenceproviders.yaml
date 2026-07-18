@@ -1,0 +1,508 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: inferenceproviders.agentz.accuknox.com
+spec:
+  group: agentz.accuknox.com
+  names:
+    kind: InferenceProvider
+    listKind: InferenceProviderList
+    plural: inferenceproviders
+    shortNames:
+    - ip
+    singular: inferenceprovider
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Provider type
+      jsonPath: .spec.type
+      name: Type
+      type: string
+    - description: Control-plane state
+      jsonPath: .status.state
+      name: State
+      type: string
+    - description: Enabled model count
+      jsonPath: .status.modelCount
+      name: Models
+      type: integer
+    - description: Age of the provider
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: InferenceProvider is one tenant-scoped upstream provider instance.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec defines the desired provider and model configuration.
+            properties:
+              anthropic:
+                description: Anthropic configures native Anthropic.
+                properties:
+                  baseURL:
+                    description: BaseURL overrides the native Anthropic endpoint when
+                      set.
+                    format: uri
+                    maxLength: 2048
+                    type: string
+                type: object
+              azure:
+                description: Azure configures Azure OpenAI or Azure AI Foundry.
+                properties:
+                  apiVersion:
+                    description: APIVersion selects the Azure inference API version.
+                    maxLength: 64
+                    minLength: 1
+                    type: string
+                  authMode:
+                    description: AuthMode selects the credential shape used by AgentGateway.
+                    enum:
+                    - APIKey
+                    - ServicePrincipal
+                    type: string
+                  project:
+                    description: Project is required for Azure AI Foundry.
+                    maxLength: 64
+                    minLength: 1
+                    type: string
+                  resourceName:
+                    description: ResourceName is the Azure AI resource name.
+                    maxLength: 64
+                    minLength: 1
+                    type: string
+                  resourceType:
+                    description: ResourceType selects Azure OpenAI or Azure AI Foundry.
+                    enum:
+                    - OpenAI
+                    - Foundry
+                    type: string
+                required:
+                - apiVersion
+                - authMode
+                - resourceName
+                - resourceType
+                type: object
+                x-kubernetes-validations:
+                - message: project is required only for Foundry resources
+                  rule: 'self.resourceType == ''Foundry'' ? has(self.project) : !has(self.project)'
+              bedrock:
+                description: Bedrock configures native Amazon Bedrock.
+                properties:
+                  region:
+                    description: Region is the AWS region used for SigV4 signing and
+                      dispatch.
+                    pattern: ^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$
+                    type: string
+                required:
+                - region
+                type: object
+              displayName:
+                description: DisplayName is the editable human-readable provider label.
+                maxLength: 128
+                minLength: 1
+                type: string
+              gemini:
+                description: Gemini configures native Gemini.
+                type: object
+              models:
+                description: Models lists the explicitly enabled upstream models.
+                items:
+                  description: |-
+                    InferenceModel describes one immutable upstream model identifier and its
+                    saved OpenCode metadata.
+                  properties:
+                    capabilities:
+                      description: Capabilities controls OpenCode model behavior.
+                      properties:
+                        attachment:
+                          description: Attachment reports whether file attachments
+                            are supported.
+                          type: boolean
+                        reasoning:
+                          description: Reasoning reports whether reasoning controls
+                            are supported.
+                          type: boolean
+                        temperature:
+                          description: Temperature reports whether temperature controls
+                            are supported.
+                          type: boolean
+                        toolCall:
+                          description: ToolCall reports whether tool calls are supported.
+                          type: boolean
+                      required:
+                      - attachment
+                      - reasoning
+                      - temperature
+                      - toolCall
+                      type: object
+                    catalog:
+                      description: Catalog records advisory Models.dev provenance
+                        when selected there.
+                      properties:
+                        provider:
+                          description: Provider is the Models.dev provider identifier.
+                          maxLength: 128
+                          minLength: 1
+                          type: string
+                      required:
+                      - provider
+                      type: object
+                    displayName:
+                      description: DisplayName is the editable model label shown to
+                        users.
+                      maxLength: 128
+                      minLength: 1
+                      type: string
+                    id:
+                      description: ID is the exact upstream model or deployment identifier.
+                      maxLength: 512
+                      minLength: 1
+                      type: string
+                      x-kubernetes-validations:
+                      - message: model id is immutable
+                        rule: self == oldSelf
+                    limits:
+                      description: Limits records the model's token limits.
+                      properties:
+                        context:
+                          description: Context is the total context-window size.
+                          format: int32
+                          maximum: 2147483647
+                          minimum: 1
+                          type: integer
+                        input:
+                          description: Input is the optional maximum input-token count.
+                          format: int32
+                          maximum: 2147483647
+                          minimum: 1
+                          type: integer
+                        output:
+                          description: Output is the maximum output-token count.
+                          format: int32
+                          maximum: 2147483647
+                          minimum: 1
+                          type: integer
+                      required:
+                      - context
+                      - output
+                      type: object
+                    modalities:
+                      description: Modalities lists the model's supported media.
+                      properties:
+                        input:
+                          description: Input lists supported input media.
+                          items:
+                            description: InferenceModelModality describes input and
+                              output media understood by OpenCode.
+                            enum:
+                            - text
+                            - audio
+                            - image
+                            - video
+                            - pdf
+                            type: string
+                          maxItems: 5
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: set
+                        output:
+                          description: Output lists supported output media.
+                          items:
+                            description: InferenceModelModality describes input and
+                              output media understood by OpenCode.
+                            enum:
+                            - text
+                            - audio
+                            - image
+                            - video
+                            - pdf
+                            type: string
+                          maxItems: 5
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: set
+                      required:
+                      - input
+                      - output
+                      type: object
+                  required:
+                  - capabilities
+                  - displayName
+                  - id
+                  - limits
+                  - modalities
+                  type: object
+                  x-kubernetes-validations:
+                  - message: maximum input tokens cannot exceed context tokens
+                    rule: '!has(self.limits.input) || self.limits.input <= self.limits.context'
+                  - message: maximum output tokens cannot exceed context tokens
+                    rule: self.limits.output <= self.limits.context
+                maxItems: 500
+                minItems: 1
+                type: array
+                x-kubernetes-list-map-keys:
+                - id
+                x-kubernetes-list-type: map
+              openAI:
+                description: OpenAI configures native OpenAI.
+                properties:
+                  baseURL:
+                    description: BaseURL overrides the native OpenAI endpoint when
+                      set.
+                    format: uri
+                    maxLength: 2048
+                    type: string
+                type: object
+              openAICompatible:
+                description: OpenAICompatible configures a custom OpenAI-compatible
+                  endpoint.
+                properties:
+                  allowPrivateEndpoint:
+                    description: AllowPrivateEndpoint explicitly permits private endpoints
+                      or plain HTTP.
+                    type: boolean
+                  authHeader:
+                    description: AuthHeader is the lowercase destination header for
+                      the API key.
+                    maxLength: 128
+                    pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
+                    type: string
+                  authMode:
+                    description: AuthMode selects API-key or unauthenticated access.
+                    enum:
+                    - None
+                    - APIKey
+                    type: string
+                  authPrefix:
+                    description: AuthPrefix is prepended to the API key at the controlled
+                      upstream hop.
+                    maxLength: 128
+                    pattern: ^[^\x00-\x08\x0A-\x1F\x7F]*$
+                    type: string
+                  baseURL:
+                    description: BaseURL is the custom OpenAI-compatible endpoint.
+                    format: uri
+                    maxLength: 2048
+                    type: string
+                  headers:
+                    description: Headers contains non-secret upstream headers.
+                    items:
+                      description: InferenceProviderHeader is one non-secret custom
+                        upstream header.
+                      properties:
+                        name:
+                          description: Name is the lowercase HTTP header name.
+                          maxLength: 128
+                          pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
+                          type: string
+                        value:
+                          description: Value is the non-secret header value.
+                          maxLength: 1024
+                          minLength: 1
+                          pattern: ^[^\x00-\x08\x0A-\x1F\x7F]*$
+                          type: string
+                      required:
+                      - name
+                      - value
+                      type: object
+                    maxItems: 32
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  path:
+                    description: Path replaces the provider request path when set.
+                    maxLength: 1024
+                    pattern: ^/[^?#]*$
+                    type: string
+                  pathPrefix:
+                    description: PathPrefix replaces the default provider API prefix
+                      when set.
+                    maxLength: 1024
+                    pattern: ^/[^?#]*$
+                    type: string
+                  skipTLSVerify:
+                    description: SkipTLSVerify explicitly disables upstream TLS certificate
+                      verification.
+                    type: boolean
+                required:
+                - authMode
+                - baseURL
+                type: object
+                x-kubernetes-validations:
+                - message: authentication header and prefix require API-key authentication
+                  rule: 'self.authMode == ''APIKey'' ? has(self.authHeader) : !has(self.authHeader)
+                    && !has(self.authPrefix)'
+              type:
+                description: Type selects the immutable provider configuration arm.
+                enum:
+                - OpenAI
+                - Anthropic
+                - Gemini
+                - VertexAI
+                - Bedrock
+                - Azure
+                - OpenAICompatible
+                type: string
+              vertexAI:
+                description: VertexAI configures native Vertex AI.
+                properties:
+                  project:
+                    description: Project is the Google Cloud project identifier.
+                    maxLength: 128
+                    minLength: 1
+                    type: string
+                  region:
+                    description: Region is the Google Cloud region.
+                    maxLength: 64
+                    minLength: 1
+                    type: string
+                required:
+                - project
+                - region
+                type: object
+            required:
+            - displayName
+            - models
+            - type
+            type: object
+            x-kubernetes-validations:
+            - message: provider type is immutable
+              rule: self.type == oldSelf.type
+            - message: OpenAI type requires only openAI configuration
+              rule: 'self.type == ''OpenAI'' ? has(self.openAI) && !has(self.anthropic)
+                && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock)
+                && !has(self.azure) && !has(self.openAICompatible) : true'
+            - message: Anthropic type requires only anthropic configuration
+              rule: 'self.type == ''Anthropic'' ? has(self.anthropic) && !has(self.openAI)
+                && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock)
+                && !has(self.azure) && !has(self.openAICompatible) : true'
+            - message: Gemini type requires only gemini configuration
+              rule: 'self.type == ''Gemini'' ? has(self.gemini) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.vertexAI) && !has(self.bedrock)
+                && !has(self.azure) && !has(self.openAICompatible) : true'
+            - message: VertexAI type requires only vertexAI configuration
+              rule: 'self.type == ''VertexAI'' ? has(self.vertexAI) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.bedrock)
+                && !has(self.azure) && !has(self.openAICompatible) : true'
+            - message: Bedrock type requires only bedrock configuration
+              rule: 'self.type == ''Bedrock'' ? has(self.bedrock) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI)
+                && !has(self.azure) && !has(self.openAICompatible) : true'
+            - message: Azure type requires only azure configuration
+              rule: 'self.type == ''Azure'' ? has(self.azure) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI)
+                && !has(self.bedrock) && !has(self.openAICompatible) : true'
+            - message: OpenAICompatible type requires only openAICompatible configuration
+              rule: 'self.type == ''OpenAICompatible'' ? has(self.openAICompatible)
+                && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini)
+                && !has(self.vertexAI) && !has(self.bedrock) && !has(self.azure) :
+                true'
+          status:
+            description: Status describes the observed provider runtime.
+            properties:
+              conditions:
+                description: Conditions represent provider readiness dimensions.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              modelCount:
+                description: ModelCount is the number of enabled upstream models.
+                type: integer
+              observedGeneration:
+                description: ObservedGeneration is the latest reconciled generation.
+                format: int64
+                type: integer
+              state:
+                description: State summarizes accepted, ready, or degraded state.
+                enum:
+                - Accepted
+                - Ready
+                - Degraded
+                type: string
+            type: object
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

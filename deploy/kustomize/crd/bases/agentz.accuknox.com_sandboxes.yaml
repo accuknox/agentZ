@@ -26,6 +26,10 @@ spec:
       jsonPath: .status.mcpRefCount
       name: MCPs
       type: integer
+    - description: Number of allowed inference models
+      jsonPath: .status.modelCount
+      name: Models
+      type: integer
     - description: Age of the Sandbox
       jsonPath: .metadata.creationTimestamp
       name: Age
@@ -62,6 +66,81 @@ spec:
                 items:
                   type: string
                 type: array
+              inference:
+                description: Inference defines the model policy inherited by referencing Agents.
+                properties:
+                  defaultModel:
+                    description: DefaultModel is the required primary OpenCode model.
+                    properties:
+                      model:
+                        description: Model is the exact upstream model identifier.
+                        maxLength: 512
+                        minLength: 1
+                        type: string
+                      provider:
+                        description: Provider is the immutable InferenceProvider metadata name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                    - model
+                    - provider
+                    type: object
+                  models:
+                    description: Models is the hard provider/model allowlist.
+                    items:
+                      description: InferenceModelRef identifies one enabled model on one provider instance.
+                      properties:
+                        model:
+                          description: Model is the exact upstream model identifier.
+                          maxLength: 512
+                          minLength: 1
+                          type: string
+                        provider:
+                          description: Provider is the immutable InferenceProvider metadata name.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - model
+                      - provider
+                      type: object
+                    maxItems: 500
+                    minItems: 1
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - provider
+                    - model
+                    x-kubernetes-list-type: map
+                  smallModel:
+                    description: SmallModel is the optional OpenCode background-task model.
+                    properties:
+                      model:
+                        description: Model is the exact upstream model identifier.
+                        maxLength: 512
+                        minLength: 1
+                        type: string
+                      provider:
+                        description: Provider is the immutable InferenceProvider metadata name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                    - model
+                    - provider
+                    type: object
+                required:
+                - defaultModel
+                - models
+                type: object
+                x-kubernetes-validations:
+                - message: default model must belong to the allowlist
+                  rule: self.models.exists(m, m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)
+                - message: small model must belong to the allowlist
+                  rule: '!has(self.smallModel) || self.models.exists(m, m.provider == self.smallModel.provider && m.model == self.smallModel.model)'
               mcpConnectionRefs:
                 description: |-
                   MCPConnectionRefs lists external MCP connections exposed in this
@@ -78,7 +157,7 @@ spec:
                         for the referenced connection.
                       items:
                         description: |-
-                          SandboxMCPTool describes one upstream MCP tool exposed through an
+                          SandboxMCPTool describes one upstream MCP tool exposed through a
                           sandbox.
                         properties:
                           name:
@@ -116,6 +195,8 @@ spec:
                 maxItems: 200
                 type: array
                 x-kubernetes-list-type: set
+            required:
+            - inference
             type: object
           status:
             description: status defines the observed state of Sandbox
@@ -191,8 +272,14 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              inferenceReady:
+                description: InferenceReady reports whether referenced providers and models are ready.
+                type: boolean
               mcpRefCount:
                 description: MCPRefCount is the number of MCP connection references configured.
+                type: integer
+              modelCount:
+                description: ModelCount is the number of allowed inference models.
                 type: integer
               packageCount:
                 description: PackageCount is the number of nix packages configured.

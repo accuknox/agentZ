@@ -32,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -85,6 +86,7 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg san
 	dnsHosts = append(dnsHosts, dnsHostForEndpoint(r.Config.GatewayURL)...)
 	dnsHosts = append(dnsHosts, dnsHostForEndpoint(r.proxyAddress(agt))...)
 	dnsHosts = append(dnsHosts, dnsHostForEndpoint(envCfg.MCPURL)...)
+	dnsHosts = append(dnsHosts, dnsHostForEndpoint(envCfg.InferenceURL)...)
 
 	egress := buildHostEgressRules(
 		uniqueHosts(egressHosts),
@@ -95,8 +97,9 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg san
 		agt.Spec.Telemetry.TraceEndpoint,
 	)...)
 	if envCfg.MCPURL != "" {
-		egress = append(egress, gatewayMcpEgressRule(agt.Namespace))
+		egress = append(egress, gatewayEgressRule(agt.Namespace, mcp.GatewayName))
 	}
+	egress = append(egress, gatewayEgressRule(agt.Namespace, inference.GatewayName))
 	egress = append(egress, sinjectorEgressRule(agt))
 
 	return &ciliumapi.Rule{
@@ -196,7 +199,7 @@ func dnsEgressRule(hosts []sandboxutil.Host) *ciliumapi.EgressRule {
 	}
 }
 
-func gatewayMcpEgressRule(namespace string) ciliumapi.EgressRule {
+func gatewayEgressRule(namespace, gatewayName string) ciliumapi.EgressRule {
 	return ciliumapi.EgressRule{
 		EgressCommonRule: ciliumapi.EgressCommonRule{
 			ToEndpoints: []ciliumapi.EndpointSelector{
@@ -208,17 +211,17 @@ func gatewayMcpEgressRule(namespace string) ciliumapi.EgressRule {
 					),
 					ciliumlabels.NewLabel(
 						"app.kubernetes.io/name",
-						mcp.GatewayName,
+						gatewayName,
 						ciliumlabels.LabelSourceK8s,
 					),
 					ciliumlabels.NewLabel(
 						"app.kubernetes.io/instance",
-						mcp.GatewayName,
+						gatewayName,
 						ciliumlabels.LabelSourceK8s,
 					),
 					ciliumlabels.NewLabel(
 						"gateway.networking.k8s.io/gateway-name",
-						mcp.GatewayName,
+						gatewayName,
 						ciliumlabels.LabelSourceK8s,
 					),
 				),

@@ -25,6 +25,14 @@ type AgentListerExpansion interface{}
 // AgentNamespaceLister.
 type AgentNamespaceListerExpansion interface{}
 
+// InferenceProviderListerExpansion allows custom methods to be added to
+// InferenceProviderLister.
+type InferenceProviderListerExpansion interface{}
+
+// InferenceProviderNamespaceListerExpansion allows custom methods to be added to
+// InferenceProviderNamespaceLister.
+type InferenceProviderNamespaceListerExpansion interface{}
+
 // MCPConnectionListerExpansion allows custom methods to be added to
 // MCPConnectionLister.
 type MCPConnectionListerExpansion interface{}

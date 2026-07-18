@@ -19,6 +19,8 @@ package v1alpha1
 
 type AgentExpansion interface{}
 
+type InferenceProviderExpansion interface{}
+
 type MCPConnectionExpansion interface{}
 
 type SandboxExpansion interface{}

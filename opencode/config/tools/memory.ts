@@ -2,48 +2,27 @@ import { tool } from "@opencode-ai/plugin"
 
 import { memory } from "../lib/memory"
 
-const change = tool.schema.discriminatedUnion("action", [
-  tool.schema.object({
-    action: tool.schema.literal("add"),
-    content: tool.schema
-      .string()
-      .min(1)
-      .refine((value) => value.trim().length > 0, "content cannot be blank")
-      .describe("Compact declarative fact to save."),
-  }),
-  tool.schema.object({
-    action: tool.schema.literal("replace"),
-    old_text: tool.schema
-      .string()
-      .min(1)
-      .refine((value) => value.trim().length > 0, "old_text cannot be blank")
-      .describe("Unique substring of the entry."),
-    content: tool.schema
-      .string()
-      .min(1)
-      .refine((value) => value.trim().length > 0, "content cannot be blank")
-      .describe("Compact replacement fact."),
-  }),
-  tool.schema.object({
-    action: tool.schema.literal("remove"),
-    old_text: tool.schema
-      .string()
-      .min(1)
-      .refine((value) => value.trim().length > 0, "old_text cannot be blank")
-      .describe("Unique substring of the entry."),
-  }),
-])
+const target = tool.schema
+  .enum(["profile", "memory"])
+  .describe('Use "profile" for user facts and "memory" for project or environment facts.')
+const action = tool.schema.enum(["list", "add", "replace", "remove"])
+const text = tool.schema
+  .string()
+  .min(1)
+  .refine((value) => value.trim().length > 0, "value cannot be blank")
+const content = text.describe("Fact to add or replacement fact.")
+const oldText = text.describe("Unique substring of the entry to replace or remove.")
 
-const operation = tool.schema.discriminatedUnion("action", [
-  tool.schema.object({ action: tool.schema.literal("list") }),
-  ...change.options,
+const request = tool.schema.discriminatedUnion("action", [
+  tool.schema.object({ target, action: tool.schema.literal("list") }),
+  tool.schema.object({ target, action: tool.schema.literal("add"), content }),
   tool.schema.object({
-    action: tool.schema.literal("batch"),
-    changes: tool.schema
-      .array(change)
-      .min(1)
-      .describe("Atomic ordered changes; capacity is checked against the final state."),
+    target,
+    action: tool.schema.literal("replace"),
+    content,
+    old_text: oldText,
   }),
+  tool.schema.object({ target, action: tool.schema.literal("remove"), old_text: oldText }),
 ])
 
 const description = `
@@ -57,7 +36,7 @@ WRITE declarative facts, not instructions. Keep each entry compact and informati
 
 SKIP secrets, easily rediscovered facts, raw dumps, task progress, completed-work logs, temporary TODOs, short-lived identifiers, and project instructions. Reusable procedures belong in skills.
 
-HOW: batch related changes so consolidation and replacement are atomic. Exact duplicate adds are no-ops. Replace and remove require a substring matching one entry. If full, list the store and retry once with a consolidating batch.
+HOW: exact duplicate adds are no-ops. Replace and remove require a substring matching one entry. If full, list the store, remove or consolidate entries, and retry.
 
 Memory is frozen when a session starts. Writes are durable immediately and appear in new sessions only.
 `.trim()
@@ -65,29 +44,35 @@ Memory is frozen when a session starts. Writes are durable immediately and appea
 export default tool({
   description,
   args: {
-    target: tool.schema
-      .enum(["profile", "memory"])
-      .describe('Use "profile" for user facts and "memory" for project or environment facts.'),
-    operation,
+    target,
+    action,
+    content: content.optional(),
+    old_text: oldText.optional(),
   },
   async execute(args, context) {
-    const { operation, target } = args
+    const parsed = request.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`invalid memory request: ${tool.schema.prettifyError(parsed.error)}`)
+    }
+    const input = parsed.data
     context.metadata({
-      title: `${operation.action} ${target}`,
-      metadata: { action: operation.action, target },
+      title: `${input.action} ${input.target}`,
+      metadata: { action: input.action, target: input.target },
     })
 
-    switch (operation.action) {
+    switch (input.action) {
       case "list":
-        return JSON.stringify(await memory.list(target))
-      case "add":
-      case "replace":
-      case "remove": {
-        const result = await memory.change(target, [operation])
+        return JSON.stringify(await memory.list(input.target))
+      case "add": {
+        const result = await memory.change(input.target, [input])
         return JSON.stringify({ changed: result.changed, used: result.used, limit: result.limit })
       }
-      case "batch": {
-        const result = await memory.change(target, operation.changes)
+      case "replace": {
+        const result = await memory.change(input.target, [input])
+        return JSON.stringify({ changed: result.changed, used: result.used, limit: result.limit })
+      }
+      case "remove": {
+        const result = await memory.change(input.target, [input])
         return JSON.stringify({ changed: result.changed, used: result.used, limit: result.limit })
       }
     }

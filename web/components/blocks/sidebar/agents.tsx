@@ -223,8 +223,8 @@ function AgentSessionsItem({
               {query.isPending ? (
                 <SidebarMenuSubItem key="loading">
                   <div className="flex flex-col gap-1">
-                    <SidebarMenuSkeleton />
-                    <SidebarMenuSkeleton />
+                    <SidebarMenuSkeleton className="[&_[data-slot=skeleton]]:bg-muted-foreground/20" />
+                    <SidebarMenuSkeleton className="[&_[data-slot=skeleton]]:bg-muted-foreground/20" />
                   </div>
                 </SidebarMenuSubItem>
               ) : null}
@@ -318,7 +318,7 @@ function SessionItem({
     <>
       <SidebarMenuSubButton
         asChild
-        className="min-w-0 flex-1 pr-10 data-[active=true]:font-normal"
+        className="data-active:bg-sidebar-foreground/7 hover:bg-sidebar-foreground/7 min-w-0 flex-1 pr-10 data-active:font-normal"
         isActive={path === href}
       >
         <Link className="flex min-w-0 flex-1 items-center" href={href}>

@@ -315,7 +315,8 @@ function ProviderStatusBadge({ provider }: { provider: InferenceProvider }) {
   const meta = providerStateMeta[provider.state]
   const message =
     provider.state === "Degraded"
-      ? (provider.conditions.find((condition) => condition.status === "False")?.message ?? "")
+      ? (provider.conditions.find((condition) => condition.status === "False")?.message.trim() ??
+        "")
       : ""
   const badge = (
     <Badge variant={meta.variant}>

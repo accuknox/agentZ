@@ -197,7 +197,12 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 	}
 	err = r.Get(ctx, client.ObjectKeyFromObject(backend), backend)
 	if err == nil && !metav1.IsControlledBy(backend, provider) {
-		return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", errors.New("inference backend name is owned by another resource"))
+		return ctrl.Result{}, r.blockDeletion(
+			ctx,
+			provider,
+			"FinalizerCleanupFailed",
+			errors.New("inference backend name is owned by another resource"),
+		)
 	}
 	switch {
 	case err == nil:
@@ -206,10 +211,16 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err)
 		}
 	case !apierrors.IsNotFound(err):
-		return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", fmt.Errorf("read inference backend for cleanup: %w", err))
+		return ctrl.Result{}, r.blockDeletion(
+			ctx,
+			provider,
+			"FinalizerCleanupFailed",
+			fmt.Errorf("read inference backend for cleanup: %w", err),
+		)
 	}
 	controlled := []client.Object{
-		&externalsecretsv1.ExternalSecret{}, &corev1.Secret{},
+		&externalsecretsv1.ExternalSecret{},
+		&corev1.Secret{},
 		&agentgatewayv1alpha1.AgentgatewayBackend{},
 	}
 	for _, obj := range controlled {

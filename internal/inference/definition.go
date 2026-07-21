@@ -317,9 +317,7 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				Message: "authentication settings require api-key authentication",
 			})
 		}
-		invalidAuthPrefix := strings.IndexFunc(cfg.AuthPrefix, func(r rune) bool {
-			return r == 0x7f || (r < 0x20 && r != '\t')
-		}) >= 0
+		invalidAuthPrefix := strings.IndexFunc(cfg.AuthPrefix, func(r rune) bool { return r == 0x7f || (r < 0x20 && r != '\t') }) >= 0
 		if invalidAuthPrefix {
 			issues = append(issues, Issue{
 				Field:   field + ".authPrefix",

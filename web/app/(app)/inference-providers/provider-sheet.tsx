@@ -1288,7 +1288,7 @@ export function ProviderSheet({
                                     />
                                     <Button
                                       type="button"
-                                      variant="ghost"
+                                      variant="destructive"
                                       size="icon-sm"
                                       aria-label={`Remove header ${index + 1}`}
                                       onClick={() => headers.remove(index)}

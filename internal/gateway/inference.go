@@ -26,17 +26,18 @@ import (
 const providerUpdatedAtAnnotation = "agentz.accuknox.com/inference-provider-updated-at"
 
 type providerInput struct {
-	DisplayName      string
-	Type             gatewayapi.InferenceProviderType
-	OpenAI           *gatewayapi.OpenAIProviderConfig
-	Anthropic        *gatewayapi.AnthropicProviderConfig
-	Gemini           *gatewayapi.GeminiProviderConfig
-	VertexAI         *gatewayapi.VertexAIProviderConfig
-	Bedrock          *gatewayapi.BedrockProviderConfig
-	Azure            *gatewayapi.AzureProviderConfig
-	OpenAICompatible *gatewayapi.OpenAICompatibleProviderConfig
-	Models           []gatewayapi.InferenceModel
-	Credentials      inference.CredentialValues
+	DisplayName     string
+	CatalogProvider string
+	Kind            gatewayapi.InferenceProviderKind
+	OpenAI          *gatewayapi.OpenAIProviderConfig
+	Anthropic       *gatewayapi.AnthropicProviderConfig
+	Gemini          *gatewayapi.GeminiProviderConfig
+	VertexAI        *gatewayapi.VertexAIProviderConfig
+	Bedrock         *gatewayapi.BedrockProviderConfig
+	Azure           *gatewayapi.AzureProviderConfig
+	Compatible      *gatewayapi.CompatibleProviderConfig
+	Models          []gatewayapi.InferenceModel
+	Credentials     inference.CredentialValues
 }
 
 type providerWriter interface {
@@ -48,6 +49,7 @@ type providerWriter interface {
 	AsBedrockInferenceProviderWrite() (gatewayapi.BedrockInferenceProviderWrite, error)
 	AsAzureInferenceProviderWrite() (gatewayapi.AzureInferenceProviderWrite, error)
 	AsOpenAICompatibleInferenceProviderWrite() (gatewayapi.OpenAICompatibleInferenceProviderWrite, error)
+	AsAnthropicCompatibleInferenceProviderWrite() (gatewayapi.AnthropicCompatibleInferenceProviderWrite, error)
 }
 
 // ListInferenceProviders handles GET /api/inference-provider.
@@ -351,9 +353,15 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	desired := providerFromInput(ns, current.Name, input)
-	if desired.Spec.Type != current.Spec.Type {
+	if desired.Spec.Kind != current.Spec.Kind {
 		writeProviderIssues(w, r, []inference.Issue{{
-			Field: "type", Message: "provider type is immutable",
+			Field: "kind", Message: "provider kind is immutable",
+		}})
+		return
+	}
+	if desired.Spec.CatalogProvider != current.Spec.CatalogProvider {
+		writeProviderIssues(w, r, []inference.Issue{{
+			Field: "catalog_provider", Message: "catalog provider is immutable",
 		}})
 		return
 	}
@@ -380,10 +388,19 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeProviderInputError(w, r, err)
 		return
 	}
-	oldNoAuth := current.Spec.OpenAICompatible != nil && current.Spec.OpenAICompatible.AuthMode == agentzv1alpha1.OpenAICompatibleAuthModeNone
-	newNoAuth := desired.Spec.OpenAICompatible != nil && desired.Spec.OpenAICompatible.AuthMode == agentzv1alpha1.OpenAICompatibleAuthModeNone
+	oldCompatible := current.Spec.OpenAICompatible
+	if oldCompatible == nil {
+		oldCompatible = current.Spec.AnthropicCompatible
+	}
+	newCompatible := desired.Spec.OpenAICompatible
+	if newCompatible == nil {
+		newCompatible = desired.Spec.AnthropicCompatible
+	}
+	oldNoAuth := oldCompatible != nil && oldCompatible.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeNone
+	newNoAuth := newCompatible != nil && newCompatible.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeNone
 	azureAuthChanged := current.Spec.Azure != nil && desired.Spec.Azure != nil && current.Spec.Azure.AuthMode != desired.Spec.Azure.AuthMode
-	if azureAuthChanged && !rotate {
+	bedrockAuthChanged := current.Spec.Bedrock != nil && desired.Spec.Bedrock != nil && current.Spec.Bedrock.AuthMode != desired.Spec.Bedrock.AuthMode
+	if (azureAuthChanged || bedrockAuthChanged) && !rotate {
 		writeProviderInputError(w, r, &inference.InputError{
 			Field: "credentials", Message: "complete credentials are required when changing authentication mode",
 		})
@@ -483,17 +500,54 @@ func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// ListInferenceModelSuggestions handles GET /api/inference-provider/catalog.
-func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceModelSuggestionsParams) {
+// ListInferenceProviderCatalog handles GET /api/inference-provider/catalog.
+func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProviderCatalogParams) {
+	query := ""
+	if params.Q != nil {
+		query = *params.Q
+	}
+	commit, entries := s.catalog.Entries(query)
+	providers := make([]gatewayapi.InferenceProviderCatalogEntry, 0, len(entries))
+	for _, entry := range entries {
+		provider := gatewayapi.InferenceProviderCatalogEntry{
+			Name: entry.Name, ProviderId: entry.ProviderID,
+			ProviderKind: gatewayapi.InferenceProviderKind(entry.Kind),
+		}
+		if entry.BaseURL != "" {
+			provider.BaseUrl = &entry.BaseURL
+		}
+		if entry.BaseURLTemplate != "" {
+			provider.BaseUrlTemplate = &entry.BaseURLTemplate
+		}
+		if entry.AuthHeader != "" {
+			provider.AuthHeader = &entry.AuthHeader
+		}
+		if entry.AuthPrefix != "" {
+			provider.AuthPrefix = &entry.AuthPrefix
+		}
+		if entry.Doc != "" {
+			provider.DocumentationUrl = &entry.Doc
+		}
+		providers = append(providers, provider)
+	}
+	writeJSON(w, http.StatusOK, gatewayapi.InferenceProviderCatalog{
+		Commit: commit, Providers: providers,
+	})
+}
+
+// ListInferenceModelSuggestions handles the provider model-catalog endpoint.
+func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request, catalogProvider string, params gatewayapi.ListInferenceModelSuggestionsParams) {
 	models, provenance, err := s.catalog.Suggestions(
 		r.Context(),
-		agentzv1alpha1.InferenceProviderType(params.ProviderType),
+		catalogProvider,
+		agentzv1alpha1.InferenceProviderKind(params.ProviderKind),
 	)
 	if err != nil {
 		slog.WarnContext(
 			r.Context(),
 			"using embedded inference model catalog",
-			slog.String("providerType", string(params.ProviderType)),
+			slog.String("catalogProvider", catalogProvider),
+			slog.String("providerKind", string(params.ProviderKind)),
 			slog.Any("err", err),
 		)
 	}
@@ -501,7 +555,7 @@ func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.R
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
-			"unsupported provider type",
+			"unsupported catalog provider and provider kind",
 			errBadRequest,
 		))
 		return
@@ -561,17 +615,18 @@ func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, provi
 
 func providerInputFromWrite(req providerWriter) (providerInput, error) {
 	input := providerInput{}
-	providerType, err := req.Discriminator()
+	providerKind, err := req.Discriminator()
 	if err != nil {
-		return input, &inference.InputError{Field: "type", Message: "provider type is required"}
+		return input, &inference.InputError{Field: "kind", Message: "provider kind is required"}
 	}
-	switch providerType {
+	switch providerKind {
 	case "OpenAI":
 		value, err := req.AsOpenAIInferenceProviderWrite()
 		if err != nil {
-			return input, &inference.InputError{Field: "type", Message: "openai configuration does not match provider type"}
+			return input, &inference.InputError{Field: "kind", Message: "openai configuration does not match provider kind"}
 		}
-		input.DisplayName, input.Type, input.Models = value.DisplayName, gatewayapi.InferenceProviderTypeOpenAI, value.Models
+		input.DisplayName, input.CatalogProvider = value.DisplayName, value.CatalogProvider
+		input.Kind, input.Models = gatewayapi.InferenceProviderKindOpenAI, value.Models
 		input.OpenAI = &value.Openai
 		if value.Credentials.ApiKey != nil {
 			input.Credentials.APIKey = *value.Credentials.ApiKey
@@ -579,10 +634,11 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 	case "Anthropic":
 		value, err := req.AsAnthropicInferenceProviderWrite()
 		if err != nil {
-			return input, &inference.InputError{Field: "type", Message: "anthropic configuration does not match provider type"}
+			return input, &inference.InputError{Field: "kind", Message: "anthropic configuration does not match provider kind"}
 		}
 		input.DisplayName = value.DisplayName
-		input.Type = gatewayapi.InferenceProviderTypeAnthropic
+		input.CatalogProvider = value.CatalogProvider
+		input.Kind = gatewayapi.InferenceProviderKindAnthropic
 		input.Models = value.Models
 		input.Anthropic = &value.Anthropic
 		if value.Credentials.ApiKey != nil {
@@ -591,9 +647,10 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 	case "Gemini":
 		value, err := req.AsGeminiInferenceProviderWrite()
 		if err != nil {
-			return input, &inference.InputError{Field: "type", Message: "gemini configuration does not match provider type"}
+			return input, &inference.InputError{Field: "kind", Message: "gemini configuration does not match provider kind"}
 		}
-		input.DisplayName, input.Type, input.Models = value.DisplayName, gatewayapi.InferenceProviderTypeGemini, value.Models
+		input.DisplayName, input.CatalogProvider = value.DisplayName, value.CatalogProvider
+		input.Kind, input.Models = gatewayapi.InferenceProviderKindGemini, value.Models
 		input.Gemini = &value.Gemini
 		if value.Credentials.ApiKey != nil {
 			input.Credentials.APIKey = *value.Credentials.ApiKey
@@ -601,10 +658,11 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 	case "VertexAI":
 		value, err := req.AsVertexAIInferenceProviderWrite()
 		if err != nil {
-			return input, &inference.InputError{Field: "type", Message: "vertex ai configuration does not match provider type"}
+			return input, &inference.InputError{Field: "kind", Message: "vertex ai configuration does not match provider kind"}
 		}
 		input.DisplayName = value.DisplayName
-		input.Type = gatewayapi.InferenceProviderTypeVertexAI
+		input.CatalogProvider = value.CatalogProvider
+		input.Kind = gatewayapi.InferenceProviderKindVertexAI
 		input.Models = value.Models
 		input.VertexAI = &value.VertexAi
 		if value.Credentials.ServiceAccountJson != nil {
@@ -613,9 +671,10 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 	case "Bedrock":
 		value, err := req.AsBedrockInferenceProviderWrite()
 		if err != nil {
-			return input, &inference.InputError{Field: "type", Message: "bedrock configuration does not match provider type"}
+			return input, &inference.InputError{Field: "kind", Message: "bedrock configuration does not match provider kind"}
 		}
-		input.DisplayName, input.Type, input.Models = value.DisplayName, gatewayapi.InferenceProviderTypeBedrock, value.Models
+		input.DisplayName, input.CatalogProvider = value.DisplayName, value.CatalogProvider
+		input.Kind, input.Models = gatewayapi.InferenceProviderKindBedrock, value.Models
 		input.Bedrock = &value.Bedrock
 		if value.Credentials.AccessKey != nil {
 			input.Credentials.AccessKey = *value.Credentials.AccessKey
@@ -626,12 +685,16 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 		if value.Credentials.SessionToken != nil {
 			input.Credentials.SessionToken = *value.Credentials.SessionToken
 		}
+		if value.Credentials.BearerToken != nil {
+			input.Credentials.BearerToken = *value.Credentials.BearerToken
+		}
 	case "Azure":
 		value, err := req.AsAzureInferenceProviderWrite()
 		if err != nil {
-			return input, &inference.InputError{Field: "type", Message: "azure configuration does not match provider type"}
+			return input, &inference.InputError{Field: "kind", Message: "azure configuration does not match provider kind"}
 		}
-		input.DisplayName, input.Type, input.Models = value.DisplayName, gatewayapi.InferenceProviderTypeAzure, value.Models
+		input.DisplayName, input.CatalogProvider = value.DisplayName, value.CatalogProvider
+		input.Kind, input.Models = gatewayapi.InferenceProviderKindAzure, value.Models
 		input.Azure = &value.Azure
 		if value.Credentials.ApiKey != nil {
 			input.Credentials.APIKey = *value.Credentials.ApiKey
@@ -648,17 +711,34 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 	case "OpenAICompatible":
 		value, err := req.AsOpenAICompatibleInferenceProviderWrite()
 		if err != nil {
-			return input, &inference.InputError{Field: "type", Message: "custom configuration does not match provider type"}
+			return input, &inference.InputError{Field: "kind", Message: "custom configuration does not match provider kind"}
 		}
 		input.DisplayName = value.DisplayName
-		input.Type = gatewayapi.InferenceProviderTypeOpenAICompatible
+		input.CatalogProvider = value.CatalogProvider
+		input.Kind = gatewayapi.InferenceProviderKindOpenAICompatible
 		input.Models = value.Models
-		input.OpenAICompatible = &value.OpenaiCompatible
+		input.Compatible = &value.OpenaiCompatible
+		if value.Credentials.ApiKey != nil {
+			input.Credentials.APIKey = *value.Credentials.ApiKey
+		}
+	case "AnthropicCompatible":
+		value, err := req.AsAnthropicCompatibleInferenceProviderWrite()
+		if err != nil {
+			return input, &inference.InputError{
+				Field:   "kind",
+				Message: "anthropic-compatible configuration does not match provider kind",
+			}
+		}
+		input.DisplayName = value.DisplayName
+		input.CatalogProvider = value.CatalogProvider
+		input.Kind = gatewayapi.InferenceProviderKindAnthropicCompatible
+		input.Models = value.Models
+		input.Compatible = &value.AnthropicCompatible
 		if value.Credentials.ApiKey != nil {
 			input.Credentials.APIKey = *value.Credentials.ApiKey
 		}
 	default:
-		return input, &inference.InputError{Field: "type", Message: "unsupported provider type"}
+		return input, &inference.InputError{Field: "kind", Message: "unsupported provider kind"}
 	}
 	return input, nil
 }
@@ -675,9 +755,10 @@ func providerFromInput(namespace, name string, input providerInput) *agentzv1alp
 			},
 		},
 		Spec: agentzv1alpha1.InferenceProviderSpec{
-			DisplayName: input.DisplayName,
-			Type:        agentzv1alpha1.InferenceProviderType(input.Type),
-			Models:      modelsFromAPI(input.Models),
+			DisplayName:     input.DisplayName,
+			CatalogProvider: input.CatalogProvider,
+			Kind:            agentzv1alpha1.InferenceProviderKind(input.Kind),
+			Models:          modelsFromAPI(input.Models),
 		},
 	}
 	if input.OpenAI != nil {
@@ -694,6 +775,9 @@ func providerFromInput(namespace, name string, input providerInput) *agentzv1alp
 	}
 	if input.Gemini != nil {
 		provider.Spec.Gemini = &agentzv1alpha1.GeminiProviderConfig{}
+		if input.Gemini.BaseUrl != nil {
+			provider.Spec.Gemini.BaseURL = *input.Gemini.BaseUrl
+		}
 	}
 	if input.VertexAI != nil {
 		provider.Spec.VertexAI = &agentzv1alpha1.VertexAIProviderConfig{
@@ -701,7 +785,10 @@ func providerFromInput(namespace, name string, input providerInput) *agentzv1alp
 		}
 	}
 	if input.Bedrock != nil {
-		provider.Spec.Bedrock = &agentzv1alpha1.BedrockProviderConfig{Region: input.Bedrock.Region}
+		provider.Spec.Bedrock = &agentzv1alpha1.BedrockProviderConfig{
+			Region:   input.Bedrock.Region,
+			AuthMode: agentzv1alpha1.BedrockAuthMode(input.Bedrock.AuthMode),
+		}
 	}
 	if input.Azure != nil {
 		provider.Spec.Azure = &agentzv1alpha1.AzureProviderConfig{
@@ -714,41 +801,46 @@ func providerFromInput(namespace, name string, input providerInput) *agentzv1alp
 			provider.Spec.Azure.Project = *input.Azure.Project
 		}
 	}
-	if input.OpenAICompatible != nil {
-		value := input.OpenAICompatible
-		provider.Spec.OpenAICompatible = &agentzv1alpha1.OpenAICompatibleProviderConfig{
+	if input.Compatible != nil {
+		value := input.Compatible
+		cfg := &agentzv1alpha1.CompatibleProviderConfig{
 			BaseURL:  value.BaseUrl,
-			AuthMode: agentzv1alpha1.OpenAICompatibleAuthMode(value.AuthMode),
+			AuthMode: agentzv1alpha1.CompatibleProviderAuthMode(value.AuthMode),
 		}
 		if value.Path != nil {
-			provider.Spec.OpenAICompatible.Path = *value.Path
+			cfg.Path = *value.Path
 		}
 		if value.PathPrefix != nil {
-			provider.Spec.OpenAICompatible.PathPrefix = *value.PathPrefix
+			cfg.PathPrefix = *value.PathPrefix
 		}
 		if value.AuthHeader != nil {
-			provider.Spec.OpenAICompatible.AuthHeader = *value.AuthHeader
+			cfg.AuthHeader = *value.AuthHeader
 		}
 		if value.AuthPrefix != nil {
-			provider.Spec.OpenAICompatible.AuthPrefix = *value.AuthPrefix
+			cfg.AuthPrefix = *value.AuthPrefix
 		}
 		if value.AllowPrivateEndpoint != nil {
-			provider.Spec.OpenAICompatible.AllowPrivateEndpoint = *value.AllowPrivateEndpoint
+			cfg.AllowPrivateEndpoint = *value.AllowPrivateEndpoint
 		}
 		if value.SkipTlsVerify != nil {
-			provider.Spec.OpenAICompatible.SkipTLSVerify = *value.SkipTlsVerify
+			cfg.SkipTLSVerify = *value.SkipTlsVerify
 		}
 		if value.Headers != nil {
-			provider.Spec.OpenAICompatible.Headers = make(
+			cfg.Headers = make(
 				[]agentzv1alpha1.InferenceProviderHeader, 0, len(*value.Headers),
 			)
 			for _, header := range *value.Headers {
-				provider.Spec.OpenAICompatible.Headers = append(
-					provider.Spec.OpenAICompatible.Headers,
+				cfg.Headers = append(
+					cfg.Headers,
 					agentzv1alpha1.InferenceProviderHeader{Name: header.Name, Value: header.Value},
 				)
 			}
 		}
+		target := &provider.Spec.AnthropicCompatible
+		if input.Kind == gatewayapi.InferenceProviderKindOpenAICompatible {
+			target = &provider.Spec.OpenAICompatible
+		}
+		*target = cfg
 	}
 	return provider
 }
@@ -773,46 +865,51 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 	}
 	out := gatewayapi.InferenceProvider{
 		Id: provider.Name, ResourceVersion: provider.ResourceVersion,
-		DisplayName: provider.Spec.DisplayName,
-		Models:      modelsToAPI(provider.Spec.Models),
-		State:       state, Conditions: conditions,
+		DisplayName:     provider.Spec.DisplayName,
+		CatalogProvider: provider.Spec.CatalogProvider,
+		Models:          modelsToAPI(provider.Spec.Models),
+		State:           state, Conditions: conditions,
 		ModelCount: len(provider.Spec.Models), UsageCount: usage,
 		CreatedAt: provider.CreationTimestamp.Time, UpdatedAt: updatedAt,
 	}
-	switch provider.Spec.Type {
-	case agentzv1alpha1.InferenceProviderTypeOpenAI:
+	switch provider.Spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindOpenAI:
 		config := gatewayapi.OpenAIProviderConfig{}
 		if provider.Spec.OpenAI.BaseURL != "" {
 			config.BaseUrl = &provider.Spec.OpenAI.BaseURL
 		}
 		err := out.FromOpenAIInferenceProviderRead(gatewayapi.OpenAIInferenceProviderRead{
-			Type: gatewayapi.OpenAIInferenceProviderReadTypeOpenAI, Openai: config,
+			Kind: gatewayapi.OpenAIInferenceProviderReadKindOpenAI, Openai: config,
 		})
 		if err != nil {
 			return out, fmt.Errorf("render OpenAI provider response: %w", err)
 		}
-	case agentzv1alpha1.InferenceProviderTypeAnthropic:
+	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		config := gatewayapi.AnthropicProviderConfig{}
 		if provider.Spec.Anthropic.BaseURL != "" {
 			config.BaseUrl = &provider.Spec.Anthropic.BaseURL
 		}
 		err := out.FromAnthropicInferenceProviderRead(gatewayapi.AnthropicInferenceProviderRead{
-			Type: gatewayapi.AnthropicInferenceProviderReadTypeAnthropic, Anthropic: config,
+			Kind: gatewayapi.AnthropicInferenceProviderReadKindAnthropic, Anthropic: config,
 		})
 		if err != nil {
 			return out, fmt.Errorf("render Anthropic provider response: %w", err)
 		}
-	case agentzv1alpha1.InferenceProviderTypeGemini:
+	case agentzv1alpha1.InferenceProviderKindGemini:
+		config := gatewayapi.GeminiProviderConfig{}
+		if provider.Spec.Gemini.BaseURL != "" {
+			config.BaseUrl = &provider.Spec.Gemini.BaseURL
+		}
 		err := out.FromGeminiInferenceProviderRead(gatewayapi.GeminiInferenceProviderRead{
-			Type:   gatewayapi.GeminiInferenceProviderReadTypeGemini,
-			Gemini: gatewayapi.GeminiProviderConfig{},
+			Kind:   gatewayapi.GeminiInferenceProviderReadKindGemini,
+			Gemini: config,
 		})
 		if err != nil {
 			return out, fmt.Errorf("render Gemini provider response: %w", err)
 		}
-	case agentzv1alpha1.InferenceProviderTypeVertexAI:
+	case agentzv1alpha1.InferenceProviderKindVertexAI:
 		err := out.FromVertexAIInferenceProviderRead(gatewayapi.VertexAIInferenceProviderRead{
-			Type: gatewayapi.VertexAIInferenceProviderReadTypeVertexAI,
+			Kind: gatewayapi.VertexAIInferenceProviderReadKindVertexAI,
 			VertexAi: gatewayapi.VertexAIProviderConfig{
 				Project: provider.Spec.VertexAI.Project, Region: provider.Spec.VertexAI.Region,
 			},
@@ -820,15 +917,18 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 		if err != nil {
 			return out, fmt.Errorf("render Vertex AI provider response: %w", err)
 		}
-	case agentzv1alpha1.InferenceProviderTypeBedrock:
+	case agentzv1alpha1.InferenceProviderKindBedrock:
 		err := out.FromBedrockInferenceProviderRead(gatewayapi.BedrockInferenceProviderRead{
-			Type:    gatewayapi.BedrockInferenceProviderReadTypeBedrock,
-			Bedrock: gatewayapi.BedrockProviderConfig{Region: provider.Spec.Bedrock.Region},
+			Kind: gatewayapi.BedrockInferenceProviderReadKindBedrock,
+			Bedrock: gatewayapi.BedrockProviderConfig{
+				Region:   provider.Spec.Bedrock.Region,
+				AuthMode: gatewayapi.BedrockProviderConfigAuthMode(provider.Spec.Bedrock.AuthMode),
+			},
 		})
 		if err != nil {
 			return out, fmt.Errorf("render Bedrock provider response: %w", err)
 		}
-	case agentzv1alpha1.InferenceProviderTypeAzure:
+	case agentzv1alpha1.InferenceProviderKindAzure:
 		config := gatewayapi.AzureProviderConfig{
 			ResourceType: gatewayapi.AzureProviderConfigResourceType(provider.Spec.Azure.ResourceType),
 			ResourceName: provider.Spec.Azure.ResourceName,
@@ -839,16 +939,20 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 			config.Project = &provider.Spec.Azure.Project
 		}
 		err := out.FromAzureInferenceProviderRead(gatewayapi.AzureInferenceProviderRead{
-			Type: gatewayapi.AzureInferenceProviderReadTypeAzure, Azure: config,
+			Kind: gatewayapi.AzureInferenceProviderReadKindAzure, Azure: config,
 		})
 		if err != nil {
 			return out, fmt.Errorf("render Azure provider response: %w", err)
 		}
-	case agentzv1alpha1.InferenceProviderTypeOpenAICompatible:
+	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
 		value := provider.Spec.OpenAICompatible
-		config := gatewayapi.OpenAICompatibleProviderConfig{
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible {
+			value = provider.Spec.AnthropicCompatible
+		}
+		config := gatewayapi.CompatibleProviderConfig{
 			BaseUrl:  value.BaseURL,
-			AuthMode: gatewayapi.OpenAICompatibleProviderConfigAuthMode(value.AuthMode),
+			AuthMode: gatewayapi.CompatibleProviderConfigAuthMode(value.AuthMode),
 		}
 		if value.Path != "" {
 			config.Path = &value.Path
@@ -871,17 +975,28 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 			})
 		}
 		config.Headers = &headers
-		err := out.FromOpenAICompatibleInferenceProviderRead(
-			gatewayapi.OpenAICompatibleInferenceProviderRead{
-				Type:             gatewayapi.OpenAICompatibleInferenceProviderReadTypeOpenAICompatible,
-				OpenaiCompatible: config,
-			},
-		)
+		var err error
+		switch provider.Spec.Kind {
+		case agentzv1alpha1.InferenceProviderKindOpenAICompatible:
+			err = out.FromOpenAICompatibleInferenceProviderRead(
+				gatewayapi.OpenAICompatibleInferenceProviderRead{
+					Kind:             gatewayapi.OpenAICompatibleInferenceProviderReadKindOpenAICompatible,
+					OpenaiCompatible: config,
+				},
+			)
+		case agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
+			err = out.FromAnthropicCompatibleInferenceProviderRead(
+				gatewayapi.AnthropicCompatibleInferenceProviderRead{
+					Kind:                gatewayapi.AnthropicCompatibleInferenceProviderReadKindAnthropicCompatible,
+					AnthropicCompatible: config,
+				},
+			)
+		}
 		if err != nil {
 			return out, fmt.Errorf("render custom provider response: %w", err)
 		}
 	default:
-		return out, fmt.Errorf("render unsupported provider type %q", provider.Spec.Type)
+		return out, fmt.Errorf("render unsupported provider kind %q", provider.Spec.Kind)
 	}
 	return out, nil
 }

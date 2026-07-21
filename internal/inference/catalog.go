@@ -34,6 +34,11 @@ const (
 )
 
 type catalogProvider struct {
+	ID     string                  `json:"id"`
+	Name   string                  `json:"name"`
+	NPM    string                  `json:"npm"`
+	API    string                  `json:"api"`
+	Doc    string                  `json:"doc"`
 	Models map[string]catalogModel `json:"models"`
 }
 
@@ -46,6 +51,11 @@ type catalogModel struct {
 	Temperature bool                                `json:"temperature"`
 	Modalities  catalogModelModalities              `json:"modalities"`
 	Limit       agentzv1alpha1.InferenceModelLimits `json:"limit"`
+	Provider    *catalogModelProvider               `json:"provider"`
+}
+
+type catalogModelProvider struct {
+	NPM string `json:"npm"`
 }
 
 type catalogModelModalities struct {
@@ -64,6 +74,18 @@ type Catalog struct {
 	lastModified string
 }
 
+// CatalogEntry is one selectable provider and configuration kind.
+type CatalogEntry struct {
+	ProviderID      string
+	Name            string
+	Kind            agentzv1alpha1.InferenceProviderKind
+	BaseURL         string
+	BaseURLTemplate string
+	AuthHeader      string
+	AuthPrefix      string
+	Doc             string
+}
+
 // NewCatalog creates a bounded Models.dev catalog client. A nil client uses a
 // five-second HTTP timeout.
 func NewCatalog(client *http.Client) *Catalog {
@@ -73,32 +95,60 @@ func NewCatalog(client *http.Client) *Catalog {
 	return &Catalog{client: client, url: modelsDevURL}
 }
 
-// Suggestions returns models for the requested provider implementation and
+// Entries returns the pinned supported catalog variants matching query.
+func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
+	query = strings.ToLower(strings.TrimSpace(query))
+	entries := make([]CatalogEntry, 0, len(catalogEntries)+2)
+	custom := []CatalogEntry{
+		{
+			ProviderID: "custom", Name: "Custom OpenAI-compatible",
+			Kind:       agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+			AuthHeader: "authorization", AuthPrefix: "Bearer ",
+		},
+		{
+			ProviderID: "custom", Name: "Custom Anthropic-compatible",
+			Kind:       agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
+			AuthHeader: "x-api-key",
+		},
+	}
+	for _, entry := range custom {
+		if query == "" || strings.Contains(strings.ToLower(entry.Name), query) ||
+			strings.Contains(entry.ProviderID, query) {
+			entries = append(entries, entry)
+		}
+	}
+	for _, entry := range catalogEntries {
+		if query != "" && !strings.Contains(strings.ToLower(entry.Name), query) &&
+			!strings.Contains(entry.ProviderID, query) {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return catalogCommit, entries
+}
+
+// Suggestions returns models for one pinned provider/runtime variant and
 // reports whether they came from the live response, cache, or snapshot.
-func (c *Catalog) Suggestions(ctx context.Context, providerType agentzv1alpha1.InferenceProviderType) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
-	providerID := ""
-	switch providerType {
-	case agentzv1alpha1.InferenceProviderTypeOpenAI:
-		providerID = "openai"
-	case agentzv1alpha1.InferenceProviderTypeAnthropic:
-		providerID = "anthropic"
-	case agentzv1alpha1.InferenceProviderTypeGemini:
-		providerID = "google"
-	case agentzv1alpha1.InferenceProviderTypeVertexAI:
-		providerID = "google-vertex"
-	case agentzv1alpha1.InferenceProviderTypeBedrock:
-		providerID = "amazon-bedrock"
-	case agentzv1alpha1.InferenceProviderTypeAzure:
-		providerID = "azure"
-	case agentzv1alpha1.InferenceProviderTypeOpenAICompatible:
+func (c *Catalog) Suggestions(ctx context.Context, providerID string, providerKind agentzv1alpha1.InferenceProviderKind) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
+	isCustom := providerID == "custom"
+	isCompatible := providerKind == agentzv1alpha1.InferenceProviderKindOpenAICompatible || providerKind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
+	isSupported := isCustom && isCompatible
+	for _, entry := range catalogEntries {
+		if entry.ProviderID == providerID && entry.Kind == providerKind {
+			isSupported = true
+			break
+		}
+	}
+	if !isSupported {
+		return nil, "", fmt.Errorf("unsupported provider %q with kind %q", providerID, providerKind)
+	}
+	if providerID == "custom" {
 		return []agentzv1alpha1.InferenceModel{}, CatalogProvenanceSnapshot, nil
-	default:
-		return nil, "", fmt.Errorf("unsupported provider type %q", providerType)
 	}
 
 	c.mu.Lock()
 	if c.providers != nil && time.Since(c.fetchedAt) < catalogLifetime {
-		models := modelsFromCatalog(c.providers[providerID], providerID)
+		models := modelsFromCatalog(c.providers[providerID], providerID, providerKind)
 		c.mu.Unlock()
 		return models, CatalogProvenanceCache, nil
 	}
@@ -124,7 +174,7 @@ func (c *Catalog) Suggestions(ctx context.Context, providerType agentzv1alpha1.I
 			c.mu.Lock()
 			if c.providers != nil {
 				c.fetchedAt = time.Now()
-				models := modelsFromCatalog(c.providers[providerID], providerID)
+				models := modelsFromCatalog(c.providers[providerID], providerID, providerKind)
 				c.mu.Unlock()
 				return models, CatalogProvenanceCache, nil
 			}
@@ -150,7 +200,7 @@ func (c *Catalog) Suggestions(ctx context.Context, providerType agentzv1alpha1.I
 				c.etag = resp.Header.Get("ETag")
 				c.lastModified = resp.Header.Get("Last-Modified")
 				c.mu.Unlock()
-				return modelsFromCatalog(providers[providerID], providerID), CatalogProvenanceLive, nil
+				return modelsFromCatalog(providers[providerID], providerID, providerKind), CatalogProvenanceLive, nil
 			}
 		default:
 			err = fmt.Errorf("models.dev returned %s", resp.Status)
@@ -158,7 +208,7 @@ func (c *Catalog) Suggestions(ctx context.Context, providerType agentzv1alpha1.I
 	}
 	c.mu.Lock()
 	if c.providers != nil && time.Since(c.fetchedAt) < catalogLifetime {
-		models := modelsFromCatalog(c.providers[providerID], providerID)
+		models := modelsFromCatalog(c.providers[providerID], providerID, providerKind)
 		c.mu.Unlock()
 		return models, CatalogProvenanceCache, nil
 	}
@@ -173,9 +223,20 @@ func (c *Catalog) Suggestions(ctx context.Context, providerType agentzv1alpha1.I
 	return models, CatalogProvenanceSnapshot, err
 }
 
-func modelsFromCatalog(provider catalogProvider, providerID string) []agentzv1alpha1.InferenceModel {
+func modelsFromCatalog(provider catalogProvider, providerID string, providerKind agentzv1alpha1.InferenceProviderKind) []agentzv1alpha1.InferenceModel {
 	models := make([]agentzv1alpha1.InferenceModel, 0, len(provider.Models))
 	for key, model := range provider.Models {
+		modelKind := catalogProviderKinds[providerID]
+		if modelKind == "" {
+			npm := provider.NPM
+			if model.Provider != nil && model.Provider.NPM != "" {
+				npm = model.Provider.NPM
+			}
+			modelKind = catalogNPMKinds[npm]
+		}
+		if modelKind != providerKind {
+			continue
+		}
 		id := strings.TrimSpace(model.ID)
 		if id == "" {
 			id = key

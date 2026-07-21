@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
-	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
@@ -195,8 +194,8 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, tracePolicy, func() error {
 		tracePolicy.OwnerReferences = sandboxOwnerReferences(owners)
 		tracePolicy.Spec = agentgatewayv1alpha1.AgentgatewayPolicySpec{
-			TargetRefs: []agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{{
-				LocalPolicyTargetReference: agentgatewayshared.LocalPolicyTargetReference{
+			TargetRefs: []agentgatewayv1alpha1.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agentgatewayv1alpha1.LocalPolicyTargetReference{
 					Group: gwv1.Group("gateway.networking.k8s.io"),
 					Kind:  gwv1.Kind("Gateway"),
 					Name:  gwv1.ObjectName(inference.GatewayName),
@@ -299,7 +298,7 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 }
 
 func (r *Reconciler) inferenceTracing(namespace string) *agentgatewayv1alpha1.Tracing {
-	randomSampling := agentgatewayshared.CELExpression("true")
+	randomSampling := agentgatewayv1alpha1.CELExpression("true")
 	return &agentgatewayv1alpha1.Tracing{
 		BackendRef:     tracePolicyBackendRef(r.TraceBackend, inferenceTraceBackendName),
 		Protocol:       agentgatewayv1alpha1.OTLPProtocolGrpc,
@@ -308,38 +307,38 @@ func (r *Reconciler) inferenceTracing(namespace string) *agentgatewayv1alpha1.Tr
 			Add: []agentgatewayv1alpha1.AttributeAdd{
 				{
 					Name:       agentgatewayv1alpha1.ShortString("session.id"),
-					Expression: agentgatewayshared.CELExpression(`default(request.headers["x-session-id"], "")`),
+					Expression: agentgatewayv1alpha1.CELExpression(`default(request.headers["x-session-id"], "")`),
 				},
 				{
 					Name:       agentgatewayv1alpha1.ShortString("agentz.tenant_namespace"),
-					Expression: agentgatewayshared.CELExpression(strconv.Quote(namespace)),
+					Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
 				},
 				{
 					Name:       agentgatewayv1alpha1.ShortString("agentz.sandbox_name"),
-					Expression: agentgatewayshared.CELExpression(`request.path.split("/")[2]`),
+					Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[2]`),
 				},
 				{
 					Name:       agentgatewayv1alpha1.ShortString("agentz.provider_id"),
-					Expression: agentgatewayshared.CELExpression(`request.path.split("/")[4]`),
+					Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`),
 				},
 				{
 					Name:       agentgatewayv1alpha1.ShortString("agentz.agent_name"),
-					Expression: agentgatewayshared.CELExpression("source.identity.serviceAccount"),
+					Expression: agentgatewayv1alpha1.CELExpression("source.identity.serviceAccount"),
 				},
 				{
 					Name:       agentgatewayv1alpha1.ShortString("gen_ai.request.model"),
-					Expression: agentgatewayshared.CELExpression("llm.requestModel"),
+					Expression: agentgatewayv1alpha1.CELExpression("llm.requestModel"),
 				},
 			},
 		},
 		Resources: []agentgatewayv1alpha1.ResourceAdd{
 			{
 				Name:       agentgatewayv1alpha1.ShortString("service.name"),
-				Expression: agentgatewayshared.CELExpression(strconv.Quote("agentz-inference-gateway")),
+				Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote("agentz-inference-gateway")),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("service.namespace"),
-				Expression: agentgatewayshared.CELExpression(strconv.Quote(namespace)),
+				Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
 			},
 		},
 	}

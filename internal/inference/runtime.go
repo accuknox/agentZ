@@ -9,9 +9,7 @@ import (
 	"time"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
-	"github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -21,8 +19,8 @@ import (
 const (
 	// ProviderLabel identifies resources owned by an InferenceProvider.
 	ProviderLabel = "agentz.accuknox.com/inference-provider"
-	// ProviderTypeLabel identifies the provider implementation of a resource.
-	ProviderTypeLabel = "agentz.accuknox.com/inference-provider-type"
+	// ProviderKindLabel identifies the provider implementation of a resource.
+	ProviderKindLabel = "agentz.accuknox.com/inference-provider-kind"
 	// CredentialPathDir is the fixed OpenBao subtree for provider credentials.
 	CredentialPathDir = "inference-providers"
 
@@ -43,7 +41,7 @@ type Runtime struct {
 func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string, refresh time.Duration) (Runtime, error) {
 	labels := map[string]string{
 		ProviderLabel:     provider.Name,
-		ProviderTypeLabel: string(provider.Spec.Type),
+		ProviderKindLabel: string(provider.Spec.Kind),
 	}
 	backend := &agentgatewayv1alpha1.AgentgatewayBackend{
 		TypeMeta: metav1.TypeMeta{
@@ -65,11 +63,13 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 	var extractCredentials bool
 	secretKeys := map[string]string{}
 	auth := &agentgatewayv1alpha1.BackendAuth{}
-	secretRef := &corev1.LocalObjectReference{Name: provider.Name}
+	secretRef := &agentgatewayv1alpha1.LocalSecretObjectRef{
+		Name: gwv1.ObjectName(provider.Name),
+	}
 	llm := backend.Spec.AI.LLM
 
-	switch provider.Spec.Type {
-	case agentzv1alpha1.InferenceProviderTypeOpenAI:
+	switch provider.Spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindOpenAI:
 		llm.OpenAI = &agentgatewayv1alpha1.OpenAIConfig{}
 		secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
@@ -79,7 +79,7 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 				return Runtime{}, err
 			}
 		}
-	case agentzv1alpha1.InferenceProviderTypeAnthropic:
+	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		llm.Anthropic = &agentgatewayv1alpha1.AnthropicConfig{}
 		secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
@@ -90,12 +90,18 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 				return Runtime{}, err
 			}
 		}
-	case agentzv1alpha1.InferenceProviderTypeGemini:
+	case agentzv1alpha1.InferenceProviderKindGemini:
 		llm.Gemini = &agentgatewayv1alpha1.GeminiConfig{}
 		secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
 		auth.Location = headerLocation("x-goog-api-key", "")
-	case agentzv1alpha1.InferenceProviderTypeVertexAI:
+		if provider.Spec.Gemini.BaseURL != "" {
+			err := applyEndpoint(llm, backend, provider.Spec.Gemini.BaseURL, "", "", false)
+			if err != nil {
+				return Runtime{}, err
+			}
+		}
+	case agentzv1alpha1.InferenceProviderKindVertexAI:
 		llm.VertexAI = &agentgatewayv1alpha1.VertexAIConfig{
 			ProjectId: provider.Spec.VertexAI.Project,
 			Region:    provider.Spec.VertexAI.Region,
@@ -103,13 +109,18 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 		secretKeys[secretCredentials] = credentialServiceAccountJSON
 		kind := agentgatewayv1alpha1.GcpAuthTypeAccessToken
 		auth.GCP = &agentgatewayv1alpha1.GcpAuth{Type: &kind, SecretRef: secretRef}
-	case agentzv1alpha1.InferenceProviderTypeBedrock:
+	case agentzv1alpha1.InferenceProviderKindBedrock:
 		llm.Bedrock = &agentgatewayv1alpha1.BedrockConfig{Region: provider.Spec.Bedrock.Region}
+		if provider.Spec.Bedrock.AuthMode == agentzv1alpha1.BedrockAuthModeBearerToken {
+			secretKeys[secretAuthorization] = credentialBearerToken
+			auth.SecretRef = secretRef
+			break
+		}
 		secretKeys[credentialAccessKey] = credentialAccessKey
 		secretKeys[credentialSecretKey] = credentialSecretKey
 		extractCredentials = true
-		auth.AWS = &agentgatewayv1alpha1.AwsAuth{SecretRef: *secretRef}
-	case agentzv1alpha1.InferenceProviderTypeAzure:
+		auth.AWS = &agentgatewayv1alpha1.AwsAuth{SecretRef: secretRef}
+	case agentzv1alpha1.InferenceProviderKindAzure:
 		azure := provider.Spec.Azure
 		llm.Azure = &agentgatewayv1alpha1.AzureConfig{
 			ResourceName: azure.ResourceName,
@@ -132,11 +143,24 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 			secretKeys[credentialClientID] = credentialClientID
 			secretKeys[credentialTenantID] = credentialTenantID
 			secretKeys[credentialClientSecret] = credentialClientSecret
-			auth.Azure = &agentgatewayv1alpha1.AzureAuth{SecretRef: *secretRef}
+			auth.Azure = &agentgatewayv1alpha1.AzureAuth{SecretRef: secretRef}
 		}
-	case agentzv1alpha1.InferenceProviderTypeOpenAICompatible:
+	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
 		custom := provider.Spec.OpenAICompatible
-		llm.OpenAI = &agentgatewayv1alpha1.OpenAIConfig{}
+		formats := []agentgatewayv1alpha1.ProviderFormatConfig{{
+			Type: agentgatewayv1alpha1.ProviderFormatCompletions,
+		}}
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible {
+			custom = provider.Spec.AnthropicCompatible
+			formats = []agentgatewayv1alpha1.ProviderFormatConfig{
+				{Type: agentgatewayv1alpha1.ProviderFormatMessages},
+				{Type: agentgatewayv1alpha1.ProviderFormatAnthropicTokenCount},
+			}
+		}
+		llm.Custom = &agentgatewayv1alpha1.CustomProvider{
+			Formats: formats,
+		}
 		err := applyEndpoint(
 			llm, backend, custom.BaseURL, custom.Path, custom.PathPrefix,
 			custom.SkipTLSVerify,
@@ -144,7 +168,7 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 		if err != nil {
 			return Runtime{}, err
 		}
-		if custom.AuthMode == agentzv1alpha1.OpenAICompatibleAuthModeAPIKey {
+		if custom.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeAPIKey {
 			secretKeys[secretAuthorization] = credentialAPIKey
 			auth.SecretRef = secretRef
 			auth.Location = headerLocation(custom.AuthHeader, custom.AuthPrefix)
@@ -154,7 +178,7 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 			for _, header := range custom.Headers {
 				set = append(set, agentgatewayv1alpha1.HeaderTransformation{
 					Name:  agentgatewayv1alpha1.HeaderName(header.Name),
-					Value: shared.CELExpression(strconv.Quote(header.Value)),
+					Value: agentgatewayv1alpha1.CELExpression(strconv.Quote(header.Value)),
 				})
 			}
 			if backend.Spec.Policies == nil {
@@ -165,7 +189,7 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 			}
 		}
 	default:
-		return Runtime{}, fmt.Errorf("render unsupported provider type %q", provider.Spec.Type)
+		return Runtime{}, fmt.Errorf("render unsupported provider kind %q", provider.Spec.Kind)
 	}
 
 	if backend.Spec.Policies == nil {
@@ -288,8 +312,10 @@ func applyEndpoint(llm *agentgatewayv1alpha1.LLMProvider, backend *agentgatewayv
 
 func headerLocation(name, prefix string) *agentgatewayv1alpha1.AuthorizationLocation {
 	location := &agentgatewayv1alpha1.AuthorizationLocation{
-		Header: &agentgatewayv1alpha1.AuthorizationHeaderLocation{
-			Name: gwv1.HTTPHeaderName(name),
+		AuthorizationLocationFields: agentgatewayv1alpha1.AuthorizationLocationFields{
+			Header: &agentgatewayv1alpha1.AuthorizationHeaderLocation{
+				Name: gwv1.HTTPHeaderName(name),
+			},
 		},
 	}
 	if prefix != "" {

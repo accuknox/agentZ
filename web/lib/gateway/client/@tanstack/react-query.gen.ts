@@ -47,6 +47,7 @@ import {
   listImmutableSkillSummaries,
   listImmutableSkillVersions,
   listInferenceModelSuggestions,
+  listInferenceProviderCatalog,
   listInferenceProviders,
   listMcpConnections,
   listNetworkObservability,
@@ -206,6 +207,9 @@ import type {
   ListInferenceModelSuggestionsData,
   ListInferenceModelSuggestionsError,
   ListInferenceModelSuggestionsResponse,
+  ListInferenceProviderCatalogData,
+  ListInferenceProviderCatalogError,
+  ListInferenceProviderCatalogResponse,
   ListInferenceProvidersData,
   ListInferenceProvidersError,
   ListInferenceProvidersResponse2,
@@ -1503,12 +1507,40 @@ export const getInferenceProviderUsageOptions = (options: Options<GetInferencePr
     queryKey: getInferenceProviderUsageQueryKey(options),
   })
 
+export const listInferenceProviderCatalogQueryKey = (
+  options?: Options<ListInferenceProviderCatalogData>
+) => createQueryKey("listInferenceProviderCatalog", options)
+
+/**
+ * Search the pinned OpenCode provider catalog.
+ */
+export const listInferenceProviderCatalogOptions = (
+  options?: Options<ListInferenceProviderCatalogData>
+) =>
+  queryOptions<
+    ListInferenceProviderCatalogResponse,
+    ListInferenceProviderCatalogError,
+    ListInferenceProviderCatalogResponse,
+    ReturnType<typeof listInferenceProviderCatalogQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listInferenceProviderCatalog({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listInferenceProviderCatalogQueryKey(options),
+  })
+
 export const listInferenceModelSuggestionsQueryKey = (
   options: Options<ListInferenceModelSuggestionsData>
 ) => createQueryKey("listInferenceModelSuggestions", options)
 
 /**
- * List provider-filtered Models.dev suggestions.
+ * List Models.dev suggestions for one provider/runtime variant.
  */
 export const listInferenceModelSuggestionsOptions = (
   options: Options<ListInferenceModelSuggestionsData>

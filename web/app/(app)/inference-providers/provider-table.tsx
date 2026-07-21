@@ -63,13 +63,13 @@ import {
   type WatchInferenceProvidersEvent,
 } from "@/lib/gateway/client"
 import { ProviderSheet } from "./provider-sheet"
-import { ProviderIcon, providerTypeLabels } from "./provider-shared"
+import { ProviderIcon, providerKindLabels } from "./provider-shared"
 
 const pageSize = 25
 
 const columnClassName: Record<string, string> = {
   display_name: "min-w-0 w-0",
-  type: "w-44",
+  kind: "w-44",
   state: "w-36",
   model_count: "w-28",
   usage_count: "w-28",
@@ -152,15 +152,15 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
         ),
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-2">
-            <ProviderIcon type={row.original.type} className="size-4 shrink-0" />
+            <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
             <span className="min-w-0 truncate font-medium">{row.original.display_name}</span>
           </div>
         ),
       },
       {
-        accessorKey: "type",
-        header: "Provider",
-        cell: ({ row }) => <span>{providerTypeLabels[row.original.type]}</span>,
+        accessorKey: "kind",
+        header: "Kind",
+        cell: ({ row }) => <span>{providerKindLabels[row.original.kind]}</span>,
       },
       {
         accessorKey: "state",

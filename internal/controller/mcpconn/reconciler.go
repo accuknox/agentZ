@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
-	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
 	baoapi "github.com/openbao/openbao/api/v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -309,7 +308,7 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			for _, headerName := range names {
 				setHeaders = append(setHeaders, agentgatewayv1alpha1.HeaderTransformation{
 					Name:  agentgatewayv1alpha1.HeaderName(headerName),
-					Value: agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Spec.Endpoint.Headers[headerName])),
+					Value: agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Spec.Endpoint.Headers[headerName])),
 				})
 			}
 			transformation = &agentgatewayv1alpha1.Transformation{
@@ -333,10 +332,10 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 						"agentz.sandbox":        sandbox.Name,
 						"agentz.mcp_connection": conn.Name,
 					},
-					RequestMetadata: map[string]agentgatewayshared.CELExpression{
-						"agentz.namespace":      agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
-						"agentz.sandbox":        agentgatewayshared.CELExpression(fmt.Sprintf("%q", sandbox.Name)),
-						"agentz.mcp_connection": agentgatewayshared.CELExpression(fmt.Sprintf("%q", conn.Name)),
+					RequestMetadata: map[string]agentgatewayv1alpha1.CELExpression{
+						"agentz.namespace":      agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
+						"agentz.sandbox":        agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", sandbox.Name)),
+						"agentz.mcp_connection": agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Name)),
 					},
 				},
 			}
@@ -344,8 +343,8 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 
 		section := gwv1.SectionName(conn.Name)
 		obj.Spec = agentgatewayv1alpha1.AgentgatewayPolicySpec{
-			TargetRefs: []agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{{
-				LocalPolicyTargetReference: agentgatewayshared.LocalPolicyTargetReference{
+			TargetRefs: []agentgatewayv1alpha1.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agentgatewayv1alpha1.LocalPolicyTargetReference{
 					Group: "agentgateway.dev",
 					Kind:  "AgentgatewayBackend",
 					Name:  gwv1.ObjectName(mcp.SandboxBackendName(sandbox.Name)),

@@ -23,25 +23,28 @@ const (
 	InferenceProviderFinalizer = "agentz.accuknox.com/inference-provider"
 )
 
-// InferenceProviderType identifies an upstream inference protocol and vendor.
-// +kubebuilder:validation:Enum=OpenAI;Anthropic;Gemini;VertexAI;Bedrock;Azure;OpenAICompatible
-type InferenceProviderType string
+// InferenceProviderKind identifies the configuration and credentials required
+// by an upstream inference protocol.
+// +kubebuilder:validation:Enum=OpenAI;Anthropic;Gemini;OpenAICompatible;AnthropicCompatible;Bedrock;VertexAI;Azure
+type InferenceProviderKind string
 
 const (
-	// InferenceProviderTypeOpenAI identifies the native OpenAI provider.
-	InferenceProviderTypeOpenAI InferenceProviderType = "OpenAI"
-	// InferenceProviderTypeAnthropic identifies the native Anthropic provider.
-	InferenceProviderTypeAnthropic InferenceProviderType = "Anthropic"
-	// InferenceProviderTypeGemini identifies the native Gemini provider.
-	InferenceProviderTypeGemini InferenceProviderType = "Gemini"
-	// InferenceProviderTypeVertexAI identifies the native Vertex AI provider.
-	InferenceProviderTypeVertexAI InferenceProviderType = "VertexAI"
-	// InferenceProviderTypeBedrock identifies the native Amazon Bedrock provider.
-	InferenceProviderTypeBedrock InferenceProviderType = "Bedrock"
-	// InferenceProviderTypeAzure identifies the native Azure resource provider.
-	InferenceProviderTypeAzure InferenceProviderType = "Azure"
-	// InferenceProviderTypeOpenAICompatible identifies a custom OpenAI endpoint.
-	InferenceProviderTypeOpenAICompatible InferenceProviderType = "OpenAICompatible"
+	// InferenceProviderKindOpenAI identifies the native OpenAI provider.
+	InferenceProviderKindOpenAI InferenceProviderKind = "OpenAI"
+	// InferenceProviderKindAnthropic identifies the native Anthropic provider.
+	InferenceProviderKindAnthropic InferenceProviderKind = "Anthropic"
+	// InferenceProviderKindGemini identifies the native Gemini provider.
+	InferenceProviderKindGemini InferenceProviderKind = "Gemini"
+	// InferenceProviderKindVertexAI identifies the native Vertex AI provider.
+	InferenceProviderKindVertexAI InferenceProviderKind = "VertexAI"
+	// InferenceProviderKindBedrock identifies the native Amazon Bedrock provider.
+	InferenceProviderKindBedrock InferenceProviderKind = "Bedrock"
+	// InferenceProviderKindAzure identifies the native Azure resource provider.
+	InferenceProviderKindAzure InferenceProviderKind = "Azure"
+	// InferenceProviderKindOpenAICompatible identifies a custom OpenAI endpoint.
+	InferenceProviderKindOpenAICompatible InferenceProviderKind = "OpenAICompatible"
+	// InferenceProviderKindAnthropicCompatible identifies a custom Anthropic endpoint.
+	InferenceProviderKindAnthropicCompatible InferenceProviderKind = "AnthropicCompatible"
 )
 
 // InferenceProviderState summarizes reconciled control-plane readiness.
@@ -190,8 +193,14 @@ type AnthropicProviderConfig struct {
 	BaseURL string `json:"baseURL,omitempty"`
 }
 
-// GeminiProviderConfig selects AgentGateway's native Gemini provider.
-type GeminiProviderConfig struct{}
+// GeminiProviderConfig contains non-secret native Gemini endpoint controls.
+type GeminiProviderConfig struct {
+	// BaseURL overrides the native Gemini endpoint when set.
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Format=uri
+	// +optional
+	BaseURL string `json:"baseURL,omitempty"`
+}
 
 // VertexAIProviderConfig contains non-secret native Vertex AI settings.
 type VertexAIProviderConfig struct {
@@ -206,11 +215,25 @@ type VertexAIProviderConfig struct {
 	Region string `json:"region"`
 }
 
+// BedrockAuthMode selects AWS signing or Bedrock bearer-token authentication.
+// +kubebuilder:validation:Enum=AccessKey;BearerToken
+type BedrockAuthMode string
+
+const (
+	// BedrockAuthModeAccessKey signs requests with AWS credentials.
+	BedrockAuthModeAccessKey BedrockAuthMode = "AccessKey"
+	// BedrockAuthModeBearerToken sends a Bedrock API key as a bearer token.
+	BedrockAuthModeBearerToken BedrockAuthMode = "BearerToken"
+)
+
 // BedrockProviderConfig contains non-secret native Bedrock settings.
 type BedrockProviderConfig struct {
 	// Region is the AWS region used for SigV4 signing and dispatch.
 	// +kubebuilder:validation:Pattern=`^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$`
 	Region string `json:"region"`
+
+	// AuthMode selects the credential shape used for Bedrock.
+	AuthMode BedrockAuthMode `json:"authMode"`
 }
 
 // AzureResourceType selects Azure OpenAI or Azure AI Foundry.
@@ -261,15 +284,15 @@ type AzureProviderConfig struct {
 	AuthMode AzureAuthMode `json:"authMode"`
 }
 
-// OpenAICompatibleAuthMode selects custom API-key or unauthenticated access.
+// CompatibleProviderAuthMode selects custom API-key or unauthenticated access.
 // +kubebuilder:validation:Enum=None;APIKey
-type OpenAICompatibleAuthMode string
+type CompatibleProviderAuthMode string
 
 const (
-	// OpenAICompatibleAuthModeNone disables upstream authentication.
-	OpenAICompatibleAuthModeNone OpenAICompatibleAuthMode = "None"
-	// OpenAICompatibleAuthModeAPIKey injects a configured API key.
-	OpenAICompatibleAuthModeAPIKey OpenAICompatibleAuthMode = "APIKey"
+	// CompatibleProviderAuthModeNone disables upstream authentication.
+	CompatibleProviderAuthModeNone CompatibleProviderAuthMode = "None"
+	// CompatibleProviderAuthModeAPIKey injects a configured API key.
+	CompatibleProviderAuthModeAPIKey CompatibleProviderAuthMode = "APIKey"
 )
 
 // InferenceProviderHeader is one non-secret custom upstream header.
@@ -286,10 +309,10 @@ type InferenceProviderHeader struct {
 	Value string `json:"value"`
 }
 
-// OpenAICompatibleProviderConfig contains safe custom endpoint controls.
+// CompatibleProviderConfig contains safe custom endpoint controls.
 // +kubebuilder:validation:XValidation:rule="self.authMode == 'APIKey' ? has(self.authHeader) : !has(self.authHeader) && !has(self.authPrefix)",message="authentication header and prefix require API-key authentication"
-type OpenAICompatibleProviderConfig struct {
-	// BaseURL is the custom OpenAI-compatible endpoint.
+type CompatibleProviderConfig struct {
+	// BaseURL is the compatible endpoint.
 	// +kubebuilder:validation:Format=uri
 	// +kubebuilder:validation:MaxLength=2048
 	BaseURL string `json:"baseURL"`
@@ -307,7 +330,7 @@ type OpenAICompatibleProviderConfig struct {
 	PathPrefix string `json:"pathPrefix,omitempty"`
 
 	// AuthMode selects API-key or unauthenticated access.
-	AuthMode OpenAICompatibleAuthMode `json:"authMode"`
+	AuthMode CompatibleProviderAuthMode `json:"authMode"`
 
 	// AuthHeader is the lowercase destination header for the API key.
 	// +kubebuilder:validation:Pattern=`^[a-z0-9!#$%&'*+.^_|~-]+$`
@@ -338,22 +361,29 @@ type OpenAICompatibleProviderConfig struct {
 }
 
 // InferenceProviderSpec defines one credentialed provider instance.
-// +kubebuilder:validation:XValidation:rule="self.type == oldSelf.type",message="provider type is immutable"
-// +kubebuilder:validation:XValidation:rule="self.type == 'OpenAI' ? has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock) && !has(self.azure) && !has(self.openAICompatible) : true",message="OpenAI type requires only openAI configuration"
-// +kubebuilder:validation:XValidation:rule="self.type == 'Anthropic' ? has(self.anthropic) && !has(self.openAI) && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock) && !has(self.azure) && !has(self.openAICompatible) : true",message="Anthropic type requires only anthropic configuration"
-// +kubebuilder:validation:XValidation:rule="self.type == 'Gemini' ? has(self.gemini) && !has(self.openAI) && !has(self.anthropic) && !has(self.vertexAI) && !has(self.bedrock) && !has(self.azure) && !has(self.openAICompatible) : true",message="Gemini type requires only gemini configuration"
-// +kubebuilder:validation:XValidation:rule="self.type == 'VertexAI' ? has(self.vertexAI) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.bedrock) && !has(self.azure) && !has(self.openAICompatible) : true",message="VertexAI type requires only vertexAI configuration"
-// +kubebuilder:validation:XValidation:rule="self.type == 'Bedrock' ? has(self.bedrock) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI) && !has(self.azure) && !has(self.openAICompatible) : true",message="Bedrock type requires only bedrock configuration"
-// +kubebuilder:validation:XValidation:rule="self.type == 'Azure' ? has(self.azure) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock) && !has(self.openAICompatible) : true",message="Azure type requires only azure configuration"
-// +kubebuilder:validation:XValidation:rule="self.type == 'OpenAICompatible' ? has(self.openAICompatible) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock) && !has(self.azure) : true",message="OpenAICompatible type requires only openAICompatible configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == oldSelf.kind",message="provider kind is immutable"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'OpenAI' ? has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="OpenAI kind requires only openAI configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'Anthropic' ? has(self.anthropic) && !has(self.openAI) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="Anthropic kind requires only anthropic configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'Gemini' ? has(self.gemini) && !has(self.openAI) && !has(self.anthropic) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="Gemini kind requires only gemini configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'OpenAICompatible' ? has(self.openAICompatible) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="OpenAICompatible kind requires only openAICompatible configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'AnthropicCompatible' ? has(self.anthropicCompatible) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="AnthropicCompatible kind requires only anthropicCompatible configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'Bedrock' ? has(self.bedrock) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.vertexAI) && !has(self.azure) : true",message="Bedrock kind requires only bedrock configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'VertexAI' ? has(self.vertexAI) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.azure) : true",message="VertexAI kind requires only vertexAI configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'Azure' ? has(self.azure) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) : true",message="Azure kind requires only azure configuration"
 type InferenceProviderSpec struct {
+	// CatalogProvider is the immutable OpenCode provider ID or custom.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="catalog provider is immutable"
+	CatalogProvider string `json:"catalogProvider"`
+
 	// DisplayName is the editable human-readable provider label.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=128
 	DisplayName string `json:"displayName"`
 
-	// Type selects the immutable provider configuration arm.
-	Type InferenceProviderType `json:"type"`
+	// Kind selects the immutable provider configuration arm.
+	Kind InferenceProviderKind `json:"kind"`
 
 	// OpenAI configures native OpenAI.
 	// +optional
@@ -381,7 +411,11 @@ type InferenceProviderSpec struct {
 
 	// OpenAICompatible configures a custom OpenAI-compatible endpoint.
 	// +optional
-	OpenAICompatible *OpenAICompatibleProviderConfig `json:"openAICompatible,omitempty"`
+	OpenAICompatible *CompatibleProviderConfig `json:"openAICompatible,omitempty"`
+
+	// AnthropicCompatible configures a custom Anthropic-compatible endpoint.
+	// +optional
+	AnthropicCompatible *CompatibleProviderConfig `json:"anthropicCompatible,omitempty"`
 
 	// Models lists the explicitly enabled upstream models.
 	// +listType=map
@@ -417,7 +451,7 @@ type InferenceProviderStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=ip
-// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.type`,description="Provider type"
+// +kubebuilder:printcolumn:name="Kind",type=string,JSONPath=`.spec.kind`,description="Provider kind"
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`,description="Control-plane state"
 // +kubebuilder:printcolumn:name="Models",type=integer,JSONPath=`.status.modelCount`,description="Enabled model count"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age of the provider"

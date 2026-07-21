@@ -4,19 +4,22 @@ import { updateTag } from "next/cache"
 import {
   createInferenceProvider,
   deleteInferenceProvider,
+  listInferenceProviderCatalog,
   listInferenceModelSuggestions,
   updateInferenceProvider,
   type CreateInferenceProviderRequestWritable,
   type Error as GatewayError,
   type InferenceProvider,
   type InferenceModelSuggestions,
-  type InferenceProviderType,
+  type InferenceProviderCatalog,
+  type InferenceProviderKind,
   type UpdateInferenceProviderRequestWritable,
 } from "@/lib/gateway/client"
 import {
   zCreateInferenceProviderRequestWritable,
+  zInferenceProviderCatalogEntry,
   zInferenceProviderName,
-  zInferenceProviderType,
+  zInferenceProviderKind,
   zUpdateInferenceProviderRequestWritable,
 } from "@/lib/gateway/client/zod.gen"
 import { inferenceProvidersTag, sandboxesTag } from "@/data/cache"
@@ -30,6 +33,10 @@ type SaveInferenceProviderState =
 
 type SuggestInferenceModelsState =
   | { data: InferenceModelSuggestions; error?: undefined }
+  | { data?: undefined; error: GatewayError }
+
+type ListInferenceProviderCatalogState =
+  | { data: InferenceProviderCatalog; error?: undefined }
   | { data?: undefined; error: GatewayError }
 
 type SaveInferenceProviderInput =
@@ -119,15 +126,29 @@ export async function refreshInferenceProvidersAction(): Promise<InferenceProvid
   return listInferenceProvidersCachedQuery()
 }
 
+export async function listInferenceProviderCatalogAction(): Promise<ListInferenceProviderCatalogState> {
+  const result = await listInferenceProviderCatalog({ client: getGatewayServerClient() })
+  if (result.error) {
+    return { error: result.error }
+  }
+  return { data: result.data }
+}
+
 export async function suggestInferenceModelsAction(
-  providerType: InferenceProviderType
+  catalogProvider: string,
+  providerKind: InferenceProviderKind
 ): Promise<SuggestInferenceModelsState> {
-  const parsed = zInferenceProviderType.safeParse(providerType)
+  const provider = zInferenceProviderCatalogEntry.shape.provider_id.safeParse(catalogProvider)
+  if (!provider.success) {
+    return { error: { code: "INVALID_FORM", message: "Invalid catalog provider" } }
+  }
+  const parsed = zInferenceProviderKind.safeParse(providerKind)
   if (!parsed.success) {
-    return { error: { code: "INVALID_FORM", message: "Invalid provider type" } }
+    return { error: { code: "INVALID_FORM", message: "Invalid provider kind" } }
   }
   const result = await listInferenceModelSuggestions({
-    query: { provider_type: parsed.data },
+    path: { catalogProvider: provider.data },
+    query: { provider_kind: parsed.data },
     client: getGatewayServerClient(),
   })
   if (result.error) {

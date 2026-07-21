@@ -66,7 +66,7 @@ func TestValidatorValidateCreateRejectsDirectProviderEgress(t *testing.T) {
 	provider := &agentzv1alpha1.InferenceProvider{
 		ObjectMeta: metav1.ObjectMeta{Name: "private", Namespace: "default"},
 		Spec: agentzv1alpha1.InferenceProviderSpec{
-			OpenAICompatible: &agentzv1alpha1.OpenAICompatibleProviderConfig{
+			OpenAICompatible: &agentzv1alpha1.CompatibleProviderConfig{
 				BaseURL: "https://api.internal.example/v1",
 			},
 			Models: []agentzv1alpha1.InferenceModel{{ID: "model"}},

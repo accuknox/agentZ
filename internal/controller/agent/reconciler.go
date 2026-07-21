@@ -348,8 +348,13 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			path := inference.SandboxProviderPath(sandbox.Name, modelRef.Provider)
 			npm := "@ai-sdk/openai-compatible"
 			var apiKey string
-			if provider.Spec.Type == agentzv1alpha1.InferenceProviderTypeOpenAI {
+			switch provider.Spec.Kind {
+			case agentzv1alpha1.InferenceProviderKindOpenAI:
 				npm = "@ai-sdk/openai"
+				apiKey = "inference-gateway"
+			case agentzv1alpha1.InferenceProviderKindAnthropic,
+				agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
+				npm = "@ai-sdk/anthropic"
 				apiKey = "inference-gateway"
 			}
 			cfg.Providers[modelRef.Provider] = &opencodeProviderFile{

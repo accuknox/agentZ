@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import {
   Brain,
   Cable,
+  Check,
+  ChevronsUpDown,
   CircleAlert,
   KeyRound,
   Pencil,
@@ -32,6 +34,14 @@ import {
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
   Dialog,
@@ -44,6 +54,7 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -62,6 +73,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  listInferenceProviderCatalogAction,
   saveInferenceProviderAction,
   suggestInferenceModelsAction,
 } from "@/data/inference-provider.actions"
@@ -71,9 +83,14 @@ import {
   type InferenceModel,
   type InferenceModelModality,
   type InferenceProvider,
+  type InferenceProviderCatalogEntry,
 } from "@/lib/gateway/client"
-import { zCreateInferenceProviderRequestWritable } from "@/lib/gateway/client/zod.gen"
-import { ProviderIcon, providerTypeLabels, providerTypes } from "./provider-shared"
+import {
+  zCompatibleProviderConfig,
+  zCreateInferenceProviderRequestWritable,
+} from "@/lib/gateway/client/zod.gen"
+import { ProviderIcon, providerKindLabels } from "./provider-shared"
+import { cn } from "@/lib/utils"
 
 const blankModel: InferenceModel = {
   id: "",
@@ -173,6 +190,10 @@ const providerModelSchema = z.object({
 })
 
 const providerFields = {
+  catalog_provider: z
+    .string({ error: "Provider is required" })
+    .min(1, { error: "Select a provider" })
+    .max(128, { error: "Provider ID must be at most 128 characters" }),
   display_name: z
     .string({ error: "Display name is required" })
     .min(1, { error: "Display name is required" })
@@ -205,29 +226,29 @@ const serviceAccountDocumentSchema = z.object({
 
 const providerFormSchema = z
   .discriminatedUnion(
-    "type",
+    "kind",
     [
       z.object({
         ...providerFields,
-        type: z.literal("OpenAI", { error: "Select OpenAI as the provider type" }),
+        kind: z.literal("OpenAI", { error: "Select OpenAI as the provider kind" }),
         openai: z.object({ base_url: baseURLSchema }),
         credentials: apiKeyCredentialsSchema,
       }),
       z.object({
         ...providerFields,
-        type: z.literal("Anthropic", { error: "Select Anthropic as the provider type" }),
+        kind: z.literal("Anthropic", { error: "Select Anthropic as the provider kind" }),
         anthropic: z.object({ base_url: baseURLSchema }),
         credentials: apiKeyCredentialsSchema,
       }),
       z.object({
         ...providerFields,
-        type: z.literal("Gemini", { error: "Select Gemini as the provider type" }),
-        gemini: z.record(z.string(), z.never({ error: "Gemini configuration is invalid" })),
+        kind: z.literal("Gemini", { error: "Select Gemini as the provider kind" }),
+        gemini: z.object({ base_url: baseURLSchema }),
         credentials: apiKeyCredentialsSchema,
       }),
       z.object({
         ...providerFields,
-        type: z.literal("VertexAI", { error: "Select Vertex AI as the provider type" }),
+        kind: z.literal("VertexAI", { error: "Select Vertex AI as the provider kind" }),
         vertex_ai: z.object({
           project: z
             .string({ error: "Project is required" })
@@ -247,8 +268,11 @@ const providerFormSchema = z
       }),
       z.object({
         ...providerFields,
-        type: z.literal("Bedrock", { error: "Select Bedrock as the provider type" }),
+        kind: z.literal("Bedrock", { error: "Select Bedrock as the provider kind" }),
         bedrock: z.object({
+          auth_mode: z.enum(["AccessKey", "BearerToken"], {
+            error: "Select access-key or bearer-token authentication",
+          }),
           region: z
             .string({ error: "Region is required" })
             .min(1, { error: "Region is required" })
@@ -270,11 +294,15 @@ const providerFormSchema = z
             .string({ error: "Session token must be text" })
             .max(49152, { error: "Session token must be at most 48 KB" })
             .optional(),
+          bearer_token: z
+            .string({ error: "Bearer token must be text" })
+            .max(49152, { error: "Bearer token must be at most 48 KB" })
+            .optional(),
         }),
       }),
       z.object({
         ...providerFields,
-        type: z.literal("Azure", { error: "Select Azure as the provider type" }),
+        kind: z.literal("Azure", { error: "Select Azure as the provider kind" }),
         azure: z.object({
           resource_type: z.enum(["OpenAI", "Foundry"], {
             error: "Select Azure OpenAI or Azure AI Foundry",
@@ -314,83 +342,25 @@ const providerFormSchema = z
       }),
       z.object({
         ...providerFields,
-        type: z.literal("OpenAICompatible", {
-          error: "Select OpenAI-compatible as the provider type",
+        kind: z.literal("OpenAICompatible", {
+          error: "Select OpenAI-compatible as the provider kind",
         }),
-        openai_compatible: z.object({
-          base_url: z
-            .url({ error: "Enter a valid base URL" })
-            .max(2048, { error: "Base URL must be at most 2,048 characters" }),
-          path: z
-            .string({ error: "Path must be text" })
-            .max(1024, { error: "Path must be at most 1,024 characters" })
-            .regex(/^\/[^?#]*$/, {
-              error: "Path must start with / and contain no query or fragment",
-            })
-            .optional(),
-          path_prefix: z
-            .string({ error: "Path prefix must be text" })
-            .max(1024, { error: "Path prefix must be at most 1,024 characters" })
-            .regex(/^\/[^?#]*$/, {
-              error: "Path prefix must start with / and contain no query or fragment",
-            })
-            .optional(),
-          auth_mode: z.enum(["None", "APIKey"], {
-            error: "Select API key or no authentication",
-          }),
-          auth_header: z
-            .string({ error: "Authentication header is required" })
-            .min(1, { error: "Authentication header is required" })
-            .max(128, { error: "Authentication header must be at most 128 characters" })
-            .regex(/^[a-z0-9!#$%&'*+.^_|~-]+$/, {
-              error: "Authentication header must use lowercase HTTP header characters",
-            })
-            .optional(),
-          auth_prefix: z
-            .string({ error: "Authentication prefix must be text" })
-            .max(128, { error: "Authentication prefix must be at most 128 characters" })
-            .refine((value) => !/[\x00-\x08\x0A-\x1F\x7F]/.test(value), {
-              error: "Authentication prefix must not contain header control characters",
-            })
-            .optional(),
-          headers: z
-            .array(
-              z.object({
-                name: z
-                  .string({ error: "Header name is required" })
-                  .min(1, { error: "Header name is required" })
-                  .max(128, { error: "Header name must be at most 128 characters" })
-                  .regex(/^[a-z0-9!#$%&'*+.^_|~-]+$/, {
-                    error: "Header name must use lowercase HTTP header characters",
-                  }),
-                value: z
-                  .string({ error: "Header value is required" })
-                  .min(1, { error: "Header value is required" })
-                  .max(1024, { error: "Header value must be at most 1,024 characters" })
-                  .refine((value) => !/[\x00-\x08\x0A-\x1F\x7F]/.test(value), {
-                    error: "Header value must not contain header control characters",
-                  }),
-              }),
-              { error: "Static headers must be a list" }
-            )
-            .max(32, { error: "Add at most 32 static headers" })
-            .optional(),
-          allow_private_endpoint: z
-            .boolean({
-              error: "Private endpoint access must be enabled or disabled",
-            })
-            .optional(),
-          skip_tls_verify: z
-            .boolean({ error: "TLS verification must be enabled or disabled" })
-            .optional(),
+        openai_compatible: zCompatibleProviderConfig,
+        credentials: apiKeyCredentialsSchema,
+      }),
+      z.object({
+        ...providerFields,
+        kind: z.literal("AnthropicCompatible", {
+          error: "Select Anthropic-compatible as the provider kind",
         }),
+        anthropic_compatible: zCompatibleProviderConfig,
         credentials: apiKeyCredentialsSchema,
       }),
     ],
-    { error: "Select a supported provider type" }
+    { error: "Select a supported provider kind" }
   )
   .superRefine((value, ctx) => {
-    if (value.type === "Azure") {
+    if (value.kind === "Azure") {
       if (value.azure.resource_type === "Foundry" && !value.azure.project) {
         ctx.addIssue({
           code: "custom",
@@ -406,35 +376,38 @@ const providerFormSchema = z
         })
       }
     }
-    if (value.type !== "OpenAICompatible") {
+    const isOpenAICompatible = value.kind === "OpenAICompatible"
+    const isAnthropicCompatible = value.kind === "AnthropicCompatible"
+    if (!isOpenAICompatible && !isAnthropicCompatible) {
       return
     }
-    const config = value.openai_compatible
+    const field = isOpenAICompatible ? "openai_compatible" : "anthropic_compatible"
+    const config = isOpenAICompatible ? value.openai_compatible : value.anthropic_compatible
     if (config.path && config.path_prefix) {
       ctx.addIssue({
         code: "custom",
-        path: ["openai_compatible", "path_prefix"],
+        path: [field, "path_prefix"],
         message: "Use either path or path prefix, not both",
       })
     }
     if (config.auth_mode === "APIKey" && !config.auth_header) {
       ctx.addIssue({
         code: "custom",
-        path: ["openai_compatible", "auth_header"],
+        path: [field, "auth_header"],
         message: "Authentication header is required for API-key authentication",
       })
     }
     if (config.auth_header && gatewayControlledHeaders.has(config.auth_header)) {
       ctx.addIssue({
         code: "custom",
-        path: ["openai_compatible", "auth_header"],
+        path: [field, "auth_header"],
         message: "Authentication header is controlled by the gateway",
       })
     }
     if (config.auth_mode === "None" && (config.auth_header || config.auth_prefix)) {
       ctx.addIssue({
         code: "custom",
-        path: ["openai_compatible", "auth_mode"],
+        path: [field, "auth_mode"],
         message: "Authentication header and prefix require API-key authentication",
       })
     }
@@ -443,7 +416,7 @@ const providerFormSchema = z
       if (names.has(header.name)) {
         ctx.addIssue({
           code: "custom",
-          path: ["openai_compatible", "headers", index, "name"],
+          path: [field, "headers", index, "name"],
           message: "Header name must be unique",
         })
       }
@@ -451,14 +424,14 @@ const providerFormSchema = z
       if (gatewayControlledHeaders.has(header.name) || credentialHeaders.has(header.name)) {
         ctx.addIssue({
           code: "custom",
-          path: ["openai_compatible", "headers", index, "name"],
+          path: [field, "headers", index, "name"],
           message: "Static header is controlled by the gateway",
         })
       }
       if (header.name === config.auth_header) {
         ctx.addIssue({
           code: "custom",
-          path: ["openai_compatible", "headers", index, "name"],
+          path: [field, "headers", index, "name"],
           message: "Static header must not conflict with the authentication header",
         })
       }
@@ -487,7 +460,8 @@ export function ProviderSheet({
       })
     : ({
         display_name: "",
-        type: "OpenAI",
+        catalog_provider: "openai",
+        kind: "OpenAI",
         openai: {},
         models: [],
         credentials: {},
@@ -496,7 +470,7 @@ export function ProviderSheet({
     () =>
       providerFormSchema.superRefine((values, ctx) => {
         const isCreate = provider === undefined
-        if (values.type === "OpenAI" || values.type === "Anthropic" || values.type === "Gemini") {
+        if (values.kind === "OpenAI" || values.kind === "Anthropic" || values.kind === "Gemini") {
           if (isCreate && !values.credentials.api_key?.trim()) {
             ctx.addIssue({
               code: "custom",
@@ -506,7 +480,7 @@ export function ProviderSheet({
           }
           return
         }
-        if (values.type === "VertexAI") {
+        if (values.kind === "VertexAI") {
           const document = values.credentials.service_account_json
           if (!document?.trim()) {
             if (isCreate) {
@@ -539,17 +513,29 @@ export function ProviderSheet({
           }
           return
         }
-        if (values.type === "Bedrock") {
+        if (values.kind === "Bedrock") {
+          const authChanged =
+            provider?.kind === "Bedrock" && provider.bedrock.auth_mode !== values.bedrock.auth_mode
+          if (values.bedrock.auth_mode === "BearerToken") {
+            if ((isCreate || authChanged) && !values.credentials.bearer_token?.trim()) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["credentials", "bearer_token"],
+                message: "Bearer token is required for bearer-token authentication",
+              })
+            }
+            return
+          }
           const hasAccessKey = Boolean(values.credentials.access_key?.trim())
           const hasSecretKey = Boolean(values.credentials.secret_key?.trim())
-          if ((isCreate || hasSecretKey) && !hasAccessKey) {
+          if ((isCreate || authChanged || hasSecretKey) && !hasAccessKey) {
             ctx.addIssue({
               code: "custom",
               path: ["credentials", "access_key"],
               message: "Access key is required with the secret key",
             })
           }
-          if ((isCreate || hasAccessKey) && !hasSecretKey) {
+          if ((isCreate || authChanged || hasAccessKey) && !hasSecretKey) {
             ctx.addIssue({
               code: "custom",
               path: ["credentials", "secret_key"],
@@ -558,9 +544,9 @@ export function ProviderSheet({
           }
           return
         }
-        if (values.type === "Azure") {
+        if (values.kind === "Azure") {
           const authChanged =
-            provider?.type === "Azure" && provider.azure.auth_mode !== values.azure.auth_mode
+            provider?.kind === "Azure" && provider.azure.auth_mode !== values.azure.auth_mode
           if (values.azure.auth_mode === "APIKey") {
             if ((isCreate || authChanged) && !values.credentials.api_key?.trim()) {
               ctx.addIssue({
@@ -601,10 +587,18 @@ export function ProviderSheet({
           }
           return
         }
-        const authEnabled = values.openai_compatible.auth_mode === "APIKey"
-        const authChanged =
-          provider?.type === "OpenAICompatible" &&
-          provider.openai_compatible.auth_mode !== values.openai_compatible.auth_mode
+        const config =
+          values.kind === "OpenAICompatible"
+            ? values.openai_compatible
+            : values.anthropic_compatible
+        const currentAuthMode =
+          provider?.kind === "OpenAICompatible"
+            ? provider.openai_compatible.auth_mode
+            : provider?.kind === "AnthropicCompatible"
+              ? provider.anthropic_compatible.auth_mode
+              : undefined
+        const authEnabled = config.auth_mode === "APIKey"
+        const authChanged = currentAuthMode !== undefined && currentAuthMode !== config.auth_mode
         if (authEnabled && (isCreate || authChanged) && !values.credentials.api_key?.trim()) {
           ctx.addIssue({
             code: "custom",
@@ -620,17 +614,36 @@ export function ProviderSheet({
     resolver: zodResolver(formSchema),
   })
   const models = useFieldArray({ control: form.control, name: "models", keyName: "key" })
+  const kind = useWatch({ control: form.control, name: "kind", defaultValue: defaults.kind })
+  const compatibleField =
+    kind === "AnthropicCompatible" ? "anthropic_compatible" : "openai_compatible"
+  const isCompatibleKind = kind === "OpenAICompatible" || kind === "AnthropicCompatible"
   const headers = useFieldArray({
     control: form.control,
-    name: "openai_compatible.headers",
+    name: `${compatibleField}.headers`,
     keyName: "key",
   })
-  const type = useWatch({ control: form.control, name: "type", defaultValue: defaults.type })
+  const catalogProvider = useWatch({
+    control: form.control,
+    name: "catalog_provider",
+    defaultValue: defaults.catalog_provider,
+  })
   const azureResourceType = useWatch({ control: form.control, name: "azure.resource_type" })
   const azureAuthMode = useWatch({ control: form.control, name: "azure.auth_mode" })
-  const customAuthMode = useWatch({ control: form.control, name: "openai_compatible.auth_mode" })
+  const customAuthMode = useWatch({
+    control: form.control,
+    name: `${compatibleField}.auth_mode`,
+  })
+  const bedrockAuthMode = useWatch({ control: form.control, name: "bedrock.auth_mode" })
+  const [catalog, setCatalog] = React.useState<InferenceProviderCatalogEntry[]>([])
+  const [providerPickerOpen, setProviderPickerOpen] = React.useState(false)
+  const [providerCatalogState, setProviderCatalogState] = React.useState<
+    "idle" | "loading" | "error"
+  >("loading")
   const [suggestions, setSuggestions] = React.useState<InferenceModel[]>([])
-  const [catalogState, setCatalogState] = React.useState<"idle" | "loading" | "error">("loading")
+  const [modelCatalogState, setModelCatalogState] = React.useState<"idle" | "loading" | "error">(
+    "loading"
+  )
   const [editingModel, setEditingModel] = React.useState<number>()
   const [submitError, setSubmitError] = React.useState("")
   const [submitErrors, setSubmitErrors] = React.useState<string[]>([])
@@ -642,22 +655,49 @@ export function ProviderSheet({
     }
 
     let ignore = false
-    void suggestInferenceModelsAction(type).then((result) => {
+    void listInferenceProviderCatalogAction().then((result) => {
       if (ignore) {
         return
       }
       if (result.error) {
-        setCatalogState("error")
+        setProviderCatalogState("error")
         return
       }
-      setSuggestions(result.data.models)
-      setCatalogState("idle")
+      setCatalog(result.data.providers)
+      setProviderCatalogState("idle")
     })
 
     return () => {
       ignore = true
     }
-  }, [open, type])
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open || !catalogProvider) {
+      return
+    }
+
+    let ignore = false
+    void suggestInferenceModelsAction(catalogProvider, kind).then((result) => {
+      if (ignore) {
+        return
+      }
+      if (result.error) {
+        setModelCatalogState("error")
+        return
+      }
+      setSuggestions(result.data.models)
+      setModelCatalogState("idle")
+    })
+
+    return () => {
+      ignore = true
+    }
+  }, [catalogProvider, kind, open])
+
+  const selectedCatalogEntry = catalog.find(
+    (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
+  )
 
   function handleSubmit(values: CreateInferenceProviderRequestWritable) {
     setSubmitError("")
@@ -690,7 +730,9 @@ export function ProviderSheet({
       <SheetContent className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!">
         <SheetHeader className="shrink-0">
           <SheetTitle className="flex items-center gap-2">
-            {provider ? <ProviderIcon type={provider.type} className="size-4" /> : null}
+            {provider ? (
+              <ProviderIcon provider={provider.catalog_provider} className="size-4" />
+            ) : null}
             {provider ? "Edit inference provider" : "Add inference provider"}
           </SheetTitle>
           <SheetDescription className="sr-only">
@@ -725,48 +767,172 @@ export function ProviderSheet({
                 />
                 <FieldError errors={[form.formState.errors.display_name]} />
               </Field>
-              <Field>
-                <FieldLabel required>Provider type</FieldLabel>
+              <Field data-invalid={Boolean(form.formState.errors.catalog_provider)}>
+                <FieldLabel required>Provider</FieldLabel>
                 <Controller
                   control={form.control}
-                  name="type"
+                  name="catalog_provider"
                   render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      disabled={Boolean(provider)}
-                      onValueChange={(value) => {
-                        field.onChange(value)
-                        if (value === "OpenAI") form.setValue("openai", {})
-                        if (value === "Anthropic") form.setValue("anthropic", {})
-                        if (value === "Gemini") form.setValue("gemini", {})
-                        setCatalogState("loading")
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {providerTypes.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            <ProviderIcon type={item} className="size-4" />{" "}
-                            {providerTypeLabels[item]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={providerPickerOpen} onOpenChange={setProviderPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={providerPickerOpen}
+                          disabled={Boolean(provider) || providerCatalogState === "loading"}
+                          className="w-full justify-between font-normal"
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <ProviderIcon provider={catalogProvider} className="size-4 shrink-0" />
+                            <span className="truncate">
+                              {selectedCatalogEntry?.name ?? provider?.display_name ?? field.value}
+                            </span>
+                            <span className="text-muted-foreground shrink-0 text-xs">
+                              {providerKindLabels[kind]}
+                            </span>
+                          </span>
+                          <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="start"
+                        className="w-(--radix-popover-trigger-width) p-0"
+                      >
+                        <Command>
+                          <CommandInput placeholder="Search 156 providers…" />
+                          <CommandList>
+                            <CommandEmpty>No provider found.</CommandEmpty>
+                            <CommandGroup>
+                              {catalog.map((entry) => (
+                                <CommandItem
+                                  key={`${entry.provider_id}:${entry.provider_kind}`}
+                                  value={`${entry.name} ${entry.provider_id} ${providerKindLabels[entry.provider_kind]}`}
+                                  onSelect={() => {
+                                    setModelCatalogState("loading")
+                                    const common = {
+                                      catalog_provider: entry.provider_id,
+                                      display_name: entry.name,
+                                      models: [],
+                                      credentials: {},
+                                    }
+                                    switch (entry.provider_kind) {
+                                      case "OpenAI":
+                                        form.reset({
+                                          ...common,
+                                          kind: "OpenAI",
+                                          openai: { base_url: entry.base_url },
+                                        })
+                                        break
+                                      case "Anthropic":
+                                        form.reset({
+                                          ...common,
+                                          kind: "Anthropic",
+                                          anthropic: { base_url: entry.base_url },
+                                        })
+                                        break
+                                      case "Gemini":
+                                        form.reset({
+                                          ...common,
+                                          kind: "Gemini",
+                                          gemini: { base_url: entry.base_url },
+                                        })
+                                        break
+                                      case "VertexAI":
+                                        form.reset({
+                                          ...common,
+                                          kind: "VertexAI",
+                                          vertex_ai: { project: "", region: "" },
+                                        })
+                                        break
+                                      case "Bedrock":
+                                        form.reset({
+                                          ...common,
+                                          kind: "Bedrock",
+                                          bedrock: { region: "us-east-1", auth_mode: "AccessKey" },
+                                        })
+                                        break
+                                      case "Azure":
+                                        form.reset({
+                                          ...common,
+                                          kind: "Azure",
+                                          azure: {
+                                            resource_type: "OpenAI",
+                                            resource_name: "",
+                                            api_version: "2025-04-01-preview",
+                                            auth_mode: "APIKey",
+                                          },
+                                        })
+                                        break
+                                      case "OpenAICompatible":
+                                        form.reset({
+                                          ...common,
+                                          kind: "OpenAICompatible",
+                                          openai_compatible: {
+                                            base_url: entry.base_url ?? "",
+                                            auth_mode: "APIKey",
+                                            auth_header: entry.auth_header ?? "authorization",
+                                            auth_prefix: entry.auth_prefix,
+                                          },
+                                        })
+                                        break
+                                      case "AnthropicCompatible":
+                                        form.reset({
+                                          ...common,
+                                          kind: "AnthropicCompatible",
+                                          anthropic_compatible: {
+                                            base_url: entry.base_url ?? "",
+                                            auth_mode: "APIKey",
+                                            auth_header: entry.auth_header ?? "x-api-key",
+                                            auth_prefix: entry.auth_prefix,
+                                          },
+                                        })
+                                        break
+                                    }
+                                    setProviderPickerOpen(false)
+                                  }}
+                                >
+                                  <ProviderIcon provider={entry.provider_id} className="size-4" />
+                                  <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                                  <span className="text-muted-foreground text-xs">
+                                    {providerKindLabels[entry.provider_kind]}
+                                  </span>
+                                  <Check
+                                    className={cn(
+                                      "size-4",
+                                      entry.provider_id === catalogProvider &&
+                                        entry.provider_kind === kind
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   )}
                 />
-                <FieldError errors={[form.formState.errors.type]} />
+                <FieldError
+                  errors={[form.formState.errors.catalog_provider, form.formState.errors.kind]}
+                />
+                {providerCatalogState === "error" ? (
+                  <FieldDescription>
+                    Provider catalog is unavailable. Reopen the form to retry.
+                  </FieldDescription>
+                ) : null}
                 {provider ? (
                   <FieldDescription>
-                    The provider type cannot be changed after creation.
+                    The provider and kind cannot be changed after creation.
                   </FieldDescription>
                 ) : null}
               </Field>
             </FormSection>
 
             <FormSection icon={Cable} title="Connection">
-              {type === "VertexAI" && (
+              {kind === "VertexAI" && (
                 <>
                   <Field>
                     <FieldLabel required>Project</FieldLabel>
@@ -784,18 +950,53 @@ export function ProviderSheet({
                   </Field>
                 </>
               )}
-              {type === "Bedrock" && (
-                <Field>
-                  <FieldLabel required>Region</FieldLabel>
-                  <Input
-                    placeholder="us-east-1"
-                    autoComplete="off"
-                    {...form.register("bedrock.region")}
-                  />
-                  <FieldError errors={[form.getFieldState("bedrock.region").error]} />
-                </Field>
+              {kind === "Bedrock" && (
+                <>
+                  <Field>
+                    <FieldLabel required>Region</FieldLabel>
+                    <Input
+                      placeholder="us-east-1"
+                      autoComplete="off"
+                      {...form.register("bedrock.region")}
+                    />
+                    <FieldError errors={[form.getFieldState("bedrock.region").error]} />
+                  </Field>
+                  <Field>
+                    <FieldLabel required>Authentication</FieldLabel>
+                    <Controller
+                      control={form.control}
+                      name="bedrock.auth_mode"
+                      defaultValue="AccessKey"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value}
+                          onValueChange={(value) => {
+                            field.onChange(value)
+                            form.setValue(
+                              "credentials",
+                              {},
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              }
+                            )
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="AccessKey">AWS access keys</SelectItem>
+                            <SelectItem value="BearerToken">Bedrock API key</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    <FieldError errors={[form.getFieldState("bedrock.auth_mode").error]} />
+                  </Field>
+                </>
               )}
-              {type === "Azure" && (
+              {kind === "Azure" && (
                 <>
                   <Field>
                     <FieldLabel required>Resource type</FieldLabel>
@@ -884,24 +1085,33 @@ export function ProviderSheet({
                   </Field>
                 </>
               )}
-              {type === "OpenAICompatible" && (
+              {isCompatibleKind && (
                 <>
                   <Field>
                     <FieldLabel required>Base URL</FieldLabel>
                     <Input
                       type="url"
-                      placeholder="https://api.example.com"
+                      placeholder={
+                        selectedCatalogEntry?.base_url_template ?? "https://api.example.com"
+                      }
                       autoComplete="off"
                       spellCheck={false}
-                      {...form.register("openai_compatible.base_url")}
+                      {...form.register(`${compatibleField}.base_url`)}
                     />
-                    <FieldError errors={[form.getFieldState("openai_compatible.base_url").error]} />
+                    <FieldError
+                      errors={[form.getFieldState(`${compatibleField}.base_url`).error]}
+                    />
+                    {selectedCatalogEntry?.base_url_template ? (
+                      <FieldDescription>
+                        Replace the placeholders in {selectedCatalogEntry.base_url_template}.
+                      </FieldDescription>
+                    ) : null}
                   </Field>
                   <Field>
                     <FieldLabel required>Authentication</FieldLabel>
                     <Controller
                       control={form.control}
-                      name="openai_compatible.auth_mode"
+                      name={`${compatibleField}.auth_mode`}
                       defaultValue="APIKey"
                       render={({ field }) => (
                         <Select
@@ -917,11 +1127,11 @@ export function ProviderSheet({
                               }
                             )
                             form.setValue(
-                              "openai_compatible.auth_header",
+                              `${compatibleField}.auth_header`,
                               value === "APIKey" ? "authorization" : undefined,
                               { shouldDirty: true, shouldValidate: true }
                             )
-                            form.setValue("openai_compatible.auth_prefix", undefined, {
+                            form.setValue(`${compatibleField}.auth_prefix`, undefined, {
                               shouldDirty: true,
                               shouldValidate: true,
                             })
@@ -938,12 +1148,15 @@ export function ProviderSheet({
                       )}
                     />
                     <FieldError
-                      errors={[form.getFieldState("openai_compatible.auth_mode").error]}
+                      errors={[form.getFieldState(`${compatibleField}.auth_mode`).error]}
                     />
                   </Field>
                 </>
               )}
-              {(type === "OpenAI" || type === "Anthropic" || type === "OpenAICompatible") && (
+              {(kind === "OpenAI" ||
+                kind === "Anthropic" ||
+                kind === "Gemini" ||
+                isCompatibleKind) && (
                 <Accordion type="single" collapsible className="rounded-lg border">
                   <AccordionItem value="advanced" className="border-none">
                     <AccordionTrigger className="focus-visible:bg-muted/60 px-4 py-3 hover:no-underline focus-visible:border-transparent focus-visible:ring-0 data-[state=open]:rounded-b-none">
@@ -951,7 +1164,7 @@ export function ProviderSheet({
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pt-1 pb-4 [&>div]:h-auto">
                       <FieldGroup>
-                        {type === "OpenAI" && (
+                        {kind === "OpenAI" && (
                           <Field>
                             <FieldLabel>Base URL override</FieldLabel>
                             <Input
@@ -964,7 +1177,7 @@ export function ProviderSheet({
                             <FieldError errors={[form.getFieldState("openai.base_url").error]} />
                           </Field>
                         )}
-                        {type === "Anthropic" && (
+                        {kind === "Anthropic" && (
                           <Field>
                             <FieldLabel>Base URL override</FieldLabel>
                             <Input
@@ -977,19 +1190,32 @@ export function ProviderSheet({
                             <FieldError errors={[form.getFieldState("anthropic.base_url").error]} />
                           </Field>
                         )}
-                        {type === "OpenAICompatible" && (
+                        {kind === "Gemini" && (
+                          <Field>
+                            <FieldLabel>Base URL override</FieldLabel>
+                            <Input
+                              type="url"
+                              spellCheck={false}
+                              {...form.register("gemini.base_url", {
+                                setValueAs: (value) => value || undefined,
+                              })}
+                            />
+                            <FieldError errors={[form.getFieldState("gemini.base_url").error]} />
+                          </Field>
+                        )}
+                        {isCompatibleKind && (
                           <>
                             <Field>
                               <FieldLabel>Path</FieldLabel>
                               <Input
                                 placeholder="/v1/chat/completions"
                                 spellCheck={false}
-                                {...form.register("openai_compatible.path", {
+                                {...form.register(`${compatibleField}.path`, {
                                   setValueAs: (value) => value || undefined,
                                 })}
                               />
                               <FieldError
-                                errors={[form.getFieldState("openai_compatible.path").error]}
+                                errors={[form.getFieldState(`${compatibleField}.path`).error]}
                               />
                             </Field>
                             <Field>
@@ -997,12 +1223,14 @@ export function ProviderSheet({
                               <Input
                                 placeholder="/v1"
                                 spellCheck={false}
-                                {...form.register("openai_compatible.path_prefix", {
+                                {...form.register(`${compatibleField}.path_prefix`, {
                                   setValueAs: (value) => value || undefined,
                                 })}
                               />
                               <FieldError
-                                errors={[form.getFieldState("openai_compatible.path_prefix").error]}
+                                errors={[
+                                  form.getFieldState(`${compatibleField}.path_prefix`).error,
+                                ]}
                               />
                             </Field>
                             {customAuthMode === "APIKey" && (
@@ -1013,11 +1241,11 @@ export function ProviderSheet({
                                     defaultValue="authorization"
                                     placeholder="authorization"
                                     spellCheck={false}
-                                    {...form.register("openai_compatible.auth_header")}
+                                    {...form.register(`${compatibleField}.auth_header`)}
                                   />
                                   <FieldError
                                     errors={[
-                                      form.getFieldState("openai_compatible.auth_header").error,
+                                      form.getFieldState(`${compatibleField}.auth_header`).error,
                                     ]}
                                   />
                                 </Field>
@@ -1026,11 +1254,11 @@ export function ProviderSheet({
                                   <Input
                                     placeholder="Bearer "
                                     spellCheck={false}
-                                    {...form.register("openai_compatible.auth_prefix")}
+                                    {...form.register(`${compatibleField}.auth_prefix`)}
                                   />
                                   <FieldError
                                     errors={[
-                                      form.getFieldState("openai_compatible.auth_prefix").error,
+                                      form.getFieldState(`${compatibleField}.auth_prefix`).error,
                                     ]}
                                   />
                                 </Field>
@@ -1049,12 +1277,14 @@ export function ProviderSheet({
                                       aria-label={`Header ${index + 1} name`}
                                       placeholder="x-tenant"
                                       spellCheck={false}
-                                      {...form.register(`openai_compatible.headers.${index}.name`)}
+                                      {...form.register(`${compatibleField}.headers.${index}.name`)}
                                     />
                                     <Input
                                       aria-label={`Header ${index + 1} value`}
                                       placeholder="public-value"
-                                      {...form.register(`openai_compatible.headers.${index}.value`)}
+                                      {...form.register(
+                                        `${compatibleField}.headers.${index}.value`
+                                      )}
                                     />
                                     <Button
                                       type="button"
@@ -1069,10 +1299,10 @@ export function ProviderSheet({
                                       className="col-span-full"
                                       errors={[
                                         form.getFieldState(
-                                          `openai_compatible.headers.${index}.name`
+                                          `${compatibleField}.headers.${index}.name`
                                         ).error,
                                         form.getFieldState(
-                                          `openai_compatible.headers.${index}.value`
+                                          `${compatibleField}.headers.${index}.value`
                                         ).error,
                                       ]}
                                     />
@@ -1087,13 +1317,13 @@ export function ProviderSheet({
                                   <Plus /> Add header
                                 </Button>
                                 <FieldError
-                                  errors={[form.getFieldState("openai_compatible.headers").error]}
+                                  errors={[form.getFieldState(`${compatibleField}.headers`).error]}
                                 />
                               </div>
                             </Field>
                             <Controller
                               control={form.control}
-                              name="openai_compatible.allow_private_endpoint"
+                              name={`${compatibleField}.allow_private_endpoint`}
                               defaultValue={false}
                               render={({ field }) => (
                                 <Field orientation="horizontal">
@@ -1112,13 +1342,13 @@ export function ProviderSheet({
                             />
                             <FieldError
                               errors={[
-                                form.getFieldState("openai_compatible.allow_private_endpoint")
+                                form.getFieldState(`${compatibleField}.allow_private_endpoint`)
                                   .error,
                               ]}
                             />
                             <Controller
                               control={form.control}
-                              name="openai_compatible.skip_tls_verify"
+                              name={`${compatibleField}.skip_tls_verify`}
                               defaultValue={false}
                               render={({ field }) => (
                                 <Field orientation="horizontal">
@@ -1137,7 +1367,7 @@ export function ProviderSheet({
                             />
                             <FieldError
                               errors={[
-                                form.getFieldState("openai_compatible.skip_tls_verify").error,
+                                form.getFieldState(`${compatibleField}.skip_tls_verify`).error,
                               ]}
                             />
                           </>
@@ -1154,11 +1384,11 @@ export function ProviderSheet({
               title="Credentials"
               description={provider ? "Leave blank to keep the current credentials." : undefined}
             >
-              {(type === "OpenAI" ||
-                type === "Anthropic" ||
-                type === "Gemini" ||
-                (type === "OpenAICompatible" && customAuthMode === "APIKey") ||
-                (type === "Azure" && azureAuthMode === "APIKey")) && (
+              {(kind === "OpenAI" ||
+                kind === "Anthropic" ||
+                kind === "Gemini" ||
+                (isCompatibleKind && customAuthMode === "APIKey") ||
+                (kind === "Azure" && azureAuthMode === "APIKey")) && (
                 <Field>
                   <FieldLabel required={!provider}>API key</FieldLabel>
                   <Input
@@ -1170,7 +1400,7 @@ export function ProviderSheet({
                   <FieldError errors={[form.getFieldState("credentials.api_key").error]} />
                 </Field>
               )}
-              {type === "VertexAI" && (
+              {kind === "VertexAI" && (
                 <Field>
                   <FieldLabel required={!provider}>Service account JSON</FieldLabel>
                   <ServiceAccountJsonField
@@ -1187,7 +1417,7 @@ export function ProviderSheet({
                   />
                 </Field>
               )}
-              {type === "Bedrock" && (
+              {kind === "Bedrock" && bedrockAuthMode === "AccessKey" && (
                 <>
                   <Field>
                     <FieldLabel required={!provider}>Access key</FieldLabel>
@@ -1221,7 +1451,19 @@ export function ProviderSheet({
                   </Field>
                 </>
               )}
-              {type === "Azure" && azureAuthMode === "ServicePrincipal" && (
+              {kind === "Bedrock" && bedrockAuthMode === "BearerToken" && (
+                <Field>
+                  <FieldLabel required={!provider}>Bedrock API key</FieldLabel>
+                  <Input
+                    type="password"
+                    spellCheck={false}
+                    autoComplete="new-password"
+                    {...form.register("credentials.bearer_token")}
+                  />
+                  <FieldError errors={[form.getFieldState("credentials.bearer_token").error]} />
+                </Field>
+              )}
+              {kind === "Azure" && azureAuthMode === "ServicePrincipal" && (
                 <>
                   <Field>
                     <FieldLabel required={!provider}>Client ID</FieldLabel>
@@ -1253,7 +1495,7 @@ export function ProviderSheet({
                   </Field>
                 </>
               )}
-              {type === "OpenAICompatible" && customAuthMode === "None" && (
+              {isCompatibleKind && customAuthMode === "None" && (
                 <p className="text-muted-foreground text-sm">No credentials required.</p>
               )}
             </FormSection>
@@ -1302,7 +1544,7 @@ export function ProviderSheet({
                 />
                 <FieldError errors={[form.formState.errors.models]} />
               </Field>
-              {catalogState === "loading" && (
+              {modelCatalogState === "loading" && (
                 <p
                   aria-live="polite"
                   className="text-muted-foreground flex items-center gap-2 text-sm"
@@ -1311,7 +1553,7 @@ export function ProviderSheet({
                   Loading model catalog…
                 </p>
               )}
-              {catalogState === "error" && (
+              {modelCatalogState === "error" && (
                 <Alert variant="warning">
                   <TriangleAlert />
                   <AlertTitle>Model catalog unavailable</AlertTitle>

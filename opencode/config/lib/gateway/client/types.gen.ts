@@ -906,8 +906,15 @@ export type SandboxInference = {
   small_model?: SandboxInferenceModelRef
 }
 
-export type InferenceProviderType =
-  "OpenAI" | "Anthropic" | "Gemini" | "VertexAI" | "Bedrock" | "Azure" | "OpenAICompatible"
+export type InferenceProviderKind =
+  | "OpenAI"
+  | "Anthropic"
+  | "Gemini"
+  | "OpenAICompatible"
+  | "AnthropicCompatible"
+  | "Bedrock"
+  | "VertexAI"
+  | "Azure"
 
 export type InferenceModelModality = "text" | "audio" | "image" | "video" | "pdf"
 
@@ -952,7 +959,7 @@ export type AnthropicProviderConfig = {
 }
 
 export type GeminiProviderConfig = {
-  [key: string]: never
+  base_url?: string
 }
 
 export type VertexAiProviderConfig = {
@@ -962,6 +969,7 @@ export type VertexAiProviderConfig = {
 
 export type BedrockProviderConfig = {
   region: string
+  auth_mode: "AccessKey" | "BearerToken"
 }
 
 export type AzureProviderConfig = {
@@ -972,7 +980,7 @@ export type AzureProviderConfig = {
   auth_mode: "APIKey" | "ServicePrincipal"
 }
 
-export type OpenAiCompatibleProviderConfig = {
+export type CompatibleProviderConfig = {
   base_url: string
   path?: string
   path_prefix?: string
@@ -996,6 +1004,7 @@ export type InferenceProviderBedrockCredentials = {
   access_key?: string
   secret_key?: string
   session_token?: string
+  bearer_token?: string
 }
 
 export type InferenceProviderAzureCredentials = {
@@ -1006,139 +1015,166 @@ export type InferenceProviderAzureCredentials = {
 }
 
 export type InferenceProviderReadFields = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
 }
 
 export type OpenAiInferenceProviderWrite = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "OpenAI"
+  kind: "OpenAI"
   openai: OpenAiProviderConfig
 }
 
 export type AnthropicInferenceProviderWrite = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Anthropic"
+  kind: "Anthropic"
   anthropic: AnthropicProviderConfig
 }
 
 export type GeminiInferenceProviderWrite = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Gemini"
+  kind: "Gemini"
   gemini: GeminiProviderConfig
 }
 
 export type VertexAiInferenceProviderWrite = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "VertexAI"
+  kind: "VertexAI"
   vertex_ai: VertexAiProviderConfig
 }
 
 export type BedrockInferenceProviderWrite = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Bedrock"
+  kind: "Bedrock"
   bedrock: BedrockProviderConfig
 }
 
 export type AzureInferenceProviderWrite = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Azure"
+  kind: "Azure"
   azure: AzureProviderConfig
 }
 
 export type OpenAiCompatibleInferenceProviderWrite = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "OpenAICompatible"
-  openai_compatible: OpenAiCompatibleProviderConfig
+  kind: "OpenAICompatible"
+  openai_compatible: CompatibleProviderConfig
+}
+
+export type AnthropicCompatibleInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "AnthropicCompatible"
+  anthropic_compatible: CompatibleProviderConfig
 }
 
 export type InferenceProviderWriteDiscriminator =
   | ({
-      type: "OpenAI"
+      kind: "OpenAI"
     } & OpenAiInferenceProviderWrite)
   | ({
-      type: "Anthropic"
+      kind: "Anthropic"
     } & AnthropicInferenceProviderWrite)
   | ({
-      type: "Gemini"
+      kind: "Gemini"
     } & GeminiInferenceProviderWrite)
   | ({
-      type: "VertexAI"
+      kind: "VertexAI"
     } & VertexAiInferenceProviderWrite)
   | ({
-      type: "Bedrock"
+      kind: "Bedrock"
     } & BedrockInferenceProviderWrite)
   | ({
-      type: "Azure"
+      kind: "Azure"
     } & AzureInferenceProviderWrite)
   | ({
-      type: "OpenAICompatible"
+      kind: "OpenAICompatible"
     } & OpenAiCompatibleInferenceProviderWrite)
+  | ({
+      kind: "AnthropicCompatible"
+    } & AnthropicCompatibleInferenceProviderWrite)
 
 export type OpenAiInferenceProviderRead = {
-  type: "OpenAI"
+  kind: "OpenAI"
   openai: OpenAiProviderConfig
 }
 
 export type AnthropicInferenceProviderRead = {
-  type: "Anthropic"
+  kind: "Anthropic"
   anthropic: AnthropicProviderConfig
 }
 
 export type GeminiInferenceProviderRead = {
-  type: "Gemini"
+  kind: "Gemini"
   gemini: GeminiProviderConfig
 }
 
 export type VertexAiInferenceProviderRead = {
-  type: "VertexAI"
+  kind: "VertexAI"
   vertex_ai: VertexAiProviderConfig
 }
 
 export type BedrockInferenceProviderRead = {
-  type: "Bedrock"
+  kind: "Bedrock"
   bedrock: BedrockProviderConfig
 }
 
 export type AzureInferenceProviderRead = {
-  type: "Azure"
+  kind: "Azure"
   azure: AzureProviderConfig
 }
 
 export type OpenAiCompatibleInferenceProviderRead = {
-  type: "OpenAICompatible"
-  openai_compatible: OpenAiCompatibleProviderConfig
+  kind: "OpenAICompatible"
+  openai_compatible: CompatibleProviderConfig
+}
+
+export type AnthropicCompatibleInferenceProviderRead = {
+  kind: "AnthropicCompatible"
+  anthropic_compatible: CompatibleProviderConfig
 }
 
 export type InferenceProviderReadDiscriminator =
   | ({
-      type: "OpenAI"
+      kind: "OpenAI"
     } & OpenAiInferenceProviderRead)
   | ({
-      type: "Anthropic"
+      kind: "Anthropic"
     } & AnthropicInferenceProviderRead)
   | ({
-      type: "Gemini"
+      kind: "Gemini"
     } & GeminiInferenceProviderRead)
   | ({
-      type: "VertexAI"
+      kind: "VertexAI"
     } & VertexAiInferenceProviderRead)
   | ({
-      type: "Bedrock"
+      kind: "Bedrock"
     } & BedrockInferenceProviderRead)
   | ({
-      type: "Azure"
+      kind: "Azure"
     } & AzureInferenceProviderRead)
   | ({
-      type: "OpenAICompatible"
+      kind: "OpenAICompatible"
     } & OpenAiCompatibleInferenceProviderRead)
+  | ({
+      kind: "AnthropicCompatible"
+    } & AnthropicCompatibleInferenceProviderRead)
 
 export type CreateInferenceProviderRequest = InferenceProviderWriteDiscriminator
 
@@ -1182,6 +1218,22 @@ export type WatchInferenceProvidersEvent = {
 export type InferenceProviderUsage = {
   provider: InferenceProviderName
   sandboxes: Array<SandboxName>
+}
+
+export type InferenceProviderCatalogEntry = {
+  provider_id: string
+  name: string
+  provider_kind: InferenceProviderKind
+  base_url?: string
+  base_url_template?: string
+  auth_header?: string
+  auth_prefix?: string
+  documentation_url?: string
+}
+
+export type InferenceProviderCatalog = {
+  commit: string
+  providers: Array<InferenceProviderCatalogEntry>
 }
 
 export type InferenceModelSuggestion = InferenceModel & {
@@ -1346,83 +1398,102 @@ export type JsonObjectWritable = {
 }
 
 export type OpenAiInferenceProviderWriteWritable = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "OpenAI"
+  kind: "OpenAI"
   openai: OpenAiProviderConfig
   credentials: InferenceProviderApiKeyCredentials
 }
 
 export type AnthropicInferenceProviderWriteWritable = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Anthropic"
+  kind: "Anthropic"
   anthropic: AnthropicProviderConfig
   credentials: InferenceProviderApiKeyCredentials
 }
 
 export type GeminiInferenceProviderWriteWritable = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Gemini"
+  kind: "Gemini"
   gemini: GeminiProviderConfig
   credentials: InferenceProviderApiKeyCredentials
 }
 
 export type VertexAiInferenceProviderWriteWritable = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "VertexAI"
+  kind: "VertexAI"
   vertex_ai: VertexAiProviderConfig
   credentials: InferenceProviderVertexCredentials
 }
 
 export type BedrockInferenceProviderWriteWritable = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Bedrock"
+  kind: "Bedrock"
   bedrock: BedrockProviderConfig
   credentials: InferenceProviderBedrockCredentials
 }
 
 export type AzureInferenceProviderWriteWritable = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "Azure"
+  kind: "Azure"
   azure: AzureProviderConfig
   credentials: InferenceProviderAzureCredentials
 }
 
 export type OpenAiCompatibleInferenceProviderWriteWritable = {
+  catalog_provider: string
   display_name: string
   models: Array<InferenceModel>
-  type: "OpenAICompatible"
-  openai_compatible: OpenAiCompatibleProviderConfig
+  kind: "OpenAICompatible"
+  openai_compatible: CompatibleProviderConfig
+  credentials: InferenceProviderApiKeyCredentials
+}
+
+export type AnthropicCompatibleInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "AnthropicCompatible"
+  anthropic_compatible: CompatibleProviderConfig
   credentials: InferenceProviderApiKeyCredentials
 }
 
 export type InferenceProviderWriteDiscriminatorWritable =
   | ({
-      type: "OpenAI"
+      kind: "OpenAI"
     } & OpenAiInferenceProviderWriteWritable)
   | ({
-      type: "Anthropic"
+      kind: "Anthropic"
     } & AnthropicInferenceProviderWriteWritable)
   | ({
-      type: "Gemini"
+      kind: "Gemini"
     } & GeminiInferenceProviderWriteWritable)
   | ({
-      type: "VertexAI"
+      kind: "VertexAI"
     } & VertexAiInferenceProviderWriteWritable)
   | ({
-      type: "Bedrock"
+      kind: "Bedrock"
     } & BedrockInferenceProviderWriteWritable)
   | ({
-      type: "Azure"
+      kind: "Azure"
     } & AzureInferenceProviderWriteWritable)
   | ({
-      type: "OpenAICompatible"
+      kind: "OpenAICompatible"
     } & OpenAiCompatibleInferenceProviderWriteWritable)
+  | ({
+      kind: "AnthropicCompatible"
+    } & AnthropicCompatibleInferenceProviderWriteWritable)
 
 export type CreateInferenceProviderRequestWritable = InferenceProviderWriteDiscriminatorWritable
 
@@ -3647,13 +3718,48 @@ export type GetInferenceProviderUsageResponses = {
 export type GetInferenceProviderUsageResponse =
   GetInferenceProviderUsageResponses[keyof GetInferenceProviderUsageResponses]
 
-export type ListInferenceModelSuggestionsData = {
+export type ListInferenceProviderCatalogData = {
   body?: never
   path?: never
-  query: {
-    provider_type: InferenceProviderType
+  query?: {
+    q?: string
   }
   url: "/api/inference-provider/catalog"
+}
+
+export type ListInferenceProviderCatalogErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListInferenceProviderCatalogError =
+  ListInferenceProviderCatalogErrors[keyof ListInferenceProviderCatalogErrors]
+
+export type ListInferenceProviderCatalogResponses = {
+  /**
+   * Supported provider/runtime variants.
+   */
+  200: InferenceProviderCatalog
+}
+
+export type ListInferenceProviderCatalogResponse =
+  ListInferenceProviderCatalogResponses[keyof ListInferenceProviderCatalogResponses]
+
+export type ListInferenceModelSuggestionsData = {
+  body?: never
+  path: {
+    catalogProvider: string
+  }
+  query: {
+    provider_kind: InferenceProviderKind
+  }
+  url: "/api/inference-provider/catalog/{catalogProvider}/models"
 }
 
 export type ListInferenceModelSuggestionsErrors = {

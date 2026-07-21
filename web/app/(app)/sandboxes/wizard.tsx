@@ -90,7 +90,7 @@ import {
 } from "@/lib/gateway/client"
 import { zMcpConnectionName, zSkillName } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
-import { ProviderIcon, providerTypeLabels } from "@/app/(app)/inference-providers/provider-shared"
+import { ProviderIcon, providerKindLabels } from "@/app/(app)/inference-providers/provider-shared"
 import { PackageSearch } from "./package-search"
 
 type SandboxWizardMode = "create" | "update"
@@ -1277,10 +1277,13 @@ function ModelsStep({
                   <AccordionItem key={provider.id} value={provider.id}>
                     <AccordionTrigger className="hover:bg-muted/50 px-3 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0!">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <ProviderIcon type={provider.type} className="size-4 shrink-0" />
+                        <ProviderIcon
+                          provider={provider.catalog_provider}
+                          className="size-4 shrink-0"
+                        />
                         <span className="truncate font-medium">{provider.display_name}</span>
                         <span className="text-muted-foreground hidden truncate text-xs md:inline">
-                          {providerTypeLabels[provider.type]}
+                          {providerKindLabels[provider.kind]}
                         </span>
                       </div>
                       <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -1368,7 +1371,10 @@ function ModelsStep({
                       return (
                         <li key={key} className="flex items-center gap-2.5 px-3 py-2">
                           {provider ? (
-                            <ProviderIcon type={provider.type} className="size-4 shrink-0" />
+                            <ProviderIcon
+                              provider={provider.catalog_provider}
+                              className="size-4 shrink-0"
+                            />
                           ) : null}
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-medium">{displayName}</div>

@@ -359,28 +359,36 @@ components:
       - DELETED
       - IDLE
       type: string
-    AnthropicInferenceProviderRead:
+    AnthropicCompatibleInferenceProviderRead:
       properties:
-        anthropic:
-          $ref: '#/components/schemas/AnthropicProviderConfig'
-        type:
+        anthropic_compatible:
+          $ref: '#/components/schemas/CompatibleProviderConfig'
+        kind:
           enum:
-          - Anthropic
+          - AnthropicCompatible
           type: string
       required:
-      - type
-      - anthropic
+      - kind
+      - anthropic_compatible
       type: object
-    AnthropicInferenceProviderWrite:
+    AnthropicCompatibleInferenceProviderWrite:
       additionalProperties: false
       properties:
-        anthropic:
-          $ref: '#/components/schemas/AnthropicProviderConfig'
+        anthropic_compatible:
+          $ref: '#/components/schemas/CompatibleProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         credentials:
           $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
         display_name:
           maxLength: 128
           minLength: 1
+          type: string
+        kind:
+          enum:
+          - AnthropicCompatible
           type: string
         models:
           items:
@@ -388,14 +396,56 @@ components:
           maxItems: 500
           minItems: 1
           type: array
-        type:
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - anthropic_compatible
+      - credentials
+      type: object
+    AnthropicInferenceProviderRead:
+      properties:
+        anthropic:
+          $ref: '#/components/schemas/AnthropicProviderConfig'
+        kind:
           enum:
           - Anthropic
           type: string
       required:
+      - kind
+      - anthropic
+      type: object
+    AnthropicInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        anthropic:
+          $ref: '#/components/schemas/AnthropicProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - Anthropic
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
       - display_name
       - models
-      - type
+      - kind
       - anthropic
       - credentials
       type: object
@@ -411,12 +461,12 @@ components:
       properties:
         azure:
           $ref: '#/components/schemas/AzureProviderConfig'
-        type:
+        kind:
           enum:
           - Azure
           type: string
       required:
-      - type
+      - kind
       - azure
       type: object
     AzureInferenceProviderWrite:
@@ -424,11 +474,19 @@ components:
       properties:
         azure:
           $ref: '#/components/schemas/AzureProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         credentials:
           $ref: '#/components/schemas/InferenceProviderAzureCredentials'
         display_name:
           maxLength: 128
           minLength: 1
+          type: string
+        kind:
+          enum:
+          - Azure
           type: string
         models:
           items:
@@ -436,14 +494,11 @@ components:
           maxItems: 500
           minItems: 1
           type: array
-        type:
-          enum:
-          - Azure
-          type: string
       required:
+      - catalog_provider
       - display_name
       - models
-      - type
+      - kind
       - azure
       - credentials
       type: object
@@ -482,12 +537,12 @@ components:
       properties:
         bedrock:
           $ref: '#/components/schemas/BedrockProviderConfig'
-        type:
+        kind:
           enum:
           - Bedrock
           type: string
       required:
-      - type
+      - kind
       - bedrock
       type: object
     BedrockInferenceProviderWrite:
@@ -495,11 +550,19 @@ components:
       properties:
         bedrock:
           $ref: '#/components/schemas/BedrockProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         credentials:
           $ref: '#/components/schemas/InferenceProviderBedrockCredentials'
         display_name:
           maxLength: 128
           minLength: 1
+          type: string
+        kind:
+          enum:
+          - Bedrock
           type: string
         models:
           items:
@@ -507,20 +570,22 @@ components:
           maxItems: 500
           minItems: 1
           type: array
-        type:
-          enum:
-          - Bedrock
-          type: string
       required:
+      - catalog_provider
       - display_name
       - models
-      - type
+      - kind
       - bedrock
       - credentials
       type: object
     BedrockProviderConfig:
       additionalProperties: false
       properties:
+        auth_mode:
+          enum:
+          - AccessKey
+          - BearerToken
+          type: string
         region:
           maxLength: 63
           minLength: 1
@@ -528,6 +593,50 @@ components:
           type: string
       required:
       - region
+      - auth_mode
+      type: object
+    CompatibleProviderConfig:
+      additionalProperties: false
+      properties:
+        allow_private_endpoint:
+          default: false
+          type: boolean
+        auth_header:
+          maxLength: 128
+          minLength: 1
+          pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
+          type: string
+        auth_mode:
+          enum:
+          - None
+          - APIKey
+          type: string
+        auth_prefix:
+          maxLength: 128
+          type: string
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
+        headers:
+          items:
+            $ref: '#/components/schemas/InferenceProviderHeader'
+          maxItems: 32
+          type: array
+        path:
+          maxLength: 1024
+          pattern: ^/[^?#]*$
+          type: string
+        path_prefix:
+          maxLength: 1024
+          pattern: ^/[^?#]*$
+          type: string
+        skip_tls_verify:
+          default: false
+          type: boolean
+      required:
+      - base_url
+      - auth_mode
       type: object
     CreateAgentDirectoryRequest:
       additionalProperties: false
@@ -910,17 +1019,21 @@ components:
       properties:
         gemini:
           $ref: '#/components/schemas/GeminiProviderConfig'
-        type:
+        kind:
           enum:
           - Gemini
           type: string
       required:
-      - type
+      - kind
       - gemini
       type: object
     GeminiInferenceProviderWrite:
       additionalProperties: false
       properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         credentials:
           $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
         display_name:
@@ -929,25 +1042,31 @@ components:
           type: string
         gemini:
           $ref: '#/components/schemas/GeminiProviderConfig'
+        kind:
+          enum:
+          - Gemini
+          type: string
         models:
           items:
             $ref: '#/components/schemas/InferenceModel'
           maxItems: 500
           minItems: 1
           type: array
-        type:
-          enum:
-          - Gemini
-          type: string
       required:
+      - catalog_provider
       - display_name
       - models
-      - type
+      - kind
       - gemini
       - credentials
       type: object
     GeminiProviderConfig:
       additionalProperties: false
+      properties:
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
       type: object
     ImmutableSkillSummary:
       allOf:
@@ -1191,6 +1310,11 @@ components:
           maxLength: 49152
           type: string
           writeOnly: true
+        bearer_token:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
         secret_key:
           format: password
           maxLength: 49152
@@ -1201,6 +1325,56 @@ components:
           maxLength: 49152
           type: string
           writeOnly: true
+      type: object
+    InferenceProviderCatalog:
+      additionalProperties: false
+      properties:
+        commit:
+          maxLength: 40
+          minLength: 40
+          type: string
+        providers:
+          items:
+            $ref: '#/components/schemas/InferenceProviderCatalogEntry'
+          type: array
+      required:
+      - commit
+      - providers
+      type: object
+    InferenceProviderCatalogEntry:
+      additionalProperties: false
+      properties:
+        auth_header:
+          maxLength: 128
+          type: string
+        auth_prefix:
+          maxLength: 128
+          type: string
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
+        base_url_template:
+          maxLength: 2048
+          type: string
+        documentation_url:
+          format: uri
+          maxLength: 2048
+          type: string
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        provider_id:
+          maxLength: 128
+          minLength: 1
+          type: string
+        provider_kind:
+          $ref: '#/components/schemas/InferenceProviderKind'
+      required:
+      - provider_id
+      - name
+      - provider_kind
       type: object
     InferenceProviderCondition:
       additionalProperties: false
@@ -1239,6 +1413,17 @@ components:
       - name
       - value
       type: object
+    InferenceProviderKind:
+      enum:
+      - OpenAI
+      - Anthropic
+      - Gemini
+      - OpenAICompatible
+      - AnthropicCompatible
+      - Bedrock
+      - VertexAI
+      - Azure
+      type: string
     InferenceProviderName:
       description: Stable tenant-scoped inference provider ID.
       maxLength: 63
@@ -1249,13 +1434,14 @@ components:
       discriminator:
         mapping:
           Anthropic: '#/components/schemas/AnthropicInferenceProviderRead'
+          AnthropicCompatible: '#/components/schemas/AnthropicCompatibleInferenceProviderRead'
           Azure: '#/components/schemas/AzureInferenceProviderRead'
           Bedrock: '#/components/schemas/BedrockInferenceProviderRead'
           Gemini: '#/components/schemas/GeminiInferenceProviderRead'
           OpenAI: '#/components/schemas/OpenAIInferenceProviderRead'
           OpenAICompatible: '#/components/schemas/OpenAICompatibleInferenceProviderRead'
           VertexAI: '#/components/schemas/VertexAIInferenceProviderRead'
-        propertyName: type
+        propertyName: kind
       oneOf:
       - $ref: '#/components/schemas/OpenAIInferenceProviderRead'
       - $ref: '#/components/schemas/AnthropicInferenceProviderRead'
@@ -1264,8 +1450,13 @@ components:
       - $ref: '#/components/schemas/BedrockInferenceProviderRead'
       - $ref: '#/components/schemas/AzureInferenceProviderRead'
       - $ref: '#/components/schemas/OpenAICompatibleInferenceProviderRead'
+      - $ref: '#/components/schemas/AnthropicCompatibleInferenceProviderRead'
     InferenceProviderReadFields:
       properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         display_name:
           maxLength: 128
           minLength: 1
@@ -1277,19 +1468,10 @@ components:
           minItems: 1
           type: array
       required:
+      - catalog_provider
       - display_name
       - models
       type: object
-    InferenceProviderType:
-      enum:
-      - OpenAI
-      - Anthropic
-      - Gemini
-      - VertexAI
-      - Bedrock
-      - Azure
-      - OpenAICompatible
-      type: string
     InferenceProviderUsage:
       additionalProperties: false
       properties:
@@ -1316,13 +1498,14 @@ components:
       discriminator:
         mapping:
           Anthropic: '#/components/schemas/AnthropicInferenceProviderWrite'
+          AnthropicCompatible: '#/components/schemas/AnthropicCompatibleInferenceProviderWrite'
           Azure: '#/components/schemas/AzureInferenceProviderWrite'
           Bedrock: '#/components/schemas/BedrockInferenceProviderWrite'
           Gemini: '#/components/schemas/GeminiInferenceProviderWrite'
           OpenAI: '#/components/schemas/OpenAIInferenceProviderWrite'
           OpenAICompatible: '#/components/schemas/OpenAICompatibleInferenceProviderWrite'
           VertexAI: '#/components/schemas/VertexAIInferenceProviderWrite'
-        propertyName: type
+        propertyName: kind
       oneOf:
       - $ref: '#/components/schemas/OpenAIInferenceProviderWrite'
       - $ref: '#/components/schemas/AnthropicInferenceProviderWrite'
@@ -1331,6 +1514,7 @@ components:
       - $ref: '#/components/schemas/BedrockInferenceProviderWrite'
       - $ref: '#/components/schemas/AzureInferenceProviderWrite'
       - $ref: '#/components/schemas/OpenAICompatibleInferenceProviderWrite'
+      - $ref: '#/components/schemas/AnthropicCompatibleInferenceProviderWrite'
     JSONObject:
       additionalProperties:
         $ref: '#/components/schemas/JSONValue'
@@ -2023,24 +2207,32 @@ components:
       type: string
     OpenAICompatibleInferenceProviderRead:
       properties:
-        openai_compatible:
-          $ref: '#/components/schemas/OpenAICompatibleProviderConfig'
-        type:
+        kind:
           enum:
           - OpenAICompatible
           type: string
+        openai_compatible:
+          $ref: '#/components/schemas/CompatibleProviderConfig'
       required:
-      - type
+      - kind
       - openai_compatible
       type: object
     OpenAICompatibleInferenceProviderWrite:
       additionalProperties: false
       properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         credentials:
           $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
         display_name:
           maxLength: 128
           minLength: 1
+          type: string
+        kind:
+          enum:
+          - OpenAICompatible
           type: string
         models:
           items:
@@ -2049,81 +2241,43 @@ components:
           minItems: 1
           type: array
         openai_compatible:
-          $ref: '#/components/schemas/OpenAICompatibleProviderConfig'
-        type:
-          enum:
-          - OpenAICompatible
-          type: string
+          $ref: '#/components/schemas/CompatibleProviderConfig'
       required:
+      - catalog_provider
       - display_name
       - models
-      - type
+      - kind
       - openai_compatible
       - credentials
       type: object
-    OpenAICompatibleProviderConfig:
-      additionalProperties: false
-      properties:
-        allow_private_endpoint:
-          default: false
-          type: boolean
-        auth_header:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
-          type: string
-        auth_mode:
-          enum:
-          - None
-          - APIKey
-          type: string
-        auth_prefix:
-          maxLength: 128
-          type: string
-        base_url:
-          format: uri
-          maxLength: 2048
-          type: string
-        headers:
-          items:
-            $ref: '#/components/schemas/InferenceProviderHeader'
-          maxItems: 32
-          type: array
-        path:
-          maxLength: 1024
-          pattern: ^/[^?#]*$
-          type: string
-        path_prefix:
-          maxLength: 1024
-          pattern: ^/[^?#]*$
-          type: string
-        skip_tls_verify:
-          default: false
-          type: boolean
-      required:
-      - base_url
-      - auth_mode
-      type: object
     OpenAIInferenceProviderRead:
       properties:
-        openai:
-          $ref: '#/components/schemas/OpenAIProviderConfig'
-        type:
+        kind:
           enum:
           - OpenAI
           type: string
+        openai:
+          $ref: '#/components/schemas/OpenAIProviderConfig'
       required:
-      - type
+      - kind
       - openai
       type: object
     OpenAIInferenceProviderWrite:
       additionalProperties: false
       properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         credentials:
           $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
         display_name:
           maxLength: 128
           minLength: 1
+          type: string
+        kind:
+          enum:
+          - OpenAI
           type: string
         models:
           items:
@@ -2133,14 +2287,11 @@ components:
           type: array
         openai:
           $ref: '#/components/schemas/OpenAIProviderConfig'
-        type:
-          enum:
-          - OpenAI
-          type: string
       required:
+      - catalog_provider
       - display_name
       - models
-      - type
+      - kind
       - openai
       - credentials
       type: object
@@ -11150,24 +11301,32 @@ components:
       type: object
     VertexAIInferenceProviderRead:
       properties:
-        type:
+        kind:
           enum:
           - VertexAI
           type: string
         vertex_ai:
           $ref: '#/components/schemas/VertexAIProviderConfig'
       required:
-      - type
+      - kind
       - vertex_ai
       type: object
     VertexAIInferenceProviderWrite:
       additionalProperties: false
       properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
         credentials:
           $ref: '#/components/schemas/InferenceProviderVertexCredentials'
         display_name:
           maxLength: 128
           minLength: 1
+          type: string
+        kind:
+          enum:
+          - VertexAI
           type: string
         models:
           items:
@@ -11175,16 +11334,13 @@ components:
           maxItems: 500
           minItems: 1
           type: array
-        type:
-          enum:
-          - VertexAI
-          type: string
         vertex_ai:
           $ref: '#/components/schemas/VertexAIProviderConfig'
       required:
+      - catalog_provider
       - display_name
       - models
-      - type
+      - kind
       - vertex_ai
       - credentials
       type: object
@@ -12298,13 +12454,44 @@ paths:
       - inference-providers
   /api/inference-provider/catalog:
     get:
-      operationId: listInferenceModelSuggestions
+      operationId: listInferenceProviderCatalog
       parameters:
       - in: query
-        name: provider_type
+        name: q
+        required: false
+        schema:
+          maxLength: 128
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceProviderCatalog'
+          description: Supported provider/runtime variants.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Search the pinned OpenCode provider catalog.
+      tags:
+      - inference-providers
+  /api/inference-provider/catalog/{catalogProvider}/models:
+    get:
+      operationId: listInferenceModelSuggestions
+      parameters:
+      - in: path
+        name: catalogProvider
         required: true
         schema:
-          $ref: '#/components/schemas/InferenceProviderType'
+          maxLength: 128
+          minLength: 1
+          type: string
+      - in: query
+        name: provider_kind
+        required: true
+        schema:
+          $ref: '#/components/schemas/InferenceProviderKind'
       responses:
         "200":
           content:
@@ -12316,7 +12503,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
-      summary: List provider-filtered Models.dev suggestions.
+      summary: List Models.dev suggestions for one provider/runtime variant.
       tags:
       - inference-providers
   /api/inference-provider/watch:

@@ -1,55 +1,47 @@
 "use client"
 
+import { useState } from "react"
 import {
   AmazonWebServicesDark,
   AmazonWebServicesLight,
   AnthropicDark,
   AnthropicLight,
+  Cloudflare,
   Gemini,
   GoogleCloud,
+  Meta,
   MicrosoftAzure,
   OpenAIDark,
   OpenAILight,
+  XAIDark,
+  XAILight,
 } from "@ridemountainpig/svgl-react"
 import { Cloud } from "lucide-react"
-import type { InferenceProviderType } from "@/lib/gateway/client"
+import type { InferenceProviderKind } from "@/lib/gateway/client"
 
-/** providerTypes enumerates every backend the provider form can configure. */
-export const providerTypes = [
-  "OpenAI",
-  "Anthropic",
-  "Gemini",
-  "VertexAI",
-  "Bedrock",
-  "Azure",
-  "OpenAICompatible",
-] as const satisfies readonly InferenceProviderType[]
-
-/** providerTypeLabels maps backend identifiers to their marketing names. */
-export const providerTypeLabels: Record<InferenceProviderType, string> = {
+/** providerKindLabels describes the configuration selected by each kind. */
+export const providerKindLabels: Record<InferenceProviderKind, string> = {
   OpenAI: "OpenAI",
   Anthropic: "Anthropic",
   Gemini: "Google Gemini",
-  VertexAI: "Google Vertex AI",
-  Bedrock: "Amazon Bedrock",
-  Azure: "Microsoft Azure",
   OpenAICompatible: "OpenAI-compatible",
+  AnthropicCompatible: "Anthropic-compatible",
+  Bedrock: "Amazon Bedrock",
+  VertexAI: "Google Vertex AI",
+  Azure: "Microsoft Azure",
 }
 
-/**
- * ProviderIcon renders the vendor logo for a provider type. Logos with poor
- * contrast on dark surfaces ship a dedicated dark variant that is swapped in
- * with CSS so both stay in the DOM for instant theme switches. Icons are
- * decorative: adjacent text always carries the provider name.
- */
+/** ProviderIcon renders provider branding independently of configuration kind. */
 export function ProviderIcon({
-  type,
+  provider,
   className = "size-5",
 }: {
-  type: InferenceProviderType
+  provider: string
   className?: string
 }) {
-  if (type === "OpenAI") {
+  const [failedProvider, setFailedProvider] = useState<string | null>(null)
+
+  if (provider === "openai") {
     return (
       <>
         <OpenAILight aria-hidden className={`${className} dark:hidden`} />
@@ -57,7 +49,7 @@ export function ProviderIcon({
       </>
     )
   }
-  if (type === "Anthropic") {
+  if (provider === "anthropic") {
     return (
       <>
         <AnthropicLight aria-hidden className={`${className} dark:hidden`} />
@@ -65,9 +57,11 @@ export function ProviderIcon({
       </>
     )
   }
-  if (type === "Gemini") return <Gemini aria-hidden className={className} />
-  if (type === "VertexAI") return <GoogleCloud aria-hidden className={className} />
-  if (type === "Bedrock") {
+  if (provider === "google") return <Gemini aria-hidden className={className} />
+  if (provider.startsWith("google-vertex")) {
+    return <GoogleCloud aria-hidden className={className} />
+  }
+  if (provider === "amazon-bedrock") {
     return (
       <>
         <AmazonWebServicesLight aria-hidden className={`${className} dark:hidden`} />
@@ -75,6 +69,41 @@ export function ProviderIcon({
       </>
     )
   }
-  if (type === "Azure") return <MicrosoftAzure aria-hidden className={className} />
-  return <Cloud aria-hidden className={className} />
+  if (provider === "azure" || provider === "azure-cognitive-services") {
+    return <MicrosoftAzure aria-hidden className={className} />
+  }
+  if (provider === "xai") {
+    return (
+      <>
+        <XAILight aria-hidden className={`${className} dark:hidden`} />
+        <XAIDark aria-hidden className={`hidden ${className} dark:block`} />
+      </>
+    )
+  }
+  if (provider.startsWith("cloudflare-")) {
+    return <Cloudflare aria-hidden className={className} />
+  }
+  if (provider === "meta" || provider === "llama") {
+    return <Meta aria-hidden className={className} />
+  }
+  if (provider === "custom") return <Cloud aria-hidden className={className} />
+
+  if (failedProvider === provider) {
+    return <Cloud aria-hidden className={className} />
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- tiny external provider SVG
+    <img
+      aria-hidden
+      alt=""
+      className={`${className} shrink-0 dark:invert`}
+      height={20}
+      src={`https://models.dev/logos/${provider}.svg`}
+      width={20}
+      onError={() => {
+        setFailedProvider(provider)
+      }}
+    />
+  )
 }

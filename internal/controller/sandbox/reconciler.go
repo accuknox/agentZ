@@ -28,7 +28,6 @@ import (
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
-	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
@@ -502,7 +501,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 		targetCount++
 	}
 	targets := make([]agentgatewayv1alpha1.McpTargetSelector, 0, targetCount)
-	matchExpressions := make([]agentgatewayshared.CELExpression, 0, len(sandbox.Spec.MCPConnectionRefs))
+	matchExpressions := make([]agentgatewayv1alpha1.CELExpression, 0, len(sandbox.Spec.MCPConnectionRefs))
 	for _, conn := range conns {
 		target, err := mcp.ParseTarget(&conn)
 		if err != nil {
@@ -544,7 +543,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 			return fmt.Errorf("mcp connection ref %q is missing from sandbox spec", conn.Name)
 		}
 		for _, tool := range ref.Tools {
-			matchExpressions = append(matchExpressions, agentgatewayshared.CELExpression(
+			matchExpressions = append(matchExpressions, agentgatewayv1alpha1.CELExpression(
 				fmt.Sprintf(
 					`mcp.tool.target == %q && mcp.tool.name == %q`,
 					conn.Name,
@@ -583,9 +582,9 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 	}
 	obj.Spec.Policies = &agentgatewayv1alpha1.BackendFull{
 		MCP: &agentgatewayv1alpha1.BackendMCP{
-			Authorization: &agentgatewayshared.Authorization{
-				Action: agentgatewayshared.AuthorizationPolicyActionAllow,
-				Policy: agentgatewayshared.AuthorizationPolicy{
+			Authorization: &agentgatewayv1alpha1.Authorization{
+				Action: agentgatewayv1alpha1.AuthorizationPolicyActionAllow,
+				Policy: agentgatewayv1alpha1.AuthorizationPolicy{
 					MatchExpressions: matchExpressions,
 				},
 			},
@@ -738,62 +737,62 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 	currentSpec := obj.Spec.DeepCopy()
 	currentOwners := slices.Clone(obj.OwnerReferences)
 	backendRef := tracePolicyBackendRef(r.TraceBackend, traceBackendName)
-	randomSampling := agentgatewayshared.CELExpression("true")
+	randomSampling := agentgatewayv1alpha1.CELExpression("true")
 	attrs := &agentgatewayv1alpha1.LogTracingAttributes{
 		Add: []agentgatewayv1alpha1.AttributeAdd{
 			{
 				Name:       agentgatewayv1alpha1.ShortString("agentz.tenant_namespace"),
-				Expression: agentgatewayshared.CELExpression(strconv.Quote(namespace)),
+				Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("agentz.agent_name"),
-				Expression: agentgatewayshared.CELExpression("source.unverifiedWorkload.serviceAccount"),
+				Expression: agentgatewayv1alpha1.CELExpression("source.unverifiedWorkload.serviceAccount"),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("session.id"),
-				Expression: agentgatewayshared.CELExpression("mcp.sessionId"),
+				Expression: agentgatewayv1alpha1.CELExpression("mcp.sessionId"),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("mcp.connection.name"),
-				Expression: agentgatewayshared.CELExpression("mcp.tool.target"),
+				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.target"),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("mcp.tool.name"),
-				Expression: agentgatewayshared.CELExpression("mcp.tool.name"),
+				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.name"),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("tool.name"),
-				Expression: agentgatewayshared.CELExpression("mcp.tool.name"),
+				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.name"),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("tool.parameters"),
-				Expression: agentgatewayshared.CELExpression("mcp.tool.arguments"),
+				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.arguments"),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("output.value"),
-				Expression: agentgatewayshared.CELExpression("mcp.tool.result"),
+				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.result"),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("tool.error"),
-				Expression: agentgatewayshared.CELExpression("mcp.tool.error"),
+				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.error"),
 			},
 		},
 	}
 	resources := []agentgatewayv1alpha1.ResourceAdd{
 		{
 			Name:       agentgatewayv1alpha1.ShortString("service.name"),
-			Expression: agentgatewayshared.CELExpression(strconv.Quote("agentz-mcp-gateway")),
+			Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote("agentz-mcp-gateway")),
 		},
 		{
 			Name:       agentgatewayv1alpha1.ShortString("service.namespace"),
-			Expression: agentgatewayshared.CELExpression(strconv.Quote(namespace)),
+			Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
 		},
 	}
 
 	obj.OwnerReferences = sandboxOwnerReferences(owners)
 	obj.Spec = agentgatewayv1alpha1.AgentgatewayPolicySpec{
-		TargetRefs: []agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{{
-			LocalPolicyTargetReference: agentgatewayshared.LocalPolicyTargetReference{
+		TargetRefs: []agentgatewayv1alpha1.LocalPolicyTargetReferenceWithSectionName{{
+			LocalPolicyTargetReference: agentgatewayv1alpha1.LocalPolicyTargetReference{
 				Group: gwv1.Group("gateway.networking.k8s.io"),
 				Kind:  gwv1.Kind("Gateway"),
 				Name:  gwv1.ObjectName(mcp.GatewayName),
@@ -1042,7 +1041,7 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 
 	desiredSpec := agentgatewayv1alpha1.AgentgatewayParametersSpec{
 		AgentgatewayParametersOverlays: agentgatewayv1alpha1.AgentgatewayParametersOverlays{
-			Service: &agentgatewayshared.KubernetesResourceOverlay{
+			Service: &agentgatewayv1alpha1.KubernetesResourceOverlay{
 				Spec: &apiextensionsv1.JSON{Raw: specBytes},
 			},
 		},

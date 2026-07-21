@@ -56,9 +56,9 @@ func (v *Validator) ValidateCreate(_ context.Context, provider *agentzv1alpha1.I
 // ValidateUpdate validates immutable fields and referenced model removal.
 func (v *Validator) ValidateUpdate(ctx context.Context, oldProvider, newProvider *agentzv1alpha1.InferenceProvider) (admission.Warnings, error) {
 	fields := issuesToFields(inference.ValidateProvider(newProvider.Spec))
-	if oldProvider.Spec.Type != newProvider.Spec.Type {
+	if oldProvider.Spec.Kind != newProvider.Spec.Kind {
 		fields = append(fields, field.Invalid(
-			field.NewPath("spec").Child("type"), newProvider.Spec.Type, "field is immutable",
+			field.NewPath("spec").Child("kind"), newProvider.Spec.Kind, "field is immutable",
 		))
 	}
 

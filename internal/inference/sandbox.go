@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
-	agentgatewayshared "github.com/agentgateway/agentgateway/controller/api/v1alpha1/shared"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -112,25 +111,25 @@ func RenderSandboxProvider(namespace, sandboxName, providerName string, models [
 	for _, model := range models {
 		quoted = append(quoted, fmt.Sprintf("%q", model))
 	}
-	expression := agentgatewayshared.CELExpression(fmt.Sprintf(
+	expression := agentgatewayv1alpha1.CELExpression(fmt.Sprintf(
 		"default(json(request.body).model, \"\") in [%s]",
 		strings.Join(quoted, ", "),
 	))
 	policy := &agentgatewayv1alpha1.AgentgatewayPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
 		Spec: agentgatewayv1alpha1.AgentgatewayPolicySpec{
-			TargetRefs: []agentgatewayshared.LocalPolicyTargetReferenceWithSectionName{{
-				LocalPolicyTargetReference: agentgatewayshared.LocalPolicyTargetReference{
+			TargetRefs: []agentgatewayv1alpha1.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agentgatewayv1alpha1.LocalPolicyTargetReference{
 					Group: gwv1.Group("gateway.networking.k8s.io"),
 					Kind:  gwv1.Kind("HTTPRoute"),
 					Name:  gwv1.ObjectName(name),
 				},
 			}},
 			Traffic: &agentgatewayv1alpha1.Traffic{
-				Authorization: &agentgatewayshared.Authorization{
-					Action: agentgatewayshared.AuthorizationPolicyActionRequire,
-					Policy: agentgatewayshared.AuthorizationPolicy{
-						MatchExpressions: []agentgatewayshared.CELExpression{expression},
+				Authorization: &agentgatewayv1alpha1.Authorization{
+					Action: agentgatewayv1alpha1.AuthorizationPolicyActionRequire,
+					Policy: agentgatewayv1alpha1.AuthorizationPolicy{
+						MatchExpressions: []agentgatewayv1alpha1.CELExpression{expression},
 					},
 				},
 			},

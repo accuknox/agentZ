@@ -139,6 +139,9 @@ import type {
   ListInferenceModelSuggestionsData,
   ListInferenceModelSuggestionsErrors,
   ListInferenceModelSuggestionsResponses,
+  ListInferenceProviderCatalogData,
+  ListInferenceProviderCatalogErrors,
+  ListInferenceProviderCatalogResponses,
   ListInferenceProvidersData,
   ListInferenceProvidersErrors,
   ListInferenceProvidersResponses,
@@ -297,7 +300,9 @@ import {
   zListFileObservabilityQuery,
   zListImmutableSkillSummariesQuery,
   zListImmutableSkillVersionsPath,
+  zListInferenceModelSuggestionsPath,
   zListInferenceModelSuggestionsQuery,
+  zListInferenceProviderCatalogQuery,
   zListInferenceProvidersQuery,
   zListMcpConnectionsQuery,
   zListNetworkObservabilityPath,
@@ -1558,7 +1563,31 @@ export const getInferenceProviderUsage = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List provider-filtered Models.dev suggestions.
+ * Search the pinned OpenCode provider catalog.
+ */
+export const listInferenceProviderCatalog = <ThrowOnError extends boolean = false>(
+  options?: Options<ListInferenceProviderCatalogData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListInferenceProviderCatalogResponses,
+    ListInferenceProviderCatalogErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListInferenceProviderCatalogQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-provider/catalog",
+    ...options,
+  })
+
+/**
+ * List Models.dev suggestions for one provider/runtime variant.
  */
 export const listInferenceModelSuggestions = <ThrowOnError extends boolean = false>(
   options: Options<ListInferenceModelSuggestionsData, ThrowOnError>
@@ -1572,12 +1601,12 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
       await z
         .object({
           body: z.never().optional(),
-          path: z.never().optional(),
+          path: zListInferenceModelSuggestionsPath,
           query: zListInferenceModelSuggestionsQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/catalog",
+    url: "/api/inference-provider/catalog/{catalogProvider}/models",
     ...options,
   })
 

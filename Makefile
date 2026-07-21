@@ -26,6 +26,7 @@ all: generate lint build
 .PHONY: generate
 generate:
 	sqlc generate
+	go run ./hack/generate_inference_providers.go
 	go run ./hack/generate_opencode_gateway.go
 	oapi-codegen \
 		--include-tags agents,tenants,lens,secrets,sandboxes,inference-providers,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \

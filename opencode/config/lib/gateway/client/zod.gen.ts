@@ -1029,14 +1029,15 @@ export const zSandboxInference = z.object({
   small_model: zSandboxInferenceModelRef.optional(),
 })
 
-export const zInferenceProviderType = z.enum([
+export const zInferenceProviderKind = z.enum([
   "OpenAI",
   "Anthropic",
   "Gemini",
-  "VertexAI",
-  "Bedrock",
-  "Azure",
   "OpenAICompatible",
+  "AnthropicCompatible",
+  "Bedrock",
+  "VertexAI",
+  "Azure",
 ])
 
 export const zInferenceModelModality = z.enum(["text", "audio", "image", "video", "pdf"])
@@ -1085,7 +1086,9 @@ export const zAnthropicProviderConfig = z.object({
   base_url: z.url().max(2048).optional(),
 })
 
-export const zGeminiProviderConfig = z.record(z.string(), z.never())
+export const zGeminiProviderConfig = z.object({
+  base_url: z.url().max(2048).optional(),
+})
 
 export const zVertexAiProviderConfig = z.object({
   project: z.string().min(1).max(128),
@@ -1098,6 +1101,7 @@ export const zBedrockProviderConfig = z.object({
     .min(1)
     .max(63)
     .regex(/^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$/),
+  auth_mode: z.enum(["AccessKey", "BearerToken"]),
 })
 
 export const zAzureProviderConfig = z.object({
@@ -1108,7 +1112,7 @@ export const zAzureProviderConfig = z.object({
   auth_mode: z.enum(["APIKey", "ServicePrincipal"]),
 })
 
-export const zOpenAiCompatibleProviderConfig = z.object({
+export const zCompatibleProviderConfig = z.object({
   base_url: z.url().max(2048),
   path: z
     .string()
@@ -1145,6 +1149,7 @@ export const zInferenceProviderBedrockCredentials = z.object({
   access_key: z.string().max(49152).optional(),
   secret_key: z.string().max(49152).optional(),
   session_token: z.string().max(49152).optional(),
+  bearer_token: z.string().max(49152).optional(),
 })
 
 export const zInferenceProviderAzureCredentials = z.object({
@@ -1155,112 +1160,135 @@ export const zInferenceProviderAzureCredentials = z.object({
 })
 
 export const zInferenceProviderReadFields = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
 })
 
 export const zOpenAiInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["OpenAI"]),
+  kind: z.enum(["OpenAI"]),
   openai: zOpenAiProviderConfig,
 })
 
 export const zAnthropicInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Anthropic"]),
+  kind: z.enum(["Anthropic"]),
   anthropic: zAnthropicProviderConfig,
 })
 
 export const zGeminiInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Gemini"]),
+  kind: z.enum(["Gemini"]),
   gemini: zGeminiProviderConfig,
 })
 
 export const zVertexAiInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["VertexAI"]),
+  kind: z.enum(["VertexAI"]),
   vertex_ai: zVertexAiProviderConfig,
 })
 
 export const zBedrockInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Bedrock"]),
+  kind: z.enum(["Bedrock"]),
   bedrock: zBedrockProviderConfig,
 })
 
 export const zAzureInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Azure"]),
+  kind: z.enum(["Azure"]),
   azure: zAzureProviderConfig,
 })
 
 export const zOpenAiCompatibleInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["OpenAICompatible"]),
-  openai_compatible: zOpenAiCompatibleProviderConfig,
+  kind: z.enum(["OpenAICompatible"]),
+  openai_compatible: zCompatibleProviderConfig,
 })
 
-export const zInferenceProviderWriteDiscriminator = z.discriminatedUnion("type", [
-  zOpenAiInferenceProviderWrite.extend({ type: z.literal("OpenAI") }),
-  zAnthropicInferenceProviderWrite.extend({ type: z.literal("Anthropic") }),
-  zGeminiInferenceProviderWrite.extend({ type: z.literal("Gemini") }),
-  zVertexAiInferenceProviderWrite.extend({ type: z.literal("VertexAI") }),
-  zBedrockInferenceProviderWrite.extend({ type: z.literal("Bedrock") }),
-  zAzureInferenceProviderWrite.extend({ type: z.literal("Azure") }),
-  zOpenAiCompatibleInferenceProviderWrite.extend({ type: z.literal("OpenAICompatible") }),
+export const zAnthropicCompatibleInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["AnthropicCompatible"]),
+  anthropic_compatible: zCompatibleProviderConfig,
+})
+
+export const zInferenceProviderWriteDiscriminator = z.discriminatedUnion("kind", [
+  zOpenAiInferenceProviderWrite.extend({ kind: z.literal("OpenAI") }),
+  zAnthropicInferenceProviderWrite.extend({ kind: z.literal("Anthropic") }),
+  zGeminiInferenceProviderWrite.extend({ kind: z.literal("Gemini") }),
+  zVertexAiInferenceProviderWrite.extend({ kind: z.literal("VertexAI") }),
+  zBedrockInferenceProviderWrite.extend({ kind: z.literal("Bedrock") }),
+  zAzureInferenceProviderWrite.extend({ kind: z.literal("Azure") }),
+  zOpenAiCompatibleInferenceProviderWrite.extend({ kind: z.literal("OpenAICompatible") }),
+  zAnthropicCompatibleInferenceProviderWrite.extend({ kind: z.literal("AnthropicCompatible") }),
 ])
 
 export const zOpenAiInferenceProviderRead = z.object({
-  type: z.enum(["OpenAI"]),
+  kind: z.enum(["OpenAI"]),
   openai: zOpenAiProviderConfig,
 })
 
 export const zAnthropicInferenceProviderRead = z.object({
-  type: z.enum(["Anthropic"]),
+  kind: z.enum(["Anthropic"]),
   anthropic: zAnthropicProviderConfig,
 })
 
 export const zGeminiInferenceProviderRead = z.object({
-  type: z.enum(["Gemini"]),
+  kind: z.enum(["Gemini"]),
   gemini: zGeminiProviderConfig,
 })
 
 export const zVertexAiInferenceProviderRead = z.object({
-  type: z.enum(["VertexAI"]),
+  kind: z.enum(["VertexAI"]),
   vertex_ai: zVertexAiProviderConfig,
 })
 
 export const zBedrockInferenceProviderRead = z.object({
-  type: z.enum(["Bedrock"]),
+  kind: z.enum(["Bedrock"]),
   bedrock: zBedrockProviderConfig,
 })
 
 export const zAzureInferenceProviderRead = z.object({
-  type: z.enum(["Azure"]),
+  kind: z.enum(["Azure"]),
   azure: zAzureProviderConfig,
 })
 
 export const zOpenAiCompatibleInferenceProviderRead = z.object({
-  type: z.enum(["OpenAICompatible"]),
-  openai_compatible: zOpenAiCompatibleProviderConfig,
+  kind: z.enum(["OpenAICompatible"]),
+  openai_compatible: zCompatibleProviderConfig,
 })
 
-export const zInferenceProviderReadDiscriminator = z.discriminatedUnion("type", [
-  zOpenAiInferenceProviderRead.extend({ type: z.literal("OpenAI") }),
-  zAnthropicInferenceProviderRead.extend({ type: z.literal("Anthropic") }),
-  zGeminiInferenceProviderRead.extend({ type: z.literal("Gemini") }),
-  zVertexAiInferenceProviderRead.extend({ type: z.literal("VertexAI") }),
-  zBedrockInferenceProviderRead.extend({ type: z.literal("Bedrock") }),
-  zAzureInferenceProviderRead.extend({ type: z.literal("Azure") }),
-  zOpenAiCompatibleInferenceProviderRead.extend({ type: z.literal("OpenAICompatible") }),
+export const zAnthropicCompatibleInferenceProviderRead = z.object({
+  kind: z.enum(["AnthropicCompatible"]),
+  anthropic_compatible: zCompatibleProviderConfig,
+})
+
+export const zInferenceProviderReadDiscriminator = z.discriminatedUnion("kind", [
+  zOpenAiInferenceProviderRead.extend({ kind: z.literal("OpenAI") }),
+  zAnthropicInferenceProviderRead.extend({ kind: z.literal("Anthropic") }),
+  zGeminiInferenceProviderRead.extend({ kind: z.literal("Gemini") }),
+  zVertexAiInferenceProviderRead.extend({ kind: z.literal("VertexAI") }),
+  zBedrockInferenceProviderRead.extend({ kind: z.literal("Bedrock") }),
+  zAzureInferenceProviderRead.extend({ kind: z.literal("Azure") }),
+  zOpenAiCompatibleInferenceProviderRead.extend({ kind: z.literal("OpenAICompatible") }),
+  zAnthropicCompatibleInferenceProviderRead.extend({ kind: z.literal("AnthropicCompatible") }),
 ])
 
 export const zCreateInferenceProviderRequest = zInferenceProviderWriteDiscriminator
@@ -1308,6 +1336,22 @@ export const zWatchInferenceProvidersEvent = z.object({
 export const zInferenceProviderUsage = z.object({
   provider: zInferenceProviderName,
   sandboxes: z.array(zSandboxName),
+})
+
+export const zInferenceProviderCatalogEntry = z.object({
+  provider_id: z.string().min(1).max(128),
+  name: z.string().min(1).max(128),
+  provider_kind: zInferenceProviderKind,
+  base_url: z.url().max(2048).optional(),
+  base_url_template: z.string().max(2048).optional(),
+  auth_header: z.string().max(128).optional(),
+  auth_prefix: z.string().max(128).optional(),
+  documentation_url: z.url().max(2048).optional(),
+})
+
+export const zInferenceProviderCatalog = z.object({
+  commit: z.string().length(40),
+  providers: z.array(zInferenceProviderCatalogEntry),
 })
 
 export const zInferenceModelSuggestion = zInferenceModel.and(
@@ -1523,69 +1567,88 @@ export const zWorkflowRunInputsWritable = zJsonValueWritable
 export const zJsonObjectWritable = z.record(z.string(), zJsonValueWritable)
 
 export const zOpenAiInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["OpenAI"]),
+  kind: z.enum(["OpenAI"]),
   openai: zOpenAiProviderConfig,
   credentials: zInferenceProviderApiKeyCredentials,
 })
 
 export const zAnthropicInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Anthropic"]),
+  kind: z.enum(["Anthropic"]),
   anthropic: zAnthropicProviderConfig,
   credentials: zInferenceProviderApiKeyCredentials,
 })
 
 export const zGeminiInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Gemini"]),
+  kind: z.enum(["Gemini"]),
   gemini: zGeminiProviderConfig,
   credentials: zInferenceProviderApiKeyCredentials,
 })
 
 export const zVertexAiInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["VertexAI"]),
+  kind: z.enum(["VertexAI"]),
   vertex_ai: zVertexAiProviderConfig,
   credentials: zInferenceProviderVertexCredentials,
 })
 
 export const zBedrockInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Bedrock"]),
+  kind: z.enum(["Bedrock"]),
   bedrock: zBedrockProviderConfig,
   credentials: zInferenceProviderBedrockCredentials,
 })
 
 export const zAzureInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["Azure"]),
+  kind: z.enum(["Azure"]),
   azure: zAzureProviderConfig,
   credentials: zInferenceProviderAzureCredentials,
 })
 
 export const zOpenAiCompatibleInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
-  type: z.enum(["OpenAICompatible"]),
-  openai_compatible: zOpenAiCompatibleProviderConfig,
+  kind: z.enum(["OpenAICompatible"]),
+  openai_compatible: zCompatibleProviderConfig,
   credentials: zInferenceProviderApiKeyCredentials,
 })
 
-export const zInferenceProviderWriteDiscriminatorWritable = z.discriminatedUnion("type", [
-  zOpenAiInferenceProviderWriteWritable.extend({ type: z.literal("OpenAI") }),
-  zAnthropicInferenceProviderWriteWritable.extend({ type: z.literal("Anthropic") }),
-  zGeminiInferenceProviderWriteWritable.extend({ type: z.literal("Gemini") }),
-  zVertexAiInferenceProviderWriteWritable.extend({ type: z.literal("VertexAI") }),
-  zBedrockInferenceProviderWriteWritable.extend({ type: z.literal("Bedrock") }),
-  zAzureInferenceProviderWriteWritable.extend({ type: z.literal("Azure") }),
-  zOpenAiCompatibleInferenceProviderWriteWritable.extend({ type: z.literal("OpenAICompatible") }),
+export const zAnthropicCompatibleInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["AnthropicCompatible"]),
+  anthropic_compatible: zCompatibleProviderConfig,
+  credentials: zInferenceProviderApiKeyCredentials,
+})
+
+export const zInferenceProviderWriteDiscriminatorWritable = z.discriminatedUnion("kind", [
+  zOpenAiInferenceProviderWriteWritable.extend({ kind: z.literal("OpenAI") }),
+  zAnthropicInferenceProviderWriteWritable.extend({ kind: z.literal("Anthropic") }),
+  zGeminiInferenceProviderWriteWritable.extend({ kind: z.literal("Gemini") }),
+  zVertexAiInferenceProviderWriteWritable.extend({ kind: z.literal("VertexAI") }),
+  zBedrockInferenceProviderWriteWritable.extend({ kind: z.literal("Bedrock") }),
+  zAzureInferenceProviderWriteWritable.extend({ kind: z.literal("Azure") }),
+  zOpenAiCompatibleInferenceProviderWriteWritable.extend({ kind: z.literal("OpenAICompatible") }),
+  zAnthropicCompatibleInferenceProviderWriteWritable.extend({
+    kind: z.literal("AnthropicCompatible"),
+  }),
 ])
 
 export const zCreateInferenceProviderRequestWritable = zInferenceProviderWriteDiscriminatorWritable
@@ -2248,8 +2311,21 @@ export const zGetInferenceProviderUsagePath = z.object({
  */
 export const zGetInferenceProviderUsageResponse = zInferenceProviderUsage
 
+export const zListInferenceProviderCatalogQuery = z.object({
+  q: z.string().max(128).optional(),
+})
+
+/**
+ * Supported provider/runtime variants.
+ */
+export const zListInferenceProviderCatalogResponse = zInferenceProviderCatalog
+
+export const zListInferenceModelSuggestionsPath = z.object({
+  catalogProvider: z.string().min(1).max(128),
+})
+
 export const zListInferenceModelSuggestionsQuery = z.object({
-  provider_type: zInferenceProviderType,
+  provider_kind: zInferenceProviderKind,
 })
 
 /**

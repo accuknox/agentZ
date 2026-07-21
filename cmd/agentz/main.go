@@ -209,6 +209,7 @@ var cmd = &cli.Command{
 		}
 		withSource := c.Bool("log-with-source")
 		slog.SetDefault(newLogger(level, format, withSource))
+		ctrl.SetLogger(logr.FromSlogHandler(slog.Default().Handler()))
 		return ctx, nil
 	},
 }
@@ -602,8 +603,6 @@ var managerCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		ctrl.SetLogger(logr.FromSlogHandler(slog.Default().Handler()))
-
 		// if the enable-http2 flag is false (the default), http/2 should be
 		// disabled due to its vulnerabilities. More specifically, disabling
 		// http/2 will prevent from being vulnerable to the HTTP/2 Stream
@@ -882,7 +881,7 @@ var managerCmd = &cli.Command{
 		inferenceProviderReconciler := &inferenceprovidercontroller.Reconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("inference-provider"),
+			Recorder: mgr.GetEventRecorder("inference-provider"),
 			Config: inferenceprovidercontroller.ReconcilerConfig{
 				StoreName:               inferenceSecretStoreName,
 				RefreshInterval:         inferenceSecretRefreshInterval,

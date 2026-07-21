@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,7 +50,7 @@ type Reconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Config   ReconcilerConfig
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders,verbs=get;list;watch;patch
@@ -83,7 +83,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		err := fmt.Errorf("provider configuration is invalid: %s", issues[0].Message)
 		statusErr := r.updateStatus(ctx, provider, inference.Runtime{}, err)
 		if r.Recorder != nil {
-			r.Recorder.Event(provider, corev1.EventTypeWarning, "InvalidConfiguration", err.Error())
+			r.Recorder.Eventf(
+				provider,
+				nil,
+				corev1.EventTypeWarning,
+				"InvalidConfiguration",
+				"Reconcile",
+				"%s", err.Error(),
+			)
 		}
 		return ctrl.Result{}, statusErr
 	}
@@ -141,10 +148,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		runtime.ExternalSecret = currentExternalSecret
 	}
 	if r.Recorder != nil && runtime.ExternalSecret != nil && !externalSecretReady(runtime.ExternalSecret) {
-		r.Recorder.Event(provider, corev1.EventTypeWarning, "CredentialsNotReady", "ExternalSecret has not materialized the expected credential keys")
+		r.Recorder.Eventf(
+			provider,
+			nil,
+			corev1.EventTypeWarning,
+			"CredentialsNotReady",
+			"Reconcile",
+			"ExternalSecret has not materialized the expected credential keys",
+		)
 	}
 	if r.Recorder != nil && !backendAccepted(runtime.Backend) {
-		r.Recorder.Event(provider, corev1.EventTypeWarning, "BackendNotReady", "AgentGateway has not accepted the provider backend")
+		r.Recorder.Eventf(
+			provider,
+			nil,
+			corev1.EventTypeWarning,
+			"BackendNotReady",
+			"Reconcile",
+			"AgentGateway has not accepted the provider backend",
+		)
 	}
 	return ctrl.Result{}, r.updateStatus(ctx, provider, runtime, nil)
 }
@@ -225,7 +246,15 @@ func (r *Reconciler) blockDeletion(ctx context.Context, provider *agentzv1alpha1
 		message = reconcileErr.Error()
 	}
 	if r.Recorder != nil {
-		r.Recorder.Event(provider, corev1.EventTypeWarning, reason, message)
+		r.Recorder.Eventf(
+			provider,
+			nil,
+			corev1.EventTypeWarning,
+			reason,
+			"Delete",
+			"%s",
+			message,
+		)
 	}
 	statusErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current := &agentzv1alpha1.InferenceProvider{}
@@ -324,7 +353,14 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 				keysReady := hasKeys(secret, runtime.SecretKeys)
 				credentialsReady = credentialsReady && keysReady
 				if !keysReady && r.Recorder != nil {
-					r.Recorder.Event(current, corev1.EventTypeWarning, "CredentialKeysMissing", "Target Secret is missing one or more expected credential keys")
+					r.Recorder.Eventf(
+						current,
+						nil,
+						corev1.EventTypeWarning,
+						"CredentialKeysMissing",
+						"Reconcile",
+						"Target Secret is missing one or more expected credential keys",
+					)
 				}
 			case !apierrors.IsNotFound(err):
 				return fmt.Errorf("read provider target secret status: %w", err)

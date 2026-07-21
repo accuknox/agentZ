@@ -20,6 +20,7 @@ import (
 
 const (
 	credentialAPIKey             = "apiKey"
+	credentialBearerToken        = "bearerToken"
 	credentialServiceAccountJSON = "serviceAccountJSON"
 	credentialAccessKey          = "accessKey"
 	credentialSecretKey          = "secretKey"
@@ -79,6 +80,7 @@ type Issue struct {
 // CredentialValues is the complete typed write-only credential input surface.
 type CredentialValues struct {
 	APIKey             string
+	BearerToken        string
 	ServiceAccountJSON string
 	AccessKey          string
 	SecretKey          string
@@ -111,6 +113,23 @@ type serviceAccount struct {
 // controls before admission or rendering.
 func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	issues := []Issue{}
+	if strings.TrimSpace(spec.CatalogProvider) == "" {
+		issues = append(issues, Issue{Field: "catalogProvider", Message: "field is required"})
+	}
+	isCompatible := spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible || spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
+	isCatalogEntry := spec.CatalogProvider == "custom" && isCompatible
+	for _, entry := range catalogEntries {
+		if entry.ProviderID == spec.CatalogProvider && entry.Kind == spec.Kind {
+			isCatalogEntry = true
+			break
+		}
+	}
+	if !isCatalogEntry {
+		issues = append(issues, Issue{
+			Field:   "catalogProvider",
+			Message: "provider and kind are not supported together",
+		})
+	}
 	if strings.TrimSpace(spec.DisplayName) == "" {
 		issues = append(issues, Issue{Field: "displayName", Message: "field is required"})
 	}
@@ -140,48 +159,55 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	if spec.OpenAICompatible != nil {
 		arms++
 	}
+	if spec.AnthropicCompatible != nil {
+		arms++
+	}
 	if arms != 1 {
 		issues = append(issues, Issue{
-			Field:   "type",
+			Field:   "kind",
 			Message: "exactly one matching provider configuration is required",
 		})
 	}
 
-	switch spec.Type {
-	case agentzv1alpha1.InferenceProviderTypeOpenAI:
+	switch spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindOpenAI:
 		if spec.OpenAI == nil || arms != 1 {
 			issues = append(issues, Issue{
 				Field:   "openAI",
-				Message: "configuration must match type",
+				Message: "configuration must match kind",
 			})
 			break
 		}
 		if spec.OpenAI.BaseURL != "" {
 			issues = append(issues, validateEndpoint("openAI.baseURL", spec.OpenAI.BaseURL, false, false)...)
 		}
-	case agentzv1alpha1.InferenceProviderTypeAnthropic:
+	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		if spec.Anthropic == nil || arms != 1 {
 			issues = append(issues, Issue{
 				Field:   "anthropic",
-				Message: "configuration must match type",
+				Message: "configuration must match kind",
 			})
 			break
 		}
 		if spec.Anthropic.BaseURL != "" {
 			issues = append(issues, validateEndpoint("anthropic.baseURL", spec.Anthropic.BaseURL, false, false)...)
 		}
-	case agentzv1alpha1.InferenceProviderTypeGemini:
+	case agentzv1alpha1.InferenceProviderKindGemini:
 		if spec.Gemini == nil || arms != 1 {
 			issues = append(issues, Issue{
 				Field:   "gemini",
-				Message: "configuration must match type",
+				Message: "configuration must match kind",
 			})
+			break
 		}
-	case agentzv1alpha1.InferenceProviderTypeVertexAI:
+		if spec.Gemini.BaseURL != "" {
+			issues = append(issues, validateEndpoint("gemini.baseURL", spec.Gemini.BaseURL, false, false)...)
+		}
+	case agentzv1alpha1.InferenceProviderKindVertexAI:
 		if spec.VertexAI == nil || arms != 1 {
 			issues = append(issues, Issue{
 				Field:   "vertexAI",
-				Message: "configuration must match type",
+				Message: "configuration must match kind",
 			})
 			break
 		}
@@ -197,11 +223,11 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				Message: "field is required",
 			})
 		}
-	case agentzv1alpha1.InferenceProviderTypeBedrock:
+	case agentzv1alpha1.InferenceProviderKindBedrock:
 		if spec.Bedrock == nil || arms != 1 {
 			issues = append(issues, Issue{
 				Field:   "bedrock",
-				Message: "configuration must match type",
+				Message: "configuration must match kind",
 			})
 			break
 		}
@@ -211,11 +237,18 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				Message: "must be a valid AWS region",
 			})
 		}
-	case agentzv1alpha1.InferenceProviderTypeAzure:
+		if spec.Bedrock.AuthMode != agentzv1alpha1.BedrockAuthModeAccessKey &&
+			spec.Bedrock.AuthMode != agentzv1alpha1.BedrockAuthModeBearerToken {
+			issues = append(issues, Issue{
+				Field:   "bedrock.authMode",
+				Message: "unsupported authentication mode",
+			})
+		}
+	case agentzv1alpha1.InferenceProviderKindAzure:
 		if spec.Azure == nil || arms != 1 {
 			issues = append(issues, Issue{
 				Field:   "azure",
-				Message: "configuration must match type",
+				Message: "configuration must match kind",
 			})
 			break
 		}
@@ -237,44 +270,50 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				Message: "field is valid only for Foundry",
 			})
 		}
-	case agentzv1alpha1.InferenceProviderTypeOpenAICompatible:
-		if spec.OpenAICompatible == nil || arms != 1 {
+	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
+		cfg := spec.OpenAICompatible
+		field := "openAICompatible"
+		if spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible {
+			cfg = spec.AnthropicCompatible
+			field = "anthropicCompatible"
+		}
+		if cfg == nil || arms != 1 {
 			issues = append(issues, Issue{
-				Field:   "openAICompatible",
-				Message: "configuration must match type",
+				Field:   field,
+				Message: "configuration must match kind",
 			})
 			break
 		}
-		cfg := spec.OpenAICompatible
-		issues = append(issues, validateEndpoint("openAICompatible.baseURL", cfg.BaseURL, cfg.AllowPrivateEndpoint, cfg.SkipTLSVerify)...)
+		issues = append(issues, validateEndpoint(field+".baseURL", cfg.BaseURL, cfg.AllowPrivateEndpoint, cfg.SkipTLSVerify)...)
 		if cfg.Path != "" && cfg.PathPrefix != "" {
 			issues = append(issues, Issue{
-				Field:   "openAICompatible.pathPrefix",
+				Field:   field + ".pathPrefix",
 				Message: "path and path prefix are mutually exclusive",
 			})
 		}
 		if cfg.Path != "" && !providerPathPattern.MatchString(cfg.Path) {
 			issues = append(issues, Issue{
-				Field:   "openAICompatible.path",
+				Field:   field + ".path",
 				Message: "must be an absolute path without query or fragment",
 			})
 		}
 		if cfg.PathPrefix != "" && !providerPathPattern.MatchString(cfg.PathPrefix) {
 			issues = append(issues, Issue{
-				Field:   "openAICompatible.pathPrefix",
+				Field:   field + ".pathPrefix",
 				Message: "must be an absolute path without query or fragment",
 			})
 		}
-		if cfg.AuthMode == agentzv1alpha1.OpenAICompatibleAuthModeAPIKey && cfg.AuthHeader == "" {
+		if cfg.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeAPIKey && cfg.AuthHeader == "" {
 			issues = append(issues, Issue{
-				Field:   "openAICompatible.authHeader",
+				Field:   field + ".authHeader",
 				Message: "field is required",
 			})
 		}
-		if cfg.AuthMode == agentzv1alpha1.OpenAICompatibleAuthModeNone &&
+		if cfg.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeNone &&
 			(cfg.AuthHeader != "" || cfg.AuthPrefix != "") {
 			issues = append(issues, Issue{
-				Field:   "openAICompatible.authMode",
+				Field:   field + ".authMode",
 				Message: "authentication settings require api-key authentication",
 			})
 		}
@@ -283,76 +322,76 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 		}) >= 0
 		if invalidAuthPrefix {
 			issues = append(issues, Issue{
-				Field:   "openAICompatible.authPrefix",
+				Field:   field + ".authPrefix",
 				Message: "must not contain invalid header control characters",
 			})
 		}
 		if cfg.AuthHeader != "" {
 			if cfg.AuthHeader != strings.ToLower(cfg.AuthHeader) || !headerNamePattern.MatchString(cfg.AuthHeader) {
 				issues = append(issues, Issue{
-					Field:   "openAICompatible.authHeader",
+					Field:   field + ".authHeader",
 					Message: "must be a valid lowercase header name",
 				})
 			}
 			if _, forbidden := gatewayControlledHeaders[cfg.AuthHeader]; forbidden {
 				issues = append(issues, Issue{
-					Field:   "openAICompatible.authHeader",
+					Field:   field + ".authHeader",
 					Message: "header is controlled by the gateway",
 				})
 			}
 		}
 		seen := make(map[string]struct{}, len(cfg.Headers))
 		for i, header := range cfg.Headers {
-			field := fmt.Sprintf("openAICompatible.headers[%d].name", i)
+			headerField := fmt.Sprintf("%s.headers[%d].name", field, i)
 			if header.Name != strings.ToLower(header.Name) {
 				issues = append(issues, Issue{
-					Field:   field,
+					Field:   headerField,
 					Message: "header name must be lowercase",
 				})
 			}
 			if !headerNamePattern.MatchString(header.Name) {
 				issues = append(issues, Issue{
-					Field:   field,
+					Field:   headerField,
 					Message: "must be a valid header name",
 				})
 			}
 			if len(header.Value) < 1 || len(header.Value) > 1024 {
 				issues = append(issues, Issue{
-					Field:   fmt.Sprintf("openAICompatible.headers[%d].value", i),
+					Field:   fmt.Sprintf("%s.headers[%d].value", field, i),
 					Message: "must contain between 1 and 1024 characters",
 				})
 			}
 			invalidValue := strings.IndexFunc(header.Value, func(r rune) bool { return r == 0x7f || (r < 0x20 && r != '\t') }) >= 0
 			if invalidValue {
 				issues = append(issues, Issue{
-					Field:   fmt.Sprintf("openAICompatible.headers[%d].value", i),
+					Field:   fmt.Sprintf("%s.headers[%d].value", field, i),
 					Message: "must not contain invalid header control characters",
 				})
 			}
 			if _, exists := seen[header.Name]; exists {
-				issues = append(issues, Issue{Field: field, Message: "header name must be unique"})
+				issues = append(issues, Issue{Field: headerField, Message: "header name must be unique"})
 			}
 			seen[header.Name] = struct{}{}
 			_, controlled := gatewayControlledHeaders[header.Name]
 			_, credential := credentialHeaders[header.Name]
 			if header.Name == cfg.AuthHeader {
 				issues = append(issues, Issue{
-					Field:   field,
+					Field:   headerField,
 					Message: "header conflicts with authentication",
 				})
 				continue
 			}
 			if controlled || credential {
 				issues = append(issues, Issue{
-					Field:   field,
+					Field:   headerField,
 					Message: "header is controlled by the gateway",
 				})
 			}
 		}
 	default:
 		issues = append(issues, Issue{
-			Field:   "type",
-			Message: "unsupported provider type",
+			Field:   "kind",
+			Message: "unsupported provider kind",
 		})
 	}
 
@@ -406,6 +445,12 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 			issues = append(issues, Issue{
 				Field:   field + ".limits.input",
 				Message: "must be positive",
+			})
+		}
+		if model.Catalog != nil && model.Catalog.Provider != spec.CatalogProvider {
+			issues = append(issues, Issue{
+				Field:   field + ".catalog.provider",
+				Message: "must match the provider catalog",
 			})
 		}
 	}
@@ -528,11 +573,16 @@ func CredentialsForCreate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 	if err != nil {
 		return nil, err
 	}
-	if !changed && spec.Type != agentzv1alpha1.InferenceProviderTypeOpenAICompatible {
+	isCompatible := spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible ||
+		spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
+	if !changed && !isCompatible {
 		return nil, &InputError{Field: "credentials", Message: "complete credentials are required"}
 	}
-	if !changed && spec.OpenAICompatible != nil &&
-		spec.OpenAICompatible.AuthMode == agentzv1alpha1.OpenAICompatibleAuthModeAPIKey {
+	cfg := spec.OpenAICompatible
+	if spec.AnthropicCompatible != nil {
+		cfg = spec.AnthropicCompatible
+	}
+	if !changed && cfg != nil && cfg.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeAPIKey {
 		return nil, &InputError{Field: "credentials.apiKey", Message: "field is required"}
 	}
 	return record, nil
@@ -542,31 +592,32 @@ func CredentialsForCreate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 // and false changed result means the stored record must remain untouched.
 func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values CredentialValues) (map[string]any, bool, error) {
 	hasAPIKey := strings.TrimSpace(values.APIKey) != ""
+	hasBearerToken := strings.TrimSpace(values.BearerToken) != ""
 	hasServiceAccount := strings.TrimSpace(values.ServiceAccountJSON) != ""
 	hasAWS := strings.TrimSpace(values.AccessKey) != "" || strings.TrimSpace(values.SecretKey) != "" ||
 		strings.TrimSpace(values.SessionToken) != ""
 	hasAzure := strings.TrimSpace(values.ClientID) != "" || strings.TrimSpace(values.TenantID) != "" ||
 		strings.TrimSpace(values.ClientSecret) != ""
 
-	switch spec.Type {
-	case agentzv1alpha1.InferenceProviderTypeOpenAI,
-		agentzv1alpha1.InferenceProviderTypeAnthropic,
-		agentzv1alpha1.InferenceProviderTypeGemini:
-		if hasServiceAccount || hasAWS || hasAzure {
+	switch spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindOpenAI,
+		agentzv1alpha1.InferenceProviderKindAnthropic,
+		agentzv1alpha1.InferenceProviderKindGemini:
+		if hasBearerToken || hasServiceAccount || hasAWS || hasAzure {
 			return nil, false, &InputError{
 				Field:   "credentials",
-				Message: "credential shape does not match provider type",
+				Message: "credential shape does not match provider kind",
 			}
 		}
 		if !hasAPIKey {
 			return nil, false, nil
 		}
 		return map[string]any{credentialAPIKey: values.APIKey}, true, nil
-	case agentzv1alpha1.InferenceProviderTypeVertexAI:
-		if hasAPIKey || hasAWS || hasAzure {
+	case agentzv1alpha1.InferenceProviderKindVertexAI:
+		if hasAPIKey || hasBearerToken || hasAWS || hasAzure {
 			return nil, false, &InputError{
 				Field:   "credentials",
-				Message: "credential shape does not match provider type",
+				Message: "credential shape does not match provider kind",
 			}
 		}
 		if !hasServiceAccount {
@@ -588,11 +639,35 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 			}
 		}
 		return map[string]any{credentialServiceAccountJSON: values.ServiceAccountJSON}, true, nil
-	case agentzv1alpha1.InferenceProviderTypeBedrock:
+	case agentzv1alpha1.InferenceProviderKindBedrock:
 		if hasAPIKey || hasServiceAccount || hasAzure {
 			return nil, false, &InputError{
 				Field:   "credentials",
-				Message: "credential shape does not match provider type",
+				Message: "credential shape does not match provider kind",
+			}
+		}
+		if spec.Bedrock == nil {
+			return nil, false, &InputError{
+				Field:   "bedrock",
+				Message: "configuration must match provider kind",
+			}
+		}
+		if spec.Bedrock.AuthMode == agentzv1alpha1.BedrockAuthModeBearerToken {
+			if hasAWS {
+				return nil, false, &InputError{
+					Field:   "credentials",
+					Message: "credential shape does not match authentication mode",
+				}
+			}
+			if !hasBearerToken {
+				return nil, false, nil
+			}
+			return map[string]any{credentialBearerToken: values.BearerToken}, true, nil
+		}
+		if hasBearerToken {
+			return nil, false, &InputError{
+				Field:   "credentials",
+				Message: "credential shape does not match authentication mode",
 			}
 		}
 		if !hasAWS {
@@ -612,15 +687,15 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 			record[credentialSessionToken] = values.SessionToken
 		}
 		return record, true, nil
-	case agentzv1alpha1.InferenceProviderTypeAzure:
+	case agentzv1alpha1.InferenceProviderKindAzure:
 		if spec.Azure == nil {
 			return nil, false, &InputError{
 				Field:   "azure",
-				Message: "configuration must match provider type",
+				Message: "configuration must match provider kind",
 			}
 		}
 		if spec.Azure.AuthMode == agentzv1alpha1.AzureAuthModeAPIKey {
-			if hasServiceAccount || hasAWS || hasAzure {
+			if hasBearerToken || hasServiceAccount || hasAWS || hasAzure {
 				return nil, false, &InputError{
 					Field:   "credentials",
 					Message: "credential shape does not match authentication mode",
@@ -631,7 +706,7 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 			}
 			return map[string]any{credentialAPIKey: values.APIKey}, true, nil
 		}
-		if hasAPIKey || hasServiceAccount || hasAWS {
+		if hasAPIKey || hasBearerToken || hasServiceAccount || hasAWS {
 			return nil, false, &InputError{
 				Field:   "credentials",
 				Message: "credential shape does not match authentication mode",
@@ -651,20 +726,27 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 			credentialClientID: values.ClientID, credentialTenantID: values.TenantID,
 			credentialClientSecret: values.ClientSecret,
 		}, true, nil
-	case agentzv1alpha1.InferenceProviderTypeOpenAICompatible:
-		if spec.OpenAICompatible == nil {
+	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
+		cfg := spec.OpenAICompatible
+		field := "openAICompatible"
+		if spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible {
+			cfg = spec.AnthropicCompatible
+			field = "anthropicCompatible"
+		}
+		if cfg == nil {
 			return nil, false, &InputError{
-				Field:   "openAICompatible",
-				Message: "configuration must match provider type",
+				Field:   field,
+				Message: "configuration must match provider kind",
 			}
 		}
-		if hasServiceAccount || hasAWS || hasAzure {
+		if hasBearerToken || hasServiceAccount || hasAWS || hasAzure {
 			return nil, false, &InputError{
 				Field:   "credentials",
-				Message: "credential shape does not match provider type",
+				Message: "credential shape does not match provider kind",
 			}
 		}
-		if spec.OpenAICompatible.AuthMode == agentzv1alpha1.OpenAICompatibleAuthModeNone {
+		if cfg.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeNone {
 			if hasAPIKey {
 				return nil, false, &InputError{
 					Field:   "credentials",
@@ -678,7 +760,7 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 		}
 		return map[string]any{credentialAPIKey: values.APIKey}, true, nil
 	default:
-		return nil, false, &InputError{Field: "type", Message: "unsupported provider type"}
+		return nil, false, &InputError{Field: "kind", Message: "unsupported provider kind"}
 	}
 }
 

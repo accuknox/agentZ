@@ -17,9 +17,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Provider type
-      jsonPath: .spec.type
-      name: Type
+    - description: Provider kind
+      jsonPath: .spec.kind
+      name: Kind
       type: string
     - description: Control-plane state
       jsonPath: .status.state
@@ -68,6 +68,86 @@ spec:
                     maxLength: 2048
                     type: string
                 type: object
+              anthropicCompatible:
+                description: AnthropicCompatible configures a custom Anthropic-compatible
+                  endpoint.
+                properties:
+                  allowPrivateEndpoint:
+                    description: AllowPrivateEndpoint explicitly permits private endpoints
+                      or plain HTTP.
+                    type: boolean
+                  authHeader:
+                    description: AuthHeader is the lowercase destination header for
+                      the API key.
+                    maxLength: 128
+                    pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
+                    type: string
+                  authMode:
+                    description: AuthMode selects API-key or unauthenticated access.
+                    enum:
+                    - None
+                    - APIKey
+                    type: string
+                  authPrefix:
+                    description: AuthPrefix is prepended to the API key at the controlled
+                      upstream hop.
+                    maxLength: 128
+                    pattern: ^[^\x00-\x08\x0A-\x1F\x7F]*$
+                    type: string
+                  baseURL:
+                    description: BaseURL is the compatible endpoint.
+                    format: uri
+                    maxLength: 2048
+                    type: string
+                  headers:
+                    description: Headers contains non-secret upstream headers.
+                    items:
+                      description: InferenceProviderHeader is one non-secret custom
+                        upstream header.
+                      properties:
+                        name:
+                          description: Name is the lowercase HTTP header name.
+                          maxLength: 128
+                          pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
+                          type: string
+                        value:
+                          description: Value is the non-secret header value.
+                          maxLength: 1024
+                          minLength: 1
+                          pattern: ^[^\x00-\x08\x0A-\x1F\x7F]*$
+                          type: string
+                      required:
+                      - name
+                      - value
+                      type: object
+                    maxItems: 32
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  path:
+                    description: Path replaces the provider request path when set.
+                    maxLength: 1024
+                    pattern: ^/[^?#]*$
+                    type: string
+                  pathPrefix:
+                    description: PathPrefix replaces the default provider API prefix
+                      when set.
+                    maxLength: 1024
+                    pattern: ^/[^?#]*$
+                    type: string
+                  skipTLSVerify:
+                    description: SkipTLSVerify explicitly disables upstream TLS certificate
+                      verification.
+                    type: boolean
+                required:
+                - authMode
+                - baseURL
+                type: object
+                x-kubernetes-validations:
+                - message: authentication header and prefix require API-key authentication
+                  rule: 'self.authMode == ''APIKey'' ? has(self.authHeader) : !has(self.authHeader)
+                    && !has(self.authPrefix)'
               azure:
                 description: Azure configures Azure OpenAI or Azure AI Foundry.
                 properties:
@@ -110,14 +190,30 @@ spec:
               bedrock:
                 description: Bedrock configures native Amazon Bedrock.
                 properties:
+                  authMode:
+                    description: AuthMode selects the credential shape used for Bedrock.
+                    enum:
+                    - AccessKey
+                    - BearerToken
+                    type: string
                   region:
                     description: Region is the AWS region used for SigV4 signing and
                       dispatch.
                     pattern: ^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$
                     type: string
                 required:
+                - authMode
                 - region
                 type: object
+              catalogProvider:
+                description: CatalogProvider is the immutable OpenCode provider ID
+                  or custom.
+                maxLength: 128
+                minLength: 1
+                type: string
+                x-kubernetes-validations:
+                - message: catalog provider is immutable
+                  rule: self == oldSelf
               displayName:
                 description: DisplayName is the editable human-readable provider label.
                 maxLength: 128
@@ -125,7 +221,26 @@ spec:
                 type: string
               gemini:
                 description: Gemini configures native Gemini.
+                properties:
+                  baseURL:
+                    description: BaseURL overrides the native Gemini endpoint when
+                      set.
+                    format: uri
+                    maxLength: 2048
+                    type: string
                 type: object
+              kind:
+                description: Kind selects the immutable provider configuration arm.
+                enum:
+                - OpenAI
+                - Anthropic
+                - Gemini
+                - OpenAICompatible
+                - AnthropicCompatible
+                - Bedrock
+                - VertexAI
+                - Azure
+                type: string
               models:
                 description: Models lists the explicitly enabled upstream models.
                 items:
@@ -302,7 +417,7 @@ spec:
                     pattern: ^[^\x00-\x08\x0A-\x1F\x7F]*$
                     type: string
                   baseURL:
-                    description: BaseURL is the custom OpenAI-compatible endpoint.
+                    description: BaseURL is the compatible endpoint.
                     format: uri
                     maxLength: 2048
                     type: string
@@ -355,17 +470,6 @@ spec:
                 - message: authentication header and prefix require API-key authentication
                   rule: 'self.authMode == ''APIKey'' ? has(self.authHeader) : !has(self.authHeader)
                     && !has(self.authPrefix)'
-              type:
-                description: Type selects the immutable provider configuration arm.
-                enum:
-                - OpenAI
-                - Anthropic
-                - Gemini
-                - VertexAI
-                - Bedrock
-                - Azure
-                - OpenAICompatible
-                type: string
               vertexAI:
                 description: VertexAI configures native Vertex AI.
                 properties:
@@ -384,42 +488,55 @@ spec:
                 - region
                 type: object
             required:
+            - catalogProvider
             - displayName
+            - kind
             - models
-            - type
             type: object
             x-kubernetes-validations:
-            - message: provider type is immutable
-              rule: self.type == oldSelf.type
-            - message: OpenAI type requires only openAI configuration
-              rule: 'self.type == ''OpenAI'' ? has(self.openAI) && !has(self.anthropic)
-                && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock)
-                && !has(self.azure) && !has(self.openAICompatible) : true'
-            - message: Anthropic type requires only anthropic configuration
-              rule: 'self.type == ''Anthropic'' ? has(self.anthropic) && !has(self.openAI)
-                && !has(self.gemini) && !has(self.vertexAI) && !has(self.bedrock)
-                && !has(self.azure) && !has(self.openAICompatible) : true'
-            - message: Gemini type requires only gemini configuration
-              rule: 'self.type == ''Gemini'' ? has(self.gemini) && !has(self.openAI)
-                && !has(self.anthropic) && !has(self.vertexAI) && !has(self.bedrock)
-                && !has(self.azure) && !has(self.openAICompatible) : true'
-            - message: VertexAI type requires only vertexAI configuration
-              rule: 'self.type == ''VertexAI'' ? has(self.vertexAI) && !has(self.openAI)
-                && !has(self.anthropic) && !has(self.gemini) && !has(self.bedrock)
-                && !has(self.azure) && !has(self.openAICompatible) : true'
-            - message: Bedrock type requires only bedrock configuration
-              rule: 'self.type == ''Bedrock'' ? has(self.bedrock) && !has(self.openAI)
-                && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI)
-                && !has(self.azure) && !has(self.openAICompatible) : true'
-            - message: Azure type requires only azure configuration
-              rule: 'self.type == ''Azure'' ? has(self.azure) && !has(self.openAI)
-                && !has(self.anthropic) && !has(self.gemini) && !has(self.vertexAI)
-                && !has(self.bedrock) && !has(self.openAICompatible) : true'
-            - message: OpenAICompatible type requires only openAICompatible configuration
-              rule: 'self.type == ''OpenAICompatible'' ? has(self.openAICompatible)
-                && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini)
-                && !has(self.vertexAI) && !has(self.bedrock) && !has(self.azure) :
+            - message: provider kind is immutable
+              rule: self.kind == oldSelf.kind
+            - message: OpenAI kind requires only openAI configuration
+              rule: 'self.kind == ''OpenAI'' ? has(self.openAI) && !has(self.anthropic)
+                && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible)
+                && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) :
                 true'
+            - message: Anthropic kind requires only anthropic configuration
+              rule: 'self.kind == ''Anthropic'' ? has(self.anthropic) && !has(self.openAI)
+                && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible)
+                && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) :
+                true'
+            - message: Gemini kind requires only gemini configuration
+              rule: 'self.kind == ''Gemini'' ? has(self.gemini) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.openAICompatible) && !has(self.anthropicCompatible)
+                && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) :
+                true'
+            - message: OpenAICompatible kind requires only openAICompatible configuration
+              rule: 'self.kind == ''OpenAICompatible'' ? has(self.openAICompatible)
+                && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini)
+                && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI)
+                && !has(self.azure) : true'
+            - message: AnthropicCompatible kind requires only anthropicCompatible
+                configuration
+              rule: 'self.kind == ''AnthropicCompatible'' ? has(self.anthropicCompatible)
+                && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini)
+                && !has(self.openAICompatible) && !has(self.bedrock) && !has(self.vertexAI)
+                && !has(self.azure) : true'
+            - message: Bedrock kind requires only bedrock configuration
+              rule: 'self.kind == ''Bedrock'' ? has(self.bedrock) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible)
+                && !has(self.anthropicCompatible) && !has(self.vertexAI) && !has(self.azure)
+                : true'
+            - message: VertexAI kind requires only vertexAI configuration
+              rule: 'self.kind == ''VertexAI'' ? has(self.vertexAI) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible)
+                && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.azure)
+                : true'
+            - message: Azure kind requires only azure configuration
+              rule: 'self.kind == ''Azure'' ? has(self.azure) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible)
+                && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI)
+                : true'
           status:
             description: Status describes the observed provider runtime.
             properties:

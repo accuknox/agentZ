@@ -298,7 +298,7 @@ function DeleteSessionButton({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem
-              className="text-destructive"
+              variant="destructive"
               onSelect={(event) => {
                 event.preventDefault()
                 setOpen(true)

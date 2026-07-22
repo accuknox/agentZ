@@ -28,8 +28,29 @@ import (
 func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) (bool, error) {
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
 	models := make(map[string][]string)
+	targets := []inference.SandboxTarget{}
 	ready := len(sandbox.Spec.Inference.Models) > 0
 	for _, ref := range sandbox.Spec.Inference.Models {
+		if ref.Provider == agentzv1alpha1.InferencePoolProvider {
+			pool := &agentzv1alpha1.InferencePool{}
+			key := client.ObjectKey{Namespace: sandbox.Namespace, Name: ref.Model}
+			if err := r.Get(ctx, key, pool); err != nil {
+				return false, fmt.Errorf("get inference pool %q: %w", ref.Model, err)
+			}
+			if !pool.DeletionTimestamp.IsZero() {
+				return false, fmt.Errorf("inference pool %q is terminating", ref.Model)
+			}
+			isAvailable := pool.Status.State == agentzv1alpha1.InferencePoolStateReady || pool.Status.State == agentzv1alpha1.InferencePoolStatePartiallyDegraded
+			ready = ready && isAvailable
+			targets = append(targets, inference.SandboxTarget{
+				Name:    "pool-" + pool.Name,
+				Backend: pool.Name,
+				Path:    inference.SandboxPoolPath(sandbox.Name, pool.Name),
+				Models:  []string{pool.Name},
+				Labels:  map[string]string{inference.PoolLabel: pool.Name},
+			})
+			continue
+		}
 		provider := providers[ref.Provider]
 		if provider == nil {
 			provider = &agentzv1alpha1.InferenceProvider{}
@@ -59,6 +80,18 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 		}
 		models[ref.Provider] = append(models[ref.Provider], ref.Model)
 	}
+	for providerName := range providers {
+		targets = append(targets, inference.SandboxTarget{
+			Name:    providerName,
+			Backend: providerName,
+			Path:    inference.SandboxProviderPath(sandbox.Name, providerName),
+			Models:  models[providerName],
+			Labels:  map[string]string{inference.ProviderLabel: providerName},
+		})
+	}
+	slices.SortFunc(targets, func(a, b inference.SandboxTarget) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 	if err := r.reconcileInferenceGateway(ctx, sandbox.Namespace); err != nil {
 		return false, err
 	}
@@ -77,14 +110,9 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 		return false, fmt.Errorf("get inference trace policy status: %w", err)
 	}
 	ready = ready && inferencePolicyReady(tracePolicy)
-	desired := make(map[string]struct{}, len(providers))
-	for providerName := range providers {
-		runtime := inference.RenderSandboxProvider(
-			sandbox.Namespace,
-			sandbox.Name,
-			providerName,
-			models[providerName],
-		)
+	desired := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		runtime := inference.RenderSandboxTarget(sandbox.Namespace, sandbox.Name, target)
 		desired[runtime.Route.Name] = struct{}{}
 		currentRoute := &gwv1.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{
@@ -275,12 +303,20 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 							Port: "80", Protocol: ciliumapi.ProtoTCP,
 						}},
 						Rules: &ciliumapi.L7Rules{
-							HTTP: ciliumapi.PortRulesHTTP{{
-								Path: "^" + inference.SandboxProviderPath(
-									owners[i].Name,
-									"[^/]+",
-								) + "/.*$",
-							}},
+							HTTP: ciliumapi.PortRulesHTTP{
+								{
+									Path: "^" + inference.SandboxProviderPath(
+										owners[i].Name,
+										"[^/]+",
+									) + "/.*$",
+								},
+								{
+									Path: "^" + inference.SandboxPoolPath(
+										owners[i].Name,
+										"[^/]+",
+									) + "/.*$",
+								},
+							},
 						},
 					}},
 				})

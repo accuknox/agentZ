@@ -8,6 +8,7 @@ import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
+import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import type { SecretHost } from "@/lib/gateway/client"
 import { SandboxWizard } from "../../wizard"
 
@@ -40,12 +41,14 @@ async function UpdateSandboxContent({ name }: { name: string }) {
   const mcpResult = listMcpConnectionsCachedQuery({ limit: 200 })
   const skillsResult = listImmutableSkillsCachedQuery()
   const providersResult = listInferenceProvidersCachedQuery()
+  const poolsResult = listInferencePoolsCachedQuery()
   const secretHostSuggestions = listSandboxSecretHostSuggestions(name)
-  const [sandboxes, mcpConnections, skills, providers] = await Promise.all([
+  const [sandboxes, mcpConnections, skills, providers, pools] = await Promise.all([
     sandboxResult,
     mcpResult,
     skillsResult,
     providersResult,
+    poolsResult,
   ])
 
   if (sandboxes.error || !sandboxes.sandboxes) {
@@ -94,6 +97,7 @@ async function UpdateSandboxContent({ name }: { name: string }) {
         initialInference={sandbox.inference}
         immutableSkills={skills.skills ?? []}
         inferenceProviders={providers.providers ?? []}
+        inferencePools={pools.pools ?? []}
         mcpConnections={mcpConnections.mcpConnections ?? []}
         secretHostSuggestions={secretHostSuggestions}
       />

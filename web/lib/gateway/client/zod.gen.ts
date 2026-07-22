@@ -121,6 +121,15 @@ export const zInferenceProviderName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
+ * Stable tenant-scoped inference Pool ID.
+ */
+export const zInferencePoolName = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+/**
  * Immutable Skill resource name.
  */
 export const zSkillName = z
@@ -1335,6 +1344,84 @@ export const zWatchInferenceProvidersEvent = z.object({
 
 export const zInferenceProviderUsage = z.object({
   provider: zInferenceProviderName,
+  pools: z.array(zInferencePoolName),
+  sandboxes: z.array(zSandboxName),
+})
+
+export const zInferencePoolMember = z.object({
+  provider: zInferenceProviderName,
+  model: z.string().min(1).max(512),
+})
+
+export const zInferencePoolWrite = z.object({
+  display_name: z.string().min(1).max(128),
+  automatic_failover: z.boolean(),
+  members: z.array(zInferencePoolMember).min(1).max(8),
+})
+
+export const zCreateInferencePoolRequest = zInferencePoolWrite
+
+export const zUpdateInferencePoolRequest = z.object({
+  resource_version: z.string().min(1),
+  pool: zInferencePoolWrite,
+})
+
+export const zInferenceProtocol = z.enum(["OpenAI", "Anthropic"])
+
+export const zInferencePoolState = z.enum(["Accepted", "Ready", "PartiallyDegraded", "Degraded"])
+
+export const zInferencePoolContract = z.object({
+  capabilities: zInferenceModelCapabilities,
+  modalities: zInferenceModelModalities,
+  limits: zInferenceModelLimits,
+})
+
+export const zInferencePoolWarning = z.object({
+  code: z.enum(["MixedProtocols"]),
+  message: z.string(),
+})
+
+export const zInferencePoolMemberStatus = z.object({
+  provider: zInferenceProviderName,
+  model: z.string().min(1).max(512),
+  protocol: zInferenceProtocol,
+  ready: z.boolean(),
+  reason: z.string(),
+  message: z.string(),
+})
+
+export const zInferencePool = z.object({
+  id: zInferencePoolName,
+  display_name: z.string().min(1).max(128),
+  resource_version: z.string(),
+  automatic_failover: z.boolean(),
+  members: z.array(zInferencePoolMember).min(1).max(8),
+  state: zInferencePoolState,
+  conditions: z.array(zInferenceProviderCondition),
+  contract: zInferencePoolContract.optional(),
+  protocol: zInferenceProtocol.optional(),
+  warnings: z.array(zInferencePoolWarning),
+  member_statuses: z.array(zInferencePoolMemberStatus),
+  usage_count: z.int().gte(0),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zListInferencePoolsResponse = z.object({
+  pools: z.array(zInferencePool),
+  next_page_token: z.string(),
+})
+
+export const zWatchInferencePoolsRequest = z.object({
+  pool_ids: z.array(zInferencePoolName).max(200).optional(),
+})
+
+export const zWatchInferencePoolsEvent = z.object({
+  pools: z.array(zInferencePool),
+})
+
+export const zInferencePoolUsage = z.object({
+  pool: zInferencePoolName,
   sandboxes: z.array(zSandboxName),
 })
 
@@ -1677,6 +1764,11 @@ export const zAgentNamePath = zAgentName
  * Stable inference provider ID.
  */
 export const zInferenceProviderNamePath = zInferenceProviderName
+
+/**
+ * Stable inference Pool ID.
+ */
+export const zInferencePoolNamePath = zInferencePoolName
 
 /**
  * Path relative to the agent workspace root.
@@ -2032,6 +2124,41 @@ export const zListInferenceProviderCatalogResponse = zInferenceProviderCatalog
  * Model suggestions with cache provenance.
  */
 export const zListInferenceModelSuggestionsResponse = zInferenceModelSuggestions
+
+/**
+ * Paginated inference Pools.
+ */
+export const zListInferencePoolsResponse2 = zListInferencePoolsResponse
+
+/**
+ * Pool created.
+ */
+export const zCreateInferencePoolResponse = zInferencePool
+
+/**
+ * Pool deletion accepted.
+ */
+export const zDeleteInferencePoolResponse = z.void()
+
+/**
+ * Inference Pool.
+ */
+export const zGetInferencePoolResponse = zInferencePool
+
+/**
+ * Pool updated.
+ */
+export const zUpdateInferencePoolResponse = zInferencePool
+
+/**
+ * Pool usage.
+ */
+export const zGetInferencePoolUsageResponse = zInferencePoolUsage
+
+/**
+ * Stream of inference Pool updates.
+ */
+export const zWatchInferencePoolsResponse = zWatchInferencePoolsEvent
 
 /**
  * Sandbox deleted.

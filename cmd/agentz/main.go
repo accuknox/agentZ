@@ -53,6 +53,7 @@ import (
 
 	"github.com/accuknox/agentz/cmd/agentz/subcommands"
 	"github.com/accuknox/agentz/internal/controller/agent"
+	inferencepoolcontroller "github.com/accuknox/agentz/internal/controller/inferencepool"
 	inferenceprovidercontroller "github.com/accuknox/agentz/internal/controller/inferenceprovider"
 	"github.com/accuknox/agentz/internal/controller/mcpconn"
 	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
@@ -67,6 +68,7 @@ import (
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
+	inferencepoolwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferencepool"
 	inferenceproviderwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferenceprovider"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	// +kubebuilder:scaffold:imports
@@ -750,6 +752,11 @@ var managerCmd = &cli.Command{
 			setupLog.Error(err, "failed to register inference provider field indexes")
 			os.Exit(1)
 		}
+		err = inference.IndexPools(context.Background(), mgr.GetFieldIndexer())
+		if err != nil {
+			setupLog.Error(err, "failed to register inference pool field indexes")
+			os.Exit(1)
+		}
 		err = workflowschedulecontroller.IndexWorkflowRunsBySchedule(
 			context.Background(),
 			mgr.GetFieldIndexer(),
@@ -898,6 +905,15 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
+		inferencePoolReconciler := &inferencepoolcontroller.Reconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}
+		if err := inferencePoolReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "InferencePool")
+			os.Exit(1)
+		}
+
 		sandboxReconciler := &sandboxcontroller.Reconciler{
 			Client:       mgr.GetClient(),
 			Scheme:       mgr.GetScheme(),
@@ -923,6 +939,10 @@ var managerCmd = &cli.Command{
 			}
 			if err := inferenceproviderwebhook.RegisterWithManager(mgr); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "InferenceProvider")
+				os.Exit(1)
+			}
+			if err := inferencepoolwebhook.RegisterWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "InferencePool")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {

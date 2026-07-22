@@ -103,6 +103,7 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 
 	allowed := make(map[string]struct{}, len(sandbox.Spec.Inference.Models))
 	byProvider := make(map[string][]string, len(sandbox.Spec.Inference.Models))
+	pools := map[string]struct{}{}
 	for i, model := range sandbox.Spec.Inference.Models {
 		if strings.TrimSpace(model.Provider) == "" {
 			fields = append(fields, field.Required(path.Child("models").Index(i).Child("provider"), "field is required"))
@@ -116,6 +117,10 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 			continue
 		}
 		allowed[key] = struct{}{}
+		if model.Provider == agentzv1alpha1.InferencePoolProvider {
+			pools[model.Model] = struct{}{}
+			continue
+		}
 		byProvider[model.Provider] = append(byProvider[model.Provider], model.Model)
 	}
 
@@ -138,6 +143,26 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 	}
 	if v.client == nil {
 		return fields
+	}
+	for poolID := range pools {
+		pool := &agentzv1alpha1.InferencePool{}
+		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: poolID}
+		err := v.client.Get(ctx, key, pool)
+		if apierrors.IsNotFound(err) {
+			fields = append(fields, field.NotFound(path.Child("models"), poolID))
+			continue
+		}
+		if err != nil {
+			fields = append(fields, field.InternalError(
+				path.Child("models"), fmt.Errorf("get inference pool %q: %w", poolID, err),
+			))
+			continue
+		}
+		if !pool.DeletionTimestamp.IsZero() {
+			fields = append(fields, field.Forbidden(
+				path.Child("models"), fmt.Sprintf("pool %q is terminating", poolID),
+			))
+		}
 	}
 
 	for providerID, modelIDs := range byProvider {

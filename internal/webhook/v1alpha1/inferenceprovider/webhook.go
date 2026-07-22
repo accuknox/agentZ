@@ -50,7 +50,17 @@ func RegisterWithManager(mgr ctrl.Manager) error {
 
 // ValidateCreate validates provider creation.
 func (v *Validator) ValidateCreate(_ context.Context, provider *agentzv1alpha1.InferenceProvider) (admission.Warnings, error) {
-	return nil, invalidProvider(provider, inference.ValidateProvider(provider.Spec))
+	fields := issuesToFields(inference.ValidateProvider(provider.Spec))
+	if provider.Name == agentzv1alpha1.InferencePoolProvider {
+		fields = append(fields, field.Forbidden(
+			field.NewPath("metadata").Child("name"),
+			"name is reserved for inference pools",
+		))
+	}
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	return nil, apierrors.NewInvalid(provider.GroupVersionKind().GroupKind(), provider.Name, fields)
 }
 
 // ValidateUpdate validates immutable fields and referenced model removal.
@@ -59,6 +69,12 @@ func (v *Validator) ValidateUpdate(ctx context.Context, oldProvider, newProvider
 	if oldProvider.Spec.Kind != newProvider.Spec.Kind {
 		fields = append(fields, field.Invalid(
 			field.NewPath("spec").Child("kind"), newProvider.Spec.Kind, "field is immutable",
+		))
+	}
+	if newProvider.Name == agentzv1alpha1.InferencePoolProvider {
+		fields = append(fields, field.Forbidden(
+			field.NewPath("metadata").Child("name"),
+			"name is reserved for inference pools",
 		))
 	}
 
@@ -76,14 +92,6 @@ func (v *Validator) ValidateUpdate(ctx context.Context, oldProvider, newProvider
 // ValidateDelete defers the authoritative reference check to the finalizer.
 func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.InferenceProvider) (admission.Warnings, error) {
 	return nil, nil
-}
-
-func invalidProvider(provider *agentzv1alpha1.InferenceProvider, issues []inference.Issue) error {
-	fields := issuesToFields(issues)
-	if len(fields) == 0 {
-		return nil
-	}
-	return apierrors.NewInvalid(provider.GroupVersionKind().GroupKind(), provider.Name, fields)
 }
 
 func issuesToFields(issues []inference.Issue) field.ErrorList {

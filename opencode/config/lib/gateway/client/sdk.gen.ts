@@ -19,6 +19,9 @@ import type {
   CreateAgentFileErrors,
   CreateAgentFileResponses,
   CreateAgentResponses,
+  CreateInferencePoolData,
+  CreateInferencePoolErrors,
+  CreateInferencePoolResponses,
   CreateInferenceProviderData,
   CreateInferenceProviderErrors,
   CreateInferenceProviderResponses,
@@ -52,6 +55,9 @@ import type {
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
+  DeleteInferencePoolData,
+  DeleteInferencePoolErrors,
+  DeleteInferencePoolResponses,
   DeleteInferenceProviderData,
   DeleteInferenceProviderErrors,
   DeleteInferenceProviderResponses,
@@ -85,6 +91,12 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetInferencePoolData,
+  GetInferencePoolErrors,
+  GetInferencePoolResponses,
+  GetInferencePoolUsageData,
+  GetInferencePoolUsageErrors,
+  GetInferencePoolUsageResponses,
   GetInferenceProviderData,
   GetInferenceProviderErrors,
   GetInferenceProviderResponses,
@@ -139,6 +151,9 @@ import type {
   ListInferenceModelSuggestionsData,
   ListInferenceModelSuggestionsErrors,
   ListInferenceModelSuggestionsResponses,
+  ListInferencePoolsData,
+  ListInferencePoolsErrors,
+  ListInferencePoolsResponses,
   ListInferenceProviderCatalogData,
   ListInferenceProviderCatalogErrors,
   ListInferenceProviderCatalogResponses,
@@ -208,6 +223,9 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateInferencePoolData,
+  UpdateInferencePoolErrors,
+  UpdateInferencePoolResponses,
   UpdateInferenceProviderData,
   UpdateInferenceProviderErrors,
   UpdateInferenceProviderResponses,
@@ -224,6 +242,10 @@ import type {
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WatchInferencePoolsData,
+  WatchInferencePoolsErrors,
+  WatchInferencePoolsResponse,
+  WatchInferencePoolsResponses,
   WatchInferenceProvidersData,
   WatchInferenceProvidersErrors,
   WatchInferenceProvidersResponse,
@@ -250,6 +272,7 @@ import {
   zCreateAgentDirectoryPath,
   zCreateAgentFileBody,
   zCreateAgentFilePath,
+  zCreateInferencePoolBody,
   zCreateInferenceProviderBody,
   zCreateMcpConnectionBody,
   zCreateSandboxBody,
@@ -265,6 +288,7 @@ import {
   zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
   zDeleteImmutableSkillsBody,
+  zDeleteInferencePoolPath,
   zDeleteInferenceProviderPath,
   zDeleteMcpConnectionPath,
   zDeleteSandboxPath,
@@ -278,6 +302,8 @@ import {
   zExportAgentMutableSkillsBody,
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
+  zGetInferencePoolPath,
+  zGetInferencePoolUsagePath,
   zGetInferenceProviderPath,
   zGetInferenceProviderUsagePath,
   zGetMcpConnectionPath,
@@ -302,6 +328,7 @@ import {
   zListImmutableSkillVersionsPath,
   zListInferenceModelSuggestionsPath,
   zListInferenceModelSuggestionsQuery,
+  zListInferencePoolsQuery,
   zListInferenceProviderCatalogQuery,
   zListInferenceProvidersQuery,
   zListMcpConnectionsQuery,
@@ -342,6 +369,8 @@ import {
   zStatAgentFileQuery,
   zUpdateAgentBody,
   zUpdateAgentPath,
+  zUpdateInferencePoolBody,
+  zUpdateInferencePoolPath,
   zUpdateInferenceProviderBody,
   zUpdateInferenceProviderPath,
   zUpdateSandboxBody,
@@ -351,6 +380,7 @@ import {
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
   zWatchAgentsBody,
+  zWatchInferencePoolsBody,
   zWatchInferenceProvidersBody,
   zWatchMcpConnectionsBody,
   zWatchSecretsBody,
@@ -1608,6 +1638,185 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/inference-provider/catalog/{catalogProvider}/models",
     ...options,
+  })
+
+/**
+ * List paginated inference Pools.
+ */
+export const listInferencePools = <ThrowOnError extends boolean = false>(
+  options?: Options<ListInferencePoolsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListInferencePoolsResponses,
+    ListInferencePoolsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListInferencePoolsQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-pool",
+    ...options,
+  })
+
+/**
+ * Create an inference Pool with ordered provider-model members.
+ */
+export const createInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<CreateInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateInferencePoolResponses,
+    CreateInferencePoolErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateInferencePoolBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-pool",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an inference Pool not referenced by a Sandbox.
+ */
+export const deleteInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteInferencePoolResponses,
+    DeleteInferencePoolErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteInferencePoolPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-pool/{poolName}",
+    ...options,
+  })
+
+/**
+ * Get an inference Pool and its derived contract.
+ */
+export const getInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetInferencePoolResponses, GetInferencePoolErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetInferencePoolPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-pool/{poolName}",
+    ...options,
+  })
+
+/**
+ * Replace Pool membership or routing behavior.
+ */
+export const updateInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateInferencePoolResponses,
+    UpdateInferencePoolErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateInferencePoolBody,
+          path: zUpdateInferencePoolPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-pool/{poolName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List Sandboxes directly referencing an inference Pool.
+ */
+export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferencePoolUsageData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetInferencePoolUsageResponses,
+    GetInferencePoolUsageErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetInferencePoolUsagePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-pool/{poolName}/usage",
+    ...options,
+  })
+
+/**
+ * Watch inference Pool status and usage changes.
+ *
+ * Returns an SSE stream. Each payload contains current Pool read shapes for the requested IDs, or all Pools when IDs are omitted.
+ *
+ */
+export const watchInferencePools = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
+) =>
+  (options?.client ?? client).sse.post<
+    WatchInferencePoolsResponses,
+    WatchInferencePoolsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWatchInferencePoolsBody.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference-pool/watch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
   })
 
 /**

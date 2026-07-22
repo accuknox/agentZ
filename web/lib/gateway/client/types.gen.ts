@@ -98,6 +98,11 @@ export type SandboxName = string
 export type InferenceProviderName = string
 
 /**
+ * Stable tenant-scoped inference Pool ID.
+ */
+export type InferencePoolName = string
+
+/**
  * Immutable Skill resource name.
  */
 export type SkillName = string
@@ -1217,6 +1222,84 @@ export type WatchInferenceProvidersEvent = {
 
 export type InferenceProviderUsage = {
   provider: InferenceProviderName
+  pools: Array<InferencePoolName>
+  sandboxes: Array<SandboxName>
+}
+
+export type InferencePoolMember = {
+  provider: InferenceProviderName
+  model: string
+}
+
+export type InferencePoolWrite = {
+  display_name: string
+  automatic_failover: boolean
+  members: Array<InferencePoolMember>
+}
+
+export type CreateInferencePoolRequest = InferencePoolWrite
+
+export type UpdateInferencePoolRequest = {
+  resource_version: string
+  pool: InferencePoolWrite
+}
+
+export type InferenceProtocol = "OpenAI" | "Anthropic"
+
+export type InferencePoolState = "Accepted" | "Ready" | "PartiallyDegraded" | "Degraded"
+
+export type InferencePoolContract = {
+  capabilities: InferenceModelCapabilities
+  modalities: InferenceModelModalities
+  limits: InferenceModelLimits
+}
+
+export type InferencePoolWarning = {
+  code: "MixedProtocols"
+  message: string
+}
+
+export type InferencePoolMemberStatus = {
+  provider: InferenceProviderName
+  model: string
+  protocol: InferenceProtocol
+  ready: boolean
+  reason: string
+  message: string
+}
+
+export type InferencePool = {
+  id: InferencePoolName
+  display_name: string
+  resource_version: string
+  automatic_failover: boolean
+  members: Array<InferencePoolMember>
+  state: InferencePoolState
+  conditions: Array<InferenceProviderCondition>
+  contract?: InferencePoolContract
+  protocol?: InferenceProtocol
+  warnings: Array<InferencePoolWarning>
+  member_statuses: Array<InferencePoolMemberStatus>
+  usage_count: number
+  created_at: string
+  updated_at: string
+}
+
+export type ListInferencePoolsResponse = {
+  pools: Array<InferencePool>
+  next_page_token: string
+}
+
+export type WatchInferencePoolsRequest = {
+  pool_ids?: Array<InferencePoolName>
+}
+
+export type WatchInferencePoolsEvent = {
+  pools: Array<InferencePool>
+}
+
+export type InferencePoolUsage = {
+  pool: InferencePoolName
   sandboxes: Array<SandboxName>
 }
 
@@ -1521,6 +1604,11 @@ export type AgentNamePath = AgentName
  * Stable inference provider ID.
  */
 export type InferenceProviderNamePath = InferenceProviderName
+
+/**
+ * Stable inference Pool ID.
+ */
+export type InferencePoolNamePath = InferencePoolName
 
 /**
  * Path relative to the agent workspace root.
@@ -3785,6 +3873,268 @@ export type ListInferenceModelSuggestionsResponses = {
 
 export type ListInferenceModelSuggestionsResponse =
   ListInferenceModelSuggestionsResponses[keyof ListInferenceModelSuggestionsResponses]
+
+export type ListInferencePoolsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/inference-pool"
+}
+
+export type ListInferencePoolsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListInferencePoolsError = ListInferencePoolsErrors[keyof ListInferencePoolsErrors]
+
+export type ListInferencePoolsResponses = {
+  /**
+   * Paginated inference Pools.
+   */
+  200: ListInferencePoolsResponse
+}
+
+export type ListInferencePoolsResponse2 =
+  ListInferencePoolsResponses[keyof ListInferencePoolsResponses]
+
+export type CreateInferencePoolData = {
+  body: InferencePoolWrite
+  path?: never
+  query?: never
+  url: "/api/inference-pool"
+}
+
+export type CreateInferencePoolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateInferencePoolError = CreateInferencePoolErrors[keyof CreateInferencePoolErrors]
+
+export type CreateInferencePoolResponses = {
+  /**
+   * Pool created.
+   */
+  201: InferencePool
+}
+
+export type CreateInferencePoolResponse =
+  CreateInferencePoolResponses[keyof CreateInferencePoolResponses]
+
+export type DeleteInferencePoolData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference-pool/{poolName}"
+}
+
+export type DeleteInferencePoolErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteInferencePoolError = DeleteInferencePoolErrors[keyof DeleteInferencePoolErrors]
+
+export type DeleteInferencePoolResponses = {
+  /**
+   * Pool deletion accepted.
+   */
+  204: void
+}
+
+export type DeleteInferencePoolResponse =
+  DeleteInferencePoolResponses[keyof DeleteInferencePoolResponses]
+
+export type GetInferencePoolData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference-pool/{poolName}"
+}
+
+export type GetInferencePoolErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetInferencePoolError = GetInferencePoolErrors[keyof GetInferencePoolErrors]
+
+export type GetInferencePoolResponses = {
+  /**
+   * Inference Pool.
+   */
+  200: InferencePool
+}
+
+export type GetInferencePoolResponse = GetInferencePoolResponses[keyof GetInferencePoolResponses]
+
+export type UpdateInferencePoolData = {
+  body: UpdateInferencePoolRequest
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference-pool/{poolName}"
+}
+
+export type UpdateInferencePoolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateInferencePoolError = UpdateInferencePoolErrors[keyof UpdateInferencePoolErrors]
+
+export type UpdateInferencePoolResponses = {
+  /**
+   * Pool updated.
+   */
+  200: InferencePool
+}
+
+export type UpdateInferencePoolResponse =
+  UpdateInferencePoolResponses[keyof UpdateInferencePoolResponses]
+
+export type GetInferencePoolUsageData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference-pool/{poolName}/usage"
+}
+
+export type GetInferencePoolUsageErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetInferencePoolUsageError =
+  GetInferencePoolUsageErrors[keyof GetInferencePoolUsageErrors]
+
+export type GetInferencePoolUsageResponses = {
+  /**
+   * Pool usage.
+   */
+  200: InferencePoolUsage
+}
+
+export type GetInferencePoolUsageResponse =
+  GetInferencePoolUsageResponses[keyof GetInferencePoolUsageResponses]
+
+export type WatchInferencePoolsData = {
+  body?: WatchInferencePoolsRequest
+  path?: never
+  query?: never
+  url: "/api/inference-pool/watch"
+}
+
+export type WatchInferencePoolsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchInferencePoolsError = WatchInferencePoolsErrors[keyof WatchInferencePoolsErrors]
+
+export type WatchInferencePoolsResponses = {
+  /**
+   * Stream of inference Pool updates.
+   */
+  200: WatchInferencePoolsEvent
+}
+
+export type WatchInferencePoolsResponse =
+  WatchInferencePoolsResponses[keyof WatchInferencePoolsResponses]
 
 export type DeleteSandboxData = {
   body?: never

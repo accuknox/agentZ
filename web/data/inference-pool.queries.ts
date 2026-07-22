@@ -1,0 +1,35 @@
+import { cacheLife, cacheTag } from "next/cache"
+import {
+  listInferencePools,
+  type Error as GatewayError,
+  type InferencePool,
+} from "@/lib/gateway/client"
+import { inferencePoolsTag } from "@/data/cache"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
+
+export type InferencePoolsResult =
+  | { pools: InferencePool[]; error: undefined }
+  | { pools: undefined; error: GatewayError }
+
+export async function listInferencePoolsCachedQuery(): Promise<InferencePoolsResult> {
+  "use cache: private"
+
+  cacheLife("minutes")
+  cacheTag(inferencePoolsTag)
+
+  const pools: InferencePool[] = []
+  let pageToken: string | undefined
+  do {
+    const { data, error } = await listInferencePools({
+      query: { limit: 200, page_token: pageToken },
+      client: getGatewayServerClient(),
+    })
+    if (error) {
+      return { pools: undefined, error }
+    }
+    pools.push(...data.pools)
+    pageToken = data.next_page_token || undefined
+  } while (pageToken)
+
+  return { pools, error: undefined }
+}

@@ -4,6 +4,7 @@
 resources:
 - bases/agentz.accuknox.com_agents.yaml
 - bases/agentz.accuknox.com_inferenceproviders.yaml
+- bases/agentz.accuknox.com_inferencepools.yaml
 - bases/agentz.accuknox.com_sandboxes.yaml
 - bases/agentz.accuknox.com_workflowschedules.yaml
 - bases/agentz.accuknox.com_workflowruns.yaml

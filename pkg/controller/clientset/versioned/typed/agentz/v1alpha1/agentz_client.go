@@ -28,6 +28,7 @@ import (
 type AgentzV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	AgentsGetter
+	InferencePoolsGetter
 	InferenceProvidersGetter
 	MCPConnectionsGetter
 	SandboxesGetter
@@ -43,6 +44,10 @@ type AgentzV1alpha1Client struct {
 
 func (c *AgentzV1alpha1Client) Agents(namespace string) AgentInterface {
 	return newAgents(c, namespace)
+}
+
+func (c *AgentzV1alpha1Client) InferencePools(namespace string) InferencePoolInterface {
+	return newInferencePools(c, namespace)
 }
 
 func (c *AgentzV1alpha1Client) InferenceProviders(namespace string) InferenceProviderInterface {

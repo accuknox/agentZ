@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"slices"
 	"strings"
@@ -62,6 +63,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
@@ -269,6 +271,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&agentzv1alpha1.Agent{}).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSandbox)).
 		Watches(&agentzv1alpha1.InferenceProvider{}, handler.EnqueueRequestsFromMapFunc(r.agentsForInferenceProvider)).
+		Watches(&agentzv1alpha1.InferencePool{}, handler.EnqueueRequestsFromMapFunc(r.agentsForInferencePool)).
 		Watches(&agentzv1alpha1.Skill{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSkill)).
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
@@ -337,6 +340,58 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
 	for _, modelRef := range sandbox.Spec.Inference.Models {
+		if modelRef.Provider == agentzv1alpha1.InferencePoolProvider {
+			pool := &agentzv1alpha1.InferencePool{}
+			key := types.NamespacedName{Name: modelRef.Model, Namespace: agt.Namespace}
+			if err := r.Get(ctx, key, pool); err != nil {
+				return sandboxConfig{}, fmt.Errorf("get inference pool %q: %w", modelRef.Model, err)
+			}
+			if pool.Status.Contract == nil {
+				return sandboxConfig{}, fmt.Errorf("inference pool %q contract is not ready", modelRef.Model)
+			}
+
+			provider := cfg.Providers[agentzv1alpha1.InferencePoolProvider]
+			if provider == nil {
+				provider = &opencodeProviderFile{
+					Name:   "Pools",
+					Models: map[string]opencodeModelFile{},
+					Options: &opencodeProviderOptionsFile{
+						APIKey: "inference-gateway",
+					},
+				}
+				cfg.Providers[agentzv1alpha1.InferencePoolProvider] = provider
+			}
+
+			npm := "@ai-sdk/openai-compatible"
+			if pool.Status.Protocol == agentzv1alpha1.InferenceProtocolAnthropic {
+				npm = "@ai-sdk/anthropic"
+			}
+
+			path := inference.SandboxPoolPath(sandbox.Name, pool.Name)
+			contract := pool.Status.Contract
+
+			provider.Models[pool.Name] = opencodeModelFile{
+				ID: pool.Name, Name: pool.Spec.DisplayName,
+				Attachment:  contract.Capabilities.Attachment,
+				Reasoning:   contract.Capabilities.Reasoning,
+				Temperature: contract.Capabilities.Temperature,
+				ToolCall:    contract.Capabilities.ToolCall,
+				Limit: opencodeModelLimitFile{
+					Context: contract.Limits.Context,
+					Input:   contract.Limits.Input,
+					Output:  contract.Limits.Output,
+				},
+				Modalities: opencodeModelModalitiesFile{
+					Input:  slices.Clone(contract.Modalities.Input),
+					Output: slices.Clone(contract.Modalities.Output),
+				},
+				Provider: &opencodeModelProviderFile{
+					NPM: npm,
+					API: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+				},
+			}
+			continue
+		}
 		provider := providers[modelRef.Provider]
 		if provider == nil {
 			provider = &agentzv1alpha1.InferenceProvider{}
@@ -532,9 +587,42 @@ func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.
 		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
 	)
 	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"list sandboxes for inference provider",
+			slog.String("namespace", provider.Namespace),
+			slog.String("provider", provider.Name),
+			slog.Any("err", err),
+		)
 		return nil
 	}
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
+	for i := range sandboxes.Items {
+		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
+	}
+	return requests
+}
+
+func (r *Reconciler) agentsForInferencePool(ctx context.Context, obj client.Object) []reconcile.Request {
+	pool := obj.(*agentzv1alpha1.InferencePool)
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err := r.List(
+		ctx,
+		sandboxes,
+		client.InNamespace(pool.Namespace),
+		client.MatchingFields{inference.SandboxByPoolIndex: pool.Name},
+	)
+	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"list sandboxes for inference pool",
+			slog.String("namespace", pool.Namespace),
+			slog.String("pool", pool.Name),
+			slog.Any("err", err),
+		)
+		return nil
+	}
+	requests := []reconcile.Request{}
 	for i := range sandboxes.Items {
 		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
 	}

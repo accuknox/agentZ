@@ -339,6 +339,12 @@ type opencodeModelFile struct {
 	ToolCall    bool                        `json:"tool_call"`
 	Limit       opencodeModelLimitFile      `json:"limit"`
 	Modalities  opencodeModelModalitiesFile `json:"modalities"`
+	Provider    *opencodeModelProviderFile  `json:"provider,omitempty"`
+}
+
+type opencodeModelProviderFile struct {
+	NPM string `json:"npm"`
+	API string `json:"api"`
 }
 
 type opencodeModelLimitFile struct {

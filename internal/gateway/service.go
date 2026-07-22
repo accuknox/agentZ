@@ -199,8 +199,9 @@ func Serve(ctx context.Context, cfg Config) error {
 		Scheme:                      scheme,
 		ReaderFailOnMissingInformer: true,
 		ByObject: map[ctrlclient.Object]ctrlcache.ByObject{
-			&agentzv1alpha1.Agent{}:   {},
-			&agentzv1alpha1.Sandbox{}: {},
+			&agentzv1alpha1.Agent{}:         {},
+			&agentzv1alpha1.Sandbox{}:       {},
+			&agentzv1alpha1.InferencePool{}: {},
 		},
 	})
 	if err != nil {
@@ -208,6 +209,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	if err := inference.IndexSandboxes(ctx, usageCache); err != nil {
 		return fmt.Errorf("index sandboxes by inference provider: %w", err)
+	}
+	if err := inference.IndexPools(ctx, usageCache); err != nil {
+		return fmt.Errorf("index inference pool references: %w", err)
 	}
 	if err := sandboxutil.IndexAgentsBySandbox(ctx, usageCache); err != nil {
 		return fmt.Errorf("index agents by sandbox: %w", err)

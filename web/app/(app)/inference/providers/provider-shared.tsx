@@ -35,14 +35,21 @@ export const providerKindLabels: Record<InferenceProviderKind, string> = {
 export function ProviderIcon({
   provider,
   className = "size-5",
+  inverted = false,
 }: {
   provider: string
   className?: string
+  inverted?: boolean
 }) {
   const [failedProvider, setFailedProvider] = useState<string | null>(null)
 
   if (provider === "openai") {
-    return (
+    return inverted ? (
+      <>
+        <OpenAIDark aria-hidden className={`${className} dark:hidden`} />
+        <OpenAILight aria-hidden className={`hidden ${className} dark:block`} />
+      </>
+    ) : (
       <>
         <OpenAILight aria-hidden className={`${className} dark:hidden`} />
         <OpenAIDark aria-hidden className={`hidden ${className} dark:block`} />
@@ -50,7 +57,12 @@ export function ProviderIcon({
     )
   }
   if (provider === "anthropic") {
-    return (
+    return inverted ? (
+      <>
+        <AnthropicDark aria-hidden className={`${className} dark:hidden`} />
+        <AnthropicLight aria-hidden className={`hidden ${className} dark:block`} />
+      </>
+    ) : (
       <>
         <AnthropicLight aria-hidden className={`${className} dark:hidden`} />
         <AnthropicDark aria-hidden className={`hidden ${className} dark:block`} />
@@ -62,7 +74,12 @@ export function ProviderIcon({
     return <GoogleCloud aria-hidden className={className} />
   }
   if (provider === "amazon-bedrock") {
-    return (
+    return inverted ? (
+      <>
+        <AmazonWebServicesDark aria-hidden className={`${className} dark:hidden`} />
+        <AmazonWebServicesLight aria-hidden className={`hidden ${className} dark:block`} />
+      </>
+    ) : (
       <>
         <AmazonWebServicesLight aria-hidden className={`${className} dark:hidden`} />
         <AmazonWebServicesDark aria-hidden className={`hidden ${className} dark:block`} />
@@ -73,7 +90,12 @@ export function ProviderIcon({
     return <MicrosoftAzure aria-hidden className={className} />
   }
   if (provider === "xai") {
-    return (
+    return inverted ? (
+      <>
+        <XAIDark aria-hidden className={`${className} dark:hidden`} />
+        <XAILight aria-hidden className={`hidden ${className} dark:block`} />
+      </>
+    ) : (
       <>
         <XAILight aria-hidden className={`${className} dark:hidden`} />
         <XAIDark aria-hidden className={`hidden ${className} dark:block`} />
@@ -97,7 +119,7 @@ export function ProviderIcon({
     <img
       aria-hidden
       alt=""
-      className={`${className} shrink-0 dark:invert`}
+      className={`${className} shrink-0 ${inverted ? "invert dark:invert-0" : "dark:invert"}`}
       height={20}
       src={`https://models.dev/logos/${provider}.svg`}
       width={20}

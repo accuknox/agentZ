@@ -41,9 +41,18 @@ func Gateway(namespace string) *gwv1.Gateway {
 	}
 }
 
-// SandboxProviderRuntime contains the fail-closed route and authorization
-// policy for one Sandbox/provider pair.
-type SandboxProviderRuntime struct {
+// SandboxTarget describes one logical inference target exposed by a Sandbox.
+type SandboxTarget struct {
+	Name    string
+	Backend string
+	Path    string
+	Models  []string
+	Labels  map[string]string
+}
+
+// SandboxTargetRuntime contains the fail-closed route and authorization policy
+// for one Sandbox inference target.
+type SandboxTargetRuntime struct {
 	Route  *gwv1.HTTPRoute
 	Policy *agentgatewayv1alpha1.AgentgatewayPolicy
 }
@@ -66,17 +75,23 @@ func SandboxProviderPath(sandboxName, providerName string) string {
 	return "/sandboxes/" + sandboxName + "/providers/" + providerName
 }
 
-// RenderSandboxProvider creates a route and fail-closed model policy.
-func RenderSandboxProvider(namespace, sandboxName, providerName string, models []string) SandboxProviderRuntime {
-	name := SandboxProviderRuntimeName(sandboxName, providerName)
-	prefix := SandboxProviderPath(sandboxName, providerName)
+// SandboxPoolPath returns the controller-owned prefix for one Sandbox/Pool pair.
+func SandboxPoolPath(sandboxName, poolName string) string {
+	return "/sandboxes/" + sandboxName + "/pools/" + poolName
+}
+
+// RenderSandboxTarget creates a route and fail-closed logical model policy.
+func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) SandboxTargetRuntime {
+	name := SandboxProviderRuntimeName(sandboxName, target.Name)
 	root := "/"
 	pathType := gwv1.PathMatchPathPrefix
 	group := gwv1.Group("agentgateway.dev")
 	kind := gwv1.Kind("AgentgatewayBackend")
 	labels := map[string]string{
-		SandboxLabel:  sandboxName,
-		ProviderLabel: providerName,
+		SandboxLabel: sandboxName,
+	}
+	for key, value := range target.Labels {
+		labels[key] = value
 	}
 	route := &gwv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
@@ -86,7 +101,7 @@ func RenderSandboxProvider(namespace, sandboxName, providerName string, models [
 			},
 			Rules: []gwv1.HTTPRouteRule{{
 				Matches: []gwv1.HTTPRouteMatch{{
-					Path: &gwv1.HTTPPathMatch{Type: &pathType, Value: &prefix},
+					Path: &gwv1.HTTPPathMatch{Type: &pathType, Value: &target.Path},
 				}},
 				Filters: []gwv1.HTTPRouteFilter{{
 					Type: gwv1.HTTPRouteFilterURLRewrite,
@@ -100,15 +115,15 @@ func RenderSandboxProvider(namespace, sandboxName, providerName string, models [
 				BackendRefs: []gwv1.HTTPBackendRef{{
 					BackendRef: gwv1.BackendRef{
 						BackendObjectReference: gwv1.BackendObjectReference{
-							Group: &group, Kind: &kind, Name: gwv1.ObjectName(providerName),
+							Group: &group, Kind: &kind, Name: gwv1.ObjectName(target.Backend),
 						},
 					},
 				}},
 			}},
 		},
 	}
-	quoted := make([]string, 0, len(models))
-	for _, model := range models {
+	quoted := make([]string, 0, len(target.Models))
+	for _, model := range target.Models {
 		quoted = append(quoted, fmt.Sprintf("%q", model))
 	}
 	expression := agentgatewayv1alpha1.CELExpression(fmt.Sprintf(
@@ -135,5 +150,5 @@ func RenderSandboxProvider(namespace, sandboxName, providerName string, models [
 			},
 		},
 	}
-	return SandboxProviderRuntime{Route: route, Policy: policy}
+	return SandboxTargetRuntime{Route: route, Policy: policy}
 }

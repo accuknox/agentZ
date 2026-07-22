@@ -19,11 +19,14 @@ import {
   Brain,
   Cable,
   ChevronDown,
+  CircleAlert,
   Globe2,
+  Layers3,
   ScrollText,
   PackageSearch as PackageSearchIcon,
   Plus,
   RefreshCw,
+  TriangleAlert,
   UserCheck,
   X,
 } from "lucide-react"
@@ -39,6 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -76,6 +80,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { createSandboxFormAction, updateSandboxFormAction } from "@/data/sandbox.actions"
 import { refreshInferenceProvidersAction } from "@/data/inference-provider.actions"
+import { refreshInferencePoolsAction } from "@/data/inference-pool.actions"
 import * as z from "zod"
 import { sandboxAllowedHostSchema, sandboxNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
@@ -83,6 +88,7 @@ import {
   getMcpConnection,
   type McpConnectionSummary,
   type InferenceProvider,
+  type InferencePool,
   type SandboxInference,
   type SandboxInferenceModelRef,
   type SecretHost,
@@ -90,7 +96,7 @@ import {
 } from "@/lib/gateway/client"
 import { zMcpConnectionName, zSkillName } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
-import { ProviderIcon, providerKindLabels } from "@/app/(app)/inference-providers/provider-shared"
+import { ProviderIcon, providerKindLabels } from "@/app/(app)/inference/providers/provider-shared"
 import { PackageSearch } from "./package-search"
 
 type SandboxWizardMode = "create" | "update"
@@ -166,6 +172,7 @@ type SandboxWizardProps = {
   immutableSkills: Skill[]
   mcpConnections: McpConnectionSummary[]
   inferenceProviders: InferenceProvider[]
+  inferencePools: InferencePool[]
   mode: SandboxWizardMode
   secretHostSuggestions?: Promise<SecretHost[]>
 }
@@ -194,6 +201,7 @@ type AllowedHostsStepProps = {
 
 type ModelsStepProps = {
   inferenceProviders: InferenceProvider[]
+  inferencePools: InferencePool[]
   initialInference?: SandboxInference
   onAdvanceAction: () => void
   onNext: (inference: SandboxInference) => void
@@ -1108,12 +1116,14 @@ function SkillsStep({
 
 function ModelsStep({
   inferenceProviders,
+  inferencePools,
   initialInference,
   onAdvanceAction,
   onNext,
   onPrev,
 }: ModelsStepProps) {
   const [providers, setProviders] = React.useState(inferenceProviders)
+  const [pools, setPools] = React.useState(inferencePools)
   const [refreshError, setRefreshError] = React.useState("")
   const [refreshing, startRefresh] = React.useTransition()
   const [selected, setSelected] = React.useState<SandboxInferenceModelRef[]>(
@@ -1145,6 +1155,7 @@ function ModelsStep({
     () => new Map(providers.map((provider) => [provider.id, provider])),
     [providers]
   )
+  const poolsById = React.useMemo(() => new Map(pools.map((pool) => [pool.id, pool])), [pools])
   const selectedCountByProvider = React.useMemo(() => {
     const counts = new Map<string, number>()
     for (const ref of selected) {
@@ -1196,11 +1207,13 @@ function ModelsStep({
     const key = JSON.stringify([ref.provider, ref.model])
     const provider = providersById.get(ref.provider)
     const model = provider?.models.find((item) => item.id === ref.model)
+    const pool = ref.provider === "agentz-pools" ? poolsById.get(ref.model) : undefined
     return (
       <SelectItem key={key} value={key}>
-        <span className="truncate">{model?.display_name ?? ref.model}</span>
+        {pool ? <Layers3 className="size-4 shrink-0" /> : null}
+        <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
         <span className="text-muted-foreground truncate">
-          {provider?.display_name ?? ref.provider}
+          {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
         </span>
       </SelectItem>
     )
@@ -1223,7 +1236,7 @@ function ModelsStep({
         })
       }}
     >
-      {providers.length === 0 ? (
+      {providers.length === 0 && pools.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
           <Brain className="text-muted-foreground size-8" aria-hidden="true" />
           <div>
@@ -1234,7 +1247,7 @@ function ModelsStep({
           </div>
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <a href="/inference-providers" target="_blank" rel="noreferrer">
+              <a href="/inference/providers" target="_blank" rel="noreferrer">
                 Open provider setup
               </a>
             </Button>
@@ -1244,13 +1257,21 @@ function ModelsStep({
               disabled={refreshing}
               onClick={() =>
                 startRefresh(async () => {
-                  const result = await refreshInferenceProvidersAction()
-                  if (result.error) {
-                    setRefreshError(result.error.message)
+                  const [providerResult, poolResult] = await Promise.all([
+                    refreshInferenceProvidersAction(),
+                    refreshInferencePoolsAction(),
+                  ])
+                  if (providerResult.error || poolResult.error) {
+                    setRefreshError(
+                      providerResult.error?.message ??
+                        poolResult.error?.message ??
+                        "Inference catalog could not be refreshed"
+                    )
                     return
                   }
                   setRefreshError("")
-                  setProviders(result.providers)
+                  setProviders(providerResult.providers)
+                  setPools(poolResult.pools)
                 })
               }
             >
@@ -1258,14 +1279,110 @@ function ModelsStep({
             </Button>
           </div>
           {refreshError ? (
-            <p role="alert" className="text-destructive text-sm">
-              {refreshError}
-            </p>
+            <Alert variant="destructive">
+              <CircleAlert />
+              <AlertDescription>{refreshError}</AlertDescription>
+            </Alert>
           ) : null}
         </div>
       ) : (
         <div className="grid min-h-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="order-2 min-w-0 lg:order-1">
+            {pools.length > 0 ? (
+              <section className="mb-5 overflow-hidden rounded-lg border">
+                <div className="bg-muted/30 border-b px-3 py-2.5">
+                  <h2 className="flex items-center gap-2 text-sm font-medium">
+                    <Layers3 className="size-4" />
+                    Pools
+                  </h2>
+                  <p className="text-muted-foreground text-xs">
+                    One model name with built-in backups.
+                  </p>
+                </div>
+                <div className="divide-y">
+                  {pools.map((pool) => {
+                    const ref = { provider: "agentz-pools", model: pool.id }
+                    const active = refs.has(JSON.stringify([ref.provider, ref.model]))
+                    const available = pool.state === "Ready" || pool.state === "PartiallyDegraded"
+                    const failures = pool.member_statuses.filter((member) => !member.ready)
+                    return (
+                      <label
+                        key={pool.id}
+                        className={`flex items-start gap-3 px-3 py-3 transition-colors ${available || active ? "hover:bg-muted/50 cursor-pointer" : "cursor-not-allowed opacity-65"} ${active ? "bg-primary/5" : ""}`}
+                      >
+                        <Layers3 className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium">
+                              {pool.display_name}
+                            </span>
+                            <Badge
+                              variant={
+                                pool.state === "Ready"
+                                  ? "success"
+                                  : pool.state === "PartiallyDegraded"
+                                    ? "warning"
+                                    : pool.state === "Degraded"
+                                      ? "destructive"
+                                      : "pending"
+                              }
+                            >
+                              {pool.state === "PartiallyDegraded" ? "Partial" : pool.state}
+                            </Badge>
+                          </div>
+                          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                            <span>
+                              {pool.members.length} {pool.members.length === 1 ? "model" : "models"}
+                            </span>
+                            {pool.protocol ? (
+                              <>
+                                <span aria-hidden>·</span>
+                                <span className="flex items-center gap-1">
+                                  <ProviderIcon
+                                    provider={
+                                      pool.protocol === "Anthropic" ? "anthropic" : "openai"
+                                    }
+                                    className="size-3.5"
+                                  />
+                                  {pool.protocol} primary
+                                </span>
+                              </>
+                            ) : null}
+                            {pool.contract ? (
+                              <>
+                                <span aria-hidden>·</span>
+                                <span>
+                                  {formatCompactNumber(pool.contract.limits.context)} context
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                          {pool.state === "PartiallyDegraded" || pool.warnings.length ? (
+                            <Alert variant="warning" className="mt-2">
+                              <TriangleAlert />
+                              <AlertDescription>
+                                {failures.length
+                                  ? `${failures.map((member) => `${member.provider}/${member.model}`).join(", ")} unavailable. `
+                                  : ""}
+                                {pool.warnings.length
+                                  ? "Some provider-specific features may not work when this Pool switches models."
+                                  : ""}
+                              </AlertDescription>
+                            </Alert>
+                          ) : null}
+                        </div>
+                        <Switch
+                          checked={active}
+                          disabled={!available && !active}
+                          onCheckedChange={(checked) => toggleModel(ref, checked)}
+                          aria-label={`${active ? "Remove" : "Add"} ${pool.display_name}`}
+                        />
+                      </label>
+                    )
+                  })}
+                </div>
+              </section>
+            ) : null}
             <Accordion
               type="multiple"
               defaultValue={initiallyOpenProviders}
@@ -1367,19 +1484,25 @@ function ModelsStep({
                       const key = JSON.stringify([ref.provider, ref.model])
                       const provider = providersById.get(ref.provider)
                       const model = provider?.models.find((item) => item.id === ref.model)
-                      const displayName = model?.display_name ?? ref.model
+                      const pool =
+                        ref.provider === "agentz-pools" ? poolsById.get(ref.model) : undefined
+                      const displayName = pool?.display_name ?? model?.display_name ?? ref.model
                       return (
                         <li key={key} className="flex items-center gap-2.5 px-3 py-2">
-                          {provider ? (
+                          {pool ? (
+                            <Layers3 className="text-muted-foreground size-4 shrink-0" />
+                          ) : provider ? (
                             <ProviderIcon
                               provider={provider.catalog_provider}
                               className="size-4 shrink-0"
                             />
-                          ) : null}
+                          ) : (
+                            <Brain className="text-muted-foreground size-4 shrink-0" />
+                          )}
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-medium">{displayName}</div>
                             <div className="text-muted-foreground truncate text-xs">
-                              {provider?.display_name ?? ref.provider}
+                              {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
                             </div>
                           </div>
                           {key === defaultRefKey ? <Badge variant="outline">Default</Badge> : null}
@@ -1445,7 +1568,11 @@ function ModelsStep({
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
         </Button>
-        <Button type="submit" onClick={onAdvanceAction} disabled={providers.length === 0}>
+        <Button
+          type="submit"
+          onClick={onAdvanceAction}
+          disabled={providers.length === 0 && pools.length === 0}
+        >
           Next
         </Button>
       </StepActions>
@@ -1771,6 +1898,7 @@ export function SandboxWizard({
   initialInference,
   immutableSkills,
   inferenceProviders,
+  inferencePools,
   mcpConnections,
   mode,
   secretHostSuggestions,
@@ -1931,6 +2059,7 @@ export function SandboxWizard({
               models: () => (
                 <ModelsStep
                   inferenceProviders={inferenceProviders}
+                  inferencePools={inferencePools}
                   initialInference={data.inference ?? initialInference}
                   onAdvanceAction={() => {
                     pendingNavigationRef.current = undefined

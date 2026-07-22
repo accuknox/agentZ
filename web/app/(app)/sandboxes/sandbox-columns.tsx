@@ -72,6 +72,11 @@ export function createSandboxColumns(
       },
     },
     {
+      accessorFn: (sandbox) => sandbox.inference.models.length,
+      id: "models",
+      header: "Models / Pools",
+    },
+    {
       accessorFn: (sandbox) => sandbox.mcp_connection_refs.length,
       id: "mcps",
       header: "MCP",
@@ -142,7 +147,7 @@ function SandboxActions({
             <Link href={`/sandboxes/update/${sandbox.name}`}>Edit</Link>
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="text-destructive"
+            variant="destructive"
             disabled={referenced}
             onSelect={() => setOpen(true)}
           >

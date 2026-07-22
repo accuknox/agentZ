@@ -1,6 +1,4 @@
 import { Suspense } from "react"
-import Link from "next/link"
-import { Cpu } from "lucide-react"
 import { NavAgents } from "./agents"
 import { NavUser } from "./user"
 import { TeamSwitcher } from "./team-switcher"
@@ -12,9 +10,6 @@ import {
   SidebarHeader,
   SidebarRail,
   SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
@@ -25,6 +20,7 @@ import { NavSandboxes } from "./sandboxes"
 import { NavSkills } from "./skills"
 import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
+import { NavInference } from "./inference"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user?: {
@@ -53,16 +49,7 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
           </Suspense>
           <NavSandboxes />
           <NavSecrets />
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Inference Providers">
-                <Link href="/inference-providers">
-                  <Cpu />
-                  <span>Inference Providers</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          <NavInference />
           <NavMCPs />
           <NavSkills />
           <NavWorkflows />

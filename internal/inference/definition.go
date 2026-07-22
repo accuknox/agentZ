@@ -455,7 +455,7 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	return issues
 }
 
-// ValidateModelRemoval rejects removal of models referenced by Sandboxes.
+// ValidateModelRemoval rejects removal of models referenced by Pools or Sandboxes.
 func ValidateModelRemoval(ctx context.Context, reader client.Reader, current, desired *agentzv1alpha1.InferenceProvider) ([]Issue, error) {
 	desiredModels := make(map[string]struct{}, len(desired.Spec.Models))
 	for _, model := range desired.Spec.Models {
@@ -466,8 +466,37 @@ func ValidateModelRemoval(ctx context.Context, reader client.Reader, current, de
 		if _, exists := desiredModels[model.ID]; exists {
 			continue
 		}
-		sandboxes := &agentzv1alpha1.SandboxList{}
+		pools := &agentzv1alpha1.InferencePoolList{}
 		err := reader.List(
+			ctx,
+			pools,
+			client.InNamespace(desired.Namespace),
+			client.MatchingFields{PoolByProviderIndex: desired.Name},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list pools referencing provider model: %w", err)
+		}
+		poolNames := []string{}
+		for _, pool := range pools.Items {
+			for _, member := range pool.Spec.Members {
+				if member.Provider == desired.Name && member.Model == model.ID {
+					poolNames = append(poolNames, pool.Name)
+					break
+				}
+			}
+		}
+		if len(poolNames) > 0 {
+			slices.Sort(poolNames)
+			issues = append(issues, Issue{
+				Field: "models",
+				Message: fmt.Sprintf(
+					"model %q is referenced by pools %v", model.ID, poolNames,
+				),
+			})
+			continue
+		}
+		sandboxes := &agentzv1alpha1.SandboxList{}
+		err = reader.List(
 			ctx,
 			sandboxes,
 			client.InNamespace(desired.Namespace),
@@ -773,6 +802,9 @@ func IndexSandboxes(ctx context.Context, idx client.FieldIndexer) error {
 			values := make([]string, 0, len(sandbox.Spec.Inference.Models))
 			seen := make(map[string]struct{}, len(sandbox.Spec.Inference.Models))
 			for _, model := range sandbox.Spec.Inference.Models {
+				if model.Provider == agentzv1alpha1.InferencePoolProvider {
+					continue
+				}
 				if _, exists := seen[model.Provider]; exists {
 					continue
 				}
@@ -793,6 +825,9 @@ func IndexSandboxes(ctx context.Context, idx client.FieldIndexer) error {
 			sandbox := obj.(*agentzv1alpha1.Sandbox)
 			values := make([]string, 0, len(sandbox.Spec.Inference.Models))
 			for _, model := range sandbox.Spec.Inference.Models {
+				if model.Provider == agentzv1alpha1.InferencePoolProvider {
+					continue
+				}
 				values = append(values, model.Provider+"\x00"+model.Model)
 			}
 			return values

@@ -7,6 +7,7 @@ import {
   createAgent,
   createAgentDirectory,
   createAgentFile,
+  createInferencePool,
   createInferenceProvider,
   createMcpConnection,
   createSandbox,
@@ -18,6 +19,7 @@ import {
   deleteAgentEntry,
   deleteAgentMutableSkills,
   deleteImmutableSkills,
+  deleteInferencePool,
   deleteInferenceProvider,
   deleteMcpConnection,
   deleteSandbox,
@@ -29,6 +31,8 @@ import {
   ensureTenant,
   exportAgentMutableSkills,
   exportImmutableSkills,
+  getInferencePool,
+  getInferencePoolUsage,
   getInferenceProvider,
   getInferenceProviderUsage,
   getMcpConnection,
@@ -47,6 +51,7 @@ import {
   listImmutableSkillSummaries,
   listImmutableSkillVersions,
   listInferenceModelSuggestions,
+  listInferencePools,
   listInferenceProviderCatalog,
   listInferenceProviders,
   listMcpConnections,
@@ -71,6 +76,7 @@ import {
   renameAgentEntry,
   statAgentFile,
   updateAgent,
+  updateInferencePool,
   updateInferenceProvider,
   updateSandbox,
   updateSkill,
@@ -87,6 +93,9 @@ import type {
   CreateAgentFileError,
   CreateAgentFileResponse,
   CreateAgentResponse,
+  CreateInferencePoolData,
+  CreateInferencePoolError,
+  CreateInferencePoolResponse,
   CreateInferenceProviderData,
   CreateInferenceProviderError,
   CreateInferenceProviderResponse,
@@ -120,6 +129,9 @@ import type {
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsError,
   DeleteImmutableSkillsResponse,
+  DeleteInferencePoolData,
+  DeleteInferencePoolError,
+  DeleteInferencePoolResponse,
   DeleteInferenceProviderData,
   DeleteInferenceProviderError,
   DeleteInferenceProviderResponse,
@@ -153,6 +165,12 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsError,
   ExportImmutableSkillsResponse,
+  GetInferencePoolData,
+  GetInferencePoolError,
+  GetInferencePoolResponse,
+  GetInferencePoolUsageData,
+  GetInferencePoolUsageError,
+  GetInferencePoolUsageResponse,
   GetInferenceProviderData,
   GetInferenceProviderError,
   GetInferenceProviderResponse,
@@ -207,6 +225,9 @@ import type {
   ListInferenceModelSuggestionsData,
   ListInferenceModelSuggestionsError,
   ListInferenceModelSuggestionsResponse,
+  ListInferencePoolsData,
+  ListInferencePoolsError,
+  ListInferencePoolsResponse2,
   ListInferenceProviderCatalogData,
   ListInferenceProviderCatalogError,
   ListInferenceProviderCatalogResponse,
@@ -276,6 +297,9 @@ import type {
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
+  UpdateInferencePoolData,
+  UpdateInferencePoolError,
+  UpdateInferencePoolResponse,
   UpdateInferenceProviderData,
   UpdateInferenceProviderError,
   UpdateInferenceProviderResponse,
@@ -1561,6 +1585,162 @@ export const listInferenceModelSuggestionsOptions = (
       return data
     },
     queryKey: listInferenceModelSuggestionsQueryKey(options),
+  })
+
+export const listInferencePoolsQueryKey = (options?: Options<ListInferencePoolsData>) =>
+  createQueryKey("listInferencePools", options)
+
+/**
+ * List paginated inference Pools.
+ */
+export const listInferencePoolsOptions = (options?: Options<ListInferencePoolsData>) =>
+  queryOptions<
+    ListInferencePoolsResponse2,
+    ListInferencePoolsError,
+    ListInferencePoolsResponse2,
+    ReturnType<typeof listInferencePoolsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listInferencePools({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listInferencePoolsQueryKey(options),
+  })
+
+/**
+ * Create an inference Pool with ordered provider-model members.
+ */
+export const createInferencePoolMutation = (
+  options?: Partial<Options<CreateInferencePoolData>>
+): UseMutationOptions<
+  CreateInferencePoolResponse,
+  CreateInferencePoolError,
+  Options<CreateInferencePoolData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateInferencePoolResponse,
+    CreateInferencePoolError,
+    Options<CreateInferencePoolData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createInferencePool({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete an inference Pool not referenced by a Sandbox.
+ */
+export const deleteInferencePoolMutation = (
+  options?: Partial<Options<DeleteInferencePoolData>>
+): UseMutationOptions<
+  DeleteInferencePoolResponse,
+  DeleteInferencePoolError,
+  Options<DeleteInferencePoolData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteInferencePoolResponse,
+    DeleteInferencePoolError,
+    Options<DeleteInferencePoolData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteInferencePool({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getInferencePoolQueryKey = (options: Options<GetInferencePoolData>) =>
+  createQueryKey("getInferencePool", options)
+
+/**
+ * Get an inference Pool and its derived contract.
+ */
+export const getInferencePoolOptions = (options: Options<GetInferencePoolData>) =>
+  queryOptions<
+    GetInferencePoolResponse,
+    GetInferencePoolError,
+    GetInferencePoolResponse,
+    ReturnType<typeof getInferencePoolQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getInferencePool({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getInferencePoolQueryKey(options),
+  })
+
+/**
+ * Replace Pool membership or routing behavior.
+ */
+export const updateInferencePoolMutation = (
+  options?: Partial<Options<UpdateInferencePoolData>>
+): UseMutationOptions<
+  UpdateInferencePoolResponse,
+  UpdateInferencePoolError,
+  Options<UpdateInferencePoolData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateInferencePoolResponse,
+    UpdateInferencePoolError,
+    Options<UpdateInferencePoolData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateInferencePool({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getInferencePoolUsageQueryKey = (options: Options<GetInferencePoolUsageData>) =>
+  createQueryKey("getInferencePoolUsage", options)
+
+/**
+ * List Sandboxes directly referencing an inference Pool.
+ */
+export const getInferencePoolUsageOptions = (options: Options<GetInferencePoolUsageData>) =>
+  queryOptions<
+    GetInferencePoolUsageResponse,
+    GetInferencePoolUsageError,
+    GetInferencePoolUsageResponse,
+    ReturnType<typeof getInferencePoolUsageQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getInferencePoolUsage({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getInferencePoolUsageQueryKey(options),
   })
 
 /**

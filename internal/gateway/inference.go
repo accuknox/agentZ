@@ -52,6 +52,11 @@ type providerWriter interface {
 	AsAnthropicCompatibleInferenceProviderWrite() (gatewayapi.AnthropicCompatibleInferenceProviderWrite, error)
 }
 
+type providerUsage struct {
+	pools     []string
+	sandboxes []string
+}
+
 // ListInferenceProviders handles GET /api/inference-provider.
 func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProvidersParams) {
 	ns, err := tenantNamespace(r.Context())
@@ -161,6 +166,15 @@ func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer providers.Stop()
+	pools, err := s.agentz.AgentzV1alpha1().InferencePools(ns).Watch(
+		r.Context(),
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		recordRequestError(w, "internal_error", fmt.Errorf("watch dependent inference pools: %w", err))
+		return
+	}
+	defer pools.Stop()
 	sandboxes, err := s.agentz.AgentzV1alpha1().Sandboxes(ns).Watch(
 		r.Context(),
 		metav1.ListOptions{},
@@ -180,6 +194,10 @@ func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request
 		case <-r.Context().Done():
 			return
 		case _, ok := <-providers.ResultChan():
+			if !ok || !writeChanges() {
+				return
+			}
+		case _, ok := <-pools.ResultChan():
 			if !ok || !writeChanges() {
 				return
 			}
@@ -203,15 +221,49 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 	if err := s.usageReader.List(ctx, sandboxes, ctrlclient.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list inference provider usage: %w", err)
 	}
-	usage := make(map[string]int)
-	for i := range sandboxes.Items {
-		seen := make(map[string]struct{}, len(sandboxes.Items[i].Spec.Inference.Models))
-		for _, model := range sandboxes.Items[i].Spec.Inference.Models {
-			if _, ok := seen[model.Provider]; ok {
+	pools := &agentzv1alpha1.InferencePoolList{}
+	if err := s.usageReader.List(ctx, pools, ctrlclient.InNamespace(namespace)); err != nil {
+		return nil, fmt.Errorf("list inference pools: %w", err)
+	}
+	poolProviders := make(map[string][]string, len(pools.Items))
+	for i := range pools.Items {
+		seen := make(map[string]struct{}, len(pools.Items[i].Spec.Members))
+		for _, member := range pools.Items[i].Spec.Members {
+			if _, exists := seen[member.Provider]; exists {
 				continue
 			}
-			seen[model.Provider] = struct{}{}
-			usage[model.Provider]++
+			seen[member.Provider] = struct{}{}
+			poolProviders[pools.Items[i].Name] = append(
+				poolProviders[pools.Items[i].Name], member.Provider,
+			)
+		}
+	}
+	usage := make(map[string]map[string]struct{})
+	addUsage := func(provider, sandbox string) {
+		if usage[provider] == nil {
+			usage[provider] = make(map[string]struct{})
+		}
+		usage[provider][sandbox] = struct{}{}
+	}
+	for i := range sandboxes.Items {
+		seenProviders := make(map[string]struct{}, len(sandboxes.Items[i].Spec.Inference.Models))
+		seenPools := make(map[string]struct{}, len(sandboxes.Items[i].Spec.Inference.Models))
+		for _, model := range sandboxes.Items[i].Spec.Inference.Models {
+			if model.Provider == agentzv1alpha1.InferencePoolProvider {
+				if _, exists := seenPools[model.Model]; exists {
+					continue
+				}
+				seenPools[model.Model] = struct{}{}
+				for _, provider := range poolProviders[model.Model] {
+					addUsage(provider, sandboxes.Items[i].Name)
+				}
+				continue
+			}
+			if _, exists := seenProviders[model.Provider]; exists {
+				continue
+			}
+			seenProviders[model.Provider] = struct{}{}
+			addUsage(model.Provider, sandboxes.Items[i].Name)
 		}
 	}
 	items := make([]gatewayapi.InferenceProvider, 0, len(providers.Items))
@@ -221,7 +273,7 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 				continue
 			}
 		}
-		item, err := providerToAPI(&providers.Items[i], usage[providers.Items[i].Name])
+		item, err := providerToAPI(&providers.Items[i], len(usage[providers.Items[i].Name]))
 		if err != nil {
 			return nil, err
 		}
@@ -255,7 +307,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	provider := providerFromInput(ns, name, input)
 	fields := inference.ValidateProvider(provider.Spec)
 	if len(fields) > 0 {
-		writeProviderIssues(w, r, fields)
+		writeInferenceIssues(w, r, fields)
 		return
 	}
 	record, err := inference.CredentialsForCreate(
@@ -309,7 +361,7 @@ func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, p
 	if !ok {
 		return
 	}
-	item, err := providerToAPI(provider, len(usage))
+	item, err := providerToAPI(provider, len(usage.sandboxes))
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -354,19 +406,19 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	}
 	desired := providerFromInput(ns, current.Name, input)
 	if desired.Spec.Kind != current.Spec.Kind {
-		writeProviderIssues(w, r, []inference.Issue{{
+		writeInferenceIssues(w, r, []inference.Issue{{
 			Field: "kind", Message: "provider kind is immutable",
 		}})
 		return
 	}
 	if desired.Spec.CatalogProvider != current.Spec.CatalogProvider {
-		writeProviderIssues(w, r, []inference.Issue{{
+		writeInferenceIssues(w, r, []inference.Issue{{
 			Field: "catalog_provider", Message: "catalog provider is immutable",
 		}})
 		return
 	}
 	if fields := inference.ValidateProvider(desired.Spec); len(fields) > 0 {
-		writeProviderIssues(w, r, fields)
+		writeInferenceIssues(w, r, fields)
 		return
 	}
 	modelIssues, err := inference.ValidateModelRemoval(
@@ -377,7 +429,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if len(modelIssues) > 0 {
-		writeProviderIssues(w, r, modelIssues)
+		writeInferenceIssues(w, r, modelIssues)
 		return
 	}
 	record, rotate, err := inference.CredentialsForUpdate(
@@ -452,7 +504,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	item, err := providerToAPI(current, len(usage))
+	item, err := providerToAPI(current, len(usage.sandboxes))
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -466,9 +518,14 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if len(usage) > 0 {
-		fields := make([]gatewayapi.FieldError, 0, len(usage))
-		for _, sandbox := range usage {
+	if len(usage.pools) > 0 || len(usage.sandboxes) > 0 {
+		fields := make([]gatewayapi.FieldError, 0, len(usage.pools)+len(usage.sandboxes))
+		for _, pool := range usage.pools {
+			fields = append(fields, gatewayapi.FieldError{
+				Field: "pools", Message: pool,
+			})
+		}
+		for _, sandbox := range usage.sandboxes {
 			fields = append(fields, gatewayapi.FieldError{
 				Field: "sandboxes", Message: sandbox,
 			})
@@ -476,7 +533,7 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"provider_referenced",
-			"provider is referenced by one or more sandboxes",
+			"provider is referenced by one or more pools or sandboxes",
 			errBadRequest,
 			fields...,
 		))
@@ -496,7 +553,7 @@ func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.InferenceProviderUsage{
-		Provider: providerName, Sandboxes: usage,
+		Provider: providerName, Pools: usage.pools, Sandboxes: usage.sandboxes,
 	})
 }
 
@@ -582,34 +639,58 @@ func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.R
 	})
 }
 
-func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, providerName string) (*agentzv1alpha1.InferenceProvider, []string, bool) {
+func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, providerName string) (*agentzv1alpha1.InferenceProvider, providerUsage, bool) {
+	usage := providerUsage{}
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
-		return nil, nil, false
+		return nil, usage, false
 	}
 	provider := &agentzv1alpha1.InferenceProvider{}
 	key := ctrlclient.ObjectKey{Namespace: ns, Name: strings.TrimSpace(providerName)}
 	if err := s.k8sClient.Get(r.Context(), key, provider); err != nil {
 		writeError(w, r, mapKubeHTTPError("get inference provider", err))
-		return nil, nil, false
+		return nil, usage, false
 	}
-	sandboxes := &agentzv1alpha1.SandboxList{}
+	pools := &agentzv1alpha1.InferencePoolList{}
 	err = s.usageReader.List(
 		r.Context(),
-		sandboxes,
+		pools,
 		ctrlclient.InNamespace(ns),
-		ctrlclient.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
+		ctrlclient.MatchingFields{inference.PoolByProviderIndex: provider.Name},
 	)
 	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("list dependent inference pools: %w", err))
+		return nil, usage, false
+	}
+	poolNames := make(map[string]struct{}, len(pools.Items))
+	for _, pool := range pools.Items {
+		poolNames[pool.Name] = struct{}{}
+		usage.pools = append(usage.pools, pool.Name)
+	}
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err = s.usageReader.List(r.Context(), sandboxes, ctrlclient.InNamespace(ns))
+	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("list inference provider usage: %w", err))
-		return nil, nil, false
+		return nil, usage, false
 	}
-	usage := make([]string, 0)
+	seen := make(map[string]struct{}, len(sandboxes.Items))
 	for _, sandbox := range sandboxes.Items {
-		usage = append(usage, sandbox.Name)
+		for _, model := range sandbox.Spec.Inference.Models {
+			direct := model.Provider == provider.Name
+			_, transitive := poolNames[model.Model]
+			if !direct && (model.Provider != agentzv1alpha1.InferencePoolProvider || !transitive) {
+				continue
+			}
+			seen[sandbox.Name] = struct{}{}
+			break
+		}
 	}
-	slices.Sort(usage)
+	for sandbox := range seen {
+		usage.sandboxes = append(usage.sandboxes, sandbox)
+	}
+	slices.Sort(usage.pools)
+	slices.Sort(usage.sandboxes)
 	return provider, usage, true
 }
 
@@ -1067,7 +1148,7 @@ func modelsToAPI(models []agentzv1alpha1.InferenceModel) []gatewayapi.InferenceM
 	return values
 }
 
-func writeProviderIssues(w http.ResponseWriter, r *http.Request, issues []inference.Issue) {
+func writeInferenceIssues(w http.ResponseWriter, r *http.Request, issues []inference.Issue) {
 	fields := make([]gatewayapi.FieldError, 0, len(issues))
 	for _, issue := range issues {
 		fields = append(fields, gatewayapi.FieldError{Field: issue.Field, Message: issue.Message})
@@ -1087,7 +1168,7 @@ func writeProviderInputError(w http.ResponseWriter, r *http.Request, err error) 
 		writeInternalError(w, r, err)
 		return
 	}
-	writeProviderIssues(w, r, []inference.Issue{{
+	writeInferenceIssues(w, r, []inference.Issue{{
 		Field: inputErr.Field, Message: inputErr.Message,
 	}})
 }

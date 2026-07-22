@@ -4,6 +4,7 @@ import { updateTag } from "next/cache"
 import {
   createInferenceProvider,
   deleteInferenceProvider,
+  getInferenceProviderUsage,
   listInferenceProviderCatalog,
   listInferenceModelSuggestions,
   updateInferenceProvider,
@@ -13,6 +14,7 @@ import {
   type InferenceModelSuggestions,
   type InferenceProviderCatalog,
   type InferenceProviderKind,
+  type InferenceProviderUsage,
   type UpdateInferenceProviderRequestWritable,
 } from "@/lib/gateway/client"
 import {
@@ -119,6 +121,23 @@ export async function deleteInferenceProviderAction(
   updateTag(inferenceProvidersTag)
   updateTag(sandboxesTag)
   return {}
+}
+
+export async function getInferenceProviderUsageAction(
+  name: string
+): Promise<{ usage?: InferenceProviderUsage; error?: GatewayError }> {
+  const parsed = zInferenceProviderName.safeParse(name)
+  if (!parsed.success) {
+    return { error: { code: "INVALID_FORM", message: "Invalid provider ID" } }
+  }
+  const result = await getInferenceProviderUsage({
+    path: { providerName: parsed.data },
+    client: getGatewayServerClient(),
+  })
+  if (result.error) {
+    return { error: result.error }
+  }
+  return { usage: result.data }
 }
 
 export async function refreshInferenceProvidersAction(): Promise<InferenceProvidersResult> {

@@ -57,6 +57,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;delete
@@ -183,39 +184,64 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 	)
 	if err != nil {
 		err = fmt.Errorf("list provider references before deletion: %w", err)
-		return ctrl.Result{}, r.blockDeletion(ctx, provider, "ReferenceCheckFailed", err)
+		return ctrl.Result{}, errors.Join(
+			err,
+			r.blockDeletion(ctx, provider, "ReferenceCheckFailed", err),
+		)
 	}
 	if len(sandboxes.Items) > 0 {
 		err := fmt.Errorf("provider is still referenced by sandbox %q", sandboxes.Items[0].Name)
-		return ctrl.Result{}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+	}
+	pools := &agentzv1alpha1.InferencePoolList{}
+	err = r.List(
+		ctx,
+		pools,
+		client.InNamespace(provider.Namespace),
+		client.MatchingFields{inference.PoolByProviderIndex: provider.Name},
+	)
+	if err != nil {
+		err = fmt.Errorf("list pool references before deletion: %w", err)
+		return ctrl.Result{}, errors.Join(
+			err,
+			r.blockDeletion(ctx, provider, "ReferenceCheckFailed", err),
+		)
+	}
+	if len(pools.Items) > 0 {
+		err := fmt.Errorf("provider is still referenced by pool %q", pools.Items[0].Name)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
 	}
 	if err := r.deleteCredentialResources(ctx, provider); err != nil {
-		return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err)
+		return ctrl.Result{}, errors.Join(
+			err,
+			r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err),
+		)
 	}
 	backend := &agentgatewayv1alpha1.AgentgatewayBackend{
 		ObjectMeta: metav1.ObjectMeta{Name: provider.Name, Namespace: provider.Namespace},
 	}
 	err = r.Get(ctx, client.ObjectKeyFromObject(backend), backend)
 	if err == nil && !metav1.IsControlledBy(backend, provider) {
-		return ctrl.Result{}, r.blockDeletion(
-			ctx,
-			provider,
-			"FinalizerCleanupFailed",
-			errors.New("inference backend name is owned by another resource"),
+		err := errors.New("inference backend name is owned by another resource")
+		return ctrl.Result{}, errors.Join(
+			err,
+			r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err),
 		)
 	}
 	switch {
 	case err == nil:
 		if err := r.Delete(ctx, backend); err != nil && !apierrors.IsNotFound(err) {
 			err = fmt.Errorf("delete inference backend: %w", err)
-			return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err)
+			return ctrl.Result{}, errors.Join(
+				err,
+				r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err),
+			)
 		}
 	case !apierrors.IsNotFound(err):
-		return ctrl.Result{}, r.blockDeletion(
-			ctx,
-			provider,
-			"FinalizerCleanupFailed",
-			fmt.Errorf("read inference backend for cleanup: %w", err),
+		err = fmt.Errorf("read inference backend for cleanup: %w", err)
+		return ctrl.Result{}, errors.Join(
+			err,
+			r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err),
 		)
 	}
 	controlled := []client.Object{
@@ -230,18 +256,27 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 		}
 		if !apierrors.IsNotFound(err) {
 			err = fmt.Errorf("confirm provider runtime cleanup: %w", err)
-			return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err)
+			return ctrl.Result{}, errors.Join(
+				err,
+				r.blockDeletion(ctx, provider, "FinalizerCleanupFailed", err),
+			)
 		}
 	}
 	kv, err := r.openBaoMetadata(ctx)
 	if err != nil {
 		err = fmt.Errorf("create openbao client for provider cleanup: %w", err)
-		return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerOpenBaoFailed", err)
+		return ctrl.Result{}, errors.Join(
+			err,
+			r.blockDeletion(ctx, provider, "FinalizerOpenBaoFailed", err),
+		)
 	}
 	path := provider.Namespace + "/" + inference.CredentialPathDir + "/" + provider.Name
 	if err := kv.DeleteMetadata(ctx, path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		err = fmt.Errorf("delete inference credential metadata: %w", err)
-		return ctrl.Result{}, r.blockDeletion(ctx, provider, "FinalizerOpenBaoFailed", err)
+		return ctrl.Result{}, errors.Join(
+			err,
+			r.blockDeletion(ctx, provider, "FinalizerOpenBaoFailed", err),
+		)
 	}
 	patch := client.MergeFrom(provider.DeepCopy())
 	ctrlutil.RemoveFinalizer(provider, agentzv1alpha1.InferenceProviderFinalizer)
@@ -283,7 +318,7 @@ func (r *Reconciler) blockDeletion(ctx context.Context, provider *agentzv1alpha1
 		})
 		return r.Status().Update(ctx, current)
 	})
-	return errors.Join(reconcileErr, statusErr)
+	return statusErr
 }
 
 func (r *Reconciler) deleteCredentialResources(ctx context.Context, provider *agentzv1alpha1.InferenceProvider) error {

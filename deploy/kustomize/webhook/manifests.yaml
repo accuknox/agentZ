@@ -155,6 +155,27 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-agentz-accuknox-com-v1alpha1-inferencepool
+  failurePolicy: Fail
+  name: vinferencepool-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - agentz.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - inferencepools
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-agentz-accuknox-com-v1alpha1-inferenceprovider
   failurePolicy: Fail
   name: vinferenceprovider-v1alpha1.kb.io

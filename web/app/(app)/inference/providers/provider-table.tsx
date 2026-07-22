@@ -19,6 +19,7 @@ import {
   ArrowRight,
   ArrowUpDown,
   CheckCircle2,
+  CircleAlert,
   CircleDashed,
   MoreHorizontal,
   Pencil,
@@ -26,6 +27,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -370,7 +372,7 @@ function ProviderActions({
               <Pencil />
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
               <Trash2 />
               Delete
             </DropdownMenuItem>
@@ -411,13 +413,15 @@ function DeleteProviderDialog({
           <DialogTitle>Delete {provider.display_name}?</DialogTitle>
           <DialogDescription>
             This will delete the inference provider and its stored credentials. Providers used by
-            sandboxes cannot be deleted.
+            Pools or Sandboxes cannot be deleted.
           </DialogDescription>
         </DialogHeader>
         {error ? (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm whitespace-pre-line">
-            {error}
-          </p>
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertTitle>Provider could not be deleted</AlertTitle>
+            <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
+          </Alert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>

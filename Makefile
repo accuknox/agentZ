@@ -18,7 +18,7 @@ KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
 CONTROLLER_GEN ?= controller-gen
 
-GO_PKGS := ./cmd ./hack ./internal/... ./pkg/...
+GO_PKGS := ./cmd ./hack/... ./internal/... ./pkg/...
 
 .PHONY: all
 all: generate lint build
@@ -26,10 +26,10 @@ all: generate lint build
 .PHONY: generate
 generate:
 	sqlc generate
-	go run ./hack/generate_inference_providers.go
-	go run ./hack/generate_opencode_gateway.go
+	go run ./hack/inference/generate_providers.go
+	go run ./hack/openapi/generate_opencode_gateway.go
 	oapi-codegen \
-		--include-tags agents,tenants,lens,secrets,sandboxes,inference-providers,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
+		--include-tags agents,tenants,lens,secrets,sandboxes,inference-providers,inference-pools,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \

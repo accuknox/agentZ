@@ -68,6 +68,7 @@ rules:
   - agentz.accuknox.com
   resources:
   - agents/finalizers
+  - inferencepools/finalizers
   - inferenceproviders/finalizers
   - mcpconnections/finalizers
   - sandboxes/finalizers
@@ -80,6 +81,7 @@ rules:
   - agentz.accuknox.com
   resources:
   - agents/status
+  - inferencepools/status
   - inferenceproviders/status
   - mcpconnections/status
   - sandboxes/status
@@ -94,6 +96,7 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
+  - inferencepools
   - inferenceproviders
   - mcpconnections
   - secrets

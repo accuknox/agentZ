@@ -1,11 +1,15 @@
 package inference
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -216,6 +220,46 @@ func TestRenderRuntimeCompatibleFormats(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
+	t.Parallel()
+
+	current := &agentzv1alpha1.InferenceProvider{
+		ObjectMeta: metav1.ObjectMeta{Name: "provider", Namespace: "default"},
+		Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindOpenAI),
+	}
+	desired := current.DeepCopy()
+	desired.Spec.Models = nil
+	pool := &agentzv1alpha1.InferencePool{
+		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
+		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{{
+			Provider: current.Name, Model: "model",
+		}}},
+	}
+	scheme := runtime.NewScheme()
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool).WithIndex(
+		&agentzv1alpha1.InferencePool{}, PoolByProviderIndex,
+		func(obj client.Object) []string {
+			value := obj.(*agentzv1alpha1.InferencePool)
+			providers := make([]string, 0, len(value.Spec.Members))
+			for _, member := range value.Spec.Members {
+				providers = append(providers, member.Provider)
+			}
+			return providers
+		},
+	).Build()
+	issues, err := ValidateModelRemoval(context.Background(), reader, current, desired)
+	if err != nil {
+		t.Fatalf("ValidateModelRemoval() error = %v", err)
+	}
+	if len(issues) != 1 || issues[0].Field != "models" ||
+		issues[0].Message != "model \"model\" is referenced by pools [pool]" {
+		t.Fatalf("ValidateModelRemoval() issues = %#v", issues)
 	}
 }
 

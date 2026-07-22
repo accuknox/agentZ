@@ -74,6 +74,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
   listInferenceProviderCatalogAction,
+  getInferenceProviderUsageAction,
   saveInferenceProviderAction,
   suggestInferenceModelsAction,
 } from "@/data/inference-provider.actions"
@@ -647,6 +648,11 @@ export function ProviderSheet({
   const [editingModel, setEditingModel] = React.useState<number>()
   const [submitError, setSubmitError] = React.useState("")
   const [submitErrors, setSubmitErrors] = React.useState<string[]>([])
+  const [impact, setImpact] = React.useState<{
+    values: CreateInferenceProviderRequestWritable
+    pools: string[]
+    sandboxes: string[]
+  }>()
   const [pending, startTransition] = React.useTransition()
 
   React.useEffect(() => {
@@ -699,7 +705,7 @@ export function ProviderSheet({
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
   )
 
-  function handleSubmit(values: CreateInferenceProviderRequestWritable) {
+  function save(values: CreateInferenceProviderRequestWritable) {
     setSubmitError("")
     setSubmitErrors([])
     startTransition(async () => {
@@ -722,6 +728,47 @@ export function ProviderSheet({
       toast.success(provider ? "Inference provider updated" : "Inference provider created")
       form.reset()
       onOpenChange(false)
+    })
+  }
+
+  function handleSubmit(values: CreateInferenceProviderRequestWritable) {
+    if (!provider) {
+      save(values)
+      return
+    }
+
+    const current = new Map(provider.models.map((model) => [model.id, model]))
+    const changed =
+      provider.models.length !== values.models.length ||
+      values.models.some((model) => {
+        const prior = current.get(model.id)
+        return (
+          !prior ||
+          JSON.stringify(prior.capabilities) !== JSON.stringify(model.capabilities) ||
+          JSON.stringify(prior.modalities) !== JSON.stringify(model.modalities) ||
+          JSON.stringify(prior.limits) !== JSON.stringify(model.limits)
+        )
+      })
+    if (!changed) {
+      save(values)
+      return
+    }
+
+    startTransition(async () => {
+      const result = await getInferenceProviderUsageAction(provider.id)
+      if (result.error) {
+        setSubmitError(result.error.message)
+        return
+      }
+      if (!result.usage || result.usage.pools.length === 0) {
+        save(values)
+        return
+      }
+      setImpact({
+        values,
+        pools: result.usage.pools,
+        sandboxes: result.usage.sandboxes,
+      })
     })
   }
 
@@ -1644,6 +1691,47 @@ export function ProviderSheet({
           editingModel={editingModel}
           onCloseAction={() => setEditingModel(undefined)}
         />
+        <Dialog open={Boolean(impact)} onOpenChange={(next) => !next && setImpact(undefined)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update shared Pool contracts?</DialogTitle>
+              <DialogDescription>
+                Model capabilities, modalities, or limits changed. Saving recalculates every
+                dependent Pool and regenerates configuration for affected Sandboxes and Agents.
+              </DialogDescription>
+            </DialogHeader>
+            {impact ? (
+              <div className="space-y-4 text-sm">
+                <div>
+                  <p className="font-medium">Pools</p>
+                  <p className="text-muted-foreground">{impact.pools.join(", ")}</p>
+                </div>
+                <div>
+                  <p className="font-medium">Sandboxes</p>
+                  <p className="text-muted-foreground">
+                    {impact.sandboxes.length ? impact.sandboxes.join(", ") : "None"}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setImpact(undefined)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (!impact) return
+                  const values = impact.values
+                  setImpact(undefined)
+                  save(values)
+                }}
+              >
+                Update provider
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SheetContent>
     </Sheet>
   )

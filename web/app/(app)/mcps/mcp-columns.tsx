@@ -214,7 +214,7 @@ function McpActions({
               <Eye />
               View
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
               <Trash2 />
               Delete
             </DropdownMenuItem>

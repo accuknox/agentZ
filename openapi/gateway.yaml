@@ -84,6 +84,13 @@ components:
       schema:
         format: date
         type: string
+    InferencePoolNamePath:
+      description: Stable inference Pool ID.
+      in: path
+      name: poolName
+      required: true
+      schema:
+        $ref: '#/components/schemas/InferencePoolName'
     InferenceProviderNamePath:
       description: Stable inference provider ID.
       in: path
@@ -681,6 +688,8 @@ components:
       - name
       - sandboxName
       type: object
+    CreateInferencePoolRequest:
+      $ref: '#/components/schemas/InferencePoolWrite'
     CreateInferenceProviderRequest:
       $ref: '#/components/schemas/InferenceProviderWriteDiscriminator'
     CreateMCPConnectionRequest:
@@ -1228,6 +1237,182 @@ components:
       - provenance
       - models
       type: object
+    InferencePool:
+      additionalProperties: false
+      properties:
+        automatic_failover:
+          type: boolean
+        conditions:
+          items:
+            $ref: '#/components/schemas/InferenceProviderCondition'
+          type: array
+        contract:
+          $ref: '#/components/schemas/InferencePoolContract'
+        created_at:
+          format: date-time
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        id:
+          $ref: '#/components/schemas/InferencePoolName'
+        member_statuses:
+          items:
+            $ref: '#/components/schemas/InferencePoolMemberStatus'
+          type: array
+        members:
+          items:
+            $ref: '#/components/schemas/InferencePoolMember'
+          maxItems: 8
+          minItems: 1
+          type: array
+        protocol:
+          $ref: '#/components/schemas/InferenceProtocol'
+        resource_version:
+          type: string
+        state:
+          $ref: '#/components/schemas/InferencePoolState'
+        updated_at:
+          format: date-time
+          type: string
+        usage_count:
+          minimum: 0
+          type: integer
+        warnings:
+          items:
+            $ref: '#/components/schemas/InferencePoolWarning'
+          type: array
+      required:
+      - id
+      - display_name
+      - resource_version
+      - automatic_failover
+      - members
+      - state
+      - conditions
+      - warnings
+      - member_statuses
+      - usage_count
+      - created_at
+      - updated_at
+      type: object
+    InferencePoolContract:
+      additionalProperties: false
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/InferenceModelCapabilities'
+        limits:
+          $ref: '#/components/schemas/InferenceModelLimits'
+        modalities:
+          $ref: '#/components/schemas/InferenceModelModalities'
+      required:
+      - capabilities
+      - modalities
+      - limits
+      type: object
+    InferencePoolMember:
+      additionalProperties: false
+      properties:
+        model:
+          maxLength: 512
+          minLength: 1
+          type: string
+        provider:
+          $ref: '#/components/schemas/InferenceProviderName'
+      required:
+      - provider
+      - model
+      type: object
+    InferencePoolMemberStatus:
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+        model:
+          maxLength: 512
+          minLength: 1
+          type: string
+        protocol:
+          $ref: '#/components/schemas/InferenceProtocol'
+        provider:
+          $ref: '#/components/schemas/InferenceProviderName'
+        ready:
+          type: boolean
+        reason:
+          type: string
+      required:
+      - provider
+      - model
+      - protocol
+      - ready
+      - reason
+      - message
+      type: object
+    InferencePoolName:
+      description: Stable tenant-scoped inference Pool ID.
+      maxLength: 63
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    InferencePoolState:
+      enum:
+      - Accepted
+      - Ready
+      - PartiallyDegraded
+      - Degraded
+      type: string
+    InferencePoolUsage:
+      additionalProperties: false
+      properties:
+        pool:
+          $ref: '#/components/schemas/InferencePoolName'
+        sandboxes:
+          items:
+            $ref: '#/components/schemas/SandboxName'
+          type: array
+      required:
+      - pool
+      - sandboxes
+      type: object
+    InferencePoolWarning:
+      additionalProperties: false
+      properties:
+        code:
+          enum:
+          - MixedProtocols
+          type: string
+        message:
+          type: string
+      required:
+      - code
+      - message
+      type: object
+    InferencePoolWrite:
+      additionalProperties: false
+      properties:
+        automatic_failover:
+          type: boolean
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        members:
+          items:
+            $ref: '#/components/schemas/InferencePoolMember'
+          maxItems: 8
+          minItems: 1
+          type: array
+      required:
+      - display_name
+      - automatic_failover
+      - members
+      type: object
+    InferenceProtocol:
+      enum:
+      - OpenAI
+      - Anthropic
+      type: string
     InferenceProvider:
       allOf:
       - $ref: '#/components/schemas/InferenceProviderReadFields'
@@ -1475,6 +1660,10 @@ components:
     InferenceProviderUsage:
       additionalProperties: false
       properties:
+        pools:
+          items:
+            $ref: '#/components/schemas/InferencePoolName'
+          type: array
         provider:
           $ref: '#/components/schemas/InferenceProviderName'
         sandboxes:
@@ -1483,6 +1672,7 @@ components:
           type: array
       required:
       - provider
+      - pools
       - sandboxes
       type: object
     InferenceProviderVertexCredentials:
@@ -1570,6 +1760,19 @@ components:
           type: array
       required:
       - skills
+      - next_page_token
+      type: object
+    ListInferencePoolsResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        pools:
+          items:
+            $ref: '#/components/schemas/InferencePool'
+          type: array
+      required:
+      - pools
       - next_page_token
       type: object
     ListInferenceProvidersResponse:
@@ -11212,6 +11415,18 @@ components:
             $ref: '#/components/schemas/SkillName'
           type: array
       type: object
+    UpdateInferencePoolRequest:
+      additionalProperties: false
+      properties:
+        pool:
+          $ref: '#/components/schemas/InferencePoolWrite'
+        resource_version:
+          minLength: 1
+          type: string
+      required:
+      - resource_version
+      - pool
+      type: object
     UpdateInferenceProviderRequest:
       additionalProperties: false
       properties:
@@ -11375,6 +11590,26 @@ components:
         agent_names:
           items:
             $ref: '#/components/schemas/AgentName'
+          type: array
+          uniqueItems: true
+      type: object
+    WatchInferencePoolsEvent:
+      additionalProperties: false
+      properties:
+        pools:
+          items:
+            $ref: '#/components/schemas/InferencePool'
+          type: array
+      required:
+      - pools
+      type: object
+    WatchInferencePoolsRequest:
+      additionalProperties: false
+      properties:
+        pool_ids:
+          items:
+            $ref: '#/components/schemas/InferencePoolName'
+          maxItems: 200
           type: array
           uniqueItems: true
       type: object
@@ -12330,6 +12565,153 @@ paths:
       summary: Watch agent status changes.
       tags:
       - agents
+  /api/inference-pool:
+    get:
+      operationId: listInferencePools
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListInferencePoolsResponse'
+          description: Paginated inference Pools.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated inference Pools.
+      tags:
+      - inference-pools
+    post:
+      operationId: createInferencePool
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInferencePoolRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePool'
+          description: Pool created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create an inference Pool with ordered provider-model members.
+      tags:
+      - inference-pools
+  /api/inference-pool/{poolName}:
+    delete:
+      operationId: deleteInferencePool
+      responses:
+        "204":
+          description: Pool deletion accepted.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete an inference Pool not referenced by a Sandbox.
+      tags:
+      - inference-pools
+    get:
+      operationId: getInferencePool
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePool'
+          description: Inference Pool.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get an inference Pool and its derived contract.
+      tags:
+      - inference-pools
+    parameters:
+    - $ref: '#/components/parameters/InferencePoolNamePath'
+    put:
+      operationId: updateInferencePool
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInferencePoolRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePool'
+          description: Pool updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Replace Pool membership or routing behavior.
+      tags:
+      - inference-pools
+  /api/inference-pool/{poolName}/usage:
+    get:
+      operationId: getInferencePoolUsage
+      parameters:
+      - $ref: '#/components/parameters/InferencePoolNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePoolUsage'
+          description: Pool usage.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Sandboxes directly referencing an inference Pool.
+      tags:
+      - inference-pools
+  /api/inference-pool/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each payload contains current Pool read shapes for the requested IDs, or all Pools when IDs are omitted.
+      operationId: watchInferencePools
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchInferencePoolsRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchInferencePoolsEvent'
+          description: Stream of inference Pool updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch inference Pool status and usage changes.
+      tags:
+      - inference-pools
   /api/inference-provider:
     get:
       operationId: listInferenceProviders
@@ -21578,6 +21960,8 @@ tags:
   name: sandboxes
 - description: Tenant inference provider and model APIs.
   name: inference-providers
+- description: Tenant logical model Pools with ordered provider-model fallback.
+  name: inference-pools
 - description: Immutable skill catalog and attachment APIs.
   name: skills
 - description: MCPConnection resource and credential management APIs.

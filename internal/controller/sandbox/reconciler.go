@@ -71,6 +71,7 @@ const (
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;httproutes,verbs=get;list;watch;create;update;patch;delete
@@ -199,6 +200,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&agentzv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.sandboxForAgent)).
 		Watches(&agentzv1alpha1.MCPConnection{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForMCPConnection)).
 		Watches(&agentzv1alpha1.InferenceProvider{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceProvider)).
+		Watches(&agentzv1alpha1.InferencePool{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePool)).
 		Watches(&gwv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceGateway)).
 		Owns(&gwv1.HTTPRoute{}).
 		Watches(&agentgatewayv1alpha1.AgentgatewayPolicy{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePolicy)).
@@ -258,6 +260,34 @@ func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj clie
 			"list sandboxes for inference provider",
 			slog.String("namespace", provider.Namespace),
 			slog.String("provider", provider.Name),
+			slog.Any("err", err),
+		)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
+	for _, sandbox := range sandboxes.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(&sandbox),
+		})
+	}
+	return requests
+}
+
+func (r *Reconciler) sandboxesForInferencePool(ctx context.Context, obj client.Object) []reconcile.Request {
+	pool := obj.(*agentzv1alpha1.InferencePool)
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err := r.List(
+		ctx,
+		sandboxes,
+		client.InNamespace(pool.Namespace),
+		client.MatchingFields{inference.SandboxByPoolIndex: pool.Name},
+	)
+	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"list sandboxes for inference pool",
+			slog.String("namespace", pool.Namespace),
+			slog.String("pool", pool.Name),
 			slog.Any("err", err),
 		)
 		return nil

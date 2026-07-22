@@ -452,10 +452,7 @@ function SkillRowActions({
               {exporting ? <Spinner /> : <Download />}
               Export
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive"
-              onSelect={() => setDeleteNames([skill.name])}
-            >
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteNames([skill.name])}>
               <Trash2 />
               Delete
             </DropdownMenuItem>

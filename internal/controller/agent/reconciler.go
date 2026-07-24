@@ -443,7 +443,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			}
 			path := inference.SandboxProviderPath(sandbox.Name, modelRef.Provider)
 			npm := "@ai-sdk/openai-compatible"
-			apiKey := ""
+			var apiKey string
 			switch provider.Spec.Kind {
 			case agentzv1alpha1.InferenceProviderKindOpenAI,
 				agentzv1alpha1.InferenceProviderKindOpenAICodex:

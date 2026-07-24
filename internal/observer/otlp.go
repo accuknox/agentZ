@@ -199,7 +199,7 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 
 	spanClass, operationName := classifySpan(sp.GetName(), spanAttrs)
 	status := statusCode(sp.GetStatus())
-	statusMessage := ""
+	var statusMessage string
 	if sp.GetStatus() != nil {
 		statusMessage = sp.GetStatus().GetMessage()
 	}

@@ -161,7 +161,7 @@ func main() {
 		if baseURL == "" {
 			baseURL = baseURLs[id]
 		}
-		baseURLTemplate := ""
+		var baseURLTemplate string
 		if strings.Contains(baseURL, "${") {
 			baseURLTemplate = baseURL
 			baseURL = ""

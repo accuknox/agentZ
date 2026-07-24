@@ -269,8 +269,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, pool *agentzv1alpha1.Infe
 			})
 		}
 
-		accepted := false
-		backendRejected := false
+		var accepted, backendRejected bool
 		if backend != nil {
 			for _, condition := range backend.Status.Conditions {
 				if condition.Type != "Accepted" {

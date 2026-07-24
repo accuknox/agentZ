@@ -129,7 +129,7 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 	}
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
-	next := ""
+	var next string
 	if end < len(items) {
 		next = encodeOffsetToken(end)
 	}
@@ -367,7 +367,7 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		return
 	}
 	accessToken := strings.TrimSpace(*req.Credentials.AccessToken)
-	refreshToken := ""
+	var refreshToken string
 	if req.Credentials.RefreshToken != nil {
 		refreshToken = strings.TrimSpace(*req.Credentials.RefreshToken)
 	}
@@ -394,7 +394,7 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 	}
 	if kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		record.ClientID = inference.OpenAICodexClientID
-		idToken := ""
+		var idToken string
 		if req.Credentials.IdToken != nil {
 			idToken = *req.Credentials.IdToken
 		}
@@ -906,7 +906,7 @@ func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Reque
 
 // ListInferenceProviderCatalog handles GET /api/inference/provider/catalog.
 func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProviderCatalogParams) {
-	query := ""
+	var query string
 	if params.Q != nil {
 		query = *params.Q
 	}
@@ -1658,7 +1658,7 @@ func modelSuggestionsToAPI(models []agentzv1alpha1.InferenceModel) []gatewayapi.
 	values := modelsToAPI(models)
 	suggestions := make([]gatewayapi.InferenceModelSuggestion, 0, len(values))
 	for _, model := range values {
-		catalogProvider := ""
+		var catalogProvider string
 		if model.CatalogProvider != nil {
 			catalogProvider = *model.CatalogProvider
 		}

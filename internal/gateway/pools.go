@@ -45,7 +45,7 @@ func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, par
 	}
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
-	next := ""
+	var next string
 	if end < len(items) {
 		next = encodeOffsetToken(end)
 	}

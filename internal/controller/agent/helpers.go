@@ -364,14 +364,18 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config                  json.RawMessage       `json:"config"`
-	Instructions            []string              `json:"instructions"`
-	Env                     []corev1.EnvVar       `json:"env"`
-	Packages                []string              `json:"packages"`
-	MCPURL                  string                `json:"mcpUrl"`
-	MCPConsentPermissionIDs []string              `json:"mcpConsentPermissionIds"`
-	MCPRefs                 []mcpRefConfig        `json:"mcpRefs"`
-	Skills                  []skill.ManifestSkill `json:"skills"`
+	Config                   json.RawMessage       `json:"config"`
+	Instructions             []string              `json:"instructions"`
+	Env                      []corev1.EnvVar       `json:"env"`
+	Packages                 []string              `json:"packages"`
+	MCPURL                   string                `json:"mcpUrl"`
+	MCPConsentPermissionIDs  []string              `json:"mcpConsentPermissionIds"`
+	MCPRefs                  []mcpRefConfig        `json:"mcpRefs"`
+	Skills                   []skill.ManifestSkill `json:"skills"`
+	OpenAICodexProviderIDs   []string              `json:"openAICodexProviderIds"`
+	OpenAICodexPoolIDs       []string              `json:"openAICodexPoolIds"`
+	GitHubCopilotProviderIDs []string              `json:"githubCopilotProviderIds"`
+	GitHubCopilotPoolIDs     []string              `json:"githubCopilotPoolIds"`
 }
 
 type packageJobHashInput struct {
@@ -390,14 +394,18 @@ func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, 
 	}
 
 	hashInput, err := json.Marshal(configHashInput{
-		Config:                  opencodeCfg,
-		Instructions:            instructions,
-		Env:                     env,
-		Packages:                envCfg.Packages,
-		MCPURL:                  envCfg.MCPURL,
-		MCPConsentPermissionIDs: envCfg.MCPConsentPermissionIDs,
-		MCPRefs:                 envCfg.MCPRefs,
-		Skills:                  envCfg.Skills,
+		Config:                   opencodeCfg,
+		Instructions:             instructions,
+		Env:                      env,
+		Packages:                 envCfg.Packages,
+		MCPURL:                   envCfg.MCPURL,
+		MCPConsentPermissionIDs:  envCfg.MCPConsentPermissionIDs,
+		MCPRefs:                  envCfg.MCPRefs,
+		Skills:                   envCfg.Skills,
+		OpenAICodexProviderIDs:   envCfg.OpenAICodexProviderIDs,
+		OpenAICodexPoolIDs:       envCfg.OpenAICodexPoolIDs,
+		GitHubCopilotProviderIDs: envCfg.GitHubCopilotProviderIDs,
+		GitHubCopilotPoolIDs:     envCfg.GitHubCopilotPoolIDs,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal agent config hash input: %w", err)

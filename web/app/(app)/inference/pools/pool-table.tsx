@@ -87,7 +87,7 @@ const pageSize = 25
 const columnClassName: Record<string, string> = {
   display_name: "min-w-0 w-0",
   state: "w-44",
-  members: "w-64",
+  members: "w-64 max-w-64",
   automatic_failover: "w-40",
   usage_count: "w-24",
   updated_at: "w-28",
@@ -207,7 +207,10 @@ export function InferencePoolTable({
               <TooltipTrigger asChild>
                 <div className="flex min-w-0 cursor-default items-center gap-2">
                   {provider ? (
-                    <ProviderIcon provider={provider.catalog_provider} className="size-4" />
+                    <ProviderIcon
+                      provider={provider.catalog_provider}
+                      className="size-4 shrink-0"
+                    />
                   ) : null}
                   <span className="min-w-0 truncate">
                     {provider?.display_name ?? primary.provider} / {primary.model}

@@ -60,6 +60,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaypolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;delete
 
 // Reconcile moves one provider's credentials and backend toward readiness.
@@ -121,6 +122,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile inference backend: %w", err)
 	}
 	runtime.Backend = currentBackend
+	if runtime.AuthPolicy != nil {
+		if err := ctrlutil.SetControllerReference(provider, runtime.AuthPolicy, r.Scheme); err != nil {
+			return ctrl.Result{}, fmt.Errorf("own provider auth policy: %w", err)
+		}
+		currentPolicy := &agentgatewayv1alpha1.AgentgatewayPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: runtime.AuthPolicy.Name, Namespace: provider.Namespace,
+			},
+		}
+		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, currentPolicy, func() error {
+			if currentPolicy.UID != "" && !metav1.IsControlledBy(currentPolicy, provider) {
+				return errors.New("provider auth policy name is already in use")
+			}
+			currentPolicy.Spec = runtime.AuthPolicy.Spec
+			return ctrlutil.SetControllerReference(provider, currentPolicy, r.Scheme)
+		})
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("reconcile provider auth policy: %w", err)
+		}
+		runtime.AuthPolicy = currentPolicy
+	}
 
 	if runtime.ExternalSecret == nil {
 		if err := r.deleteCredentialResources(ctx, provider); err != nil {
@@ -270,7 +292,11 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			r.blockDeletion(ctx, provider, "FinalizerOpenBaoFailed", err),
 		)
 	}
-	path := provider.Namespace + "/" + inference.CredentialPathDir + "/" + provider.Name
+	path := inference.CredentialPath(
+		provider.Namespace,
+		provider.Name,
+		provider.Spec.Kind,
+	)
 	if err := kv.DeleteMetadata(ctx, path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		err = fmt.Errorf("delete inference credential metadata: %w", err)
 		return ctrl.Result{}, errors.Join(
@@ -343,8 +369,10 @@ func (r *Reconciler) deleteCredentialResources(ctx context.Context, provider *ag
 	switch {
 	case err == nil:
 		owner := metav1.GetControllerOf(secret)
-		if externalSecretUID == "" || owner == nil || owner.UID != externalSecretUID ||
-			owner.Kind != externalsecretsv1.ExtSecretKind {
+		if externalSecretUID == "" || owner == nil {
+			return errors.New("provider target secret name is owned by another resource")
+		}
+		if owner.UID != externalSecretUID || owner.Kind != externalsecretsv1.ExtSecretKind {
 			return errors.New("provider target secret name is owned by another resource")
 		}
 		if err := r.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
@@ -372,11 +400,11 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 		status.ModelCount = len(current.Spec.Models)
 		acceptedStatus := metav1.ConditionTrue
 		acceptedReason := "Accepted"
-		acceptedMessage := "Provider configuration is accepted"
+		acceptedMessage := "Provider settings are valid"
 		if reconcileErr != nil {
 			acceptedStatus = metav1.ConditionFalse
 			acceptedReason = "InvalidConfiguration"
-			acceptedMessage = reconcileErr.Error()
+			acceptedMessage = "Check the provider settings and try again"
 		}
 		meta.SetStatusCondition(&status.Conditions, metav1.Condition{
 			Type:   string(agentzv1alpha1.InferenceProviderConditionAccepted),
@@ -385,13 +413,18 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 		})
 
 		credentialsReady := reconcileErr == nil && runtime.ExternalSecret == nil
-		credentialsMessage := "Credentials are not required"
+		credentialsMessage := "Authentication is not required"
+		isCodex := current.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+		isCopilot := current.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+		if isCodex || isCopilot {
+			credentialsMessage = "Subscription is connected"
+		}
 		if reconcileErr != nil {
-			credentialsMessage = "Provider configuration is not accepted"
+			credentialsMessage = "Authentication setup is incomplete"
 		}
 		if runtime.ExternalSecret != nil {
 			credentialsReady = externalSecretReady(runtime.ExternalSecret)
-			credentialsMessage = "ExternalSecret has not materialized all expected keys"
+			credentialsMessage = "Authentication is still being prepared"
 			secret := &corev1.Secret{}
 			err := r.Get(ctx, types.NamespacedName{Name: current.Name, Namespace: current.Namespace}, secret)
 			switch {
@@ -414,7 +447,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 				credentialsReady = false
 			}
 			if credentialsReady {
-				credentialsMessage = "ExternalSecret and target Secret are ready"
+				credentialsMessage = "Authentication is ready"
 			}
 		}
 		setReadyCondition(
@@ -426,9 +459,9 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 		)
 
 		backendReady := backendAccepted(runtime.Backend)
-		backendMessage := "AgentGateway has not accepted the provider backend"
+		backendMessage := "Provider connection is still being prepared"
 		if backendReady {
-			backendMessage = "AgentGateway accepted the provider backend"
+			backendMessage = "Provider connection is ready"
 		}
 		setReadyCondition(
 			&status.Conditions,
@@ -438,9 +471,9 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 			current.Generation,
 		)
 		ready := reconcileErr == nil && credentialsReady && backendReady
-		message := "Provider runtime is ready"
+		message := "Provider is ready"
 		if !ready {
-			message = "Provider runtime dependencies are not ready"
+			message = "Provider setup is still in progress"
 		}
 		setReadyCondition(
 			&status.Conditions,
@@ -512,8 +545,9 @@ func (r *Reconciler) openBaoMetadata(ctx context.Context) (*baoapi.KVv2, error) 
 	if addr == "" {
 		addr = strings.TrimSpace(r.Config.OpenBaoAddr)
 	}
-	if addr == "" || strings.TrimSpace(r.Config.OpenBaoSecretMountPath) == "" ||
-		strings.TrimSpace(r.Config.OpenBaoK8sAuthRole) == "" {
+	mountPath := strings.TrimSpace(r.Config.OpenBaoSecretMountPath)
+	authRole := strings.TrimSpace(r.Config.OpenBaoK8sAuthRole)
+	if addr == "" || mountPath == "" || authRole == "" {
 		return nil, fmt.Errorf("complete manager openbao configuration is required")
 	}
 	bao, err := openbao.NewClient(
@@ -541,6 +575,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&agentzv1alpha1.InferenceProvider{}).
 		Owns(&externalsecretsv1.ExternalSecret{}).
 		Owns(&agentgatewayv1alpha1.AgentgatewayBackend{}).
+		Owns(&agentgatewayv1alpha1.AgentgatewayPolicy{}).
 		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.providerForSecret)).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.providersForSandbox)).
 		Named("inference-provider").

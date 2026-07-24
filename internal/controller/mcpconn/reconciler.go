@@ -59,13 +59,20 @@ type MCPConnectionReconciler struct {
 	client.Client
 	Scheme                  *runtime.Scheme
 	AgentGateway            agentgatewayclientset.Interface
-	ControllerImage         string
 	OpenBaoAddr             string
 	ManagerOpenBaoAddr      string
 	OpenBaoSecretMountPath  string
 	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
 	OpenBaoK8sAuthTokenPath string
+}
+
+func (r *MCPConnectionReconciler) managerOpenBaoAddr() string {
+	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
+	if addr != "" {
+		return addr
+	}
+	return strings.TrimSpace(r.OpenBaoAddr)
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections,verbs=get;list;watch;patch
@@ -111,29 +118,14 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, fmt.Errorf("list referencing sandboxes: %w", err)
 	}
 
-	conns, err := r.extAuthConnections(ctx, conn.Namespace)
+	ready, err := r.extAuthReady(ctx, conn.Namespace)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf(
-			"list namespace ext auth connections: %w",
-			err,
-		)
+		return ctrl.Result{}, fmt.Errorf("read ext auth runtime status: %w", err)
 	}
-
-	extAuth, err := r.reconcileExtAuthRuntime(ctx, conn.Namespace, conns)
-	if err != nil {
-		statusErr := r.updateStatus(
-			ctx,
-			conn,
-			agentzv1alpha1.MCPConnectionStateDegraded,
-			nil,
-			nil,
-			false,
-			err,
-		)
-		if statusErr != nil {
-			return ctrl.Result{}, fmt.Errorf("update degraded status: %w", statusErr)
-		}
-		return ctrl.Result{}, fmt.Errorf("reconcile ext auth runtime: %w", err)
+	extAuth := &extAuthStatus{
+		serviceRef:    mcp.ManagedRef(conn.Namespace, mcp.ExtAuthServiceName),
+		deploymentRef: mcp.ManagedRef(conn.Namespace, mcp.ExtAuthServiceName),
+		ready:         ready,
 	}
 
 	requiresExtAuth := conn.Spec.Auth != nil && len(refs) > 0
@@ -366,9 +358,10 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 				return nil, fmt.Errorf("create auth policy %q: %w", name, err)
 			}
 		}
-		if !obj.CreationTimestamp.IsZero() &&
-			(!reflect.DeepEqual(currentSpec, obj.Spec) ||
-				!reflect.DeepEqual(currentOwners, obj.OwnerReferences)) {
+		exists := !obj.CreationTimestamp.IsZero()
+		specChanged := !reflect.DeepEqual(currentSpec, obj.Spec)
+		ownersChanged := !reflect.DeepEqual(currentOwners, obj.OwnerReferences)
+		if exists && (specChanged || ownersChanged) {
 			_, err := policies.Update(ctx, obj, metav1.UpdateOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("update auth policy %q: %w", name, err)
@@ -386,7 +379,9 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, conn *agentzv1alpha1.MCPConnection, state agentzv1alpha1.MCPConnectionState, authRef *agentzv1alpha1.MCPConnectionManagedResourceRef, extAuth *extAuthStatus, extAuthRequired bool, recErr error) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current := &agentzv1alpha1.MCPConnection{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: conn.Namespace, Name: conn.Name}, current); err != nil {
+		key := types.NamespacedName{Namespace: conn.Namespace, Name: conn.Name}
+		err := r.Get(ctx, key, current)
+		if err != nil {
 			return client.IgnoreNotFound(err)
 		}
 
@@ -514,35 +509,6 @@ func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *
 
 func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *agentzv1alpha1.MCPConnection) error {
 	if err := r.deleteAuthPolicies(ctx, conn); err != nil {
-		return err
-	}
-
-	conns, err := r.extAuthConnections(ctx, conn.Namespace)
-	if err != nil {
-		return fmt.Errorf("list namespace ext auth connections: %w", err)
-	}
-
-	remaining := make([]agentzv1alpha1.MCPConnection, 0, len(conns))
-	for _, item := range conns {
-		if item.Name == conn.Name {
-			continue
-		}
-		if !item.DeletionTimestamp.IsZero() {
-			continue
-		}
-		remaining = append(remaining, item)
-	}
-	slices.SortFunc(remaining, func(a, b agentzv1alpha1.MCPConnection) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-
-	if len(remaining) == 0 {
-		if err := r.deleteExtAuthRuntime(ctx, conn.Namespace); err != nil {
-			return err
-		}
-	}
-
-	if _, err := r.reconcileExtAuthRuntime(ctx, conn.Namespace, remaining); err != nil {
 		return err
 	}
 

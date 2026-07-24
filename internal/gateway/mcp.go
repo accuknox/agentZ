@@ -558,16 +558,20 @@ func (s *Service) mcpConnectionStatus(conn agentzv1alpha1.MCPConnection) (gatewa
 	credentialsInvalid := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionCredentialsInvalid)
 	protocolError := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProtocolError)
 
-	if conn.Status.State == agentzv1alpha1.MCPConnectionStateDegraded ||
-		(accepted != nil && accepted.Status == metav1.ConditionFalse) ||
-		(degraded != nil && degraded.Status == metav1.ConditionTrue) {
+	stateDegraded := conn.Status.State == agentzv1alpha1.MCPConnectionStateDegraded
+	notAccepted := accepted != nil && accepted.Status == metav1.ConditionFalse
+	conditionDegraded := degraded != nil && degraded.Status == metav1.ConditionTrue
+	if stateDegraded || notAccepted || conditionDegraded {
 		message := statusConditionMessage(mcpInternalErrorMessage, degraded, accepted)
 		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInternalError, message
 	}
-	if conn.Status.LastProbeTime == nil ||
-		time.Since(conn.Status.LastProbeTime.Time) > s.cfg.MCPProbeStaleAfter ||
-		probeHealthy == nil ||
-		probeHealthy.Status == metav1.ConditionUnknown {
+	if conn.Status.LastProbeTime == nil {
+		message := statusConditionMessage("Status check pending", probeHealthy, accepted)
+		return gatewayapi.MCPConnectionLifecycleAccepted, gatewayapi.MCPConnectionReasonProbePending, message
+	}
+	probeStale := time.Since(conn.Status.LastProbeTime.Time) > s.cfg.MCPProbeStaleAfter
+	probePending := probeHealthy == nil || probeHealthy.Status == metav1.ConditionUnknown
+	if probeStale || probePending {
 		message := statusConditionMessage("Status check pending", probeHealthy, accepted)
 		return gatewayapi.MCPConnectionLifecycleAccepted, gatewayapi.MCPConnectionReasonProbePending, message
 	}
@@ -906,8 +910,9 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1
 		if req.Oauth.ExpiresAt != nil {
 			token.Expiry = req.Oauth.ExpiresAt.UTC()
 		}
-		if token.AccessToken != "" || token.RefreshToken != "" ||
-			token.TokenType != "" || !token.Expiry.IsZero() {
+		hasToken := token.AccessToken != "" || token.RefreshToken != ""
+		hasMetadata := token.TokenType != "" || !token.Expiry.IsZero()
+		if hasToken || hasMetadata {
 			record.Token = &token
 		}
 

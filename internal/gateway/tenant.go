@@ -103,8 +103,9 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if tenant.Spec.OrganizationID != auth.claims.TenantID ||
-		tenant.Spec.UserID != auth.claims.UserID {
+	organizationMismatch := tenant.Spec.OrganizationID != auth.claims.TenantID
+	userMismatch := tenant.Spec.UserID != auth.claims.UserID
+	if organizationMismatch || userMismatch {
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"conflict",

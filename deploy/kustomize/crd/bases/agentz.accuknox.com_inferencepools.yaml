@@ -158,6 +158,13 @@ spec:
               contract:
                 description: Contract is the conservative intersection of all members.
                 properties:
+                  api:
+                    description: API is the request format accepted by every member.
+                    enum:
+                    - ChatCompletions
+                    - Responses
+                    - Messages
+                    type: string
                   capabilities:
                     description: Capabilities contains features supported by every member.
                     properties:
@@ -242,6 +249,7 @@ spec:
                     - output
                     type: object
                 required:
+                - api
                 - capabilities
                 - limits
                 - modalities

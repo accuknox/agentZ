@@ -223,6 +223,62 @@ func TestRenderRuntimeCompatibleFormats(t *testing.T) {
 	}
 }
 
+func TestRenderProviderTargetVertexModelNames(t *testing.T) {
+	t.Parallel()
+
+	provider := &agentzv1alpha1.InferenceProvider{
+		ObjectMeta: metav1.ObjectMeta{Name: "vertex", Namespace: "default"},
+		Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindVertexAI),
+	}
+	provider.Spec.Models[0].ID = "gemini-2.5-flash"
+	provider.Spec.Models = append(provider.Spec.Models, agentzv1alpha1.InferenceModel{
+		ID: "claude-haiku-4-5@20251001",
+	})
+
+	direct, err := RenderProviderTarget(provider, "")
+	if err != nil {
+		t.Fatalf("RenderProviderTarget() direct error = %v", err)
+	}
+	got := direct.Policies.AI.ModelAliases["gemini-2.5-flash"]
+	if got != "google/gemini-2.5-flash" {
+		t.Fatalf(
+			"RenderProviderTarget() direct alias = %q, want google/gemini-2.5-flash",
+			got,
+		)
+	}
+	if _, ok := direct.Policies.AI.ModelAliases["claude-haiku-4-5@20251001"]; ok {
+		t.Fatal("RenderProviderTarget() aliases the native Vertex Claude model")
+	}
+
+	pool, err := RenderProviderTarget(provider, "gemini-2.5-flash")
+	if err != nil {
+		t.Fatalf("RenderProviderTarget() pool error = %v", err)
+	}
+	if pool.LLM.VertexAI.Model == nil {
+		t.Fatal("RenderProviderTarget() pool model is nil")
+	}
+	if *pool.LLM.VertexAI.Model != "google/gemini-2.5-flash" {
+		t.Fatalf(
+			"RenderProviderTarget() pool model = %v, want google/gemini-2.5-flash",
+			pool.LLM.VertexAI.Model,
+		)
+	}
+
+	pool, err = RenderProviderTarget(provider, "claude-haiku-4-5@20251001")
+	if err != nil {
+		t.Fatalf("RenderProviderTarget() Claude pool error = %v", err)
+	}
+	if pool.LLM.VertexAI.Model == nil {
+		t.Fatal("RenderProviderTarget() Claude pool model is nil")
+	}
+	if *pool.LLM.VertexAI.Model != "claude-haiku-4-5@20251001" {
+		t.Fatalf(
+			"RenderProviderTarget() Claude pool model = %v, want claude-haiku-4-5@20251001",
+			pool.LLM.VertexAI.Model,
+		)
+	}
+}
+
 func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
 	t.Parallel()
 
@@ -257,8 +313,12 @@ func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ValidateModelRemoval() error = %v", err)
 	}
-	if len(issues) != 1 || issues[0].Field != "models" ||
-		issues[0].Message != "model \"model\" is referenced by pools [pool]" {
+	if len(issues) != 1 {
+		t.Fatalf("ValidateModelRemoval() issues = %#v", issues)
+	}
+	fieldMismatch := issues[0].Field != "models"
+	messageMismatch := issues[0].Message != "model \"model\" is referenced by pools [pool]"
+	if fieldMismatch || messageMismatch {
 		t.Fatalf("ValidateModelRemoval() issues = %#v", issues)
 	}
 }

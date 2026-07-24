@@ -48,7 +48,11 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 				Path:    inference.SandboxPoolPath(sandbox.Name, pool.Name),
 				Models:  []string{pool.Name},
 				Labels:  map[string]string{inference.PoolLabel: pool.Name},
+				ExtAuth: true,
 			})
+			if pool.Spec.AutomaticFailover {
+				targets[len(targets)-1].Retries = len(pool.Spec.Members) - 1
+			}
 			continue
 		}
 		provider := providers[ref.Provider]
@@ -81,12 +85,15 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 		models[ref.Provider] = append(models[ref.Provider], ref.Model)
 	}
 	for providerName := range providers {
+		kind := providers[providerName].Spec.Kind
 		targets = append(targets, inference.SandboxTarget{
 			Name:    providerName,
 			Backend: providerName,
 			Path:    inference.SandboxProviderPath(sandbox.Name, providerName),
 			Models:  models[providerName],
 			Labels:  map[string]string{inference.ProviderLabel: providerName},
+			ExtAuth: kind == agentzv1alpha1.InferenceProviderKindOpenAICodex ||
+				kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot,
 		})
 	}
 	slices.SortFunc(targets, func(a, b inference.SandboxTarget) int {
@@ -157,8 +164,9 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 
 func inferenceRouteReady(route *gwv1.HTTPRoute) bool {
 	for _, parent := range route.Status.Parents {
-		if meta.IsStatusConditionTrue(parent.Conditions, string(gwv1.RouteConditionAccepted)) &&
-			meta.IsStatusConditionTrue(parent.Conditions, string(gwv1.RouteConditionResolvedRefs)) {
+		accepted := meta.IsStatusConditionTrue(parent.Conditions, string(gwv1.RouteConditionAccepted))
+		resolved := meta.IsStatusConditionTrue(parent.Conditions, string(gwv1.RouteConditionResolvedRefs))
+		if accepted && resolved {
 			return true
 		}
 	}
@@ -167,8 +175,9 @@ func inferenceRouteReady(route *gwv1.HTTPRoute) bool {
 
 func inferencePolicyReady(policy *agentgatewayv1alpha1.AgentgatewayPolicy) bool {
 	for _, ancestor := range policy.Status.Ancestors {
-		if meta.IsStatusConditionTrue(ancestor.Conditions, "Accepted") &&
-			meta.IsStatusConditionTrue(ancestor.Conditions, "Attached") {
+		accepted := meta.IsStatusConditionTrue(ancestor.Conditions, "Accepted")
+		attached := meta.IsStatusConditionTrue(ancestor.Conditions, "Attached")
+		if accepted && attached {
 			return true
 		}
 	}

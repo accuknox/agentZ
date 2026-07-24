@@ -48,7 +48,7 @@ import (
 const (
 	// DefaultListenAddr is the default gRPC listen address for ext-auth.
 	DefaultListenAddr = ":18081"
-	// DefaultNamespace is the default namespace for MCP resources.
+	// DefaultNamespace is the default namespace for authorized resources.
 	DefaultNamespace = "default"
 	// DefaultMCPProbeInterval bounds how often MCP health is refreshed.
 	DefaultMCPProbeInterval = time.Minute * 2
@@ -64,6 +64,8 @@ const (
 	contextNamespaceKey  = "agentz.namespace"
 	contextSandboxKey    = "agentz.sandbox"
 	contextConnectionKey = "agentz.mcp_connection"
+	contextProviderKey   = "agentz.inference_provider"
+	contextPoolKey       = "agentz.inference_pool"
 	kubeRequestTimeout   = 5 * time.Second
 	grpcShutdownTimeout  = 15 * time.Second
 	httpClientTimeout    = 15 * time.Second
@@ -261,7 +263,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	serverGroup.Go(func() error {
 		slog.InfoContext(
 			serverCtx,
-			"starting mcp ext auth service",
+			"starting ext auth service",
 			slog.String("addr", addr),
 			slog.String("namespace", namespace),
 		)
@@ -342,22 +344,23 @@ func Serve(ctx context.Context, cfg Config) error {
 	return serveErr
 }
 
-// Service implements Envoy ext_authz for MCP authorization and credential injection.
+// Service implements Envoy ext_authz for workload authorization and credential injection.
 type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
-	namespace      string
-	probeInterval  time.Duration
-	probeTimeout   time.Duration
-	kube           ctrlclient.Client
-	kubeCore       kubernetes.Interface
-	kv             *baoapi.KVv2
-	http           *http.Client
-	sf             singleflight.Group
-	mcpConnections agentzlisters.MCPConnectionNamespaceLister
-	probeQueue     workqueue.TypedInterface[string]
-	probeTimes     map[string]time.Time
-	probeTimesMu   sync.Mutex
+	namespace          string
+	probeInterval      time.Duration
+	probeTimeout       time.Duration
+	kube               ctrlclient.Client
+	kubeCore           kubernetes.Interface
+	kv                 *baoapi.KVv2
+	http               *http.Client
+	sf                 singleflight.Group
+	inferenceRefreshMu sync.Mutex
+	mcpConnections     agentzlisters.MCPConnectionNamespaceLister
+	probeQueue         workqueue.TypedInterface[string]
+	probeTimes         map[string]time.Time
+	probeTimesMu       sync.Mutex
 }
 
 var _ authv3.AuthorizationServer = (*Service)(nil)
@@ -380,11 +383,11 @@ func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.
 
 	switch decision.level {
 	case slog.LevelError:
-		slog.LogAttrs(ctx, slog.LevelError, "mcp ext auth request completed", logAttrs...)
+		slog.LogAttrs(ctx, slog.LevelError, "ext auth request completed", logAttrs...)
 	case slog.LevelWarn:
-		slog.LogAttrs(ctx, slog.LevelWarn, "mcp ext auth request completed", logAttrs...)
+		slog.LogAttrs(ctx, slog.LevelWarn, "ext auth request completed", logAttrs...)
 	default:
-		slog.LogAttrs(ctx, slog.LevelInfo, "mcp ext auth request completed", logAttrs...)
+		slog.LogAttrs(ctx, slog.LevelInfo, "ext auth request completed", logAttrs...)
 	}
 
 	return decision.response, nil
@@ -394,6 +397,8 @@ type requestAttrs struct {
 	namespace        string
 	sandbox          string
 	connection       string
+	provider         string
+	pool             string
 	agent            string
 	sourceIP         string
 	sessionID        string
@@ -422,6 +427,16 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 			"missing_attributes",
 			slog.LevelWarn,
 		), attrs
+	}
+	providerName := strings.TrimSpace(
+		checkAttrs.GetContextExtensions()[contextProviderKey],
+	)
+	if providerName != "" {
+		attrs.provider = providerName
+		attrs.pool = strings.TrimSpace(
+			checkAttrs.GetContextExtensions()[contextPoolKey],
+		)
+		return s.evaluateInference(ctx, checkAttrs, attrs)
 	}
 
 	connName := strings.TrimSpace(checkAttrs.GetContextExtensions()[contextConnectionKey])
@@ -652,6 +667,7 @@ func (s *Service) loadConnection(ctx context.Context, namespace, name string) (*
 
 type injectedRequest struct {
 	headers         []*corev3.HeaderValueOption
+	headersToRemove []string
 	queryParameters []*corev3.QueryParameter
 }
 
@@ -792,7 +808,8 @@ func injectionForLocation(location *agentzv1alpha1.MCPConnectionAuthLocation, to
 
 func allowDecision(injection injectedRequest) checkDecision {
 	okResp := &authv3.OkHttpResponse{
-		Headers: injection.headers,
+		Headers:         injection.headers,
+		HeadersToRemove: injection.headersToRemove,
 	}
 	if len(injection.queryParameters) > 0 {
 		okResp.QueryParametersToSet = injection.queryParameters

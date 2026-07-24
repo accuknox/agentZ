@@ -44,19 +44,18 @@ var blockedTokenEndpointPrefixes = []netip.Prefix{
 
 // AuthConfig describes the non-sensitive OAuth metadata needed for refresh.
 type AuthConfig struct {
-	TokenEndpoint string
-	Resource      string
-	Scopes        []string
+	TokenEndpoint           string
+	TokenEndpointAuthMethod string
+	Resource                string
+	Scopes                  []string
 }
 
 type tokenResponse struct {
-	AccessToken      string `json:"access_token"`
-	TokenType        string `json:"token_type"`
-	RefreshToken     string `json:"refresh_token"`
-	ExpiresIn        int64  `json:"expires_in"`
-	Scope            string `json:"scope"`
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+	Scope        string `json:"scope"`
 }
 
 // TokenUsable reports whether one access token is still safe to inject.
@@ -100,10 +99,13 @@ func Refresh(ctx context.Context, client *http.Client, cfg AuthConfig, record Re
 		form.Set("resource", cfg.Resource)
 	}
 
-	authMethod := "client_secret_basic"
-	if raw, ok := record.Registration["token_endpoint_auth_method"].(string); ok {
-		if value := strings.TrimSpace(raw); value != "" {
-			authMethod = value
+	authMethod := strings.TrimSpace(cfg.TokenEndpointAuthMethod)
+	if authMethod == "" {
+		authMethod = "client_secret_basic"
+		if raw, ok := record.Registration["token_endpoint_auth_method"].(string); ok {
+			if value := strings.TrimSpace(raw); value != "" {
+				authMethod = value
+			}
 		}
 	}
 
@@ -150,28 +152,23 @@ func Refresh(ctx context.Context, client *http.Client, cfg AuthConfig, record Re
 	}
 	defer resp.Body.Close()
 
-	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
 		return nil, nil, fmt.Errorf("read oauth refresh response: %w", err)
+	}
+	if len(payload) > 1<<20 {
+		return nil, nil, fmt.Errorf("oauth refresh response exceeds 1 MiB")
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, nil, fmt.Errorf("oauth refresh failed: upstream returned %s", resp.Status)
 	}
 
 	var tokenResp tokenResponse
 	if err := json.Unmarshal(payload, &tokenResp); err != nil {
 		return nil, nil, fmt.Errorf("decode oauth refresh response: %w", err)
 	}
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		message := strings.TrimSpace(tokenResp.ErrorDescription)
-		if message == "" {
-			message = strings.TrimSpace(tokenResp.Error)
-		}
-		if message == "" {
-			message = strings.TrimSpace(string(payload))
-		}
-		if message == "" {
-			message = resp.Status
-		}
-		return nil, nil, fmt.Errorf("oauth refresh failed: %s", message)
+	if strings.TrimSpace(tokenResp.AccessToken) == "" {
+		return nil, nil, fmt.Errorf("oauth refresh response is missing an access token")
 	}
 
 	refreshToken := record.Token.RefreshToken
@@ -224,9 +221,10 @@ func PublicHTTPSURL(ctx context.Context, raw string) (string, error) {
 	}
 
 	for _, addr := range addrs {
-		if addr.IsLoopback() || addr.IsPrivate() ||
-			addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() ||
-			addr.IsMulticast() || addr.IsUnspecified() {
+		isLocal := addr.IsLoopback() || addr.IsPrivate()
+		isLinkLocal := addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast()
+		isInvalid := isLocal || isLinkLocal || addr.IsMulticast() || addr.IsUnspecified()
+		if isInvalid {
 			return "", fmt.Errorf("oauth endpoint must resolve to a public address")
 		}
 		for _, prefix := range blockedTokenEndpointPrefixes {

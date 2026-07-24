@@ -1,7 +1,12 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,16 +19,50 @@ import (
 
 	"github.com/google/uuid"
 	baoapi "github.com/openbao/openbao/api/v2"
+	"golang.org/x/oauth2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
+	"github.com/accuknox/agentz/internal/oauth"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const providerUpdatedAtAnnotation = "agentz.accuknox.com/inference-provider-updated-at"
+
+const (
+	oauthTicketPathDir  = "inference-provider-oauth-tickets"
+	oauthTicketLifetime = 15 * time.Minute
+)
+
+type inferenceOAuthTicketRecord struct {
+	SecretHash   string                          `json:"secretHash"`
+	TenantID     string                          `json:"tenantId"`
+	UserID       string                          `json:"userId"`
+	ExpiresAt    time.Time                       `json:"expiresAt"`
+	Models       []agentzv1alpha1.InferenceModel `json:"models"`
+	Subscription inference.SubscriptionRecord    `json:"subscription"`
+}
+
+type inferenceOAuthTicketClaim struct {
+	ConsumedAt time.Time `json:"consumedAt"`
+}
+
+type openAIJWTClaims struct {
+	AccountID     string               `json:"chatgpt_account_id"`
+	Organizations []openAIOrganization `json:"organizations"`
+	Auth          openAIAuthClaims     `json:"https://api.openai.com/auth"`
+}
+
+type openAIOrganization struct {
+	ID string `json:"id"`
+}
+
+type openAIAuthClaims struct {
+	AccountID string `json:"chatgpt_account_id"`
+}
 
 type providerInput struct {
 	DisplayName     string
@@ -43,8 +82,10 @@ type providerInput struct {
 type providerWriter interface {
 	Discriminator() (string, error)
 	AsOpenAIInferenceProviderWrite() (gatewayapi.OpenAIInferenceProviderWrite, error)
+	AsOpenAICodexInferenceProviderWrite() (gatewayapi.OpenAICodexInferenceProviderWrite, error)
 	AsAnthropicInferenceProviderWrite() (gatewayapi.AnthropicInferenceProviderWrite, error)
 	AsGeminiInferenceProviderWrite() (gatewayapi.GeminiInferenceProviderWrite, error)
+	AsGitHubCopilotInferenceProviderWrite() (gatewayapi.GitHubCopilotInferenceProviderWrite, error)
 	AsVertexAIInferenceProviderWrite() (gatewayapi.VertexAIInferenceProviderWrite, error)
 	AsBedrockInferenceProviderWrite() (gatewayapi.BedrockInferenceProviderWrite, error)
 	AsAzureInferenceProviderWrite() (gatewayapi.AzureInferenceProviderWrite, error)
@@ -57,7 +98,7 @@ type providerUsage struct {
 	sandboxes []string
 }
 
-// ListInferenceProviders handles GET /api/inference-provider.
+// ListInferenceProviders handles GET /api/inference/provider.
 func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProvidersParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -97,7 +138,7 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 	})
 }
 
-// WatchInferenceProviders handles POST /api/inference-provider/watch.
+// WatchInferenceProviders handles POST /api/inference/provider/watch.
 func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -282,7 +323,161 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 	return items, nil
 }
 
-// CreateInferenceProvider handles POST /api/inference-provider.
+// CreateInferenceProviderOAuthTicket handles POST
+// /api/inference/provider/oauth-ticket.
+func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request) {
+	ns, err := tenantNamespace(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	auth, ok := requestAuthState(r.Context())
+	if !ok || auth.claims == nil {
+		writeError(w, r, newAPIError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"oauth tickets require user authentication",
+			errors.New("missing bearer claims"),
+		))
+		return
+	}
+	var req gatewayapi.CreateInferenceProviderOAuthTicketRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+	kind := agentzv1alpha1.InferenceProviderKind(req.Kind)
+	isCodex := kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+	isCopilot := kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+	if !isCodex && !isCopilot {
+		writeProviderInputError(w, r, &inference.InputError{
+			Field: "kind", Message: "provider kind is not subscription-backed",
+		})
+		return
+	}
+	if req.Credentials.AccessToken == nil {
+		writeProviderInputError(w, r, &inference.InputError{
+			Field: "credentials.access_token", Message: "field is required",
+		})
+		return
+	}
+	if strings.TrimSpace(*req.Credentials.AccessToken) == "" {
+		writeProviderInputError(w, r, &inference.InputError{
+			Field: "credentials.access_token", Message: "field is required",
+		})
+		return
+	}
+	accessToken := strings.TrimSpace(*req.Credentials.AccessToken)
+	refreshToken := ""
+	if req.Credentials.RefreshToken != nil {
+		refreshToken = strings.TrimSpace(*req.Credentials.RefreshToken)
+	}
+	if isCodex && refreshToken == "" {
+		writeProviderInputError(w, r, &inference.InputError{
+			Field: "credentials.refresh_token", Message: "field is required",
+		})
+		return
+	}
+	token := &oauth2.Token{
+		AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer",
+	}
+	if req.Credentials.ExpiresAt != nil {
+		token.Expiry = req.Credentials.ExpiresAt.UTC()
+	}
+	if isCodex && !token.Expiry.After(time.Now().UTC()) {
+		writeProviderInputError(w, r, &inference.InputError{
+			Field: "credentials.expires_at", Message: "must be in the future",
+		})
+		return
+	}
+	record := inference.SubscriptionRecord{
+		Kind: kind, Token: token, UpdatedAt: time.Now().UTC(),
+	}
+	if kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		record.ClientID = inference.OpenAICodexClientID
+		idToken := ""
+		if req.Credentials.IdToken != nil {
+			idToken = *req.Credentials.IdToken
+		}
+		record.AccountID = openAIAccountID(idToken, accessToken)
+		if record.AccountID == "" {
+			writeProviderInputError(w, r, &inference.InputError{
+				Field: "credentials.id_token", Message: "account id claim is required",
+			})
+			return
+		}
+	}
+	models, provenance, discoveryErr := s.catalog.SubscriptionModels(
+		r.Context(), record,
+	)
+	if len(models) == 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadGateway,
+			"model_discovery_failed",
+			"subscription model discovery failed",
+			discoveryErr,
+		))
+		return
+	}
+	if discoveryErr != nil {
+		slog.WarnContext(
+			r.Context(),
+			"using embedded inference model metadata with authenticated entitlement",
+			slog.String("providerKind", string(kind)),
+			slog.Any("err", discoveryErr),
+		)
+	}
+	idBytes := make([]byte, 18)
+	secretBytes := make([]byte, 32)
+	if _, err := rand.Read(idBytes); err != nil {
+		writeInternalError(w, r, fmt.Errorf("create oauth ticket id: %w", err))
+		return
+	}
+	if _, err := rand.Read(secretBytes); err != nil {
+		writeInternalError(w, r, fmt.Errorf("create oauth ticket secret: %w", err))
+		return
+	}
+	id := base64.RawURLEncoding.EncodeToString(idBytes)
+	secret := base64.RawURLEncoding.EncodeToString(secretBytes)
+	digest := sha256.Sum256(secretBytes)
+	expiresAt := time.Now().UTC().Add(oauthTicketLifetime)
+	ticket := inferenceOAuthTicketRecord{
+		SecretHash: base64.RawURLEncoding.EncodeToString(digest[:]),
+		TenantID:   auth.claims.TenantID, UserID: auth.claims.UserID,
+		ExpiresAt: expiresAt, Models: models, Subscription: record,
+	}
+	data, err := inferenceOAuthTicketData(ticket)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	path := ns + "/" + oauthTicketPathDir + "/" + id
+	err = s.baoKV.PutMetadata(r.Context(), path, baoapi.KVMetadataPutInput{
+		CASRequired:        true,
+		DeleteVersionAfter: oauthTicketLifetime,
+		MaxVersions:        1,
+	})
+	if err != nil {
+		writeError(w, r, mapOpenBaoError(err))
+		return
+	}
+	_, err = s.baoKV.Put(r.Context(), path, data, baoapi.WithCheckAndSet(0))
+	if err != nil {
+		cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
+		if cleanupErr != nil && !errors.Is(cleanupErr, baoapi.ErrSecretNotFound) {
+			err = errors.Join(err, fmt.Errorf("clean up oauth ticket metadata: %w", cleanupErr))
+		}
+		writeError(w, r, mapOpenBaoError(err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, gatewayapi.CreateInferenceProviderOAuthTicketResponse{
+		Ticket:     id + "." + secret,
+		ExpiresAt:  expiresAt,
+		Models:     modelSuggestionsToAPI(models),
+		Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
+	})
+}
+
+// CreateInferenceProvider handles POST /api/inference/provider.
 func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -298,7 +493,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	input, err := providerInputFromWrite(req)
+	input, err := providerInputFromWrite(req.Provider)
 	if err != nil {
 		writeProviderInputError(w, r, err)
 		return
@@ -310,18 +505,63 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeInferenceIssues(w, r, fields)
 		return
 	}
-	record, err := inference.CredentialsForCreate(
-		provider.Spec,
-		input.Credentials,
-	)
-	if err != nil {
-		writeProviderInputError(w, r, err)
-		return
+	isSubscription := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex ||
+		provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+	var record map[string]any
+	var ticketPath string
+	if isSubscription {
+		if req.OauthTicket == nil {
+			writeProviderInputError(w, r, &inference.InputError{
+				Field: "oauth_ticket", Message: "field is required",
+			})
+			return
+		}
+		subscription, consumedPath, err := s.consumeInferenceOAuthTicket(
+			r.Context(), ns, *req.OauthTicket, provider,
+		)
+		if err != nil {
+			writeProviderInputError(w, r, err)
+			return
+		}
+		record, err = inference.SubscriptionRecordData(subscription)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		ticketPath = consumedPath
 	}
-	path := ns + "/" + inference.CredentialPathDir + "/" + name
+	if !isSubscription {
+		if req.OauthTicket != nil {
+			writeProviderInputError(w, r, &inference.InputError{
+				Field: "oauth_ticket", Message: "field is only valid for subscription providers",
+			})
+			return
+		}
+		record, err = inference.CredentialsForCreate(provider.Spec, input.Credentials)
+		if err != nil {
+			writeProviderInputError(w, r, err)
+			return
+		}
+	}
+	path := inference.CredentialPath(ns, name, provider.Spec.Kind)
 	if record != nil {
-		if _, err := s.baoKV.Put(r.Context(), path, record); err != nil {
+		_, err := s.baoKV.Put(
+			r.Context(), path, record, baoapi.WithCheckAndSet(0),
+		)
+		if err != nil {
 			writeError(w, r, mapOpenBaoError(err))
+			return
+		}
+	}
+	if ticketPath != "" {
+		if err := s.baoKV.DeleteMetadata(r.Context(), ticketPath); err != nil {
+			cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
+			writeError(w, r, newAPIError(
+				http.StatusInternalServerError,
+				"oauth_ticket_cleanup_failed",
+				"oauth ticket cleanup failed",
+				errors.Join(err, cleanupErr),
+			))
 			return
 		}
 	}
@@ -355,7 +595,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusCreated, item)
 }
 
-// GetInferenceProvider handles GET /api/inference-provider/{providerName}.
+// GetInferenceProvider handles GET /api/inference/provider/{providerName}.
 func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
 	provider, usage, ok := s.providerAndUsage(w, r, providerName)
 	if !ok {
@@ -369,7 +609,114 @@ func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, p
 	writeJSON(w, http.StatusOK, item)
 }
 
-// UpdateInferenceProvider handles PUT /api/inference-provider/{providerName}.
+// RefreshInferenceProviderModels handles GET
+// /api/inference/provider/{providerName}/models.
+func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
+	provider, _, ok := s.providerAndUsage(w, r, providerName)
+	if !ok {
+		return
+	}
+	isCodex := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+	isCopilot := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+	if !isCodex && !isCopilot {
+		writeProviderInputError(w, r, &inference.InputError{
+			Field: "providerName", Message: "provider is not subscription-backed",
+		})
+		return
+	}
+	path := inference.CredentialPath(
+		provider.Namespace,
+		provider.Name,
+		provider.Spec.Kind,
+	)
+	secretRecord, err := s.baoKV.Get(r.Context(), path)
+	if err != nil {
+		writeError(w, r, mapOpenBaoError(err))
+		return
+	}
+	record, err := inference.DecodeSubscriptionRecord(secretRecord.Data)
+	if err != nil || record.Kind != provider.Spec.Kind {
+		writeError(w, r, newAPIError(
+			http.StatusServiceUnavailable,
+			"credentials_unavailable",
+			"subscription credentials are unavailable",
+			err,
+		))
+		return
+	}
+	record, changed, err := inference.RefreshSubscription(
+		r.Context(), s.outboundHTTP, record,
+	)
+	if err != nil {
+		writeError(w, r, newAPIError(
+			http.StatusBadGateway,
+			"oauth_refresh_failed",
+			"subscription credentials could not be refreshed",
+			err,
+		))
+		return
+	}
+	if changed {
+		data, err := inference.SubscriptionRecordData(record)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		if secretRecord.VersionMetadata == nil {
+			writeInternalError(w, r, errors.New("subscription credential version is missing"))
+			return
+		}
+		_, err = s.baoKV.Put(
+			r.Context(),
+			path,
+			data,
+			baoapi.WithCheckAndSet(secretRecord.VersionMetadata.Version),
+		)
+		if err != nil {
+			latest, readErr := s.baoKV.Get(r.Context(), path)
+			if readErr != nil {
+				writeError(w, r, mapOpenBaoError(errors.Join(err, readErr)))
+				return
+			}
+			record, readErr = inference.DecodeSubscriptionRecord(latest.Data)
+			if readErr != nil {
+				writeError(w, r, mapOpenBaoError(errors.Join(err, readErr)))
+				return
+			}
+			kindChanged := record.Kind != provider.Spec.Kind
+			if kindChanged || !oauth.TokenUsable(record.Token, time.Now().UTC()) {
+				writeError(w, r, mapOpenBaoError(errors.Join(err, readErr)))
+				return
+			}
+		}
+	}
+	models, provenance, discoveryErr := s.catalog.SubscriptionModels(
+		r.Context(), record,
+	)
+	if len(models) == 0 {
+		writeError(w, r, newAPIError(
+			http.StatusBadGateway,
+			"model_discovery_failed",
+			"subscription model discovery failed",
+			discoveryErr,
+		))
+		return
+	}
+	if discoveryErr != nil {
+		slog.WarnContext(
+			r.Context(),
+			"using embedded inference model metadata with authenticated entitlement",
+			slog.String("provider", provider.Name),
+			slog.Any("err", discoveryErr),
+		)
+	}
+	writeJSON(w, http.StatusOK, gatewayapi.InferenceModelSuggestions{
+		Models:     modelSuggestionsToAPI(models),
+		Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
+	})
+}
+
+// UpdateInferenceProvider handles PUT /api/inference/provider/{providerName}.
 func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -464,7 +811,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	path := ns + "/" + inference.CredentialPathDir + "/" + current.Name
+	path := inference.CredentialPath(ns, current.Name, current.Spec.Kind)
 	credentialChanged := rotate || (!oldNoAuth && newNoAuth)
 	if rotate {
 		if _, err := s.baoKV.Put(r.Context(), path, record); err != nil {
@@ -512,7 +859,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, item)
 }
 
-// DeleteInferenceProvider handles DELETE /api/inference-provider/{providerName}.
+// DeleteInferenceProvider handles DELETE /api/inference/provider/{providerName}.
 func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
 	provider, usage, ok := s.providerAndUsage(w, r, providerName)
 	if !ok {
@@ -546,7 +893,7 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GetInferenceProviderUsage handles GET /api/inference-provider/{providerName}/usage.
+// GetInferenceProviderUsage handles GET /api/inference/provider/{providerName}/usage.
 func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
 	_, usage, ok := s.providerAndUsage(w, r, providerName)
 	if !ok {
@@ -557,7 +904,7 @@ func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// ListInferenceProviderCatalog handles GET /api/inference-provider/catalog.
+// ListInferenceProviderCatalog handles GET /api/inference/provider/catalog.
 func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProviderCatalogParams) {
 	query := ""
 	if params.Q != nil {
@@ -617,30 +964,17 @@ func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.R
 		))
 		return
 	}
-	values := modelsToAPI(models)
-	suggestions := make([]gatewayapi.InferenceModelSuggestion, 0, len(values))
-	for _, model := range values {
-		catalogProvider := ""
-		if model.CatalogProvider != nil {
-			catalogProvider = *model.CatalogProvider
-		}
-		suggestions = append(suggestions, gatewayapi.InferenceModelSuggestion{
-			Id:              model.Id,
-			DisplayName:     model.DisplayName,
-			Capabilities:    model.Capabilities,
-			Modalities:      model.Modalities,
-			Limits:          model.Limits,
-			CatalogProvider: catalogProvider,
-		})
-	}
 	writeJSON(w, http.StatusOK, gatewayapi.InferenceModelSuggestions{
-		Models:     suggestions,
+		Models:     modelSuggestionsToAPI(models),
 		Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
 	})
 }
 
 func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, providerName string) (*agentzv1alpha1.InferenceProvider, providerUsage, bool) {
-	usage := providerUsage{}
+	usage := providerUsage{
+		pools:     []string{},
+		sandboxes: []string{},
+	}
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -712,6 +1046,17 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 		if value.Credentials.ApiKey != nil {
 			input.Credentials.APIKey = *value.Credentials.ApiKey
 		}
+	case "OpenAICodex":
+		value, err := req.AsOpenAICodexInferenceProviderWrite()
+		if err != nil {
+			return input, &inference.InputError{
+				Field: "kind", Message: "openai codex configuration does not match provider kind",
+			}
+		}
+		input.DisplayName = value.DisplayName
+		input.CatalogProvider = string(value.CatalogProvider)
+		input.Kind = gatewayapi.InferenceProviderKindOpenAICodex
+		input.Models = value.Models
 	case "Anthropic":
 		value, err := req.AsAnthropicInferenceProviderWrite()
 		if err != nil {
@@ -736,6 +1081,17 @@ func providerInputFromWrite(req providerWriter) (providerInput, error) {
 		if value.Credentials.ApiKey != nil {
 			input.Credentials.APIKey = *value.Credentials.ApiKey
 		}
+	case "GitHubCopilot":
+		value, err := req.AsGitHubCopilotInferenceProviderWrite()
+		if err != nil {
+			return input, &inference.InputError{
+				Field: "kind", Message: "github copilot configuration does not match provider kind",
+			}
+		}
+		input.DisplayName = value.DisplayName
+		input.CatalogProvider = string(value.CatalogProvider)
+		input.Kind = gatewayapi.InferenceProviderKindGitHubCopilot
+		input.Models = value.Models
 	case "VertexAI":
 		value, err := req.AsVertexAIInferenceProviderWrite()
 		if err != nil {
@@ -954,6 +1310,15 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 		CreatedAt: provider.CreationTimestamp.Time, UpdatedAt: updatedAt,
 	}
 	switch provider.Spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+		err := out.FromOpenAICodexInferenceProviderRead(
+			gatewayapi.OpenAICodexInferenceProviderRead{
+				Kind: gatewayapi.OpenAICodexInferenceProviderReadKindOpenAICodex,
+			},
+		)
+		if err != nil {
+			return out, fmt.Errorf("render openai codex provider response: %w", err)
+		}
 	case agentzv1alpha1.InferenceProviderKindOpenAI:
 		config := gatewayapi.OpenAIProviderConfig{}
 		if provider.Spec.OpenAI.BaseURL != "" {
@@ -987,6 +1352,15 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 		})
 		if err != nil {
 			return out, fmt.Errorf("render Gemini provider response: %w", err)
+		}
+	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
+		err := out.FromGitHubCopilotInferenceProviderRead(
+			gatewayapi.GitHubCopilotInferenceProviderRead{
+				Kind: gatewayapi.GitHubCopilotInferenceProviderReadKindGitHubCopilot,
+			},
+		)
+		if err != nil {
+			return out, fmt.Errorf("render github copilot provider response: %w", err)
 		}
 	case agentzv1alpha1.InferenceProviderKindVertexAI:
 		err := out.FromVertexAIInferenceProviderRead(gatewayapi.VertexAIInferenceProviderRead{
@@ -1082,6 +1456,167 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 	return out, nil
 }
 
+func inferenceOAuthTicketData(ticket inferenceOAuthTicketRecord) (map[string]any, error) {
+	payload, err := json.Marshal(ticket)
+	if err != nil {
+		return nil, fmt.Errorf("marshal inference oauth ticket: %w", err)
+	}
+	data := map[string]any{}
+	if err := json.Unmarshal(payload, &data); err != nil {
+		return nil, fmt.Errorf("encode inference oauth ticket: %w", err)
+	}
+	return data, nil
+}
+
+func decodeInferenceOAuthTicket(data map[string]any) (inferenceOAuthTicketRecord, error) {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return inferenceOAuthTicketRecord{}, fmt.Errorf("marshal inference oauth ticket: %w", err)
+	}
+	var ticket inferenceOAuthTicketRecord
+	dec := json.NewDecoder(bytes.NewReader(payload))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&ticket); err != nil {
+		return inferenceOAuthTicketRecord{}, fmt.Errorf("decode inference oauth ticket: %w", err)
+	}
+	return ticket, nil
+}
+
+func (s *Service) consumeInferenceOAuthTicket(ctx context.Context, namespace, raw string, provider *agentzv1alpha1.InferenceProvider) (inference.SubscriptionRecord, string, error) {
+	id, secret, ok := strings.Cut(strings.TrimSpace(raw), ".")
+	if !ok {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	idBytes, err := base64.RawURLEncoding.DecodeString(id)
+	if err != nil || len(idBytes) != 18 {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	secretBytes, err := base64.RawURLEncoding.DecodeString(secret)
+	if err != nil || len(secretBytes) != 32 {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	auth, ok := requestAuthState(ctx)
+	if !ok || auth.claims == nil {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	path := namespace + "/" + oauthTicketPathDir + "/" + id
+	secretRecord, err := s.baoKV.Get(ctx, path)
+	if errors.Is(err, baoapi.ErrSecretNotFound) {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	if err != nil {
+		return inference.SubscriptionRecord{}, "", fmt.Errorf(
+			"read inference oauth ticket: %w", err,
+		)
+	}
+	if secretRecord.VersionMetadata == nil {
+		return inference.SubscriptionRecord{}, "", errors.New(
+			"read inference oauth ticket: missing version metadata",
+		)
+	}
+	ticket, err := decodeInferenceOAuthTicket(secretRecord.Data)
+	if err != nil {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	digest := sha256.Sum256(secretBytes)
+	wantDigest, err := base64.RawURLEncoding.DecodeString(ticket.SecretHash)
+	if err != nil {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	secretMismatch := subtle.ConstantTimeCompare(digest[:], wantDigest) != 1
+	expired := time.Now().UTC().After(ticket.ExpiresAt)
+	identityMismatch := ticket.TenantID != auth.claims.TenantID || ticket.UserID != auth.claims.UserID
+	kindMismatch := ticket.Subscription.Kind != provider.Spec.Kind
+	if secretMismatch || expired || identityMismatch || kindMismatch {
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or expired",
+		}
+	}
+	for _, selected := range provider.Spec.Models {
+		if !slices.ContainsFunc(ticket.Models, func(available agentzv1alpha1.InferenceModel) bool {
+			return reflect.DeepEqual(selected, available)
+		}) {
+			return inference.SubscriptionRecord{}, "", &inference.InputError{
+				Field: "models", Message: "model is not available to this subscription",
+			}
+		}
+	}
+	claimPayload, err := json.Marshal(inferenceOAuthTicketClaim{ConsumedAt: time.Now().UTC()})
+	if err != nil {
+		return inference.SubscriptionRecord{}, "", fmt.Errorf("marshal inference oauth ticket claim: %w", err)
+	}
+	claim := map[string]any{}
+	if err := json.Unmarshal(claimPayload, &claim); err != nil {
+		return inference.SubscriptionRecord{}, "", fmt.Errorf("encode inference oauth ticket claim: %w", err)
+	}
+	_, err = s.baoKV.Put(
+		ctx,
+		path,
+		claim,
+		baoapi.WithCheckAndSet(secretRecord.VersionMetadata.Version),
+	)
+	if err != nil {
+		var responseErr *baoapi.ResponseError
+		isResponseError := errors.As(err, &responseErr)
+		isCASMismatch := isResponseError && slices.Contains(
+			responseErr.Errors,
+			"check-and-set parameter did not match the current version",
+		)
+		if !isCASMismatch {
+			return inference.SubscriptionRecord{}, "", fmt.Errorf(
+				"claim inference oauth ticket: %w", err,
+			)
+		}
+		return inference.SubscriptionRecord{}, "", &inference.InputError{
+			Field: "oauth_ticket", Message: "ticket is invalid or already used",
+		}
+	}
+	return ticket.Subscription, path, nil
+}
+
+func openAIAccountID(idToken, accessToken string) string {
+	// These unverified claims are used only as routing metadata for the same
+	// access token. OpenAI remains the authority that authenticates the token.
+	for _, token := range []string{idToken, accessToken} {
+		parts := strings.Split(token, ".")
+		if len(parts) != 3 {
+			continue
+		}
+		payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+		if err != nil {
+			continue
+		}
+		var claims openAIJWTClaims
+		if err := json.Unmarshal(payload, &claims); err != nil {
+			continue
+		}
+		if claims.AccountID != "" {
+			return claims.AccountID
+		}
+		if claims.Auth.AccountID != "" {
+			return claims.Auth.AccountID
+		}
+		if len(claims.Organizations) > 0 {
+			return claims.Organizations[0].ID
+		}
+	}
+	return ""
+}
+
 func modelsFromAPI(models []gatewayapi.InferenceModel) []agentzv1alpha1.InferenceModel {
 	values := make([]agentzv1alpha1.InferenceModel, 0, len(models))
 	for _, model := range models {
@@ -1110,9 +1645,30 @@ func modelsFromAPI(models []gatewayapi.InferenceModel) []agentzv1alpha1.Inferenc
 		if model.CatalogProvider != nil {
 			value.Catalog = &agentzv1alpha1.InferenceModelCatalog{Provider: *model.CatalogProvider}
 		}
+		if model.Api != nil {
+			api := agentzv1alpha1.InferenceModelAPI(*model.Api)
+			value.API = &api
+		}
 		values = append(values, value)
 	}
 	return values
+}
+
+func modelSuggestionsToAPI(models []agentzv1alpha1.InferenceModel) []gatewayapi.InferenceModelSuggestion {
+	values := modelsToAPI(models)
+	suggestions := make([]gatewayapi.InferenceModelSuggestion, 0, len(values))
+	for _, model := range values {
+		catalogProvider := ""
+		if model.CatalogProvider != nil {
+			catalogProvider = *model.CatalogProvider
+		}
+		suggestions = append(suggestions, gatewayapi.InferenceModelSuggestion{
+			Id: model.Id, DisplayName: model.DisplayName,
+			Capabilities: model.Capabilities, Modalities: model.Modalities,
+			Limits: model.Limits, CatalogProvider: catalogProvider, Api: model.Api,
+		})
+	}
+	return suggestions
 }
 
 func modelsToAPI(models []agentzv1alpha1.InferenceModel) []gatewayapi.InferenceModel {
@@ -1142,6 +1698,10 @@ func modelsToAPI(models []agentzv1alpha1.InferenceModel) []gatewayapi.InferenceM
 		}
 		if model.Catalog != nil {
 			value.CatalogProvider = &model.Catalog.Provider
+		}
+		if model.API != nil {
+			api := gatewayapi.InferenceModelAPI(*model.API)
+			value.Api = &api
 		}
 		values = append(values, value)
 	}

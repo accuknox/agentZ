@@ -23,7 +23,7 @@ import (
 
 const poolUpdatedAtAnnotation = "agentz.accuknox.com/inference-pool-updated-at"
 
-// ListInferencePools handles GET /api/inference-pool.
+// ListInferencePools handles GET /api/inference/pool.
 func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferencePoolsParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -54,7 +54,7 @@ func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, par
 	})
 }
 
-// WatchInferencePools handles POST /api/inference-pool/watch.
+// WatchInferencePools handles POST /api/inference/pool/watch.
 func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -187,7 +187,7 @@ func (s *Service) listInferencePoolItems(ctx context.Context, namespace string, 
 	return items, nil
 }
 
-// CreateInferencePool handles POST /api/inference-pool.
+// CreateInferencePool handles POST /api/inference/pool.
 func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -225,7 +225,7 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, poolToAPI(pool, 0))
 }
 
-// GetInferencePool handles GET /api/inference-pool/{poolName}.
+// GetInferencePool handles GET /api/inference/pool/{poolName}.
 func (s *Service) GetInferencePool(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath) {
 	pool, usage, ok := s.poolAndUsage(w, r, poolName)
 	if !ok {
@@ -234,7 +234,7 @@ func (s *Service) GetInferencePool(w http.ResponseWriter, r *http.Request, poolN
 	writeJSON(w, http.StatusOK, poolToAPI(pool, len(usage)))
 }
 
-// UpdateInferencePool handles PUT /api/inference-pool/{poolName}.
+// UpdateInferencePool handles PUT /api/inference/pool/{poolName}.
 func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
@@ -290,7 +290,7 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 	writeJSON(w, http.StatusOK, poolToAPI(current, len(usage)))
 }
 
-// DeleteInferencePool handles DELETE /api/inference-pool/{poolName}.
+// DeleteInferencePool handles DELETE /api/inference/pool/{poolName}.
 func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath) {
 	pool, usage, ok := s.poolAndUsage(w, r, poolName)
 	if !ok {
@@ -317,7 +317,7 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GetInferencePoolUsage handles GET /api/inference-pool/{poolName}/usage.
+// GetInferencePoolUsage handles GET /api/inference/pool/{poolName}/usage.
 func (s *Service) GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath) {
 	_, usage, ok := s.poolAndUsage(w, r, poolName)
 	if !ok {
@@ -444,6 +444,7 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int) gatewayapi.Inferen
 			output[i] = gatewayapi.InferenceModelModality(modality)
 		}
 		out.Contract = &gatewayapi.InferencePoolContract{
+			Api: gatewayapi.InferenceModelAPI(contract.API),
 			Capabilities: gatewayapi.InferenceModelCapabilities{
 				Attachment:  contract.Capabilities.Attachment,
 				Reasoning:   contract.Capabilities.Reasoning,

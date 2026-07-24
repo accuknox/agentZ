@@ -88,6 +88,7 @@ type Service struct {
 	skillImports       chan struct{}
 	catalog            *inference.Catalog
 	openAPI            *openapi3.T
+	outboundHTTP       *http.Client
 }
 
 type statusRecorder struct {
@@ -285,6 +286,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		skillImports:       make(chan struct{}, 4),
 		catalog:            inference.NewCatalog(nil),
 		openAPI:            openAPISpec,
+		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
 	}
 
 	srv := &http.Server{

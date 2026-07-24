@@ -14,12 +14,11 @@ import {
   type FetchLike,
   resourceUrlFromServerUrl,
 } from "@modelcontextprotocol/client"
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
+import { randomBytes, timingSafeEqual } from "node:crypto"
 import { lookup } from "node:dns/promises"
 import ipaddr from "ipaddr.js"
 import * as z from "zod"
 import type { JsonObject, McpConnectionAuth } from "@/lib/gateway/client"
-import { getEnv } from "@/lib/env"
 import {
   defaultMcpAuthLocation,
   oauthCredentialsFromTokens,
@@ -34,6 +33,7 @@ import {
   type OAuthErrorFieldName,
   type OAuthPopupMessage,
 } from "@/lib/mcp-oauth-shared"
+import { openOAuthState, sealOAuthState } from "@/lib/oauth-state"
 
 type PendingCreateOperation = {
   kind: "create"
@@ -416,10 +416,6 @@ export async function requirePublicOAuthDiscoveryState(discoveryState: StoredOAu
   }
 }
 
-function secretKeyMaterial() {
-  return createHash("sha256").update(getEnv().MCP_OAUTH_COOKIE_SECRET).digest()
-}
-
 function redirectURL() {
   return new URL("/mcps/oauth/callback", serverWebBaseURL())
 }
@@ -670,38 +666,11 @@ function oauthProvider(input: {
 }
 
 export async function sealPendingOAuthState(state: PendingOAuthState) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new Uint8Array(secretKeyMaterial()),
-    "AES-GCM",
-    false,
-    ["encrypt"]
-  )
-  const iv = randomBytes(12)
-  const plaintext = new TextEncoder().encode(JSON.stringify(state))
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext)
-  return `${iv.toString("base64url")}.${Buffer.from(ciphertext).toString("base64url")}`
+  return sealOAuthState(state, "mcp")
 }
 
 export async function openPendingOAuthState(value: string) {
-  const [ivPart, ciphertextPart] = value.split(".")
-  if (!ivPart || !ciphertextPart) {
-    throw new Error("Pending OAuth state cookie is malformed")
-  }
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new Uint8Array(secretKeyMaterial()),
-    "AES-GCM",
-    false,
-    ["decrypt"]
-  )
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: Buffer.from(ivPart, "base64url") },
-    key,
-    Buffer.from(ciphertextPart, "base64url")
-  )
-  return pendingOAuthStateSchema.parse(JSON.parse(Buffer.from(decrypted).toString("utf8")))
+  return pendingOAuthStateSchema.parse(await openOAuthState(value, "mcp"))
 }
 
 export function oauthCookieOptions() {

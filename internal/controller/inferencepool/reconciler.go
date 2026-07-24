@@ -37,6 +37,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferencepools/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;sandboxes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaypolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile moves one Pool backend and status toward the desired state.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -81,6 +82,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, errors.Join(err, r.updateStatus(ctx, pool, definition, backend, err))
 	}
+	if err := r.reconcileAuthPolicies(ctx, pool, definition); err != nil {
+		return ctrl.Result{}, errors.Join(err, r.updateStatus(ctx, pool, definition, backend, err))
+	}
 	return ctrl.Result{}, r.updateStatus(ctx, pool, definition, backend, nil)
 }
 
@@ -93,8 +97,59 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.poolsForProvider),
 		).
 		Owns(&agentgatewayv1alpha1.AgentgatewayBackend{}).
+		Owns(&agentgatewayv1alpha1.AgentgatewayPolicy{}).
 		Named("inference-pool").
 		Complete(r)
+}
+
+func (r *Reconciler) reconcileAuthPolicies(ctx context.Context, pool *agentzv1alpha1.InferencePool, definition inference.PoolDefinition) error {
+	desired := make(map[string]bool, len(definition.Members))
+	for i := range definition.Members {
+		member := &definition.Members[i]
+		isCodex := member.Provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+		isCopilot := member.Provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+		if !isCodex && !isCopilot {
+			continue
+		}
+		policy := inference.RenderInferenceAuthPolicy(
+			pool.Namespace,
+			pool.Name,
+			&member.Section,
+			member.Provider.Name,
+			pool.Name,
+		)
+		desired[policy.Name] = true
+		current := &agentgatewayv1alpha1.AgentgatewayPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: policy.Name, Namespace: pool.Namespace},
+		}
+		_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
+			if current.UID != "" && !metav1.IsControlledBy(current, pool) {
+				return errors.New("pool auth policy name is already in use")
+			}
+			current.Spec = policy.Spec
+			return ctrlutil.SetControllerReference(pool, current, r.Scheme)
+		})
+		if err != nil {
+			return fmt.Errorf("reconcile pool auth policy: %w", err)
+		}
+	}
+	policies := &agentgatewayv1alpha1.AgentgatewayPolicyList{}
+	if err := r.List(ctx, policies, client.InNamespace(pool.Namespace)); err != nil {
+		return fmt.Errorf("list pool auth policies: %w", err)
+	}
+	for i := range policies.Items {
+		policy := &policies.Items[i]
+		if !metav1.IsControlledBy(policy, pool) {
+			continue
+		}
+		if _, ok := desired[policy.Name]; ok {
+			continue
+		}
+		if err := r.Delete(ctx, policy); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete stale pool auth policy %q: %w", policy.Name, err)
+		}
+	}
+	return nil
 }
 
 func (r *Reconciler) poolsForProvider(ctx context.Context, obj client.Object) []reconcile.Request {

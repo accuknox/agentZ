@@ -32,7 +32,9 @@ type ResolvedPoolMember struct {
 	Ref      agentzv1alpha1.InferencePoolMember
 	Provider *agentzv1alpha1.InferenceProvider
 	Model    agentzv1alpha1.InferenceModel
+	API      agentzv1alpha1.InferenceModelAPI
 	Protocol agentzv1alpha1.InferenceProtocol
+	Section  gwv1.SectionName
 }
 
 // PoolDefinition contains the validated, derived Pool configuration consumed
@@ -62,7 +64,7 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	seen := make(map[agentzv1alpha1.InferencePoolMember]struct{}, len(pool.Spec.Members))
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider, len(pool.Spec.Members))
 	for i, ref := range pool.Spec.Members {
-		field := fmt.Sprintf("members[%d]", i)
+		field := fmt.Sprintf("members.%d", i)
 		if _, exists := seen[ref]; exists {
 			issues = append(issues, Issue{
 				Field:   field,
@@ -118,11 +120,15 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 				Message: "model must support text output",
 			})
 		}
+		sum := sha256.Sum256([]byte(ref.Provider + "\x00" + ref.Model))
+		section := fmt.Sprintf("p%d-%s-%s", i+1, ref.Provider, hex.EncodeToString(sum[:5]))
 		resolved = append(resolved, ResolvedPoolMember{
 			Ref:      ref,
 			Provider: provider,
 			Model:    *model,
-			Protocol: ProviderProtocol(provider.Spec.Kind),
+			API:      ProviderAPI(provider.Spec.Kind, *model),
+			Protocol: ProviderProtocol(provider.Spec.Kind, *model),
+			Section:  gwv1.SectionName(section),
 		})
 	}
 	if len(issues) > 0 || len(resolved) == 0 {
@@ -131,6 +137,7 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 
 	first := resolved[0]
 	contract := agentzv1alpha1.InferencePoolContract{
+		API:          first.API,
 		Capabilities: first.Model.Capabilities,
 		Modalities: agentzv1alpha1.InferenceModelModalities{
 			Input:  slices.Clone(first.Model.Modalities.Input),
@@ -142,7 +149,14 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	if first.Model.Limits.Input != nil {
 		input = *first.Model.Limits.Input
 	}
-	for _, member := range resolved[1:] {
+	for i, member := range resolved[1:] {
+		if !SupportsPoolAPI(first.API, member.API) {
+			issues = append(issues, Issue{
+				Field:   fmt.Sprintf("members.%d.model", i+1),
+				Message: "These models cannot be used together. Choose a different model combination.",
+			})
+			continue
+		}
 		contract.Capabilities.Attachment = contract.Capabilities.Attachment && member.Model.Capabilities.Attachment
 		contract.Capabilities.Reasoning = contract.Capabilities.Reasoning && member.Model.Capabilities.Reasoning
 		contract.Capabilities.Temperature = contract.Capabilities.Temperature && member.Model.Capabilities.Temperature
@@ -156,6 +170,9 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 			memberInput = *member.Model.Limits.Input
 		}
 		input = min(input, memberInput)
+	}
+	if len(issues) > 0 {
+		return PoolDefinition{Members: resolved}, issues, nil
 	}
 	contract.Limits.Input = &input
 	warnings := []agentzv1alpha1.InferencePoolWarning{}
@@ -177,8 +194,43 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	}, nil, nil
 }
 
+// ProviderAPI returns the native request format used by a provider model.
+func ProviderAPI(kind agentzv1alpha1.InferenceProviderKind, model agentzv1alpha1.InferenceModel) agentzv1alpha1.InferenceModelAPI {
+	if model.API != nil {
+		return *model.API
+	}
+	switch kind {
+	case agentzv1alpha1.InferenceProviderKindAnthropic,
+		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
+		return agentzv1alpha1.InferenceModelAPIMessages
+	default:
+		return agentzv1alpha1.InferenceModelAPIChatCompletions
+	}
+}
+
+// SupportsPoolAPI reports whether AgentGateway can translate the Pool request
+// format to a member's native format.
+func SupportsPoolAPI(poolAPI, memberAPI agentzv1alpha1.InferenceModelAPI) bool {
+	if poolAPI == memberAPI {
+		return true
+	}
+	switch poolAPI {
+	case agentzv1alpha1.InferenceModelAPIChatCompletions:
+		return memberAPI == agentzv1alpha1.InferenceModelAPIMessages
+	case agentzv1alpha1.InferenceModelAPIResponses:
+		return memberAPI == agentzv1alpha1.InferenceModelAPIChatCompletions
+	case agentzv1alpha1.InferenceModelAPIMessages:
+		return memberAPI == agentzv1alpha1.InferenceModelAPIChatCompletions
+	default:
+		return false
+	}
+}
+
 // ProviderProtocol returns the request family used by a provider kind.
-func ProviderProtocol(kind agentzv1alpha1.InferenceProviderKind) agentzv1alpha1.InferenceProtocol {
+func ProviderProtocol(kind agentzv1alpha1.InferenceProviderKind, model agentzv1alpha1.InferenceModel) agentzv1alpha1.InferenceProtocol {
+	if model.API != nil && *model.API == agentzv1alpha1.InferenceModelAPIMessages {
+		return agentzv1alpha1.InferenceProtocolAnthropic
+	}
 	switch kind {
 	case agentzv1alpha1.InferenceProviderKindAnthropic,
 		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
@@ -203,9 +255,10 @@ func RenderPoolBackend(pool *agentzv1alpha1.InferencePool, definition PoolDefini
 		}
 		if pool.Spec.AutomaticFailover {
 			condition := agentgatewayv1alpha1.CELExpression(
-				"response == null || response.code == 429 || response.code >= 500",
+				"response == null || response.code == 401 || response.code == 403 || " +
+					"response.code == 429 || response.code >= 500",
 			)
-			failures := int32(3)
+			failures := int32(1)
 			restore := int32(100)
 			policies.Health = &agentgatewayv1alpha1.Health{
 				UnhealthyCondition: &condition,
@@ -216,15 +269,14 @@ func RenderPoolBackend(pool *agentzv1alpha1.InferencePool, definition PoolDefini
 				},
 			}
 		}
-		if policies.Auth == nil && policies.TLS == nil &&
-			policies.Transformation == nil && policies.Health == nil {
+		hasSecurity := policies.Auth != nil || policies.TLS != nil
+		hasBehavior := policies.Transformation != nil || policies.Health != nil
+		if !hasSecurity && !hasBehavior {
 			policies = nil
 		}
-		sum := sha256.Sum256([]byte(member.Ref.Provider + "\x00" + member.Ref.Model))
-		name := fmt.Sprintf("p%d-%s-%s", i+1, member.Ref.Provider, hex.EncodeToString(sum[:5]))
 		groups = append(groups, agentgatewayv1alpha1.PriorityGroup{
 			Providers: []agentgatewayv1alpha1.NamedLLMProvider{{
-				Name:        gwv1.SectionName(name),
+				Name:        member.Section,
 				Policies:    policies,
 				LLMProvider: target.LLM,
 			}},

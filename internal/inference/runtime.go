@@ -1,7 +1,12 @@
 package inference
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
@@ -10,9 +15,12 @@ import (
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
+	"golang.org/x/oauth2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/oauth"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -21,18 +29,116 @@ const (
 	ProviderLabel = "agentz.accuknox.com/inference-provider"
 	// ProviderKindLabel identifies the provider implementation of a resource.
 	ProviderKindLabel = "agentz.accuknox.com/inference-provider-kind"
-	// CredentialPathDir is the fixed OpenBao subtree for provider credentials.
-	CredentialPathDir = "inference-providers"
+	credentialPathDir = "inference-providers"
+	// SubscriptionCredentialPathDir isolates subscription tokens from API-key
+	// credentials so extAuth can receive the narrowest possible OpenBao policy.
+	SubscriptionCredentialPathDir = "inference-subscriptions"
+	// OpenAICodexClientID is OpenAI's public Codex OAuth client identifier.
+	OpenAICodexClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+	// OpenAICodexTokenEndpoint exchanges and refreshes Codex tokens.
+	OpenAICodexTokenEndpoint = "https://auth.openai.com/oauth/token"
+	// OpenAICodexModelsEndpoint serves the authenticated Codex model catalog.
+	OpenAICodexModelsEndpoint = "https://chatgpt.com/backend-api/codex/models"
+	// GitHubCopilotAPIEndpoint serves GitHub.com Copilot inference requests.
+	GitHubCopilotAPIEndpoint = "https://api.githubcopilot.com"
+	// GitHubCopilotAPIVersion is the API version used by the pinned OpenCode runtime.
+	GitHubCopilotAPIVersion = "2026-06-01"
 
 	secretAuthorization = "Authorization"
 	secretCredentials   = "credentials.json"
 )
+
+// CredentialPath returns the OpenBao path for one provider's credential kind.
+func CredentialPath(namespace, name string, kind agentzv1alpha1.InferenceProviderKind) string {
+	dir := credentialPathDir
+	isSubscription := kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+	isSubscription = isSubscription || kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+	if isSubscription {
+		dir = SubscriptionCredentialPathDir
+	}
+	return namespace + "/" + dir + "/" + name
+}
+
+// SubscriptionRecord is the complete credential record retained only in
+// OpenBao for a subscription-backed inference provider.
+type SubscriptionRecord struct {
+	Kind      agentzv1alpha1.InferenceProviderKind `json:"kind"`
+	AccountID string                               `json:"accountId,omitempty"`
+	ClientID  string                               `json:"clientId,omitempty"`
+	Token     *oauth2.Token                        `json:"token"`
+	Scopes    []string                             `json:"scopes,omitempty"`
+	UpdatedAt time.Time                            `json:"updatedAt"`
+}
+
+// SubscriptionRecordData encodes a typed subscription record for OpenBao.
+func SubscriptionRecordData(record SubscriptionRecord) (map[string]any, error) {
+	payload, err := json.Marshal(record)
+	if err != nil {
+		return nil, fmt.Errorf("marshal inference subscription record: %w", err)
+	}
+	data := map[string]any{}
+	if err := json.Unmarshal(payload, &data); err != nil {
+		return nil, fmt.Errorf("encode inference subscription record: %w", err)
+	}
+	return data, nil
+}
+
+// DecodeSubscriptionRecord decodes one controlled OpenBao record strictly.
+func DecodeSubscriptionRecord(data map[string]any) (SubscriptionRecord, error) {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return SubscriptionRecord{}, fmt.Errorf("marshal inference subscription record: %w", err)
+	}
+	var record SubscriptionRecord
+	dec := json.NewDecoder(bytes.NewReader(payload))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&record); err != nil {
+		return SubscriptionRecord{}, fmt.Errorf("decode inference subscription record: %w", err)
+	}
+	return record, nil
+}
+
+// RefreshSubscription returns a usable subscription record, refreshing Codex
+// credentials when they are inside the shared expiry safety window.
+func RefreshSubscription(ctx context.Context, client *http.Client, record SubscriptionRecord) (SubscriptionRecord, bool, error) {
+	now := time.Now().UTC()
+	if oauth.TokenUsable(record.Token, now) {
+		return record, false, nil
+	}
+	if record.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		return SubscriptionRecord{}, false, fmt.Errorf("subscription access token is unavailable")
+	}
+	token, scopes, err := oauth.Refresh(
+		ctx,
+		client,
+		oauth.AuthConfig{
+			TokenEndpoint:           OpenAICodexTokenEndpoint,
+			TokenEndpointAuthMethod: "none",
+		},
+		oauth.Record{
+			ClientID:  record.ClientID,
+			Token:     record.Token,
+			Scopes:    record.Scopes,
+			UpdatedAt: record.UpdatedAt,
+		},
+	)
+	if err != nil {
+		return SubscriptionRecord{}, true, fmt.Errorf("refresh openai codex token: %w", err)
+	}
+	record.Token = token
+	if len(scopes) > 0 {
+		record.Scopes = scopes
+	}
+	record.UpdatedAt = now
+	return record, true, nil
+}
 
 // Runtime contains the concrete resources for one provider. ExternalSecret is
 // nil only for an explicitly unauthenticated OpenAI-compatible provider.
 type Runtime struct {
 	ExternalSecret *externalsecretsv1.ExternalSecret
 	Backend        *agentgatewayv1alpha1.AgentgatewayBackend
+	AuthPolicy     *agentgatewayv1alpha1.AgentgatewayPolicy
 	SecretKeys     []string
 }
 
@@ -79,16 +185,25 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 			},
 		},
 	}
-	if target.Policies.TLS == nil && target.Policies.Auth == nil &&
-		target.Policies.Transformation == nil {
+	hasTransportPolicy := target.Policies.TLS != nil || target.Policies.Auth != nil
+	hasTransportPolicy = hasTransportPolicy || target.Policies.Transformation != nil
+	if !hasTransportPolicy {
 		backend.Spec.Policies = &agentgatewayv1alpha1.BackendFull{AI: target.Policies.AI}
 	}
 	if len(target.secretKeys) == 0 {
-		return Runtime{Backend: backend, SecretKeys: []string{}}, nil
+		runtime := Runtime{Backend: backend, SecretKeys: []string{}}
+		isSubscription := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+		isSubscription = isSubscription || provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+		if isSubscription {
+			runtime.AuthPolicy = RenderInferenceAuthPolicy(
+				provider.Namespace, provider.Name, nil, provider.Name, "",
+			)
+		}
+		return runtime, nil
 	}
 
 	data := make([]externalsecretsv1.ExternalSecretData, 0, len(target.secretKeys))
-	path := provider.Namespace + "/" + CredentialPathDir + "/" + provider.Name
+	path := CredentialPath(provider.Namespace, provider.Name, provider.Spec.Kind)
 	if !target.extractCredentials {
 		for secretKey, property := range target.secretKeys {
 			data = append(data, externalsecretsv1.ExternalSecretData{
@@ -147,6 +262,53 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 	return Runtime{ExternalSecret: externalSecret, Backend: backend, SecretKeys: expected}, nil
 }
 
+// RenderInferenceAuthPolicy applies fail-closed target authorization and
+// credential injection to a direct provider or one named Pool member.
+func RenderInferenceAuthPolicy(namespace, backend string, section *gwv1.SectionName, provider, pool string) *agentgatewayv1alpha1.AgentgatewayPolicy {
+	identity := backend + "\x00" + provider
+	if section != nil {
+		identity += "\x00" + string(*section)
+	}
+	sum := sha256.Sum256([]byte(identity))
+	name := fmt.Sprintf("inference-auth-%x", sum[:8])
+	extAuthPort := mcp.ExtAuthPort
+	contextExtensions := map[string]string{
+		"agentz.namespace":          namespace,
+		"agentz.inference_provider": provider,
+	}
+	if pool != "" {
+		contextExtensions["agentz.inference_pool"] = pool
+	}
+	return &agentgatewayv1alpha1.AgentgatewayPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: agentgatewayv1alpha1.GroupVersion.String(),
+			Kind:       "AgentgatewayPolicy",
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec: agentgatewayv1alpha1.AgentgatewayPolicySpec{
+			TargetRefs: []agentgatewayv1alpha1.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agentgatewayv1alpha1.LocalPolicyTargetReference{
+					Group: "agentgateway.dev",
+					Kind:  "AgentgatewayBackend",
+					Name:  gwv1.ObjectName(backend),
+				},
+				SectionName: section,
+			}},
+			Backend: &agentgatewayv1alpha1.BackendFull{
+				ExtAuth: &agentgatewayv1alpha1.ExtAuth{
+					BackendRef: &gwv1.BackendObjectReference{
+						Name: gwv1.ObjectName(mcp.ExtAuthServiceName),
+						Port: &extAuthPort,
+					},
+					GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
+						ContextExtensions: contextExtensions,
+					},
+				},
+			},
+		},
+	}
+}
+
 // RenderProviderTarget converts an admitted provider into one reusable target.
 // The optional model override binds a Pool member to its real upstream model.
 func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model string) (ProviderTarget, error) {
@@ -164,6 +326,20 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 	}
 
 	switch provider.Spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
+			Model: modelRef,
+			Formats: []agentgatewayv1alpha1.ProviderFormatConfig{{
+				Type: agentgatewayv1alpha1.ProviderFormatResponses,
+				Path: "/backend-api/codex/responses",
+			}},
+		}
+		err := applyEndpoint(
+			&target.LLM, target.Policies, "https://chatgpt.com", "", "", false,
+		)
+		if err != nil {
+			return ProviderTarget{}, err
+		}
 	case agentzv1alpha1.InferenceProviderKindOpenAI:
 		target.LLM.OpenAI = &agentgatewayv1alpha1.OpenAIConfig{Model: modelRef}
 		target.secretKeys[secretAuthorization] = credentialAPIKey
@@ -196,11 +372,42 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 				return ProviderTarget{}, err
 			}
 		}
+	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
+		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
+			Model: modelRef,
+			Formats: []agentgatewayv1alpha1.ProviderFormatConfig{
+				{Type: agentgatewayv1alpha1.ProviderFormatCompletions, Path: "/chat/completions"},
+				{Type: agentgatewayv1alpha1.ProviderFormatResponses, Path: "/responses"},
+				{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"},
+			},
+		}
+		err := applyEndpoint(
+			&target.LLM, target.Policies, GitHubCopilotAPIEndpoint, "", "", false,
+		)
+		if err != nil {
+			return ProviderTarget{}, err
+		}
 	case agentzv1alpha1.InferenceProviderKindVertexAI:
+		if modelRef != nil {
+			value := vertexModelName(provider, *modelRef)
+			modelRef = &value
+		}
 		target.LLM.VertexAI = &agentgatewayv1alpha1.VertexAIConfig{
 			Model:     modelRef,
 			ProjectId: provider.Spec.VertexAI.Project,
 			Region:    provider.Spec.VertexAI.Region,
+		}
+		aliases := make(map[string]string)
+		for _, model := range provider.Spec.Models {
+			name := vertexModelName(provider, model.ID)
+			if name != model.ID {
+				aliases[model.ID] = name
+			}
+		}
+		if len(aliases) > 0 {
+			target.Policies.AI = &agentgatewayv1alpha1.BackendAI{
+				ModelAliases: aliases,
+			}
 		}
 		target.secretKeys[secretCredentials] = credentialServiceAccountJSON
 		kind := agentgatewayv1alpha1.GcpAuthTypeAccessToken
@@ -290,21 +497,31 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		return ProviderTarget{}, fmt.Errorf("render unsupported provider kind %q", provider.Spec.Kind)
 	}
 
-	target.Policies.AI = &agentgatewayv1alpha1.BackendAI{
-		Routes: map[string]agentgatewayv1alpha1.RouteType{
-			"/chat/completions":      agentgatewayv1alpha1.RouteTypeCompletions,
-			"/embeddings":            agentgatewayv1alpha1.RouteTypeEmbeddings,
-			"/messages":              agentgatewayv1alpha1.RouteTypeMessages,
-			"/messages/count_tokens": agentgatewayv1alpha1.RouteTypeAnthropicTokenCount,
-			"/models":                agentgatewayv1alpha1.RouteTypeModels,
-			"/realtime":              agentgatewayv1alpha1.RouteTypeRealtime,
-			"/responses":             agentgatewayv1alpha1.RouteTypeResponses,
-		},
+	if target.Policies.AI == nil {
+		target.Policies.AI = &agentgatewayv1alpha1.BackendAI{}
+	}
+	target.Policies.AI.Routes = map[string]agentgatewayv1alpha1.RouteType{
+		"/chat/completions":      agentgatewayv1alpha1.RouteTypeCompletions,
+		"/embeddings":            agentgatewayv1alpha1.RouteTypeEmbeddings,
+		"/messages":              agentgatewayv1alpha1.RouteTypeMessages,
+		"/messages/count_tokens": agentgatewayv1alpha1.RouteTypeAnthropicTokenCount,
+		"/models":                agentgatewayv1alpha1.RouteTypeModels,
+		"/realtime":              agentgatewayv1alpha1.RouteTypeRealtime,
+		"/responses":             agentgatewayv1alpha1.RouteTypeResponses,
 	}
 	if auth.SecretRef != nil || auth.AWS != nil || auth.Azure != nil || auth.GCP != nil {
 		target.Policies.Auth = auth
 	}
 	return target, nil
+}
+
+func vertexModelName(provider *agentzv1alpha1.InferenceProvider, model string) string {
+	isVertex := provider.Spec.CatalogProvider == "google-vertex"
+	isQualified := strings.Contains(model, "/") || strings.HasPrefix(model, "claude-")
+	if !isVertex || isQualified {
+		return model
+	}
+	return "google/" + model
 }
 
 func applyEndpoint(llm *agentgatewayv1alpha1.LLMProvider, policies *agentgatewayv1alpha1.BackendWithAI, rawURL, path, pathPrefix string, skipTLSVerify bool) error {

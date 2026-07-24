@@ -22,6 +22,9 @@ import type {
   CreateInferencePoolResponses,
   CreateInferenceProviderData,
   CreateInferenceProviderErrors,
+  CreateInferenceProviderOAuthTicketData,
+  CreateInferenceProviderOAuthTicketErrors,
+  CreateInferenceProviderOAuthTicketResponses,
   CreateInferenceProviderResponses,
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
@@ -212,6 +215,9 @@ import type {
   ReadAgentFileRawErrors,
   ReadAgentFileRawResponses,
   ReadAgentFileResponses,
+  RefreshInferenceProviderModelsData,
+  RefreshInferenceProviderModelsErrors,
+  RefreshInferenceProviderModelsResponses,
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
@@ -959,7 +965,7 @@ export const listInferenceProviders = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider",
+    url: "/api/inference/provider",
     ...options,
   })
 
@@ -975,7 +981,30 @@ export const createInferenceProvider = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider",
+    url: "/api/inference/provider",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Store subscription credentials and return a single-use provider ticket.
+ *
+ * Credential material is written directly to OpenBao and is never included in this or any later API response.
+ *
+ */
+export const createInferenceProviderOAuthTicket = <ThrowOnError extends boolean = false>(
+  options: Options<CreateInferenceProviderOAuthTicketData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateInferenceProviderOAuthTicketResponses,
+    CreateInferenceProviderOAuthTicketErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/oauth-ticket",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -995,7 +1024,7 @@ export const deleteInferenceProvider = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/{providerName}",
+    url: "/api/inference/provider/{providerName}",
     ...options,
   })
 
@@ -1011,7 +1040,7 @@ export const getInferenceProvider = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/{providerName}",
+    url: "/api/inference/provider/{providerName}",
     ...options,
   })
 
@@ -1027,7 +1056,7 @@ export const updateInferenceProvider = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/{providerName}",
+    url: "/api/inference/provider/{providerName}",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -1050,7 +1079,7 @@ export const watchInferenceProviders = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/watch",
+    url: "/api/inference/provider/watch",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -1070,7 +1099,23 @@ export const getInferenceProviderUsage = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/{providerName}/usage",
+    url: "/api/inference/provider/{providerName}/usage",
+    ...options,
+  })
+
+/**
+ * Refresh non-secret model metadata for a subscription provider.
+ */
+export const refreshInferenceProviderModels = <ThrowOnError extends boolean = false>(
+  options: Options<RefreshInferenceProviderModelsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    RefreshInferenceProviderModelsResponses,
+    RefreshInferenceProviderModelsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/{providerName}/models",
     ...options,
   })
 
@@ -1086,7 +1131,7 @@ export const listInferenceProviderCatalog = <ThrowOnError extends boolean = fals
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/catalog",
+    url: "/api/inference/provider/catalog",
     ...options,
   })
 
@@ -1102,7 +1147,7 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-provider/catalog/{catalogProvider}/models",
+    url: "/api/inference/provider/catalog/{catalogProvider}/models",
     ...options,
   })
 
@@ -1118,7 +1163,7 @@ export const listInferencePools = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-pool",
+    url: "/api/inference/pool",
     ...options,
   })
 
@@ -1134,7 +1179,7 @@ export const createInferencePool = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-pool",
+    url: "/api/inference/pool",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -1154,7 +1199,7 @@ export const deleteInferencePool = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-pool/{poolName}",
+    url: "/api/inference/pool/{poolName}",
     ...options,
   })
 
@@ -1166,7 +1211,7 @@ export const getInferencePool = <ThrowOnError extends boolean = false>(
 ) =>
   (options.client ?? client).get<GetInferencePoolResponses, GetInferencePoolErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-pool/{poolName}",
+    url: "/api/inference/pool/{poolName}",
     ...options,
   })
 
@@ -1182,7 +1227,7 @@ export const updateInferencePool = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-pool/{poolName}",
+    url: "/api/inference/pool/{poolName}",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -1202,7 +1247,7 @@ export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-pool/{poolName}/usage",
+    url: "/api/inference/pool/{poolName}/usage",
     ...options,
   })
 
@@ -1221,7 +1266,7 @@ export const watchInferencePools = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/inference-pool/watch",
+    url: "/api/inference/pool/watch",
     ...options,
     headers: {
       "Content-Type": "application/json",

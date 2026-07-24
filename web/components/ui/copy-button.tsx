@@ -18,6 +18,7 @@ export function CopyButton({ content, label }: CopyButtonProps) {
 
   return (
     <Button
+      type="button"
       variant="ghost"
       size={label ? "default" : "icon"}
       className={cn("relative", !label && "h-6 w-6")}

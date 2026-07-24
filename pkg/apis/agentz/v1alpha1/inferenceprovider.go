@@ -25,16 +25,20 @@ const (
 
 // InferenceProviderKind identifies the configuration and credentials required
 // by an upstream inference protocol.
-// +kubebuilder:validation:Enum=OpenAI;Anthropic;Gemini;OpenAICompatible;AnthropicCompatible;Bedrock;VertexAI;Azure
+// +kubebuilder:validation:Enum=OpenAI;OpenAICodex;Anthropic;Gemini;GitHubCopilot;OpenAICompatible;AnthropicCompatible;Bedrock;VertexAI;Azure
 type InferenceProviderKind string
 
 const (
 	// InferenceProviderKindOpenAI identifies the native OpenAI provider.
 	InferenceProviderKindOpenAI InferenceProviderKind = "OpenAI"
+	// InferenceProviderKindOpenAICodex identifies a ChatGPT Codex subscription.
+	InferenceProviderKindOpenAICodex InferenceProviderKind = "OpenAICodex"
 	// InferenceProviderKindAnthropic identifies the native Anthropic provider.
 	InferenceProviderKindAnthropic InferenceProviderKind = "Anthropic"
 	// InferenceProviderKindGemini identifies the native Gemini provider.
 	InferenceProviderKindGemini InferenceProviderKind = "Gemini"
+	// InferenceProviderKindGitHubCopilot identifies a GitHub Copilot subscription.
+	InferenceProviderKindGitHubCopilot InferenceProviderKind = "GitHubCopilot"
 	// InferenceProviderKindVertexAI identifies the native Vertex AI provider.
 	InferenceProviderKindVertexAI InferenceProviderKind = "VertexAI"
 	// InferenceProviderKindBedrock identifies the native Amazon Bedrock provider.
@@ -45,6 +49,19 @@ const (
 	InferenceProviderKindOpenAICompatible InferenceProviderKind = "OpenAICompatible"
 	// InferenceProviderKindAnthropicCompatible identifies a custom Anthropic endpoint.
 	InferenceProviderKindAnthropicCompatible InferenceProviderKind = "AnthropicCompatible"
+)
+
+// InferenceModelAPI identifies the upstream API used for one model.
+// +kubebuilder:validation:Enum=ChatCompletions;Responses;Messages
+type InferenceModelAPI string
+
+const (
+	// InferenceModelAPIChatCompletions selects OpenAI Chat Completions.
+	InferenceModelAPIChatCompletions InferenceModelAPI = "ChatCompletions"
+	// InferenceModelAPIResponses selects OpenAI Responses.
+	InferenceModelAPIResponses InferenceModelAPI = "Responses"
+	// InferenceModelAPIMessages selects Anthropic Messages.
+	InferenceModelAPIMessages InferenceModelAPI = "Messages"
 )
 
 // InferenceProviderState summarizes reconciled control-plane readiness.
@@ -115,6 +132,10 @@ type InferenceModel struct {
 
 	// Limits records the model's token limits.
 	Limits InferenceModelLimits `json:"limits"`
+
+	// API records the subscription provider API selected during discovery.
+	// +optional
+	API *InferenceModelAPI `json:"api,omitempty"`
 
 	// Catalog records advisory Models.dev provenance when selected there.
 	// +optional
@@ -370,6 +391,7 @@ type CompatibleProviderConfig struct {
 // +kubebuilder:validation:XValidation:rule="self.kind == 'Bedrock' ? has(self.bedrock) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.vertexAI) && !has(self.azure) : true",message="Bedrock kind requires only bedrock configuration"
 // +kubebuilder:validation:XValidation:rule="self.kind == 'VertexAI' ? has(self.vertexAI) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.azure) : true",message="VertexAI kind requires only vertexAI configuration"
 // +kubebuilder:validation:XValidation:rule="self.kind == 'Azure' ? has(self.azure) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) : true",message="Azure kind requires only azure configuration"
+// +kubebuilder:validation:XValidation:rule="self.kind == 'OpenAICodex' || self.kind == 'GitHubCopilot' ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="subscription provider kinds do not accept endpoint configuration"
 type InferenceProviderSpec struct {
 	// CatalogProvider is the immutable OpenCode provider ID or custom.
 	// +kubebuilder:validation:MinLength=1

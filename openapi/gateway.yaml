@@ -690,8 +690,55 @@ components:
       type: object
     CreateInferencePoolRequest:
       $ref: '#/components/schemas/InferencePoolWrite'
+    CreateInferenceProviderOAuthTicketRequest:
+      additionalProperties: false
+      properties:
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderOAuthCredentials'
+        kind:
+          enum:
+          - OpenAICodex
+          - GitHubCopilot
+          type: string
+      required:
+      - kind
+      - credentials
+      type: object
+    CreateInferenceProviderOAuthTicketResponse:
+      additionalProperties: false
+      properties:
+        expires_at:
+          format: date-time
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModelSuggestion'
+          maxItems: 500
+          type: array
+        provenance:
+          $ref: '#/components/schemas/InferenceModelSuggestionsProvenance'
+        ticket:
+          maxLength: 256
+          minLength: 1
+          type: string
+      required:
+      - ticket
+      - expires_at
+      - models
+      - provenance
+      type: object
     CreateInferenceProviderRequest:
-      $ref: '#/components/schemas/InferenceProviderWriteDiscriminator'
+      additionalProperties: false
+      properties:
+        oauth_ticket:
+          maxLength: 256
+          minLength: 1
+          type: string
+        provider:
+          $ref: '#/components/schemas/InferenceProviderWriteDiscriminator'
+      required:
+      - provider
+      type: object
     CreateMCPConnectionRequest:
       additionalProperties: false
       properties:
@@ -1077,6 +1124,42 @@ components:
           maxLength: 2048
           type: string
       type: object
+    GitHubCopilotInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - GitHubCopilot
+          type: string
+      required:
+      - kind
+      type: object
+    GitHubCopilotInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          enum:
+          - github-copilot
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - GitHubCopilot
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      type: object
     ImmutableSkillSummary:
       allOf:
       - $ref: '#/components/schemas/SkillFileSummary'
@@ -1120,6 +1203,8 @@ components:
     InferenceModel:
       additionalProperties: false
       properties:
+        api:
+          $ref: '#/components/schemas/InferenceModelAPI'
         capabilities:
           $ref: '#/components/schemas/InferenceModelCapabilities'
         catalog_provider:
@@ -1145,6 +1230,12 @@ components:
       - modalities
       - limits
       type: object
+    InferenceModelAPI:
+      enum:
+      - ChatCompletions
+      - Responses
+      - Messages
+      type: string
     InferenceModelCapabilities:
       additionalProperties: false
       properties:
@@ -1228,15 +1319,17 @@ components:
             $ref: '#/components/schemas/InferenceModelSuggestion'
           type: array
         provenance:
-          enum:
-          - live
-          - cache
-          - snapshot
-          type: string
+          $ref: '#/components/schemas/InferenceModelSuggestionsProvenance'
       required:
       - provenance
       - models
       type: object
+    InferenceModelSuggestionsProvenance:
+      enum:
+      - live
+      - cache
+      - snapshot
+      type: string
     InferencePool:
       additionalProperties: false
       properties:
@@ -1300,6 +1393,8 @@ components:
     InferencePoolContract:
       additionalProperties: false
       properties:
+        api:
+          $ref: '#/components/schemas/InferenceModelAPI'
         capabilities:
           $ref: '#/components/schemas/InferenceModelCapabilities'
         limits:
@@ -1307,6 +1402,7 @@ components:
         modalities:
           $ref: '#/components/schemas/InferenceModelModalities'
       required:
+      - api
       - capabilities
       - modalities
       - limits
@@ -1601,8 +1697,10 @@ components:
     InferenceProviderKind:
       enum:
       - OpenAI
+      - OpenAICodex
       - Anthropic
       - Gemini
+      - GitHubCopilot
       - OpenAICompatible
       - AnthropicCompatible
       - Bedrock
@@ -1615,6 +1713,34 @@ components:
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
       type: string
+    InferenceProviderOAuthCredentials:
+      additionalProperties: false
+      properties:
+        access_token:
+          format: password
+          maxLength: 49152
+          minLength: 1
+          type: string
+          writeOnly: true
+        expires_at:
+          format: date-time
+          type: string
+          writeOnly: true
+        id_token:
+          format: password
+          maxLength: 49152
+          minLength: 1
+          type: string
+          writeOnly: true
+        refresh_token:
+          format: password
+          maxLength: 49152
+          minLength: 1
+          type: string
+          writeOnly: true
+      required:
+      - access_token
+      type: object
     InferenceProviderReadDiscriminator:
       discriminator:
         mapping:
@@ -1623,14 +1749,18 @@ components:
           Azure: '#/components/schemas/AzureInferenceProviderRead'
           Bedrock: '#/components/schemas/BedrockInferenceProviderRead'
           Gemini: '#/components/schemas/GeminiInferenceProviderRead'
+          GitHubCopilot: '#/components/schemas/GitHubCopilotInferenceProviderRead'
           OpenAI: '#/components/schemas/OpenAIInferenceProviderRead'
+          OpenAICodex: '#/components/schemas/OpenAICodexInferenceProviderRead'
           OpenAICompatible: '#/components/schemas/OpenAICompatibleInferenceProviderRead'
           VertexAI: '#/components/schemas/VertexAIInferenceProviderRead'
         propertyName: kind
       oneOf:
       - $ref: '#/components/schemas/OpenAIInferenceProviderRead'
+      - $ref: '#/components/schemas/OpenAICodexInferenceProviderRead'
       - $ref: '#/components/schemas/AnthropicInferenceProviderRead'
       - $ref: '#/components/schemas/GeminiInferenceProviderRead'
+      - $ref: '#/components/schemas/GitHubCopilotInferenceProviderRead'
       - $ref: '#/components/schemas/VertexAIInferenceProviderRead'
       - $ref: '#/components/schemas/BedrockInferenceProviderRead'
       - $ref: '#/components/schemas/AzureInferenceProviderRead'
@@ -1692,14 +1822,18 @@ components:
           Azure: '#/components/schemas/AzureInferenceProviderWrite'
           Bedrock: '#/components/schemas/BedrockInferenceProviderWrite'
           Gemini: '#/components/schemas/GeminiInferenceProviderWrite'
+          GitHubCopilot: '#/components/schemas/GitHubCopilotInferenceProviderWrite'
           OpenAI: '#/components/schemas/OpenAIInferenceProviderWrite'
+          OpenAICodex: '#/components/schemas/OpenAICodexInferenceProviderWrite'
           OpenAICompatible: '#/components/schemas/OpenAICompatibleInferenceProviderWrite'
           VertexAI: '#/components/schemas/VertexAIInferenceProviderWrite'
         propertyName: kind
       oneOf:
       - $ref: '#/components/schemas/OpenAIInferenceProviderWrite'
+      - $ref: '#/components/schemas/OpenAICodexInferenceProviderWrite'
       - $ref: '#/components/schemas/AnthropicInferenceProviderWrite'
       - $ref: '#/components/schemas/GeminiInferenceProviderWrite'
+      - $ref: '#/components/schemas/GitHubCopilotInferenceProviderWrite'
       - $ref: '#/components/schemas/VertexAIInferenceProviderWrite'
       - $ref: '#/components/schemas/BedrockInferenceProviderWrite'
       - $ref: '#/components/schemas/AzureInferenceProviderWrite'
@@ -2408,6 +2542,42 @@ components:
       - Allowed
       - Blocked
       type: string
+    OpenAICodexInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - OpenAICodex
+          type: string
+      required:
+      - kind
+      type: object
+    OpenAICodexInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          enum:
+          - openai
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - OpenAICodex
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      type: object
     OpenAICompatibleInferenceProviderRead:
       properties:
         kind:
@@ -12565,7 +12735,7 @@ paths:
       summary: Watch agent status changes.
       tags:
       - agents
-  /api/inference-pool:
+  /api/inference/pool:
     get:
       operationId: listInferencePools
       parameters:
@@ -12584,7 +12754,7 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: List paginated inference Pools.
       tags:
-      - inference-pools
+      - inference
     post:
       operationId: createInferencePool
       requestBody:
@@ -12608,8 +12778,8 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Create an inference Pool with ordered provider-model members.
       tags:
-      - inference-pools
-  /api/inference-pool/{poolName}:
+      - inference
+  /api/inference/pool/{poolName}:
     delete:
       operationId: deleteInferencePool
       responses:
@@ -12623,7 +12793,7 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Delete an inference Pool not referenced by a Sandbox.
       tags:
-      - inference-pools
+      - inference
     get:
       operationId: getInferencePool
       responses:
@@ -12639,7 +12809,7 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Get an inference Pool and its derived contract.
       tags:
-      - inference-pools
+      - inference
     parameters:
     - $ref: '#/components/parameters/InferencePoolNamePath'
     put:
@@ -12667,8 +12837,8 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Replace Pool membership or routing behavior.
       tags:
-      - inference-pools
-  /api/inference-pool/{poolName}/usage:
+      - inference
+  /api/inference/pool/{poolName}/usage:
     get:
       operationId: getInferencePoolUsage
       parameters:
@@ -12686,8 +12856,8 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: List Sandboxes directly referencing an inference Pool.
       tags:
-      - inference-pools
-  /api/inference-pool/watch:
+      - inference
+  /api/inference/pool/watch:
     post:
       description: |
         Returns an SSE stream. Each payload contains current Pool read shapes for the requested IDs, or all Pools when IDs are omitted.
@@ -12711,8 +12881,8 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Watch inference Pool status and usage changes.
       tags:
-      - inference-pools
-  /api/inference-provider:
+      - inference
+  /api/inference/provider:
     get:
       operationId: listInferenceProviders
       parameters:
@@ -12731,7 +12901,7 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: List paginated inference providers.
       tags:
-      - inference-providers
+      - inference
     post:
       operationId: createInferenceProvider
       requestBody:
@@ -12755,8 +12925,8 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Create an inference provider and its write-only credentials.
       tags:
-      - inference-providers
-  /api/inference-provider/{providerName}:
+      - inference
+  /api/inference/provider/{providerName}:
     delete:
       operationId: deleteInferenceProvider
       responses:
@@ -12770,7 +12940,7 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Delete an unreferenced inference provider.
       tags:
-      - inference-providers
+      - inference
     get:
       operationId: getInferenceProvider
       responses:
@@ -12786,7 +12956,7 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Get an inference provider without credential material.
       tags:
-      - inference-providers
+      - inference
     parameters:
     - $ref: '#/components/parameters/InferenceProviderNamePath'
     put:
@@ -12814,8 +12984,29 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Replace provider configuration and optionally rotate credentials.
       tags:
-      - inference-providers
-  /api/inference-provider/{providerName}/usage:
+      - inference
+  /api/inference/provider/{providerName}/models:
+    get:
+      operationId: refreshInferenceProviderModels
+      parameters:
+      - $ref: '#/components/parameters/InferenceProviderNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceModelSuggestions'
+          description: Current subscription model suggestions.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Refresh non-secret model metadata for a subscription provider.
+      tags:
+      - inference
+  /api/inference/provider/{providerName}/usage:
     get:
       operationId: getInferenceProviderUsage
       parameters:
@@ -12833,8 +13024,8 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: List Sandboxes referencing an inference provider.
       tags:
-      - inference-providers
-  /api/inference-provider/catalog:
+      - inference
+  /api/inference/provider/catalog:
     get:
       operationId: listInferenceProviderCatalog
       parameters:
@@ -12857,8 +13048,8 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Search the pinned OpenCode provider catalog.
       tags:
-      - inference-providers
-  /api/inference-provider/catalog/{catalogProvider}/models:
+      - inference
+  /api/inference/provider/catalog/{catalogProvider}/models:
     get:
       operationId: listInferenceModelSuggestions
       parameters:
@@ -12887,8 +13078,35 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: List Models.dev suggestions for one provider/runtime variant.
       tags:
-      - inference-providers
-  /api/inference-provider/watch:
+      - inference
+  /api/inference/provider/oauth-ticket:
+    post:
+      description: |
+        Credential material is written directly to OpenBao and is never included in this or any later API response.
+      operationId: createInferenceProviderOAuthTicket
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketResponse'
+          description: Single-use provider ticket and non-secret model metadata.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Store subscription credentials and return a single-use provider ticket.
+      tags:
+      - inference
+  /api/inference/provider/watch:
     post:
       description: |
         Returns an SSE stream. Each payload contains the current read shapes for the requested provider IDs, or all providers when IDs are omitted.
@@ -12912,7 +13130,7 @@ paths:
           $ref: '#/components/responses/InternalError'
       summary: Watch inference provider status changes.
       tags:
-      - inference-providers
+      - inference
   /api/lens/{agentName}/{sessionID}/trace:
     get:
       operationId: listTraceSessions
@@ -21958,10 +22176,8 @@ tags:
   name: secrets
 - description: Sandbox resource management APIs.
   name: sandboxes
-- description: Tenant inference provider and model APIs.
-  name: inference-providers
-- description: Tenant logical model Pools with ordered provider-model fallback.
-  name: inference-pools
+- description: Tenant inference provider, model, and pool APIs.
+  name: inference
 - description: Immutable skill catalog and attachment APIs.
   name: skills
 - description: MCPConnection resource and credential management APIs.

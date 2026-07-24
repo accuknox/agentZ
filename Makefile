@@ -7,6 +7,8 @@ BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
+OPENBAO_AUTH_SERVICE_ACCOUNT ?= default
+EXTAUTH_OPENBAO_K8S_AUTH_ROLE ?= extauth
 IGNORE_NOT_FOUND ?= false
 SKILLS_S3_ENDPOINT ?= http://localhost:9000
 SKILLS_S3_REGION ?= us-east-1
@@ -29,7 +31,7 @@ generate:
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
 	oapi-codegen \
-		--include-tags agents,tenants,lens,secrets,sandboxes,inference-providers,inference-pools,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
+		--include-tags agents,tenants,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
@@ -73,7 +75,8 @@ build:
 
 .PHONY: run-gateway
 run-gateway:
-	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
+	umask 077; \
+		$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
 	AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz gateway serve \
@@ -97,8 +100,9 @@ run-gateway:
 
 .PHONY: run-manager
 run-manager:
-	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
-	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --audience=$(GATEWAY_JWT_AUDIENCE) --duration=24h > /tmp/gateway-sa-token
+	umask 077; \
+		$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"; \
+		$(KUBECTL) -n $(K8S_NAMESPACE) create token default --audience=$(GATEWAY_JWT_AUDIENCE) --duration=24h > /tmp/gateway-sa-token
 	AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz manager \
@@ -134,13 +138,14 @@ run-observer:
 
 .PHONY: run-extauth
 run-extauth:
-	$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
+	umask 077; \
+		$(KUBECTL) -n $(K8S_NAMESPACE) create token $(OPENBAO_AUTH_SERVICE_ACCOUNT) --duration=24h > "$(OPENBAO_TOKEN_PATH)"
 	go run ./cmd/agentz extauth serve \
 		--addr 0.0.0.0:18081 \
 		--namespace=$(K8S_NAMESPACE) \
 		--openbao-addr=http://localhost:8200 \
 		--openbao-secret-mount-path=kv \
-		--openbao-k8s-auth-role=extauth \
+		--openbao-k8s-auth-role=$(EXTAUTH_OPENBAO_K8S_AUTH_ROLE) \
 		--openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH)
 
 .PHONY: build-installer

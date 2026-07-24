@@ -992,7 +992,6 @@ var managerCmd = &cli.Command{
 			Client:                  mgr.GetClient(),
 			Scheme:                  mgr.GetScheme(),
 			AgentGateway:            agClient,
-			ControllerImage:         controllerImage,
 			OpenBaoAddr:             openBaoAddr,
 			ManagerOpenBaoAddr:      managerOpenBaoAddr,
 			OpenBaoSecretMountPath:  openBaoSecretMountPath,
@@ -1002,6 +1001,21 @@ var managerCmd = &cli.Command{
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "MCPConnection")
+			os.Exit(1)
+		}
+		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
+			Client:                  mgr.GetClient(),
+			Scheme:                  mgr.GetScheme(),
+			ControllerImage:         controllerImage,
+			OpenBaoAddr:             openBaoAddr,
+			ManagerOpenBaoAddr:      managerOpenBaoAddr,
+			OpenBaoSecretMountPath:  openBaoSecretMountPath,
+			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
+			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
+			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
+		}
+		if err := extAuthRuntimeReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "ExtAuthRuntime")
 			os.Exit(1)
 		}
 

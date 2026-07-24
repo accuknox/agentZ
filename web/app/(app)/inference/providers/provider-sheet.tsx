@@ -7,6 +7,7 @@ import {
   Check,
   ChevronsUpDown,
   CircleAlert,
+  ExternalLink,
   KeyRound,
   Pencil,
   Plus,
@@ -18,10 +19,12 @@ import {
 import * as React from "react"
 import {
   Controller,
+  useController,
   useFieldArray,
   useForm,
   useWatch,
-  type UseFormRegisterReturn,
+  type Control,
+  type FieldPath,
 } from "react-hook-form"
 import { toast } from "sonner"
 import * as z from "zod"
@@ -75,21 +78,22 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   listInferenceProviderCatalogAction,
   getInferenceProviderUsageAction,
+  pollInferenceProviderOAuthAction,
+  refreshInferenceProviderModelsAction,
   saveInferenceProviderAction,
+  startInferenceProviderOAuthAction,
   suggestInferenceModelsAction,
 } from "@/data/inference-provider.actions"
 import { formatCompactNumber } from "@/lib/format"
 import {
-  type CreateInferenceProviderRequestWritable,
+  type CreateInferenceProviderOAuthTicketResponse,
   type InferenceModel,
   type InferenceModelModality,
   type InferenceProvider,
   type InferenceProviderCatalogEntry,
+  type InferenceProviderWriteDiscriminatorWritable,
 } from "@/lib/gateway/client"
-import {
-  zCompatibleProviderConfig,
-  zCreateInferenceProviderRequestWritable,
-} from "@/lib/gateway/client/zod.gen"
+import { zInferenceProviderWriteDiscriminatorWritable } from "@/lib/gateway/client/zod.gen"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
 import { cn } from "@/lib/utils"
 
@@ -110,6 +114,19 @@ const modalities = [
 ] as const satisfies readonly InferenceModelModality[]
 
 const capabilities = ["attachment", "reasoning", "temperature", "tool_call"] as const
+
+type SubscriptionOAuthState =
+  | { status: "idle" }
+  | { status: "starting" }
+  | {
+      status: "challenge"
+      verificationUri: string
+      userCode: string
+      interval: number
+      expiresAt: string
+    }
+  | { status: "connected"; connection: CreateInferenceProviderOAuthTicketResponse }
+  | { status: "error"; message: string }
 
 const gatewayControlledHeaders = new Set([
   "connection",
@@ -150,39 +167,53 @@ const providerModelSchema = z.object({
     .string({ error: "Model display name is required" })
     .min(1, { error: "Model display name is required" })
     .max(128, { error: "Model display name must be at most 128 characters" }),
-  capabilities: z.object({
-    attachment: z.boolean({ error: "Attachment capability must be enabled or disabled" }),
-    reasoning: z.boolean({ error: "Reasoning capability must be enabled or disabled" }),
-    temperature: z.boolean({ error: "Temperature capability must be enabled or disabled" }),
-    tool_call: z.boolean({ error: "Tool-call capability must be enabled or disabled" }),
-  }),
-  modalities: z.object({
-    input: z
-      .array(z.enum(modalities, { error: "Select a supported input modality" }), {
-        error: "Input modalities must be a list",
-      })
-      .min(1, { error: "Select at least one input modality" }),
-    output: z
-      .array(z.enum(modalities, { error: "Select a supported output modality" }), {
-        error: "Output modalities must be a list",
-      })
-      .min(1, { error: "Select at least one output modality" }),
-  }),
-  limits: z.object({
-    context: z
-      .int({ error: "Context limit must be a whole number" })
-      .gte(1, { error: "Context limit must be at least 1" })
-      .lte(2147483647, { error: "Context limit must be at most 2,147,483,647" }),
-    input: z
-      .int({ error: "Maximum input tokens must be a whole number" })
-      .gte(1, { error: "Maximum input tokens must be at least 1" })
-      .lte(2147483647, { error: "Maximum input tokens must be at most 2,147,483,647" })
-      .optional(),
-    output: z
-      .int({ error: "Maximum output tokens must be a whole number" })
-      .gte(1, { error: "Maximum output tokens must be at least 1" })
-      .lte(2147483647, { error: "Maximum output tokens must be at most 2,147,483,647" }),
-  }),
+  capabilities: z.object(
+    {
+      attachment: z.boolean({ error: "Choose whether this model accepts attachments" }),
+      reasoning: z.boolean({ error: "Choose whether this model supports reasoning" }),
+      temperature: z.boolean({ error: "Choose whether this model supports temperature" }),
+      tool_call: z.boolean({ error: "Choose whether this model can call tools" }),
+    },
+    { error: "Choose the model capabilities" }
+  ),
+  modalities: z.object(
+    {
+      input: z
+        .array(z.enum(modalities, { error: "Select a supported input modality" }), {
+          error: "Choose the model's supported input types",
+        })
+        .min(1, { error: "Select at least one input modality" }),
+      output: z
+        .array(z.enum(modalities, { error: "Select a supported output modality" }), {
+          error: "Choose the model's supported output types",
+        })
+        .min(1, { error: "Select at least one output modality" }),
+    },
+    { error: "Choose the model's supported input and output types" }
+  ),
+  limits: z.object(
+    {
+      context: z
+        .int({ error: "Enter the context limit as a whole number" })
+        .gte(1, { error: "Context limit must be at least 1" })
+        .lte(2147483647, { error: "Context limit must be at most 2,147,483,647" }),
+      input: z
+        .int({ error: "Enter maximum input tokens as a whole number" })
+        .gte(1, { error: "Maximum input tokens must be at least 1" })
+        .lte(2147483647, { error: "Maximum input tokens must be at most 2,147,483,647" })
+        .optional(),
+      output: z
+        .int({ error: "Enter maximum output tokens as a whole number" })
+        .gte(1, { error: "Maximum output tokens must be at least 1" })
+        .lte(2147483647, { error: "Maximum output tokens must be at most 2,147,483,647" }),
+    },
+    { error: "Enter the model's token limits" }
+  ),
+  api: z
+    .enum(["ChatCompletions", "Responses", "Messages"], {
+      error: "Choose an API format supported by this model",
+    })
+    .optional(),
   catalog_provider: z
     .string({ error: "Catalog provider must be text" })
     .min(1, { error: "Catalog provider is required" })
@@ -218,12 +249,199 @@ const apiKeyCredentialsSchema = z.object({
 })
 
 const serviceAccountDocumentSchema = z.object({
-  type: z.literal("service_account"),
-  project_id: z.string().min(1),
-  private_key: z.string().min(1),
-  client_email: z.string().min(1),
-  token_uri: z.string().min(1),
+  type: z.literal("service_account", {
+    error: 'Service account JSON must set type to "service_account"',
+  }),
+  project_id: z
+    .string({ error: "Service account JSON must include a project_id" })
+    .min(1, { error: "Service account JSON must include a project_id" }),
+  private_key: z
+    .string({ error: "Service account JSON must include a private_key" })
+    .min(1, { error: "Service account JSON must include a private_key" }),
+  client_email: z
+    .string({ error: "Service account JSON must include a client_email" })
+    .min(1, { error: "Service account JSON must include a client_email" }),
+  token_uri: z
+    .string({ error: "Service account JSON must include a token_uri" })
+    .min(1, { error: "Service account JSON must include a token_uri" }),
 })
+
+const googleCredentialTypeSchema = z.object({
+  type: z.string({ error: "Google credential JSON must include a type" }),
+})
+
+const serviceAccountJSONSchema = z
+  .string({ error: "Service account JSON must be text" })
+  .max(49152, { error: "Service account JSON must be at most 48 KB" })
+  .superRefine((document, ctx) => {
+    if (!document.trim()) {
+      return
+    }
+    let json: unknown
+    try {
+      json = JSON.parse(document)
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "Service account JSON must be valid JSON",
+      })
+      return
+    }
+    const credentialType = googleCredentialTypeSchema.safeParse(json)
+    if (credentialType.success && credentialType.data.type === "authorized_user") {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "This is an authorized-user OAuth credential. Upload a service-account key JSON instead.",
+      })
+      return
+    }
+    const parsed = serviceAccountDocumentSchema.safeParse(json)
+    if (parsed.success) {
+      return
+    }
+    for (const issue of parsed.error.issues) {
+      ctx.addIssue({
+        code: "custom",
+        message: issue.message,
+      })
+    }
+  })
+  .optional()
+
+const compatibleProviderConfigSchema = z.object({
+  base_url: z
+    .url({ error: "Enter a valid provider base URL" })
+    .max(2048, { error: "Provider base URL must be at most 2,048 characters" }),
+  path: z
+    .string({ error: "Provider path must be text" })
+    .max(1024, { error: "Provider path must be at most 1,024 characters" })
+    .regex(/^\/[^?#]*$/, {
+      error: "Provider path must start with / and cannot include a query or fragment",
+    })
+    .optional(),
+  path_prefix: z
+    .string({ error: "Provider path prefix must be text" })
+    .max(1024, { error: "Provider path prefix must be at most 1,024 characters" })
+    .regex(/^\/[^?#]*$/, {
+      error: "Provider path prefix must start with / and cannot include a query or fragment",
+    })
+    .optional(),
+  auth_mode: z.enum(["None", "APIKey"], {
+    error: "Choose API-key authentication or no authentication",
+  }),
+  auth_header: z
+    .string({ error: "Authentication header must be text" })
+    .min(1, { error: "Enter the authentication header name" })
+    .max(128, { error: "Authentication header must be at most 128 characters" })
+    .regex(/^[a-z0-9!#$%&'*+.^_|~-]+$/, {
+      error: "Enter a valid lowercase HTTP header name",
+    })
+    .optional(),
+  auth_prefix: z
+    .string({ error: "Authentication prefix must be text" })
+    .max(128, { error: "Authentication prefix must be at most 128 characters" })
+    .optional(),
+  headers: z
+    .array(
+      z.object({
+        name: z
+          .string({ error: "Header name is required" })
+          .min(1, { error: "Enter a header name" })
+          .max(128, { error: "Header name must be at most 128 characters" })
+          .regex(/^[a-z0-9!#$%&'*+.^_|~-]+$/, {
+            error: "Enter a valid lowercase HTTP header name",
+          }),
+        value: z
+          .string({ error: "Header value is required" })
+          .min(1, { error: "Enter a header value" })
+          .max(1024, { error: "Header value must be at most 1,024 characters" }),
+      }),
+      { error: "Static headers must be a list of names and values" }
+    )
+    .max(32, { error: "Add no more than 32 static headers" })
+    .optional(),
+  allow_private_endpoint: z
+    .boolean({ error: "Choose whether private endpoints are allowed" })
+    .optional()
+    .default(false),
+  skip_tls_verify: z
+    .boolean({ error: "Choose whether TLS verification is required" })
+    .optional()
+    .default(false),
+})
+
+const providerServerErrorFields = new Map<
+  string,
+  FieldPath<InferenceProviderWriteDiscriminatorWritable>
+>([
+  ["display_name", "display_name"],
+  ["catalog_provider", "catalog_provider"],
+  ["kind", "catalog_provider"],
+  ["openai.base_url", "openai.base_url"],
+  ["anthropic.base_url", "anthropic.base_url"],
+  ["gemini.base_url", "gemini.base_url"],
+  ["vertex_ai", "vertex_ai.project"],
+  ["vertex_ai.project", "vertex_ai.project"],
+  ["vertex_ai.region", "vertex_ai.region"],
+  ["bedrock", "bedrock.region"],
+  ["bedrock.region", "bedrock.region"],
+  ["bedrock.auth_mode", "bedrock.auth_mode"],
+  ["azure", "azure.resource_name"],
+  ["azure.resource_name", "azure.resource_name"],
+  ["azure.project", "azure.project"],
+  ["azure.api_version", "azure.api_version"],
+  ["azure.auth_mode", "azure.auth_mode"],
+  ["credentials.api_key", "credentials.api_key"],
+  ["credentials.service_account_json", "credentials.service_account_json"],
+  ["credentials.access_key", "credentials.access_key"],
+  ["credentials.secret_key", "credentials.secret_key"],
+  ["credentials.session_token", "credentials.session_token"],
+  ["credentials.bearer_token", "credentials.bearer_token"],
+  ["credentials.client_id", "credentials.client_id"],
+  ["credentials.tenant_id", "credentials.tenant_id"],
+  ["credentials.client_secret", "credentials.client_secret"],
+  ["openai_compatible", "openai_compatible.base_url"],
+  ["openai_compatible.base_url", "openai_compatible.base_url"],
+  ["openai_compatible.path", "openai_compatible.path"],
+  ["openai_compatible.path_prefix", "openai_compatible.path_prefix"],
+  ["openai_compatible.auth_mode", "openai_compatible.auth_mode"],
+  ["openai_compatible.auth_header", "openai_compatible.auth_header"],
+  ["openai_compatible.auth_prefix", "openai_compatible.auth_prefix"],
+  ["openai_compatible.headers", "openai_compatible.headers"],
+  ["openai_compatible.allow_private_endpoint", "openai_compatible.allow_private_endpoint"],
+  ["openai_compatible.skip_tls_verify", "openai_compatible.skip_tls_verify"],
+  ["anthropic_compatible", "anthropic_compatible.base_url"],
+  ["anthropic_compatible.base_url", "anthropic_compatible.base_url"],
+  ["anthropic_compatible.path", "anthropic_compatible.path"],
+  ["anthropic_compatible.path_prefix", "anthropic_compatible.path_prefix"],
+  ["anthropic_compatible.auth_mode", "anthropic_compatible.auth_mode"],
+  ["anthropic_compatible.auth_header", "anthropic_compatible.auth_header"],
+  ["anthropic_compatible.auth_prefix", "anthropic_compatible.auth_prefix"],
+  ["anthropic_compatible.headers", "anthropic_compatible.headers"],
+  ["anthropic_compatible.allow_private_endpoint", "anthropic_compatible.allow_private_endpoint"],
+  ["anthropic_compatible.skip_tls_verify", "anthropic_compatible.skip_tls_verify"],
+])
+
+function getProviderServerErrorField(
+  path: string
+): FieldPath<InferenceProviderWriteDiscriminatorWritable> | undefined {
+  const field = path.startsWith("provider.") ? path.slice("provider.".length) : path
+  const mapped = providerServerErrorFields.get(field)
+  if (mapped) {
+    return mapped
+  }
+  if (/^models\.\d+(\.|$)/.test(field)) {
+    return field as FieldPath<InferenceProviderWriteDiscriminatorWritable>
+  }
+  if (/^(openai_compatible|anthropic_compatible)\.headers\.\d+(\.(name|value))?$/.test(field)) {
+    return field as FieldPath<InferenceProviderWriteDiscriminatorWritable>
+  }
+  if (field === "models") {
+    return field
+  }
+  return undefined
+}
 
 const providerFormSchema = z
   .discriminatedUnion(
@@ -234,6 +452,13 @@ const providerFormSchema = z
         kind: z.literal("OpenAI", { error: "Select OpenAI as the provider kind" }),
         openai: z.object({ base_url: baseURLSchema }),
         credentials: apiKeyCredentialsSchema,
+      }),
+      z.object({
+        ...providerFields,
+        catalog_provider: z.literal("openai", {
+          error: "Select OpenAI Codex from the provider list",
+        }),
+        kind: z.literal("OpenAICodex", { error: "Select OpenAI Codex as the provider kind" }),
       }),
       z.object({
         ...providerFields,
@@ -249,6 +474,15 @@ const providerFormSchema = z
       }),
       z.object({
         ...providerFields,
+        catalog_provider: z.literal("github-copilot", {
+          error: "Select GitHub Copilot from the provider list",
+        }),
+        kind: z.literal("GitHubCopilot", {
+          error: "Select GitHub Copilot as the provider kind",
+        }),
+      }),
+      z.object({
+        ...providerFields,
         kind: z.literal("VertexAI", { error: "Select Vertex AI as the provider kind" }),
         vertex_ai: z.object({
           project: z
@@ -261,10 +495,7 @@ const providerFormSchema = z
             .max(64, { error: "Region must be at most 64 characters" }),
         }),
         credentials: z.object({
-          service_account_json: z
-            .string({ error: "Service account JSON must be text" })
-            .max(49152, { error: "Service account JSON must be at most 48 KB" })
-            .optional(),
+          service_account_json: serviceAccountJSONSchema,
         }),
       }),
       z.object({
@@ -346,7 +577,7 @@ const providerFormSchema = z
         kind: z.literal("OpenAICompatible", {
           error: "Select OpenAI-compatible as the provider kind",
         }),
-        openai_compatible: zCompatibleProviderConfig,
+        openai_compatible: compatibleProviderConfigSchema,
         credentials: apiKeyCredentialsSchema,
       }),
       z.object({
@@ -354,7 +585,7 @@ const providerFormSchema = z
         kind: z.literal("AnthropicCompatible", {
           error: "Select Anthropic-compatible as the provider kind",
         }),
-        anthropic_compatible: zCompatibleProviderConfig,
+        anthropic_compatible: compatibleProviderConfigSchema,
         credentials: apiKeyCredentialsSchema,
       }),
     ],
@@ -455,10 +686,11 @@ export function ProviderSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const defaults = provider
-    ? zCreateInferenceProviderRequestWritable.parse({
-        ...provider,
-        credentials: {},
-      })
+    ? zInferenceProviderWriteDiscriminatorWritable.parse(
+        provider.kind === "OpenAICodex" || provider.kind === "GitHubCopilot"
+          ? provider
+          : { ...provider, credentials: {} }
+      )
     : ({
         display_name: "",
         catalog_provider: "openai",
@@ -466,11 +698,14 @@ export function ProviderSheet({
         openai: {},
         models: [],
         credentials: {},
-      } satisfies CreateInferenceProviderRequestWritable)
+      } satisfies InferenceProviderWriteDiscriminatorWritable)
   const formSchema = React.useMemo(
     () =>
       providerFormSchema.superRefine((values, ctx) => {
         const isCreate = provider === undefined
+        if (values.kind === "OpenAICodex" || values.kind === "GitHubCopilot") {
+          return
+        }
         if (values.kind === "OpenAI" || values.kind === "Anthropic" || values.kind === "Gemini") {
           if (isCreate && !values.credentials.api_key?.trim()) {
             ctx.addIssue({
@@ -491,26 +726,6 @@ export function ProviderSheet({
                 message: "Service account JSON is required when creating Vertex AI",
               })
             }
-            return
-          }
-          let json: unknown
-          try {
-            json = JSON.parse(document)
-          } catch {
-            ctx.addIssue({
-              code: "custom",
-              path: ["credentials", "service_account_json"],
-              message: "Service account JSON must be valid JSON",
-            })
-            return
-          }
-          if (!serviceAccountDocumentSchema.safeParse(json).success) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["credentials", "service_account_json"],
-              message:
-                "Service account JSON must include type, project_id, private_key, client_email, and token_uri",
-            })
           }
           return
         }
@@ -610,12 +825,14 @@ export function ProviderSheet({
       }),
     [provider]
   )
-  const form = useForm<CreateInferenceProviderRequestWritable>({
+  const form = useForm<InferenceProviderWriteDiscriminatorWritable>({
     defaultValues: defaults,
     resolver: zodResolver(formSchema),
+    criteriaMode: "all",
   })
   const models = useFieldArray({ control: form.control, name: "models", keyName: "key" })
   const kind = useWatch({ control: form.control, name: "kind", defaultValue: defaults.kind })
+  const isSubscription = kind === "OpenAICodex" || kind === "GitHubCopilot"
   const compatibleField =
     kind === "AnthropicCompatible" ? "anthropic_compatible" : "openai_compatible"
   const isCompatibleKind = kind === "OpenAICompatible" || kind === "AnthropicCompatible"
@@ -648,8 +865,11 @@ export function ProviderSheet({
   const [editingModel, setEditingModel] = React.useState<number>()
   const [submitError, setSubmitError] = React.useState("")
   const [submitErrors, setSubmitErrors] = React.useState<string[]>([])
+  const [subscriptionOAuth, setSubscriptionOAuth] = React.useState<SubscriptionOAuthState>({
+    status: "idle",
+  })
   const [impact, setImpact] = React.useState<{
-    values: CreateInferenceProviderRequestWritable
+    values: InferenceProviderWriteDiscriminatorWritable
     pools: string[]
     sandboxes: string[]
   }>()
@@ -679,12 +899,19 @@ export function ProviderSheet({
   }, [open])
 
   React.useEffect(() => {
-    if (!open || !catalogProvider) {
+    if (!open || !catalogProvider || (isSubscription && !provider)) {
       return
     }
 
     let ignore = false
-    void suggestInferenceModelsAction(catalogProvider, kind).then((result) => {
+    let request = suggestInferenceModelsAction(catalogProvider, kind)
+    if (isSubscription) {
+      if (!provider) {
+        return
+      }
+      request = refreshInferenceProviderModelsAction(provider.id)
+    }
+    void request.then((result) => {
       if (ignore) {
         return
       }
@@ -699,15 +926,70 @@ export function ProviderSheet({
     return () => {
       ignore = true
     }
-  }, [catalogProvider, kind, open])
+  }, [catalogProvider, isSubscription, kind, open, provider])
+
+  React.useEffect(() => {
+    if (!open || subscriptionOAuth.status !== "challenge") {
+      return
+    }
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+    const poll = (interval: number) => {
+      timer = setTimeout(() => {
+        void pollInferenceProviderOAuthAction().then((result) => {
+          if (cancelled) {
+            return
+          }
+          if (result.status === "pending") {
+            poll(result.interval)
+            return
+          }
+          if (result.status === "error") {
+            setSubscriptionOAuth(result)
+            return
+          }
+          setSubscriptionOAuth(result)
+          setSubmitError("")
+          setSubmitErrors([])
+          setSuggestions(result.connection.models)
+          models.replace(result.connection.models)
+          setModelCatalogState("idle")
+        })
+      }, interval * 1000)
+    }
+    poll(subscriptionOAuth.interval)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [models, open, subscriptionOAuth])
 
   const selectedCatalogEntry = catalog.find(
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
   )
 
-  function save(values: CreateInferenceProviderRequestWritable) {
+  function connectSubscription() {
+    if (kind !== "OpenAICodex" && kind !== "GitHubCopilot") {
+      return
+    }
+    setSubscriptionOAuth({ status: "starting" })
+    setSubmitError("")
+    startTransition(async () => {
+      const result = await startInferenceProviderOAuthAction(kind)
+      setSubscriptionOAuth(result)
+      if (result.status !== "challenge") {
+        return
+      }
+      window.open(result.verificationUri, "_blank", "noopener,noreferrer")
+    })
+  }
+
+  function save(values: InferenceProviderWriteDiscriminatorWritable) {
     setSubmitError("")
     setSubmitErrors([])
+    form.clearErrors()
     startTransition(async () => {
       const result = provider
         ? await saveInferenceProviderAction({
@@ -717,12 +999,38 @@ export function ProviderSheet({
               resource_version: provider.resource_version,
             },
           })
-        : await saveInferenceProviderAction({ body: values })
+        : await saveInferenceProviderAction({
+            body: {
+              provider: values,
+              oauth_ticket:
+                subscriptionOAuth.status === "connected"
+                  ? subscriptionOAuth.connection.ticket
+                  : undefined,
+            },
+          })
       if (result.error) {
-        setSubmitError(result.error.message)
-        setSubmitErrors(
-          result.error.errors?.map((error) => `${error.field}: ${error.message}`) ?? []
-        )
+        const details: string[] = []
+        let shouldFocus = true
+        for (const error of result.error.errors ?? []) {
+          const errorField = error.field.startsWith("provider.")
+            ? error.field.slice("provider.".length)
+            : error.field
+          if (errorField === "oauth_ticket") {
+            setSubscriptionOAuth({ status: "error", message: error.message })
+            continue
+          }
+          const field = getProviderServerErrorField(error.field)
+          if (field) {
+            form.setError(field, { type: "server", message: error.message }, { shouldFocus })
+            shouldFocus = false
+            continue
+          }
+          details.push(error.message)
+        }
+        if (!result.error.errors?.length || details.length > 0) {
+          setSubmitError(result.error.message)
+          setSubmitErrors(details)
+        }
         return
       }
       toast.success(provider ? "Inference provider updated" : "Inference provider created")
@@ -731,8 +1039,12 @@ export function ProviderSheet({
     })
   }
 
-  function handleSubmit(values: CreateInferenceProviderRequestWritable) {
+  function handleSubmit(values: InferenceProviderWriteDiscriminatorWritable) {
     if (!provider) {
+      if (isSubscription && subscriptionOAuth.status !== "connected") {
+        setSubmitError("Connect the subscription before adding this provider")
+        return
+      }
       save(values)
       return
     }
@@ -760,14 +1072,15 @@ export function ProviderSheet({
         setSubmitError(result.error.message)
         return
       }
-      if (!result.usage || result.usage.pools.length === 0) {
+      const pools = result.usage?.pools ?? []
+      if (pools.length === 0) {
         save(values)
         return
       }
       setImpact({
         values,
-        pools: result.usage.pools,
-        sandboxes: result.usage.sandboxes,
+        pools,
+        sandboxes: result.usage?.sandboxes ?? [],
       })
     })
   }
@@ -796,9 +1109,10 @@ export function ProviderSheet({
         <form
           id="inference-provider-form"
           className="flex flex-1 flex-col gap-5 px-4 pb-2"
-          onSubmit={form.handleSubmit(handleSubmit, () =>
-            setSubmitError("Provider configuration is invalid")
-          )}
+          onSubmit={form.handleSubmit(handleSubmit, () => {
+            setSubmitError("")
+            setSubmitErrors([])
+          })}
         >
           <FieldGroup>
             <FormSection icon={Tag} title="Identity">
@@ -810,6 +1124,7 @@ export function ProviderSheet({
                   id="provider-display-name"
                   placeholder="Production OpenAI"
                   autoComplete="off"
+                  aria-invalid={Boolean(form.formState.errors.display_name)}
                   {...form.register("display_name")}
                 />
                 <FieldError errors={[form.formState.errors.display_name]} />
@@ -827,6 +1142,9 @@ export function ProviderSheet({
                           variant="outline"
                           role="combobox"
                           aria-expanded={providerPickerOpen}
+                          aria-invalid={Boolean(
+                            form.formState.errors.catalog_provider || form.formState.errors.kind
+                          )}
                           disabled={Boolean(provider) || providerCatalogState === "loading"}
                           className="w-full justify-between font-normal"
                         >
@@ -847,7 +1165,7 @@ export function ProviderSheet({
                         className="w-(--radix-popover-trigger-width) p-0"
                       >
                         <Command>
-                          <CommandInput placeholder="Search 156 providers…" />
+                          <CommandInput placeholder="Search providers…" />
                           <CommandList>
                             <CommandEmpty>No provider found.</CommandEmpty>
                             <CommandGroup>
@@ -857,9 +1175,13 @@ export function ProviderSheet({
                                   value={`${entry.name} ${entry.provider_id} ${providerKindLabels[entry.provider_kind]}`}
                                   onSelect={() => {
                                     setModelCatalogState("loading")
+                                    setSubscriptionOAuth({ status: "idle" })
+                                    const displayName = form.getFieldState("display_name").isDirty
+                                      ? form.getValues("display_name")
+                                      : entry.name
                                     const common = {
                                       catalog_provider: entry.provider_id,
-                                      display_name: entry.name,
+                                      display_name: displayName,
                                       models: [],
                                       credentials: {},
                                     }
@@ -869,6 +1191,15 @@ export function ProviderSheet({
                                           ...common,
                                           kind: "OpenAI",
                                           openai: { base_url: entry.base_url },
+                                        })
+                                        break
+                                      case "OpenAICodex":
+                                        setModelCatalogState("idle")
+                                        form.reset({
+                                          catalog_provider: "openai",
+                                          display_name: displayName,
+                                          models: [],
+                                          kind: "OpenAICodex",
                                         })
                                         break
                                       case "Anthropic":
@@ -883,6 +1214,15 @@ export function ProviderSheet({
                                           ...common,
                                           kind: "Gemini",
                                           gemini: { base_url: entry.base_url },
+                                        })
+                                        break
+                                      case "GitHubCopilot":
+                                        setModelCatalogState("idle")
+                                        form.reset({
+                                          catalog_provider: "github-copilot",
+                                          display_name: displayName,
+                                          models: [],
+                                          kind: "GitHubCopilot",
                                         })
                                         break
                                       case "VertexAI":
@@ -983,7 +1323,11 @@ export function ProviderSheet({
                 <>
                   <Field>
                     <FieldLabel required>Project</FieldLabel>
-                    <Input autoComplete="off" {...form.register("vertex_ai.project")} />
+                    <Input
+                      autoComplete="off"
+                      aria-invalid={form.getFieldState("vertex_ai.project").invalid}
+                      {...form.register("vertex_ai.project")}
+                    />
                     <FieldError errors={[form.getFieldState("vertex_ai.project").error]} />
                   </Field>
                   <Field>
@@ -991,6 +1335,7 @@ export function ProviderSheet({
                     <Input
                       placeholder="us-central1"
                       autoComplete="off"
+                      aria-invalid={form.getFieldState("vertex_ai.region").invalid}
                       {...form.register("vertex_ai.region")}
                     />
                     <FieldError errors={[form.getFieldState("vertex_ai.region").error]} />
@@ -1004,6 +1349,7 @@ export function ProviderSheet({
                     <Input
                       placeholder="us-east-1"
                       autoComplete="off"
+                      aria-invalid={form.getFieldState("bedrock.region").invalid}
                       {...form.register("bedrock.region")}
                     />
                     <FieldError errors={[form.getFieldState("bedrock.region").error]} />
@@ -1014,7 +1360,7 @@ export function ProviderSheet({
                       control={form.control}
                       name="bedrock.auth_mode"
                       defaultValue="AccessKey"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <Select
                           value={field.value}
                           onValueChange={(value) => {
@@ -1029,7 +1375,7 @@ export function ProviderSheet({
                             )
                           }}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1051,7 +1397,7 @@ export function ProviderSheet({
                       control={form.control}
                       name="azure.resource_type"
                       defaultValue="OpenAI"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <Select
                           value={field.value}
                           onValueChange={(value) => {
@@ -1064,7 +1410,7 @@ export function ProviderSheet({
                             }
                           }}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1078,13 +1424,21 @@ export function ProviderSheet({
                   </Field>
                   <Field>
                     <FieldLabel required>Resource name</FieldLabel>
-                    <Input autoComplete="off" {...form.register("azure.resource_name")} />
+                    <Input
+                      autoComplete="off"
+                      aria-invalid={form.getFieldState("azure.resource_name").invalid}
+                      {...form.register("azure.resource_name")}
+                    />
                     <FieldError errors={[form.getFieldState("azure.resource_name").error]} />
                   </Field>
                   {azureResourceType === "Foundry" && (
                     <Field>
                       <FieldLabel required>Foundry project</FieldLabel>
-                      <Input autoComplete="off" {...form.register("azure.project")} />
+                      <Input
+                        autoComplete="off"
+                        aria-invalid={form.getFieldState("azure.project").invalid}
+                        {...form.register("azure.project")}
+                      />
                       <FieldError errors={[form.getFieldState("azure.project").error]} />
                     </Field>
                   )}
@@ -1093,6 +1447,7 @@ export function ProviderSheet({
                     <Input
                       placeholder="2025-04-01-preview"
                       autoComplete="off"
+                      aria-invalid={form.getFieldState("azure.api_version").invalid}
                       {...form.register("azure.api_version")}
                     />
                     <FieldError errors={[form.getFieldState("azure.api_version").error]} />
@@ -1103,7 +1458,7 @@ export function ProviderSheet({
                       control={form.control}
                       name="azure.auth_mode"
                       defaultValue="APIKey"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <Select
                           value={field.value}
                           onValueChange={(value) => {
@@ -1118,7 +1473,7 @@ export function ProviderSheet({
                             )
                           }}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1143,6 +1498,7 @@ export function ProviderSheet({
                       }
                       autoComplete="off"
                       spellCheck={false}
+                      aria-invalid={form.getFieldState(`${compatibleField}.base_url`).invalid}
                       {...form.register(`${compatibleField}.base_url`)}
                     />
                     <FieldError
@@ -1160,7 +1516,7 @@ export function ProviderSheet({
                       control={form.control}
                       name={`${compatibleField}.auth_mode`}
                       defaultValue="APIKey"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <Select
                           value={field.value}
                           onValueChange={(value) => {
@@ -1184,7 +1540,7 @@ export function ProviderSheet({
                             })
                           }}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1217,6 +1573,7 @@ export function ProviderSheet({
                             <Input
                               type="url"
                               spellCheck={false}
+                              aria-invalid={form.getFieldState("openai.base_url").invalid}
                               {...form.register("openai.base_url", {
                                 setValueAs: (value) => value || undefined,
                               })}
@@ -1230,6 +1587,7 @@ export function ProviderSheet({
                             <Input
                               type="url"
                               spellCheck={false}
+                              aria-invalid={form.getFieldState("anthropic.base_url").invalid}
                               {...form.register("anthropic.base_url", {
                                 setValueAs: (value) => value || undefined,
                               })}
@@ -1243,6 +1601,7 @@ export function ProviderSheet({
                             <Input
                               type="url"
                               spellCheck={false}
+                              aria-invalid={form.getFieldState("gemini.base_url").invalid}
                               {...form.register("gemini.base_url", {
                                 setValueAs: (value) => value || undefined,
                               })}
@@ -1257,6 +1616,7 @@ export function ProviderSheet({
                               <Input
                                 placeholder="/v1/chat/completions"
                                 spellCheck={false}
+                                aria-invalid={form.getFieldState(`${compatibleField}.path`).invalid}
                                 {...form.register(`${compatibleField}.path`, {
                                   setValueAs: (value) => value || undefined,
                                 })}
@@ -1270,6 +1630,9 @@ export function ProviderSheet({
                               <Input
                                 placeholder="/v1"
                                 spellCheck={false}
+                                aria-invalid={
+                                  form.getFieldState(`${compatibleField}.path_prefix`).invalid
+                                }
                                 {...form.register(`${compatibleField}.path_prefix`, {
                                   setValueAs: (value) => value || undefined,
                                 })}
@@ -1288,6 +1651,9 @@ export function ProviderSheet({
                                     defaultValue="authorization"
                                     placeholder="authorization"
                                     spellCheck={false}
+                                    aria-invalid={
+                                      form.getFieldState(`${compatibleField}.auth_header`).invalid
+                                    }
                                     {...form.register(`${compatibleField}.auth_header`)}
                                   />
                                   <FieldError
@@ -1301,6 +1667,9 @@ export function ProviderSheet({
                                   <Input
                                     placeholder="Bearer "
                                     spellCheck={false}
+                                    aria-invalid={
+                                      form.getFieldState(`${compatibleField}.auth_prefix`).invalid
+                                    }
                                     {...form.register(`${compatibleField}.auth_prefix`)}
                                   />
                                   <FieldError
@@ -1324,11 +1693,21 @@ export function ProviderSheet({
                                       aria-label={`Header ${index + 1} name`}
                                       placeholder="x-tenant"
                                       spellCheck={false}
+                                      aria-invalid={
+                                        form.getFieldState(
+                                          `${compatibleField}.headers.${index}.name`
+                                        ).invalid
+                                      }
                                       {...form.register(`${compatibleField}.headers.${index}.name`)}
                                     />
                                     <Input
                                       aria-label={`Header ${index + 1} value`}
                                       placeholder="public-value"
+                                      aria-invalid={
+                                        form.getFieldState(
+                                          `${compatibleField}.headers.${index}.value`
+                                        ).invalid
+                                      }
                                       {...form.register(
                                         `${compatibleField}.headers.${index}.value`
                                       )}
@@ -1382,6 +1761,7 @@ export function ProviderSheet({
                                   </div>
                                   <Switch
                                     checked={field.value ?? false}
+                                    aria-invalid={form.getFieldState(field.name).invalid}
                                     onCheckedChange={field.onChange}
                                   />
                                 </Field>
@@ -1407,6 +1787,7 @@ export function ProviderSheet({
                                   </div>
                                   <Switch
                                     checked={field.value ?? false}
+                                    aria-invalid={form.getFieldState(field.name).invalid}
                                     onCheckedChange={field.onChange}
                                   />
                                 </Field>
@@ -1428,9 +1809,89 @@ export function ProviderSheet({
 
             <FormSection
               icon={KeyRound}
-              title="Credentials"
-              description={provider ? "Leave blank to keep the current credentials." : undefined}
+              title={isSubscription ? "Subscription" : "Credentials"}
+              description={
+                isSubscription
+                  ? "Sign in to use your existing subscription."
+                  : provider
+                    ? "Leave blank to keep the current credentials."
+                    : undefined
+              }
             >
+              {isSubscription && provider ? (
+                <Alert>
+                  <Check />
+                  <AlertTitle>Connected</AlertTitle>
+                  <AlertDescription>Your subscription is ready to use.</AlertDescription>
+                </Alert>
+              ) : null}
+              {isSubscription && !provider ? (
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Connect {providerKindLabels[kind]}</p>
+                      <p className="text-muted-foreground text-sm">
+                        Sign in to your account in a new tab. This page will update when you are
+                        done.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={connectSubscription}
+                      disabled={
+                        pending ||
+                        subscriptionOAuth.status === "starting" ||
+                        subscriptionOAuth.status === "challenge" ||
+                        subscriptionOAuth.status === "connected"
+                      }
+                    >
+                      {subscriptionOAuth.status === "starting" ? <Spinner /> : <Cable />}
+                      Connect
+                    </Button>
+                  </div>
+                  {subscriptionOAuth.status === "challenge" ? (
+                    <div className="bg-muted/40 space-y-3 rounded-md border p-3">
+                      <p className="text-muted-foreground text-sm">
+                        Enter this one-time code on the sign-in page, then return here.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="bg-background flex-1 rounded border px-3 py-2 text-center text-lg font-semibold tracking-widest">
+                          {subscriptionOAuth.userCode}
+                        </code>
+                        <CopyButton content={subscriptionOAuth.userCode} />
+                      </div>
+                      <Button type="button" variant="outline" asChild>
+                        <a
+                          href={subscriptionOAuth.verificationUri}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Continue to {providerKindLabels[kind]} <ExternalLink />
+                        </a>
+                      </Button>
+                      <p className="text-muted-foreground flex items-center gap-2 text-xs">
+                        <Spinner className="size-3" /> Waiting for you to finish signing in…
+                      </p>
+                    </div>
+                  ) : null}
+                  {subscriptionOAuth.status === "connected" ? (
+                    <Alert>
+                      <Check />
+                      <AlertTitle>Connected</AlertTitle>
+                      <AlertDescription>
+                        Choose the models you want to make available, then add the provider.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+                  {subscriptionOAuth.status === "error" ? (
+                    <Alert variant="destructive">
+                      <CircleAlert />
+                      <AlertTitle>Connection failed</AlertTitle>
+                      <AlertDescription>{subscriptionOAuth.message}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                </div>
+              ) : null}
               {(kind === "OpenAI" ||
                 kind === "Anthropic" ||
                 kind === "Gemini" ||
@@ -1442,27 +1903,14 @@ export function ProviderSheet({
                     type="password"
                     spellCheck={false}
                     autoComplete="new-password"
+                    aria-invalid={form.getFieldState("credentials.api_key").invalid}
                     {...form.register("credentials.api_key")}
                   />
                   <FieldError errors={[form.getFieldState("credentials.api_key").error]} />
                 </Field>
               )}
               {kind === "VertexAI" && (
-                <Field>
-                  <FieldLabel required={!provider}>Service account JSON</FieldLabel>
-                  <ServiceAccountJsonField
-                    onChange={(value) =>
-                      form.setValue("credentials.service_account_json", value, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }
-                    register={form.register("credentials.service_account_json")}
-                  />
-                  <FieldError
-                    errors={[form.getFieldState("credentials.service_account_json").error]}
-                  />
-                </Field>
+                <ServiceAccountJsonField control={form.control} required={!provider} />
               )}
               {kind === "Bedrock" && bedrockAuthMode === "AccessKey" && (
                 <>
@@ -1472,6 +1920,7 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
+                      aria-invalid={form.getFieldState("credentials.access_key").invalid}
                       {...form.register("credentials.access_key")}
                     />
                     <FieldError errors={[form.getFieldState("credentials.access_key").error]} />
@@ -1482,6 +1931,7 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
+                      aria-invalid={form.getFieldState("credentials.secret_key").invalid}
                       {...form.register("credentials.secret_key")}
                     />
                     <FieldError errors={[form.getFieldState("credentials.secret_key").error]} />
@@ -1492,6 +1942,7 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
+                      aria-invalid={form.getFieldState("credentials.session_token").invalid}
                       {...form.register("credentials.session_token")}
                     />
                     <FieldError errors={[form.getFieldState("credentials.session_token").error]} />
@@ -1505,6 +1956,7 @@ export function ProviderSheet({
                     type="password"
                     spellCheck={false}
                     autoComplete="new-password"
+                    aria-invalid={form.getFieldState("credentials.bearer_token").invalid}
                     {...form.register("credentials.bearer_token")}
                   />
                   <FieldError errors={[form.getFieldState("credentials.bearer_token").error]} />
@@ -1517,6 +1969,7 @@ export function ProviderSheet({
                     <Input
                       autoComplete="off"
                       spellCheck={false}
+                      aria-invalid={form.getFieldState("credentials.client_id").invalid}
                       {...form.register("credentials.client_id")}
                     />
                     <FieldError errors={[form.getFieldState("credentials.client_id").error]} />
@@ -1526,6 +1979,7 @@ export function ProviderSheet({
                     <Input
                       autoComplete="off"
                       spellCheck={false}
+                      aria-invalid={form.getFieldState("credentials.tenant_id").invalid}
                       {...form.register("credentials.tenant_id")}
                     />
                     <FieldError errors={[form.getFieldState("credentials.tenant_id").error]} />
@@ -1536,6 +1990,7 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
+                      aria-invalid={form.getFieldState("credentials.client_secret").invalid}
                       {...form.register("credentials.client_secret")}
                     />
                     <FieldError errors={[form.getFieldState("credentials.client_secret").error]} />
@@ -1553,7 +2008,8 @@ export function ProviderSheet({
                   Models
                 </FieldLabel>
                 <MultiSelectDropdown
-                  allowCustomValues
+                  allowCustomValues={!isSubscription}
+                  disabled={isSubscription && !provider && subscriptionOAuth.status !== "connected"}
                   id="provider-models"
                   invalid={Boolean(form.formState.errors.models)}
                   options={[
@@ -1571,8 +2027,14 @@ export function ProviderSheet({
                     ).values(),
                   ]}
                   placeholder="Select models"
-                  searchPlaceholder="Search or enter a model ID…"
-                  emptyMessage="No catalog models found. Enter a model ID."
+                  searchPlaceholder={
+                    isSubscription ? "Search available models…" : "Search or enter a model ID…"
+                  }
+                  emptyMessage={
+                    isSubscription
+                      ? "Connect your subscription to see available models."
+                      : "No catalog models found. Enter a model ID."
+                  }
                   value={models.fields.map((model) => model.id)}
                   onValueChangeAction={(modelIDs) => {
                     const current = form.getValues("models")
@@ -1604,7 +2066,11 @@ export function ProviderSheet({
                 <Alert variant="warning">
                   <TriangleAlert />
                   <AlertTitle>Model catalog unavailable</AlertTitle>
-                  <AlertDescription>You can still enter model IDs manually.</AlertDescription>
+                  <AlertDescription>
+                    {isSubscription
+                      ? "Reconnect or reopen the form to retry."
+                      : "You can still enter model IDs manually."}
+                  </AlertDescription>
                 </Alert>
               )}
               <div className="space-y-1">
@@ -1629,15 +2095,17 @@ export function ProviderSheet({
                         ]}
                       />
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Edit ${model.display_name} metadata`}
-                      onClick={() => setEditingModel(index)}
-                    >
-                      <Pencil />
-                    </Button>
+                    {!isSubscription ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Edit ${model.display_name} metadata`}
+                        onClick={() => setEditingModel(index)}
+                      >
+                        <Pencil />
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="destructive"
@@ -1678,7 +2146,13 @@ export function ProviderSheet({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending}>
+              <Button
+                type="submit"
+                disabled={
+                  pending ||
+                  (!provider && isSubscription && subscriptionOAuth.status !== "connected")
+                }
+              >
                 {pending ? <Spinner /> : null}
                 {provider ? "Save changes" : "Add provider"}
               </Button>
@@ -1764,38 +2238,54 @@ function FormSection({
 }
 
 /**
- * ServiceAccountJsonField pairs the JSON textarea with a hidden file input so
- * operators can import the document instead of pasting it.
+ * ServiceAccountJsonField isolates the controlled JSON input's value and error
+ * subscriptions while also supporting file import.
  */
 function ServiceAccountJsonField({
-  register,
-  onChange,
+  control,
+  required,
 }: {
-  onChange: (value: string) => void
-  register: UseFormRegisterReturn
+  control: Control<InferenceProviderWriteDiscriminatorWritable>
+  required: boolean
 }) {
   const fileRef = React.useRef<HTMLInputElement>(null)
+  const { field, fieldState } = useController({
+    control,
+    name: "credentials.service_account_json",
+  })
 
   return (
-    <div className="space-y-2">
-      <Textarea className="min-h-36 font-mono text-xs" spellCheck={false} {...register} />
-      <input
-        ref={fileRef}
-        type="file"
-        accept="application/json,.json"
-        className="sr-only"
-        aria-label="Import service account JSON"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          if (!file) return
-          void file.text().then(onChange)
-        }}
-      />
-      <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-        <Upload />
-        Import JSON file
-      </Button>
-    </div>
+    <Field data-invalid={fieldState.invalid}>
+      <FieldLabel required={required}>Service account JSON</FieldLabel>
+      <div className="space-y-2">
+        <Textarea
+          {...field}
+          value={field.value ?? ""}
+          className="min-h-36 font-mono text-xs"
+          spellCheck={false}
+          aria-invalid={fieldState.invalid}
+        />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          aria-label="Import service account JSON"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (!file) {
+              return
+            }
+            void file.text().then(field.onChange)
+          }}
+        />
+        <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+          <Upload />
+          Import JSON file
+        </Button>
+      </div>
+      <FieldError errors={[fieldState.error]} />
+    </Field>
   )
 }
 
@@ -1808,7 +2298,7 @@ function ModelMetadataDialog({
   editingModel,
   onCloseAction,
 }: {
-  form: ReturnType<typeof useForm<CreateInferenceProviderRequestWritable>>
+  form: ReturnType<typeof useForm<InferenceProviderWriteDiscriminatorWritable>>
   editingModel?: number
   onCloseAction: () => void
 }) {
@@ -1830,7 +2320,10 @@ function ModelMetadataDialog({
           <div className="space-y-4">
             <Field>
               <FieldLabel required>Display name</FieldLabel>
-              <Input {...form.register(`models.${editingModel}.display_name`)} />
+              <Input
+                aria-invalid={form.getFieldState(`models.${editingModel}.display_name`).invalid}
+                {...form.register(`models.${editingModel}.display_name`)}
+              />
               <FieldError
                 errors={[form.getFieldState(`models.${editingModel}.display_name`).error]}
               />
@@ -1841,6 +2334,7 @@ function ModelMetadataDialog({
                 <Input
                   type="number"
                   min={1}
+                  aria-invalid={form.getFieldState(`models.${editingModel}.limits.context`).invalid}
                   {...form.register(`models.${editingModel}.limits.context`, {
                     valueAsNumber: true,
                   })}
@@ -1854,10 +2348,11 @@ function ModelMetadataDialog({
                 <Controller
                   control={form.control}
                   name={`models.${editingModel}.limits.input`}
-                  render={({ field }) => (
+                  render={({ field, fieldState }) => (
                     <Input
                       type="number"
-                      min={0}
+                      min={1}
+                      aria-invalid={fieldState.invalid}
                       value={field.value ?? ""}
                       onBlur={field.onBlur}
                       onChange={(event) =>
@@ -1877,6 +2372,7 @@ function ModelMetadataDialog({
                 <Input
                   type="number"
                   min={1}
+                  aria-invalid={form.getFieldState(`models.${editingModel}.limits.output`).invalid}
                   {...form.register(`models.${editingModel}.limits.output`, {
                     valueAsNumber: true,
                   })}
@@ -1894,10 +2390,11 @@ function ModelMetadataDialog({
                     key={capability}
                     control={form.control}
                     name={`models.${editingModel}.capabilities.${capability}`}
-                    render={({ field }) => (
+                    render={({ field, fieldState }) => (
                       <label className="hover:bg-muted/50 has-data-checked:border-primary/40 has-data-checked:bg-primary/5 flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm capitalize transition-colors">
                         <Checkbox
                           checked={field.value}
+                          aria-invalid={fieldState.invalid}
                           onCheckedChange={(checked) => field.onChange(checked === true)}
                         />
                         {capability.replace("_", " ")}
@@ -1918,7 +2415,7 @@ function ModelMetadataDialog({
                 key={direction}
                 control={form.control}
                 name={`models.${editingModel}.modalities.${direction}`}
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <Field>
                     <FieldLabel className="capitalize">{direction} modalities</FieldLabel>
                     <div className="grid grid-cols-3 gap-2">
@@ -1929,6 +2426,7 @@ function ModelMetadataDialog({
                         >
                           <Checkbox
                             checked={field.value.includes(modality)}
+                            aria-invalid={fieldState.invalid}
                             onCheckedChange={(checked) =>
                               field.onChange(
                                 checked === true

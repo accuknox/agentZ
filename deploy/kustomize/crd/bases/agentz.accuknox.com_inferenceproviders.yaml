@@ -220,8 +220,10 @@ spec:
                 description: Kind selects the immutable provider configuration arm.
                 enum:
                 - OpenAI
+                - OpenAICodex
                 - Anthropic
                 - Gemini
+                - GitHubCopilot
                 - OpenAICompatible
                 - AnthropicCompatible
                 - Bedrock
@@ -235,6 +237,13 @@ spec:
                     InferenceModel describes one immutable upstream model identifier and its
                     saved OpenCode metadata.
                   properties:
+                    api:
+                      description: API records the subscription provider API selected during discovery.
+                      enum:
+                      - ChatCompletions
+                      - Responses
+                      - Messages
+                      type: string
                     capabilities:
                       description: Capabilities controls OpenCode model behavior.
                       properties:
@@ -483,6 +492,8 @@ spec:
               rule: 'self.kind == ''VertexAI'' ? has(self.vertexAI) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.azure) : true'
             - message: Azure kind requires only azure configuration
               rule: 'self.kind == ''Azure'' ? has(self.azure) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) : true'
+            - message: subscription provider kinds do not accept endpoint configuration
+              rule: 'self.kind == ''OpenAICodex'' || self.kind == ''GitHubCopilot'' ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
           status:
             description: Status describes the observed provider runtime.
             properties:

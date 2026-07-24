@@ -9,6 +9,7 @@ import {
   createAgentFile,
   createInferencePool,
   createInferenceProvider,
+  createInferenceProviderOAuthTicket,
   createMcpConnection,
   createSandbox,
   createSkill,
@@ -73,6 +74,7 @@ import {
   putSecret,
   readAgentFile,
   readAgentFileRaw,
+  refreshInferenceProviderModels,
   renameAgentEntry,
   statAgentFile,
   updateAgent,
@@ -98,6 +100,9 @@ import type {
   CreateInferencePoolResponse,
   CreateInferenceProviderData,
   CreateInferenceProviderError,
+  CreateInferenceProviderOAuthTicketData,
+  CreateInferenceProviderOAuthTicketError,
+  CreateInferenceProviderOAuthTicketResponse2,
   CreateInferenceProviderResponse,
   CreateMcpConnectionData,
   CreateMcpConnectionError,
@@ -288,6 +293,9 @@ import type {
   ReadAgentFileRawError,
   ReadAgentFileRawResponse,
   ReadAgentFileResponse,
+  RefreshInferenceProviderModelsData,
+  RefreshInferenceProviderModelsError,
+  RefreshInferenceProviderModelsResponse,
   RenameAgentEntryData,
   RenameAgentEntryError,
   RenameAgentEntryResponse,
@@ -1427,6 +1435,36 @@ export const createInferenceProviderMutation = (
 }
 
 /**
+ * Store subscription credentials and return a single-use provider ticket.
+ *
+ * Credential material is written directly to OpenBao and is never included in this or any later API response.
+ *
+ */
+export const createInferenceProviderOAuthTicketMutation = (
+  options?: Partial<Options<CreateInferenceProviderOAuthTicketData>>
+): UseMutationOptions<
+  CreateInferenceProviderOAuthTicketResponse2,
+  CreateInferenceProviderOAuthTicketError,
+  Options<CreateInferenceProviderOAuthTicketData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateInferenceProviderOAuthTicketResponse2,
+    CreateInferenceProviderOAuthTicketError,
+    Options<CreateInferenceProviderOAuthTicketData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createInferenceProviderOAuthTicket({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
  * Delete an unreferenced inference provider.
  */
 export const deleteInferenceProviderMutation = (
@@ -1529,6 +1567,34 @@ export const getInferenceProviderUsageOptions = (options: Options<GetInferencePr
       return data
     },
     queryKey: getInferenceProviderUsageQueryKey(options),
+  })
+
+export const refreshInferenceProviderModelsQueryKey = (
+  options: Options<RefreshInferenceProviderModelsData>
+) => createQueryKey("refreshInferenceProviderModels", options)
+
+/**
+ * Refresh non-secret model metadata for a subscription provider.
+ */
+export const refreshInferenceProviderModelsOptions = (
+  options: Options<RefreshInferenceProviderModelsData>
+) =>
+  queryOptions<
+    RefreshInferenceProviderModelsResponse,
+    RefreshInferenceProviderModelsError,
+    RefreshInferenceProviderModelsResponse,
+    ReturnType<typeof refreshInferenceProviderModelsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await refreshInferenceProviderModels({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: refreshInferenceProviderModelsQueryKey(options),
   })
 
 export const listInferenceProviderCatalogQueryKey = (

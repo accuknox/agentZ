@@ -18,6 +18,8 @@ const (
 	ParametersName = "inference-clusterip"
 	// SandboxLabel identifies the Sandbox that owns an inference route.
 	SandboxLabel = "agentz.accuknox.com/inference-sandbox"
+	// SandboxHeader carries controller-owned route identity to extAuth.
+	SandboxHeader = "x-agentz-inference-sandbox"
 )
 
 // Gateway returns the isolated namespace-local inference Gateway.
@@ -48,6 +50,8 @@ type SandboxTarget struct {
 	Path    string
 	Models  []string
 	Labels  map[string]string
+	ExtAuth bool
+	Retries int
 }
 
 // SandboxTargetRuntime contains the fail-closed route and authorization policy
@@ -122,6 +126,20 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 			}},
 		},
 	}
+	if target.ExtAuth {
+		route.Spec.Rules[0].Filters = append(
+			[]gwv1.HTTPRouteFilter{{
+				Type: gwv1.HTTPRouteFilterRequestHeaderModifier,
+				RequestHeaderModifier: &gwv1.HTTPHeaderFilter{
+					Set: []gwv1.HTTPHeader{{
+						Name:  gwv1.HTTPHeaderName(SandboxHeader),
+						Value: sandboxName,
+					}},
+				},
+			}},
+			route.Spec.Rules[0].Filters...,
+		)
+	}
 	quoted := make([]string, 0, len(target.Models))
 	for _, model := range target.Models {
 		quoted = append(quoted, fmt.Sprintf("%q", model))
@@ -149,6 +167,20 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 				},
 			},
 		},
+	}
+	if target.Retries > 0 {
+		backoff := gwv1.Duration("50ms")
+		condition := agentgatewayv1alpha1.CELExpression(
+			"response.code == 401 || response.code == 403 || " +
+				"response.code == 429 || response.code >= 500",
+		)
+		policy.Spec.Traffic.Retry = &agentgatewayv1alpha1.Retry{
+			HTTPRouteRetry: &gwv1.HTTPRouteRetry{
+				Attempts: &target.Retries,
+				Backoff:  &backoff,
+			},
+			Condition: &condition,
+		}
 	}
 	return SandboxTargetRuntime{Route: route, Policy: policy}
 }

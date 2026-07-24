@@ -225,6 +225,11 @@ func (in *InferenceModel) DeepCopyInto(out *InferenceModel) {
 	out.Capabilities = in.Capabilities
 	in.Modalities.DeepCopyInto(&out.Modalities)
 	in.Limits.DeepCopyInto(&out.Limits)
+	if in.API != nil {
+		in, out := &in.API, &out.API
+		*out = new(InferenceModelAPI)
+		**out = **in
+	}
 	if in.Catalog != nil {
 		in, out := &in.Catalog, &out.Catalog
 		*out = new(InferenceModelCatalog)

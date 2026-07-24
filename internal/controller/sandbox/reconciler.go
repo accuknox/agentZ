@@ -913,8 +913,9 @@ func (r *Reconciler) reconcileTraceBackend(ctx context.Context, namespace, name 
 		}
 		return nil
 	}
-	if reflect.DeepEqual(currentSpec, obj.Spec) &&
-		reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+	specEqual := reflect.DeepEqual(currentSpec, obj.Spec)
+	ownersEqual := reflect.DeepEqual(currentOwners, obj.OwnerReferences)
+	if specEqual && ownersEqual {
 		return nil
 	}
 	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {

@@ -913,13 +913,17 @@ export type SandboxInference = {
 
 export type InferenceProviderKind =
   | "OpenAI"
+  | "OpenAICodex"
   | "Anthropic"
   | "Gemini"
+  | "GitHubCopilot"
   | "OpenAICompatible"
   | "AnthropicCompatible"
   | "Bedrock"
   | "VertexAI"
   | "Azure"
+
+export type InferenceModelApi = "ChatCompletions" | "Responses" | "Messages"
 
 export type InferenceModelModality = "text" | "audio" | "image" | "video" | "pdf"
 
@@ -947,6 +951,7 @@ export type InferenceModel = {
   capabilities: InferenceModelCapabilities
   modalities: InferenceModelModalities
   limits: InferenceModelLimits
+  api?: InferenceModelApi
   catalog_provider?: string
 }
 
@@ -1019,6 +1024,24 @@ export type InferenceProviderAzureCredentials = {
   client_secret?: string
 }
 
+export type InferenceProviderOAuthCredentials = {
+  access_token: string
+  refresh_token?: string
+  id_token?: string
+  expires_at?: string
+}
+
+export type CreateInferenceProviderOAuthTicketRequest = {
+  kind: "OpenAICodex" | "GitHubCopilot"
+}
+
+export type CreateInferenceProviderOAuthTicketResponse = {
+  ticket: string
+  expires_at: string
+  models: Array<InferenceModelSuggestion>
+  provenance: InferenceModelSuggestionsProvenance
+}
+
 export type InferenceProviderReadFields = {
   catalog_provider: string
   display_name: string
@@ -1031,6 +1054,13 @@ export type OpenAiInferenceProviderWrite = {
   models: Array<InferenceModel>
   kind: "OpenAI"
   openai: OpenAiProviderConfig
+}
+
+export type OpenAiCodexInferenceProviderWrite = {
+  catalog_provider: "openai"
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "OpenAICodex"
 }
 
 export type AnthropicInferenceProviderWrite = {
@@ -1047,6 +1077,13 @@ export type GeminiInferenceProviderWrite = {
   models: Array<InferenceModel>
   kind: "Gemini"
   gemini: GeminiProviderConfig
+}
+
+export type GitHubCopilotInferenceProviderWrite = {
+  catalog_provider: "github-copilot"
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "GitHubCopilot"
 }
 
 export type VertexAiInferenceProviderWrite = {
@@ -1094,11 +1131,17 @@ export type InferenceProviderWriteDiscriminator =
       kind: "OpenAI"
     } & OpenAiInferenceProviderWrite)
   | ({
+      kind: "OpenAICodex"
+    } & OpenAiCodexInferenceProviderWrite)
+  | ({
       kind: "Anthropic"
     } & AnthropicInferenceProviderWrite)
   | ({
       kind: "Gemini"
     } & GeminiInferenceProviderWrite)
+  | ({
+      kind: "GitHubCopilot"
+    } & GitHubCopilotInferenceProviderWrite)
   | ({
       kind: "VertexAI"
     } & VertexAiInferenceProviderWrite)
@@ -1120,6 +1163,10 @@ export type OpenAiInferenceProviderRead = {
   openai: OpenAiProviderConfig
 }
 
+export type OpenAiCodexInferenceProviderRead = {
+  kind: "OpenAICodex"
+}
+
 export type AnthropicInferenceProviderRead = {
   kind: "Anthropic"
   anthropic: AnthropicProviderConfig
@@ -1128,6 +1175,10 @@ export type AnthropicInferenceProviderRead = {
 export type GeminiInferenceProviderRead = {
   kind: "Gemini"
   gemini: GeminiProviderConfig
+}
+
+export type GitHubCopilotInferenceProviderRead = {
+  kind: "GitHubCopilot"
 }
 
 export type VertexAiInferenceProviderRead = {
@@ -1160,11 +1211,17 @@ export type InferenceProviderReadDiscriminator =
       kind: "OpenAI"
     } & OpenAiInferenceProviderRead)
   | ({
+      kind: "OpenAICodex"
+    } & OpenAiCodexInferenceProviderRead)
+  | ({
       kind: "Anthropic"
     } & AnthropicInferenceProviderRead)
   | ({
       kind: "Gemini"
     } & GeminiInferenceProviderRead)
+  | ({
+      kind: "GitHubCopilot"
+    } & GitHubCopilotInferenceProviderRead)
   | ({
       kind: "VertexAI"
     } & VertexAiInferenceProviderRead)
@@ -1181,7 +1238,10 @@ export type InferenceProviderReadDiscriminator =
       kind: "AnthropicCompatible"
     } & AnthropicCompatibleInferenceProviderRead)
 
-export type CreateInferenceProviderRequest = InferenceProviderWriteDiscriminator
+export type CreateInferenceProviderRequest = {
+  provider: InferenceProviderWriteDiscriminator
+  oauth_ticket?: string
+}
 
 export type UpdateInferenceProviderRequest = {
   resource_version: string
@@ -1249,6 +1309,7 @@ export type InferenceProtocol = "OpenAI" | "Anthropic"
 export type InferencePoolState = "Accepted" | "Ready" | "PartiallyDegraded" | "Degraded"
 
 export type InferencePoolContract = {
+  api: InferenceModelApi
   capabilities: InferenceModelCapabilities
   modalities: InferenceModelModalities
   limits: InferenceModelLimits
@@ -1323,8 +1384,10 @@ export type InferenceModelSuggestion = InferenceModel & {
   catalog_provider: string
 }
 
+export type InferenceModelSuggestionsProvenance = "live" | "cache" | "snapshot"
+
 export type InferenceModelSuggestions = {
-  provenance: "live" | "cache" | "snapshot"
+  provenance: InferenceModelSuggestionsProvenance
   models: Array<InferenceModelSuggestion>
 }
 
@@ -1480,6 +1543,11 @@ export type JsonObjectWritable = {
   [key: string]: JsonValueWritable
 }
 
+export type CreateInferenceProviderOAuthTicketRequestWritable = {
+  kind: "OpenAICodex" | "GitHubCopilot"
+  credentials: InferenceProviderOAuthCredentials
+}
+
 export type OpenAiInferenceProviderWriteWritable = {
   catalog_provider: string
   display_name: string
@@ -1557,11 +1625,17 @@ export type InferenceProviderWriteDiscriminatorWritable =
       kind: "OpenAI"
     } & OpenAiInferenceProviderWriteWritable)
   | ({
+      kind: "OpenAICodex"
+    } & OpenAiCodexInferenceProviderWrite)
+  | ({
       kind: "Anthropic"
     } & AnthropicInferenceProviderWriteWritable)
   | ({
       kind: "Gemini"
     } & GeminiInferenceProviderWriteWritable)
+  | ({
+      kind: "GitHubCopilot"
+    } & GitHubCopilotInferenceProviderWrite)
   | ({
       kind: "VertexAI"
     } & VertexAiInferenceProviderWriteWritable)
@@ -1578,7 +1652,10 @@ export type InferenceProviderWriteDiscriminatorWritable =
       kind: "AnthropicCompatible"
     } & AnthropicCompatibleInferenceProviderWriteWritable)
 
-export type CreateInferenceProviderRequestWritable = InferenceProviderWriteDiscriminatorWritable
+export type CreateInferenceProviderRequestWritable = {
+  provider: InferenceProviderWriteDiscriminatorWritable
+  oauth_ticket?: string
+}
 
 export type UpdateInferenceProviderRequestWritable = {
   resource_version: string
@@ -3551,7 +3628,7 @@ export type ListInferenceProvidersData = {
      */
     page_token?: string
   }
-  url: "/api/inference-provider"
+  url: "/api/inference/provider"
 }
 
 export type ListInferenceProvidersErrors = {
@@ -3579,10 +3656,10 @@ export type ListInferenceProvidersResponse2 =
   ListInferenceProvidersResponses[keyof ListInferenceProvidersResponses]
 
 export type CreateInferenceProviderData = {
-  body: InferenceProviderWriteDiscriminatorWritable
+  body: CreateInferenceProviderRequestWritable
   path?: never
   query?: never
-  url: "/api/inference-provider"
+  url: "/api/inference/provider"
 }
 
 export type CreateInferenceProviderErrors = {
@@ -3614,6 +3691,41 @@ export type CreateInferenceProviderResponses = {
 export type CreateInferenceProviderResponse =
   CreateInferenceProviderResponses[keyof CreateInferenceProviderResponses]
 
+export type CreateInferenceProviderOAuthTicketData = {
+  body: CreateInferenceProviderOAuthTicketRequestWritable
+  path?: never
+  query?: never
+  url: "/api/inference/provider/oauth-ticket"
+}
+
+export type CreateInferenceProviderOAuthTicketErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateInferenceProviderOAuthTicketError =
+  CreateInferenceProviderOAuthTicketErrors[keyof CreateInferenceProviderOAuthTicketErrors]
+
+export type CreateInferenceProviderOAuthTicketResponses = {
+  /**
+   * Single-use provider ticket and non-secret model metadata.
+   */
+  201: CreateInferenceProviderOAuthTicketResponse
+}
+
+export type CreateInferenceProviderOAuthTicketResponse2 =
+  CreateInferenceProviderOAuthTicketResponses[keyof CreateInferenceProviderOAuthTicketResponses]
+
 export type DeleteInferenceProviderData = {
   body?: never
   path: {
@@ -3623,7 +3735,7 @@ export type DeleteInferenceProviderData = {
     providerName: InferenceProviderName
   }
   query?: never
-  url: "/api/inference-provider/{providerName}"
+  url: "/api/inference/provider/{providerName}"
 }
 
 export type DeleteInferenceProviderErrors = {
@@ -3665,7 +3777,7 @@ export type GetInferenceProviderData = {
     providerName: InferenceProviderName
   }
   query?: never
-  url: "/api/inference-provider/{providerName}"
+  url: "/api/inference/provider/{providerName}"
 }
 
 export type GetInferenceProviderErrors = {
@@ -3701,7 +3813,7 @@ export type UpdateInferenceProviderData = {
     providerName: InferenceProviderName
   }
   query?: never
-  url: "/api/inference-provider/{providerName}"
+  url: "/api/inference/provider/{providerName}"
 }
 
 export type UpdateInferenceProviderErrors = {
@@ -3742,7 +3854,7 @@ export type WatchInferenceProvidersData = {
   body?: WatchInferenceProvidersRequest
   path?: never
   query?: never
-  url: "/api/inference-provider/watch"
+  url: "/api/inference/provider/watch"
 }
 
 export type WatchInferenceProvidersErrors = {
@@ -3778,7 +3890,7 @@ export type GetInferenceProviderUsageData = {
     providerName: InferenceProviderName
   }
   query?: never
-  url: "/api/inference-provider/{providerName}/usage"
+  url: "/api/inference/provider/{providerName}/usage"
 }
 
 export type GetInferenceProviderUsageErrors = {
@@ -3806,13 +3918,54 @@ export type GetInferenceProviderUsageResponses = {
 export type GetInferenceProviderUsageResponse =
   GetInferenceProviderUsageResponses[keyof GetInferenceProviderUsageResponses]
 
+export type RefreshInferenceProviderModelsData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference provider ID.
+     */
+    providerName: InferenceProviderName
+  }
+  query?: never
+  url: "/api/inference/provider/{providerName}/models"
+}
+
+export type RefreshInferenceProviderModelsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type RefreshInferenceProviderModelsError =
+  RefreshInferenceProviderModelsErrors[keyof RefreshInferenceProviderModelsErrors]
+
+export type RefreshInferenceProviderModelsResponses = {
+  /**
+   * Current subscription model suggestions.
+   */
+  200: InferenceModelSuggestions
+}
+
+export type RefreshInferenceProviderModelsResponse =
+  RefreshInferenceProviderModelsResponses[keyof RefreshInferenceProviderModelsResponses]
+
 export type ListInferenceProviderCatalogData = {
   body?: never
   path?: never
   query?: {
     q?: string
   }
-  url: "/api/inference-provider/catalog"
+  url: "/api/inference/provider/catalog"
 }
 
 export type ListInferenceProviderCatalogErrors = {
@@ -3847,7 +4000,7 @@ export type ListInferenceModelSuggestionsData = {
   query: {
     provider_kind: InferenceProviderKind
   }
-  url: "/api/inference-provider/catalog/{catalogProvider}/models"
+  url: "/api/inference/provider/catalog/{catalogProvider}/models"
 }
 
 export type ListInferenceModelSuggestionsErrors = {
@@ -3887,7 +4040,7 @@ export type ListInferencePoolsData = {
      */
     page_token?: string
   }
-  url: "/api/inference-pool"
+  url: "/api/inference/pool"
 }
 
 export type ListInferencePoolsErrors = {
@@ -3917,7 +4070,7 @@ export type CreateInferencePoolData = {
   body: InferencePoolWrite
   path?: never
   query?: never
-  url: "/api/inference-pool"
+  url: "/api/inference/pool"
 }
 
 export type CreateInferencePoolErrors = {
@@ -3957,7 +4110,7 @@ export type DeleteInferencePoolData = {
     poolName: InferencePoolName
   }
   query?: never
-  url: "/api/inference-pool/{poolName}"
+  url: "/api/inference/pool/{poolName}"
 }
 
 export type DeleteInferencePoolErrors = {
@@ -3998,7 +4151,7 @@ export type GetInferencePoolData = {
     poolName: InferencePoolName
   }
   query?: never
-  url: "/api/inference-pool/{poolName}"
+  url: "/api/inference/pool/{poolName}"
 }
 
 export type GetInferencePoolErrors = {
@@ -4033,7 +4186,7 @@ export type UpdateInferencePoolData = {
     poolName: InferencePoolName
   }
   query?: never
-  url: "/api/inference-pool/{poolName}"
+  url: "/api/inference/pool/{poolName}"
 }
 
 export type UpdateInferencePoolErrors = {
@@ -4078,7 +4231,7 @@ export type GetInferencePoolUsageData = {
     poolName: InferencePoolName
   }
   query?: never
-  url: "/api/inference-pool/{poolName}/usage"
+  url: "/api/inference/pool/{poolName}/usage"
 }
 
 export type GetInferencePoolUsageErrors = {
@@ -4110,7 +4263,7 @@ export type WatchInferencePoolsData = {
   body?: WatchInferencePoolsRequest
   path?: never
   query?: never
-  url: "/api/inference-pool/watch"
+  url: "/api/inference/pool/watch"
 }
 
 export type WatchInferencePoolsErrors = {

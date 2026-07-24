@@ -108,6 +108,8 @@ type InferencePoolSpec struct {
 
 // InferencePoolContract is the conservative intersection exposed by a Pool.
 type InferencePoolContract struct {
+	// API is the request format accepted by every member.
+	API InferenceModelAPI `json:"api"`
 	// Capabilities contains features supported by every member.
 	Capabilities InferenceModelCapabilities `json:"capabilities"`
 	// Modalities contains media supported by every member.

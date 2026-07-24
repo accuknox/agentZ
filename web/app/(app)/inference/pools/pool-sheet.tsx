@@ -161,7 +161,7 @@ export function PoolSheet({
   const form = useForm<InferencePoolWrite>({
     defaultValues: defaults,
     mode: "onSubmit",
-    reValidateMode: "onBlur",
+    reValidateMode: "onChange",
     resolver: zodResolver(poolSchema),
   })
   const members = useFieldArray({ control: form.control, name: "members", keyName: "key" })
@@ -244,11 +244,20 @@ export function PoolSheet({
     const to = members.fields.findIndex((member) => member.key === event.over?.id)
     if (from < 0 || to < 0) return
     members.replace(arrayMove(form.getValues("members"), from, to))
+    membersChanged()
+  }
+
+  function membersChanged() {
+    setSubmitError("")
+    setSubmitDetails([])
+    if (!form.formState.isSubmitted) return
+    void form.trigger("members")
   }
 
   function save(input: InferencePoolWrite) {
     setSubmitError("")
     setSubmitDetails([])
+    form.clearErrors()
     startTransition(async () => {
       const result = pool
         ? await saveInferencePoolAction({
@@ -258,10 +267,34 @@ export function PoolSheet({
           })
         : await saveInferencePoolAction({ pool: input })
       if (result.error) {
-        setSubmitError(result.error.message)
-        setSubmitDetails(
-          result.error.errors?.map((error) => `${error.field}: ${error.message}`) ?? []
-        )
+        const details: string[] = []
+        let memberError = false
+        for (const error of result.error.errors ?? []) {
+          if (error.field === "display_name" || error.field === "automatic_failover") {
+            form.setError(error.field, { type: "server", message: error.message })
+            continue
+          }
+          const member = /^members\.(\d+)\.(provider|model)$/.exec(error.field)
+          if (!member) {
+            details.push(error.message)
+            continue
+          }
+          const index = Number(member[1])
+          const field = member[2]
+          if (index >= input.members.length || (field !== "provider" && field !== "model")) {
+            details.push(error.message)
+            continue
+          }
+          form.setError(`members.${index}.${field}`, {
+            type: "server",
+          })
+          memberError = true
+          details.push(error.message)
+        }
+        if (!result.error.errors?.length || details.length > 0) {
+          setSubmitError(memberError ? "Check the highlighted models" : "Pool could not be saved")
+          setSubmitDetails(details)
+        }
         return
       }
       toast.success(pool ? "Inference Pool updated" : "Inference Pool created")
@@ -355,7 +388,10 @@ export function PoolSheet({
                   variant="outline"
                   size="sm"
                   disabled={members.fields.length >= 8}
-                  onClick={() => members.append(blankMember)}
+                  onClick={() => {
+                    members.append(blankMember)
+                    membersChanged()
+                  }}
                 >
                   <Plus /> Add member
                 </Button>
@@ -379,7 +415,11 @@ export function PoolSheet({
                         form={form}
                         providers={providers}
                         removable={members.fields.length > 1}
-                        remove={() => members.remove(index)}
+                        remove={() => {
+                          members.remove(index)
+                          membersChanged()
+                        }}
+                        onMemberChange={membersChanged}
                       />
                     ))}
                   </div>
@@ -396,6 +436,16 @@ export function PoolSheet({
                   Basic prompts will work, but provider-specific features may not carry over when
                   this Pool switches models.
                 </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {submitError ? (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertTitle>{submitError}</AlertTitle>
+                {submitDetails.length ? (
+                  <AlertDescription>{submitDetails.join("\n")}</AlertDescription>
+                ) : null}
               </Alert>
             ) : null}
 
@@ -436,16 +486,6 @@ export function PoolSheet({
                 </p>
               )}
             </section>
-
-            {submitError ? (
-              <Alert variant="destructive">
-                <CircleAlert />
-                <AlertTitle>{submitError}</AlertTitle>
-                {submitDetails.length ? (
-                  <AlertDescription>{submitDetails.join("\n")}</AlertDescription>
-                ) : null}
-              </Alert>
-            ) : null}
           </div>
           <SheetFooter className="border-t">
             <div className="flex justify-end gap-2">
@@ -510,6 +550,7 @@ function SortableMember({
   providers,
   removable,
   remove,
+  onMemberChange,
 }: {
   id: string
   index: number
@@ -517,6 +558,7 @@ function SortableMember({
   providers: InferenceProvider[]
   removable: boolean
   remove: () => void
+  onMemberChange: () => void
 }) {
   const sortable = useSortable({ id })
   const member = useWatch({ control: form.control, name: `members.${index}` })
@@ -563,12 +605,17 @@ function SortableMember({
                   icon: <ProviderIcon provider={candidate.catalog_provider} className="size-4" />,
                 }))}
                 onBlur={field.onBlur}
+                invalid={fieldState.invalid}
                 onChange={(value) => {
-                  field.onChange(value)
+                  form.setValue(`members.${index}.provider`, value, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
                   form.setValue(`members.${index}.model`, "", {
                     shouldDirty: true,
-                    shouldValidate: true,
+                    shouldTouch: true,
                   })
+                  onMemberChange()
                 }}
               />
               <FieldError errors={[fieldState.error]} />
@@ -585,6 +632,7 @@ function SortableMember({
                 value={field.value}
                 placeholder={provider ? "Choose a model" : "Choose a provider first"}
                 disabled={!provider}
+                invalid={fieldState.invalid}
                 items={(provider?.models ?? []).map((model) => {
                   const supportsText =
                     model.modalities.input.includes("text") &&
@@ -597,7 +645,13 @@ function SortableMember({
                   }
                 })}
                 onBlur={field.onBlur}
-                onChange={field.onChange}
+                onChange={(value) => {
+                  form.setValue(`members.${index}.model`, value, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                  onMemberChange()
+                }}
               />
               <FieldError errors={[fieldState.error]} />
             </Field>
@@ -625,6 +679,7 @@ function MemberPicker({
   placeholder,
   items,
   disabled,
+  invalid,
   onBlur,
   onChange,
 }: {
@@ -638,6 +693,7 @@ function MemberPicker({
     icon?: React.ReactNode
   }>
   disabled?: boolean
+  invalid?: boolean
   onBlur?: () => void
   onChange: (value: string) => void
 }) {
@@ -657,6 +713,7 @@ function MemberPicker({
           type="button"
           variant="outline"
           role="combobox"
+          aria-invalid={invalid}
           disabled={disabled}
           className="min-w-0 justify-between font-normal"
         >

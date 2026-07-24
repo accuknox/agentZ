@@ -8,6 +8,7 @@ out
 build
 .vercel
 .ref
+AGENTS.md
 
 # Local sandbox and logs should not be sent to the builder.
 .env

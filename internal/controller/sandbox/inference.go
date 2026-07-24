@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -315,13 +316,13 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 							HTTP: ciliumapi.PortRulesHTTP{
 								{
 									Path: "^" + inference.SandboxProviderPath(
-										owners[i].Name,
+										regexp.QuoteMeta(owners[i].Name),
 										"[^/]+",
 									) + "/.*$",
 								},
 								{
 									Path: "^" + inference.SandboxPoolPath(
-										owners[i].Name,
+										regexp.QuoteMeta(owners[i].Name),
 										"[^/]+",
 									) + "/.*$",
 								},

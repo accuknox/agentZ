@@ -19,7 +19,7 @@ rules:
     resources: ["sandboxes"]
     verbs: ["create", "delete", "get", "list", "update", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["inferenceproviders"]
+    resources: ["inferencepools", "inferenceproviders"]
     verbs: ["create", "delete", "get", "list", "update", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections"]

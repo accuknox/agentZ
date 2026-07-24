@@ -1,4 +1,5 @@
-global:
+# Controller manager chart.
+manager:
   inference:
     externalSecrets:
       enabled: true
@@ -19,8 +20,6 @@ global:
       tenantNamespaceSelector:
         app.kubernetes.io/managed-by: agentz
 
-# Controller manager chart.
-manager:
   # Enable the AgentZ controller manager subchart.
   enabled: true
 
